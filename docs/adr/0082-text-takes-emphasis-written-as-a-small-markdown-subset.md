@@ -119,3 +119,23 @@ Inline, in the order a reader meets them:
   - `textPlacement` and `lines` become what Essence's built-in face reads.
 
   The subset, its storage, its escaping and what the text exports keep are not superseded.
+
+<!-- Decided by Claude on 2026-10-30 under the user's standing delegation of design decisions, after the user asked: "el texto con formato me gustaría que soporte markdown". -->
+
+- 2026-10-30: **texts that hold several lines take Markdown, not only inline emphasis.** This supersedes part of "Not in the subset".
+  - **Which texts:** notes, descriptions, tour captions' texts, reveals' sentences and speaker notes, written as CommonMark with GitHub's tables, strikethrough and task lists, plus this ADR's `==highlight==` and `++underline++`.
+  - **What they take, besides the inline emphasis above:**
+    - headings `#` to `###`, drawn at three sizes from the text's own;
+    - bulleted and numbered lists, nested up to three levels, and task lists (`- [ ]`, `- [x]`), drawn as boxes that never change the file when clicked;
+    - block quotes, drawn with a bar;
+    - horizontal rules;
+    - fenced code blocks in the monospace font, never highlighted as a language and never run;
+    - GitHub tables of at most 12 columns and 50 rows, laid out by the program;
+    - links `[label](address)`, for `http:`, `https:` and `mailto:` only. On the canvas and in exports a link is drawn as its label, underlined, and never fetched. In the panels, the hover card and the read-only page, it opens in a new tab with `rel="noopener noreferrer"` after the person clicks it. Any other address is drawn as plain text.
+  - **Still not taken:** images, which would fetch; raw HTML, which is drawn as the characters it is; footnotes; and a color, font or size for part of a text. Faces give those by slot (ADR 0083).
+  - **Detail, names and one-line texts** keep the inline subset only. A heading or a list there is written as the characters it is.
+  - **The reader stays the core's own, now with blocks.** It is CommonMark's block structure, simplified, plus the inline rules above, with no dependency, linear in time, never throwing, and capped at 4,000 runs and 500 blocks. Its property tests gain blocks, and a conformance subset of CommonMark's spec examples for what it takes.
+  - **Exports:**
+    - SVG and PDF draw what the canvas draws;
+    - the outline in Markdown writes the blocks as CommonMark, escaped as before;
+    - Mermaid and Structurizr write plain text and say what they lost.

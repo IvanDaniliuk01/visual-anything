@@ -770,7 +770,7 @@ Its tasks run one at a time, after M3c's Stage 0b, in this order:
     - a layout and a move write no `routes`;
     - a hand route whose ends move is carried along, as today;
     - `get_item` and `read_view` say which routes are by hand, so Claude can `reset_route` them.
-  - **Tour steps mark free shapes.** A step's `marks` and `reveal` take the ids of the notes and arrows its view holds, as `highlight` and the selection do (ADR 0077's clarification).
+  - **Tour steps mark free shapes** (done in the main session, 56b2246). A step's `marks` and `reveal` take the ids of the notes and arrows its view holds, as `highlight` and the selection do (ADR 0077's clarification).
   - **Undefined attributes.** Claude's answers name the attributes an element carries that its component does not define. They stay particularities, never refused.
 - [ ] **Data modeling for whole databases** (`core/src/builtin/data-modeling.ts`, the SQL recipe, ADR 0023's clarification):
   - **The column** gains `default` and `check`.
@@ -791,7 +791,7 @@ Its tasks run one at a time, after M3c's Stage 0b, in this order:
   - widths and collapsed states are kept per browser in local storage, never in the project;
   - announcements and labels in English and Spanish.
 - [ ] **Claude sees the view** (ADR 0081): `capture_view`, the capture messages, the off-screen render at a given size, and Claude's instructions.
-- [ ] **Text that takes emphasis** (ADR 0082): bold, italic, strikethrough and inline code, written as a Markdown subset and drawn on the canvas, the read-only page and the exports, in:
+- [ ] **Text that takes emphasis** (ADR 0082, with its clarification of 2026-10-30: Markdown with headings, lists, quotes, code blocks, tables and links in texts of several lines): bold, italic, strikethrough and inline code, written as a Markdown subset and drawn on the canvas, the read-only page and the exports, in:
   - notes;
   - tour captions;
   - descriptions;
