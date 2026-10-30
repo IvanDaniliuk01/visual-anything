@@ -4,12 +4,13 @@ import {
   traitSources,
   type AppearanceChanges,
   type Command,
+  type TraitPath,
 } from '@visual-anything/core';
-import type { Badge, Id } from '@visual-anything/schema';
+import type { Appearance, Badge, Id } from '@visual-anything/schema';
 import { useId, useState, type FormEvent } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { useT, type Translator } from '../../i18n';
-import { CheckboxControl, InlineProblem } from '../inspector/controls';
+import { CheckboxControl, InlineProblem, SelectControl } from '../inspector/controls';
 import { TraitRow, type TraitControl } from './TraitRow';
 import { sourceText } from './traits';
 import { useSender } from './useSender';
@@ -19,6 +20,21 @@ const MOST_WRITTEN = 8;
 const MOST_BADGES = 8;
 /** How long a badge's text is at most. */
 const BADGE_LENGTH = 4;
+/** How many lines a detail may take, from 1 to 6 (ADR 0082). */
+const DETAIL_LINES = [1, 2, 3, 4, 5, 6] as const;
+
+type TextPlacement = NonNullable<Appearance['textPlacement']>;
+
+/** Where a shape may place its name and detail in its label area, in words (ADR 0082). */
+const TEXT_PLACEMENTS: readonly { placement: TextPlacement; words: string }[] = [
+  { placement: 'top', words: 'At the top' },
+  { placement: 'middle', words: 'In the middle' },
+  { placement: 'bottom', words: 'At the bottom' },
+];
+
+function isTextPlacement(value: string): value is TextPlacement {
+  return TEXT_PLACEMENTS.some((each) => each.placement === value);
+}
 
 interface DetailSectionProps {
   id: Id;
@@ -29,16 +45,17 @@ interface DetailSectionProps {
 
 /**
  * What the shapes of a component's elements write under their name, each part inherited on its own:
- * whether the component's name, which attributes' values in which order, and which badges.
+ * whether the component's name, which attributes' values in which order, which badges and on how many
+ * lines at most; and where the name and the detail sit in the shape (ADR 0082).
  */
 export function DetailSection({ id, readOnly, update }: DetailSectionProps) {
   const t = useT();
   const { definitions } = useEditor();
   const headingId = useId();
   const component = componentOrEssence(definitions, id);
-  const { detail } = component.appearance;
+  const { detail, textPlacement, contentsAsRows } = component.appearance;
   const sources = traitSources(definitions, id).traits;
-  const row = (path: 'detail.componentName' | 'detail.attributes' | 'detail.badges') => ({
+  const row = (path: TraitPath) => ({
     source: sourceText(definitions, 'component', id, sources[path]),
     own: sources[path] === id,
     readOnly,
@@ -93,6 +110,58 @@ export function DetailSection({ id, readOnly, update }: DetailSectionProps) {
               control={control}
               update={update}
             />
+          )}
+        </TraitRow>
+        <TraitRow
+          label={t('Lines, at most')}
+          {...row('detail.lines')}
+          inherit={() => update({ detail: { lines: null } })}
+        >
+          {({ id: controlId, describedBy, send }) => (
+            <SelectControl
+              id={controlId}
+              value={String(detail.lines)}
+              disabled={readOnly}
+              describedBy={describedBy}
+              onCommit={async (text) => {
+                const lines = Number(text);
+                if (DETAIL_LINES.some((each) => each === lines)) {
+                  await send(update({ detail: { lines } }));
+                }
+              }}
+            >
+              {DETAIL_LINES.map((lines) => (
+                <option key={lines} value={String(lines)}>
+                  {lines}
+                </option>
+              ))}
+            </SelectControl>
+          )}
+        </TraitRow>
+        <TraitRow
+          label={t('Where its text sits')}
+          {...row('textPlacement')}
+          inherit={() => update({ textPlacement: null })}
+          note={
+            contentsAsRows ? t('While it draws rows, it writes its name at the top.') : undefined
+          }
+        >
+          {({ id: controlId, describedBy, send }) => (
+            <SelectControl
+              id={controlId}
+              value={textPlacement}
+              disabled={readOnly}
+              describedBy={describedBy}
+              onCommit={async (placement) => {
+                if (isTextPlacement(placement)) await send(update({ textPlacement: placement }));
+              }}
+            >
+              {TEXT_PLACEMENTS.map(({ placement, words }) => (
+                <option key={placement} value={placement}>
+                  {t(words)}
+                </option>
+              ))}
+            </SelectControl>
           )}
         </TraitRow>
       </ul>

@@ -286,6 +286,116 @@ describe('the component editor', () => {
     ).toHaveValue(0.5);
   });
 
+  it('sets how many lines the detail takes, inherited until set, and undoes it', async () => {
+    const { send, inspector, undo } = await editCalendar();
+    const detail = within(inspector).getByRole('region', { name: 'Detail' });
+    const lines = within(detail).getByRole('combobox', { name: 'Lines, at most' });
+    expect(lines).toHaveValue('3');
+    expect(lines).toHaveAccessibleDescription('from Essence');
+    expect(
+      within(lines)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['1', '2', '3', '4', '5', '6']);
+    expect(
+      within(detail).queryByRole('button', { name: 'Use the inherited value for Lines, at most' }),
+    ).not.toBeInTheDocument();
+
+    await settle(() => fireEvent.change(lines, { target: { value: '5' } }));
+    expect(sent(send)).toEqual([
+      {
+        type: 'update-component',
+        id: 'clinic.calendar',
+        changes: { appearance: { detail: { lines: 5 } } },
+      },
+    ]);
+    const own = within(detail).getByRole('combobox', { name: 'Lines, at most' });
+    expect(own).toHaveValue('5');
+    expect(own).toHaveAccessibleDescription('its own');
+
+    await settle(() =>
+      fireEvent.click(
+        within(detail).getByRole('button', { name: 'Use the inherited value for Lines, at most' }),
+      ),
+    );
+    expect(sent(send).at(-1)).toEqual({
+      type: 'update-component',
+      id: 'clinic.calendar',
+      changes: { appearance: { detail: { lines: null } } },
+    });
+    expect(within(detail).getByRole('combobox', { name: 'Lines, at most' })).toHaveValue('3');
+
+    undo();
+    expect(within(detail).getByRole('combobox', { name: 'Lines, at most' })).toHaveValue('5');
+    undo();
+    const back = within(detail).getByRole('combobox', { name: 'Lines, at most' });
+    expect(back).toHaveValue('3');
+    expect(back).toHaveAccessibleDescription('from Essence');
+  });
+
+  it('places the text at the top, the middle or the bottom, inherited until set', async () => {
+    const { send, inspector, undo } = await editCalendar();
+    const detail = within(inspector).getByRole('region', { name: 'Detail' });
+    const placement = within(detail).getByRole('combobox', { name: 'Where its text sits' });
+    expect(placement).toHaveValue('middle');
+    expect(placement).toHaveAccessibleDescription('from Essence');
+    expect(
+      within(placement)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['At the top', 'In the middle', 'At the bottom']);
+
+    await settle(() => fireEvent.change(placement, { target: { value: 'top' } }));
+    expect(sent(send)).toEqual([
+      {
+        type: 'update-component',
+        id: 'clinic.calendar',
+        changes: { appearance: { textPlacement: 'top' } },
+      },
+    ]);
+    expect(
+      within(detail).getByRole('combobox', { name: 'Where its text sits' }),
+    ).toHaveAccessibleDescription('its own');
+
+    await settle(() =>
+      fireEvent.click(
+        within(detail).getByRole('button', {
+          name: 'Use the inherited value for Where its text sits',
+        }),
+      ),
+    );
+    expect(sent(send).at(-1)).toEqual({
+      type: 'update-component',
+      id: 'clinic.calendar',
+      changes: { appearance: { textPlacement: null } },
+    });
+    expect(within(detail).getByRole('combobox', { name: 'Where its text sits' })).toHaveValue(
+      'middle',
+    );
+    undo();
+    expect(within(detail).getByRole('combobox', { name: 'Where its text sits' })).toHaveValue(
+      'top',
+    );
+  });
+
+  it('says that a shape drawing rows writes its name at the top, whatever the placement', async () => {
+    const { inspector } = await editCalendar();
+    const detail = within(inspector).getByRole('region', { name: 'Detail' });
+    expect(
+      within(detail).getByRole('combobox', { name: 'Where its text sits' }),
+    ).toHaveAccessibleDescription('from Essence');
+    await settle(() =>
+      fireEvent.click(
+        within(inspector).getByRole('checkbox', { name: 'Draw what its elements hold as rows' }),
+      ),
+    );
+    expect(
+      within(detail).getByRole('combobox', { name: 'Where its text sits' }),
+    ).toHaveAccessibleDescription(
+      'from Essence While it draws rows, it writes its name at the top.',
+    );
+  });
+
   it('shows the image it inherits, and shows none on request', async () => {
     const { send, inspector } = await editCalendar();
     const image = within(inspector).getByRole('group', { name: 'Image' });
