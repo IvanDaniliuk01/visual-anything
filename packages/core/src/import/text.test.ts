@@ -12,12 +12,12 @@ import {
   importedDescription,
   importedName,
   oneLine,
-  plainText,
+  labelText,
   quote,
 } from './text';
 import { cpuNow } from '../test/cpu';
 
-describe('plainText', () => {
+describe('labelText', () => {
   it.each([
     ['Plain', 'Plain'],
     ['<b>Bold</b> and <i>italic</i>', 'Bold and italic'],
@@ -40,17 +40,17 @@ describe('plainText', () => {
     ['Bidi\u202Eevil\u202C name', 'Bidievil name'],
     ['&#0; &#xD800; &#1114112;', '\uFFFD \uFFFD'],
   ])('reads %j as %j', (label, text) => {
-    expect(plainText(label)).toBe(text);
+    expect(labelText(label)).toBe(text);
   });
 
   it('decodes once, so that an encoded tag stays text and is never read as a tag', () => {
-    expect(plainText('&amp;lt;b&amp;gt;')).toBe('&lt;b&gt;');
+    expect(labelText('&amp;lt;b&amp;gt;')).toBe('&lt;b&gt;');
   });
 
   it('never leaves a tag, a control character or a line break', () => {
     fc.assert(
       fc.property(fc.string({ unit: 'binary', maxLength: 200 }), (label) => {
-        const text = plainText(label.replaceAll('&', ''));
+        const text = labelText(label.replaceAll('&', ''));
         // Without entities to decode, no "<" followed by a letter survives.
         expect(text).not.toMatch(/<[A-Za-z/!?]/);
         // eslint-disable-next-line no-control-regex -- control characters are what it looks for
@@ -70,7 +70,7 @@ describe('plainText', () => {
     ];
     for (const label of hostile) {
       const start = cpuNow();
-      plainText(label);
+      labelText(label);
       expect(cpuNow() - start).toBeLessThan(1_000);
     }
   });
@@ -95,7 +95,7 @@ describe('names and quotes', () => {
   it('cuts a megabyte label quickly', () => {
     const label = 'x'.repeat(1024 * 1024);
     const start = cpuNow();
-    const { text, cut } = importedName(plainText(label));
+    const { text, cut } = importedName(labelText(label));
     expect(cpuNow() - start).toBeLessThan(1_000);
     expect(cut).toBe(true);
     expect(text).toHaveLength(MAX_IMPORTED_NAME);

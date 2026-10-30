@@ -33,7 +33,7 @@ export {
   MAX_IMPORT_TEXT,
   importedDescription,
   importedName,
-  plainText,
+  labelText,
   quote,
 } from './text';
 export { componentForWords, kindSuggester, relationTypeForWords } from './suggest';

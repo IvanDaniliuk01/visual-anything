@@ -18,7 +18,7 @@ import {
   type ImportReader,
   type ReadResult,
 } from './reader';
-import { MAX_IMPORT_TEXT, plainText } from './text';
+import { MAX_IMPORT_TEXT, labelText } from './text';
 
 /** A line of the diagram, without its comment, and where it was in the file, counted from 1. */
 export interface MermaidLine {
@@ -221,7 +221,7 @@ export function mermaidText(label: string): string {
   );
   // Font Awesome icons, as `fa:fa-car`, are pictures, which imports leave out.
   text = text.replace(/\bfa[bsrlk]?:fa-[\w-]+/g, ' ');
-  return plainText(text);
+  return labelText(text);
 }
 
 /**

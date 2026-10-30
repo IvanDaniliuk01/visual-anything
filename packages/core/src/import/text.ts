@@ -109,7 +109,7 @@ function startsTag(code: number): boolean {
  * the label once from start to end, whatever it holds, and a text with no HTML comes back as it is,
  * but on one line.
  */
-export function plainText(label: string): string {
+export function labelText(label: string): string {
   let out = '';
   let at = 0;
   const removed = (gap = '') => {
