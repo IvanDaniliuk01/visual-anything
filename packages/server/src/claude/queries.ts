@@ -33,6 +33,7 @@ import type {
 } from '@visual-anything/schema';
 import { readDecisions } from './decision-edits';
 import { appearanceRead } from './geometry-brief';
+import { handRoutesOn, routedByHandAnswer, viewsRoutingByHand } from './hand-routes';
 import { UNDEFINED_ATTRIBUTES_NOTE, undefinedAttributesOf } from './undefined-attributes';
 
 /** How many ways a scenario plays that read_scenario counts before it says "or more". */
@@ -350,6 +351,8 @@ export function describeItem(
       inViews: state.views
         .filter((view) => view.positions.some((position) => position.element === id))
         .map((view) => view.id),
+      // The relations on it that views route by hand, which reset_route sends back (ADR 0039).
+      ...nonEmpty('relationsRoutedByHand', handRoutesOn(state, id)),
     };
   }
   const relation = index.relation(id);
@@ -369,6 +372,8 @@ export function describeItem(
       // Its own appearance, a particularity: stroke, width, dash and route (ADR-0035, ADR 0069).
       ...(relation.appearance === undefined ? {} : { appearance: relation.appearance }),
       relationsOnIt: index.relationsOn(id).map(relationBrief),
+      // The views that route it by hand, which reset_route sends back to automatic (ADR 0039).
+      ...nonEmpty('routedByHandIn', viewsRoutingByHand(state, id)),
       inScenarios: state.scenarios.flatMap((scenario) =>
         scenario.steps
           .filter((step) => step.relations.includes(id))
@@ -377,6 +382,11 @@ export function describeItem(
     };
   }
   return undefined;
+}
+
+/** `{ [key]: list }`, or nothing for an empty list. */
+function nonEmpty<T>(key: string, list: readonly T[]): Record<string, readonly T[]> {
+  return list.length === 0 ? {} : { [key]: list };
 }
 
 /** The attributes an element carries that its component does not define, with what they mean. */
@@ -437,6 +447,8 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
     ...(collapsed === undefined ? {} : { collapsed }),
     // The routes chosen by hand, by relation; every other relation is routed automatically.
     ...(routes === undefined ? {} : { routes }),
+    // The same relations by name, with what to do when one runs astray (M3d).
+    ...routedByHandAnswer(state, view),
     // The style of the automatic routes its relations' appearances leave to it (ADR 0069).
     ...(routeStyle === undefined ? {} : { routeStyle }),
   };

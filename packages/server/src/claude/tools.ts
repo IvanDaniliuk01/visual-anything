@@ -43,6 +43,13 @@ import { CODE_TOOLS } from './code-tools';
 import { COMMENT_TOOLS } from './comment-tools';
 import { EXPORT_TOOLS } from './export-tools';
 import { fullGeometry } from './geometry-brief';
+import {
+  NOT_FOLLOWING_NOTE,
+  TAKING_THE_STYLE_NOTE,
+  namedRoutes,
+  routesNotFollowing,
+  routesTakingTheStyle,
+} from './hand-routes';
 import { IMAGE_TOOLS } from './image-tools';
 import { PART_TOOLS } from './part-tools';
 import { PROPOSAL_TOOLS, proposalNoteOf } from './proposal-tools';
@@ -268,7 +275,7 @@ Example: { "relationType": "systems.writes-to", "to": "appointments-db" }`,
 const getItem = tool({
   name: 'get_item',
   title: 'Read an element or a relation',
-  description: `Reads one element or relation by id, with everything around it. For an element: its component, attributes and the definitions of the attributes it can have (undefinedAttributes names those it carries that its component does not define: kept, as particularities), its own appearance (free geometry in brief unless fullGeometry), its containers (with the nesting relation that places it in each), its contents, the relations from and to it, and the views that place it. For a relation: its type, ends, attributes, its own appearance, the relations that end on it, and the scenario steps that use it. ${LIVE_VALUES_BESIDE}
+  description: `Reads one element or relation by id, with everything around it. For an element: its component, attributes and the definitions of the attributes it can have (undefinedAttributes names those it carries that its component does not define: kept, as particularities), its own appearance (free geometry in brief unless fullGeometry), its containers (with the nesting relation that places it in each), its contents, the relations from and to it, and the views that place it. For a relation: its type, ends, attributes, its own appearance, the relations that end on it, the scenario steps that use it, and routedByHandIn, the views that route it by hand; an element's relationsRoutedByHand says the same of the relations on it, for reset_route. ${LIVE_VALUES_BESIDE}
 
 Example: { "id": "booking-agent" }`,
   input: { id: id(), fullGeometry: fullGeometry() },
@@ -290,7 +297,7 @@ Example: { "id": "booking-agent" }`,
 const readViewTool = tool({
   name: 'read_view',
   title: 'Read a view',
-  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes and arrows), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), its routeStyle when it draws its automatic routes straight or curved, and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout. It also says how many elements and relations the view shows out of the model's (shows), and its scope when it has one: get_scope says more.
+  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes and arrows), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), and routedByHand naming those relations, its routeStyle when it draws its automatic routes straight or curved, and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout. It also says how many elements and relations the view shows out of the model's (shows), and its scope when it has one: get_scope says more.
 
 Example: { "view": "system-overview" }`,
   input: { view: id() },
@@ -963,10 +970,19 @@ Example, a view drawn curved: { "id": "signal-flow", "routeStyle": "curved" }`,
       { type: 'update-view', id: target, changes: withoutUndefined(changes) },
       async () => {
         if (changes.routeStyle === undefined) return {};
-        const view = (await program.project()).views.find((each) => each.id === target);
+        const state = await program.project();
+        const view = state.views.find((each) => each.id === target);
+        // Routes by hand through bend points draw in the new style through them (M3d).
+        const taking = routesTakingTheStyle(state, target);
         return {
           automaticRoutes: view?.routeStyle ?? 'orthogonal',
           note: 'This draws the automatic routes of the relations whose appearances set no route; a relation type or relation that sets one keeps it, and so does a route chosen by hand with a style of its own.',
+          ...(taking.length === 0
+            ? {}
+            : {
+                ...namedRoutes('routesByHandTakingIt', taking),
+                routesByHandNote: TAKING_THE_STYLE_NOTE,
+              }),
         };
       },
     ),
@@ -986,7 +1002,7 @@ Example: { "id": "draft-view" }`,
 const setPositions = tool({
   name: 'set_positions',
   title: 'Place shapes in a view',
-  description: `Sets where element shapes sit in a view, as one undoable action. A position is keyed by the element and the container its shape sits in (left out for World), and is relative to that container's shape; every copy of a container shares its inner layout. Positions are left for layout to change unless pinned. Your positions are not snapped to the grid.
+  description: `Sets where element shapes sit in a view, as one undoable action. A position is keyed by the element and the container its shape sits in (left out for World), and is relative to that container's shape; every copy of a container shares its inner layout. Positions are left for layout to change unless pinned. Your positions are not snapped to the grid. Routes chosen by hand keep their bend points where they were: the answer names those whose ends you moved, which reset_route sends back to automatic routes.
 
 Example: { "view": "system-overview", "positions": [{ "element": "scheduling", "container": "clinic-booking", "x": 520, "y": 64, "width": 440, "height": 384 }, { "element": "patient", "x": 40, "y": 200 }] }`,
   input: {
@@ -994,15 +1010,31 @@ Example: { "view": "system-overview", "positions": [{ "element": "scheduling", "
     positions: z.array(z.object({ element: id(), container: id().optional(), ...place() })).min(1),
   },
   hints: WRITE,
-  run: async (args, program) =>
-    act(program, {
-      type: 'set-positions',
-      view: args.view,
-      positions: args.positions.map((position) => ({
-        pinned: false,
-        ...withoutUndefined(position),
-      })),
-    }),
+  run: async (args, program) => {
+    const before = await program.project();
+    return act(
+      program,
+      {
+        type: 'set-positions',
+        view: args.view,
+        positions: args.positions.map((position) => ({
+          pinned: false,
+          ...withoutUndefined(position),
+        })),
+      },
+      async () => {
+        // Bend points chosen by hand stay where they were when an end moves (M3d, ADR 0039).
+        const moved = args.positions.map((position) => position.element);
+        const left = routesNotFollowing(before, await program.project(), args.view, moved);
+        return left.length === 0
+          ? {}
+          : {
+              ...namedRoutes('routesByHandNotFollowing', left),
+              routesByHandNote: NOT_FOLLOWING_NOTE,
+            };
+      },
+    );
+  },
 });
 
 const forgetPositions = tool({
