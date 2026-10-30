@@ -242,3 +242,11 @@ Inline, in the order a reader meets them:
   - **LikeC4.** An `md` description keeps its indents and inner spaces, so that nested lists and code survive; a `txt` one is read as before and escaped. A plan marks a description that is Markdown already with `descriptionIsMarkdown`. An image in it is drawn as `!` and a link, and never fetched.
   - **The component editor.** "Lines, at most" (a choice of 1 to 6) and "Where its text sits" (at the top, in the middle, at the bottom) sit in the Detail section after Badges, each showing what it inherits and able to go back to it. A component that draws rows says that it writes its name at the top while it does.
   - **Not done in part B:** the benchmark's phase with emphasis in every detail, left for its next run; the benchmark never holds a milestone.
+- 2026-10-30 (M3d, after merging part B): **what part B left.** Decided by Claude under the user's standing delegation.
+  - **Roboto Mono ships.**
+    - The font's own name table gives Apache-2.0, as Roboto's does. The npm package it came from (`typeface-roboto-mono`) is MIT, which covers only the package's own files.
+    - `LICENSE-roboto.txt` names both fonts under Apache-2.0, and ADR 0047's list holds.
+  - **The spec item stays ticked.** The rest becomes follow-ups:
+    - A collapsed container's header still writes its detail on one line, and its height does not grow with the detail's lines. This moves to M3c Stage 2, which works in collapsing and reading.
+    - A benchmark phase with emphasis in every detail also moves to M3c Stage 2.
+  - **`escapeText` covers tours too.** It reaches tour captions, reveals and speaker notes in the tour tools, so that Claude never escapes by hand. This is built with M11d, which changes the tour tools anyway.
