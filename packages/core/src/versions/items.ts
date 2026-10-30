@@ -27,6 +27,8 @@ export type ItemRef =
   | { kind: 'component'; package: Id; id: Id }
   | { kind: 'relation-type'; package: Id; id: Id }
   | { kind: 'image'; package: Id; id: Id }
+  /** A solid's definition (ADR 0075); its file, named by its hash, is never compared byte by byte. */
+  | { kind: 'solid'; package: Id; id: Id }
   | { kind: 'view'; view: Id }
   | { kind: 'position'; view: Id; element: Id; container?: Id }
   | { kind: 'free-shape'; view: Id; id: Id }
@@ -86,6 +88,7 @@ export function itemKey(ref: ItemRef): string {
     case 'component':
     case 'relation-type':
     case 'image':
+    case 'solid':
       return `${ref.kind}:${ref.package}:${ref.id}`;
     case 'view':
       return `view:${ref.view}`;
@@ -125,6 +128,7 @@ export function fileItemKey(ref: ItemRef): string {
     case 'component':
     case 'relation-type':
     case 'image':
+    case 'solid':
       return `${ref.kind}:${ref.id}`;
     case 'view':
       return 'view';
@@ -182,7 +186,7 @@ export function projectItems(state: ProjectSnapshot): ReadonlyMap<string, Projec
   );
   for (const file of state.packages) {
     if (!isOwnPackage(file.id)) continue;
-    const { components, relationTypes, images, ...properties } = file;
+    const { components, relationTypes, images, solids, ...properties } = file;
     add({ kind: 'package', package: file.id }, properties);
     for (const component of components) {
       add({ kind: 'component', package: file.id, id: component.id }, component);
@@ -192,6 +196,9 @@ export function projectItems(state: ProjectSnapshot): ReadonlyMap<string, Projec
     }
     for (const image of images ?? []) {
       add({ kind: 'image', package: file.id, id: image.id }, image);
+    }
+    for (const solid of solids ?? []) {
+      add({ kind: 'solid', package: file.id, id: solid.id }, solid);
     }
   }
   for (const view of state.views) {

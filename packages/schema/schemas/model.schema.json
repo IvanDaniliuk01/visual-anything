@@ -207,6 +207,18 @@
           ],
           "description": "The image its shapes show; `none` shows none, whatever is inherited."
         },
+        "solid": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AppearanceSolid"
+            },
+            {
+              "type": "string",
+              "const": "none"
+            }
+          ],
+          "description": "The solid its shapes show (ADR 0075), drawn in place of an image when both are given; `none` shows none, whatever is inherited."
+        },
         "geometry": {
           "anyOf": [
             {
@@ -458,6 +470,109 @@
       "additionalProperties": false,
       "description": "A picture an appearance shows."
     },
+    "AppearanceSolid": {
+      "type": "object",
+      "properties": {
+        "solid": {
+          "$ref": "#/definitions/Id",
+          "description": "The solid, by its id."
+        },
+        "placement": {
+          "type": "string",
+          "enum": [
+            "icon",
+            "drawing",
+            "parts"
+          ],
+          "description": "`icon` beside the name, `drawing`, the default, on a plate above a name band, or `parts`, under the header of a drawing with parts."
+        },
+        "camera": {
+          "$ref": "#/definitions/SolidCamera",
+          "description": "In place of the solid's own camera."
+        },
+        "lighting": {
+          "type": "string",
+          "enum": [
+            "studio",
+            "flat"
+          ],
+          "description": "`studio`, the default, or `flat`: base colors without light."
+        }
+      },
+      "required": [
+        "solid"
+      ],
+      "additionalProperties": false,
+      "description": "A solid an appearance shows (ADR 0075)."
+    },
+    "SolidCamera": {
+      "type": "object",
+      "properties": {
+        "azimuth": {
+          "type": "number",
+          "description": "Degrees around +Y, 0 looking from +Z, glTF's front, toward −Z.",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "elevation": {
+          "type": "number",
+          "description": "Degrees above the horizon, or below it when negative.",
+          "minimum": -89,
+          "maximum": 89
+        },
+        "zoom": {
+          "type": "number",
+          "description": "1 fits the solid's bounds with a margin of 4%; left out, 1.",
+          "minimum": 0.25,
+          "maximum": 16
+        },
+        "target": {
+          "$ref": "#/definitions/SpacePoint",
+          "description": "The point it turns around; left out, the middle of the bounds."
+        },
+        "projection": {
+          "type": "string",
+          "enum": [
+            "perspective",
+            "orthographic"
+          ],
+          "description": "`perspective`, with a vertical field of view of 30°, when left out; or `orthographic`."
+        }
+      },
+      "required": [
+        "azimuth",
+        "elevation"
+      ],
+      "additionalProperties": false,
+      "description": "How a solid is looked at: from a direction, fitted to its bounds (ADR 0075)."
+    },
+    "SpacePoint": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": -100000,
+          "maximum": 100000
+        },
+        "y": {
+          "type": "number",
+          "minimum": -100000,
+          "maximum": 100000
+        },
+        "z": {
+          "type": "number",
+          "minimum": -100000,
+          "maximum": 100000
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "additionalProperties": false,
+      "description": "A point in a solid's space, in meters, +Y up, rounded to a tenth of a millimetre."
+    },
     "FreeGeometry": {
       "type": "object",
       "properties": {
@@ -671,19 +786,23 @@
       "properties": {
         "part": {
           "type": "string",
-          "description": "The part's id in the image.",
+          "description": "The part's id in the image, or its name in the solid.",
           "pattern": "^[A-Za-z_][\\w.-]{0,63}$"
         },
         "image": {
           "$ref": "#/definitions/Id",
-          "description": "The image that names it; left out, the image the element's container shows with its parts."
+          "description": "The image that names it; left out with `solid`, the image or solid the element's container shows with its parts."
+        },
+        "solid": {
+          "$ref": "#/definitions/Id",
+          "description": "The solid that names it, in place of `image` (ADR 0075)."
         }
       },
       "required": [
         "part"
       ],
       "additionalProperties": false,
-      "description": "A named part of an SVG image, as an appearance draws its shapes as one (ADR 0067)."
+      "description": "A named part of an SVG image or of a solid, as an appearance draws its shapes as one (ADR 0067, ADR 0075). It names the image or the solid, never both."
     },
     "LevelOfDetail": {
       "type": "object",

@@ -36,11 +36,12 @@ export function operationsBetween(from: ProjectSnapshot, to: ProjectSnapshot): O
   for (const file of to.packages) {
     const was = olderPackages.get(file.id);
     if (!was) continue;
-    const { components, relationTypes, images, ...properties } = file;
+    const { components, relationTypes, images, solids, ...properties } = file;
     const {
       components: wasComponents,
       relationTypes: wasTypes,
       images: wasImages,
+      solids: wasSolids,
       ...before
     } = was;
     if (!sameExactly(before, properties)) {
@@ -49,6 +50,7 @@ export function operationsBetween(from: ProjectSnapshot, to: ProjectSnapshot): O
     between(operations, { name: 'components', package: file.id }, wasComponents, components);
     between(operations, { name: 'relationTypes', package: file.id }, wasTypes, relationTypes);
     between(operations, { name: 'images', package: file.id }, wasImages ?? [], images ?? []);
+    between(operations, { name: 'solids', package: file.id }, wasSolids ?? [], solids ?? []);
   }
 
   shell({ name: 'views' }, from.views, to.views);

@@ -120,6 +120,7 @@ describe('resolveAppearance', () => {
       'contentsAsRows',
       'connectionPoints',
       'image',
+      'solid',
       'geometry',
       'part',
       'levels',
@@ -208,6 +209,8 @@ describe('traitSources', () => {
       connectionPoints: 'layered.service',
       // Nothing in the chain shows an image, so it comes from Essence, which shows none.
       image: 'essence',
+      // Nor a solid (ADR 0075).
+      solid: 'essence',
       // Nor gives an outline of its own or a part to draw as (ADR 0066, ADR 0067).
       geometry: 'essence',
       part: 'essence',

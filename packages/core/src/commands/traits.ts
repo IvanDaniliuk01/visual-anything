@@ -21,6 +21,7 @@ import type {
   LevelPart,
   RelationAppearance,
   RelationTypeLimits,
+  SolidCamera,
 } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
 import { FACE_PARTS, valueFitsType } from '../appearance';
@@ -359,6 +360,7 @@ const TRAIT_CHECKS: {
   contentsAsRows: (value, of) => checkedBoolean(value, 'draws its contents as rows', of),
   connectionPoints: checkedConnectionPoints,
   image: checkedImage,
+  solid: checkedSolid,
   geometry: checkedGeometry,
   part: checkedPart,
   levels: checkedLevels,
@@ -516,22 +518,115 @@ function checkedGeometry(value: unknown, of: string): NonNullable<Appearance['ge
 
 const PART_ID = /^[A-Za-z_][\w.-]{0,63}$/;
 
-/** A named part of an SVG image (ADR 0067), by its id and the image's, or `none`. */
+/**
+ * The solid an appearance shows (ADR 0075): `none`, or a solid by its id with its placement, its
+ * camera and its lighting. Whether a package in use defines it is checked on open (`unknown-solid`).
+ */
+function checkedSolid(value: unknown, of: string): NonNullable<Appearance['solid']> {
+  if (value === 'none') return 'none';
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    invalid(`The solid of ${of} must be "none" or a solid named by its id.`);
+  }
+  const { solid, placement, camera, lighting, ...rest } = value as Record<string, unknown>;
+  if (Object.keys(rest).length > 0) {
+    invalid(`The solid of ${of} holds only its solid, its placement, its camera and its lighting.`);
+  }
+  if (!isId(solid)) invalid(`The solid of ${of} must name a solid by its id.`);
+  if (
+    placement !== undefined &&
+    placement !== 'icon' &&
+    placement !== 'drawing' &&
+    placement !== 'parts'
+  ) {
+    invalid(`The solid of ${of} is placed as an icon, as a drawing, or with its parts.`);
+  }
+  if (lighting !== undefined && lighting !== 'studio' && lighting !== 'flat') {
+    invalid(`The lighting of ${of}'s solid is "studio" or "flat".`);
+  }
+  return {
+    solid,
+    ...(placement === undefined ? {} : { placement }),
+    ...(camera === undefined ? {} : { camera: checkedSolidCamera(camera, of) }),
+    ...(lighting === undefined ? {} : { lighting }),
+  };
+}
+
+/** A solid's camera (ADR 0075): a direction, a zoom, a target and a projection, within their ranges. */
+export function checkedSolidCamera(value: unknown, of: string): SolidCamera {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    invalid(`The camera of ${of}'s solid must be an azimuth and an elevation, at least.`);
+  }
+  const { azimuth, elevation, zoom, target, projection, ...rest } = value as Record<
+    string,
+    unknown
+  >;
+  if (Object.keys(rest).length > 0) {
+    invalid(
+      `The camera of ${of}'s solid holds only its azimuth, elevation, zoom, target and projection.`,
+    );
+  }
+  const within = (number: unknown, low: number, high: number, what: string): number => {
+    if (typeof number !== 'number' || !Number.isFinite(number) || number < low || number > high) {
+      invalid(`The ${what} of ${of}'s solid's camera is a number from ${low} to ${high}.`);
+    }
+    return number;
+  };
+  const camera: SolidCamera = {
+    azimuth: within(azimuth, -180, 180, 'azimuth'),
+    elevation: within(elevation, -89, 89, 'elevation'),
+  };
+  if (zoom !== undefined) camera.zoom = within(zoom, 0.25, 16, 'zoom');
+  if (target !== undefined) {
+    if (typeof target !== 'object' || target === null || Array.isArray(target)) {
+      invalid(`The target of ${of}'s solid's camera is a point: x, y and z.`);
+    }
+    const { x, y, z, ...more } = target as Record<string, unknown>;
+    if (Object.keys(more).length > 0) {
+      invalid(`The target of ${of}'s solid's camera is a point: x, y and z.`);
+    }
+    camera.target = {
+      x: within(x, -100_000, 100_000, 'target'),
+      y: within(y, -100_000, 100_000, 'target'),
+      z: within(z, -100_000, 100_000, 'target'),
+    };
+  }
+  if (projection !== undefined) {
+    if (projection !== 'perspective' && projection !== 'orthographic') {
+      invalid(`The projection of ${of}'s solid's camera is "perspective" or "orthographic".`);
+    }
+    camera.projection = projection;
+  }
+  return camera;
+}
+
+/**
+ * A named part of an SVG image (ADR 0067) or of a solid (ADR 0075), by its id and the image's or the
+ * solid's, never both; or `none`.
+ */
 function checkedPart(value: unknown, of: string): NonNullable<Appearance['part']> {
   if (value === 'none') return 'none';
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     invalid(`The part ${of} is drawn as must be "none" or a part named by its id.`);
   }
-  const { part, image, ...rest } = value as Record<string, unknown>;
+  const { part, image, solid, ...rest } = value as Record<string, unknown>;
   if (Object.keys(rest).length > 0) {
-    invalid(`The part ${of} is drawn as holds only its id and its image.`);
+    invalid(`The part ${of} is drawn as holds only its id, and its image or its solid.`);
   }
   if (typeof part !== 'string' || !PART_ID.test(part)) {
     invalid(`The part ${of} is drawn as must be named by the id it has in its picture.`);
   }
   if (image !== undefined && !isId(image))
     invalid(`The part ${of} is drawn as must name its image by its id.`);
-  return { part, ...(image === undefined ? {} : { image }) };
+  if (solid !== undefined && !isId(solid))
+    invalid(`The part ${of} is drawn as must name its solid by its id.`);
+  if (image !== undefined && solid !== undefined) {
+    invalid(`The part ${of} is drawn as names its image or its solid, not both.`);
+  }
+  return {
+    part,
+    ...(image === undefined ? {} : { image }),
+    ...(solid === undefined ? {} : { solid }),
+  };
 }
 
 /** Refuses an appearance that draws rows on a shape that cannot, both set in it. */

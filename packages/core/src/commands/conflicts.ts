@@ -194,9 +194,16 @@ function takeOther(draft: Draft, file: ConflictFile, conflict: FileConflict): vo
       const found = state.packages.find((each) => each.id === file.id);
       if (!found) return;
       if (kind === 'package') {
-        const properties = withoutKeys(found, 'components', 'relationTypes', 'images', 'conflicts');
+        const properties = withoutKeys(
+          found,
+          'components',
+          'relationTypes',
+          'images',
+          'solids',
+          'conflicts',
+        );
         if (conflict.why === 'order') {
-          const field = conflict.path[0] as 'components' | 'relationTypes' | 'images';
+          const field = conflict.path[0] as 'components' | 'relationTypes' | 'images' | 'solids';
           const name = field;
           const list = (found[field] ?? []) as Item[];
           const items = orderedBy(list, conflict.other, (each) => (each as { id: Id }).id);
@@ -214,7 +221,13 @@ function takeOther(draft: Draft, file: ConflictFile, conflict: FileConflict): vo
         return;
       }
       const name =
-        kind === 'component' ? 'components' : kind === 'relation-type' ? 'relationTypes' : 'images';
+        kind === 'component'
+          ? 'components'
+          : kind === 'relation-type'
+            ? 'relationTypes'
+            : kind === 'solid'
+              ? 'solids'
+              : 'images';
       const collection: Collection = { name, package: found.id };
       inList(collection, found[name] ?? [], key);
       return;

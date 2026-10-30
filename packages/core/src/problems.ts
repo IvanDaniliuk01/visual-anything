@@ -70,6 +70,15 @@ export type ProblemCode =
   // picture lacks, and a picture with more named parts than it lists.
   | 'unknown-part'
   | 'too-many-parts'
+  // Solids (ADR 0075): a file that is not the canonical form or passes the caps, refused by commands;
+  // and, only as warnings on open, solids past a package's size, a file that is missing, one whose
+  // bytes are not its name's or whose description differs, and an appearance naming no solid.
+  | 'invalid-solid'
+  | 'solid-too-large'
+  | 'large-solids'
+  | 'solid-file-missing'
+  | 'solid-not-clean'
+  | 'unknown-solid'
   // Faces (ADR 0083): markup or style outside the subset, a face past its caps, and, only as
   // warnings, a slot naming an attribute the component lacks and text that reads poorly.
   | 'invalid-face'

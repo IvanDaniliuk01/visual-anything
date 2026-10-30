@@ -19,6 +19,7 @@ import type {
   Routes,
   ScenarioFile,
   ShapePosition,
+  SolidDefinition,
   TourFile,
   ViewFile,
 } from '@visual-anything/schema';
@@ -35,6 +36,8 @@ export type Collection =
   | { name: 'relationTypes'; package: Id }
   /** The images of a package; a package without any has no list at all. */
   | { name: 'images'; package: Id }
+  /** The solids of a package (ADR 0075); a package without any has no list at all. */
+  | { name: 'solids'; package: Id }
   | { name: 'positions'; view: Id }
   | { name: 'freeShapes'; view: Id }
   /** One stacking list of a view: the order of the shapes directly in a container, or in World. */
@@ -56,6 +59,7 @@ export interface CollectionItems {
   components: Component;
   relationTypes: RelationType;
   images: ImageDefinition;
+  solids: SolidDefinition;
   positions: ShapePosition;
   freeShapes: FreeShape;
   /** An element id: a stacking list holds bare ids. */
@@ -81,7 +85,10 @@ export type ViewProperties = Omit<
 >;
 
 /** A package without its definitions and images: what `set-package` changes. */
-export type PackageProperties = Omit<PackageFile, 'components' | 'relationTypes' | 'images'>;
+export type PackageProperties = Omit<
+  PackageFile,
+  'components' | 'relationTypes' | 'images' | 'solids'
+>;
 
 /**
  * A project file that holds conflicts from a merge (ADR 0072): the project file, the model file, or the
@@ -399,6 +406,8 @@ export function itemsOf(state: ProjectSnapshot, collection: Collection): readonl
       return findPackage(state, collection.package).relationTypes;
     case 'images':
       return findPackage(state, collection.package).images ?? [];
+    case 'solids':
+      return findPackage(state, collection.package).solids ?? [];
     case 'positions':
       return findView(state, collection.view).positions;
     case 'freeShapes':
@@ -453,6 +462,10 @@ function withItems(
     case 'images':
       return updatePackage(state, collection.package, (file) =>
         withImages(file, items as ImageDefinition[]),
+      );
+    case 'solids':
+      return updatePackage(state, collection.package, (file) =>
+        withSolids(file, items as SolidDefinition[]),
       );
     case 'positions':
       return updateView(state, collection.view, (view) => ({
@@ -514,6 +527,13 @@ function withStackingList(view: ViewFile, container: Id, items: readonly Id[]): 
  * A package with its images replaced. A package without images has no list, rather than an empty
  * one, so that undo gives back the package exactly as it was.
  */
+function withSolids(file: PackageFile, solids: readonly SolidDefinition[]): PackageFile {
+  if (solids.length > 0) return { ...file, solids: [...solids] };
+  const without: PackageFile = { ...file };
+  delete without.solids;
+  return without;
+}
+
 function withImages(file: PackageFile, images: readonly ImageDefinition[]): PackageFile {
   if (images.length > 0) return { ...file, images: [...images] };
   const without: PackageFile = { ...file };
@@ -599,6 +619,7 @@ function describe(collection: Collection): string {
     case 'components':
     case 'relationTypes':
     case 'images':
+    case 'solids':
       return `The ${collection.name} of package "${collection.package}"`;
     case 'positions':
     case 'freeShapes':

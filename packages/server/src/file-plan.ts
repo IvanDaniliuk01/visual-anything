@@ -79,6 +79,7 @@ export function affectedFiles(
           case 'components':
           case 'relationTypes':
           case 'images':
+          case 'solids':
             ofPackage(collection.package);
             break;
           // A view's routes chosen by hand live in its file, like its positions (ADR 0039).

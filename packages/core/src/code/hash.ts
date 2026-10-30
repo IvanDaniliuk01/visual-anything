@@ -4,6 +4,11 @@
  * Node and in the browser, so that the app, the local program and Claude's tools always agree on it.
  */
 
+/** The SHA-256 of some bytes, in lowercase hexadecimal. */
+export function sha256Bytes(bytes: Uint8Array): string {
+  return hex(digest(bytes));
+}
+
 /** The SHA-256 of a text's UTF-8 bytes, in lowercase hexadecimal. */
 export function sha256(text: string): string {
   return hex(digest(utf8(text)));

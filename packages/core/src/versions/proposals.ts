@@ -328,6 +328,7 @@ function filesReached(operations: readonly Operation[]): Set<string> {
           case 'components':
           case 'relationTypes':
           case 'images':
+          case 'solids':
             keys.add(`package:${collection.package}`);
             break;
           case 'views':
@@ -630,6 +631,7 @@ function definedId(ref: ItemRef): Id | undefined {
     case 'component':
     case 'relation-type':
     case 'image':
+    case 'solid':
     case 'free-shape':
     case 'scenario':
     case 'tour':
@@ -755,6 +757,7 @@ function idsIn(state: ProjectSnapshot): Set<Id> {
     add(file.components);
     add(file.relationTypes);
     add(file.images);
+    add(file.solids);
   }
   for (const view of state.views) {
     ids.add(view.id);
@@ -830,7 +833,7 @@ function assemble(
     const from = take(`package:${id}`) ? newer : older;
     if (!from) return [];
     const list = <T extends { id: Id }>(
-      name: 'component' | 'relation-type' | 'image',
+      name: 'component' | 'relation-type' | 'image' | 'solid',
       of: (file: PackageFile) => readonly T[] | undefined,
     ) =>
       assembled(
@@ -840,6 +843,7 @@ function assemble(
         take,
       );
     const images = list('image', (file) => file.images);
+    const solids = list('solid', (file) => file.solids);
     const file: PackageFile = {
       ...from,
       components: list('component', (each) => each.components),
@@ -847,6 +851,8 @@ function assemble(
     };
     if (images.length > 0 || from.images !== undefined) file.images = images;
     else delete file.images;
+    if (solids.length > 0 || from.solids !== undefined) file.solids = solids;
+    else delete file.solids;
     if (older?.conflicts === undefined) delete file.conflicts;
     else file.conflicts = older.conflicts;
     return [file];

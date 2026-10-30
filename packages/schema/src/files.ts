@@ -6,6 +6,17 @@
 import type { AppearanceImage, ImageDefinition } from './images';
 
 export type { AppearanceImage, BitmapImage, ImageDefinition, SvgImage } from './images';
+import type { AppearanceSolid, SolidDefinition } from './solids';
+export type {
+  AppearanceSolid,
+  SolidAnimation,
+  SolidCamera,
+  SolidCounts,
+  SolidDefinition,
+  SolidPart,
+  SpaceBounds,
+  SpacePoint,
+} from './solids';
 
 /**
  * An identifier, generated once and never reused. Files refer to each other only by id. Element and
@@ -205,6 +216,14 @@ export interface PackageFile {
    * @maxItems 128
    */
   images?: ImageDefinition[];
+  /**
+   * The solids its appearances show (ADR 0075): each one's definition, its file kept beside the
+   * project as `solids/<hash>.glb`. Left out when there are none.
+   *
+   * @minItems 1
+   * @maxItems 64
+   */
+  solids?: SolidDefinition[];
   // Package code (ADR 0054).
   /**
    * The package's code: one module of JavaScript, one item per line, which may export the hooks
@@ -406,6 +425,11 @@ export interface Appearance {
   /** The image its shapes show; `none` shows none, whatever is inherited. */
   image?: AppearanceImage | 'none';
   /**
+   * The solid its shapes show (ADR 0075), drawn in place of an image when both are given; `none`
+   * shows none, whatever is inherited.
+   */
+  solid?: AppearanceSolid | 'none';
+  /**
    * Its shapes' own outline, drawn in place of their kind (ADR 0066); `none` takes an inherited one
    * away, so that the kind is drawn again.
    */
@@ -570,18 +594,24 @@ export interface GeometryLabel {
   height: number;
 }
 
-/** A named part of an SVG image, as an appearance draws its shapes as one (ADR 0067). */
+/**
+ * A named part of an SVG image or of a solid, as an appearance draws its shapes as one (ADR 0067,
+ * ADR 0075). It names the image or the solid, never both.
+ */
 export interface PartReference {
   /**
-   * The part's id in the image.
+   * The part's id in the image, or its name in the solid.
    *
    * @pattern ^[A-Za-z_][\w.-]{0,63}$
    */
   part: string;
   /**
-   * The image that names it; left out, the image the element's container shows with its parts.
+   * The image that names it; left out with `solid`, the image or solid the element's container shows
+   * with its parts.
    */
   image?: Id;
+  /** The solid that names it, in place of `image` (ADR 0075). */
+  solid?: Id;
 }
 
 /**

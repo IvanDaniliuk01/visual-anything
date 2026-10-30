@@ -1810,6 +1810,7 @@ export const ui: Catalog = {
   'It is built into Visual Anything, so it cannot be changed here. The project does not use it yet.':
     'Está incorporado en Visual Anything, así que no se puede cambiar aquí. El proyecto todavía no lo usa.',
   Images: 'Imágenes',
+  Solids: 'Sólidos',
   '{count} images': { one: '{count} imagen', other: '{count} imágenes' },
   'It defines no components.': 'No define componentes.',
   'It defines no relation types.': 'No define tipos de relación.',

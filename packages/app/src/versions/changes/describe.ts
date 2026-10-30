@@ -40,6 +40,8 @@ export function kindHeading(t: Translator, kind: ChangeKind): string {
       return t('Relation types');
     case 'image':
       return t('Images');
+    case 'solid':
+      return t('Solids');
     case 'view':
       return t('Views');
     case 'position':
@@ -196,6 +198,7 @@ export function changeTitle(t: Translator, change: Change, names: ChangeNames): 
     case 'component':
     case 'relation-type':
     case 'image':
+    case 'solid':
       return names.of(ref.id);
     case 'view':
       return names.view(ref.view);

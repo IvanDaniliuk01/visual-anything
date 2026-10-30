@@ -552,9 +552,9 @@ function mergePackage(
 ): PackageFile {
   const split = (file: PackageFile | undefined) => {
     if (!file) return undefined;
-    const { components, relationTypes, images } = file;
-    const props = withoutKeys(file, 'components', 'relationTypes', 'images', 'conflicts');
-    return { components, relationTypes, images: images ?? [], props };
+    const { components, relationTypes, images, solids } = file;
+    const props = withoutKeys(file, 'components', 'relationTypes', 'images', 'solids', 'conflicts');
+    return { components, relationTypes, images: images ?? [], solids: solids ?? [], props };
   };
   const older = split(base);
   const mine = split(ours) as NonNullable<ReturnType<typeof split>>;
@@ -574,6 +574,18 @@ function mergePackage(
     byId,
     (id) => `image:${id}`,
     { item: 'package', path: ['images'] },
+    policy,
+    add,
+  );
+  // Solids merge by id as images do (ADR 0075); their files never conflict, since equal bytes have
+  // one name.
+  const solids = mergeItems(
+    older?.solids ?? [],
+    mine.solids,
+    yours.solids,
+    byId,
+    (id) => `solid:${id}`,
+    { item: 'package', path: ['solids'] },
     policy,
     add,
   );
@@ -601,6 +613,9 @@ function mergePackage(
     ),
     ...(images.length > 0 || ours.images !== undefined || theirs.images !== undefined
       ? { images }
+      : {}),
+    ...(solids.length > 0 || ours.solids !== undefined || theirs.solids !== undefined
+      ? { solids }
       : {}),
   };
 }

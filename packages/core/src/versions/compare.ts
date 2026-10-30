@@ -306,6 +306,7 @@ function sideOf(state: ProjectSnapshot): Side {
       case 'component':
       case 'relation-type':
       case 'image':
+      case 'solid':
         push(inPackage, ref.package, key);
         break;
       default:
@@ -574,6 +575,7 @@ function mentioned(ref: ItemRef): [string, Id][] {
     case 'component':
     case 'relation-type':
     case 'image':
+    case 'solid':
       return [[itemKey(ref), ref.id]];
     case 'package':
       return [[itemKey(ref), ref.package]];
@@ -786,6 +788,8 @@ function keysOf(collection: Collection, key: string, before: Side, after: Side):
       return [`relation-type:${collection.package}:${key}`];
     case 'images':
       return [`image:${collection.package}:${key}`];
+    case 'solids':
+      return [`solid:${collection.package}:${key}`];
     case 'positions':
       return [`position:${collection.view}:${key}`];
     case 'freeShapes':
@@ -854,6 +858,7 @@ function closure(start: Iterable<string>, before: Side, after: Side): Set<string
         case 'component':
         case 'relation-type':
         case 'image':
+        case 'solid':
           add(`package:${ref.package}`);
           break;
         case 'package':

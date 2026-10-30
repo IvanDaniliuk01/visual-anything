@@ -193,6 +193,8 @@ export type { ProjectCheck } from './check';
 export { checkProject } from './check';
 
 export * from './images';
+// Solids (ADR 0075): the canonical form's reader, the camera's maths and the catalog.
+export * from './solids';
 export * from './import';
 
 export type {
