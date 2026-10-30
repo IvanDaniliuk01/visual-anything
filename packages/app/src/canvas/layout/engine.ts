@@ -145,6 +145,23 @@ export interface Lifted {
 }
 
 /**
+ * A relation that leaves a container, at the level of one of its contents (ADR 0080, section 1):
+ * beyond the one-pass budget, it becomes a port on the container's side that faces its other end,
+ * east for a relation that leaves toward its `to` end, west for one that comes in from its `from`
+ * end, as the layered flow runs, so that the content still leans toward it.
+ */
+export interface Outward {
+  node: number;
+  toward: 'east' | 'west';
+  /** Whether the relation ends on the content itself, rather than on something inside it. */
+  direct: boolean;
+  /** Where it attaches beside the content, for an end on a row of it or on its header (ADR 0023). */
+  at?: number;
+  /** For an end on an anchored part of the content, the part's inner point (ADR 0067). */
+  part?: Point;
+}
+
+/**
  * Arranges the free shapes of `input`, and says where each goes. The containers of one depth go to
  * ELK in chunks of about `CHUNK_WORK` each, which the engines take in turn: given several, as the
  * layout worker gives one per ELK worker it runs, they arrange chunks at the same time. Each chunk
@@ -217,6 +234,9 @@ export async function layOut(
     return laid;
   };
 
+  // Beyond the one-pass budget, each relation that leaves a container is a port on its side.
+  let containerPorts = false;
+
   /** Arranges the levels given, in ELK at once, and records their contents' new places. */
   const arrange = async (levels: readonly number[]): Promise<void> => {
     const blocks: { level: number; nodes: number[]; places: Map<number, Point> }[] = [];
@@ -235,7 +255,11 @@ export async function layOut(
       stats.leftOut += all.length - lifted.length;
       const block = { level, nodes, places: new Map<number, Point>() };
       blocks.push(block);
-      if (lifted.length === 0) {
+      const free = new Set(nodes);
+      const outward = containerPorts
+        ? tree.outwardAt(level).filter((each) => free.has(each.node))
+        : [];
+      if (lifted.length === 0 && outward.length === 0) {
         inRows(nodes, block.places);
         report(1);
       } else {
@@ -246,6 +270,7 @@ export async function layOut(
           sizes,
           (node) => input.shapes[node]?.points,
           lifted,
+          outward,
         );
         stats.relations += graph.edges?.length ?? 0;
         graphs.push(graph);
@@ -671,6 +696,7 @@ export async function layOut(
   if (plan) {
     routes = await arrangeWhole(plan);
   } else {
+    containerPorts = input.onePass === true;
     // Innermost first: every container of one depth in one run, then World.
     for (const levels of tree.levelsByHeight()) await arrange(levels);
     await arrange([WORLD]);
@@ -1024,6 +1050,7 @@ export function blockGraph(
   sizes: ReadonlyMap<number, Size>,
   pointsOf: (node: number) => readonly LayoutConnectionPoint[] | undefined,
   lifted: readonly Lifted[],
+  outward: readonly Outward[] = [],
 ): ElkNode {
   const back = backRelations(nodes, lifted);
   const ports = new Map<number, Map<number | string, ElkPort>>();
@@ -1137,9 +1164,35 @@ export function blockGraph(
     edges.push({ id: `e${edges.length}`, sources: [source], targets: [target] });
   });
 
+  // Each relation that leaves the container: an edge to the port on its side, east or west.
+  const sides = new Set<'east' | 'west'>();
+  for (const each of outward) {
+    const end = endOf(each.node, each.direct, each.toward, undefined, each.at, each.part);
+    const port = `${id}:${each.toward}`;
+    const [source, target] = each.toward === 'east' ? [end, port] : [port, end];
+    const key = `${source}\u0000${target}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sides.add(each.toward);
+    edges.push({ id: `e${edges.length}`, sources: [source], targets: [target] });
+  }
+  const options = nodes.length > WRAP_BEYOND ? WRAPPED_OPTIONS : BLOCK_OPTIONS;
+  const containerSides = (['east', 'west'] as const).filter((side) => sides.has(side));
+
   return {
     id,
-    layoutOptions: nodes.length > WRAP_BEYOND ? WRAPPED_OPTIONS : BLOCK_OPTIONS,
+    layoutOptions:
+      containerSides.length > 0 ? { ...options, 'elk.portConstraints': 'FIXED_SIDE' } : options,
+    ...(containerSides.length > 0
+      ? {
+          ports: containerSides.map((side): ElkPort => ({
+            id: `${id}:${side}`,
+            width: 0,
+            height: 0,
+            layoutOptions: { 'elk.port.side': side === 'east' ? 'EAST' : 'WEST' },
+          })),
+        }
+      : {}),
     children: nodes.map((node) => {
       const size = sizes.get(node) ?? { width: 1, height: 1 };
       const own = ports.get(node);
@@ -1289,6 +1342,7 @@ class Tree {
   /** Every shape of each element that holds contents. */
   private readonly copies = new Map<string, number[]>();
   private readonly lifted = new Map<number, Lifted[]>();
+  private readonly outward = new Map<number, Outward[]>();
   private readonly flows = new Map<number, { into: number; out: number }>();
   /** The places layout gave, by shape index. */
   private readonly moved = new Map<number, Point>();
@@ -1330,6 +1384,11 @@ class Tree {
 
   relationsAt(level: number): readonly Lifted[] {
     return this.lifted.get(level) ?? [];
+  }
+
+  /** The relations that leave a level's container, by the content they leave from (`Outward`). */
+  outwardAt(level: number): readonly Outward[] {
+    return this.outward.get(level) ?? [];
   }
 
   /** How many relations lead from kept shapes into free ones at a level, and from free ones out. */
@@ -1486,6 +1545,9 @@ class Tree {
     }
     const level = a === WORLD ? WORLD : this.firstCopy.get(shapes[a]?.element as string);
     if (level === undefined) return;
+    // Each container the relation leaves on its way up from either end, below where they meet.
+    this.leaves(from, belowA, 'east');
+    this.leaves(to, belowB, 'west');
     const u = this.contentOf(level, shapes[belowA]?.element as string);
     const v = this.contentOf(level, shapes[belowB]?.element as string);
     if (u === undefined || v === undefined || u === v) return;
@@ -1517,6 +1579,35 @@ class Tree {
       if (vFree) flow.into += 1;
       else flow.out += 1;
       this.flows.set(level, flow);
+    }
+  }
+
+  /**
+   * Records, for each container from `end`'s up to `top`, the content of its first copy the relation
+   * leaves it from, when that content is free: a port on the container's side `toward` faces.
+   */
+  private leaves(end: number, top: number, toward: 'east' | 'west'): void {
+    const { shapes } = this.input;
+    let below = end;
+    for (let holder = this.parentOf(end); below !== top && holder !== WORLD;) {
+      const level = this.firstCopy.get(shapes[holder]?.element as string);
+      const content =
+        level === undefined ? undefined : this.contentOf(level, shapes[below]?.element as string);
+      if (level !== undefined && content !== undefined && shapes[content]?.free === true) {
+        const at = this.besideAt(end, content);
+        const part = this.partOf(end, content);
+        const list = this.outward.get(level) ?? [];
+        list.push({
+          node: content,
+          toward,
+          direct: below === end,
+          ...(at === undefined ? {} : { at }),
+          ...(part === undefined ? {} : { part }),
+        });
+        this.outward.set(level, list);
+      }
+      below = holder;
+      holder = this.parentOf(holder);
     }
   }
 

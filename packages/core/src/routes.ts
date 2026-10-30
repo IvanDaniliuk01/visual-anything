@@ -19,6 +19,7 @@ import type { RouteStyle } from './commands/types';
 import { relationLabel } from './commands/model';
 import { containmentTree, type Placement } from './containment';
 import { nestingTypesInView } from './containers';
+import { shapesInView } from './scope-placement';
 import {
   appearanceOf,
   relationAppearanceOf,
@@ -203,10 +204,28 @@ export function routeContext(
   const nesting = nestingTypesInView(state, view);
   const nests = new Set(nesting);
   const { shapes } = options;
-  const first = shapes === undefined ? firstContainers(state.model, nesting) : undefined;
+  // In a view with a scope, a shape sits in its nearest container that shows (ADR-0040), as the
+  // scene places it: new bend points are relative to that, not to a container left out.
+  const placed =
+    shapes === undefined && view.scope !== undefined ? shapesInView(state, view) : undefined;
+  const first =
+    shapes === undefined && placed === undefined
+      ? firstContainers(state.model, nesting)
+      : undefined;
   const holders = new Map<Id, readonly Id[]>();
   const drawn = (element: Id): readonly Id[] | undefined => {
     if (shapes !== undefined) return shapes.holdersOf(element);
+    if (placed !== undefined) {
+      const path: Id[] = [element];
+      for (
+        let at = placed.containersOf(element)?.[0];
+        at !== undefined && !path.includes(at);
+        at = placed.containersOf(at)?.[0]
+      ) {
+        path.push(at);
+      }
+      return placed.containersOf(element) === undefined ? undefined : path.reverse();
+    }
     const path: Id[] = [element];
     const seen = new Set<Id>(path);
     for (let at = first?.get(element); at !== undefined && !seen.has(at); at = first?.get(at)) {

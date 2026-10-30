@@ -1018,7 +1018,7 @@ Example: { "id": "draft-view" }`,
 const setPositions = tool({
   name: 'set_positions',
   title: 'Place shapes in a view',
-  description: `Sets where element shapes sit in a view, as one undoable action. A position is keyed by the element and the container its shape sits in (left out for World), and is relative to that container's shape; every copy of a container shares its inner layout. Positions are left for layout to change unless pinned. Your positions are not snapped to the grid. Routes chosen by hand keep their bend points where they were: the answer names those whose ends you moved, which reset_route sends back to automatic routes.
+  description: `Sets where element shapes sit in a view, as one undoable action. A position is keyed by the element and the container its shape sits in (left out for World), and is relative to that container's shape; every copy of a container shares its inner layout. Positions are left for layout to change unless pinned. Your positions are not snapped to the grid. Routes chosen by hand follow their ends: their bend points move with both ends when you move both together, and only those next to an end you move alone follow it; the answer names those whose ends you moved apart, which reset_route sends back to automatic routes.
 
 Example: { "view": "system-overview", "positions": [{ "element": "scheduling", "container": "clinic-booking", "x": 520, "y": 64, "width": 440, "height": 384 }, { "element": "patient", "x": 40, "y": 200 }] }`,
   input: {
@@ -1039,7 +1039,7 @@ Example: { "view": "system-overview", "positions": [{ "element": "scheduling", "
         })),
       },
       async () => {
-        // Bend points chosen by hand stay where they were when an end moves (M3d, ADR 0039).
+        // Bend points chosen by hand follow their ends wholly only when both move together (ADR 0039).
         const moved = args.positions.map((position) => position.element);
         const left = routesNotFollowing(before, await program.project(), args.view, moved);
         return left.length === 0

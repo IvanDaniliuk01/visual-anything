@@ -1,8 +1,9 @@
 /**
  * Claude hears which relations a view routes by hand (M3d, "Fixes from use"): routes the person drew,
- * or that Claude set, which layout and moves never change (ADR 0039). read_view and get_item name
- * them, and set_positions and update_view say which of them a change leaves running through bend
- * points of their own, so that Claude can reset_route them.
+ * or that Claude set, which layout and moves never write (ADR 0039); their bend points follow their
+ * ends (its clarification of 2026-10-30). read_view and get_item name them, and set_positions and
+ * update_view say which of them a change may leave running through bend points far from their ends,
+ * so that Claude can reset_route them.
  */
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -102,7 +103,7 @@ describe('relations routed by hand', () => {
     expect(customer.relationsRoutedByHand).toBeUndefined();
   });
 
-  it('are named by set_positions when it moves one of their ends, and their bend points stay', async () => {
+  it('are named by set_positions when it moves their ends apart, the bend points next to a moved end following it', async () => {
     await drawnByHand();
     const answer = await value('set_positions', {
       view: 'overview',
@@ -110,10 +111,25 @@ describe('relations routed by hand', () => {
     });
     expect(answer.routesByHandNotFollowing).toEqual([API_READS_DB]);
     expect(String(answer.routesByHandNote)).toContain('reset_route');
+    // The API leaves by its bottom: the run down from it, through both bend points, moves across with
+    // it (ADR 0039's clarification of 2026-10-30).
     const route = session.snapshot.views[0]?.routes?.['api-reads-db'];
     expect(route?.bendPoints).toEqual([
-      { x: 184, y: 82 },
-      { x: 184, y: 648 },
+      { x: 364, y: 82 },
+      { x: 364, y: 648 },
+    ]);
+    // Both ends moved together carry the bend points with them: none is named.
+    const together = await value('set_positions', {
+      view: 'overview',
+      positions: [
+        { element: 'api', container: 'system', x: 208, y: 48 },
+        { element: 'db', container: 'system', x: 28, y: 168 },
+      ],
+    });
+    expect(together.routesByHandNotFollowing).toBeUndefined();
+    expect(session.snapshot.views[0]?.routes?.['api-reads-db']?.bendPoints).toEqual([
+      { x: 372, y: 90 },
+      { x: 372, y: 656 },
     ]);
     // A move of shapes that no hand route ends on names none.
     const other = await value('set_positions', {

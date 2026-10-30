@@ -292,6 +292,24 @@ describe('set-route', () => {
     expect(routesOf(outside)?.['client-calls-api']).toEqual({ bendPoints: [{ x: -40, y: 60 }] });
   });
 
+  it('stores bend points relative to the canvas in a view whose scope leaves their container out', () => {
+    // The system is out of scope, so the API and the DB sit in World (ADR-0040), as the scene draws.
+    const scoped = after(routingProject(), {
+      type: 'set-scope',
+      view: 'overview',
+      scope: { leftOut: ['system'] },
+    });
+    const state = after(scoped, {
+      type: 'set-route',
+      view: 'overview',
+      relation: 'api-reads-db',
+      bendPoints: [{ x: 120, y: 100 }],
+    });
+    expect(routesOf(state)?.['api-reads-db']).toEqual({ bendPoints: [{ x: 120, y: 100 }] });
+    expect(routeOf(state, 'overview', 'api-reads-db')?.bendPoints).toEqual([{ x: 120, y: 100 }]);
+    expect(routeOf(state, 'overview', 'api-reads-db')?.frame).toBeUndefined();
+  });
+
   it('takes bend points relative to a container it is given, when that holds both ends', () => {
     const canvas = after(routingProject(), {
       type: 'set-route',

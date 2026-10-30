@@ -2,8 +2,10 @@
  * The scene's side of routing around shapes (`avoid.ts`, ADR 0039's clarification of 2026-10-26):
  * which lines may go around what is in their way, what the avoider is given for a scene, and the
  * scene with the routes it gave. Only automatic orthogonal lines between two shapes are routed so:
- * a route set by hand, a curved or straight one, one to a connection point, or to another relation's
- * line keeps the route the scene gives it. A line that other lines end on is routed so when each of
+ * a route set by hand, a curved or straight one, or one to another relation's line keeps the route
+ * the scene gives it. A line to a connection point of a shape drawn as its box leaves the point
+ * straight out of its side, with a stub of `STUB`, as lines beside rows do (ADR 0080's clarification
+ * of 2026-10-30); on an outline of its own it keeps its route still. A line that other lines end on is routed so when each of
  * those runs from a plain shape and nothing ends on it: they follow its middle.
  *
  * Lines beside rows, and on shapes that draw rows, are routed too (ADR 0080, section 2, superseding
@@ -56,13 +58,26 @@ const DETAIL_SIZE = 11;
 
 /**
  * Whether routing around keeps a shape's end of a line: one that attaches as a plain rectangle, one
- * beside a row, or one on a shape that draws rows (ADR 0080, section 2).
+ * beside a row, one on a shape that draws rows (ADR 0080, section 2), or one at a connection point of
+ * a shape drawn as its box (ADR 0080's clarification of 2026-10-30).
  */
 function routedEnd(shape: ElementShape | undefined): shape is ElementShape {
+  if (shape === undefined) return false;
+  if (shape.points !== undefined) return atPoints(shape);
+  return !(shape.outline !== undefined && onlyStrokes(shape.outline));
+}
+
+/**
+ * Whether lines leave a shape at its connection points through the router: a shape drawn as its box,
+ * whose points lie on the sides the router goes around. On an outline of its own, or drawn by its
+ * picture, a line to a connection point keeps the route the scene gives it.
+ */
+function atPoints(shape: ElementShape): boolean {
   return (
-    shape !== undefined &&
-    shape.points === undefined &&
-    !(shape.outline !== undefined && onlyStrokes(shape.outline))
+    shape.points !== undefined &&
+    shape.outline === undefined &&
+    shape.plate === undefined &&
+    !besideRows(shape)
   );
 }
 
@@ -412,8 +427,10 @@ export function avoidBatchOf(scene: Scene, only?: ReadonlySet<RelationLine>): Av
         ? routeBetweenEnds({ rect: avoidedBoxOf(from) }, { rect: avoidedBoxOf(to) }, offset)
         : line.route;
     const avoided: AvoidLine = { from: ends.from, to: ends.to, offset, route: flatRoute(route) };
-    const fromSide = sideOf(batch, ends.from, route[0] as Point);
-    const toSide = sideOf(batch, ends.to, route.at(-1) as Point);
+    const fromSide =
+      sideOf(batch, ends.from, route[0] as Point) ?? pointSideOf(from, ends.from, route[0]);
+    const toSide =
+      sideOf(batch, ends.to, route.at(-1) as Point) ?? pointSideOf(to, ends.to, route.at(-1));
     if (fromSide) avoided.fromSide = fromSide;
     if (toSide) avoided.toSide = toSide;
     lines.push(avoided);
@@ -434,6 +451,30 @@ function sideOf(batch: ShapeBatch, at: number, point: Point): AvoidSide | undefi
   const width = rects[table * 4 + 2] as number;
   const way = Math.abs(point.x - (left + width)) <= Math.abs(point.x - left) ? 1 : -1;
   return { shape: table, way, y: point.y };
+}
+
+/**
+ * How a line's end leaves a connection point (ADR 0080's clarification of 2026-10-30): straight out of
+ * the side of its shape that the point, where the stand-in route starts, lies on. Undefined for an end
+ * that does not leave at one.
+ */
+function pointSideOf(
+  shape: ElementShape | undefined,
+  at: number,
+  point: Point | undefined,
+): AvoidSide | undefined {
+  if (!shape || !point || !atPoints(shape)) return undefined;
+  const { x, y, width, height } = shape.rect;
+  const away = [
+    Math.abs(point.x - x),
+    Math.abs(point.x - (x + width)),
+    Math.abs(point.y - y),
+    Math.abs(point.y - (y + height)),
+  ];
+  const nearest = away.indexOf(Math.min(...away));
+  if (nearest === 0) return { shape: at, way: -1, y: point.y };
+  if (nearest === 1) return { shape: at, way: 1, y: point.y };
+  return { shape: at, way: nearest === 2 ? -1 : 1, y: point.y, vertical: true, x: point.x };
 }
 
 function flatRoute(route: readonly Point[]): Float64Array {
@@ -741,7 +782,7 @@ export function channelBatchOf(
             : `relation ${end.relation}`;
       ends[2 * index + side] = numberOf(key);
       const shape = end?.kind === 'shape' ? shapeOf(end.key) : undefined;
-      stubs[2 * index + side] = shape && besideRows(shape) ? STUB : PLAIN_STUB;
+      stubs[2 * index + side] = shape && (besideRows(shape) || atPoints(shape)) ? STUB : PLAIN_STUB;
     });
     // A relation from a row to its own table keeps its short C.
     const tables = drawnEnds.map((end) => {

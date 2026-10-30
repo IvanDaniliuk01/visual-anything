@@ -217,6 +217,38 @@ describe('layOut in one pass', () => {
     expect(result.stats.onePass).toBeUndefined();
   });
 
+  it("beyond its budget, gives each relation that leaves a container a port on the container's facing side", async () => {
+    // A container holding a and b, b related to a shape in World after it, and a long chain in World.
+    const count = WHOLE_SHAPES + 1;
+    const shapes = [
+      shape('box', -1, { ...container, free: true }),
+      shape('box/a', 0),
+      shape('box/b', 0),
+      ...Array.from({ length: count }, (_, at) => shape(`s${at}`, -1)),
+    ];
+    const edges: [number, number][] = [
+      [1, 2],
+      [2, 3],
+      ...Array.from({ length: count - 1 }, (_, at): [number, number] => [at + 3, at + 4]),
+    ];
+    const graphs: ElkNode[] = [];
+    const placing: ElkEngine = {
+      layout: (graph) => {
+        graphs.push(...(graph.children ?? []));
+        return Promise.resolve(graph);
+      },
+    };
+    const result = await layOut(onePass(shapes, edges), placing);
+    expect(result.stats.onePass).toBeUndefined();
+    const box = graphs.find((graph) => graph.id === 'level 0');
+    expect(box?.ports?.map((port) => port.layoutOptions?.['elk.port.side'])).toEqual(['EAST']);
+    expect(box?.edges).toContainEqual({
+      id: expect.any(String) as string,
+      sources: ['s2'],
+      targets: ['level 0:east'],
+    });
+  });
+
   it('packs in rows what ELK did not arrange in time, and still ends', async () => {
     const shapes = [shape('a', -1), shape('b', -1), shape('c', -1)];
     const never: ElkEngine = { layout: () => new Promise<ElkNode>(() => {}), stop: () => {} };
