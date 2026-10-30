@@ -6,12 +6,13 @@
  */
 import type {
   Appearance,
+  Face,
   Id,
   ProjectAppearances,
   ProjectFile,
   RelationAppearance,
 } from '@visual-anything/schema';
-import { APPEARANCE_TRAITS } from '../appearance';
+import { APPEARANCE_TRAITS, FACE_PARTS } from '../appearance';
 import { RELATION_APPEARANCE_TRAITS, isBuiltInDefinition } from '../definitions';
 import { projectAppearanceOf } from '../project-appearances';
 import { updateComponent, updateRelationType } from './definitions';
@@ -239,7 +240,9 @@ function componentChanges(
             badges: next.detail.badges ?? null,
             lines: next.detail.lines ?? null,
           }
-        : (value ?? null);
+        : trait === 'face' && typeof next?.face === 'object'
+          ? Object.fromEntries(FACE_PARTS.map((part) => [part, (next.face as Face)[part] ?? null]))
+          : (value ?? null);
   }
   return changes;
 }

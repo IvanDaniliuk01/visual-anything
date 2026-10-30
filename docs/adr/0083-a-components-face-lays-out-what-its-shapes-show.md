@@ -287,3 +287,50 @@ The layout is block, flex and a simple grid: a small engine, not a browser's.
   - `each` is the one element that takes attributes beyond `class`, `style`, `if` and `else`: its `of`, `only` and `except`.
 
   Naming attributes one by one with `{{…}}` stays as it is, with no limit on how many a face names but the face's caps.
+
+<!-- Decided by Claude on 2026-10-30 under the user's standing delegation of design decisions, while building F0's core half and F1 of M3e. -->
+
+- 2026-10-30 (M3e, F0's core half and F1): **how the core reads, lays out and checks faces.**
+  - **Roboto's widths in the core** (`core/src/text/roboto-widths.ts`, `robotoWidth`).
+    - Regular and Bold are the exports' tables, moved unchanged. Italic and Bold Italic are read with fontkit from the fonts the PDF embeds (Roboto 2.137), about 2% narrower than upright. Roboto Mono is 0.6 em for every character.
+    - The exports' `measure.ts` reads the core's tables, so SVG and PDF write the same bytes as before. The canvas still measures emphasis with italic as upright (`canvas/textBlock.ts`); it moves to the core's tables with F2, when labels move to Roboto.
+  - **The schema holds the format, the core holds the caps.** `FaceLine` is at most 2,000 characters with no line break, and a variant's id is `[a-z][a-z0-9-]{0,31}`. The caps on lines, bytes, variants and depth are the core's, so that a command refuses past them and opening only warns, as the ADR says.
+    - The caps on markup count the variants' markup with the face's: 200 lines and 16 KiB in all.
+    - Filling a face is bounded as well: at most 4,096 parts of its markup, repetitions counted, and 1,024 pieces of text before layout. Past them, as past 256 boxes or runs, the face is drawn as the shape's name.
+  - **Levels wait for F2.** `LevelOfDetail.face` and `face` in `shows` are added with F2, which draws variants by level: the app's levels editor lists every part a level shows, and nothing draws a face before F2.
+  - **The style subset, as the ADR's own example writes it.**
+    - Selectors take an element, classes, both (`b.far`), and those joined by spaces for descendants (`.head b`), at most 4 parts and 16 selectors a rule. Rules apply by specificity (classes, then elements), then by place, and inline style last.
+    - The face's own box is styled by the selector `face`: `face { justify-content: center; }` places a face in a taller shape.
+    - Accepted as well: `background` with one color, `sans-serif` and `monospace`, `-webkit-line-clamp`, `font-weight: bold`, `row-gap` and `column-gap`, and `flex-start`, `flex-end` and the like. Colors are `#RRGGBB` or tokens only: no `#RGB`, no names.
+  - **The engine** (`faces/layout.ts`):
+    - a block lays its children out as a column, `flex-direction` is `row` by default, margins never collapse, and no element has margins of its own but `hr`;
+    - nothing is wider than its container: a width past it is cut to it, a flex item shrinks down to its `min-width` (0 unless set), and a word longer than its line breaks between characters;
+    - inline elements in a flex or grid container become boxes, as CSS does;
+    - `position: absolute` places a box against the face's own box from anywhere in the markup, and it is drawn after the flow;
+    - `<icon/>` is 20 px square and `<image/>` 24 px unless styled, and `<drawing/>` grows into the room left in a face of size `shape`;
+    - text is 11 px at 1.3 lines in the theme's text color; `small` is 0.85 of its parent's size, `sub` and `sup` 0.75 and shifted; `code` and `mark` draw their backs as bands; list items take "•" or their number;
+    - when lines are left out under the face's height or a box's `overflow: hidden`, the lowest line kept ends in "…".
+  - **Markup.**
+    - `else` takes a condition, to chain them, or an empty value, and follows an element with `if` or `else`, spaces between.
+    - `<each>` makes no box of its own: it takes `of`, `only`, `except`, `if` and `else`, and `class` or `style` on it is refused, to be put on what it repeats. `{{more}}` is read by the elements after it in the same parent, and has no value when nothing is left out.
+    - `<rows/>` and `<contents/>` take no condition, and a markup holds one or the other.
+    - `<detail/>` writes the detail without its badges, and `<badges/>` the badges that hold and an overlay's, a space between each.
+  - **Slots.**
+    - A value is missing when it is absent, empty, false or an empty list.
+    - A boolean writes its attribute's name while it is true, as the detail does. A list of texts and numbers is written with commas; a destination by its label (the view's name, the project's folder, or the address's host); other JSON compactly.
+    - The words of slots (`name`, `component`, `count`, `item`, `key`, `value`, `more`, `not`, `in`, `plain`, `attr`) name attributes only through `attr "…"`.
+    - A class made from a value is reduced by taking accents off, writing it in lowercase and turning every other run of characters into "-", at most 64 characters.
+  - **Theme tokens.** `--text` and `--text-muted` are the colors that read on the shape's fill, as names and details are written today; `--highlight` and `--code-back` follow that text. A box of a fixed color must set the color of its text: the contrast check warns otherwise. The ADR's own example does, in the dark theme, for its `#9DC3E6` badge, so F4's built-in faces set a color wherever they set a fixed background.
+  - **Problems.**
+    - Each has its part (the markup, the style or a variant), line, column and severity. A command refuses with the first error. Style the subset drops is a warning, and so are unknown attributes and contrast.
+    - Opening checks a face where one of its parts is set, on the component or the element that sets it, at most 10 warnings a face and a count of the rest.
+    - The contrast check reads the compiled face: every branch of a condition, and a class made from a value without a rule and with each rule it could pick. Since those choices multiply through nested elements, it takes at most 4,096 steps, every element visited with each of its choices and every text counted, and past them it warns that it checked the face only in part. Whether a rule's class is one a slot could write is matched in linear time: the texts between slots in order, and what the slots write made of `[a-z0-9-]`, with no regular expression built from a face.
+    - The messages are the core's, in English. Their Spanish templates come with F4, which first shows them in the app.
+  - **The face drawing:**
+    - boxes;
+    - runs, each with its line and paragraph;
+    - bands, of kind `back`, `underline` or `strike`, with their color;
+    - images by id, and the regions of `<rows/>`, `<contents/>` and `<drawing/>`;
+    - its height, whether anything was cut, and `fallback` when it is the shape's name instead: bold, 14 px, centred, on at most 2 lines.
+
+    `faceDrawingText` reads it in order, a paragraph a line. Compiled faces are kept by their text, 512 at most, each with the SHA-256 of its parts.

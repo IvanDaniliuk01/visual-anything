@@ -10,6 +10,7 @@ import { appearanceOf, isBuiltInDefinition, type Definitions } from './definitio
 import { codeWarnings } from './code/check';
 import { destinationWarnings } from './destination-checks';
 import { duplicateExternalIdWarnings } from './external-ids';
+import { faceWarnings } from './faces/project-check';
 import { threadErrors } from './comments/check';
 import { checkImages } from './images/check';
 import { overlayProblems } from './overlays/check';
@@ -46,6 +47,8 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
     );
   }
   warnings.push(...appearanceWarnings(state, definitions));
+  // Faces the subset refuses, past their caps, or that read poorly only warn (ADR 0083).
+  warnings.push(...faceWarnings(state, definitions));
   // Free geometry that is not geometry, or past a file's cap, is drawn as its kind (ADR 0066).
   warnings.push(...geometryFindings(state).warnings);
   // Package code that cannot run (ADR 0054).

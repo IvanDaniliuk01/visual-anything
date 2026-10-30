@@ -13,6 +13,8 @@ import type {
   Color,
   ConnectionPoint,
   DetailRules,
+  Face,
+  FaceVariant,
   Id,
   JsonValue,
   LevelOfDetail,
@@ -21,7 +23,10 @@ import type {
   RelationTypeLimits,
 } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
-import { valueFitsType } from '../appearance';
+import { FACE_PARTS, valueFitsType } from '../appearance';
+import { compileFace } from '../faces/compile';
+import { FACE_CAPS } from '../faces/limits';
+import { faceMessage } from '../faces/problems';
 import { isColor, storedColor } from '../colors';
 import type { Definitions } from '../definitions';
 import { isId } from '../ids';
@@ -340,7 +345,106 @@ const TRAIT_CHECKS: {
   part: checkedPart,
   levels: checkedLevels,
   expandFrom: checkedExpandFrom,
+  face: checkedFace,
 };
+
+const VARIANT_ID = /^[a-z][a-z0-9-]{0,31}$/;
+
+/** Lines of a face's markup or style, each a text without a line break, of at most 2,000 characters. */
+function checkedFaceLines(value: unknown, what: string, of: string): string[] {
+  if (!Array.isArray(value) || !value.every((line) => typeof line === 'string')) {
+    reject('invalid-face', `The ${what} of the face of ${of} is a list of lines of text.`);
+  }
+  const at = value.findIndex(
+    (line) => line.length > FACE_CAPS.lineCharacters || /[\r\n]/.test(line),
+  );
+  if (at !== -1) {
+    reject(
+      'invalid-face',
+      `Line ${at + 1} of the ${what} of the face of ${of} holds a line break or more than 2,000 characters.`,
+    );
+  }
+  return [...value];
+}
+
+/**
+ * A face (ADR 0083), or `none`: its parts checked, and what it sets compiled, so that markup or style
+ * the subset refuses, or a face past its caps, is refused at its line and column. Kept as written, so
+ * that its lines diff one by one.
+ */
+function checkedFace(value: unknown, of: string): NonNullable<Appearance['face']> {
+  if (value === 'none') return 'none';
+  if (!isRecord(value))
+    reject('invalid-face', `The face of ${of} must be "none" or an object of its parts.`);
+  onlyKeys(value, FACE_PARTS, (key) =>
+    reject('invalid-face', `The face of ${of} has no "${key}".`),
+  );
+  const face: Face = {};
+  if (value.size !== undefined) {
+    if (value.size !== 'content' && value.size !== 'shape') {
+      reject('invalid-face', `The face of ${of} is sized by its "content" or by its "shape".`);
+    }
+    face.size = value.size;
+  }
+  if (value.markup !== undefined) face.markup = checkedFaceLines(value.markup, 'markup', of);
+  if (value.style !== undefined) face.style = checkedFaceLines(value.style, 'style', of);
+  if (value.variants !== undefined) {
+    if (!Array.isArray(value.variants))
+      reject('invalid-face', `The variants of the face of ${of} are a list.`);
+    face.variants = value.variants.map((variant: unknown): FaceVariant => {
+      if (!isRecord(variant))
+        reject('invalid-face', `A variant of the face of ${of} is an object.`);
+      onlyKeys(variant, ['id', 'markup'], (key) =>
+        reject('invalid-face', `A variant of the face of ${of} has no "${key}".`),
+      );
+      if (typeof variant.id !== 'string' || !VARIANT_ID.test(variant.id)) {
+        reject(
+          'invalid-face',
+          `A variant of the face of ${of} has an id of lowercase letters, digits and "-", a letter first.`,
+        );
+      }
+      return { id: variant.id, markup: checkedFaceLines(variant.markup, 'markup', of) };
+    });
+  }
+  if (value.collapsed !== undefined) {
+    if (typeof value.collapsed !== 'string' || !VARIANT_ID.test(value.collapsed)) {
+      reject('invalid-face', `The face of ${of} names its collapsed variant by its id.`);
+    }
+    face.collapsed = value.collapsed;
+  }
+  const compiled = compileFace({
+    size: face.size ?? 'shape',
+    markup: face.markup ?? [],
+    style: face.style ?? [],
+    variants: face.variants ?? [],
+    // A collapsed variant is checked against the variants set beside it; inherited ones are checked
+    // once the face is worked out, by the project's check.
+    ...(face.collapsed !== undefined && face.variants !== undefined
+      ? { collapsed: face.collapsed }
+      : {}),
+  });
+  const error = compiled.problems.find((each) => each.severity === 'error');
+  if (error !== undefined) reject(error.code, `The face of ${of}: ${faceMessage(error)}`);
+  return face;
+}
+
+/** A face after changes, part by part; `none` takes the whole face away. `undefined` when no part is left. */
+function changedFace(own: Appearance['face'], changes: unknown, of: string): Appearance['face'] {
+  if (changes === 'none') return 'none';
+  if (!isRecord(changes))
+    reject('invalid-face', `The changes to the face of ${of} must be "none" or an object.`);
+  const next: Record<string, unknown> = own === 'none' || own === undefined ? {} : { ...own };
+  for (const [part, value] of Object.entries(changes)) {
+    if (!(FACE_PARTS as readonly string[]).includes(part)) {
+      reject('invalid-face', `The face of ${of} has no "${part}".`);
+    }
+    if (value === undefined) continue;
+    if (value === null) delete next[part];
+    else next[part] = value;
+  }
+  const checked = checkedFace(next, of);
+  return typeof checked === 'object' && Object.keys(checked).length === 0 ? undefined : checked;
+}
 
 /** Free geometry, read by the core's strict reader within its caps (ADR 0066), or `none`. */
 function checkedGeometry(value: unknown, of: string): NonNullable<Appearance['geometry']> {
@@ -484,6 +588,10 @@ export function changedAppearance(
       const detail = changedDetail(own?.detail, value, of);
       if (detail === undefined) delete next.detail;
       else next.detail = detail;
+    } else if (trait === 'face') {
+      const face = changedFace(own?.face, value, of);
+      if (face === undefined) delete next.face;
+      else next.face = face;
     } else {
       next[trait] = checkedTrait(
         trait as keyof Appearance,

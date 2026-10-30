@@ -70,6 +70,12 @@ export type ProblemCode =
   // picture lacks, and a picture with more named parts than it lists.
   | 'unknown-part'
   | 'too-many-parts'
+  // Faces (ADR 0083): markup or style outside the subset, a face past its caps, and, only as
+  // warnings, a slot naming an attribute the component lacks and text that reads poorly.
+  | 'invalid-face'
+  | 'face-too-large'
+  | 'unknown-face-attribute'
+  | 'face-contrast'
   // Package code (ADR 0054): code a command refuses or a project holds that cannot run, and what
   // its hooks do that only warns.
   | 'invalid-code'
