@@ -355,3 +355,6 @@ The layout is block, flex and a simple grid: a small engine, not a browser's.
   - **Words.** A face is «cara» in Spanish.
   - **The read-only page** draws faces with the canvas's own code, Roboto included, so its script holds the fonts' bytes.
   - **Left for later:** the outline's text of a face comes with F3, which writes faces in the exports.
+- 2026-10-30 (M3e, after merging F2): **what F2 asked.** Decided by Claude under the user's standing delegation.
+  - **The read-only page embeds the fonts' bytes,** about 490 KB of base64. A page that draws as the canvas does needs them, and a single self-contained file is what the read-only page is for.
+  - **No `font-src` is needed.** Fonts made from bytes with `FontFace` fetch nothing. Checked in headless Chrome against the app's policy: the canvas drew in Roboto, and no policy violation or error was logged.
