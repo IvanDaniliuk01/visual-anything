@@ -30,6 +30,7 @@ import type { Point, Rect, Size } from '../geometry';
 import { NOT_EXPANDED } from '../overlays/collapsed';
 import { laidOutRect } from '../overlays/decorate';
 import { buildScene, type Scene } from '../scene';
+import { closedRoom } from './closeRoom';
 import { layoutCommand } from './command';
 import { layoutInput, type LayoutScope } from './input';
 import { useLayoutRunner } from './runnerContext';
@@ -183,6 +184,9 @@ export const expansionMemory = new ExpansionMemory();
 /**
  * The one action that collapses `elements` by hand: `set-collapsed`, and, under the same label, the
  * places back of what expanding them moved aside, for each shape still where the expansion put it.
+ * With no place to give back, as after a reload or for a container expanded since the view was made,
+ * it closes the room the container leaves instead (`closeRoom.ts`, ADR 0080's clarification of
+ * 2026-10-29).
  */
 export function collapseCommand(
   project: ProjectSnapshot,
@@ -203,7 +207,16 @@ export function collapseCommand(
       back.push({ ...now, x: each.from.x, y: each.from.y });
     }
   }
-  if (back.length === 0) return collapse;
+  if (back.length === 0) {
+    const done = executeCommand(project, collapse);
+    const closing = done.ok ? closedRoom(project, done.state, viewId, elements) : [];
+    if (closing.length === 0) return collapse;
+    return {
+      type: 'batch',
+      label,
+      commands: [collapse, { type: 'set-positions', view: viewId, positions: closing }],
+    };
+  }
   return {
     type: 'batch',
     label,
