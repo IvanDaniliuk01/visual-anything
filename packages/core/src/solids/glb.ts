@@ -318,6 +318,23 @@ function readDocument(json: unknown, bin: Uint8Array): SolidDocument {
     };
   });
   if (names.size > SOLID_CAPS.parts) overCap(`It has ${names.size} named parts.`);
+  // A mesh drawn by many nodes is drawn, and described, once for each: the caps count every one of
+  // them, so that reusing a heavy mesh cannot multiply the work past them.
+  let drawnVertices = 0;
+  let drawnTriangles = 0;
+  for (const node of readNodes) {
+    if (node.mesh === undefined) continue;
+    for (const primitive of (readMeshes[node.mesh] as SolidMesh).primitives) {
+      drawnVertices += (accessors[primitive.position] as SolidAccessor).count;
+      drawnTriangles += (accessors[primitive.indices] as SolidAccessor).count / 3;
+    }
+  }
+  if (drawnVertices > SOLID_CAPS.vertices) {
+    overCap(`Its nodes draw ${drawnVertices} vertices in all.`);
+  }
+  if (drawnTriangles > SOLID_CAPS.triangles) {
+    overCap(`Its nodes draw ${drawnTriangles} triangles in all.`);
+  }
 
   const scenes = list(top.scenes, '"scenes"');
   if (nodes.length > 0 && scenes.length !== 1) notCanonical('A solid has exactly one scene.');

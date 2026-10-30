@@ -552,22 +552,26 @@ function checkedSolid(value: unknown, of: string): NonNullable<Appearance['solid
 }
 
 /** A solid's camera (ADR 0075): a direction, a zoom, a target and a projection, within their ranges. */
-export function checkedSolidCamera(value: unknown, of: string): SolidCamera {
+export function checkedSolidCamera(
+  value: unknown,
+  of: string,
+  refuse: (message: string) => never = invalid,
+): SolidCamera {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    invalid(`The camera of ${of}'s solid must be an azimuth and an elevation, at least.`);
+    refuse(`The camera of ${of}'s solid must be an azimuth and an elevation, at least.`);
   }
   const { azimuth, elevation, zoom, target, projection, ...rest } = value as Record<
     string,
     unknown
   >;
   if (Object.keys(rest).length > 0) {
-    invalid(
+    refuse(
       `The camera of ${of}'s solid holds only its azimuth, elevation, zoom, target and projection.`,
     );
   }
   const within = (number: unknown, low: number, high: number, what: string): number => {
     if (typeof number !== 'number' || !Number.isFinite(number) || number < low || number > high) {
-      invalid(`The ${what} of ${of}'s solid's camera is a number from ${low} to ${high}.`);
+      refuse(`The ${what} of ${of}'s solid's camera is a number from ${low} to ${high}.`);
     }
     return number;
   };
@@ -578,11 +582,11 @@ export function checkedSolidCamera(value: unknown, of: string): SolidCamera {
   if (zoom !== undefined) camera.zoom = within(zoom, 0.25, 16, 'zoom');
   if (target !== undefined) {
     if (typeof target !== 'object' || target === null || Array.isArray(target)) {
-      invalid(`The target of ${of}'s solid's camera is a point: x, y and z.`);
+      refuse(`The target of ${of}'s solid's camera is a point: x, y and z.`);
     }
     const { x, y, z, ...more } = target as Record<string, unknown>;
     if (Object.keys(more).length > 0) {
-      invalid(`The target of ${of}'s solid's camera is a point: x, y and z.`);
+      refuse(`The target of ${of}'s solid's camera is a point: x, y and z.`);
     }
     camera.target = {
       x: within(x, -100_000, 100_000, 'target'),
@@ -592,7 +596,7 @@ export function checkedSolidCamera(value: unknown, of: string): SolidCamera {
   }
   if (projection !== undefined) {
     if (projection !== 'perspective' && projection !== 'orthographic') {
-      invalid(`The projection of ${of}'s solid's camera is "perspective" or "orthographic".`);
+      refuse(`The projection of ${of}'s solid's camera is "perspective" or "orthographic".`);
     }
     camera.projection = projection;
   }

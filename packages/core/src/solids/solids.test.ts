@@ -182,6 +182,17 @@ describe('readSolid', () => {
     );
   });
 
+  it('counts a mesh once for every node that draws it, against the caps', () => {
+    // A mesh of 600,000 vertices drawn by two nodes draws 1,200,000, past the cap of 1,000,000.
+    const positions = new Array<number>(600_000 * 3).fill(0);
+    for (let at = 0; at < 600_000; at += 1) positions[at * 3] = at / 600_000;
+    const mesh = { positions, indices: [0, 1, 2] };
+    const once = readSolid(writeTestSolid({ nodes: [{ mesh: 0 }], meshes: [mesh] }));
+    expect(once.ok).toBe(true);
+    const twice = writeTestSolid({ nodes: [{ mesh: 0 }, { mesh: 0 }], meshes: [mesh] });
+    expect(refusal(readSolid(twice))[0]).toBe('solid-too-large');
+  });
+
   it('refuses a file past a cap with solid-too-large', () => {
     const nodes = Array.from({ length: SOLID_CAPS.nodes + 1 }, () => ({}));
     expect(refusal(readSolid(writeTestSolid({ nodes, meshes: [] })))[0]).toBe('solid-too-large');

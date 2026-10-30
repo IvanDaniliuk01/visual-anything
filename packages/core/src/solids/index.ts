@@ -10,6 +10,7 @@ import { readCanonicalGlb, SolidRefusal } from './glb';
 export * from './caps';
 export * from './camera';
 export * from './catalog';
+export { checkSolids } from './check';
 export { describeSolid, roundLength, type SolidDescription } from './describe';
 export type { SolidDocument } from './glb';
 

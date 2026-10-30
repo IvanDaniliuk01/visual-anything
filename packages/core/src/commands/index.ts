@@ -23,6 +23,7 @@ import { Draft, Rejection, reject, requireList, requireName } from './draft';
 import { newLargeGeometry } from '../geometry/files';
 import { newUnknownParts } from '../images/anchored';
 import { checkImageReferences, defineImage, removeImage } from './images';
+import { defineSolid, removeSolid, updateSolid } from './solids';
 import {
   createElement,
   createRelation,
@@ -278,6 +279,12 @@ function dispatch(draft: Draft, command: Command): string {
       return defineImage(draft, command);
     case 'remove-image':
       return removeImage(draft, command);
+    case 'define-solid':
+      return defineSolid(draft, command);
+    case 'update-solid':
+      return updateSolid(draft, command);
+    case 'remove-solid':
+      return removeSolid(draft, command);
     case 'set-route':
       return setRoute(draft, command);
     case 'reset-route':

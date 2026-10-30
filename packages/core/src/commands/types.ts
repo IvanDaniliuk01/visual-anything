@@ -38,6 +38,8 @@ import type {
   RelationTypeLeftOut,
   Scope,
   ShapePosition,
+  SolidCamera,
+  SolidDefinition,
   Step,
   TourStep,
 } from '@visual-anything/schema';
@@ -86,6 +88,9 @@ export type Command =
   | SetRelationTypesLeftOutCommand
   | DefineImageCommand
   | RemoveImageCommand
+  | DefineSolidCommand
+  | UpdateSolidCommand
+  | RemoveSolidCommand
   | SetRouteCommand
   | ResetRouteCommand
   | SetPackageCodeCommand
@@ -774,6 +779,41 @@ export interface DefineImageCommand {
 /** Removes an image that no appearance shows. */
 export interface RemoveImageCommand {
   type: 'remove-image';
+  id: Id;
+}
+
+/**
+ * Defines a solid in one of the project's own packages, or replaces one's file (ADR 0075). Only the
+ * local program sends it, for a file it cleaned and holds, with the description it worked out; the
+ * core checks the definition's form and the package's caps, never the file.
+ */
+export interface DefineSolidCommand {
+  type: 'define-solid';
+  package: Id;
+  solid: SolidDefinition;
+  /** Creates only: refused with `id-taken` when the package already has this id. */
+  createOnly?: true;
+  /** The file the solid came from, for the history's name: `Import "arm.glb" as a solid`. */
+  fileName?: string;
+}
+
+/** Changes what a solid says about itself: its name, description, source, license and camera. */
+export interface UpdateSolidCommand {
+  type: 'update-solid';
+  id: Id;
+  changes: {
+    name?: string;
+    /** `null` takes it away. */
+    description?: string | null;
+    source?: string | null;
+    license?: string | null;
+    camera?: SolidCamera;
+  };
+}
+
+/** Removes a solid that no appearance shows. Its file stays in `solids/`. */
+export interface RemoveSolidCommand {
+  type: 'remove-solid';
   id: Id;
 }
 
