@@ -69,15 +69,21 @@ dd {
   flex: none;
 }
 
-/* The shell: header on top, then the model panel, the canvas area and the inspector. */
+/*
+ * The shell: header on top, then the model panel, the canvas area and the inspector. Each side panel
+ * takes the width the person gives its edge, which the panels' store writes (shell/panels/panels.css).
+ */
 
 .shell {
+  --panel-strip: calc(var(--control-sm) + 2 * var(--space-2));
+  --model-panel-column: var(--model-panel-width, 18rem);
+  --inspector-column: var(--inspector-width, 20rem);
   display: grid;
   grid-template:
     'header header header' auto
     'notice notice notice' auto
     'model canvas inspector' minmax(0, 1fr)
-    / minmax(15rem, 18rem) minmax(0, 1fr) minmax(15rem, 20rem);
+    / var(--model-panel-column) minmax(0, 1fr) var(--inspector-column);
   height: 100vh;
   height: 100dvh;
 }

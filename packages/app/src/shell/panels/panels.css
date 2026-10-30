@@ -1,0 +1,141 @@
+/*
+ * The side panels' edges and strips. The shell's columns take the widths the panels' store writes
+ * (`--model-panel-width` and `--inspector-width`), and a collapsed panel's column is a strip as wide
+ * as its button. Every color and size comes from the theme's tokens. The edge shows as a line on hover,
+ * on focus and while it is dragged.
+ */
+
+.shell[data-model-panel-collapsed] {
+  --model-panel-column: var(--panel-strip);
+}
+
+/* A collapsed panel is not drawn, nor reached with Tab; it keeps its state for when it opens. */
+.shell > .panel[hidden] {
+  display: none;
+}
+
+.shell[data-inspector-collapsed]:not(:has(> .scenario-panel)) {
+  --inspector-column: var(--panel-strip);
+}
+
+/*
+ * With the scenario panel open, the inspector's column keeps its width for it: the inspector's strip
+ * goes across the top of the column, and the scenario panel takes the rest of it.
+ */
+.shell[data-inspector-collapsed]:has(> .scenario-panel) {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.shell[data-inspector-collapsed]:has(> .element-list):has(> .scenario-panel) {
+  grid-template-areas:
+    'header header header'
+    'notice notice notice'
+    'model canvas inspector'
+    'model canvas scenario'
+    'model list scenario';
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+}
+
+.shell[data-inspector-collapsed] > .scenario-panel {
+  max-height: none;
+}
+
+.shell[data-panel-resizing] {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* The edge: a band astride the panel's border, which shows a line where the pointer can take it. */
+
+.panel-edge {
+  position: relative;
+  z-index: var(--z-toolbar);
+  width: var(--space-2);
+  background-image: linear-gradient(var(--accent), var(--accent));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.panel-edge:hover,
+.panel-edge:focus-visible,
+.shell[data-panel-resizing] .panel-edge {
+  background-size: var(--space-1) 100%;
+}
+
+.panel-edge-model {
+  grid-area: model;
+  justify-self: end;
+  margin-inline-end: calc(-1 * var(--space-1));
+}
+
+.panel-edge-inspector {
+  grid-area: inspector;
+  justify-self: start;
+  margin-inline-start: calc(-1 * var(--space-1));
+}
+
+/* The buttons that collapse a panel, at the bottom of its inner edge, and open it from its strip. */
+
+.panel-toggle {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.panel-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.panel-toggle:active {
+  background: var(--surface-pressed);
+}
+
+.panel-collapse {
+  position: relative;
+  z-index: var(--z-toolbar);
+  align-self: end;
+  margin: var(--space-2);
+  box-shadow: var(--shadow-1);
+}
+
+.panel-collapse-model {
+  grid-area: model;
+  justify-self: end;
+}
+
+.panel-collapse-inspector {
+  grid-area: inspector;
+  justify-self: start;
+}
+
+/* The strip a collapsed panel leaves. */
+
+.panel-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+  padding: var(--space-2) 0;
+  background: var(--panel);
+}
+
+.panel-strip-model {
+  grid-area: model;
+  border-right: 1px solid var(--border);
+}
+
+.panel-strip-inspector {
+  grid-area: inspector;
+  border-left: 1px solid var(--border);
+}

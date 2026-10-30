@@ -1,3 +1,4 @@
+import { PANEL_KEYS } from '../shell/panels/keys';
 import { SHAPE_KEYS } from './shapeKeys';
 
 /**
@@ -36,7 +37,10 @@ export const ROUTE_KEYS: readonly { keys: string; does: string }[] = [
   { keys: 'Escape, editing a route', does: 'Cancel, and leave the route as it was' },
 ];
 
-/** The canvas's keys, as its keyboard help lists them, in English; the help shows them translated. */
+/**
+ * The canvas's keys, as its keyboard help lists them, in English, then the side panels'; the help shows
+ * them translated.
+ */
 export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
   {
     keys: 'Arrow keys',
@@ -99,6 +103,8 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
   { keys: 'Tab', does: 'Leave the canvas' },
   ...SHAPE_KEYS,
   ...ROUTE_KEYS,
+  // The side panels' keys, which work beside the canvas too.
+  ...PANEL_KEYS,
 ];
 
 /** What the canvas tells screen readers about its keys when it gets the focus. */
