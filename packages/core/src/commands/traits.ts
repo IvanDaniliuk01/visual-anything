@@ -627,10 +627,8 @@ function invalidAttribute(message: string): never {
 /** One attribute definition a command sets, checked. */
 export function checkedAttributeDefinition(value: unknown, of: string): AttributeDefinition {
   if (!isRecord(value)) invalidAttribute(`An attribute of ${of} must be an object.`);
-  onlyKeys(
-    value,
-    ['name', 'type', 'default', 'description', 'choices', 'unit', 'format'],
-    (key) => invalidAttribute(`An attribute definition has no "${key}".`),
+  onlyKeys(value, ['name', 'type', 'default', 'description', 'choices', 'unit', 'format'], (key) =>
+    invalidAttribute(`An attribute definition has no "${key}".`),
   );
   const { name, type, description, choices, unit, format } = value;
   if (typeof name !== 'string' || name.trim() === '') {
