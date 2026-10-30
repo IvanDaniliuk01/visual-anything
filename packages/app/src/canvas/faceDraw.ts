@@ -12,7 +12,7 @@ import {
 } from '@visual-anything/core';
 import { Container, Graphics } from 'pixi.js';
 import { drawGlyphs } from './emphasisLabels';
-import { faceRect, shapeFaceDrawing, type FaceShow } from './faces';
+import { faceBoxPieces, facePaints, faceRect, shapeFaceDrawing, type FaceShow } from './faces';
 import type { Point } from './geometry';
 import type { ElementShape } from './scene';
 
@@ -25,41 +25,13 @@ export function drawFaceDrawing(
 ): void {
   const color = (each: string) => resolveFaceColor(each, palette);
   for (const box of drawing.boxes) {
-    const x = at.x + box.x;
-    const y = at.y + box.y;
-    const radius = Math.min(box.radius, box.width / 2, box.height / 2);
-    if (box.background !== undefined && box.width > 0 && box.height > 0) {
-      if (radius > 0) graphics.roundRect(x, y, box.width, box.height, radius);
-      else graphics.rect(x, y, box.width, box.height);
-      graphics.fill(color(box.background));
-    }
-    const { top, right, bottom, left } = box.borders ?? {};
-    const same =
-      top !== undefined &&
-      [right, bottom, left].every((side) => side?.width === top.width && side.color === top.color);
-    if (same && radius > 0) {
-      // Stroked inside the box, as a border-box draws it.
-      const inset = top.width / 2;
-      graphics
-        .roundRect(
-          x + inset,
-          y + inset,
-          box.width - top.width,
-          box.height - top.width,
-          Math.max(0, radius - inset),
-        )
-        .stroke({ color: color(top.color), width: top.width });
-      continue;
-    }
-    if (top) graphics.rect(x, y, box.width, top.width).fill(color(top.color));
-    if (bottom) {
-      graphics.rect(x, y + box.height - bottom.width, box.width, bottom.width);
-      graphics.fill(color(bottom.color));
-    }
-    if (left) graphics.rect(x, y, left.width, box.height).fill(color(left.color));
-    if (right) {
-      graphics.rect(x + box.width - right.width, y, right.width, box.height);
-      graphics.fill(color(right.color));
+    // The pieces the exports write too (`faceBoxPieces`): backgrounds, rings, sides and dashes.
+    for (const piece of faceBoxPieces(box, at)) {
+      const { x, y, width, height } = piece.rect;
+      if (piece.radius > 0) graphics.roundRect(x, y, width, height, piece.radius);
+      else graphics.rect(x, y, width, height);
+      if (piece.kind === 'fill') graphics.fill(color(piece.color));
+      else graphics.stroke({ color: color(piece.color), width: piece.width });
     }
   }
   for (const band of drawing.bands) {
@@ -112,7 +84,7 @@ export function faceLabel(
   fill: string = shape.fill,
 ): FaceLabel | undefined {
   const drawing = shapeFaceDrawing(shape, show);
-  if (!drawing || (drawing.runs.length === 0 && drawing.boxes.length === 0)) return undefined;
+  if (!drawing || !facePaints(drawing)) return undefined;
   const rect = faceRect(shape);
   const label = new FaceLabel(drawing, { x: rect.x, y: rect.y });
   label.paint(theme, fill, shape.stroke);

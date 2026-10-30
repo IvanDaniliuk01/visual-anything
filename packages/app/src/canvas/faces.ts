@@ -20,6 +20,8 @@ import {
   faceDrawingText,
   layOutFace,
   type CompiledFace,
+  type FaceBox,
+  type FaceColor,
   type FaceDrawing,
   type FaceInput,
   type FaceLayoutOptions,
@@ -194,7 +196,119 @@ export function faceDetail(shape: ElementShape, componentName: string): string |
     .join(', ');
 }
 
+/**
+ * Whether a face drawing draws anything: runs or boxes. One that draws neither is not drawn, and the
+ * shape writes its name and detail instead, on the canvas and in the exports alike.
+ */
+export function facePaints(drawing: FaceDrawing): boolean {
+  return drawing.runs.length > 0 || drawing.boxes.length > 0;
+}
+
 /** Whether the canvas cut a shape's face, which its hover card then gives back whole. */
 export function faceCut(shape: ElementShape): boolean {
   return shapeFaceDrawing(shape)?.cut === true;
+}
+
+// ——— How a face's boxes are painted ———————————————————————————————————————————————————————————————
+
+/**
+ * A piece a face's box is painted with (ADR 0083, F3), placed: a rectangle filled, with a radius for
+ * a background, or a ring stroked, for a rounded box whose sides are alike. The canvas and the exports
+ * paint the same pieces, so that they never draw a box differently.
+ */
+export type FacePiece =
+  | { kind: 'fill'; rect: Rect; radius: number; color: FaceColor }
+  | { kind: 'ring'; rect: Rect; radius: number; width: number; color: FaceColor };
+
+/** A border's side, as a face drawing holds it. */
+type FaceSide = NonNullable<NonNullable<FaceBox['borders']>['top']>;
+
+/** The most dashes a dashed side draws, however long it is. */
+const MOST_DASHES = 64;
+
+/**
+ * The pieces a face's box is painted with, placed at `at`, in order: its background; then its borders,
+ * inside the box as a border-box draws them:
+ *
+ * - a rounded box whose four sides are alike and solid strokes one ring, half its width inside;
+ * - a solid side is a band along the whole side;
+ * - a dashed side is dashes three times its width long, two apart or more, the first and the last at
+ *   its ends, at most 64; along a rounded box's straight stretch only, its corners left open.
+ */
+export function faceBoxPieces(box: FaceBox, at: { x: number; y: number }): FacePiece[] {
+  const { width, height } = box;
+  if (!(width > 0) || !(height > 0)) return [];
+  const x = at.x + box.x;
+  const y = at.y + box.y;
+  const radius = Math.max(0, Math.min(box.radius, width / 2, height / 2));
+  const pieces: FacePiece[] = [];
+  if (box.background !== undefined) {
+    pieces.push({ kind: 'fill', rect: { x, y, width, height }, radius, color: box.background });
+  }
+  const { top, right, bottom, left } = box.borders ?? {};
+  const alike =
+    top !== undefined &&
+    top.style === 'solid' &&
+    [right, bottom, left].every(
+      (side) => side?.width === top.width && side.color === top.color && side.style === top.style,
+    );
+  if (alike && radius > 0) {
+    const inset = top.width / 2;
+    pieces.push({
+      kind: 'ring',
+      rect: { x: x + inset, y: y + inset, width: width - top.width, height: height - top.width },
+      radius: Math.max(0, radius - inset),
+      width: top.width,
+      color: top.color,
+    });
+    return pieces;
+  }
+  const along = (side: FaceSide | undefined, horizontal: boolean, far: boolean) => {
+    if (side === undefined || !(side.width > 0)) return;
+    const thick = Math.min(side.width, horizontal ? height : width);
+    const across = horizontal ? (far ? y + height - thick : y) : far ? x + width - thick : x;
+    const start = horizontal ? x : y;
+    const length = horizontal ? width : height;
+    const piece = (from: number, long: number): FacePiece => ({
+      kind: 'fill',
+      rect: horizontal
+        ? { x: from, y: across, width: long, height: thick }
+        : { x: across, y: from, width: thick, height: long },
+      radius: 0,
+      color: side.color,
+    });
+    if (side.style === 'solid') {
+      pieces.push(piece(start, length));
+      return;
+    }
+    const corner = Math.min(radius, length / 2);
+    for (const [from, long] of dashes(start + corner, length - 2 * corner, side.width)) {
+      pieces.push(piece(from, long));
+    }
+  };
+  along(top, true, false);
+  along(bottom, true, true);
+  along(left, false, false);
+  along(right, false, true);
+  return pieces;
+}
+
+/**
+ * Where the dashes of a dashed side of this width go along a stretch: each three times the width long
+ * and two widths apart or more, the gaps spread so that the first and the last meet its ends; one in
+ * its middle when only one fits, and at most `MOST_DASHES`, longer then.
+ */
+function dashes(from: number, length: number, width: number): [number, number][] {
+  if (!(length > 0)) return [];
+  const dash = 3 * width;
+  const gap = 2 * width;
+  if (length <= dash + gap)
+    return [[from + Math.max(0, (length - dash) / 2), Math.min(dash, length)]];
+  const fits = Math.floor((length + gap) / (dash + gap));
+  const count = Math.min(MOST_DASHES, fits);
+  const long = fits > MOST_DASHES ? (length - (count - 1) * gap) / count : dash;
+  const spread = (length - count * long) / (count - 1);
+  const placed: [number, number][] = [];
+  for (let at = 0; at < count; at++) placed.push([from + at * (long + spread), long]);
+  return placed;
 }

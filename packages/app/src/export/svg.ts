@@ -36,8 +36,10 @@ import {
   modelIndexOf,
   namedPart,
   outlinePathData,
+  facePalette,
   partPicture,
   type CleanedImage,
+  type FaceImage,
   type FittedOutline,
   type FlatContour,
   type OutlineContour,
@@ -100,6 +102,7 @@ import {
   type Rect,
 } from '../canvas/geometry';
 import { COUNT_LINE_TOP, headerLines } from '../canvas/collapse';
+import { facePaints, faceRect, shapeFaceDrawing } from '../canvas/faces';
 import { avoidedScene } from '../canvas/routing/avoided';
 import { drawnCurve } from '../canvas/routing/curves';
 import { ROWS_HEADER } from '../canvas/rows';
@@ -136,6 +139,7 @@ import { element, empty, num, textElement, type AttributeValue } from './markup'
 import { textWidth } from './measure';
 import { layOutText, type TextSpec } from './text-layout';
 import { laidTextSvg } from './emphasis-svg';
+import { exportedFaceShow, faceSvg } from './face-svg';
 import { parseEmphasis } from '@visual-anything/core';
 import { outlinedTextBlock } from '../canvas/outlinedText';
 import { placeTextBlock, robotoMeasure } from '../canvas/textBlock';
@@ -313,6 +317,11 @@ interface OutlineSymbols {
 interface WriterReading {
   /** The cleaned view of a picture the project draws, by its id. */
   shown(image: Id): CleanedImage | undefined;
+  /**
+   * The cleaned view of an image of the package an element's component comes from, by its id or by
+   * its id within the package, which a face's `<image ref="…"/>` names (ADR 0083).
+   */
+  packageImage(element: Id, ref: string): CleanedImage | undefined;
 }
 
 /** A halo drawn around a text, in this color and this wide, under it. */
@@ -620,7 +629,19 @@ export function svgOfScene(
   const index = modelIndexOf(project);
   const definitions = definitionsIn(project);
   const catalog = imagesIn(project);
-  const writer = new Writer(scene, options, { shown: (image) => catalog.shown(image) });
+  const writer = new Writer(scene, options, {
+    shown: (image) => catalog.shown(image),
+    packageImage: (elementId, ref) => {
+      const component = index.element(elementId)?.component;
+      const owner = component === undefined ? undefined : definitions.components.get(component);
+      const file = owner && project.packages.find((each) => each.id === owner.package);
+      const images = file?.images ?? [];
+      const id = [ref, `${owner?.package ?? ''}.${ref}`].find((each) =>
+        images.some((image) => image.id === each),
+      );
+      return id === undefined ? undefined : catalog.shown(id);
+    },
+  });
   const { theme } = writer;
   const bounds = scene.bounds;
   // Name tags lie in the drawing too, as the canvas's tiles cover them.
@@ -953,14 +974,24 @@ function shapeParts(writer: Writer, shape: ElementShape): string {
         : { ...painted, containerShape: shape.containerShape },
     ),
   };
-  if (isRow(shape)) return rowParts(writer, shape, colors.fill);
-  if (outline) return outlineParts(writer, shape, outline, colors);
+  // A face is drawn in place of the shape's name and detail, as on the canvas (ADR 0083).
+  const face = faceOf(writer, shape, {
+    fill: shape.part ? shape.part.color : painted.fill,
+    stroke: painted.stroke,
+  });
+  // Its `<icon/>` draws the shape's own image, which is then drawn nowhere else as an icon.
+  const ownPicture = (image: ShapeImage) =>
+    face?.icon && (image.placement === 'icon' || image.placement === 'header')
+      ? ''
+      : writer.picture(image, image.rect);
+  if (isRow(shape)) return rowParts(writer, shape, colors.fill, face?.svg, ownPicture);
+  if (outline) return outlineParts(writer, shape, outline, colors, face?.svg, ownPicture);
   if (drawsRows(shape)) {
     return (
       tableParts(writer, shape, colors) +
       toggleOf(shape, colors) +
-      (shape.image ? writer.picture(shape.image, shape.image.rect) : '') +
-      tableText(writer, shape, colors.fill)
+      (shape.image ? ownPicture(shape.image) : '') +
+      (face ? face.svg : tableText(writer, shape, colors.fill))
     );
   }
   let body = '';
@@ -977,11 +1008,68 @@ function shapeParts(writer: Writer, shape: ElementShape): string {
   body += toggleOf(shape, colors);
   if (shape.image) {
     if (shape.image.placement === 'drawing') body += plateOf(shape.image.box, colors.fill);
-    body += writer.picture(shape.image, shape.image.rect);
+    body += ownPicture(shape.image);
   }
   // A drawing with parts that is no container writes its name in its name tag, under its box.
-  if (writesNameBelow(shape)) return body + nameTagParts(writer, shape, colors);
-  return body + shapeText(writer, shape, colors.fill);
+  if (writesNameBelow(shape)) {
+    return body + nameTagParts(writer, shape, colors, face !== undefined) + (face?.svg ?? '');
+  }
+  return body + (face ? face.svg : shapeText(writer, shape, colors.fill));
+}
+
+/** A shape's face as SVG, and whether it draws the shape's own image as its `<icon/>`. */
+interface WrittenFace {
+  svg: string;
+  icon: boolean;
+}
+
+/**
+ * A shape's face, as the canvas draws it in place of its name and detail (ADR 0083): laid out where
+ * the canvas lays it out (`faceRect`), in the variant the export shows (`exportedFaceShow`), in its
+ * tokens' colors on the shape's fill and stroke; none when the shape has no face, the export shows
+ * none, or it draws nothing, as the canvas then writes the name.
+ */
+function faceOf(
+  writer: Writer,
+  shape: ElementShape,
+  colors: { fill: Color; stroke: Color },
+): WrittenFace | undefined {
+  if (!shape.face) return undefined;
+  const show = exportedFaceShow(shape);
+  const drawing = show && shapeFaceDrawing(shape, show);
+  if (!drawing || !facePaints(drawing)) return undefined;
+  const at = faceRect(shape);
+  const palette = facePalette(writer.theme.name, colors.fill, colors.stroke);
+  const icon = shape.image !== undefined && drawing.images.some((each) => each.kind === 'icon');
+  return {
+    svg: faceSvg(drawing, at, palette, writer.texts, (image, rect) =>
+      facePicture(writer, shape, image, rect),
+    ),
+    icon,
+  };
+}
+
+/**
+ * A face's picture in its box, its proportions kept, centred (ADR 0083): `<icon/>` the shape's own
+ * image, `<image ref="…"/>` an image of its component's package; nothing when it has none.
+ */
+function facePicture(writer: Writer, shape: ElementShape, image: FaceImage, rect: Rect): string {
+  let source: PictureSource | undefined;
+  if (image.kind === 'icon') source = shape.image;
+  else {
+    const shown = writer.reading.packageImage(shape.element, image.ref);
+    source = shown && { image: shown, serial: imageSerial(shown) };
+  }
+  if (!source) return '';
+  const { width, height } = source.image;
+  const scale = Math.min(rect.width / width, rect.height / height);
+  if (!(scale > 0) || !Number.isFinite(scale)) return '';
+  return writer.picture(source, {
+    x: rect.x + (rect.width - width * scale) / 2,
+    y: rect.y + (rect.height - height * scale) / 2,
+    width: width * scale,
+    height: height * scale,
+  });
 }
 
 /** A shape's body by its kind, filled and stroked. */
@@ -1328,6 +1416,8 @@ function outlineParts(
   shape: ElementShape,
   outline: ShapeOutline,
   colors: { fill: Color; stroke: Color },
+  face?: string,
+  ownPicture: (image: ShapeImage) => string = (image) => writer.picture(image, image.rect),
 ): string {
   const fill = shape.part ? shape.part.color : colors.fill;
   const paint: OutlinePaint = {
@@ -1343,12 +1433,16 @@ function outlineParts(
   body += writer.outline(placed, paint) + toggleOf(shape, colors);
   const picture = shape.part ? ownPartPicture(writer, shape, shape.part) : undefined;
   if (picture) body += writer.picture(picture.image, picture.rect);
-  else if (shape.image) body += writer.picture(shape.image, shape.image.rect);
+  else if (shape.image) body += ownPicture(shape.image);
   // A name that does not fit inside the outline whole is written in its name tag, under it.
   if (writesNameBelow(shape)) {
-    return body + nameTagParts(writer, shape, { fill, stroke: colors.stroke });
+    return (
+      body +
+      nameTagParts(writer, shape, { fill, stroke: colors.stroke }, face !== undefined) +
+      (face ?? '')
+    );
   }
-  return body + outlinedText(writer, shape, outline, fill);
+  return body + (face ?? outlinedText(writer, shape, outline, fill));
 }
 
 /**
@@ -1490,6 +1584,7 @@ function nameTagParts(
   writer: Writer,
   shape: ElementShape,
   colors: { fill: Color; stroke: Color },
+  faced = false,
 ): string {
   const tag = nameTagOf(shape);
   if (!tag) return '';
@@ -1498,14 +1593,17 @@ function nameTagParts(
   const x = placed.x + placed.width / 2;
   const top = placed.y + TAG_PADDING;
   const height = tag.lines.length * PART_NAME_LINE;
+  const box = empty('rect', {
+    ...placed,
+    rx: tagRadius(tag),
+    fill: colors.fill,
+    stroke: colors.stroke,
+    'stroke-width': SHAPE_STROKE_WIDTH,
+  });
+  // A shape with a face writes it in place of its name and detail, and its tag stays, as on the canvas.
+  if (faced) return box;
   return (
-    empty('rect', {
-      ...placed,
-      rx: tagRadius(tag),
-      fill: colors.fill,
-      stroke: colors.stroke,
-      'stroke-width': SHAPE_STROKE_WIDTH,
-    }) +
+    box +
     wholeLines(writer, tag.lines, x, top, text.name) +
     (tag.detail === ''
       ? ''
@@ -1652,7 +1750,8 @@ function tableBody(
   const { x, y, width, height } = rect;
   const rounded = shape.kind === 'rounded-rectangle';
   const radius = rounded ? Math.min(8, width / 4, height / 2) : undefined;
-  const band = Math.min(ROWS_HEADER, height);
+  // A face gives the header its height (ADR 0083), as on the canvas.
+  const band = Math.min(shape.header ?? ROWS_HEADER, height);
   let parts = empty('rect', { x, y, width, height, rx: radius, fill: bodyFill });
   if (header) {
     if (radius !== undefined) {
@@ -1703,7 +1802,7 @@ function tableText(writer: Writer, shape: ElementShape, fill: Color): string {
   if (!fitted) return '';
   const body = bodyOf(shape);
   const colors = readableTextColors(fill);
-  const band = Math.min(ROWS_HEADER, body.height);
+  const band = Math.min(shape.header ?? ROWS_HEADER, body.height);
   const middle = body.y + band / 2;
   let parts = '';
   if (fitted.name !== '') {
@@ -1736,7 +1835,13 @@ function tableText(writer: Writer, shape: ElementShape, fill: Color): string {
 }
 
 /** A row: its band inside its table's border, a separator above it after the first, its texts. */
-function rowParts(writer: Writer, shape: ElementShape, fill: Color): string {
+function rowParts(
+  writer: Writer,
+  shape: ElementShape,
+  fill: Color,
+  face?: string,
+  ownPicture: (image: ShapeImage) => string = (image) => writer.picture(image, image.rect),
+): string {
   const { x, y, width, height } = shape.rect;
   const left = x + ROW_INSIDE;
   const inner = Math.max(0, width - 2 * ROW_INSIDE);
@@ -1750,7 +1855,9 @@ function rowParts(writer: Writer, shape: ElementShape, fill: Color): string {
       fill: rowColorsOf(writer.theme).separator,
     });
   }
-  if (shape.image) parts += writer.picture(shape.image, shape.image.rect);
+  if (shape.image) parts += ownPicture(shape.image);
+  // A row with a face draws it over its band, in place of its texts (ADR 0083).
+  if (face !== undefined) return parts + face;
   const fitted = shape.fitted;
   if (!fitted) return parts;
   const colors = readableTextColors(fill);
