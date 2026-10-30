@@ -148,6 +148,16 @@ describe('applyGuidance for exploring and playback', () => {
     expect(applyGuidance(state, { kind: 'clear' }, 4)).toEqual({});
   });
 
+  it('keeps the id a layout is answered by, which Claude waits for (M3d)', () => {
+    expect(applyGuidance(NO_GUIDANCE, { kind: 'layout', view: 'v' }, 1, 'layout-1')).toEqual({
+      layout: { view: 'v', request: 1, answer: 'layout-1' },
+    });
+    // Other guidance has no answer to keep.
+    expect(applyGuidance(NO_GUIDANCE, { kind: 'caption', text: 'Hi' }, 2, 'x')).toEqual({
+      caption: 'Hi',
+    });
+  });
+
   it('keeps the last request of a tour, which takes Claude’s marks, move and caption away', () => {
     let state = applyGuidance(NO_GUIDANCE, { kind: 'filter', filters }, 1);
     state = applyGuidance(state, { kind: 'focus', targets: ['a'] }, 2);

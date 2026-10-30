@@ -85,3 +85,12 @@ A view that does not nest by the relation type holding a container's rows shows 
   - **The SQL recipe** makes one `systems.database` for the database. Each `CREATE SCHEMA` becomes a Schema inside it, never a database per schema. Views, functions, triggers, enums and sequences become their components, with what each reads from, writes to, fires on and runs, never their code. The material's text is written as text, as the material writes it.
   - **Built-in packages stay closed.** `define_component` and `define_relation_type` refuse a built-in package before the core does. The refusal says that built-in packages are closed and names a definition the package already has under that name. It gives the call that derives the definition in the project's first package of its own, or in one `create_package` makes first.
   - **A project's own database package keeps working.** It opens with the same warnings as before, and the README says how to move such a model onto these components with `update_element` and `update_relation`.
+
+<!-- Decided by Claude on 2026-10-30 under the user's standing delegation of design decisions. -->
+
+- 2026-10-30 (M3d, "Fixes from use"): **a column names its enum through "has type".** This refines the 2026-10-29 clarification, where a column of an enum's type named the enum only in its `type`. Data modeling gains the relation type "has type" (`data-modeling.has-type`), added after the others, since built-in ids only grow.
+  - It is directed, derived from "relates to", from a Column to an Enum, and does not nest.
+  - It is drawn dotted in the enum's brown (`#8A4B0F`, `#EBA65E` in the dark theme), as the enum is.
+  - Its Spanish name is "tiene tipo".
+  - The column keeps its `type` as written, `shop.order_status` included: the relation says which enum that is, so that a filter, focus and the canvas follow it.
+  - The SQL recipe draws it for each column whose type names an enum the material creates, by its schema-qualified name or by its name within its schema, and for no other type, such as a domain or a type of an extension.

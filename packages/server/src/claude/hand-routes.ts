@@ -65,7 +65,10 @@ export function namedRoutes(key: string, routes: readonly RoutedByHand[]): Recor
 }
 
 /** What read_view adds: the relations routed by hand, and what to do about them. */
-export function routedByHandAnswer(state: ProjectSnapshot, view: ViewFile): Record<string, unknown> {
+export function routedByHandAnswer(
+  state: ProjectSnapshot,
+  view: ViewFile,
+): Record<string, unknown> {
   const routes = routedByHand(state, view);
   return routes.length === 0
     ? {}
@@ -73,7 +76,10 @@ export function routedByHandAnswer(state: ProjectSnapshot, view: ViewFile): Reco
 }
 
 /** The views that route a relation by hand, as get_item names them. */
-export function viewsRoutingByHand(state: ProjectSnapshot, relation: Id): { view: Id; name: string }[] {
+export function viewsRoutingByHand(
+  state: ProjectSnapshot,
+  relation: Id,
+): { view: Id; name: string }[] {
   return state.views
     .filter((view) => view.routes !== undefined && Object.hasOwn(view.routes, relation))
     .map((view) => ({ view: view.id, name: view.name }));
@@ -87,10 +93,12 @@ export function handRoutesOn(state: ProjectSnapshot, element: Id): { relation: I
   return state.views.flatMap((view) =>
     view.routes === undefined
       ? []
-      : on.filter((relation) => Object.hasOwn(view.routes ?? {}, relation)).map((relation) => ({
-          relation,
-          view: view.id,
-        })),
+      : on
+          .filter((relation) => Object.hasOwn(view.routes ?? {}, relation))
+          .map((relation) => ({
+            relation,
+            view: view.id,
+          })),
   );
 }
 
@@ -113,7 +121,9 @@ export function routesNotFollowing(
         .filter((position) => position.element === element)
         .map(({ container, x, y }) => [container ?? '', x, y]),
     );
-  const changed = new Set(moved.filter((element) => placeOf(was, element) !== placeOf(view, element)));
+  const changed = new Set(
+    moved.filter((element) => placeOf(was, element) !== placeOf(view, element)),
+  );
   if (changed.size === 0) return [];
   const index = modelIndexOf(after);
   return Object.entries(view.routes).flatMap(([id, route]) => {

@@ -276,6 +276,15 @@ export function CanvasArea({
   const askedLayout = live?.guidance?.layout;
   // Claude's layout of another view runs only in the tab the person used last, which opens it.
   const guidedLayout = askedLayout && forThisTab(askedLayout, view.id) ? askedLayout : undefined;
+  // Claude waits for the tab that runs its layout: a tab that passes it over says so, once (M3d).
+  const answerLayout = live?.answerLayout;
+  const passedOver = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (askedLayout?.answer === undefined || guidedLayout !== undefined) return;
+    if (passedOver.current === askedLayout.request) return;
+    passedOver.current = askedLayout.request;
+    answerLayout?.(askedLayout.answer, { passed: 'other-tab' });
+  }, [askedLayout, guidedLayout, answerLayout]);
   // Once Claude's layout is done, the canvas fits what it laid out (ADR-0029, 2026-10-26).
   const [guidedLaidOut, setGuidedLaidOut] = useState<{ scopes: readonly LayoutScope[] }>();
   const layout = useLayout({
@@ -289,6 +298,10 @@ export function CanvasArea({
     // Placing what the newest action added joins it (ADR 0065).
     ...(live?.actions === undefined ? {} : { actions: live.actions }),
     onGuidedDone: (scopes) => setGuidedLaidOut({ scopes }),
+    // What each layout moved, or why none ran, for Claude's lay_out_view, which waits (M3d).
+    onGuidedAnswered: (request, outcome) => {
+      if (request.answer !== undefined) answerLayout?.(request.answer, outcome);
+    },
   });
   const fitLaidOut = useEffectEvent((scopes: readonly LayoutScope[]) =>
     controllerRef.current?.fit(laidOutBounds(scene, scopes)),

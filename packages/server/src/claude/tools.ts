@@ -35,6 +35,7 @@ import {
 } from './appearance-tools';
 import { ALIGN_TOOLS } from './align-tools';
 import { IN_BATCHES, MAX_ADDITIONS } from './batches';
+import { NO_APP_NOTE, layoutAnswer } from './layout-report';
 import { builtInPackageRefusal } from './builtin-refusal';
 import { ProgramUnavailableError, type Program } from './bridge';
 import { cascadeOf, cascadeRefusal, takesMore } from './cascade';
@@ -1501,7 +1502,7 @@ Example: {}`,
 const layOutView = tool({
   name: 'lay_out_view',
   title: 'Lay out the open view',
-  description: `Asks the app the person has open to lay out the view, as its toolbar's Layout does: every shape that is not pinned, or, with containers, every shape inside each of them that is not pinned, at any depth; pinned shapes never move. The layout runs in the app, which records its result as it records any layout: one undoable action per layout, named "Lay out …", in the person's history; read_view shows the positions once it is done. With no app open, nothing is laid out: open_app opens one. Leave positions out of what you create when layout should place it, and use this once the view's shapes are all there.
+  description: `Asks the app the person has open to lay out the view, as its toolbar's Layout does: every shape that is not pinned, or, with containers, every shape inside each of them that is not pinned, at any depth; pinned shapes never move. The layout runs in the app, which records its result as it records any layout: one undoable action per layout, named "Lay out …", in the person's history. It answers once the app is done: laidOut gives each layout, how many shapes it moved and how it ended (done; stopped by the person; replaced, when the tab showed another view before it was done; failed; or empty), and moved the shapes moved in all. Layouts you ask for one after another, several views in a row included, run in turn, each once the one before is done, never one over another; each waits at most about 20 s per layout. With no app open, nothing is laid out: open_app opens one. Leave positions out of what you create when layout should place it, and use this once the view's shapes are all there.
 
 Example: { "view": "system-overview" }
 Example: { "view": "system-overview", "containers": ["scheduling"] }`,
@@ -1532,13 +1533,14 @@ Example: { "view": "system-overview", "containers": ["scheduling"] }`,
         `These hold nothing to lay out: ${empty.join(', ')}. Name containers, as find_elements finds them, or leave containers out to lay out the whole view.`,
       );
     }
-    const guidance: Guidance = { kind: 'layout', ...withoutUndefined(args) };
+    const guidance = { kind: 'layout' as const, ...withoutUndefined(args) };
+    // The program answers once the app is done, after the layouts asked for before (M3d).
+    if (program.layOut !== undefined) {
+      return ok(layoutAnswer(state, await program.layOut(guidance)));
+    }
     const apps = await program.guide(guidance);
     return apps === 0
-      ? ok({
-          apps: 0,
-          note: 'No app has the project open, so nothing was laid out: layout runs in the app. Call open_app to open it, or ask the person to, then call lay_out_view again.',
-        })
+      ? ok({ apps: 0, note: NO_APP_NOTE })
       : ok({
           apps,
           note: `The layout runs in ${apps === 1 ? 'the open app' : `each of the ${apps} open apps`}, which records it as the person's action "Lay out …" once it is done; read_view shows where the shapes went.`,

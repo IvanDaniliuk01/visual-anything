@@ -343,7 +343,10 @@ describe('the SQL DDL recipe', () => {
     const typed = snapshot.model.elements.filter(
       (each) =>
         each.component === 'data-modeling.column' &&
-        [...enums.values()].some((name) => String(each.attributes?.type).endsWith(`.${name}`)),
+        [...enums.values()].some((name) => {
+          const type = each.attributes?.type;
+          return typeof type === 'string' && type.endsWith(`.${name}`);
+        }),
     );
     expect(
       snapshot.model.relations

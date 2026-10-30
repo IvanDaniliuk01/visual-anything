@@ -13,14 +13,17 @@
  */
 import {
   modelIndexOf,
+  MAX_LAYOUT_WHY,
   type Command,
+  type LayoutEnding,
+  type LayoutResult,
   type ListedAction,
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { sizeOf, type Selection } from '../../editor/selection';
-import type { GuidedLayoutRequest } from '../../guidance/state';
+import type { GuidedLayoutAnswer, GuidedLayoutRequest } from '../../guidance/state';
 import { t } from '../../i18n';
 import type { Scene } from '../scene';
 import { setCollapsedCommand } from '../collapse';
@@ -92,6 +95,18 @@ export interface LayoutOptions {
    * 2026-10-26).
    */
   onGuidedDone?: (scopes: readonly LayoutScope[]) => void;
+  /**
+   * Called once for each of Claude's requests that waits for an answer, which the tab sends the local
+   * program: what each layout it asked for came to, or why this tab ran none (M3d).
+   */
+  onGuidedAnswered?: (request: GuidedLayoutRequest, answer: GuidedLayoutAnswer) => void;
+}
+
+/** How one layout ended, and how many shapes it moved. */
+interface Ended {
+  ended: LayoutEnding;
+  moved: number;
+  why?: string;
 }
 
 /** A layout's change on its way: the scene it was made from, to move in from once it is drawn. */
@@ -128,6 +143,7 @@ export function useLayout({
   guided,
   actions,
   onGuidedDone,
+  onGuidedAnswered,
 }: LayoutOptions): {
   scene: Scene;
   control: LayoutControl;
@@ -208,17 +224,21 @@ export function useLayout({
     [moving, scene],
   );
 
-  /** Runs one layout after the ones asked for before it, and stores its result as one action. */
-  const enqueue = (scope: LayoutScope, automatic: boolean): Promise<void> => {
-    const run = queue.current.then(async () => {
+  /**
+   * Runs one layout after the ones asked for before it, and stores its result as one action; says how
+   * it ended and how many shapes it moved.
+   */
+  const enqueue = (scope: LayoutScope, automatic: boolean): Promise<Ended> => {
+    const run = queue.current.then(async (): Promise<Ended> => {
       const asked = latest.current;
-      if (!runner || !asked.send) return;
+      if (!runner) return failed('This browser runs no web workers.');
+      if (!asked.send) return failed(NOT_CONNECTED);
       const input = layoutInput(asked.scene, asked.project, scope);
       if (!input) {
         if (!automatic) {
           asked.announce(t('Every shape there is pinned, so layout leaves them all.'));
         }
-        return;
+        return { ended: 'done', moved: 0 };
       }
       // While it runs, the control shows how far it has come, and stops it when pressed.
       const stopper = new AbortController();
@@ -237,23 +257,24 @@ export function useLayout({
             setRunning((current) => (ours(current) ? { ...shown, progress } : current)),
         });
       } catch (error) {
+        const why = error instanceof Error ? error.message : String(error);
         latest.current.announce(
           error instanceof LayoutStopped
             ? t('Layout stopped, and nothing moved.')
-            : t('The layout failed: {why}', {
-                why: t.message(error instanceof Error ? error.message : String(error)),
-              }),
+            : t('The layout failed: {why}', { why: t.message(why) }),
         );
-        return;
+        return error instanceof LayoutStopped ? { ended: 'stopped', moved: 0 } : failed(why);
       } finally {
         setRunning((current) => (ours(current) ? undefined : current));
       }
       const now = latest.current;
-      if (now.view.id !== asked.view.id || !now.send) return;
+      // The tab shows another view now: nothing moves.
+      if (now.view.id !== asked.view.id) return { ended: 'replaced', moved: 0 };
+      if (!now.send) return failed(NOT_CONNECTED);
       const action = layoutCommand(now.project, now.view.id, now.scene, scope, laidOut.shapes);
       if (!action) {
         if (!automatic) now.announce(t('Layout leaves every shape where it is.'));
-        return;
+        return { ended: 'done', moved: 0 };
       }
       setArmed({
         before: now.scene,
@@ -267,7 +288,7 @@ export function useLayout({
       const sent = await now.send(action.command, joins === undefined ? undefined : { joins });
       if (!sent.ok) {
         setArmed(undefined);
-        return;
+        return failed('Visual Anything refused the change the layout made.');
       }
       if (!automatic) {
         latest.current.announce(
@@ -277,8 +298,12 @@ export function useLayout({
           ),
         );
       }
+      return { ended: 'done', moved: action.moved };
     });
-    queue.current = run.catch(() => undefined);
+    queue.current = run.then(
+      () => undefined,
+      () => undefined,
+    );
     return run;
   };
 
@@ -317,18 +342,44 @@ export function useLayout({
   // whole view, or the contents of each container it names that the canvas draws holding contents.
   const ran = useRef<number | undefined>(undefined);
   const guidedDone = useEffectEvent((scopes: readonly LayoutScope[]) => onGuidedDone?.(scopes));
+  const guidedAnswered = useEffectEvent(
+    (request: GuidedLayoutRequest, answer: GuidedLayoutAnswer) => {
+      if (request.answer !== undefined) onGuidedAnswered?.(request, answer);
+    },
+  );
   const layOutAsked = useEffectEvent((request: GuidedLayoutRequest) => {
     ran.current = request.request;
-    const scopes: LayoutScope[] =
+    // Each container asked for is answered, in order: one the canvas draws holding no shapes, empty.
+    const asked: (LayoutScope | Id)[] =
       request.containers === undefined
         ? [{ kind: 'view' }]
-        : request.containers
-            .filter((container) => holdsShapes(latest.current.scene, container))
-            .map((container) => ({ kind: 'contents', container }));
-    void Promise.all(scopes.map((scope) => enqueue(scope, false))).then(() => guidedDone(scopes));
+        : request.containers.map((container) =>
+            holdsShapes(latest.current.scene, container)
+              ? { kind: 'contents', container }
+              : container,
+          );
+    const scopes = asked.filter((each): each is LayoutScope => typeof each !== 'string');
+    const runs = asked.map((each) =>
+      typeof each === 'string'
+        ? Promise.resolve<LayoutResult>({ container: each, ended: 'empty', moved: 0 })
+        : enqueue(each, false).then((ended): LayoutResult => ({
+            ...(each.kind === 'contents' ? { container: each.container } : {}),
+            ...ended,
+          })),
+    );
+    void Promise.all(runs).then((layouts) => {
+      guidedDone(scopes);
+      guidedAnswered(request, { layouts });
+    });
   });
   useEffect(() => {
-    if (!guided || ran.current === guided.request || !editable || !runner) return;
+    if (!guided || ran.current === guided.request || !editable) return;
+    if (!runner) {
+      // Without web workers nothing is laid out: Claude hears so rather than waiting (M3d).
+      ran.current = guided.request;
+      guidedAnswered(guided, { passed: 'cannot-lay-out' });
+      return;
+    }
     if (guided.view !== undefined && guided.view !== view.id) return;
     layOutAsked(guided);
   }, [guided, editable, runner, view.id]);
@@ -468,6 +519,14 @@ function holdsShapes(scene: Scene, container: Id): boolean {
 /** The id of the newest action the history lists as done, which an undo would take back. */
 function newestDone(actions: readonly ListedAction[] | undefined): number | undefined {
   return actions?.findLast((action) => !action.undone)?.id;
+}
+
+/** Why a layout could not change the project, as Claude hears it. */
+const NOT_CONNECTED = 'Visual Anything is not connected.';
+
+/** A layout that failed, with why, cut to what an answer carries. */
+function failed(why: string): Ended {
+  return { ended: 'failed', moved: 0, why: why.slice(0, MAX_LAYOUT_WHY) };
 }
 
 function labelOf(command: Command): string {

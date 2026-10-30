@@ -33,6 +33,7 @@ import {
   type CodeApproval,
   type Command,
   type Guidance,
+  type LayoutReport,
   type LiveValue,
   type Problem,
   type ServerMessage,
@@ -166,11 +167,15 @@ export interface CodeApprovalsMessage {
   approvals: CodeApproval[];
 }
 
-/** The answer to guidance: how many open apps it reached. */
+/**
+ * The answer to guidance: how many open apps it reached. For a layout, it comes once the layout is
+ * done, with what the tab that ran it answered, or why none did (M3d).
+ */
 export interface GuidanceShownMessage {
   type: 'guidance/shown';
   requestId: string;
   apps: number;
+  layout?: Omit<LayoutReport, 'apps'>;
 }
 
 /** The answer to `open-app`: the browser was asked to open the app. */
@@ -283,10 +288,20 @@ export function decodeProgramMessage(text: string): ProgramMessage {
   switch (message.type) {
     case 'guidance/shown': {
       const requestId = requestIdOf(message);
-      if (requestId === undefined || typeof message.apps !== 'number') {
+      if (
+        requestId === undefined ||
+        typeof message.apps !== 'number' ||
+        (message.layout !== undefined && !isRecord(message.layout))
+      ) {
         throw new ProtocolError('The answer to guidance is not valid.');
       }
-      return { type: 'guidance/shown', requestId, apps: message.apps };
+      // The program worked out what a layout came to; its envelope is all there is to check.
+      return {
+        type: 'guidance/shown',
+        requestId,
+        apps: message.apps,
+        ...(message.layout === undefined ? {} : { layout: message.layout }),
+      };
     }
     case 'app/opened': {
       const requestId = requestIdOf(message);

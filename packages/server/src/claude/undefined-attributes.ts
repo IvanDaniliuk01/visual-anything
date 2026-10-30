@@ -5,7 +5,12 @@
  * write answers and `get_item` name them, and Claude can define them in a package of the project's
  * own, or take them out, when they were not meant.
  */
-import { definitionsIn, modelIndexOf, type Command, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  definitionsIn,
+  modelIndexOf,
+  type Command,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import type { Element, Id } from '@visual-anything/schema';
 
 /** The most elements one answer names; the rest are counted. */

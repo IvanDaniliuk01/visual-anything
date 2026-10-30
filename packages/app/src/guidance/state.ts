@@ -5,7 +5,7 @@
  * the project itself: a layout it asks for is run and recorded by the tab as any layout is. Each
  * message replaces what it concerns, and the person can dismiss all of it.
  */
-import type { Guidance, VersionRef } from '@visual-anything/core';
+import type { Guidance, LayoutPass, LayoutResult, VersionRef } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 
 /** Claude's marks: the targets highlighted, or focused on with everything else dimmed. */
@@ -68,7 +68,16 @@ export interface GuidedLayoutRequest {
   /** The containers whose contents to lay out, each on its own; absent, the whole view. */
   containers?: readonly Id[];
   request: number;
+  /**
+   * The id the tab answers the local program by once it has laid the view out, or passed it over:
+   * Claude's `lay_out_view` waits for it (M3d).
+   */
+  answer?: string;
 }
+
+/** What a tab answers about Claude's layout: each layout it ran, or why it ran none (M3d). */
+export type GuidedLayoutAnswer =
+  { layouts: LayoutResult[]; passed?: never } | { passed: LayoutPass; layouts?: never };
 
 /**
  * A request to play a tour full screen once, as the tours panel's Play does (ADR 0058): from the step
@@ -112,11 +121,15 @@ export const NO_GUIDANCE: GuidanceState = {};
 /** Filters that hide nothing. */
 const NO_FILTERS: GuidedFilters = { components: [], relationTypes: [], conditions: [] };
 
-/** The guidance shown after one more message, numbered `request`. */
+/**
+ * The guidance shown after one more message, numbered `request`; a layout keeps the id it is
+ * answered by, `answer`.
+ */
 export function applyGuidance(
   state: GuidanceState,
   guidance: Guidance,
   request: number,
+  answer?: string,
 ): GuidanceState {
   switch (guidance.kind) {
     case 'highlight':
@@ -173,6 +186,7 @@ export function applyGuidance(
         ...viewOf(guidance),
         ...(guidance.containers === undefined ? {} : { containers: guidance.containers }),
         request,
+        ...(answer === undefined ? {} : { answer }),
       };
       return { ...state, layout };
     }

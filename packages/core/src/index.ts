@@ -244,6 +244,15 @@ export * from './scenarios';
 // The live protocol's guidance and launch codes (version 3).
 export type { Guidance, GuidanceMessage } from './protocol';
 export { LAUNCH_PARAM, MAX_CAPTION_LENGTH, MAX_GUIDANCE_TARGETS, readGuidance } from './protocol';
+// Layout guidance the app answers, once laid out (M3d).
+export type {
+  LayoutDoneMessage,
+  LayoutEnding,
+  LayoutPass,
+  LayoutReport,
+  LayoutResult,
+} from './layout-answer';
+export { LAYOUT_ENDINGS, LAYOUT_PASSES, MAX_LAYOUT_WHY } from './layout-answer';
 // Relations routed by hand, per view (ADR 0039).
 export type { ResolvedAttachment, ResolvedRoute, RouteLookups, RouteShapes, Side } from './routes';
 export { MAX_BEND_POINTS, automaticRouteStyleOf, routeOf, storedRoute } from './routes';

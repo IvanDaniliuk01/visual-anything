@@ -396,8 +396,7 @@ export const DATA_MODELING: PackageFile = {
       id: 'data-modeling.has-type',
       name: 'has type',
       derivesFrom: 'relates-to',
-      description:
-        'A column takes the values of this enum: the enum its type names.',
+      description: 'A column takes the values of this enum: the enum its type names.',
       direction: 'directed',
       appearance: { stroke: '#8A4B0F', width: 1.5, dash: 'dotted' },
       limits: { from: ['data-modeling.column'], to: ['data-modeling.enum'] },

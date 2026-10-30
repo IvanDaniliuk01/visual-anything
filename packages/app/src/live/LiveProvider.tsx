@@ -66,6 +66,7 @@ export function LiveProvider({
       notify: connection.notify,
       dismiss: connection.dismiss,
       clearGuidance: connection.clearGuidance,
+      answerLayout: connection.answerLayout,
       setPreferences: connection.setPreferences,
       startProject: connection.startProject,
       openOtherProject: connection.openOtherProject,

@@ -78,3 +78,23 @@ A view can route any relation it draws as a line by hand, and keeps only what di
   - every expansion opens in place.
 
   Read ADR 0080's Consequences for exactly which clarifications it replaces.
+
+<!-- Decided by Claude on 2026-10-30 under the user's standing delegation of design decisions. -->
+
+- 2026-10-30 (M3d, "Fixes from use"): **what stored routes by hand in the first real model, and what Claude now hears of them.**
+  - **What was found.** After `lay_out_view`, `set_positions` and `update_view` with `routeStyle: curved`, the user's view held two routes with bend points in its file, which drew huge curves until `reset_route` took them away.
+  - **The layout path was not the cause.** A test (`canvas/layout/storesNoRoutes.test.ts`) replays that path. It runs the app's layout through ELK in one pass, with ELK's routes kept for the canvas (ADR 0080), then the commands Claude's `set_positions` and `update_view` send. None of it writes `routes`, and a route by hand stays exactly as it was. In the code, only these send `set-route`:
+    - the route editor;
+    - a drag that moves both ends of a route with bend points, which carries them;
+    - resizing a container, which keeps the bend points inside it where they are;
+    - imports that carry routes;
+    - Claude's `set_route` and `run_commands`.
+  - **The cause.** The session's transcript shows no `set_route` and no `set-route` from Claude. Both routes had the shape the route editor gives, and an end of a route Claude had reset was attached by hand again later. So the person, in the app, dragged segments of selected lines, and maybe ends. A dragged segment of an automatic line stores every corner of the line as drawn as bend points (this ADR's clarification of 2026-10-24). After a layout, the line as drawn may be ELK's kept route or the route around shapes, with many corners. The bend points were relative to the canvas, since the view's scope had just left out the schemas.
+  - **Why the curves.** `set_positions` then moved the ends, and bend points stay where they were when only an end moves. The curved view style then drew curves through those far-off points.
+  - **What changes.** No layout and no move writes a route, as before, and the test keeps it so. A route by hand whose two ends a drag moves is still carried along. Claude now hears of routes by hand (ADR 0029's clarification of this date):
+    - `read_view` and `get_item` name them;
+    - `set_positions` names those whose ends it moved away from their bend points;
+    - `update_view` names those a route style now draws through their bend points;
+    - each says that `reset_route` sends them back.
+  - **Left open.** Whether a segment drag should store only the corners near the segment moved, rather than every corner of the line as drawn, is a question for the route editor (`canvas/routing/`), which another task was changing; it is not changed here.
+  - Considered: carrying the bend points in `set_positions` when it moves both ends by the same amount, as a drag does. Left for later: Claude's positions rarely move both ends together, and naming what does not follow lets Claude reset the route or ask the person.
