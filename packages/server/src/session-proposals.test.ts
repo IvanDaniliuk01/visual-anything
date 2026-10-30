@@ -333,6 +333,49 @@ describe('the person’s actions while a proposal waits', () => {
     ).toBe('Gateway');
   });
 
+  it('closes as dropped once the person’s actions leave it with no change', async () => {
+    const { session, log } = await open();
+    const app = new FakeClient();
+    session.connect(app);
+    const claude = claudeOn(session);
+    const [made] = await claude.command(RENAME_API);
+    const id = made?.type === 'proposal/made' ? made.proposal : '';
+    const shownBefore = shownTo(app.messages).length;
+
+    // The person makes Claude's one change themselves: nothing is left to review.
+    await session.execute(RENAME_API, 'user');
+    expect(app.messages.slice(-2).map((each) => each.type)).toEqual([
+      'project/changed',
+      'proposal/closed',
+    ]);
+    expect(app.messages.at(-1)).toEqual({ type: 'proposal/closed', proposal: id, how: 'dropped' });
+    expect(shownTo(app.messages)).toHaveLength(shownBefore);
+    expect(claude.messages.at(-1)).toMatchObject({ type: 'proposal/closed', how: 'dropped' });
+    expect(session.proposalWaiting).toBeUndefined();
+    expect(log).toContainEqual({ event: 'proposal', kind: 'dropped', changes: 0 });
+
+    // Claude's next command opens a new proposal.
+    const [next] = await claude.command(RENAME_DB);
+    expect(next).toMatchObject({ type: 'proposal/made' });
+    expect(next?.type === 'proposal/made' && next.proposal).not.toBe(id);
+  });
+
+  it('keeps one that still holds a change after the person’s action', async () => {
+    const { session } = await open();
+    const app = new FakeClient();
+    session.connect(app);
+    const claude = claudeOn(session);
+    await claude.command(RENAME_API);
+    await claude.command(RENAME_DB);
+    await session.execute(RENAME_API, 'user');
+    expect(app.messages.at(-1)?.type).toBe('proposal/shown');
+    expect(
+      shownTo(app.messages)
+        .at(-1)
+        ?.changes.map((each) => each.key),
+    ).toEqual(['element:db changed']);
+  });
+
   it('survives undo and redo, rebased on each', async () => {
     const { session } = await open();
     const app = new FakeClient();
