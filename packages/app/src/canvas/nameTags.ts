@@ -3,7 +3,8 @@
  * itself (`writesNameBelow`) writes it in a tag hung under its outline, a rounded rectangle in the
  * shape's fill and stroke, centred under the outline's bounds and touching them, holding the name,
  * whole, bold, on as many lines as it needs, and the detail under it. The tag is part of the shape:
- * it is drawn, pointed at, marked, related, laid out and routed around with it.
+ * it is drawn, pointed at, marked, related, laid out and routed around with it. A shape whose face
+ * writes its name hangs none (`faceWritesName`, ADR 0083): the face takes the tag's place.
  *
  * A tag is worked out once for each shape object of a scene, cached by the outline it hangs from and
  * the texts it holds, the way outlines are, so that a shape that moves keeps the same tag object, and
@@ -11,7 +12,9 @@
  *
  * Pure, with no PixiJS, as the scene is.
  */
+import type { LevelOfDetail } from '@visual-anything/schema';
 import { t } from '../i18n';
+import { faceWritesName, type ShapeFace } from './faces';
 import { estimateWidth, fitText } from './fit';
 import type { Point, Rect } from './geometry';
 import { PART_NAME_LINE, PART_NAME_SIZE, outlineBoundsOn, writesNameBelow } from './outlined';
@@ -66,6 +69,10 @@ export type Tagged = Parameters<typeof writesNameBelow>[0] & {
   detail?: string;
   collapsed?: { contents: number };
   outline?: ShapeOutline;
+  /** Its face, which takes the tag's place when it writes the name (ADR 0083). */
+  face?: ShapeFace;
+  levels?: readonly LevelOfDetail[];
+  row?: number;
 };
 
 /** The corner radius of a name tag, as a rounded rectangle's is (`draw.ts`). */
@@ -100,14 +107,16 @@ const UNHUNG_KEPT = 1024;
 
 /**
  * The name tag a shape writes its name in, from the top left of its rectangle; none for a shape that
- * writes its name inside itself, or nowhere (`writesNameBelow`).
+ * writes its name inside itself, or nowhere (`writesNameBelow`), and none for one whose face writes
+ * its name (`faceWritesName`, ADR 0083), which then covers, is pointed at, related and laid out by
+ * its own outline or box alone.
  */
 export function nameTagOf(shape: Tagged): NameTag | undefined {
   // Most shapes are boxes, which write their names inside: asked of every one, so asked first.
   if (shape.outline === undefined && shape.picture === undefined) return undefined;
   const known = tags.get(shape);
   if (known !== undefined) return known ?? undefined;
-  const tag = writesNameBelow(shape) ? tagFor(shape) : undefined;
+  const tag = writesNameBelow(shape) && !faceWritesName(shape) ? tagFor(shape) : undefined;
   tags.set(shape, tag ?? null);
   return tag;
 }

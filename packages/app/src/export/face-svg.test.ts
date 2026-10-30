@@ -22,8 +22,9 @@ import {
   type GraphicsPath,
 } from 'pixi.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { drawFaceDrawing } from '../canvas/faceDraw';
+import { drawFaceDrawing, faceLabel, type FaceLabel, type FacePictures } from '../canvas/faceDraw';
 import { faceBoxPieces, faceRect, shapeFaceDrawing } from '../canvas/faces';
+import { ownPictureOf, pictureOf } from '../canvas/images-draw';
 import { buildScene, type ElementShape, type Scene } from '../canvas/scene';
 import { shapeColors } from '../canvas/theme/paint';
 import { picturesPackage } from '../test/exports';
@@ -232,6 +233,68 @@ describe('faces in the SVG (ADR 0083)', () => {
     expect(groupOf(page, 'mailer').querySelectorAll('g[data-part="face"] use')).toHaveLength(2);
   });
 
+  it('places a face’s pictures on the canvas where the SVG places them, over its boxes', () => {
+    const face: Face = {
+      markup: ['<div class="row"><icon/><b>{{name}}</b><image ref="photo"/></div>'],
+      style: ['.row { display: flex; gap: 4px; padding: 4px; background: var(--highlight); }'],
+    };
+    const base = withAppearance(withPictures(facedProject()), 'systems.service', { face });
+    const project = withPictureComponent(
+      {
+        ...base,
+        model: {
+          ...base.model,
+          elements: base.model.elements.map((element) =>
+            element.id === 'mailer'
+              ? { ...element, appearance: { image: { image: 'pictures.icon' } } }
+              : element,
+          ),
+        },
+      },
+      face,
+    );
+    const mailer = shapeOf(buildScene(project, FACES_VIEW), 'mailer');
+    expect(Object.keys(mailer.face?.pictures ?? {})).toEqual(['photo']);
+    // The canvas leaves the icon its face draws to the face.
+    expect(ownPictureOf(mailer)).toBe(mailer.image);
+    expect(pictureOf(mailer)).toBeUndefined();
+
+    // The canvas's face, its pictures drawn with textures of their own.
+    const made = new Map<unknown, Texture>();
+    const pictures: FacePictures = {
+      textureFor: (picture) => {
+        let texture = made.get(picture.image);
+        if (!texture) {
+          texture = new Texture({ source: Texture.WHITE.source });
+          made.set(picture.image, texture);
+        }
+        return texture;
+      },
+    };
+    const colors = shapeColors(mailer, 'light');
+    const label = faceLabel(mailer, 'light', {}, colors.fill, pictures) as FaceLabel;
+    const instructions = label.graphics.context.instructions;
+    const isPicture = (each: (typeof instructions)[number]) =>
+      each.action === 'texture' &&
+      [...made.values()].includes((each.data as { image: Texture }).image);
+    const drawn = instructions.filter(isPicture).map((each) => {
+      const { dx, dy, dw, dh } = each.data as { dx: number; dy: number; dw: number; dh: number };
+      return [dx, dy, dw, dh].map(round);
+    });
+    expect(drawn).toHaveLength(2);
+    // Over the face's background, under its text.
+    const first = instructions.findIndex(isPicture);
+    expect(first).toBeGreaterThan(instructions.findIndex((each) => each.action === 'fill'));
+    expect(first).toBeLessThan(instructions.findLastIndex((each) => each.action === 'texture'));
+
+    // The SVG's, as `<use>`s in its face.
+    const document = readSvg(writeSvg(project, FACES_VIEW).text);
+    const uses = [...groupOf(document, 'mailer').querySelectorAll('g[data-part="face"] use')].map(
+      (use) => ['x', 'y', 'width', 'height'].map((name) => round(number(use, name))),
+    );
+    expect(drawn).toEqual(uses);
+  });
+
   it('writes nothing for a face drawing that draws nothing', () => {
     const empty: FaceDrawing = {
       width: 10,
@@ -364,7 +427,7 @@ function withPictureComponent(project: ProjectSnapshot, face: Face): ProjectSnap
               {
                 id: 'pictures.mailer',
                 name: 'Mailer',
-                parent: 'systems.service',
+                derivesFrom: 'systems.service',
                 appearance: { face },
               },
             ],

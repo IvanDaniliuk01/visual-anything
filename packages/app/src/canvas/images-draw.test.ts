@@ -1,7 +1,9 @@
-import { cleanedImage, type CleanedImage } from '@visual-anything/core';
+import { cleanedImage, type CleanedImage, type FaceDrawing } from '@visual-anything/core';
 import { Container, Graphics, Texture } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
 import { syntheticProject } from '../bench/synthetic';
+import { FaceLabel, type FacePictures } from './faceDraw';
+import type { ShapeFace } from './faces';
 import { boundsOf, type Rect } from './geometry';
 import { indexScene } from './hit';
 import { imageSerial } from './image-serials';
@@ -419,6 +421,87 @@ describe('pictures in tiles', () => {
       await arrived();
     }
     expect(textures(drawingOf(tile)?.icons)).toBe(1);
+  });
+});
+
+describe('the pictures of faces (ADR 0083)', () => {
+  /** A face drawing that draws one picture, its `<image ref="photo"/>`, in a 24-unit box. */
+  const drawing: FaceDrawing = {
+    width: 160,
+    height: 40,
+    cut: false,
+    boxes: [{ x: 0, y: 0, width: 160, height: 40, radius: 0, background: '#ABCDEF' }],
+    runs: [],
+    bands: [],
+    images: [{ kind: 'image', ref: 'photo', x: 8, y: 8, width: 24, height: 24 }],
+    regions: [],
+  };
+
+  /** A shape whose face draws a picture, as the scene gives it; and two faces of it, painted. */
+  function faced(image: CleanedImage, images: FacePictures) {
+    const photo = { image, serial: imageSerial(image) };
+    const shape = {
+      ...shapeWith(image, 'icon', { x: 0, y: 0, width: 160, height: 40 }),
+      face: { pictures: { photo } } as unknown as ShapeFace,
+    };
+    delete shape.image;
+    const label = () => {
+      const made = new FaceLabel(drawing, { x: 0, y: 0 }, { pictures: images, images: { photo } });
+      made.paint('light', '#FFFFFF', '#000000');
+      return made;
+    };
+    return { shape, label };
+  }
+
+  it('share one texture, kept for them, and paint again the faces that waited for it', async () => {
+    const platform = new FakePlatform();
+    const images = new TileImages(platform);
+    const { shape, label } = faced(bitmap(), images);
+    images.show([shape]);
+    const first = label();
+    // Its picture is asked for, and drawn once made: its box meanwhile.
+    expect(textures(first.graphics)).toBe(0);
+    expect(fills(first.graphics)).toBe(1);
+    for (let frame = 0; frame < 3; frame++) {
+      images.frame([], view(1, false));
+      await arrived();
+    }
+    expect(platform.decodes).toBe(1);
+    expect(textures(first.graphics)).toBe(1);
+    // Over its box.
+    const actions = first.graphics.context.instructions.map((each) => each.action);
+    expect(actions.indexOf('texture')).toBeGreaterThan(actions.indexOf('fill'));
+    // A second face draws it at once, with the same texture.
+    const made = platform.made;
+    const second = label();
+    expect(textures(second.graphics)).toBe(1);
+    expect(platform.made).toBe(made);
+    // Nothing more to do: no frame is asked for.
+    expect(images.frame([], view(1))).toBe(false);
+    // Kept while the scene shows it, even with no tile within reach for long.
+    platform.time += 10_000;
+    images.frame([], view(1));
+    expect(images.store.size).toBe(1);
+  });
+
+  it('paint their faces again once the store starts from nothing', async () => {
+    const platform = new FakePlatform();
+    const images = new TileImages(platform);
+    const { shape, label } = faced(bitmap(), images);
+    images.show([shape]);
+    const face = label();
+    for (let frame = 0; frame < 3; frame++) {
+      images.frame([], view(1, false));
+      await arrived();
+    }
+    expect(textures(face.graphics)).toBe(1);
+    images.reset();
+    expect(textures(face.graphics)).toBe(0);
+    for (let frame = 0; frame < 3; frame++) {
+      images.frame([], view(1, false));
+      await arrived();
+    }
+    expect(textures(face.graphics)).toBe(1);
   });
 });
 

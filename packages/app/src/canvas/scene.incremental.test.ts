@@ -21,7 +21,7 @@ import { withWovenRelations } from '../test/woven';
 import { collapsedIn, setCollapsedCommand } from './collapse';
 import { addToViewCommand, leaveOutCommand } from './scope';
 import { hitAt, indexScene, indexSceneAfresh, shapesAt, type IndexedScene } from './hit';
-import { drawnBoundsOf } from './nameTags';
+import { drawnBoundsOf, nameTagOf } from './nameTags';
 import { buildScene, buildSceneAfresh, type ElementShape, type Scene } from './scene';
 
 const VIEW = 'system-overview';
@@ -628,6 +628,22 @@ describe('a scene built after an edit', () => {
       { numRuns: 60 },
     );
   }, 60_000);
+
+  it('equals one built from nothing beyond boxes, with faces that take the name tags’ place (ADR 0083)', () => {
+    const named = withFaces(beyondBoxes(VIEW), {
+      'anatomy.chamber': { markup: ['<b>{{name}}</b>'], style: [] },
+    });
+    // `loose`, a part drawn on its own whose name its ring cannot hold, hangs no tag with the face.
+    const loose = buildScene(named, VIEW).shapes.find((shape) => shape.key === 'loose');
+    expect(loose?.face).toBeDefined();
+    expect(nameTagOf(loose as ElementShape)).toBeUndefined();
+    fc.assert(
+      fc.property(fc.array(edit, { minLength: 1, maxLength: 16 }), (edits) => {
+        run(named, edits);
+      }),
+      { numRuns: 40 },
+    );
+  }, 120_000);
 
   it('places a drawing’s icon alike after a drag as when built from nothing (seed 1775277967)', () => {
     run(beyondBoxes(VIEW), [

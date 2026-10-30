@@ -18,10 +18,18 @@
  *   the frame has spent 8 ms. The store keeps its own limits on decoding and rasterizing.
  * - A tile out of the settled reach for 3 seconds drops its image drawing and gives up its textures;
  *   it asks again when it comes back.
+ * - Faces' pictures (ADR 0083, F5) are drawn by the faces themselves, among the labels, over their
+ *   boxes (`faceDraw.ts`): their textures come from here (`textureFor`), one for each picture and
+ *   size of box, at the resolution a box needs at twice its size on a 2x screen, shared by every face
+ *   and kept while the scene shows the picture. A face whose texture is not made yet is drawn again
+ *   once it is, as many as the frame's budget allows. A shape whose face draws its `<icon/>` draws its
+ *   icon nowhere else (`iconInFace`).
  */
 import { namedPart, partPicture, type ThemeName } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import { Container, Graphics, type Texture } from 'pixi.js';
+import type { FaceLabel, FacePictureSource, FacePictures } from './faceDraw';
+import { iconInFace } from './faces';
 import { grow, type Rect } from './geometry';
 import {
   IMAGE_LIMITS,
@@ -98,11 +106,23 @@ interface Plates {
 const PLATE_RADIUS = 6;
 /** The name the store knows the drag's pictures by. */
 const DRAGGED = 'dragged';
+/** The name the store knows faces' pictures by, which are always within reach. */
+const FACES = 'faces';
+/**
+ * How many device pixels a face's picture is made at for each unit of its box: twice its size on a
+ * 2x screen, so that it stays sharp up to a zoom of 200%.
+ */
+const FACE_PICTURE_PIXELS = 4;
+/** The fewest faces kept in mind before those already gone are swept away. */
+const FACE_SWEEP = 256;
 
 let drawingCount = 0;
 
 /** The pictures of the canvas's tiles, and the store whose textures they are drawn with. */
-export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
+export class TileImages<
+  T extends Texture = Texture,
+  P = CanvasImageSource,
+> implements FacePictures {
   readonly store: ImageStore<T, P>;
   readonly #drawings = new WeakMap<ImageTile, Drawing>();
   /** The tiles drawn this frame by their drawing's name, for the store's answers. */
@@ -115,10 +135,69 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
   /** The drawings of the drag under way, and the textures they use. */
   #dragged: { graphics: Graphics[]; keys: Set<string> } = { graphics: [], keys: new Set() };
   /** The names of other users of the store, such as the part layer, which are always within reach. */
-  readonly #kept = new Set<string>();
+  readonly #kept = new Set<string>([FACES]);
+  /** The textures faces draw their pictures with, which the store keeps for them. */
+  readonly #faceKeys = new Set<string>();
+  /** The faces that draw pictures, and those still waiting for a texture. */
+  readonly #faces = new Set<FaceLabel>();
+  #waiting = new Set<FaceLabel>();
+  #sweepAt = FACE_SWEEP;
 
   constructor(platform: ImagePlatform<T, P>, onArrive?: () => void) {
     this.store = new ImageStore(platform, onArrive);
+  }
+
+  /**
+   * The texture a face draws a picture with (`FacePictures`): one for each picture and size of box,
+   * shared by every face; a stand-in of another size meanwhile, or none, and `waiting` is painted
+   * again once it is made.
+   */
+  textureFor(picture: FacePictureSource, side: number, waiting: FaceLabel): T | undefined {
+    if (!this.#faces.has(waiting)) {
+      this.#faces.add(waiting);
+      if (this.#faces.size >= this.#sweepAt) {
+        for (const face of this.#faces) if (face.destroyed) this.#faces.delete(face);
+        this.#sweepAt = Math.max(FACE_SWEEP, 2 * this.#faces.size);
+      }
+    }
+    const made = this.store.texture({
+      image: picture.image,
+      devicePixels: side * FACE_PICTURE_PIXELS,
+      sharp: true,
+      silhouette: picture.tint !== undefined,
+      distance: 0,
+      tile: FACES,
+    });
+    if (!made?.exact) {
+      this.#waiting.add(waiting);
+      this.#asked = true;
+    }
+    if (!made) return undefined;
+    if (!this.#faceKeys.has(made.key)) {
+      this.#faceKeys.add(made.key);
+      this.store.use(FACES, this.#faceKeys);
+    }
+    return made.texture;
+  }
+
+  /**
+   * Paints again the faces that waited for a texture, within the frame's budget, and says whether
+   * some are left for the next frame.
+   */
+  #repaintFaces(spent: () => number): boolean {
+    const waiting = this.#waiting;
+    this.#waiting = new Set();
+    let left = false;
+    for (const face of waiting) {
+      if (face.destroyed) continue;
+      if (left || spent() >= IMAGE_LIMITS.workAfter) {
+        this.#waiting.add(face);
+        left = true;
+        continue;
+      }
+      face.repaint();
+    }
+    return left;
   }
 
   /**
@@ -135,8 +214,11 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
     this.#shapes = shapes;
     const images = new Map<number, ShapeImage['image']>();
     for (const shape of shapes) {
-      const picture = pictureOf(shape);
+      // Its own picture, drawn here or by its face's `<icon/>`, and its face's other pictures.
+      const picture = ownPictureOf(shape);
       if (picture) images.set(picture.serial, picture.image);
+      const faced = shape.face?.pictures;
+      if (faced) for (const each of Object.values(faced)) images.set(each.serial, each.image);
     }
     this.#any = images.size > 0;
     // An edit seldom changes which pictures the scene shows: the store is pruned only when it does.
@@ -206,6 +288,7 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
     const spent = () => began + performance.now() - clock;
     // Zoomed out too far for any picture to show, nothing is decoded or uploaded meanwhile.
     const shows = scale >= IMAGE_SCALES.drawingsFrom;
+    let facesLeft = false;
     // Pictures that just became ready first: their tiles show stand-ins or placeholders meanwhile.
     for (const id of shows
       ? this.store.frame({
@@ -214,13 +297,19 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
           ...(view.busy === true ? { busy: true } : {}),
         })
       : []) {
+      if (id === FACES) {
+        facesLeft = this.#repaintFaces(spent);
+        continue;
+      }
       const known = byId.get(id);
       if (!known || known.drawing.drawnFor === undefined) continue;
       this.#draw(known.tile, known.drawing, view, iconsShown, middle);
       rebuilt += 1;
     }
     waiting.sort((a, b) => a.distance - b.distance);
-    let more = shows && this.store.more;
+    // Faces an earlier frame's budget left waiting for a texture made since.
+    if (!facesLeft && this.#waiting.size > 0 && shows) facesLeft = this.#repaintFaces(spent);
+    let more = (shows && this.store.more) || facesLeft;
     for (const each of waiting) {
       if (rebuilt >= IMAGE_LIMITS.tileRebuilds || spent() >= IMAGE_LIMITS.workAfter) {
         more = true;
@@ -285,6 +374,13 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
   reset(): void {
     this.store.clear();
     for (const { drawing } of this.#byId.values()) this.#drop(drawing);
+    // Faces drop the textures that went, and ask again.
+    this.#faceKeys.clear();
+    this.#waiting = new Set();
+    for (const face of this.#faces) {
+      if (face.destroyed) this.#faces.delete(face);
+      else face.repaint();
+    }
   }
 
   destroy(): void {
@@ -457,11 +553,22 @@ function drawnWhole(image: ShapeImage): boolean {
 const ownPictures = new WeakMap<ElementShape, { of: unknown; picture: ShapeImage | undefined }>();
 
 /**
- * The picture a shape draws: its image, as placed on it, or, for a shape drawn as a named part on its
+ * The picture a shape draws in its tile's image drawing: its own (`ownPictureOf`), but for an icon
+ * its face draws by `<icon/>` (ADR 0083), which is drawn nowhere else.
+ */
+export function pictureOf(shape: ElementShape): ShapeImage | undefined {
+  const picture = ownPictureOf(shape);
+  return picture !== undefined && picture === shape.image && iconInFace(shape)
+    ? undefined
+    : picture;
+}
+
+/**
+ * The picture a shape shows: its image, as placed on it, or, for a shape drawn as a named part on its
  * own (ADR 0067), its part's own picture inside its outline, where the part's bounds fill the shape,
  * its proportions kept; worked out once for each shape and picture.
  */
-export function pictureOf(shape: ElementShape): ShapeImage | undefined {
+export function ownPictureOf(shape: ElementShape): ShapeImage | undefined {
   const { part } = shape;
   if (!part || part.inDrawing) return shape.image;
   const image = partImageOf(part.image);

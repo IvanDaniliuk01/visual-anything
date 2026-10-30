@@ -30,7 +30,7 @@ import {
 } from '../draw';
 import type { Arrowhead } from '../geometry';
 import { tintLabel } from '../emphasisLabels';
-import { FaceLabel, faceLabel } from '../faceDraw';
+import { FaceLabel, faceLabel, type FacePictures } from '../faceDraw';
 import type { FaceShow } from '../faces';
 import { RelationLabel } from '../labels';
 import { rowColorsOf } from '../rowsDraw';
@@ -159,7 +159,8 @@ export class Painter {
    * `records` gets each label with the shape it is on. A shape drawn by its picture writes its name
    * under the picture, on what the shape sits on, which `lookups` finds; a shape whose own outline
    * cannot hold its name whole writes it in its name tag, on its own fill. With `faces`, a shape with
-   * a face draws it in place of its name and detail, in the variant `faces` names (ADR 0083).
+   * a face draws it in place of its name and detail, in the variant `faces` names (ADR 0083), and its
+   * pictures with the textures `pictures` shares.
    */
   shapeLabels(
     shapes: readonly ElementShape[],
@@ -168,6 +169,7 @@ export class Painter {
     records?: LabelPaint[],
     lookups?: PaintLookups,
     faces?: FaceShow,
+    pictures?: FacePictures,
   ): Container[] {
     let current = '';
     const recording: TextFactory | undefined = records
@@ -189,7 +191,7 @@ export class Painter {
     const written: Container[] = [];
     const face = (painted: ElementShape) => {
       if (!faces) return undefined;
-      const label = faceLabel(painted, this.name, faces, fillOf(painted));
+      const label = faceLabel(painted, this.name, faces, fillOf(painted), pictures);
       if (label) records?.push({ label, role: 'face', shape: painted.key });
       return label;
     };
