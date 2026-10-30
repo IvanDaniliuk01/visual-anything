@@ -196,12 +196,17 @@ export class RoutesAround {
     if (batch.lines.length === 0) return false;
     // The lines drawn already, as last composed, which those routed now keep apart from.
     const drawn = this.composed?.base === scene ? this.composed.drawn : scene;
+    const relations: string[] = [];
     const existing = existingLinesOf(
       drawn,
       scene,
       new Set(batch.drawn.map((line) => line.relation)),
+      relations,
     );
-    this.ask(runner, viewId, batch, center, existing);
+    // The scene's own line of each line drawn already, which libavoid may route again.
+    const byRelation = new Map(scene.relations.map((line) => [line.relation, line]));
+    const others = relations.map((relation) => byRelation.get(relation));
+    this.ask(runner, viewId, batch, center, existing, others);
     return true;
   }
 
@@ -211,6 +216,7 @@ export class RoutesAround {
     batch: ReturnType<typeof avoidBatchOf>,
     center: Point | undefined,
     existing: ReturnType<typeof existingLinesOf>,
+    others: readonly (RelationLine | undefined)[] = [],
   ): void {
     const asked: { view: Id; lines: Set<RelationLine>; stop: () => void } = {
       view,
@@ -221,13 +227,21 @@ export class RoutesAround {
       batch.shapes,
       batch.lines,
       center,
-      (results) => {
+      (results, _done, _took, rerouted) => {
         for (const { line, avoided } of results) {
           const drawn = batch.drawn[line];
           if (!drawn) continue;
           this.results.set(drawn, { avoided, box: corridorBox(avoided.route ?? flatOf(drawn)) });
           this.stale.delete(drawn);
           asked.lines.delete(drawn);
+          this.came.add(drawn);
+        }
+        // Lines drawn already that libavoid routed again with these, in the same container.
+        for (const { line, avoided } of rerouted ?? []) {
+          const drawn = others[line];
+          if (!drawn || !avoided.route) continue;
+          this.results.set(drawn, { avoided, box: corridorBox(avoided.route) });
+          this.stale.delete(drawn);
           this.came.add(drawn);
         }
         this.version += 1;

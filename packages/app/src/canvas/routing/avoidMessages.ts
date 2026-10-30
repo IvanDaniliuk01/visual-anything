@@ -7,6 +7,7 @@
 import type { Point } from '../geometry';
 import type { Avoided, AvoidLine, AvoidShapes } from './avoid';
 import type { ChannelInput, ChannelOutput } from './channels';
+import type { ContainerRun } from './libavoid';
 
 /** Routes these lines around these shapes; a newer request stops any older one. */
 export interface AvoidRequest {
@@ -18,6 +19,11 @@ export interface AvoidRequest {
   center?: Point;
   /** The lines drawn already, which routes beside rows keep apart from. */
   existing?: AvoidLine[];
+  /**
+   * Where libavoid's WebAssembly is: present, the worker routes with libavoid where it can, and with
+   * the program's router the rest (ADR 0080, section 2).
+   */
+  libavoid?: string;
 }
 
 /** Spreads the lines drawn into channels; a newer request stops any older one. */
@@ -40,6 +46,13 @@ export interface RoutesReply {
   type?: 'routes';
   id: number;
   results: { line: number; avoided: Avoided }[];
+  /**
+   * New routes for lines drawn already, by their indexes in the request's `existing`: those libavoid
+   * routed again in a container it routed (`libavoid.ts`).
+   */
+  others?: { line: number; avoided: Avoided }[];
+  /** How each container was routed, with the first reply that holds what libavoid routed. */
+  containers?: ContainerRun[];
   done: boolean;
   /** How long the worker routed them, in milliseconds. */
   took: number;

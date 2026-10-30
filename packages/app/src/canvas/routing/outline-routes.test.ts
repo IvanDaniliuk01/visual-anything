@@ -17,6 +17,7 @@ import { describe, expect, it } from 'vitest';
 import { stopwatch } from '../../test/cpu';
 import { TRIANGLE, beyondBoxes } from '../../test/beyond';
 import type { Point } from '../geometry';
+import { segmentThrough } from '../layout/quality';
 import { outlineAt, type PlacedOutline } from '../outlines';
 import {
   buildScene,
@@ -202,6 +203,34 @@ describe('automatic orthogonal lines on outlines', () => {
     // The apex of the triangle, at the middle of the box's top side.
     expect(up.to).toEqual({ x: 100, y: 1000 });
     // It comes in along the side's normal, its stub at least.
+    expect(up.route.at(-2)?.x).toBe(100);
+    expect(up.route.at(-2)?.y).toBeLessThanOrEqual(1000 - STUB);
+  });
+
+  it('go around what is in their way to a connection point on an outline, and meet the point', () => {
+    // A wall between the box above and the triangle's apex, across the line's way down.
+    const walled = run(
+      project(),
+      {
+        type: 'create-element',
+        element: { id: 'wall', component: 'anatomy.chamber', name: 'Wall' },
+      },
+      {
+        type: 'set-positions',
+        view: VIEW,
+        positions: [{ element: 'wall', x: -40, y: 900, width: 260, height: 40 }],
+      },
+    );
+    const scene = buildScene(walled, VIEW);
+    const wall = shapeOf(scene, 'wall').rect;
+    const through = (route: readonly Point[]) =>
+      route.some((point, at) => at > 0 && segmentThrough(route[at - 1] as Point, point, wall));
+    expect(through(lineOf(scene, 'up').route)).toBe(true);
+    const up = lineOf(avoidedScene(scene), 'up');
+    expect(through(up.route)).toBe(false);
+    expect(orthogonal(up.route)).toBe(true);
+    // Still at the apex, carried in to the outline from the top side's middle, by its stub.
+    expect(up.to).toEqual({ x: 100, y: 1000 });
     expect(up.route.at(-2)?.x).toBe(100);
     expect(up.route.at(-2)?.y).toBeLessThanOrEqual(1000 - STUB);
   });
