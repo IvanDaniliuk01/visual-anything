@@ -30,7 +30,7 @@ export async function proposalNoteOf(program: Program): Promise<string | undefin
 }
 
 /** The id an item is named by, for its name in the comparison. */
-function idOf(ref: ItemRef): Id | undefined {
+export function idOf(ref: ItemRef): Id | undefined {
   if ('id' in ref) return ref.id;
   if ('element' in ref) return ref.element;
   if ('view' in ref) return ref.view;
