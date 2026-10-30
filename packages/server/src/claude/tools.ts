@@ -58,7 +58,7 @@ import { PROPOSAL_TOOLS, proposalNoteOf } from './proposal-tools';
 import { OVERLAY_TOOLS } from './overlay-tools';
 import { IMPORT_TOOLS } from './import-tools';
 import { DRAWING_TOOLS } from './drawing-tools';
-import { TAKES_MARKDOWN, escapeTextInput, escapeTextsIf, escapedIf } from './emphasis';
+import { TAKES_MARKDOWN, escapeTextInput, escapeTexts, escapeTextsIf, escapedIf } from './emphasis';
 import {
   DELETE,
   GUIDE,
@@ -464,9 +464,11 @@ Example, a later call whose foreign key references a column an earlier call made
   },
   hints: WRITE,
   run: async (args, program) => {
-    const built = buildAdditions(await program.project(), args);
+    // One snapshot for both, so that what is escaped is judged on what the batch was built from.
+    const snapshot = await program.project();
+    const built = buildAdditions(snapshot, args);
     if (!built.ok) return built;
-    const command = await escapeTextsIf(program, args.escapeText, built.command);
+    const command = args.escapeText === true ? escapeTexts(snapshot, built.command) : built.command;
     return act(program, command, async (answer) => {
       // What each new shape and line is drawn in, as the project has it now.
       const state = await program.project();

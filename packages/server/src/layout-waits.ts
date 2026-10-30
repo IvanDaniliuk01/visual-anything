@@ -44,6 +44,11 @@ interface Waiting {
   apps: number;
   passed: LayoutPass[];
   finish: (report: LayoutReport) => void;
+  /**
+   * What came while the guidance was still being sent, before the apps it reached were known:
+   * answers and apps that went, taken once they are.
+   */
+  early?: { app: AskedApp; message?: LayoutDoneMessage }[];
 }
 
 export class LayoutWaits {
@@ -82,15 +87,24 @@ export class LayoutWaits {
     let finish: (report: LayoutReport) => void = () => {};
     const done = new Promise<LayoutReport>((resolve) => (finish = resolve));
     // Waited for before it is sent, so that no answer comes before the wait.
-    const waiting: Waiting = { pending: new Set(), apps: 0, passed: [], finish };
+    const waiting: Waiting = { pending: new Set(), apps: 0, passed: [], finish, early: [] };
     this.#waiting.set(answer, waiting);
-    const apps = await this.#send(guidance, answer);
+    let apps: readonly AskedApp[];
+    try {
+      apps = await this.#send(guidance, answer);
+    } catch (error) {
+      // A layout that was never sent is waited for no longer.
+      this.#waiting.delete(answer);
+      throw error;
+    }
     waiting.apps = apps.length;
     if (apps.length === 0 || this.#closed) {
       this.#waiting.delete(answer);
       return { apps: apps.length, ...(apps.length === 0 ? {} : { unanswered: 'gone' as const }) };
     }
     for (const app of apps) waiting.pending.add(app);
+    const early = waiting.early ?? [];
+    delete waiting.early;
     const waited = layoutWait(guidance.containers?.length ?? 1, this.#perLayout, this.#margin);
     const timer = setTimeout(() => {
       this.#end(answer, { apps: waiting.apps, unanswered: 'timed-out', waited });
@@ -99,12 +113,20 @@ export class LayoutWaits {
       clearTimeout(timer);
       finish(report);
     };
+    for (const { app, message } of early) {
+      if (message === undefined) this.gone(app);
+      else this.answered(app, message);
+    }
     return done;
   }
 
   /** An app's answer: taken when that app was asked and the layout is still waited for. */
   answered(app: AskedApp, message: LayoutDoneMessage): void {
     const waiting = this.#waiting.get(message.requestId);
+    if (waiting?.early !== undefined) {
+      waiting.early.push({ app, message });
+      return;
+    }
     if (waiting === undefined || !waiting.pending.delete(app)) return;
     if (message.layouts !== undefined) {
       this.#end(message.requestId, { apps: waiting.apps, layouts: message.layouts });
@@ -117,7 +139,8 @@ export class LayoutWaits {
   /** An app went: no layout waits for it any more. */
   gone(app: AskedApp): void {
     for (const [answer, waiting] of [...this.#waiting]) {
-      if (waiting.pending.delete(app)) this.#settle(answer, waiting);
+      if (waiting.early !== undefined) waiting.early.push({ app });
+      else if (waiting.pending.delete(app)) this.#settle(answer, waiting);
     }
   }
 
