@@ -159,7 +159,11 @@ describe('the beyond-boxes benchmark’s project', () => {
       return outlined(ends.from) || outlined(ends.to);
     });
     expect(onOutlines).toHaveLength(2_000);
-    const curved = onOutlines.filter((line) => line.style === 'curved');
+    // Curved automatically: drawn curved, or, past 24 in a container or across a shape, orthogonal
+    // with rounded corners, still drawn by their spans (ADR 0080, section 3).
+    const curved = onOutlines.filter(
+      (line) => line.style === 'curved' || line.rounded !== undefined,
+    );
     expect(curved).toHaveLength(1_000);
     // Each a curve, but between shapes that their name tags bring within 24 units of each other, a
     // flow from one into the other, as touching parts are joined (ADR 0066's clarification of
@@ -186,7 +190,8 @@ describe('the beyond-boxes benchmark’s project', () => {
     expect(withCurves(syntheticGeometry({ elements: 1_000 }))).toEqual(curved);
     const lines = buildScene(curved, GEOMETRY_VIEW).relations;
     expect(lines.length).toBeGreaterThan(500);
-    expect(lines.every((line) => line.style === 'curved')).toBe(true);
+    // Past 24 curves in a container, or across a shape, drawn with rounded corners (ADR 0080).
+    expect(lines.every((line) => line.style === 'curved' || line.rounded !== undefined)).toBe(true);
   });
 
   it('is the same every time, and keeps its shares when smaller', () => {

@@ -8,7 +8,9 @@
  *   that lie on the same line and overlap by more than 4 units, which the eye cannot tell apart.
  * - **Lines through shapes**: lines with a segment through a shape that is neither one of their ends
  *   nor holds one. A shape counts when it is drawn as one block: a shape without contents, one that
- *   draws rows, or a collapsed container; an expanded container is crossed into and out of.
+ *   draws rows, or a collapsed container; an expanded container is crossed into and out of. A shape
+ *   that covers one of the line's ends, as a pinned shape may (ADR 0080's consequences), cannot be
+ *   gone around: **lines over covering shapes** counts those lines apart.
  * - **Overlapping siblings**: pairs of shapes in the same container, or both in World, that cover
  *   each other by more than a unit, one of them at least not pinned; rows and anchored parts, whose
  *   places are not layout's, are left out. Pinned shapes that cover each other stay so, since layout
@@ -32,6 +34,8 @@ export interface LayoutQuality {
   /** How long the shared segments run in all. */
   sharedLength: number;
   linesThroughShapes: number;
+  /** Lines through a shape that covers one of their ends, counted apart from `linesThroughShapes`. */
+  linesOverCoveringShapes: number;
   overlappingSiblings: number;
   pinnedOverlaps: number;
   rowEnds: number;
@@ -128,15 +132,24 @@ export function measureScene(scene: Scene, options: MeasureOptions = {}): Layout
   });
 
   let linesThroughShapes = 0;
+  let linesOverCoveringShapes = 0;
   lines.forEach((line, at) => {
     const ends = holdersOf(line, byKey);
+    const tables = endTablesOf(line, byKey);
     const own = segments.filter((segment) => segment.line === at);
-    const through = blocks.some(
-      (shape) =>
-        !ends.has(shape.key) &&
-        own.some((segment) => segmentThrough(segment.a, segment.b, shape.plate ?? shape.rect)),
-    );
+    let covering = false;
+    const through = blocks.some((shape) => {
+      if (ends.has(shape.key)) return false;
+      const rect = shape.plate ?? shape.rect;
+      if (!own.some((segment) => segmentThrough(segment.a, segment.b, rect))) return false;
+      if (tables.some((table) => covers(table, rect))) {
+        covering = true;
+        return false;
+      }
+      return true;
+    });
     if (through) linesThroughShapes += 1;
+    else if (covering) linesOverCoveringShapes += 1;
   });
 
   const siblings = new Map<string, ElementShape[]>();
@@ -174,6 +187,7 @@ export function measureScene(scene: Scene, options: MeasureOptions = {}): Layout
     sharedSegments,
     sharedLength: Math.round(sharedLength),
     linesThroughShapes,
+    linesOverCoveringShapes,
     overlappingSiblings,
     pinnedOverlaps,
     rowEnds,
@@ -217,6 +231,23 @@ function holdersOf(line: RelationLine, byKey: ReadonlyMap<string, ElementShape>)
     }
   }
   return keys;
+}
+
+/** The rectangles of a line's end shapes, a row's table in place of the row. */
+function endTablesOf(line: RelationLine, byKey: ReadonlyMap<string, ElementShape>): Rect[] {
+  const ends = line.ends;
+  if (!ends) return [];
+  const rects: Rect[] = [];
+  for (const end of [ends.from, ends.to]) {
+    if (end.kind !== 'shape') continue;
+    const shape = byKey.get(end.key);
+    const table =
+      shape?.row !== undefined && shape.containerShape !== undefined
+        ? byKey.get(shape.containerShape)
+        : shape;
+    if (table) rects.push(table.rect);
+  }
+  return rects;
 }
 
 function atRowMiddle(point: Point, row: Rect, table: Rect): boolean {

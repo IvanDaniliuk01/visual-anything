@@ -2786,6 +2786,28 @@ export const ui: Catalog = {
     'Las dos versiones, las cantidades y cada cambio con lo que difiere, para un pull request',
   'The drawings, which are saved one by one; the summary does not link them.':
     'Los dibujos, que se guardan uno por uno; el resumen no los incluye.',
+  // How a view's layout reads: curves drawn with rounded corners, and pinned shapes in the way of
+  // Layout (ADR 0080).
+  'How it reads': 'Cómo se lee',
+  'Drawn with rounded corners: {count} lines are too many to follow as curves':
+    'Dibujadas con esquinas redondeadas: {count} líneas son demasiadas para seguirlas como curvas',
+  'Drawn with rounded corners: {count} curves would cross other shapes': {
+    one: 'Dibujada con esquinas redondeadas: 1 curva cruzaría otras formas',
+    other: 'Dibujadas con esquinas redondeadas: {count} curvas cruzarían otras formas',
+  },
+  '{count} pinned shapes are in the way of Layout, outlined on the canvas:': {
+    one: '1 forma fijada estorba al diseño automático, marcada en el lienzo:',
+    other: '{count} formas fijadas estorban al diseño automático, marcadas en el lienzo:',
+  },
+  '"{name}" keeps Layout from placing what it holds':
+    '"{name}" impide que el diseño automático ubique lo que contiene',
+  '"{name}" stays over "{other}"': '"{name}" queda encima de "{other}"',
+  '…and {count} more': { one: '…y {count} más', other: '…y {count} más' },
+  'Unpin them': { one: 'Desfijarla', other: 'Desfijarlas' },
+  'Unpinned {count} shapes: Layout can place them now.': {
+    one: 'Se desfijó 1 forma: el diseño automático ya puede ubicarla.',
+    other: 'Se desfijaron {count} formas: el diseño automático ya puede ubicarlas.',
+  },
 };
 
 /**
@@ -2879,6 +2901,9 @@ export const messages: Catalog = {
   'Expand "{name}"': 'Expandir "{name}"',
   'Collapse {n} containers': 'Contraer {n} contenedores',
   'Expand {n} containers': 'Expandir {n} contenedores',
+  // Unpinning the pinned shapes in the way of Layout, from the view's inspector (ADR 0080).
+  'Unpin "{name}"': 'Desfijar "{name}"',
+  'Unpin {n} shapes': 'Desfijar {n} formas',
   // What a view shows, its scope (ADR 0040).
   'Set what "{view}" shows': 'Definir qué muestra "{view}"',
   'Show the whole model in "{view}"': 'Mostrar todo el modelo en "{view}"',

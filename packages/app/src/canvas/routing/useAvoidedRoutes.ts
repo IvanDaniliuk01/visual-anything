@@ -6,18 +6,28 @@
  * keeps its stand-in route, or the route it had while a change around it is routed again; the lines
  * nearest the middle of the screen come first. A change that touches no route, as a live value does,
  * leaves what is being routed to go on.
+ *
+ * Right after a layout, lines keep ELK's routes until what they pass moves (ADR 0080, `keptRoutes`),
+ * and the lines routed keep apart from those and from each other. Once every route asked for has
+ * come, the worker spreads the lines drawn into channels (`channels.ts`); a line whose route changes
+ * after is drawn as routed until the next pass.
  */
 import type { Id } from '@visual-anything/schema';
 import { useContext, useEffect, useRef, useState } from 'react';
 import type { Point, Rect } from '../geometry';
 import type { ElementShape, RelationLine, Scene } from '../scene';
+import { alongKeptRoute, withKeptRoutes, type KeptRoutes } from '../layout/keptRoutes';
 import { CLEARANCE, type Avoided } from './avoid';
 import {
   avoidBatchOf,
+  channelBatchOf,
+  existingLinesOf,
   namePlateOf,
   routedFlagsOf,
   routedLinesOf,
   withAvoidedRoutes,
+  withChannelled,
+  type Channelled,
 } from './avoided';
 import { AvoidRunnerContext, sharedAvoidRunner, type AvoidRunner } from './avoidRunner';
 
@@ -44,8 +54,24 @@ export class RoutesAround {
   private readonly bases = new Map<Id, Scene>();
   /** The view asked for, its lines asked for and not answered yet, and what stops asking. */
   private asked: { view: Id; lines: Set<RelationLine>; stop: () => void } | undefined;
-  private composed: { base: Scene; version: number; scene: Scene } | undefined;
+  private composed:
+    | {
+        base: Scene;
+        version: number;
+        kept: KeptRoutes | undefined;
+        avoided: Scene;
+        drawn: Scene;
+        scene: Scene;
+      }
+    | undefined;
   private version = 0;
+  /** Each view's routes from the last channel pass, by relation, and the scene it was asked for. */
+  private readonly channelled = new Map<Id, { asked: Scene; routes: Channelled }>();
+  /** The channel pass asked for: its view and scene, and what stops it. */
+  private channelling: { view: Id; drawn: Scene; stop: () => void } | undefined;
+  /** The scene the next channel pass is to be asked for, once routing settles. */
+  private wanted: { view: Id; drawn: Scene; base: Scene; kept: KeptRoutes | undefined } | undefined;
+  private channelVersion = 0;
   /** The lines whose routes came since the scene was last composed. */
   private came = new Set<RelationLine>();
   /** When the canvas was last told of new routes, and whether it is to be told again. */
@@ -62,25 +88,89 @@ export class RoutesAround {
    * The scene with the routes known so far for its lines. A change of the view's scene marks the
    * routes it may have made wrong.
    */
-  compose(viewId: Id, scene: Scene): Scene {
-    if (!this.runner) return scene;
+  compose(viewId: Id, scene: Scene, kept?: KeptRoutes): Scene {
+    if (!this.runner) return withKeptRoutes(scene, kept);
     const before = this.bases.get(viewId);
     if (before !== scene) {
       this.bases.set(viewId, scene);
       if (before) this.invalidate(viewId, before, scene);
       this.findLacking(viewId, before, scene);
     }
-    const kept = this.composed;
-    if (kept?.base === scene && kept.version === this.version) return kept.scene;
-    const previous = kept && { base: kept.base, drawn: kept.scene.relations, changed: this.came };
-    const composed = withAvoidedRoutes(
-      scene,
-      (line) => this.results.get(line)?.avoided.route,
-      previous,
-    );
-    this.composed = { base: scene, version: this.version, scene: composed };
-    this.came = new Set();
+    const last = this.composed;
+    const version = this.version + this.channelVersion * 0x100000;
+    if (last?.base === scene && last.version === version && last.kept === kept) return last.scene;
+    let drawn: Scene;
+    let avoidedNow = last?.avoided ?? scene;
+    if (last?.base === scene && last.version % 0x100000 === this.version && last.kept === kept) {
+      drawn = last.drawn;
+    } else {
+      const previous = last && {
+        base: last.base,
+        drawn: last.avoided.relations,
+        changed: this.came,
+      };
+      const avoided = withAvoidedRoutes(
+        scene,
+        (line) => this.results.get(line)?.avoided.route,
+        previous,
+      );
+      this.came = new Set();
+      drawn = withKeptRoutes(avoided, kept);
+      avoidedNow = avoided;
+    }
+    const channelled = this.channelled.get(viewId);
+    const composed = channelled ? withChannelled(drawn, channelled.routes) : drawn;
+    this.composed = { base: scene, version, kept, avoided: avoidedNow, drawn, scene: composed };
+    // Once routing settles, the lines drawn are spread into channels.
+    if (channelled?.asked !== drawn && this.channelling?.drawn !== drawn) {
+      this.wanted = { view: viewId, drawn, base: scene, kept };
+      if (!this.asked || this.asked.lines.size === 0) queueMicrotask(() => this.spread());
+    }
     return composed;
+  }
+
+  /** Asks for the channel pass over the scene wanted, when no route is being asked for. */
+  private spread(): void {
+    const { runner } = this;
+    const wanted = this.wanted;
+    if (!runner?.channels || !wanted) return;
+    if (this.asked && this.asked.lines.size > 0) return;
+    this.wanted = undefined;
+    const batch = channelBatchOf(wanted.drawn, wanted.base, (line) =>
+      alongKeptRoute(wanted.kept, line),
+    );
+    if (!batch) {
+      this.channelled.delete(wanted.view);
+      return;
+    }
+    this.channelling?.stop();
+    const asked: { view: Id; drawn: Scene; stop: () => void } = {
+      view: wanted.view,
+      drawn: wanted.drawn,
+      stop: () => undefined,
+    };
+    asked.stop = runner.channels(batch.input, (output) => {
+      if (this.channelling === asked) this.channelling = undefined;
+      const routes = new Map<string, { from: readonly Point[]; to: Point[] }>();
+      batch.lines.forEach((line, index) => {
+        if (batch.input.movable[index] !== 1) return;
+        const start = output.starts[index] as number;
+        const end = output.starts[index + 1] as number;
+        const to: Point[] = [];
+        for (let at = start; at < end; at++) {
+          to.push({ x: output.points[2 * at] as number, y: output.points[2 * at + 1] as number });
+        }
+        routes.set(line.relation, { from: line.route, to });
+      });
+      const before = this.channelled.get(wanted.view);
+      this.channelled.set(wanted.view, { asked: wanted.drawn, routes });
+      // The canvas is told only when the pass moved a line, or one it moved before.
+      const moved = [...routes.values()].some(({ from, to }) => !sameRoute(from, to));
+      if (!moved && !before) return;
+      this.channelVersion += 1;
+      this.tell();
+    });
+    this.channelling = asked;
   }
 
   /**
@@ -104,7 +194,14 @@ export class RoutesAround {
     }
     const batch = avoidBatchOf(scene, lacking);
     if (batch.lines.length === 0) return false;
-    this.ask(runner, viewId, batch, center);
+    // The lines drawn already, as last composed, which those routed now keep apart from.
+    const drawn = this.composed?.base === scene ? this.composed.drawn : scene;
+    const existing = existingLinesOf(
+      drawn,
+      scene,
+      new Set(batch.drawn.map((line) => line.relation)),
+    );
+    this.ask(runner, viewId, batch, center, existing);
     return true;
   }
 
@@ -113,24 +210,31 @@ export class RoutesAround {
     view: Id,
     batch: ReturnType<typeof avoidBatchOf>,
     center: Point | undefined,
+    existing: ReturnType<typeof existingLinesOf>,
   ): void {
     const asked: { view: Id; lines: Set<RelationLine>; stop: () => void } = {
       view,
       lines: new Set(batch.drawn),
       stop: () => undefined,
     };
-    asked.stop = runner.route(batch.shapes, batch.lines, center, (results) => {
-      for (const { line, avoided } of results) {
-        const drawn = batch.drawn[line];
-        if (!drawn) continue;
-        this.results.set(drawn, { avoided, box: corridorBox(avoided.route ?? flatOf(drawn)) });
-        this.stale.delete(drawn);
-        asked.lines.delete(drawn);
-        this.came.add(drawn);
-      }
-      this.version += 1;
-      this.tell();
-    });
+    asked.stop = runner.route(
+      batch.shapes,
+      batch.lines,
+      center,
+      (results) => {
+        for (const { line, avoided } of results) {
+          const drawn = batch.drawn[line];
+          if (!drawn) continue;
+          this.results.set(drawn, { avoided, box: corridorBox(avoided.route ?? flatOf(drawn)) });
+          this.stale.delete(drawn);
+          asked.lines.delete(drawn);
+          this.came.add(drawn);
+        }
+        this.version += 1;
+        this.tell();
+      },
+      existing,
+    );
     this.asked = asked;
   }
 
@@ -166,6 +270,9 @@ export class RoutesAround {
   dispose(): void {
     this.asked?.stop();
     this.asked = undefined;
+    this.channelling?.stop();
+    this.channelling = undefined;
+    this.wanted = undefined;
     clearTimeout(this.telling);
     this.telling = undefined;
   }
@@ -269,6 +376,13 @@ function corridorBox(route: Float64Array): Rect {
     boxes.set(route, box);
   }
   return box;
+}
+
+function sameRoute(a: readonly Point[], b: readonly Point[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((point, at) => point.x === (b[at] as Point).x && point.y === (b[at] as Point).y)
+  );
 }
 
 function sameRect(a: Rect, b: Rect): boolean {
@@ -384,6 +498,7 @@ export function useAvoidedRoutes(
   scene: Scene | undefined,
   viewId: Id,
   center: () => Point | undefined,
+  kept?: KeptRoutes,
 ): Scene | undefined {
   const given = useContext(AvoidRunnerContext);
   const [, setVersion] = useState(0);
@@ -393,7 +508,7 @@ export function useAvoidedRoutes(
         setVersion((version) => version + 1),
       ),
   );
-  const composed = scene ? routes.compose(viewId, scene) : undefined;
+  const composed = scene ? routes.compose(viewId, scene, kept) : undefined;
   const centerRef = useRef(center);
   useEffect(() => {
     centerRef.current = center;

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { centerOf, type Point, type Rect } from './geometry';
 import type { Route } from './route';
 import {
+  SELF_REACH,
   overlapHorizontally,
   routeWithSides,
   sideStart,
@@ -112,7 +113,7 @@ describe('routeWithSides between two rows', () => {
     expect(route.some((point) => point.y === 80)).toBe(true);
   });
 
-  it('joins two rows of one table in a C, at the lane further out', () => {
+  it('joins two rows of one table in a short C, 16 out of its right side (ADR 0080)', () => {
     const users = table(0, 0, 10);
     const from: SideEnd = {
       kind: 'side',
@@ -129,7 +130,8 @@ describe('routeWithSides between two rows', () => {
       side: 'right',
     };
     const route = routeWithSides(from, to);
-    const x = laneX(users, 'right', 2);
+    // Whatever the lanes of its rows: a relation to its own table goes out SELF_REACH and back.
+    const x = 240 + SELF_REACH;
     expect(route).toEqual([
       { x: 240, y: rowMiddle(users, 1) },
       { x, y: rowMiddle(users, 1) },

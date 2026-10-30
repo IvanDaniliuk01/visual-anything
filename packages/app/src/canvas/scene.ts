@@ -119,6 +119,13 @@ import {
 } from './routing/scene-routes';
 import { isSideEnd, routeWithSides, type AnyEnd } from './rowRoutes';
 import {
+  MOST_CURVES,
+  curveCrosses,
+  holderKeyOf,
+  withRoundedCorners,
+  type RoundedBecause,
+} from './routing/rounded';
+import {
   changedSides,
   hidesContents,
   rowBox,
@@ -322,6 +329,13 @@ export interface RelationLine {
   hand?: HandOfLine;
   /** On a curved line, the spans the renderer draws; `route` holds them flattened. */
   curve?: CurveSpan[];
+  /**
+   * Present on an automatic curved line drawn orthogonal with rounded corners (ADR 0080, section 3),
+   * and why: its container holds more curved lines than can be followed (`many`), or its curve would
+   * cross a shape (`crossing`). `route` is orthogonal, routed as every automatic orthogonal line is,
+   * and `curve` its rounded spans.
+   */
+  rounded?: RoundedBecause;
 }
 
 /**
@@ -884,6 +898,11 @@ interface Built {
   lines: readonly (RelationLine | undefined)[];
   /** How each line of the plan leaves the rows and the shapes that draw rows it ends on. */
   sides: RowSides | undefined;
+  /**
+   * For each line of the plan drawn with rounded corners rather than curved (ADR 0080): 1 for its
+   * container's many curves, 2 for a curve that would cross a shape; 0 for every other.
+   */
+  rounded: Uint8Array | undefined;
 }
 
 /** The view fields a layout does not depend on: a restack or a rename changes only these. */
@@ -1188,6 +1207,7 @@ function layOut(
     plan: drawn.plan,
     lines: drawn.lines,
     sides: drawn.sides,
+    rounded: drawn.rounded,
   };
   builtScenes.set(scene, built);
   return built;
@@ -2349,11 +2369,13 @@ function drawRelations(
   plan: RelationPlan;
   lines: (RelationLine | undefined)[];
   sides: RowSides | undefined;
+  rounded: Uint8Array | undefined;
 } {
   const { shapes } = placed;
   const byId = relationsById(relations);
   let plan: RelationPlan;
   let sides: RowSides | undefined;
+  let rounded: Uint8Array | undefined;
   let again: Set<number> | undefined;
   const changed = kept && before ? changedRelations(before.model.relations, relations) : undefined;
   if (kept && before && changed) {
@@ -2375,6 +2397,15 @@ function drawRelations(
     // A line whose end on a row now leaves by another side or lane is routed again.
     sides = rowSidesOf(plan.specs, shapes, keyIndexOf(shapes));
     for (const spec of changedSides(before.sides, sides)) again.add(spec);
+    // A line drawn curved, or with rounded corners, as its container's curves count changed.
+    rounded = roundedLines(plan.specs, shapes, routing, byId);
+    for (let spec = 0; spec < plan.specs.length; spec++) {
+      if ((rounded?.[spec] ?? 0) !== (before.rounded?.[spec] ?? 0)) again.add(spec);
+    }
+    // A curve may now cross a shape that moved into its way, or no longer cross one that moved off.
+    for (const spec of curvesTouched(plan.specs.length, before, placed.moved, shapes)) {
+      again.add(spec);
+    }
     const waiting = [...again];
     for (let spec = waiting.pop(); spec !== undefined; spec = waiting.pop()) {
       for (const next of plan.onLine.get((plan.specs[spec] as LineSpec).key) ?? []) {
@@ -2390,11 +2421,13 @@ function drawRelations(
         plan,
         lines: before.lines as RelationLine[],
         sides,
+        rounded,
       };
     }
   } else {
     plan = planRelations(relations, nesting, leftOut, shapes, placed.hiddenIn, definitions);
     sides = rowSidesOf(plan.specs, shapes, keyIndexOf(shapes));
+    rounded = roundedLines(plan.specs, shapes, routing, byId);
   }
 
   const previousLines = before?.lines;
@@ -2418,7 +2451,7 @@ function drawRelations(
     const previous = previousAt?.get(spec.key);
     const shapeOf = (end: EndRef) => (end.kind === 'shape' ? shapes[end.at] : undefined);
     const relation = spec.relation === undefined ? undefined : byId.get(spec.relation);
-    const line =
+    const drawnAs = (round: RoundedBecause | undefined) =>
       from && to
         ? lineBetween(
             spec,
@@ -2429,18 +2462,37 @@ function drawRelations(
             previous === undefined ? undefined : previousLines?.[previous],
             routing.plan({
               relation: spec.relation,
-              // An aggregated relation takes its relation type's style, or else the view's.
-              automatic: routing.automaticStyle(
-                relation && !spec.members ? relation : { relationType: spec.relationType },
-              ),
+              // An aggregated relation takes its relation type's style, or else the view's; past
+              // the curves a container can hold, orthogonal, drawn with rounded corners.
+              automatic: round
+                ? 'orthogonal'
+                : routing.automaticStyle(
+                    relation && !spec.members ? relation : { relationType: spec.relationType },
+                  ),
               offset: spec.offset,
               fromShape: shapeOf(spec.from),
               toShape: shapeOf(spec.to),
               from,
               to,
             }),
+            round,
           )
         : undefined;
+    let line = drawnAs(becauseOf(rounded?.[at]));
+    // An automatic curve that would cross a shape is drawn with rounded corners too (ADR 0080).
+    if (
+      line?.curve &&
+      !line.hand &&
+      !line.rounded &&
+      line.style === 'curved' &&
+      spec.from.kind === 'shape' &&
+      spec.to.kind === 'shape' &&
+      curveCrosses(line.route, [spec.from.key, spec.to.key], shapes)
+    ) {
+      line = drawnAs('crossing');
+      rounded ??= new Uint8Array(plan.specs.length);
+      rounded[at] = 2;
+    }
     lines[at] = line;
     done[at] = 1;
     return line;
@@ -2450,7 +2502,104 @@ function drawRelations(
     const line = lineAt(at);
     if (line) drawn.push(line);
   }
-  return { relations: drawn, plan, lines, sides };
+  return { relations: drawn, plan, lines, sides, rounded };
+}
+
+/**
+ * Which lines are drawn with rounded corners rather than curved (ADR 0080, section 3): the automatic
+ * curved lines between two shapes of a container that holds more than `MOST_CURVES` of them. A line
+ * routed by hand keeps its style and does not count. Undefined when none is.
+ */
+/**
+ * The lines of the plan whose curve a move may have put in or out of a shape's way (ADR 0080): the
+ * automatic curves whose route meets a moved shape, where it stood or stands; and every line drawn
+ * with rounded corners because its curve crossed a shape, whose curve is not drawn to tell.
+ */
+function curvesTouched(
+  count: number,
+  before: Built,
+  moved: readonly number[],
+  shapes: readonly ElementShape[],
+): number[] {
+  if (moved.length === 0) return [];
+  const rects: Rect[] = [];
+  for (const at of moved) {
+    const now = shapes[at];
+    const was = before.layout.shapes[at];
+    if (now) rects.push(now.plate ?? now.rect);
+    if (was) rects.push(was.plate ?? was.rect);
+  }
+  const touched: number[] = [];
+  for (let spec = 0; spec < count; spec++) {
+    if (before.rounded?.[spec] === 2) {
+      touched.push(spec);
+      continue;
+    }
+    const line = before.lines[spec];
+    if (!line?.curve || line.hand || line.rounded || line.style !== 'curved') continue;
+    let left = Infinity;
+    let top = Infinity;
+    let right = -Infinity;
+    let bottom = -Infinity;
+    for (const { x, y } of line.route) {
+      left = Math.min(left, x);
+      top = Math.min(top, y);
+      right = Math.max(right, x);
+      bottom = Math.max(bottom, y);
+    }
+    const meets = rects.some(
+      (rect) =>
+        rect.x < right &&
+        rect.x + rect.width > left &&
+        rect.y < bottom &&
+        rect.y + rect.height > top,
+    );
+    if (meets) touched.push(spec);
+  }
+  return touched;
+}
+
+/** Why a line of the plan is drawn with rounded corners, from `Built.rounded`. */
+function becauseOf(flag: number | undefined): RoundedBecause | undefined {
+  return flag === 1 ? 'many' : flag === 2 ? 'crossing' : undefined;
+}
+
+function roundedLines(
+  specs: readonly LineSpec[],
+  shapes: readonly ElementShape[],
+  routing: SceneRouting,
+  byId: ReadonlyMap<Id, Relation>,
+): Uint8Array | undefined {
+  if (!routing.mayCurve()) return undefined;
+  let counts: Map<string, number> | undefined;
+  const holders: (string | undefined)[] = new Array<string | undefined>(specs.length);
+  specs.forEach((spec, at) => {
+    if (spec.from.kind !== 'shape' || spec.to.kind !== 'shape') return;
+    if (spec.relation !== undefined && routing.byHand(spec.relation)) return;
+    const relation = spec.relation === undefined ? undefined : byId.get(spec.relation);
+    const style = routing.automaticStyle(
+      relation && !spec.members ? relation : { relationType: spec.relationType },
+    );
+    if (style !== 'curved') return;
+    const from = shapes[spec.from.at];
+    const to = shapes[spec.to.at];
+    if (!from || !to) return;
+    const holder = holderKeyOf(from.key, to.key);
+    holders[at] = holder;
+    counts ??= new Map();
+    counts.set(holder, (counts.get(holder) ?? 0) + 1);
+  });
+  if (!counts) return undefined;
+  const known = counts;
+  let any = false;
+  const rounded = new Uint8Array(specs.length);
+  holders.forEach((holder, at) => {
+    if (holder !== undefined && (known.get(holder) ?? 0) > MOST_CURVES) {
+      rounded[at] = 1;
+      any = true;
+    }
+  });
+  return any ? rounded : undefined;
 }
 
 /**
@@ -2669,6 +2818,7 @@ function lineBetween(
   relation: Relation | undefined,
   kept: RelationLine | undefined,
   planned: LinePlan | undefined,
+  rounded?: RoundedBecause,
 ): RelationLine | undefined {
   const { offset, members } = spec;
   const inputs: LineInputs = {
@@ -2679,7 +2829,7 @@ function lineBetween(
     offset,
     definitions,
     source: relation ?? `${spec.relationType} ${members?.join(' ')} | ${spec.reversed?.join(' ')}`,
-    hand: planned?.signature ?? '',
+    hand: `${planned?.signature ?? ''}${rounded ? ` rounded ${rounded}` : ''}`,
   };
   const was = kept && lineInputs.get(kept);
   if (
@@ -2734,6 +2884,10 @@ function lineBetween(
   if (routed?.style) line.style = routed.style;
   if (routed?.hand) line.hand = routed.hand;
   if (routed?.curve) line.curve = routed.curve;
+  if (rounded && !routed?.hand) {
+    line.rounded = rounded;
+    withRoundedCorners(line);
+  }
   if (relationType.direction === 'directed') line.arrowhead = arrowheadAt(beforeEnd, end, width);
   if (members) {
     line.aggregate = { relationType: spec.relationType, relations: members };

@@ -458,6 +458,8 @@ export class CanvasRenderer {
   private besideHovered: ElementShape[] = [];
   private besideSelected: ElementShape[] = [];
   private readonly gestureMarks = new Graphics();
+  /** The pinned shapes in the way of Layout, which the gesture's marks outline too. */
+  private pinnedInTheWay: readonly Rect[] = [];
   /** What editing a route draws: its handles and its line as it now runs, above everything. */
   private readonly routeMarks = new Graphics();
   private routeOverlay: RouteOverlay | undefined;
@@ -769,6 +771,17 @@ export class CanvasRenderer {
       this.hovered = hovered;
       this.drawHover();
     }
+    this.requestRender();
+  }
+
+  /**
+   * Outlines the pinned shapes in the way of Layout (ADR 0080): those that stay overlapped, or that
+   * keep the one-pass layout from placing what they hold.
+   */
+  setPinnedInTheWay(rects: readonly Rect[]): void {
+    if (rects.length === 0 && this.pinnedInTheWay.length === 0) return;
+    this.pinnedInTheWay = rects;
+    this.drawGesture();
     this.requestRender();
   }
 
@@ -3258,6 +3271,10 @@ export class CanvasRenderer {
     const { selected, refused, handleFill, boxFillAlpha } = this.painter.theme;
     const outline = (rect: Rect, color: string, lineWidth: number) =>
       marks.rect(rect.x, rect.y, rect.width, rect.height).stroke({ color, width: lineWidth });
+    // Pinned shapes in the way of Layout, outlined a little outside themselves (ADR 0080).
+    for (const rect of this.pinnedInTheWay) {
+      outline(grow(rect, 6 / this.camera.scale), refused, width * 1.5);
+    }
     for (const rect of ghost ?? []) {
       marks
         .rect(rect.x, rect.y, rect.width, rect.height)

@@ -738,7 +738,7 @@ Its tasks run one at a time, in this order:
   - ELK's routes kept until a shape they pass moves;
   - every expansion makes room (`makeRoom` for every expansion, zoom included, drawn only for zoom), and the camera follows;
   - `canvas/layout/quality.ts` and the fixture shaped like the user's model, with the thresholds that this stage can hold.
-- [ ] **Stage 0b: lines beside rows routed in channels, the palette and the self-reference** (`app/src/canvas/routing/`, the overlays' colors, ADR 0080 sections 2 and 6):
+- [x] **Stage 0b: lines beside rows routed in channels, the palette and the self-reference** (`app/src/canvas/routing/`, the overlays' colors, ADR 0080 sections 2 and 6):
   - lines beside rows and on shapes that draw rows go through the program's own router, leaving at their row's middle on the facing side;
   - a channel pass spreads collinear segments of different lines at least 8 units apart, lines from one row staying one trunk;
   - routing stays in the worker and incremental;
@@ -746,7 +746,7 @@ Its tasks run one at a time, in this order:
   - the quality thresholds on routing, on the fixture;
   - curves past 24 in a container drawn orthogonal with rounded corners through the router, the view's inspector saying so (ADR 0080 section 3, moved forward from Stage 2);
   - pinned shapes that stay overlapped, or that keep the one-pass layout from placing what they hold, outlined, with the inspector's offer to unpin them.
-- [ ] **Stage 1: libavoid behind the fallback, trunks, and the full pipeline** (ADR 0080 section 2): collapsing a container that has no places to give back closes the room it leaves, moving the shapes it freed back left or up by the least, in their order, pinned ones never (ADR 0080's clarification of 2026-10-29); libavoid in the routing worker, incremental by container, with the program's router as the fallback; container ports beyond the budget; communities for large containers without groups.
+- [ ] **Stage 1: libavoid behind the fallback, trunks, and the full pipeline** (ADR 0080 section 2): lines to connection points through the router (ADR 0080's clarification of 2026-10-30); collapsing a container that has no places to give back closes the room it leaves, moving the shapes it freed back left or up by the least, in their order, pinned ones never (ADR 0080's clarification of 2026-10-29); libavoid in the routing worker, incremental by container, with the program's router as the fallback; container ports beyond the budget; communities for large containers without groups.
 - [ ] **Stage 2: reading many lines** (ADR 0080 section 5): names readable far out; `rows: "keys"`; the selection's relations, with the rest faint.
 - [ ] **Stage 3: stability**: Layout twice moves nothing; adding a table moves at most 10% of the others; the numbers at 10,000 elements, recorded.
 

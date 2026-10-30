@@ -11,6 +11,7 @@
 import type { Id } from '@visual-anything/schema';
 import { arrowheadAt, type Point, type Rect } from '../geometry';
 import { midpointOf } from '../route';
+import { channelledScene, routedAroundScene } from '../routing/avoided';
 import { shapeChanges, type ShapeChange } from '../routing/useAvoidedRoutes';
 import { withRelations, type ElementShape, type RelationLine, type Scene } from '../scene';
 import type { LaidOutRoute } from './types';
@@ -88,6 +89,35 @@ export function withKeptRoutes(scene: Scene, kept: KeptRoutes | undefined): Scen
   const result = any ? withRelations(scene, relations, bounds) : scene;
   composed.set(scene, { kept, scene: result });
   return result;
+}
+
+/**
+ * The scene drawn at once as the canvas draws it after a layout (ADR 0080, section 2): ELK's routes
+ * that still hold, every other line that may go around shapes routed so, keeping apart from them, and
+ * the channel pass over both, which leaves ELK's routes where they are. For the exports and tests;
+ * the canvas does the same in the routing worker.
+ */
+export function routedWithKept(scene: Scene, kept: KeptRoutes | undefined): Scene {
+  const held = withKeptRoutes(scene, kept);
+  const along = new Map<Id, readonly Point[]>();
+  for (const line of held.relations) {
+    if (alongKeptRoute(kept, line)) along.set(line.relation, line.route);
+  }
+  const routed = withKeptRoutes(routedAroundScene(scene, along), kept);
+  return channelledScene(routed, scene, (line) => alongKeptRoute(kept, line));
+}
+
+/**
+ * Whether a line of a scene `withKeptRoutes` drew runs along ELK's kept route, which the channel
+ * pass leaves where it is (ADR 0080, section 2).
+ */
+export function alongKeptRoute(kept: KeptRoutes | undefined, line: RelationLine): boolean {
+  const points = kept?.routes.get(line.relation);
+  if (!points || points.length !== line.route.length) return false;
+  return points.every((point, at) => {
+    const drawn = line.route[at] as Point;
+    return drawn.x === point.x && drawn.y === point.y;
+  });
 }
 
 /** Whether a line may be drawn along ELK's route: automatic, orthogonal, and no line ends on it. */

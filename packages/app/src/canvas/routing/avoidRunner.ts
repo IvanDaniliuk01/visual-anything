@@ -7,6 +7,7 @@ import { createContext } from 'react';
 import type { Point } from '../geometry';
 import { Avoider, type Avoided, type AvoidLine, type AvoidShapes } from './avoid';
 import { routingOrder, type AvoidMessage, type AvoidReply } from './avoidMessages';
+import { spreadChannels, type ChannelInput, type ChannelOutput } from './channels';
 
 /** What routes lines around shapes for the canvas. */
 export interface AvoidRunner {
@@ -24,7 +25,14 @@ export interface AvoidRunner {
       /** How long routing them took, in milliseconds, off the main thread when in a worker. */
       took: number,
     ) => void,
+    /** The lines drawn already, which routes beside rows keep apart from. */
+    existing?: AvoidLine[],
   ): () => void;
+  /**
+   * Spreads the lines drawn into channels (ADR 0080, section 2), telling `onDone` the routes; a newer
+   * request stops an older one. Absent: no channel pass, as a test's runner may give.
+   */
+  channels?(input: ChannelInput, onDone: (output: ChannelOutput, took: number) => void): () => void;
   dispose(): void;
 }
 
@@ -48,11 +56,21 @@ export function workerAvoidRunner(start: () => AvoidWorker = startWorker): Avoid
   let worker: AvoidWorker | undefined;
   let count = 0;
   const listening = new Map<number, Parameters<AvoidRunner['route']>[3]>();
+  let channelling:
+    { id: number; onDone: (output: ChannelOutput, took: number) => void } | undefined;
   const ensure = (): AvoidWorker => {
     if (worker) return worker;
     const started = start();
     started.addEventListener('message', (event) => {
-      const { id, results, done, took } = event.data;
+      const reply = event.data;
+      if (reply.type === 'channels') {
+        if (channelling?.id !== reply.id) return;
+        const { onDone } = channelling;
+        channelling = undefined;
+        onDone(reply.output, reply.took);
+        return;
+      }
+      const { id, results, done, took } = reply;
       const listener = listening.get(id);
       if (!listener) return;
       if (done) listening.delete(id);
@@ -62,21 +80,38 @@ export function workerAvoidRunner(start: () => AvoidWorker = startWorker): Avoid
     return started;
   };
   return {
-    route(shapes, lines, center, onResults) {
+    route(shapes, lines, center, onResults, existing) {
       count += 1;
       const id = count;
       // Only the newest request is listened to: a newer one stops the worker's older one.
       for (const old of listening.keys()) worker?.postMessage({ type: 'cancel', id: old });
       listening.clear();
       listening.set(id, onResults);
-      ensure().postMessage({ type: 'route', id, shapes, lines, ...(center ? { center } : {}) });
+      ensure().postMessage({
+        type: 'route',
+        id,
+        shapes,
+        lines,
+        ...(center ? { center } : {}),
+        ...(existing && existing.length > 0 ? { existing } : {}),
+      });
       return () => {
         if (!listening.delete(id)) return;
         worker?.postMessage({ type: 'cancel', id });
       };
     },
+    channels(input, onDone) {
+      count += 1;
+      const id = count;
+      channelling = { id, onDone };
+      ensure().postMessage({ type: 'channels', id, input });
+      return () => {
+        if (channelling?.id === id) channelling = undefined;
+      };
+    },
     dispose() {
       listening.clear();
+      channelling = undefined;
       worker?.terminate();
       worker = undefined;
     },
@@ -89,17 +124,29 @@ export function workerAvoidRunner(start: () => AvoidWorker = startWorker): Avoid
  */
 export function inThreadAvoidRunner(): AvoidRunner {
   return {
-    route(shapes, lines, center, onResults) {
+    route(shapes, lines, center, onResults, existing) {
       let stopped = false;
       queueMicrotask(() => {
         if (stopped) return;
         const began = performance.now();
-        const avoider = new Avoider(shapes);
+        const avoider = new Avoider(shapes, existing);
         const results = routingOrder(lines, center).map((line) => ({
           line,
           avoided: avoider.avoid(lines[line] as AvoidLine),
         }));
         onResults(results, true, performance.now() - began);
+      });
+      return () => {
+        stopped = true;
+      };
+    },
+    channels(input, onDone) {
+      let stopped = false;
+      queueMicrotask(() => {
+        if (stopped) return;
+        const began = performance.now();
+        const output = spreadChannels(input);
+        onDone(output, performance.now() - began);
       });
       return () => {
         stopped = true;
