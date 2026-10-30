@@ -61,8 +61,8 @@ export interface AvoidSide {
   vertical?: true;
   x?: number;
   /**
-   * Present for an end at a connection point, which leaves by its own side alone; a row's end may
-   * leave by either side of its table, as libavoid chooses (`libavoid.ts`).
+   * Present for an end at a connection point, which leaves by its own side alone: a line on an
+   * outline that ends at one is routed by its own route rather than between the boxes.
    */
   point?: true;
 }

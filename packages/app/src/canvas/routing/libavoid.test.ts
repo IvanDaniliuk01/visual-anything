@@ -1,8 +1,12 @@
-/** libavoid as the router, behind the program's own (ADR 0080, section 2, Stage 1b). */
+/**
+ * libavoid as a router, measured against the program's own in the quality tests only: it ships
+ * nowhere (ADR 0080, section 2, and its clarifications of 2026-10-30).
+ */
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Rect } from '../geometry';
 import { segmentCrosses, type AvoidLine, type AvoidShapes } from './avoid';
-import { inThreadAvoidRunner, libavoidWanted, ROUTER_KEY } from './avoidRunner';
 import {
   LIBAVOID_BUDGET,
   LibavoidRouter,
@@ -166,41 +170,41 @@ describe('libavoid (ADR 0080, section 2)', () => {
   });
 });
 
-describe('the runner with libavoid', () => {
-  it('routes what is asked for, and gives new routes for lines drawn already in the container', async () => {
+describe('routing lines with libavoid first', () => {
+  it('routes what is asked for, and gives new routes for lines drawn already in the container', () => {
     const { shapes, rects } = scene();
     const router = new LibavoidRouter(loaded());
-    const runner = inThreadAvoidRunner(router);
-    const drawn = rowLine(2, 5, rects);
-    const got = await new Promise<{ results: number; others: number[] }>((resolve) => {
-      runner.route(
-        shapes,
-        [rowLine(1, 4, rects)],
-        undefined,
-        (results, _done, _took, others) =>
-          resolve({
-            results: results.filter((each) => each.avoided.route).length,
-            others: (others ?? []).map((each) => each.line),
-          }),
-        [drawn],
-      );
-    });
+    const routed = routeLines(shapes, [rowLine(1, 4, rects)], [rowLine(2, 5, rects)], router);
     router.dispose();
-    expect(got).toEqual({ results: 1, others: [0] });
-  });
-
-  it('is asked for in the browser’s storage, and off otherwise', () => {
-    const storage = (value: string | null) => ({ getItem: () => value });
-    expect(libavoidWanted(storage('libavoid'))).toBe(true);
-    expect(libavoidWanted(storage(null))).toBe(false);
-    expect(libavoidWanted(storage('own'))).toBe(false);
+    expect(routed.results.filter((each) => each.route).length).toBe(1);
     expect(
-      libavoidWanted({
-        getItem: () => {
-          throw new Error('refused');
-        },
-      }),
-    ).toBe(false);
-    expect(ROUTER_KEY).toBe('visual-anything.router');
+      routed.others.map((each, line) => (each ? line : -1)).filter((line) => line >= 0),
+    ).toEqual([0]);
+  });
+});
+
+/** The source files under `dir` that are not tests nor test helpers. */
+function shippedSources(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== 'test') found.push(...shippedSources(path));
+    } else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) {
+      found.push(path);
+    }
+  }
+  return found;
+}
+
+describe('libavoid ships nowhere (ADR 0080, clarification of 2026-10-30)', () => {
+  it('is imported by no module but its own, which only tests import', () => {
+    const src = resolve(import.meta.dirname, '../..');
+    const importing = shippedSources(src).filter((path) => {
+      if (/[\\/]routing[\\/]libavoid\.ts$/.test(path)) return false;
+      const text = readFileSync(path, 'utf8');
+      return /from '[^']*\/libavoid'|import\('[^']*\/libavoid'\)|'libavoid-js'/.test(text);
+    });
+    expect(importing).toEqual([]);
   });
 });

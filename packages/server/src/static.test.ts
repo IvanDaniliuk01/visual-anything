@@ -153,7 +153,7 @@ describe('contentTypeOf', () => {
     ['data.json', 'application/json; charset=utf-8'],
     ['app.js.map', 'application/json; charset=utf-8'],
     ['font.woff2', 'font/woff2'],
-    ['libavoid.wasm', 'application/wasm'],
+    ['module.wasm', 'application/wasm'],
     ['robots.txt', 'text/plain; charset=utf-8'],
     ['INDEX.HTML', 'text/html; charset=utf-8'],
   ])('gives %s the type %s', (file, type) => {
