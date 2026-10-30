@@ -14,32 +14,16 @@
   display: none;
 }
 
-.shell[data-inspector-collapsed]:not(:has(> .scenario-panel)) {
+.shell[data-inspector-collapsed] {
   --inspector-column: var(--panel-strip);
 }
 
 /*
- * With the scenario panel open, the inspector's column keeps its width for it: the inspector's strip
- * goes across the top of the column, and the scenario panel takes the rest of it. Never while a tour
- * plays, whose one cell the canvas fills (tours.css): these rows, as specific as that rule and later,
- * would put the canvas in a row of no height.
+ * Collapsing the inspector collapses the whole right column, the scenario panel with it, which keeps
+ * its session and shows again when the column opens; a scenario keeps playing on the canvas meanwhile.
  */
-.shell[data-inspector-collapsed]:not(.tour-playing):has(> .scenario-panel) {
-  grid-template-rows: auto auto auto minmax(0, 1fr);
-}
-
-.shell[data-inspector-collapsed]:not(.tour-playing):has(> .element-list):has(> .scenario-panel) {
-  grid-template-areas:
-    'header header header'
-    'notice notice notice'
-    'model canvas inspector'
-    'model canvas scenario'
-    'model list scenario';
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
-}
-
 .shell[data-inspector-collapsed] > .scenario-panel {
-  max-height: none;
+  display: none;
 }
 
 .shell[data-panel-resizing] {
