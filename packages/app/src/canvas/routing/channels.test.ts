@@ -127,6 +127,56 @@ describe('spreadChannels', () => {
     ).toBeGreaterThanOrEqual(LEAST);
   });
 
+  it('gathers the lines that leave one row the same way into a trunk until they part', () => {
+    // Three lines from one row, end 0, out to the right: two turn down, at 100 and 140; one up.
+    const line = (turn: number, y: number, to: number): TestLine => ({
+      route: [
+        { x: 0, y: 100 },
+        { x: turn, y: 100 },
+        { x: turn, y },
+        { x: 400, y },
+      ],
+      ends: [0, to],
+    });
+    const routes = routesOf(inputOf([line(100, 300, 1), line(140, 500, 2), line(120, -100, 3)]));
+    const [one, two, up] = routes as [Point[], Point[], Point[]];
+    // The two that turn down share their first turn, so they run together down to 300.
+    expect(middleOf(one)).toBe(middleOf(two));
+    // At the place nearest their row that both can take.
+    expect(middleOf(one)).toBe(100);
+    // The one that turns up keeps its own turn.
+    expect(middleOf(up)).toBe(120);
+    // And it gathers at their other ends too: two lines into one row from the left, turning in.
+    const into = (turn: number, y: number, from: number): TestLine => ({
+      route: [
+        { x: 0, y },
+        { x: turn, y },
+        { x: turn, y: 100 },
+        { x: 400, y: 100 },
+      ],
+      ends: [from, 9],
+    });
+    const [a, b] = routesOf(inputOf([into(300, 300, 1), into(260, 500, 2)])) as [Point[], Point[]];
+    expect(middleOf(a)).toBe(middleOf(b));
+    expect(middleOf(a)).toBe(300);
+  });
+
+  it('gathers no trunk across a shape in the way', () => {
+    const line = (turn: number, y: number, to: number): TestLine => ({
+      route: [
+        { x: 0, y: 100 },
+        { x: turn, y: 100 },
+        { x: turn, y },
+        { x: 400, y },
+      ],
+      ends: [0, to],
+    });
+    // A shape between the two turns, below the row: moving the far turn near would sweep over it.
+    const wall = { x: 110, y: 120, width: 20, height: 300 };
+    const routes = routesOf(inputOf([line(100, 300, 1), line(140, 500, 2)], [wall]));
+    expect(middleOf(routes[0] as Point[])).not.toBe(middleOf(routes[1] as Point[]));
+  });
+
   it('keeps clear of the shapes beside the corridor, and squeezes rather than cross them', () => {
     // A narrow gap: two tables 40 apart, the middle runs between them.
     const left = { x: -100, y: 0, width: 100, height: 600 };
