@@ -84,6 +84,7 @@ export function IdentitySection({
             id={controlId}
             value={description === undefined ? '' : t.description(id, description)}
             multiline
+            emphasis
             disabled={readOnly}
             describedBy={describedBy}
             same={sameOptionalText}

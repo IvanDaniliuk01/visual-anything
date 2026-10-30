@@ -208,6 +208,7 @@ function ViewSettings({ id, project, definitions, view, editable, onDeleted }: V
           id={ids.description}
           disabled={!editable}
           multiline
+          emphasis
           value={view.description ?? ''}
           onCommit={(text) => update({ description: text.trim() === '' ? null : text })}
         />
@@ -230,6 +231,7 @@ function ViewSettings({ id, project, definitions, view, editable, onDeleted }: V
           id={ids.perspectiveDescription}
           disabled={!editable}
           multiline
+          emphasis
           value={perspective.description ?? ''}
           onCommit={(text) =>
             update({

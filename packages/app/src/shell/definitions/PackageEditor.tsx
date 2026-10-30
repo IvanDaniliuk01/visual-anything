@@ -86,6 +86,7 @@ export function PackageEditor({ id, titleRef }: PackageEditorProps) {
               id={controlId}
               value={file.description === undefined ? '' : t.description(id, file.description)}
               multiline
+              emphasis
               disabled={readOnly}
               describedBy={describedBy}
               same={sameOptionalText}

@@ -7,6 +7,7 @@ import type { ProjectSnapshot } from '@visual-anything/core';
 import { useId, useMemo, useRef } from 'react';
 import { useModalFocus } from '../canvas/focus';
 import { useT } from '../i18n';
+import { EmphasisBlocks } from '../text/EmphasisText';
 import { creditsOf } from './credits';
 
 export function About({
@@ -47,7 +48,7 @@ export function About({
       >
         <h2 id={titleId}>{project.project.name}</h2>
         {project.project.description !== undefined && project.project.description !== '' && (
-          <p>{project.project.description}</p>
+          <EmphasisBlocks text={project.project.description} headingLevel={3} />
         )}
         <p className="dialog-note">
           {t(

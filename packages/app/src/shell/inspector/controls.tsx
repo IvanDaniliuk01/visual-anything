@@ -21,6 +21,8 @@ import {
 } from 'react';
 import { COLOR_FORMS, readColor } from '../../color';
 import { useT } from '../../i18n';
+import { EmphasisPreview } from '../../text/EmphasisText';
+import { useEmphasisKeys } from '../../text/useEmphasisKeys';
 import type { FocusKeeper } from './focus';
 import { useColorChoices } from './useColorChoices';
 
@@ -105,6 +107,12 @@ interface TextControlProps extends ControlProps {
   value: string;
   /** Several lines: Enter still commits, and Shift+Enter starts a new line. */
   multiline?: boolean;
+  /**
+   * Whether the text takes text emphasis (ADR 0082): the keys that wrap the selection in markers,
+   * and the text drawn under the field when it differs from its source. A text of several lines
+   * also takes Markdown's blocks.
+   */
+  emphasis?: boolean;
   /** `number` asks for a number. */
   inputType?: 'text' | 'number';
   /** Why typed text cannot be committed; the control then keeps it and says why. */
@@ -130,6 +138,7 @@ export function TextControl({
   focusKeeper,
   value,
   multiline = false,
+  emphasis = false,
   inputType = 'text',
   problemOf,
   same,
@@ -140,6 +149,7 @@ export function TextControl({
   const sent = useRef<string | undefined>(undefined);
   const control = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   useFocus(control, focusRequest, onFocused, focusKeeper);
+  const keys = useEmphasisKeys();
   const problemId = `${id}-problem`;
   const problem = draft?.problem;
 
@@ -179,7 +189,8 @@ export function TextControl({
       setDraft({ text: event.target.value, saving: false });
     },
     onBlur: commit,
-    onKeyDown: (event: KeyboardEvent) => {
+    onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (emphasis && keys.onKeyDown(event, (text) => setDraft({ text, saving: false }))) return;
       if (event.key === 'Escape') {
         setDraft(undefined);
       } else if (
@@ -201,6 +212,7 @@ export function TextControl({
         <input {...common} type={inputType} step={inputType === 'number' ? 'any' : undefined} />
       )}
       {problem !== undefined && <InlineProblem id={problemId} text={problem} />}
+      {emphasis && <EmphasisPreview text={draft?.text ?? value} blocks={multiline} />}
     </>
   );
 }

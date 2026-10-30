@@ -60,4 +60,20 @@ describe('InlineEditor', () => {
       window.removeEventListener('keydown', outside);
     }
   });
+
+  it('wraps a note’s selection in markers with the keys of text emphasis', () => {
+    const note = edit(true);
+    (note.field as HTMLTextAreaElement).setSelectionRange(0, 7);
+    fireEvent.keyDown(note.field, { key: 'b', ctrlKey: true });
+    fireEvent.keyDown(note.field, { key: 'Enter', ctrlKey: true });
+    expect(note.onCommit).toHaveBeenCalledWith('**Patient**');
+  });
+
+  it('leaves the keys of text emphasis alone in a name', () => {
+    const { field, onCommit } = edit();
+    (field as HTMLInputElement).setSelectionRange(0, 7);
+    fireEvent.keyDown(field, { key: 'b', ctrlKey: true });
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(onCommit).not.toHaveBeenCalled();
+  });
 });

@@ -1,25 +1,19 @@
 /**
- * Plain text with paragraphs and lists (ADR 0058), as a caption or speaker notes hold it: never HTML.
- * Whatever the text holds, markup included, is written as text, so nothing in it can run.
+ * A caption's text, a reveal's sentence or speaker notes (ADR 0058), with text emphasis and
+ * Markdown's blocks (ADR 0082): paragraphs and lists as before, and headings, quotes, code, tables
+ * and links. Never HTML: whatever the text holds is written as text nodes, so nothing in it can run.
  */
-import { textBlocks } from '@visual-anything/core';
-import { useMemo } from 'react';
+import { EmphasisBlocks } from '../text/EmphasisText';
 
-export function TourText({ text, className }: { text: string; className?: string }) {
-  const blocks = useMemo(() => textBlocks(text), [text]);
-  return (
-    <div className={className}>
-      {blocks.map((block, at) => {
-        if (block.kind === 'paragraph') return <p key={at}>{block.text}</p>;
-        const items = block.items.map((item, index) => <li key={index}>{item}</li>);
-        return block.ordered ? (
-          <ol key={at} start={block.start}>
-            {items}
-          </ol>
-        ) : (
-          <ul key={at}>{items}</ul>
-        );
-      })}
-    </div>
-  );
+export function TourText({
+  text,
+  className,
+  headingLevel = 4,
+}: {
+  text: string;
+  className?: string;
+  /** The level a `#` heading takes, under the card's or the window's own title. */
+  headingLevel?: number;
+}) {
+  return <EmphasisBlocks text={text} className={className} headingLevel={headingLevel} />;
 }

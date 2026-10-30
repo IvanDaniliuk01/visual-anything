@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useEmphasisKeys } from '../text/useEmphasisKeys';
 import { worldToScreen, type Camera } from './camera';
 import type { Rect } from './geometry';
 
@@ -7,7 +8,10 @@ interface InlineEditorProps {
   rect: Rect;
   camera: Camera;
   value: string;
-  /** A name is one line; a note's text can have several. */
+  /**
+   * A name is one line; a note's text can have several, and takes text emphasis, whose keys wrap the
+   * selection in markers (ADR 0082).
+   */
   multiline: boolean;
   label: string;
   onCommit: (value: string) => void;
@@ -20,7 +24,8 @@ interface InlineEditorProps {
  * Edits text in place, in an HTML field laid over the canvas where the text is drawn (ADR-0014).
  * Enter commits a name, and Ctrl+Enter a note; Ctrl+Enter in a row's name commits it and adds the
  * next row; Escape cancels; leaving the field commits. While an input method composes text, Enter
- * and Escape are its own.
+ * and Escape are its own. In a note's text, the keys of text emphasis (Ctrl+B, Ctrl+I and the rest)
+ * wrap the selection in markers or take them away.
  */
 export function InlineEditor({
   rect,
@@ -35,6 +40,7 @@ export function InlineEditor({
   const [text, setText] = useState(value);
   const field = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const done = useRef(false);
+  const keys = useEmphasisKeys();
 
   useEffect(() => {
     // The canvas brings what it edits into sight; the page itself never scrolls to the field.
@@ -69,6 +75,9 @@ export function InlineEditor({
       event.stopPropagation();
       // Safari ends a composition with a key press that no longer says it composes, but has code 229.
       if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+      if (multiline && keys.onKeyDown(event as React.KeyboardEvent<HTMLTextAreaElement>, setText)) {
+        return;
+      }
       if (event.key === 'Escape') finish(false);
       else if (event.key === 'Enter' && onNext && !multiline && (event.ctrlKey || event.metaKey)) {
         event.preventDefault();

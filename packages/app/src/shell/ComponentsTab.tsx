@@ -11,6 +11,7 @@ import { InlineProblem } from './inspector/controls';
 import { Secondary } from './Secondary';
 import { shownRows, type TreeRow } from './tree';
 import { VirtualTree } from './VirtualTree';
+import { EmphasisRuns } from '../text/EmphasisText';
 import './definitions/definitions.css';
 
 interface ComponentsTabProps {
@@ -183,7 +184,9 @@ function UnusedPackage({ file }: { file: PackageFile }) {
         {t('Use')}
       </button>
       {file.description !== undefined && (
-        <span className="item-notes">{t.description(file.id, file.description)}</span>
+        <span className="item-notes">
+          <EmphasisRuns text={t.description(file.id, file.description)} />
+        </span>
       )}
       {sender.problem !== undefined && <InlineProblem id={problemId} text={sender.problem} />}
     </li>

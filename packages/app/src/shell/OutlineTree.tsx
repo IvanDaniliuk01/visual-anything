@@ -1,4 +1,4 @@
-import type { ProjectSnapshot } from '@visual-anything/core';
+import { plainText, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useMemo } from 'react';
 import { useEditor } from '../editor/EditorContext';
@@ -182,7 +182,7 @@ function OutlineRow({ project, item }: { project: ProjectSnapshot; item: Outline
       return (
         <>
           <span className="item-name">{t('Note')}</span>
-          <Secondary text={item.note.text} />
+          <Secondary text={plainText(item.note.text)} />
         </>
       );
     case 'arrow':

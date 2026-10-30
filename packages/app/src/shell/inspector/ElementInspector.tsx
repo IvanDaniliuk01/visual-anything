@@ -24,6 +24,7 @@ import { PartsSection } from './PartsSection';
 import { RowsSection } from './RowsSection';
 import { perform } from './send';
 import { sameOptionalText } from './text';
+import { EmphasisBlocks } from '../../text/EmphasisText';
 import { ScopeSection } from './ScopeSection';
 import { ViewSection } from './ViewSection';
 import { DestinationsSection } from '../../destinations/DestinationsSection';
@@ -84,6 +85,7 @@ export function ElementInspector({
           id={descriptionId}
           value={element.description ?? ''}
           multiline
+          emphasis
           disabled={disabled}
           same={sameOptionalText}
           onCommit={async (text) => {
@@ -178,7 +180,11 @@ function ComponentSection({ element, definitions, disabled, update }: ComponentS
         ))}
       </SelectControl>
       {component.description !== undefined && (
-        <p className="inspector-notes">{t.description(component.id, component.description)}</p>
+        <EmphasisBlocks
+          className="inspector-notes"
+          text={t.description(component.id, component.description)}
+          headingLevel={5}
+        />
       )}
       {known ? (
         <>
