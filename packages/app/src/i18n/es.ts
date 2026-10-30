@@ -2076,6 +2076,15 @@ export const ui: Catalog = {
     other:
       '{count} formas dibujadas como partes con nombre se dibujan según su tipo, sin sus imágenes.',
   },
+  // M3e F3: what the text exports lose of faces (ADR 0083).
+  '{count} shapes’ faces are left out: faces are drawn only in the canvas, the SVG, the PDF and the read-only page.':
+    {
+      one: 'Se omite la cara de una forma: las caras solo se dibujan en el lienzo, el SVG, el PDF y la página de solo lectura.',
+      other:
+        'Se omiten las caras de {count} formas: las caras solo se dibujan en el lienzo, el SVG, el PDF y la página de solo lectura.',
+    },
+  'How faces look: the outline writes what they say, and the canvas, the SVG, the PDF and the read-only page draw them.':
+    'Cómo se ven las caras: el esquema escribe lo que dicen, y el lienzo, el SVG, el PDF y la página de solo lectura las dibujan.',
   '{count} relations drawn curved or straight are drawn in {tool}’s own style.': {
     one: 'Una relación dibujada curva o recta se dibuja con el estilo propio de {tool}.',
     other:

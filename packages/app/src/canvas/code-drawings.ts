@@ -1,8 +1,8 @@
 /**
  * What package code draws inside shapes (ADR 0054), drawn by the canvas from the declarative drawings
  * its `draw` hook answered: the code never touches the canvas. Each drawing is fitted, keeping its
- * proportions, in the lower part of its shape, under the name; shapes that hold other shapes or draw
- * rows draw none, and neither do rows.
+ * proportions, where its shape's face places `<drawing/>` (ADR 0083), or else in the lower part of its
+ * shape, under the name; shapes that hold other shapes or draw rows draw none, and neither do rows.
  *
  * Drawings are drawn above the shapes and under the relations, in cells of the canvas that show only
  * while they are on screen, and only from the scale names show at: only what is on screen is built, a
@@ -15,6 +15,7 @@ import { Container, Graphics } from 'pixi.js';
 import type { Camera } from './camera';
 import { DIMMED_ALPHA } from './colors';
 import type { TextFactory } from './draw';
+import { faceRect, shapeFaceDrawing } from './faces';
 import type { Rect, Size } from './geometry';
 import type { ElementShape, Scene } from './scene';
 
@@ -25,12 +26,28 @@ const INSET = 6;
 /** The smallest box a drawing is drawn in, either way, in canvas units. */
 const SMALLEST = 12;
 
-/** Where a shape draws what its package's code drew; undefined for a shape that draws none. */
+/**
+ * Where a shape draws what its package's code drew: where its face places `<drawing/>`, inset as
+ * any drawing is, or else under its name; undefined for a shape that draws none, or whose face leaves
+ * its drawing too little room.
+ */
 export function drawingArea(shape: ElementShape): Rect | undefined {
   if (shape.row !== undefined || shape.rowCount !== undefined || shape.plate !== undefined) {
     return undefined;
   }
   if (shape.holdsContents && shape.collapsed === undefined) return undefined;
+  const region =
+    shape.face && shapeFaceDrawing(shape)?.regions.find((each) => each.kind === 'drawing');
+  if (region) {
+    const at = faceRect(shape);
+    const placed = {
+      x: at.x + region.x + INSET,
+      y: at.y + region.y + INSET,
+      width: region.width - 2 * INSET,
+      height: region.height - 2 * INSET,
+    };
+    return placed.width >= SMALLEST && placed.height >= SMALLEST ? placed : undefined;
+  }
   const { x, y, width, height } = shape.rect;
   // Under the name, which a shape writes across its middle.
   const top = y + height / 2 + 4;
@@ -281,6 +298,7 @@ export class CodeDrawingLayer {
         before &&
         before.drawing === drawing &&
         sameRect(before.shape.rect, shape.rect) &&
+        sameRect(before.area, area) &&
         before.dark === this.dark
       ) {
         if (before.dimmed !== dimmed) {

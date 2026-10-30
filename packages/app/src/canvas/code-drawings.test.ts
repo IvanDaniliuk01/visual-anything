@@ -1,8 +1,10 @@
 import type { Drawing } from '@visual-anything/core';
 import { Container, Graphics } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
+import { FACES_VIEW, facedProject, withFaces } from '../test/faces';
 import { CodeDrawingLayer, drawingArea, fitted, paintDrawing } from './code-drawings';
-import type { ElementShape, Scene } from './scene';
+import { faceRect, shapeFaceDrawing } from './faces';
+import { buildScene, type ElementShape, type Scene } from './scene';
 
 function shape(extra: Partial<ElementShape> = {}): ElementShape {
   return {
@@ -74,6 +76,48 @@ describe('drawingArea', () => {
     expect(drawingArea(shape({ rect: { x: 0, y: 0, width: 20, height: 20 } }))).toBeUndefined();
     // A collapsed container draws one, as any shape that holds none.
     expect(drawingArea(shape({ holdsContents: true, collapsed: { contents: 3 } }))).toBeDefined();
+  });
+
+  it('is where a shape’s face places `<drawing/>`, inset (ADR 0083)', () => {
+    const faced = (markup: string[], height = 160) => {
+      const base = withFaces(facedProject(), {
+        'systems.service': { markup, style: ['face { padding: 4px; }'] },
+      });
+      // The mailer made tall enough for a drawing under its name.
+      const project = {
+        ...base,
+        views: base.views.map((view) => ({
+          ...view,
+          positions: view.positions.map((each) =>
+            each.element === 'mailer' ? { ...each, height } : each,
+          ),
+        })),
+      };
+      const scene = buildScene(project, FACES_VIEW);
+      return scene.shapes.find((each) => each.element === 'mailer') as ElementShape;
+    };
+    const mailer = faced(['<b>{{name}}</b>', '<drawing/>']);
+    expect(mailer.rect.height).toBe(160);
+    const region = shapeFaceDrawing(mailer)?.regions.find((each) => each.kind === 'drawing');
+    expect(region).toBeDefined();
+    const at = faceRect(mailer);
+    expect(drawingArea(mailer)).toEqual({
+      x: at.x + (region?.x ?? 0) + 6,
+      y: at.y + (region?.y ?? 0) + 6,
+      width: (region?.width ?? 0) - 12,
+      height: (region?.height ?? 0) - 12,
+    });
+    // One whose face leaves it too little room draws none.
+    expect(drawingArea(faced(['<b>{{name}}</b>', '<drawing/>'], 40))).toBeUndefined();
+    // A face that places none leaves it under the name.
+    const plain = faced(['<b>{{name}}</b>']);
+    const { x, y, width, height } = plain.rect;
+    expect(drawingArea(plain)).toEqual({
+      x: x + 6,
+      y: y + height / 2 + 4,
+      width: width - 12,
+      height: height / 2 - 10,
+    });
   });
 });
 

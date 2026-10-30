@@ -19,7 +19,8 @@ import {
 import type { Id, JsonValue, ScenarioFile, Step, ViewFile } from '@visual-anything/schema';
 import { nameOfEnd } from '../canvas/announce';
 import { entryAmount, entryLabel, legendSubtitle } from '../canvas/overlays/legendText';
-import { buildScene } from '../canvas/scene';
+import { faceDetail } from '../canvas/faces';
+import { buildScene, type ElementShape } from '../canvas/scene';
 import { t } from '../i18n';
 import {
   outlineOf,
@@ -114,23 +115,42 @@ export function writeOutline(project: ProjectSnapshot, viewId: Id): TextExport {
     for (const scenario of scenarios) lines.push(...scenarioLines(project, scenario));
   }
 
-  const lost = lostOf(view, scene.arrows.length);
+  const lost = lostOf(
+    view,
+    scene.arrows.length,
+    scene.shapes.some((shape) => shape.face),
+  );
   lines.push(`## ${t('What this outline leaves out')}`, '', ...lost.map((each) => `- ${each}`), '');
   return { text: `${lines.join('\n').trimEnd()}\n`, lost };
 }
 
-/** A shape's line: its name in bold, its component, and when collapsed, how many it holds. */
+/**
+ * A shape's line: its name in bold, its component, and when collapsed, how many it holds; then what
+ * its face says, when it has one.
+ */
 function shapeLine(item: ShapeItem): string {
   const { shape } = item;
   const name = `**${markdownInline(shape.name)}**`;
   const component = markdownInline(shape.componentName);
-  return shape.collapsed === undefined
-    ? `${name} (${component})`
-    : t('{name} ({component}), collapsed, with {count} inside', {
-        name,
-        component,
-        count: shape.collapsed.contents,
-      });
+  const line =
+    shape.collapsed === undefined
+      ? `${name} (${component})`
+      : t('{name} ({component}), collapsed, with {count} inside', {
+          name,
+          component,
+          count: shape.collapsed.contents,
+        });
+  const face = faceSaid(shape);
+  return face === '' ? line : `${line}: ${markdownInline(face)}`;
+}
+
+/**
+ * What a shape's face says (ADR 0083), as announcements say it: its plain text in reading order, its
+ * paragraphs joined by commas, less its name and its component's name, which its line writes already.
+ * Empty without a face.
+ */
+function faceSaid(shape: ElementShape): string {
+  return faceDetail(shape, shape.componentName) ?? '';
 }
 
 /** The arrow a relation's line starts with, seen from the shape it is listed under. */
@@ -215,7 +235,7 @@ function dataOf(value: JsonValue): string {
 }
 
 /** What an outline of a view says nothing about. */
-function lostOf(view: ViewFile, arrows: number): string[] {
+function lostOf(view: ViewFile, arrows: number, faces: boolean): string[] {
   const lost = [
     t(
       'Where each shape is, its size and its colors: the outline lists what the view shows, not how it draws it.',
@@ -223,6 +243,13 @@ function lostOf(view: ViewFile, arrows: number): string[] {
     t('The routes of relations and their bend points.'),
     t('Pictures.'),
   ];
+  if (faces) {
+    lost.push(
+      t(
+        'How faces look: the outline writes what they say, and the canvas, the SVG, the PDF and the read-only page draw them.',
+      ),
+    );
+  }
   if (arrows > 0) lost.push(t('Free arrows, which point at places rather than at shapes.'));
   if ((view.collapsed?.length ?? 0) > 0) {
     lost.push(t('What collapsed containers hold, as the view draws none of it.'));
