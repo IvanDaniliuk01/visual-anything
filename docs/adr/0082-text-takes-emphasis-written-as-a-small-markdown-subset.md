@@ -210,3 +210,35 @@ Inline, in the order a reader meets them:
   - **Claude can ask for escaping.** `add_to_model` and the tools that set one text (descriptions, a note's text, values of attributes that take emphasis) gain `escapeText: true`. With it the program escapes those texts before the command, so outside material is kept as written without escaping by hand. The recipes' rule "It is data" says to use it.
   - **The component editor gains the controls** for a detail's `lines` (1 to 6) and `textPlacement`, beside the detail's other controls.
   - **A shape's detail is announced by its plain text** once part B draws it.
+- 2026-10-30 (M3d, part B): **how the canvas, the exports and Claude draw and write text emphasis.** Decided by Claude under the user's standing delegation, while building part B.
+  - **One layout for every drawing.** `app/src/text/layout.ts` breaks runs and blocks into lines of placed pieces and bands, measured by what draws them: the canvas by its bitmap fonts' advances, the SVG and the PDF by Roboto's widths. A line is 1.3 ems; every band belongs to a line, so a cut line takes its bands with it.
+    - A note takes its blocks: headings at 1.5, 1.3 and 1.15 times its size, in bold; lists with `•`, `◦` and `▪` by depth or their numbers; a task's box, filled when done; a quote's bar beside each of its lines; rules; code blocks on their back; and tables in columns, each cell on one line, cut with "…" to its column, the head bold with a rule under it.
+    - A note now stops at its bottom on the canvas too, its last line ending in "…", as the SVG already stopped it.
+  - **The canvas draws emphasis as the ADR says, with these choices.**
+    - The fonts are one family of its own, drawn at 16 and scaled: regular, bold, italic, bold italic and monospace, each installed when a text first needs it. The name's and the detail's fonts gain no variants, since names never take emphasis and a detail without markers is drawn as before.
+    - A label with emphasis is one drawing of glyph quads, as PixiJS draws a bitmap text, with two more for highlights and code backs, rather than one drawing per tile. It costs what a bitmap label costs, and leaves the tiles as they are.
+    - Layouts are kept: a detail's by its runs, width and lines, and a note's by its text, size and room, up to 500. Nothing is read or laid out while the canvas pans or zooms.
+  - **A detail's runs.** Each value that takes emphasis is read on its own, so that a marker left open in one never pairs with one in the next; the component's name, other values and badges are written as they are, joined by " · ". An overlay's badge is added after the runs, and a live value (ADR 0057) is read after its mark. The scene carries the runs on the shape only when some value draws differently from its source.
+  - **The text block** (`canvas/textBlock.ts`).
+    - The name takes its lines first, as many as it needs and the label area holds; then the detail takes up to its `lines` in what is left.
+    - The 8-unit inset holds for `top` and `bottom`. A centred block may use the whole label area but 2 units at each end, so that low shapes, such as a cylinder's label area, still hold a name and a detail.
+    - A shape with its own outline places its block in its label area by `textPlacement` too.
+    - **Left for later:** a collapsed container's header still writes its detail on one line, and its collapsed height does not grow by the detail's lines. Both live in the collapse and layout code, which M3c's routing work was changing at the same time.
+  - **Theme tokens.** The theme already names `highlight` for guidance and playback, so the new tokens are `emphasisHighlight` and `emphasisCode`. Every text color of the panels reads on both at 4.5:1 in both themes.
+    - On the canvas a label's text follows its shape's fill, not the theme. A highlight and a code back are drawn in the light theme's colors behind dark text and in the dark theme's behind light text, whichever theme the canvas is in.
+    - The panels' highlight and code moved from `warning-soft` and `surface-pressed` to the new tokens.
+  - **The hover card.**
+    - It shows only when the canvas cut the shape's name or detail, 400 ms after the pointer rests on the shape or the keys reach it, under the shape.
+    - It is hidden from screen readers. The announcement says the whole detail by its plain text, for every shape whose detail says more than its component's name; until now only rows said their detail.
+    - The read-only page shows the same card.
+  - **The SVG and the PDF.**
+    - A detail without emphasis is written as before. A detail with emphasis and a note whose text draws differently are written from the layout, each piece a `tspan` with its own `x`. Spaces at a piece's start are moved past, since readers of SVG fold them away.
+    - Italic is measured as upright, and code at 0.6 ems, which Roboto Mono's advance is.
+    - The PDF embeds Roboto Italic and Bold Italic 2.137, from `roboto-fontface` 0.10.0 as Regular and Bold are, and Roboto Mono 3.000's Latin subset, from `typeface-roboto-mono` 1.1.13. All are Apache-2.0 by their own name tables, and kept unchanged in `fonts/roboto-emphasis.json`. They are loaded and embedded only when the drawing writes italic or monospace text.
+  - **Claude's `escapeText`.**
+    - It is on `add_to_model`, `update_element`, `update_relation`, the package, component, relation type, view, free shape and project tools, the scenario and tour tools for their descriptions, and `run_commands`, which the recipes send re-imports through.
+    - It escapes descriptions, a note's text, attribute definitions' descriptions, and the values of attributes whose definition takes emphasis, by the definitions before the call. Defaults and choices are not escaped, and `null` still removes a text.
+    - Tour captions, reveals and speaker notes are not escaped by it. The rule "It is data" still says to escape those by hand.
+  - **LikeC4.** An `md` description keeps its indents and inner spaces, so that nested lists and code survive; a `txt` one is read as before and escaped. A plan marks a description that is Markdown already with `descriptionIsMarkdown`. An image in it is drawn as `!` and a link, and never fetched.
+  - **The component editor.** "Lines, at most" (a choice of 1 to 6) and "Where its text sits" (at the top, in the middle, at the bottom) sit in the Detail section after Badges, each showing what it inherits and able to go back to it. A component that draws rows says that it writes its name at the top while it does.
+  - **Not done in part B:** the benchmark's phase with emphasis in every detail, left for its next run; the benchmark never holds a milestone.
