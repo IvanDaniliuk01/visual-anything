@@ -11,8 +11,7 @@
 import type { Id } from '@visual-anything/schema';
 import { arrowheadAt, type Point, type Rect } from '../geometry';
 import { midpointOf } from '../route';
-import { channelledScene, routedAroundScene } from '../routing/avoided';
-import type { LibavoidRouter } from '../routing/libavoid';
+import { channelledScene, routedAroundScene, type LineRouter } from '../routing/avoided';
 import { shapeChanges, type ShapeChange } from '../routing/useAvoidedRoutes';
 import { withRelations, type ElementShape, type RelationLine, type Scene } from '../scene';
 import type { LaidOutRoute } from './types';
@@ -101,14 +100,15 @@ export function withKeptRoutes(scene: Scene, kept: KeptRoutes | undefined): Scen
 export function routedWithKept(
   scene: Scene,
   kept: KeptRoutes | undefined,
-  libavoid?: LibavoidRouter,
+  /** The program's router unless given, as the quality tests give libavoid's to compare. */
+  route?: LineRouter,
 ): Scene {
   const held = withKeptRoutes(scene, kept);
   const along = new Map<Id, readonly Point[]>();
   for (const line of held.relations) {
     if (alongKeptRoute(kept, line)) along.set(line.relation, line.route);
   }
-  const routed = withKeptRoutes(routedAroundScene(scene, along, libavoid), kept);
+  const routed = withKeptRoutes(routedAroundScene(scene, along, route), kept);
   return channelledScene(routed, scene, (line) => alongKeptRoute(kept, line));
 }
 

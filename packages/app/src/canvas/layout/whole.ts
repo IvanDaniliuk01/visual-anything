@@ -42,9 +42,17 @@ export const WHOLE_OPTIONS: LayoutOptions = {
   'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH',
   'elk.json.shapeCoords': 'ROOT',
   'elk.json.edgeCoords': 'ROOT',
+  // ELK's own seed, given so that one input always gives one layout (ADR 0080, Stage 3).
+  'elk.randomSeed': '1',
 };
 
-/** The second pass keeps the order of the nodes in each layer that the first found. */
+/**
+ * The second pass, semi-interactive, as Stage 0a set it. ELK's semi-interactive crossing minimization
+ * keeps the order of the nodes that carry `elk.position`, and only theirs; the second pass gives its
+ * nodes the first pass's places as their `x` and `y`, which it does not read, so it minimizes
+ * crossings afresh with the sides the first pass gave the ports. Keeping the first pass's order, or
+ * the last layout's, crossed more (ADR 0080's clarification of Stage 3).
+ */
 const SECOND_PASS: LayoutOptions = {
   ...WHOLE_OPTIONS,
   'elk.layered.crossingMinimization.semiInteractive': 'true',

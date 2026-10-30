@@ -1,8 +1,10 @@
 /**
- * libavoid as the router (ADR 0080, section 2): Adaptagrams' libavoid, through `libavoid-js`
- * (LGPL-2.1-or-later), a WebAssembly file loaded apart from the app's code, so that the person can
- * replace it. The routing worker loads it; when it fails to load, when a container is over its budget,
- * or when its time runs out, the program's own router (`avoid.ts`) routes those lines instead.
+ * libavoid as a router (ADR 0080, section 2): Adaptagrams' libavoid, through `libavoid-js`
+ * (LGPL-2.1-or-later, a development dependency). Only the quality tests use it, to measure it against
+ * the program's own router on the fixture; no module that ships imports this file, and the app routes
+ * with the program's router alone (ADR 0080's clarification of 2026-10-30, "libavoid leaves the
+ * shipped app"). When a container is over its budget, or its time runs out, the program's router
+ * (`avoid.ts`) routes those lines instead.
  *
  * It routes container by container, incrementally: each container that holds both ends of some
  * lines keeps a libavoid router of its own, whose obstacles are the shapes drawn as one block inside
@@ -108,9 +110,9 @@ const RIGHT = 8;
 let loading: Promise<Libavoid | undefined> | undefined;
 
 /**
- * Loads libavoid once, from `wasm` when given (the routing worker gives the address of the file the
- * app ships), from beside the module otherwise, as in Node; undefined when it fails to load, as it
- * does under a policy that refuses to compile WebAssembly or to make functions from text.
+ * Loads libavoid once, from `wasm` when given, from beside the module otherwise, as in Node;
+ * undefined when it fails to load, as it does under a policy that refuses to compile WebAssembly or to
+ * make functions from text.
  */
 export function loadLibavoid(wasm?: string): Promise<Libavoid | undefined> {
   loading ??= (async () => {
@@ -144,7 +146,7 @@ export interface LibavoidBudget {
   crossingLines: number;
 }
 
-/** The budget the routing worker gives libavoid (ADR 0080, section 2 and its consequences). */
+/** The budget libavoid was given when it was tried in the routing worker (Stage 1b of ADR 0080). */
 export const LIBAVOID_BUDGET: LibavoidBudget = {
   lines: 40,
   shapes: 400,
@@ -155,7 +157,7 @@ export const LIBAVOID_BUDGET: LibavoidBudget = {
   crossingLines: 0,
 };
 
-/** How one container was routed, for the measures and the worker's report. */
+/** How one container was routed, for the measures. */
 export interface ContainerRun {
   /** The container's index among the shapes, or -1 for World. */
   holder: number;
@@ -468,7 +470,7 @@ export interface RoutedLines {
 }
 
 /**
- * Routes `lines` as the routing worker does, all at once: with libavoid, where it is given and within
+ * Routes `lines` all at once: with libavoid, where it is given and within
  * its budget, and with the program's router (`Avoider`) the rest, which keep apart from what libavoid
  * routed and from `existing`.
  */

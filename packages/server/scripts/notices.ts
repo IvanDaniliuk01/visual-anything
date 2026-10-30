@@ -82,12 +82,6 @@ export function repositoryAddress(repository: string): string {
   return plain.replace(/^(git|ssh):\/\/(git@)?/, 'https://');
 }
 
-/**
- * The version of libavoid-js the app ships (ADR 0080, ADR 0047's list of code that ships): its glue is
- * in the app's routing worker and its WebAssembly beside the app, neither in the server's bundle.
- */
-export const LIBAVOID_JS_VERSION = '0.5.0-beta.5';
-
 /** The notice, as text. */
 export function noticeText(packages: readonly BundledPackage[], nodeVersion: string): string {
   const lines = [
@@ -128,12 +122,6 @@ export function noticeText(packages: readonly BundledPackage[], nodeVersion: str
     'Roboto Mono 3.000 Regular, which the PDF export writes code in',
     '  License: Apache-2.0',
     '  Source: the npm package typeface-roboto-mono 1.1.13, https://registry.npmjs.org/typeface-roboto-mono/-/typeface-roboto-mono-1.1.13.tgz',
-    '',
-    `libavoid-js ${LIBAVOID_JS_VERSION}, Adaptagrams' libavoid compiled to WebAssembly, which the app's routing worker may load to route lines`,
-    '  License: LGPL-2.1-or-later',
-    `  Source: https://github.com/Aksem/libavoid-js and https://github.com/mjwybrow/adaptagrams, and https://registry.npmjs.org/libavoid-js/-/libavoid-js-${LIBAVOID_JS_VERSION}.tgz`,
-    '  Its WebAssembly is the separate file libavoid.wasm, served beside the app, which may be replaced',
-    '  with a build of your own of the same version.',
     '',
   );
   return lines.join('\n');

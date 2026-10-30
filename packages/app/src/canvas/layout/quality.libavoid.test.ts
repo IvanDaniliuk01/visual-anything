@@ -13,7 +13,13 @@ import ELK from 'elkjs/lib/elk.bundled.js';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadDataModel } from '../../test/dataModel';
 import { avoidBatchOf } from '../routing/avoided';
-import { LIBAVOID_BUDGET, LibavoidRouter, loadLibavoid, type Libavoid } from '../routing/libavoid';
+import {
+  LIBAVOID_BUDGET,
+  LibavoidRouter,
+  loadLibavoid,
+  routeLines,
+  type Libavoid,
+} from '../routing/libavoid';
 import { buildSceneAfresh } from '../scene';
 import { layoutCommand } from './command';
 import { layOut } from './engine';
@@ -111,7 +117,11 @@ describe('libavoid on the fixture (ADR 0080, section 2, Stage 1b)', () => {
         const fallback = measureScene(routedWithKept(built, held));
         const fallbackTook = performance.now() - began;
         const router = new LibavoidRouter(lib, budget);
-        const scene = routedWithKept(built, held, router);
+        const scene = routedWithKept(
+          built,
+          held,
+          (shapes, lines, existing) => routeLines(shapes, lines, existing, router).results,
+        );
         router.dispose();
         const quality = measureScene(scene);
         report.push(
@@ -122,8 +132,8 @@ describe('libavoid on the fixture (ADR 0080, section 2, Stage 1b)', () => {
         if (log) appendFileSync(log, `${report.splice(0).join('\n')}\n`);
         // What libavoid must hold wherever it routes: every end on a row at its row's middle, no
         // more shared segments than the program's router leaves, and no line through a shape where
-        // that router leaves none. Crossings and bends are measured, not held: libavoid stays behind
-        // a flag (ADR 0080's clarification of Stage 1b).
+        // that router leaves none. Crossings and bends are measured, not held: libavoid is only
+        // compared here, and ships nowhere (ADR 0080's clarifications of 2026-10-30).
         expect(quality.rowEndsAtMiddle).toBe(quality.rowEnds);
         // With its pinned schemas, overview's corridors hold more lines than they have room for.
         if (each.name !== 'overview expanded') {

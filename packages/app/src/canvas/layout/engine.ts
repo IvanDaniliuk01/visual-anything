@@ -97,6 +97,8 @@ const BLOCK_OPTIONS: LayoutOptions = {
   // `blockGraph` finds them to choose their ports; MODEL_ORDER would reverse every relation that
   // goes against the model's order, cycle or not.
   'elk.layered.cycleBreaking.strategy': 'DFS_NODE_ORDER',
+  // ELK's own seed, given so that one input always gives one layout (ADR 0080, Stage 3).
+  'elk.randomSeed': '1',
 };
 
 /**

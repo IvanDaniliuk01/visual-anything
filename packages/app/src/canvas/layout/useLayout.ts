@@ -33,6 +33,7 @@ import { expansionCommand, expansionMemory, planExpansion } from './expand';
 import { keepRoutes, type KeptRoutes } from './keptRoutes';
 import { useLayoutRunner } from './runnerContext';
 import { layoutInput, waitsForLayout, type LayoutScope } from './input';
+import { inputAfter } from './settle';
 import {
   frameAt,
   retargeted,
@@ -251,11 +252,22 @@ export function useLayout({
       setRunning(shown);
       let laidOut;
       try {
-        laidOut = await runner.layOut(input, {
+        const options = {
           signal: stopper.signal,
-          onProgress: (progress) =>
+          onProgress: (progress: LayoutProgress) =>
             setRunning((current) => (ours(current) ? { ...shown, progress } : current)),
-        });
+        };
+        laidOut = await runner.layOut(input, options);
+        // Lines the view draws once their ends are apart go into a second run (ADR 0080, Stage 3).
+        const again = inputAfter(
+          asked.project,
+          asked.view.id,
+          asked.scene,
+          scope,
+          input,
+          laidOut.shapes,
+        );
+        if (again) laidOut = await runner.layOut(again, options);
       } catch (error) {
         const why = error instanceof Error ? error.message : String(error);
         latest.current.announce(

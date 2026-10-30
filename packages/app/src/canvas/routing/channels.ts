@@ -12,8 +12,8 @@
  *
  * Before spreading, lines that leave one place of one end the same way and turn the same way are
  * gathered into a trunk (`gatherTrunks`, ADR 0080's clarification of Stage 1b): their first turns
- * move onto one place, so that they share their first run until they part, whether the program's
- * router or libavoid routed them.
+ * move onto one place, so that they share their first run until they part, whatever router routed them
+ * (the program's, or libavoid in the quality tests that compare the two).
  *
  * It works on numbers alone, so that it runs in the routing worker as it runs in the page or in Node.
  */

@@ -27,8 +27,15 @@ import type { PlacedOutline } from '../outlines';
 import { midpointOf, routeBetweenEnds } from '../route';
 import { withRelations, type ElementShape, type RelationLine, type Scene } from '../scene';
 import { headerShift } from '../shape-images';
-import { PLATE_HEIGHT, STUB, type AvoidLine, type AvoidShapes, type AvoidSide } from './avoid';
-import { routeLines, type LibavoidRouter } from './libavoid';
+import {
+  PLATE_HEIGHT,
+  STUB,
+  avoidRoutes,
+  type Avoided,
+  type AvoidLine,
+  type AvoidShapes,
+  type AvoidSide,
+} from './avoid';
 import { withRoundedCorners } from './rounded';
 import { spreadChannels, type ChannelInput, type ChannelOutput } from './channels';
 import {
@@ -749,11 +756,22 @@ export function avoidedScene(scene: Scene): Scene {
   return channelledScene(routedAroundScene(scene), scene);
 }
 
+/**
+ * What routes a batch's lines around its shapes, keeping apart from the lines drawn already: the
+ * program's router (`avoidRoutes`). The quality tests give libavoid's instead, to compare the two
+ * (`libavoid.ts`, ADR 0080's clarification of 2026-10-30); nothing that ships does.
+ */
+export type LineRouter = (
+  shapes: AvoidShapes,
+  lines: readonly AvoidLine[],
+  existing: readonly AvoidLine[],
+) => readonly Avoided[];
+
 /** The scene with every line that may go around what is in its way routed so, before the channels. */
 export function routedAroundScene(
   scene: Scene,
   kept?: ReadonlyMap<string, readonly Point[]>,
-  libavoid?: LibavoidRouter,
+  route: LineRouter = avoidRoutes,
 ): Scene {
   const all = avoidBatchOf(scene);
   if (all.lines.length === 0) return scene;
@@ -770,7 +788,7 @@ export function routedAroundScene(
       batch.drawn.push(drawn);
     }
   });
-  const { results } = routeLines(batch.shapes, batch.lines, existing, libavoid);
+  const results = route(batch.shapes, batch.lines, existing);
   const routes = new Map<RelationLine, Float64Array>();
   results.forEach((result, at) => {
     if (result.route) routes.set(batch.drawn[at] as RelationLine, result.route);
@@ -954,21 +972,14 @@ function samePoints(a: readonly Point[], b: readonly Point[]): boolean {
  * The lines of `drawn` that routing around may route, but those of `skip`, by relation, as the
  * avoider is given lines drawn already: their ends, and their routes as drawn.
  */
-export function existingLinesOf(
-  drawn: Scene,
-  base: Scene,
-  skip: ReadonlySet<string>,
-  /** Filled with the relation of each line given, in the same order. */
-  relations?: string[],
-): AvoidLine[] {
+export function existingLinesOf(drawn: Scene, base: Scene, skip: ReadonlySet<string>): AvoidLine[] {
   const flags = routedFlagsOf(base);
   const routed = new Set<string>();
   base.relations.forEach((line, at) => {
     if (flags[at] === 1 && !skip.has(line.relation)) routed.add(line.relation);
   });
   if (routed.size === 0) return [];
-  const batch = avoidShapesOf(base.shapes);
-  const { indexes } = batch;
+  const { indexes } = avoidShapesOf(base.shapes);
   const lines: AvoidLine[] = [];
   for (const line of drawn.relations) {
     if (!routed.has(line.relation)) continue;
@@ -977,17 +988,7 @@ export function existingLinesOf(
     const from = indexes.get(ends.from.key);
     const to = indexes.get(ends.to.key);
     if (from === undefined || to === undefined) continue;
-    const existing: AvoidLine = { from, to, offset: ends.offset, route: flatRoute(line.route) };
-    // Where its ends leave, as for a line asked for, so that libavoid can route it again too.
-    const first = line.route[0];
-    const last = line.route.at(-1);
-    const fromSide =
-      (first && sideOf(batch, from, first)) ?? pointSideOf(base.shapes[from], from, first);
-    const toSide = (last && sideOf(batch, to, last)) ?? pointSideOf(base.shapes[to], to, last);
-    if (fromSide) existing.fromSide = fromSide;
-    if (toSide) existing.toSide = toSide;
-    lines.push(existing);
-    relations?.push(line.relation);
+    lines.push({ from, to, offset: ends.offset, route: flatRoute(line.route) });
   }
   return lines;
 }
