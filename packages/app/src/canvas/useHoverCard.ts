@@ -1,6 +1,6 @@
 /** When a shape's hover card shows (ADR 0082), for the editor's canvas and the read-only page. */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { glyphMeasure } from './emphasisLabels';
+import { canvasMeasure } from './textBlock';
 import { HOVER_CARD_DELAY, cutOnCanvas } from './hoverCut';
 import type { ElementShape } from './scene';
 
@@ -23,7 +23,7 @@ export function useHoverCard(
     if (key === undefined) return;
     timer.current = setTimeout(() => {
       const shape = finding.current(key);
-      if (shape && cutOnCanvas(shape, glyphMeasure)) setShown(key);
+      if (shape && cutOnCanvas(shape, canvasMeasure)) setShown(key);
     }, HOVER_CARD_DELAY);
   }, []);
   useEffect(() => () => clearTimeout(timer.current), []);

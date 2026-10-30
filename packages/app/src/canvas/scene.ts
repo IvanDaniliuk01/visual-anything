@@ -52,6 +52,7 @@ import {
   definitionsIn,
   detailParts,
   detailText,
+  faceInputOf,
   startedTypesByElement,
   nestingTypesInView,
   orderByStacking,
@@ -64,6 +65,14 @@ import {
   type ResolvedAppearance,
 } from '@visual-anything/core';
 import { currentLanguage, t, type Language } from '../i18n';
+import {
+  compiledFaceOf,
+  faceContentHeight,
+  faceHeader,
+  faceWidthIn,
+  heightForFace,
+  type ShapeFace,
+} from './faces';
 import { collapsedHeaderWrap, collapsedHeight, collapsedIn } from './collapse';
 import { keyRowsOf, sameKeyRows } from './keyRows';
 import {
@@ -81,6 +90,7 @@ import {
 import { collapsedWithout, NOT_EXPANDED } from './overlays/collapsed';
 import type { Dash, ShapeKind } from './geometry';
 import {
+  SHEET,
   arrowheadAt,
   bodyOf,
   directionOf,
@@ -89,6 +99,7 @@ import {
   type Rect,
 } from './geometry';
 import { drawnBoundsOf, nameTagOf } from './nameTags';
+import { ROWS_HEADER } from './rows';
 import { geometryOutline, geometrySource, outlineIn, partSource, sameOutline } from './outlines';
 import type { OutlineSource, ShapeOutline } from './outlines';
 import {
@@ -300,6 +311,17 @@ export interface ElementShape {
    * (`destinationMark.ts`); absent when it has none.
    */
   destinations?: number;
+  /**
+   * Its face (ADR 0083): compiled, with what fills it from its element, which the canvas lays out in
+   * its tile and draws in place of its name and detail (`faces.ts`). Absent without one, and on an
+   * anchored part, which writes only its name.
+   */
+  face?: ShapeFace;
+  /**
+   * On a shape that draws rows or holds contents and has a face: how tall its header is, what the
+   * face lays out before its `<rows/>` or `<contents/>`; absent, the canvas's own.
+   */
+  header?: number;
 }
 
 /** A relation drawn along an orthogonal route, or an aggregated relation standing for several. */
@@ -1297,6 +1319,10 @@ export interface Look {
   destinations: number;
   /** The named part its shapes are drawn as outside a drawing with parts, if any (ADR 0067). */
   ownPart?: OwnPart;
+  /** The relation types each of its details was worked out with, which its face's badges read. */
+  startedFor: Map<string, ReadonlySet<Id>>;
+  /** Its faces, by detail and what a collapsed one holds (`faceFor`). */
+  faces: Map<string, ShapeFace>;
 }
 
 const NO_TYPES: ReadonlySet<Id> = new Set();
@@ -1332,6 +1358,7 @@ function detailFor(
     );
     detail = detailText(parts);
     look.details.set(key, detail);
+    look.startedFor.set(detail, types);
     const attributes = componentOrEssence(definitions, element.component).attributes;
     const runs = detailRunsOf(
       parts,
@@ -1383,6 +1410,8 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
       componentName: componentOrEssence(definitions, element.component).name,
       details: new Map(),
       detailRuns: new Map(),
+      startedFor: new Map(),
+      faces: new Map(),
       image: imageLookOf(element, definitions),
       destinations: destinationCount(element, definitions),
     };
@@ -1395,6 +1424,37 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
     kept.set(element, look);
   }
   return look;
+}
+
+/**
+ * An element's face (ADR 0083), with what fills it, once for each detail it writes and what it holds
+ * collapsed: none when its appearance has none. The component's name is the language's for a built-in
+ * one, as its detail writes it.
+ */
+function faceFor(
+  look: Look,
+  element: Element,
+  detail: string,
+  definitions: Definitions,
+  count?: number,
+): ShapeFace | undefined {
+  const resolved = look.appearance.face;
+  if (resolved === undefined) return undefined;
+  // The component's name it writes is the language's.
+  const key = `${currentLanguage()} ${count ?? ''} ${detail}`;
+  let face = look.faces.get(key);
+  if (!face) {
+    const input = faceInputOf(element, definitions, {
+      startedTypes: look.startedFor.get(detail) ?? NO_TYPES,
+      ...(count === undefined ? {} : { count }),
+    });
+    face = {
+      compiled: compiledFaceOf(resolved),
+      input: { ...input, component: t.definition(element.component, look.componentName) },
+    };
+    look.faces.set(key, face);
+  }
+  return face;
 }
 
 /**
@@ -1446,6 +1506,9 @@ export interface Measured {
   drawing?: DrawingPicture;
   /** For an anchored part: its part's place, and what it holds and does not draw. */
   anchored?: Anchored;
+  /** Its face (ADR 0083), and the header it gives a shape that draws rows or holds contents. */
+  face?: ShapeFace;
+  header?: number;
 }
 
 /**
@@ -1456,6 +1519,7 @@ type ContentMode = 'row' | Anchor | undefined;
 
 /** What measuring reads beyond each element: the geometries drawn as their kind, and each content's part. */
 interface Shaping {
+  definitions: Definitions;
   drawnAsKind: ReadonlySet<FreeGeometry>;
   /** The named part a content's appearance names, if any. */
   partOf: (content: Placement) => ResolvedAppearance['part'];
@@ -1524,11 +1588,22 @@ function measured(
   keyRows?: ReadonlySet<Id>,
 ): Box {
   // A row, and a shape that draws its contents as rows, are measured by their rows (ADR 0023).
-  if (mode === 'row') return rowBox(placement, element, look, detail);
-  // An anchored part takes its part's place and size (ADR 0067).
+  if (mode === 'row') {
+    // A row draws its own component's face in its band (ADR 0083).
+    return withFace(rowBox(placement, element, look, detail), look, shaping.definitions);
+  }
+  // An anchored part takes its part's place and size (ADR 0067), and draws no face.
   if (mode !== undefined) return partBox(placement, element, look, detail, mode);
+  const folding = collapsed && placement.contents.length > 0;
+  const face = faceFor(
+    look,
+    element,
+    detail,
+    shaping.definitions,
+    folding ? placement.contents.length : undefined,
+  );
   if (look.appearance.contentsAsRows) {
-    return rowsBox(
+    const box = rowsBox(
       placement,
       element,
       look,
@@ -1537,11 +1612,14 @@ function measured(
       collapsed,
       () => contentsOf(() => 'row'),
       keyRows,
+      // A face is the header of its rows (ADR 0083).
+      face && ((width) => faceHeader(face, width, ROWS_HEADER)),
     );
+    if (face && box.measured) box.measured.face = face;
+    return box;
   }
   const { appearance } = look;
   const offset = position ? { x: position.x, y: position.y } : undefined;
-  const folding = collapsed && placement.contents.length > 0;
   if (folding) {
     // Tall enough for the lines its header wraps its detail to (ADR 0082).
     const runs = look.detailRuns.get(detail);
@@ -1556,10 +1634,15 @@ function measured(
       appearance.height,
       collapsedHeaderWrap(appearance.width, look.image !== undefined),
     );
+    // A face of size `content` gives the sheet its height, its collapsed variant laid out (ADR 0083).
+    const sized =
+      face?.compiled.size === 'content'
+        ? faceContentHeight(face, bodyWidth(appearance.width), true) + SHEET
+        : height;
     return {
       placement,
       width: appearance.width,
-      height,
+      height: sized,
       offset,
       stored: position !== undefined,
       measured: {
@@ -1570,6 +1653,7 @@ function measured(
         contents: [],
         folded: placement.contents.length,
         ...shapedBy(look, shaping),
+        ...(face ? { face } : {}),
       },
     };
   }
@@ -1579,21 +1663,69 @@ function measured(
   const contents = contentsOf(() => undefined);
   arrangeContents(contents);
   let right: number | undefined;
-  let bottom: number | undefined;
   for (const box of contents) {
     const boxRight = (box.offset?.x ?? 0) + box.width;
-    const boxBottom = (box.offset?.y ?? 0) + box.height;
     if (right === undefined || boxRight > right) right = boxRight;
+  }
+  const width = containerSize(position?.width, appearance.width, right);
+  const shaped = shapedBy(look, shaping);
+  // A face over contents is their container's header, which they are arranged under (ADR 0083).
+  const header =
+    face && contents.length > 0 ? faceHeader(face, width, CONTAINER_HEADER) : undefined;
+  if (header !== undefined) arrangeContents(contents, header);
+  let bottom: number | undefined;
+  for (const box of contents) {
+    const boxBottom = (box.offset?.y ?? 0) + box.height;
     if (bottom === undefined || boxBottom > bottom) bottom = boxBottom;
   }
+  // A face of size `content` gives a shape of its own its height (ADR 0083): the stored height and
+  // the appearance's give way, as rows give a table its height.
+  const height =
+    face?.compiled.size === 'content' && contents.length === 0 && shaped.outline === undefined
+      ? heightForFace(
+          appearance.shape,
+          width,
+          faceContentHeight(face, faceWidthIn(appearance.shape, width)),
+        )
+      : containerSize(position?.height, appearance.height, bottom);
   return {
     placement,
-    width: containerSize(position?.width, appearance.width, right),
-    height: containerSize(position?.height, appearance.height, bottom),
+    width,
+    height,
     offset,
     stored: position !== undefined,
-    measured: { element, look, detail, position, contents, ...shapedBy(look, shaping) },
+    measured: {
+      element,
+      look,
+      detail,
+      position,
+      contents,
+      ...shaped,
+      ...(face ? { face } : {}),
+      ...(header === undefined ? {} : { header }),
+    },
   };
+}
+
+/** Whether two faces are compiled alike and filled from equal values. */
+function sameFace(a: ShapeFace, b: ShapeFace): boolean {
+  return (
+    a === b || (a.compiled === b.compiled && JSON.stringify(a.input) === JSON.stringify(b.input))
+  );
+}
+
+/** A box with its element's face, when its appearance has one. */
+function withFace(box: Box, look: Look, definitions: Definitions): Box {
+  const parts = box.measured;
+  if (!parts) return box;
+  const face = faceFor(look, parts.element, parts.detail, definitions);
+  if (face) parts.face = face;
+  return box;
+}
+
+/** The width of a collapsed container's sheet, which its face is laid out in. */
+function bodyWidth(width: number): number {
+  return width <= 2 * SHEET ? width : width - SHEET;
 }
 
 /**
@@ -1811,6 +1943,7 @@ function shapingOf(
   kept: WeakMap<Element, Look>,
 ): Shaping {
   return {
+    definitions,
     drawnAsKind: geometryFindings(project).drawnAsKind,
     partOf: (content) => lookOf(elementAt(elements, content), definitions, kept).appearance.part,
   };
@@ -2161,7 +2294,10 @@ function shapeFor(
     if (extent.x + extent.width > x2) x2 = extent.x + extent.width;
     if (extent.y + extent.height > y2) y2 = extent.y + extent.height;
   }
-  const { element, look, detail, position, folded, leaving, anchored, drawing } = parts;
+  const { element, look, detail, position, folded, leaving, anchored, drawing, header } = parts;
+  // An equal face read again, as after a command, keeps the one drawn before, and its layouts.
+  const face =
+    before?.face && parts.face && sameFace(before.face, parts.face) ? before.face : parts.face;
   const { appearance } = look;
   const body =
     folded === undefined
@@ -2249,7 +2385,9 @@ function shapeFor(
     (before.destinations ?? 0) === look.destinations &&
     before.outline === outline &&
     before.part === part &&
-    before.picture === picture
+    before.picture === picture &&
+    before.face === face &&
+    before.header === header
   ) {
     return before;
   }
@@ -2293,6 +2431,8 @@ function shapeFor(
   if (outline) shape.outline = outline;
   if (part) shape.part = part;
   if (picture) shape.picture = picture;
+  if (face) shape.face = face;
+  if (header !== undefined) shape.header = header;
   return shape;
 }
 

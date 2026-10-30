@@ -176,7 +176,12 @@ export function layoutInput(
     }
     // Rows and the shapes that draw them attach relations beside them, at their middles.
     if (shape.row !== undefined) laidShape.rowAt = shape.offset.y + shape.rect.height / 2;
-    if (shape.rowCount !== undefined) laidShape.headerAt = headerMiddle(shape.rect) - shape.rect.y;
+    // A container's face's header, which its contents go under (ADR 0083).
+    if (shape.holdsContents && shape.rowCount === undefined && shape.header !== undefined) {
+      laidShape.header = shape.header;
+    }
+    if (shape.rowCount !== undefined)
+      laidShape.headerAt = headerMiddle(shape.rect, shape.header) - shape.rect.y;
     // A drawing with parts is one block, as large as its header, its picture and its contents.
     if (shape.picture) Object.assign(laidShape, drawingFields(shape, laidShape));
     if (anchored) {

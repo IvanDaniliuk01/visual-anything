@@ -16,6 +16,7 @@ import type { Id, Relation } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
 import { t, type PluralText } from '../i18n';
 import type { IndexedScene } from './hit';
+import { faceDetail } from './faces';
 import { drawnRelations } from './navigation';
 import type { ElementShape } from './scene';
 import { detailPlainText } from '../text/detail';
@@ -52,14 +53,16 @@ export function describeShape(
   // A row says its detail and its place among its container's rows (ADR 0023).
   const componentName =
     component === undefined ? shape.componentName : t.definition(component, shape.componentName);
+  // The whole detail by its plain text (ADR 0082), less the component's name it starts with, which is
+  // said already; or what a face says, in reading order (ADR 0083).
+  const said =
+    faceDetail(shape, componentName) ??
+    (shape.detail === undefined ? '' : withoutLeading(detailPlainText(shape), componentName));
   if (shape.row !== undefined && container?.rowCount !== undefined) {
     const values = {
       name: shape.name,
       component: componentName,
-      // By its plain text, without the markers of its text emphasis (ADR 0082), less the
-      // component's name it starts with, which is said already.
-      detail:
-        shape.detail === undefined ? '' : withoutLeading(detailPlainText(shape), componentName),
+      detail: said,
       position: shape.row + 1,
       count: container.rowCount,
       container: container.name,
@@ -78,9 +81,7 @@ export function describeShape(
   const values = {
     name: shape.name,
     component: componentName,
-    // The whole detail, which the shape may cut, by its plain text (ADR 0082), less the
-    // component's name it starts with, which is said already.
-    detail: shape.detail === undefined ? '' : withoutLeading(detailPlainText(shape), componentName),
+    detail: said,
     where,
     relations: relations === 0 ? t('no relations') : t(RELATIONS, { count: relations }),
   };

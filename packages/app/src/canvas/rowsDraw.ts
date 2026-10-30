@@ -107,7 +107,7 @@ export function rowsBlocks(
   if (inner.width <= 0 || inner.height <= 0) {
     return { fills: [{ color: shape.stroke, rect: body }] };
   }
-  const header = Math.min(inner.height, Math.max(0, ROWS_HEADER - outline));
+  const header = Math.min(inner.height, Math.max(0, (shape.header ?? ROWS_HEADER) - outline));
   const fills: Block[] = [{ color: shape.fill, rect: { ...inner, height: header } }];
   if (inner.height > header) {
     fills.push({
@@ -152,7 +152,7 @@ function drawTableBody(
   const { x, y, width, height } = rect;
   const rounded = shape.kind === 'rounded-rectangle';
   const radius = Math.min(8, width / 4, height / 2);
-  const band = Math.min(ROWS_HEADER, height);
+  const band = Math.min(shape.header ?? ROWS_HEADER, height);
   if (rounded) graphics.roundRect(x, y, width, height, radius).fill(colors.body);
   else graphics.rect(x, y, width, height).fill(colors.body);
   if (header) {
@@ -235,7 +235,7 @@ export function writeRowsText(
   if (!fitted) return true;
   const body = bodyOf(shape);
   const colors = readableTextColors(shape.fill);
-  const band = Math.min(ROWS_HEADER, body.height);
+  const band = Math.min(shape.header ?? ROWS_HEADER, body.height);
   const middle = body.y + band / 2;
   if (fitted.name !== '') {
     write(

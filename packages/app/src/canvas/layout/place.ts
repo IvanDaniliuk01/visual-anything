@@ -57,9 +57,15 @@ export function packInRows(sizes: readonly Size[], gap = NODE_GAP): Point[] {
 
 /** The container or World whose contents a block is placed among. */
 export type BlockLevel =
-  | { kind: 'container' }
+  /** `top`: where its contents start, under a face's header taller than the canvas's own. */
+  | { kind: 'container'; top?: number }
   /** `now` holds the shapes of the block where they are before layout. */
   | { kind: 'world'; now: Rect | undefined };
+
+/** Where a level's contents start from its top. */
+function topOf(level: BlockLevel): number {
+  return level.kind === 'container' ? Math.max(CONTENTS_ORIGIN.y, level.top ?? 0) : 0;
+}
 
 /**
  * Where the top left corner of a block of arranged shapes goes, relative to its container's shape or
@@ -79,12 +85,10 @@ export function placeBlock(
   const inContainer = level.kind === 'container';
   const bounds = boundsOf(kept);
   if (!bounds) {
-    if (inContainer) return { ...CONTENTS_ORIGIN };
+    if (inContainer) return { x: CONTENTS_ORIGIN.x, y: topOf(level) };
     return { x: roundToStep(level.now?.x ?? 0), y: roundToStep(level.now?.y ?? 0) };
   }
-  const top = inContainer
-    ? Math.max(CONTENTS_ORIGIN.y, ceilToStep(bounds.y))
-    : ceilToStep(bounds.y);
+  const top = inContainer ? Math.max(topOf(level), ceilToStep(bounds.y)) : ceilToStep(bounds.y);
   if (flow.into > flow.out) {
     const beside = ceilToStep(bounds.x + bounds.width + GAP_BESIDE);
     return { x: inContainer ? Math.max(CONTENTS_ORIGIN.x, beside) : beside, y: top };
@@ -94,7 +98,7 @@ export function placeBlock(
   }
   const below = ceilToStep(bounds.y + bounds.height + GAP_BELOW);
   return inContainer
-    ? { x: CONTENTS_ORIGIN.x, y: Math.max(CONTENTS_ORIGIN.y, below) }
+    ? { x: CONTENTS_ORIGIN.x, y: Math.max(topOf(level), below) }
     : { x: roundToStep(bounds.x), y: below };
 }
 

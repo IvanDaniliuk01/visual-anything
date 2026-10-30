@@ -64,6 +64,20 @@ describe('packInRows', () => {
 });
 
 describe('placeBlock', () => {
+  it('starts a container’s contents under its face’s header, when taller than the canvas’s own (ADR 0083)', () => {
+    const block = { width: 100, height: 40 };
+    const none = { into: 0, out: 0 };
+    expect(placeBlock(block, { kind: 'container', top: 96 }, [], none)).toEqual({
+      x: CONTENTS_ORIGIN.x,
+      y: 96,
+    });
+    expect(placeBlock(block, { kind: 'container', top: 20 }, [], none)).toEqual(CONTENTS_ORIGIN);
+    const kept: Rect[] = [{ x: CONTENTS_ORIGIN.x, y: 0, width: 50, height: 10 }];
+    expect(placeBlock(block, { kind: 'container', top: 96 }, kept, none).y).toBeGreaterThanOrEqual(
+      96,
+    );
+  });
+
   const block = { width: 300, height: 200 };
 
   it('puts a block at the contents origin of a container that keeps nothing', () => {

@@ -1,17 +1,18 @@
-import { emphasisRuns, parseEmphasis } from '@visual-anything/core';
+import { emphasisRuns, parseEmphasis, robotoWidth } from '@visual-anything/core';
 import { BitmapFont, Cache, Graphics, Texture } from 'pixi.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { emphasisBacks } from './colors';
 import { writeNoteTexts, type TextFactory } from './draw';
 import {
   EmphasisLabel,
+  drawGlyphs,
   emphasisLabel,
-  glyphMeasure,
   laidOutRuns,
   noteLabel,
   tintLabel,
 } from './emphasisLabels';
 import { bitmapText } from './labels';
+import { canvasMeasure } from './textBlock';
 import type { NoteShape } from './scene';
 
 const VARIANTS = [
@@ -57,9 +58,19 @@ afterAll(() => {
 const drawn = (graphics: Graphics) => graphics.context.instructions.length;
 
 describe('text emphasis on the canvas (ADR 0082)', () => {
-  it('measures by the glyphs’ advances, scaled to the size', () => {
-    expect(glyphMeasure('abcd', 'regular', 8)).toBe(16);
-    expect(glyphMeasure('ab', 'mono', 16)).toBe(16);
+  it('measures in Roboto’s widths in the core, whatever font is installed (ADR 0083)', () => {
+    expect(canvasMeasure('abcd', 'regular', 8)).toBe(robotoWidth('abcd', 'regular', 8));
+    expect(canvasMeasure('abcd', 'italic', 8)).toBe(robotoWidth('abcd', 'italic', 8));
+    expect(canvasMeasure('abcd', 'italic', 8)).not.toBe(canvasMeasure('abcd', 'regular', 8));
+    expect(canvasMeasure('ab', 'mono', 16)).toBeCloseTo(19.2);
+  });
+
+  it('places each glyph by Roboto’s widths, as the text was measured', () => {
+    const graphics = new Graphics();
+    drawGlyphs(graphics, 'iW', 'regular', 16, 10, 20, 0xffffff);
+    const xs = graphics.context.instructions.map((each) => (each.data as { dx: number }).dx);
+    expect(xs[0]).toBeCloseTo(10);
+    expect(xs[1]).toBeCloseTo(10 + robotoWidth('i', 'regular', 16));
   });
 
   it('draws a quad for each glyph, highlights and code behind, lines with the glyphs', () => {
@@ -114,7 +125,7 @@ describe('text emphasis on the canvas (ADR 0082)', () => {
       style: { fontSize: 11, wordWrapWidth: 200 },
     };
     expect(bitmapText(options, 'detail', 30, runs)).toBeInstanceOf(EmphasisLabel);
-    expect(bitmapText.measure).toBe(glyphMeasure);
+    expect(bitmapText.measure).toBe(canvasMeasure);
   });
 
   it('draws a note’s blocks in its room, through the factory', () => {

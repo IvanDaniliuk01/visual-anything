@@ -14,6 +14,7 @@ export const LEVEL_PARTS: readonly LevelPart[] = [
   'detail',
   'contents',
   'image',
+  'face',
 ] satisfies readonly LevelPart[];
 
 /** The most levels an appearance declares. */
@@ -95,7 +96,7 @@ export function levelsKey(levels: readonly LevelOfDetail[]): string {
   let key = keys.get(levels);
   if (key === undefined) {
     key = sortedLevels(levels)
-      .map((level) => `${level.from}:${partsKey(level)}`)
+      .map((level) => `${level.from}:${partsKey(level)}${faceKey(level)}`)
       .join(';');
     keys.set(levels, key);
   }
@@ -103,6 +104,11 @@ export function levelsKey(levels: readonly LevelOfDetail[]): string {
 }
 
 const keys = new WeakMap<readonly LevelOfDetail[], string>();
+
+/** The face's variant a level shows, in its key: tiles of shapes that show another one differ. */
+function faceKey(level: LevelOfDetail): string {
+  return level.face === undefined || !level.shows.includes('face') ? '' : `=${level.face}`;
+}
 
 function partsKey(level: LevelOfDetail): string {
   if (level.shows.includes('silhouette')) return 's';

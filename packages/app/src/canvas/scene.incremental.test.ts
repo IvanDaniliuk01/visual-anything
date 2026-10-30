@@ -15,6 +15,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { syntheticProject } from '../bench/synthetic';
 import { FRAME, ORGANS_ID, TRIANGLE, beyondBoxes } from '../test/beyond';
+import { CARD_FACE, COLUMN_FACE, SYSTEM_FACE, TABLE_FACE, withFaces } from '../test/faces';
 import { loadSample } from '../test/sample';
 import { withWovenRelations } from '../test/woven';
 import { collapsedIn, setCollapsedCommand } from './collapse';
@@ -595,6 +596,29 @@ describe('a scene built after an edit', () => {
       { numRuns: 40 },
     );
   }, 60_000);
+
+  it('equals one built from nothing with faces, whose headers and heights they give (ADR 0083)', () => {
+    const faced = withFaces(tables(), {
+      'data-modeling.table': TABLE_FACE,
+      'data-modeling.column': COLUMN_FACE,
+    });
+    fc.assert(
+      fc.property(fc.array(edit, { minLength: 1, maxLength: 16 }), (edits) => {
+        run(faced, edits);
+      }),
+      { numRuns: 25 },
+    );
+    const systems = withFaces(richSample(), {
+      'systems.system': SYSTEM_FACE,
+      'systems.service': CARD_FACE,
+    });
+    fc.assert(
+      fc.property(fc.array(edit, { minLength: 1, maxLength: 16 }), (edits) => {
+        run(systems, edits);
+      }),
+      { numRuns: 25 },
+    );
+  }, 120_000);
 
   it('equals one built from nothing in a view beyond boxes, with drawings with parts', () => {
     fc.assert(

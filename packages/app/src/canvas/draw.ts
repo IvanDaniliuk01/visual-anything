@@ -95,12 +95,17 @@ import type { EmphasisRun } from '@visual-anything/core';
 import type { Measure } from '../text/layout';
 import { outlinedTextBlock } from './outlinedText';
 import { DETAIL_SIZE, NAME_SIZE, placeTextBlock, type TextBlock } from './textBlock';
+import { ROBOTO } from './robotoFonts';
 
 /** How big a note's text is written. */
 const NOTE_SIZE = 13;
 
-/** The fonts text is drawn in, first available first. */
+/**
+ * The fonts text is drawn in, first available first: Roboto, loaded from the app's own bytes
+ * (`robotoFonts.ts`, ADR 0083), then the system's until it is.
+ */
 export const FONT_FAMILY = [
+  ROBOTO,
   'system-ui',
   'Segoe UI',
   'Roboto',
@@ -476,12 +481,14 @@ function drawToggle(graphics: Graphics, shape: ElementShape): void {
  * Writes each shape's name and, with `details`, its component's name, each in the room its shape
  * gives it; a label the factory cannot fit is left out. `backdrop` gives what a shape drawn by its
  * picture sits on, its container's fill or the canvas, which the name under the picture is written on.
+ * `faceOf` draws a shape's face (ADR 0083), which it writes in place of its name and detail.
  */
 export function writeShapeLabels(
   shapes: readonly ElementShape[],
   details: boolean,
   make: TextFactory = canvasText,
   backdrop: (shape: ElementShape) => Color = () => CANVAS_BACKGROUND,
+  faceOf?: (shape: ElementShape) => Container | undefined,
 ): Container[] {
   const texts: Container[] = [];
   for (const shape of shapes) {
@@ -491,7 +498,9 @@ export function writeShapeLabels(
       if (text) texts.push(text);
       return text;
     };
-    writeShapeText(shape, write, backdrop, make);
+    const face = faceOf?.(shape);
+    if (face) texts.push(face);
+    else writeShapeText(shape, write, backdrop, make);
     writeLeavingMark(shape, write);
   }
   return texts;

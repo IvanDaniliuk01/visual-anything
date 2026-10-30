@@ -22,6 +22,7 @@ import {
   drawRoutePieces,
   drawShapeBlocks,
   drawShapeOutlines,
+  fillOf,
   writeNoteTexts,
   writeRelationLabels,
   writeShapeLabels,
@@ -29,6 +30,8 @@ import {
 } from '../draw';
 import type { Arrowhead } from '../geometry';
 import { tintLabel } from '../emphasisLabels';
+import { FaceLabel, faceLabel } from '../faceDraw';
+import type { FaceShow } from '../faces';
 import { RelationLabel } from '../labels';
 import { rowColorsOf } from '../rowsDraw';
 import {
@@ -50,9 +53,13 @@ import {
   shapeColors,
 } from './paint';
 
-/** A label written, with what its tint follows: its shape's fill, the theme, or its note's fill. */
+/**
+ * A label written, with what its tint follows: its shape's fill, the theme, or its note's fill. A
+ * face (ADR 0083) is drawn again in its tokens' colors on its shape's fill.
+ */
 export type LabelPaint =
   | { label: Container; role: 'name' | 'detail'; shape: string }
+  | { label: FaceLabel; role: 'face'; shape: string }
   | { label: Container; role: 'relation' }
   | { label: Container; role: 'note'; note: Id };
 
@@ -151,7 +158,8 @@ export class Painter {
    * Each shape's name and, with `details`, its detail, tinted to read on the fill it is drawn in;
    * `records` gets each label with the shape it is on. A shape drawn by its picture writes its name
    * under the picture, on what the shape sits on, which `lookups` finds; a shape whose own outline
-   * cannot hold its name whole writes it in its name tag, on its own fill.
+   * cannot hold its name whole writes it in its name tag, on its own fill. With `faces`, a shape with
+   * a face draws it in place of its name and detail, in the variant `faces` names (ADR 0083).
    */
   shapeLabels(
     shapes: readonly ElementShape[],
@@ -159,6 +167,7 @@ export class Painter {
     make: TextFactory,
     records?: LabelPaint[],
     lookups?: PaintLookups,
+    faces?: FaceShow,
   ): Container[] {
     let current = '';
     const recording: TextFactory | undefined = records
@@ -178,11 +187,21 @@ export class Painter {
         )
       : undefined;
     const written: Container[] = [];
+    const face = (painted: ElementShape) => {
+      if (!faces) return undefined;
+      const label = faceLabel(painted, this.name, faces, fillOf(painted));
+      if (label) records?.push({ label, role: 'face', shape: painted.key });
+      return label;
+    };
     for (const shape of shapes) {
       current = shape.key;
       written.push(
-        ...writeShapeLabels([paintedShape(shape, this.name)], details, recording ?? make, () =>
-          this.backdropOf(shape, lookups),
+        ...writeShapeLabels(
+          [paintedShape(shape, this.name)],
+          details,
+          recording ?? make,
+          () => this.backdropOf(shape, lookups),
+          shape.face ? face : undefined,
         ),
       );
     }
@@ -231,6 +250,11 @@ export class Painter {
       }
       const shape = lookups.shape(record.shape);
       if (!shape) continue;
+      if (record.role === 'face') {
+        const painted = paintedShape(shape, this.name);
+        record.label.paint(this.name, fillOf(painted), painted.stroke);
+        continue;
+      }
       // A name tag is drawn in its shape's fill, which its name reads on (ADR 0066's clarifications).
       const under = nameBandOf(shape) ? this.backdropOf(shape, lookups) : undefined;
       // A shape drawn as a named part writes on its part's main color (ADR 0067).

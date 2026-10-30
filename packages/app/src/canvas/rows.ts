@@ -10,7 +10,10 @@
  */
 import { SHEET, type Rect, type ShapeKind, type Size } from './geometry';
 
-/** The header band of a shape that draws its contents as rows. */
+/**
+ * The header band of a shape that draws its contents as rows; a face gives a taller one, what it lays
+ * out before its `<rows/>` (ADR 0083), which the shape carries as its `header`.
+ */
 export const ROWS_HEADER = 32;
 /** The height of each row. */
 export const ROW_HEIGHT = 24;
@@ -39,10 +42,10 @@ export const LANE_GAP = 4;
 export const MAX_LANE = 6;
 
 /** The size of a shape that draws `rows` rows; an empty one keeps one empty row, so it can take a drop. */
-export function measureRows(width: number, rows: number): Size {
+export function measureRows(width: number, rows: number, header = ROWS_HEADER): Size {
   return {
     width: Math.max(ROWS_MIN_WIDTH, width),
-    height: ROWS_HEADER + Math.max(1, rows) * ROW_HEIGHT + ROWS_FOOT,
+    height: header + Math.max(1, rows) * ROW_HEIGHT + ROWS_FOOT,
   };
 }
 
@@ -50,8 +53,8 @@ export function measureRows(width: number, rows: number): Size {
  * The height of a collapsed shape that draws rows: its header and the room under it, on the sheet
  * that shows behind every collapsed container, so that its toggle still fits.
  */
-export function collapsedRowsHeight(): number {
-  return ROWS_HEADER + ROWS_FOOT + SHEET;
+export function collapsedRowsHeight(header = ROWS_HEADER): number {
+  return header + ROWS_FOOT + SHEET;
 }
 
 /** The width of a shape that draws rows: the one the view stores, else its appearance's, never below the narrowest. */
@@ -65,23 +68,23 @@ export function rowsShapeKind(kind: ShapeKind): ShapeKind {
 }
 
 /** Where row `index` sits inside a shape whose rectangle is `rect`. */
-export function rowRect(rect: Rect, index: number): Rect {
+export function rowRect(rect: Rect, index: number, header = ROWS_HEADER): Rect {
   return {
     x: rect.x,
-    y: rect.y + ROWS_HEADER + index * ROW_HEIGHT,
+    y: rect.y + header + index * ROW_HEIGHT,
     width: rect.width,
     height: ROW_HEIGHT,
   };
 }
 
 /** The middle of row `index`, where relations that end on it attach. */
-export function rowMiddle(rect: Rect, index: number): number {
-  return rect.y + ROWS_HEADER + index * ROW_HEIGHT + ROW_HEIGHT / 2;
+export function rowMiddle(rect: Rect, index: number, header = ROWS_HEADER): number {
+  return rect.y + header + index * ROW_HEIGHT + ROW_HEIGHT / 2;
 }
 
 /** The middle of the header, where relations that end on the container itself attach. */
-export function headerMiddle(rect: Rect): number {
-  return rect.y + ROWS_HEADER / 2;
+export function headerMiddle(rect: Rect, header = ROWS_HEADER): number {
+  return rect.y + header / 2;
 }
 
 /** Where a lane runs, outward from a side of a container. */

@@ -6,13 +6,14 @@
 import type { Measure } from '../text/layout';
 import { collapsedHeaderWrap, headerLines } from './collapse';
 import { detailOf, labelArea, textBlockOf } from './draw';
+import { faceCut } from './faces';
 import { outlinedTextBlock } from './outlinedText';
 import { bodyOf } from './geometry';
 import { nameTagOf, outlinedDetailOf } from './nameTags';
 import { writesNameBelow } from './outlined';
 import type { ElementShape } from './scene';
 import { besideImage } from './shape-images';
-import { robotoMeasure } from './textBlock';
+import { canvasMeasure } from './textBlock';
 
 /** How long the pointer rests on a shape, or the keys stay on it, before its card shows. */
 export const HOVER_CARD_DELAY = 400;
@@ -21,7 +22,9 @@ export const HOVER_CARD_DELAY = 400;
 const TEXT_INSET = 12;
 
 /** Whether the canvas cut a shape's name or detail, as it writes them. */
-export function cutOnCanvas(shape: ElementShape, measure: Measure = robotoMeasure): boolean {
+export function cutOnCanvas(shape: ElementShape, measure: Measure = canvasMeasure): boolean {
+  // A face writes in place of its name and detail, and says when it cut something (ADR 0083).
+  if (shape.face) return faceCut(shape);
   const detail = detailOf(shape);
   if (shape.fitted) {
     // A row and a shape that draws rows cut their lines when fitted, told from their source: a

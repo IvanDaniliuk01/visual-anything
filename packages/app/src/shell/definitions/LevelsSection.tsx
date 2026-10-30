@@ -13,7 +13,7 @@ import { useEditor } from '../../editor/EditorContext';
 import { t as translateNow, useT, type Translator } from '../../i18n';
 import { readNumber } from '../inspector/attributes';
 import { originText, savedIn } from '../inspector/colors';
-import { CheckboxControl, TextControl } from '../inspector/controls';
+import { CheckboxControl, SelectControl, TextControl } from '../inspector/controls';
 import { isBuiltInDefinition } from './commands';
 import { TraitRow, type TraitControl } from './TraitRow';
 import { nameOf } from './traits';
@@ -25,6 +25,7 @@ const PART_NAMES: Readonly<Record<LevelPart, string>> = {
   detail: 'Detail',
   contents: 'Contents or rows',
   image: 'Image',
+  face: 'Face',
 };
 
 /** The command that gives a component levels, or takes them back, at the level the project changes. */
@@ -96,6 +97,20 @@ function newLevel(levels: readonly LevelOfDetail[]): LevelOfDetail {
   return { from, shows: LEVEL_PARTS.filter((part) => shown.has(part)) };
 }
 
+/** A level showing other parts: the face's variant it names goes when it stops showing the face. */
+function levelShowing(level: LevelOfDetail, shows: LevelPart[]): LevelOfDetail {
+  const { face, ...rest } = level;
+  return face !== undefined && shows.includes('face')
+    ? { ...rest, shows, face }
+    : { ...rest, shows };
+}
+
+/** A level showing the face's own markup (`''`) or a variant of it, by id (ADR 0083). */
+function levelWithVariant(level: LevelOfDetail, variant: string): LevelOfDetail {
+  const next: LevelOfDetail = { from: level.from, shows: level.shows };
+  return variant === '' ? next : { ...next, face: variant };
+}
+
 /**
  * What a level shows once a part is checked or unchecked: a silhouette excludes every other part,
  * any other part takes a silhouette's place, and a level left showing nothing shows its silhouette.
@@ -127,6 +142,7 @@ export function LevelsSection({ id }: LevelsSectionProps) {
   const readOnly = send === undefined;
   const component = componentOrEssence(definitions, id);
   const levels = sortedLevels(component.appearance.levels ?? []);
+  const variants = (component.appearance.face?.variants ?? []).map((variant) => variant.id);
   const expandFrom = component.appearance.expandFrom;
   // Whether the appearance stored where the project can change it, its package or the project
   // file, sets a trait.
@@ -156,7 +172,15 @@ export function LevelsSection({ id }: LevelsSectionProps) {
           inherit={() => levelsCommand(id, null)}
           note={note}
         >
-          {(control) => <Levels levels={levels} readOnly={readOnly} control={control} id={id} />}
+          {(control) => (
+            <Levels
+              levels={levels}
+              variants={variants}
+              readOnly={readOnly}
+              control={control}
+              id={id}
+            />
+          )}
         </TraitRow>
         <TraitRow
           label={t('Expand a collapsed container from a zoom of (%)')}
@@ -195,12 +219,14 @@ export function LevelsSection({ id }: LevelsSectionProps) {
 interface LevelsProps {
   id: Id;
   levels: readonly LevelOfDetail[];
+  /** The ids of the variants of the component's face, which a level showing the face can name. */
+  variants: readonly string[];
   readOnly: boolean;
   control: TraitControl;
 }
 
 /** The levels, each with its zoom and what it shows, and the ways to add one or follow the canvas. */
-function Levels({ id, levels, readOnly, control }: LevelsProps) {
+function Levels({ id, levels, variants, readOnly, control }: LevelsProps) {
   const t = useT();
   const write = (next: LevelOfDetail[]) => control.send(levelsCommand(id, next));
   const changed = (at: number, level: LevelOfDetail) =>
@@ -217,6 +243,7 @@ function Levels({ id, levels, readOnly, control }: LevelsProps) {
             <LevelRow
               key={level.from}
               level={level}
+              variants={variants}
               readOnly={readOnly}
               onChange={(next) => changed(at, next)}
               onRemove={() => void write(levels.filter((_, place) => place !== at))}
@@ -247,16 +274,22 @@ function Levels({ id, levels, readOnly, control }: LevelsProps) {
 
 interface LevelRowProps {
   level: LevelOfDetail;
+  variants: readonly string[];
   readOnly: boolean;
   onChange: (level: LevelOfDetail) => Promise<boolean>;
   onRemove: () => void;
 }
 
-/** One level: the zoom it starts at, and what it shows from there, part by part. */
-function LevelRow({ level, readOnly, onChange, onRemove }: LevelRowProps) {
+/**
+ * One level: the zoom it starts at, and what it shows from there, part by part, with the variant of
+ * the face it shows when the face has variants.
+ */
+function LevelRow({ level, variants, readOnly, onChange, onRemove }: LevelRowProps) {
   const t = useT();
   const fromId = useId();
   const partsId = useId();
+  const variantId = useId();
+  const showsFace = level.shows.includes('face');
   const zoom = zoomText(t, level.from);
   return (
     <li className="definition-point">
@@ -285,10 +318,30 @@ function LevelRow({ level, readOnly, onChange, onRemove }: LevelRowProps) {
               part={part}
               checked={level.shows.includes(part)}
               readOnly={readOnly}
-              onCommit={(on) => onChange({ ...level, shows: partsWith(level.shows, part, on) })}
+              onCommit={(on) => onChange(levelShowing(level, partsWith(level.shows, part, on)))}
             />
           ))}
         </div>
+        {showsFace && (variants.length > 0 || level.face !== undefined) && (
+          <div className="inspector-control">
+            <label htmlFor={variantId}>{t('Its face shows')}</label>
+            <SelectControl
+              id={variantId}
+              value={level.face ?? ''}
+              disabled={readOnly}
+              onCommit={(variant) => onChange(levelWithVariant(level, variant))}
+            >
+              <option value="">{t('Its own markup')}</option>
+              {[...new Set([...variants, ...(level.face === undefined ? [] : [level.face])])].map(
+                (variant) => (
+                  <option key={variant} value={variant}>
+                    {t('The variant "{id}"', { id: variant })}
+                  </option>
+                ),
+              )}
+            </SelectControl>
+          </div>
+        )}
         {!readOnly && (
           <button
             type="button"

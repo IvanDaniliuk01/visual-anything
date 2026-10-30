@@ -55,6 +55,7 @@ import type { Attributed } from '../../live-values/lookup';
 import { fitHeader, fitRow } from '../fit';
 import { arrowheadAt, bodyOf, type Point, type Rect } from '../geometry';
 import { outlineIn } from '../outlines';
+import type { ShapeFace } from '../faces';
 import type { ElementShape, RelationLine } from '../scene';
 import { imageLookOf, placeImage, sameShapeImage } from '../shape-images';
 import { runsWithPart } from '../../text/detail';
@@ -627,8 +628,28 @@ function paint(shape: ElementShape, look: OverlayLook, backdrop: { light: Color;
   else delete shape.dark;
 }
 
+/** Faces with an overlay's badge, by the face and the badge, so that each is laid out once. */
+const badged = new WeakMap<ShapeFace, Map<string, ShapeFace>>();
+
+/** A face with an overlay's badge after its own badges (ADR 0083). */
+function withBadge(face: ShapeFace, text: string): ShapeFace {
+  let kept = badged.get(face);
+  if (!kept) {
+    kept = new Map();
+    badged.set(face, kept);
+  }
+  let made = kept.get(text);
+  if (!made) {
+    made = { ...face, input: { ...face.input, badges: [...(face.input.badges ?? []), text] } };
+    kept.set(text, made);
+  }
+  return made;
+}
+
 /** Writes an overlay's badge after the shape's detail, on its fitted line too when it has one. */
 function badge(shape: ElementShape, text: string): void {
+  // A face writes it among its badges (ADR 0083).
+  if (shape.face) shape.face = withBadge(shape.face, text);
   const detail = shape.detail ?? shape.componentName;
   shape.detail = joined(detail, text);
   // A detail drawn with text emphasis draws the badge after its runs, as written (ADR 0082).

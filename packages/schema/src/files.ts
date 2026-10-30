@@ -1218,17 +1218,20 @@ export interface LevelOfDetail {
   from: number;
   /**
    * What shows from it: a silhouette only, or any of the name, the detail (its attributes and badges,
-   * written under the name), the contents or rows, and the image.
+   * written under the name), the contents or rows, the image, and the face (ADR 0083), which a shape
+   * with a face draws in place of its name and detail.
    *
    * @minItems 1
-   * @maxItems 5
+   * @maxItems 6
    * @uniqueItems true
    */
   shows: LevelPart[];
+  /** The variant of the face it shows, by its id; absent, the face's own markup (ADR 0083). */
+  face?: FaceVariantId;
 }
 
 /** One thing a shape shows at a level of detail. */
-export type LevelPart = 'silhouette' | 'name' | 'detail' | 'contents' | 'image';
+export type LevelPart = 'silhouette' | 'name' | 'detail' | 'contents' | 'image' | 'face';
 
 /**
  * A view's overlays, in order.

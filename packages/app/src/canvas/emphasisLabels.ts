@@ -5,11 +5,14 @@
  * a theme switch or a new fill only tints them again (`paint`).
  *
  * The fonts are a family of their own, drawn at 16 and scaled: regular, bold, italic, bold italic and
- * monospace. Each is installed the first time a text needs it. A text is laid out once per text, width
- * and lines, and kept; nothing is read or laid out again while the canvas pans or zooms.
+ * monospace, in Roboto and Roboto Mono once loaded (`robotoFonts.ts`, ADR 0083). Each is installed the
+ * first time a text needs it. Texts are measured in the core's tables of the same fonts, and each
+ * glyph is placed by them, so that a text is drawn where it was laid out to the unit, faces included.
+ * A text is laid out once per text, width and lines, and kept; nothing is read or laid out again while
+ * the canvas pans or zooms.
  */
 import { BitmapFont, Cache, Container, Graphics } from 'pixi.js';
-import type { EmphasisBlock, EmphasisRun } from '@visual-anything/core';
+import { robotoEms, type EmphasisBlock, type EmphasisRun } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import {
   LINE_HEIGHT,
@@ -17,14 +20,14 @@ import {
   layOutRuns,
   type FontVariant,
   type LaidText,
-  type Measure,
 } from '../text/layout';
 import { emphasisBacks } from './colors';
-import { robotoMeasure } from './textBlock';
+import { ROBOTO, ROBOTO_MONO } from './robotoFonts';
+import { canvasMeasure } from './textBlock';
 
-/** The fonts the family is drawn in, first available first. */
-const SANS = ['system-ui', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'];
-const MONO = ['ui-monospace', 'Cascadia Mono', 'Roboto Mono', 'Consolas', 'monospace'];
+/** The fonts the family is drawn in, first available first: Roboto, then the system's until it loads. */
+const SANS = [ROBOTO, 'system-ui', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'];
+const MONO = [ROBOTO_MONO, 'ui-monospace', 'Cascadia Mono', 'Roboto Mono', 'Consolas', 'monospace'];
 
 const FONT_NAMES: Record<FontVariant, string> = {
   regular: 'visual-anything-text',
@@ -48,7 +51,7 @@ interface GlyphFont {
 }
 
 /** A variant's font, installed the first time it is asked for. */
-function fontOf(variant: FontVariant): GlyphFont | undefined {
+export function fontOf(variant: FontVariant): GlyphFont | undefined {
   const name = FONT_NAMES[variant];
   const key = `${name}-bitmap`;
   if (!Cache.has(key)) {
@@ -74,18 +77,6 @@ function fontOf(variant: FontVariant): GlyphFont | undefined {
   }
   return Cache.has(key) ? Cache.get<GlyphFont>(key) : undefined;
 }
-
-/** How wide a text is in a variant's font, at a size: by its glyphs' advances once installed. */
-export const glyphMeasure: Measure = (text, variant, size) => {
-  const font = fontOf(variant);
-  const chars = font?.chars;
-  const drawn = font?.fontMetrics?.fontSize;
-  if (!chars || !drawn) return robotoMeasure(text, variant, size);
-  font.ensureCharacters?.(text);
-  let width = 0;
-  for (const character of text) width += chars[character]?.xAdvance ?? 0;
-  return (width * size) / drawn;
-};
 
 /**
  * A text with emphasis, drawn: its bands for highlights and code under its glyphs, and its lines
@@ -132,32 +123,55 @@ function drawLaid(label: EmphasisLabel, laid: LaidText): void {
       else target.fill(white);
     }
     for (const piece of line.pieces) {
-      const font = fontOf(piece.variant);
-      const chars = font?.chars;
-      const drawn = font?.fontMetrics?.fontSize;
-      if (!chars || !drawn) continue;
-      font.ensureCharacters?.(piece.text);
-      const scale = piece.size / drawn;
-      const ascent = font.fontMetrics?.ascent ?? drawn * 0.8;
-      const top = line.baseline - ascent * scale;
-      let x = piece.x;
-      for (const character of piece.text) {
-        const glyph = chars[character];
-        if (!glyph) continue;
-        const texture = glyph.texture;
-        if (texture && texture.orig.width > 0) {
-          label.glyphs.texture(
-            texture,
-            white,
-            x + glyph.xOffset * scale,
-            top + glyph.yOffset * scale,
-            texture.orig.width * scale,
-            texture.orig.height * scale,
-          );
-        }
-        x += glyph.xAdvance * scale;
-      }
+      drawGlyphs(
+        label.glyphs,
+        piece.text,
+        piece.variant,
+        piece.size,
+        piece.x,
+        line.baseline,
+        white,
+      );
     }
+  }
+}
+
+/**
+ * Draws a text's glyphs as textured quads in `graphics`, its letters standing on `baseline` from `x`,
+ * each placed by Roboto's widths in the core, as the text was measured, and tinted `color`.
+ */
+export function drawGlyphs(
+  graphics: Graphics,
+  text: string,
+  variant: FontVariant,
+  size: number,
+  x: number,
+  baseline: number,
+  color: number | string,
+): void {
+  const font = fontOf(variant);
+  const chars = font?.chars;
+  const drawn = font?.fontMetrics?.fontSize;
+  if (!chars || !drawn) return;
+  font.ensureCharacters?.(text);
+  const scale = size / drawn;
+  const ascent = font.fontMetrics?.ascent ?? drawn * 0.8;
+  const top = baseline - ascent * scale;
+  let at = x;
+  for (const character of text) {
+    const glyph = chars[character];
+    const texture = glyph?.texture;
+    if (glyph && texture && texture.orig.width > 0) {
+      graphics.texture(
+        texture,
+        color,
+        at + glyph.xOffset * scale,
+        top + glyph.yOffset * scale,
+        texture.orig.width * scale,
+        texture.orig.height * scale,
+      );
+    }
+    at += robotoEms(character.codePointAt(0) ?? 0, variant) * size;
   }
 }
 
@@ -180,7 +194,7 @@ export function laidOutRuns(
   const key = `${size} ${width} ${align} ${maxLines}`;
   let laid = kept.get(key);
   if (!laid) {
-    laid = layOutRuns(runs, { measure: glyphMeasure, size, width, align, maxLines });
+    laid = layOutRuns(runs, { measure: canvasMeasure, size, width, align, maxLines });
     kept.set(key, laid);
   }
   return laid;
@@ -229,7 +243,7 @@ export function noteLabel(
   let laid = laidNotes.get(key);
   if (!laid) {
     laid = layOutBlocks(blocks(), {
-      measure: glyphMeasure,
+      measure: canvasMeasure,
       size: place.size,
       width: place.width,
       align: 'left',

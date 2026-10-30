@@ -139,6 +139,14 @@ describe('levelsKey', () => {
     expect(levelsKey([{ from: 0, shows: ['silhouette', 'image'] }])).toBe('0:s');
     expect(levelsKey(LEVELS)).not.toMatch(/\s|#/);
   });
+
+  it('names the face’s variant a level shows, so that tiles of other variants differ (ADR 0083)', () => {
+    expect(levelsKey([{ from: 0.25, shows: ['face'], face: 'far' }])).toBe('0.25:f=far');
+    expect(levelsKey([{ from: 0.25, shows: ['face'] }])).toBe('0.25:f');
+    expect(levelsKey([{ from: 0.25, shows: ['face'], face: 'near' }])).not.toBe(
+      levelsKey([{ from: 0.25, shows: ['face'], face: 'far' }]),
+    );
+  });
 });
 
 // The appearance trait ------------------------------------------------------------------------------
@@ -177,6 +185,18 @@ describe('the levels of an appearance', () => {
     const box = outcome.state.packages[0]?.components[0]?.appearance;
     expect(box?.levels?.map((level) => level.from)).toEqual([0.3, 0.9]);
     expect(box?.expandFrom).toBe(1.5);
+  });
+
+  it('may show the face, and name the variant of it they show (ADR 0083)', () => {
+    const levels = [
+      { from: 0.6, shows: ['face'] },
+      { from: 0.25, shows: ['face', 'image'], face: 'far' },
+    ];
+    const box = ok(setBox({ levels })).state.packages[0]?.components[0]?.appearance;
+    expect(box?.levels).toEqual([
+      { from: 0.25, shows: ['face', 'image'], face: 'far' },
+      { from: 0.6, shows: ['face'] },
+    ]);
   });
 
   it('are inherited, each list whole, and an empty list follows the canvas again', () => {
@@ -220,15 +240,15 @@ describe('the levels of an appearance', () => {
       ],
       [
         [{ from: 1 }],
-        'The level at 1 of the component "Box" shows a silhouette, or some of the name, the detail, the contents and the image.',
+        'The level at 1 of the component "Box" shows a silhouette, or some of the name, the detail, the contents, the image and the face.',
       ],
       [
         [{ from: 1, shows: [] }],
-        'The level at 1 of the component "Box" shows a silhouette, or some of the name, the detail, the contents and the image.',
+        'The level at 1 of the component "Box" shows a silhouette, or some of the name, the detail, the contents, the image and the face.',
       ],
       [
         [{ from: 1, shows: ['halo'] }],
-        'The level at 1 of the component "Box" shows a silhouette, or some of the name, the detail, the contents and the image.',
+        'The level at 1 of the component "Box" shows a silhouette, or some of the name, the detail, the contents, the image and the face.',
       ],
       [
         [{ from: 1, shows: ['name', 'name'] }],
@@ -246,6 +266,14 @@ describe('the levels of an appearance', () => {
         'Two levels of the component "Box" start at 1.',
       ],
       [[{ from: 1, shows: ['name'], at: 2 }], 'A level of the component "Box" has no "at".'],
+      [
+        [{ from: 1, shows: ['face'], face: 'Far away' }],
+        'The level at 1 of the component "Box" names a face\'s variant by its id.',
+      ],
+      [
+        [{ from: 1, shows: ['name'], face: 'far' }],
+        'The level at 1 of the component "Box" names a face\'s variant but does not show the face.',
+      ],
     ];
     for (const [levels, message] of cases) {
       const problem = refused(setBox({ levels }));

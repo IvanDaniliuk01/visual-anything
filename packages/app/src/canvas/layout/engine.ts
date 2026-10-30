@@ -187,6 +187,11 @@ export async function layOut(
   let outOfTime = false;
   const engines = Array.isArray(elk) ? (elk as readonly ElkEngine[]) : [elk as ElkEngine];
   const tree = new Tree(input);
+  /** Where a container's contents start from its top: under its face's header, when it has one. */
+  const topOf = (level: number): number =>
+    level === WORLD
+      ? CONTENTS_ORIGIN.y
+      : Math.max(CONTENTS_ORIGIN.y, input.shapes[level]?.header ?? 0);
   const stats: LayoutStats = {
     levels: 0,
     shapes: 0,
@@ -321,7 +326,7 @@ export async function layOut(
     const holder = tree.keptSizeOf(level);
     const inner = {
       left: CONTENTS_ORIGIN.x,
-      top: CONTENTS_ORIGIN.y,
+      top: topOf(level),
       right: holder.width - CONTENTS_ORIGIN.x,
       bottom: holder.height - CONTENTS_ORIGIN.x,
     };
@@ -473,13 +478,13 @@ export async function layOut(
       inPlace && level !== WORLD && kept.length === 0
         ? {
             x: Math.max(CONTENTS_ORIGIN.x, roundToStep(bounds.x)),
-            y: Math.max(CONTENTS_ORIGIN.y, roundToStep(bounds.y)),
+            y: Math.max(topOf(level), roundToStep(bounds.y)),
           }
         : placeBlock(
             bounds,
             level === WORLD
               ? { kind: 'world', now: boundsOf(nodes.map((node) => tree.currentRectOf(node))) }
-              : { kind: 'container' },
+              : { kind: 'container', top: topOf(level) },
             kept,
             flow,
           );
@@ -626,7 +631,11 @@ export async function layOut(
         const rect = first.get(level);
         const shape = input.shapes[level];
         if (!rect || !shape) continue;
-        const room = { ...COMPOUND_PADDING };
+        const room: Padding = { ...COMPOUND_PADDING };
+        // A face's header, taller than the canvas's own, keeps the same room under it (ADR 0083).
+        if (shape.header !== undefined) {
+          room.top = Math.max(room.top, shape.header + COMPOUND_PADDING.top - CONTENTS_ORIGIN.y);
+        }
         const width = rect.width - room.left - room.right;
         const height = rect.height - room.top - room.bottom;
         const block = looseAt(level, sizeOf);

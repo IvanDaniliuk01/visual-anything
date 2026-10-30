@@ -842,9 +842,9 @@ Its tasks run one at a time, after M3c's Stage 0b, in this order:
 
 Its tasks run in this order:
 
-- [ ] **F0, Roboto on the canvas:** bitmap fonts made from the Roboto files the app ships, loaded with `FontFace` from bytes, and the width tables, with italic, bold italic and mono, moved to the core. Its core half is done (2026-10-30): the tables and `robotoWidth` are in `core/src/text/`, and the exports read them. Its canvas half, the bitmap fonts and the canvas's measuring in them, moves with F2.
+- [x] **F0, Roboto on the canvas:** bitmap fonts made from the Roboto files the app ships, loaded with `FontFace` from bytes, and the width tables, with italic, bold italic and mono, moved to the core. Its core half is done (2026-10-30): the tables and `robotoWidth` are in `core/src/text/`, and the exports read them. Its canvas half is done with F2 (2026-10-30): the bitmap fonts are drawn in Roboto loaded from bytes, and the canvas measures and places text by the core's tables (ADR 0083's clarification of F2).
 - [x] **F1, faces in the core:** the strict reader, the CSS subset, `compileFace` and `layOutFace`, contrast, caps and problem codes, with property tests (never draws past its width, the same in Node and the browser, hostile input refused); `Appearance.face` in the schema and its trait command.
-- [ ] **F2, faces on the canvas:** the drawing by tile, `content` sizes before layout, `<rows/>` and `<contents/>`, the variants by level and collapsed.
+- [x] **F2, faces on the canvas:** the drawing by tile, `content` sizes before layout, `<rows/>` and `<contents/>`, the variants by level and collapsed. Done 2026-10-30, with `face` in `LevelOfDetail` and the levels editor; pictures, `<icon/>` and `<drawing/>` in a face are left for F3 and F4 (ADR 0083's clarification of F2).
 - [ ] **F3, the exports:** SVG, PDF and the page as the canvas draws, with the limits test extended; the text exports say what they lose.
 - [ ] **F4, editing:** the Face section with its preview, `set_face` and `preview_face`, and Data modeling's built-in faces for Table and Column.
 - [ ] **F5, checking:** the 10,000-shape benchmark with faces, recorded, and a check on a fixture shaped like the user's PostgreSQL model.

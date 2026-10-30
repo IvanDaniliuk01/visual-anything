@@ -2357,6 +2357,11 @@ export const ui: Catalog = {
   'From a zoom of (%)': 'Desde un zoom de (%)',
   'A silhouette only': 'Solo una silueta',
   'Contents or rows': 'Contenido o filas',
+  // A face (ADR 0083) is «cara» in Spanish.
+  Face: 'Cara',
+  'Its face shows': 'Su cara muestra',
+  'Its own markup': 'Su propio marcado',
+  'The variant "{id}"': 'La variante "{id}"',
   'Remove the level from {zoom}': 'Quitar el nivel desde {zoom}',
   'Enter a zoom from 0% to 800%.': 'Escribir un zoom de 0 % a 800 %.',
   'Expand a collapsed container from a zoom of (%)':
@@ -4853,8 +4858,12 @@ export const messages: Catalog = {
   'A level of {of} starts at a scale from 0 to {n}.':
     'Un nivel de {of} empieza en una escala de 0 a {n}.',
   'Two levels of {of} start at {n}.': 'Dos niveles de {of} empiezan en {n}.',
-  'The level at {n} of {of} shows a silhouette, or some of the name, the detail, the contents and the image.':
-    'El nivel en {n} de {of} muestra una silueta, o algo del nombre, el detalle, el contenido y la imagen.',
+  'The level at {n} of {of} shows a silhouette, or some of the name, the detail, the contents, the image and the face.':
+    'El nivel en {n} de {of} muestra una silueta, o algo del nombre, el detalle, el contenido, la imagen y la cara.',
+  "The level at {n} of {of} names a face's variant by its id.":
+    'El nivel en {n} de {of} nombra una variante de la cara por su id.',
+  "The level at {n} of {of} names a face's variant but does not show the face.":
+    'El nivel en {n} de {of} nombra una variante de la cara pero no muestra la cara.',
   'The level at {n} of {of} shows "{part}" twice.':
     'El nivel en {n} de {of} muestra "{part}" dos veces.',
   'The level at {n} of {of} shows a silhouette only, with nothing else.':

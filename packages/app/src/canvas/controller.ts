@@ -1976,7 +1976,10 @@ export class CanvasController {
     return {
       x: shape.rect.x + shape.rect.width + HANDLE_OFFSET / this.camera.scale,
       // Beside the header of a shape that draws rows, where its own relations attach.
-      y: shape.rowCount === undefined ? centerOf(shape.rect).y : headerMiddle(shape.rect),
+      y:
+        shape.rowCount === undefined
+          ? centerOf(shape.rect).y
+          : headerMiddle(shape.rect, shape.header),
     };
   }
 

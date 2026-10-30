@@ -1,4 +1,4 @@
-import type { ProjectSnapshot } from '@visual-anything/core';
+import { compileFace, type ProjectSnapshot } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
 import { EMPTY_SELECTION, selectionOf } from '../editor/selection';
 import { loadSample } from '../test/sample';
@@ -60,6 +60,34 @@ describe('describeShape', () => {
     );
     expect(said({ detail: 'Services · placed' })).toBe(
       'Appointments API, Service, Services · placed, in Scheduling, 4 relations.',
+    );
+  });
+
+  it('says what a face says, in reading order, by its plain text (ADR 0083)', () => {
+    const appointments = shape('clinic-booking/scheduling/appointments-api');
+    const face = {
+      compiled: compileFace({
+        size: 'shape',
+        markup: [
+          '<b>{{name}}</b>',
+          '<p>{{component}}</p>',
+          '<p>Owns **{{slots}}**</p>',
+          '<p>v{{v}}</p>',
+        ],
+        style: [],
+        variants: [],
+      }),
+      input: {
+        name: appointments.name,
+        component: 'Service',
+        attributes: [
+          { name: 'slots', value: 'the slots' },
+          { name: 'v', value: 2 },
+        ],
+      },
+    };
+    expect(describeShape(indexed, sample, { ...appointments, face })).toBe(
+      'Appointments API, Service, Owns **the slots**, v2, in Scheduling, 4 relations.',
     );
   });
 

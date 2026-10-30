@@ -14,6 +14,7 @@ import {
   componentOrEssence,
   detailParts,
   detailText,
+  faceInputOf,
   liveAge,
   startedTypesByElement,
   type AttributeReading,
@@ -26,6 +27,7 @@ import type { DetailPart, EmphasisRun } from '@visual-anything/core';
 import { detailRunsOf } from '../text/detail';
 import type { Element, Id, Relation } from '@visual-anything/schema';
 import { fitHeader, fitRow } from '../canvas/fit';
+import type { ShapeFace } from '../canvas/faces';
 import { sceneWithValues, type ElementShape, type Scene, type SceneValues } from '../canvas/scene';
 import type { Translator } from '../i18n';
 import type { AttributeLookup } from './lookup';
@@ -95,7 +97,11 @@ export function liveSceneOf(
         t,
         started.get(element.id) ?? NO_TYPES,
       );
-      return shapeWith(shape, detail, runs);
+      const drawn = shapeWith(shape, detail, runs);
+      // A face reads the same values (ADR 0083).
+      return shape.face
+        ? withFaceValues(drawn, shape.face, element, definitions, lookup, started.get(element.id))
+        : drawn;
     },
     // What may read otherwise: what the lookup says changed, while the words and definitions are
     // the same; otherwise everything.
@@ -211,6 +217,37 @@ function agesOf(
     ages += age.stale ? `${shortAge(t, age.age)};` : ';';
   }
   return ages;
+}
+
+/** The faces made with the lookup's values, by the scene's face: kept while they read alike. */
+const valuedFaces = new WeakMap<ShapeFace, { text: string; face: ShapeFace }>();
+
+/**
+ * A shape whose face is filled with the values the lookup reads, live and computed over stored ones
+ * (ADR 0083): itself when they read as the scene's. They change what the face writes, never the size
+ * the scene gave its shape before layout.
+ */
+function withFaceValues(
+  shape: ElementShape,
+  face: ShapeFace,
+  element: Element,
+  definitions: Definitions,
+  lookup: AttributeLookup,
+  started: ReadonlySet<Id> | undefined,
+): ElementShape {
+  const item = { kind: 'element', element } as const;
+  const input = faceInputOf(element, definitions, {
+    readValue: (name) => lookup.read(item, name, definitions)?.value,
+    startedTypes: started ?? NO_TYPES,
+    ...(face.input.count === undefined ? {} : { count: face.input.count }),
+  });
+  const filled = { ...input, component: face.input.component };
+  const text = JSON.stringify(filled);
+  if (text === JSON.stringify(face.input)) return shape;
+  const known = valuedFaces.get(face);
+  const valued = known?.text === text ? known.face : { compiled: face.compiled, input: filled };
+  valuedFaces.set(face, { text, face: valued });
+  return { ...shape, face: valued };
 }
 
 /** A shape that writes this detail: itself when it does already. */
