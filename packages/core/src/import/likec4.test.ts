@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { shownByScope } from '../scope';
+import { parseEmphasis } from '../text/emphasis';
 import model from './fixtures/shop.likec4.json';
 import { readLikeC4 } from './likec4';
 import type { ImportPlan, PlannedView } from './plan';
@@ -249,6 +250,74 @@ describe('readLikeC4', () => {
     expect(shop.routes?.r1?.bendPoints).toEqual([{ x: 120, y: 144 }]);
     expect(shownByScope(state, shop).relation('r4')).toBe(true);
     expect(shownByScope(state, shop).relation('r2')).toBe(false);
+  });
+});
+
+describe('readLikeC4 and text emphasis (ADR 0082)', () => {
+  /** The shop model with these descriptions, by element. */
+  function withDescriptions(descriptions: Record<string, unknown>): string {
+    const changed = structuredClone(model) as unknown as {
+      elements: Record<string, Record<string, unknown>>;
+    };
+    for (const [name, description] of Object.entries(descriptions)) {
+      changed.elements[name]!.description = description;
+    }
+    return JSON.stringify(changed);
+  }
+
+  /** The descriptions an import of the model gives its elements, by plan key. */
+  function imported(json: string): (key: string) => string | undefined {
+    const planned = read(json);
+    const { state, ids } = applyPlan(systemsProject(), planned);
+    return (key) => state.model.elements.find((each) => each.id === ids.get(key))?.description;
+  }
+
+  it('imports a description written as md as written, so that it is drawn with its emphasis', () => {
+    const markdown = [
+      '## The API',
+      '',
+      '- Serves the **frontend**',
+      '  - and its [docs](https://example.com/docs)',
+      '',
+      '```',
+      'GET  /orders   ',
+      '```',
+    ].join('\n');
+    const json = withDescriptions({ 'shop.backend.api': { md: `\r\n${markdown}  \r\n\n` } });
+    expect(
+      read(json).elements.find((each) => each.key === 'e:shop/shop.backend.api'),
+    ).toMatchObject({ descriptionIsMarkdown: true });
+    // Its line ends are made "\n" and its ends and the spaces after its lines trimmed; its indents
+    // and the spaces inside its lines are kept, so that its nested list and its code read as written.
+    expect(imported(json)('e:shop/shop.backend.api')).toBe(markdown.replace('   \n', '\n'));
+  });
+
+  it('escapes a description written as txt, or as a bare string, so that it reads as the file wrote it', () => {
+    const description = imported(
+      withDescriptions({
+        customer: { txt: 'Buys *things* with a [card]' },
+        'shop.db': '# Orders, `kept`',
+      }),
+    );
+    expect(description('e:shop/customer')).toBe('Buys \\*things\\* with a \\[card]');
+    expect(description('e:shop/shop.db')).toBe('\\# Orders, \\`kept\\`');
+  });
+
+  it('keeps Markdown’s HTML and other addresses as the characters they are', () => {
+    const hostile =
+      '<script>alert(1)</script> [open](javascript:alert(1)) ![x](https://x.example/a.png)';
+    const description = imported(withDescriptions({ 'shop.backend.api': { md: hostile } }))(
+      'e:shop/shop.backend.api',
+    );
+    expect(description).toBe(hostile);
+    const runs = parseEmphasis(description!, { blocks: true }).flatMap((block) =>
+      block.kind === 'paragraph' ? block.runs : [],
+    );
+    // The image is never fetched: at most a link to its https address, which the person clicks.
+    expect(runs.flatMap((run) => (run.link === undefined ? [] : [run.link]))).toEqual([
+      'https://x.example/a.png',
+    ]);
+    expect(runs.map((run) => run.text).join('')).toContain('<script>');
   });
 });
 

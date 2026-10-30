@@ -58,7 +58,7 @@ import { PROPOSAL_TOOLS, proposalNoteOf } from './proposal-tools';
 import { OVERLAY_TOOLS } from './overlay-tools';
 import { IMPORT_TOOLS } from './import-tools';
 import { DRAWING_TOOLS } from './drawing-tools';
-import { TAKES_MARKDOWN } from './emphasis';
+import { TAKES_MARKDOWN, escapeTextInput, escapeTextsIf, escapedIf } from './emphasis';
 import {
   DELETE,
   GUIDE,
@@ -362,6 +362,8 @@ Anything that is neither is taken as the id of something already in the project.
 
 At most ${MAX_ADDITIONS} elements and relations in all per call. ${IN_BATCHES}
 
+Descriptions, and the values of attributes whose definition has "format": "emphasis", take Markdown. When they hold the text of outside material, give escapeText: true, and the program writes them as the characters they are.
+
 ${RECIPES_IN_BRIEF} For instance, a SQL table becomes a data-modeling.table with each column a data-modeling.column inside it, given nestingRelationType "data-modeling.is-column-of"; docker-compose's depends_on becomes systems.communicates-with; a C4 container becomes a systems.service, or a systems.database, inside the systems.system it belongs to.
 
 Example: {
@@ -385,10 +387,11 @@ Example, ids of your own, a column naming its table in the same call: {
   ]
 }
 
-Example, a later call whose foreign key references a column an earlier call made: {
+Example, a later call whose foreign key references a column an earlier call made, its description the table's COMMENT ON text, written as text: {
   "label": "Import the shop database (2 of 3): orders",
+  "escapeText": true,
   "elements": [
-    { "id": "t.shop.orders", "component": "data-modeling.table", "name": "orders", "inside": ["s.shop"], "nestingRelationType": "systems.is-part-of" },
+    { "id": "t.shop.orders", "component": "data-modeling.table", "name": "orders", "inside": ["s.shop"], "nestingRelationType": "systems.is-part-of", "description": "One row per order; *_archive tables keep the old ones." },
     { "id": "c.shop.orders.customer_id", "component": "data-modeling.column", "name": "customer_id", "inside": ["t.shop.orders"], "nestingRelationType": "data-modeling.is-column-of", "attributes": { "type": "uuid", "notNull": true } }
   ],
   "relations": [
@@ -457,12 +460,14 @@ Example, a later call whose foreign key references a column an earlier call made
       .max(200)
       .optional()
       .describe('How the history names the action; one is made when left out.'),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
   run: async (args, program) => {
     const built = buildAdditions(await program.project(), args);
     if (!built.ok) return built;
-    return act(program, built.command, async (answer) => {
+    const command = await escapeTextsIf(program, args.escapeText, built.command);
+    return act(program, command, async (answer) => {
       // What each new shape and line is drawn in, as the project has it now.
       const state = await program.project();
       const warnings = built.colored.flatMap(({ id: made, kind, appearance: given }) =>
@@ -512,12 +517,17 @@ Example: { "id": "billing-api", "attributes": { "details": { "project": "../bill
       .describe(
         'Traits of its own appearance to set, or null to inherit again: shape, fill, stroke, width, height, detail, contentsAsRows, connectionPoints, image (from list_images, as { "image": id, "placement": "icon", "drawing" or "parts", "tint": "#RRGGBB" }, or "none"), geometry and part (set_appearance shows them, with examples).',
       ),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
-  run: async ({ id: target, ...changes }, program) =>
+  run: async ({ id: target, escapeText, ...changes }, program) =>
     act(
       program,
-      { type: 'update-element', id: target, changes: withoutUndefined(changes) as never },
+      await escapeTextsIf(program, escapeText, {
+        type: 'update-element',
+        id: target,
+        changes: withoutUndefined(changes) as never,
+      }),
       async () => {
         const warnings = elementColorWarnings(
           await program.project(),
@@ -550,12 +560,17 @@ Example: { "id": "api-reads-db", "appearance": null }`,
     removeAttributes: z.array(z.string()).optional(),
     appearance: relationAppearance().nullable().optional(),
     appearanceTraits: relationAppearanceTraits().optional(),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
-  run: async ({ id: target, ...changes }, program) =>
+  run: async ({ id: target, escapeText, ...changes }, program) =>
     act(
       program,
-      { type: 'update-relation', id: target, changes: withoutUndefined(changes) as never },
+      await escapeTextsIf(program, escapeText, {
+        type: 'update-relation',
+        id: target,
+        changes: withoutUndefined(changes) as never,
+      }),
       async () => {
         const warnings = relationColorWarnings(
           await program.project(),
@@ -678,10 +693,17 @@ Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs
     version: z.string().optional(),
     license: z.string().optional(),
     attribution: z.string().optional(),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
-  run: async (args, program) =>
-    act(program, { type: 'create-package', package: withoutUndefined(args) }),
+  run: async ({ escapeText, ...given }, program) =>
+    act(
+      program,
+      await escapeTextsIf(program, escapeText, {
+        type: 'create-package',
+        package: withoutUndefined(given),
+      }),
+    ),
 });
 
 const defineComponent = tool({
@@ -699,6 +721,7 @@ Example: { "package": "clinic", "createOnly": true, "component": { "name": "Cale
       .describe(
         'name, derivesFrom, and optionally id, description, ids (external identifiers by scheme), attributes and appearance. An attribute may be of type "destination". A string attribute whose values take text emphasis (**bold**, *italic*, ~~struck~~, `code`, ==highlight==, ++underline++) sets "format": "emphasis"; left out, its values are plain, as identifiers and code must be.',
       ),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
   run: async (args, program) => {
@@ -711,12 +734,12 @@ Example: { "package": "clinic", "createOnly": true, "component": { "name": "Cale
     if (refusal !== undefined) return fail(refusal);
     return act(
       program,
-      {
+      await escapeTextsIf(program, args.escapeText, {
         type: 'define-component',
         package: args.package,
         component: args.component,
         ...(args.createOnly ? { createOnly: true } : {}),
-      } as unknown as Command,
+      } as unknown as Command),
       // Colors hard to see are pointed out, as set_appearance points them out.
       async (answer) =>
         withColorWarnings(
@@ -747,6 +770,7 @@ Example: { "package": "clinic", "createOnly": true, "relationType": { "name": "b
       .describe(
         'name, derivesFrom, and optionally id, description, ids (external identifiers by scheme), direction, nests, attributes, appearance and limits.',
       ),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
   run: async (args, program) => {
@@ -759,12 +783,12 @@ Example: { "package": "clinic", "createOnly": true, "relationType": { "name": "b
     if (refusal !== undefined) return fail(refusal);
     return act(
       program,
-      {
+      await escapeTextsIf(program, args.escapeText, {
         type: 'define-relation-type',
         package: args.package,
         relationType: args.relationType,
         ...(args.createOnly ? { createOnly: true } : {}),
-      } as unknown as Command,
+      } as unknown as Command),
       async (answer) =>
         withColorWarnings(
           { created: answer.created },
@@ -825,12 +849,17 @@ Example: { "id": "clinic.calendar", "name": "Calendar", "appearance": { "fill": 
     appearance: z.record(z.string(), z.unknown()).optional(),
     attributes: attributeChanges().optional(),
     ids: externalIdChanges().optional(),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
-  run: async ({ id: target, ...changes }, program) =>
+  run: async ({ id: target, escapeText, ...changes }, program) =>
     act(
       program,
-      { type: 'update-component', id: target, changes: withoutUndefined(changes) as never },
+      await escapeTextsIf(program, escapeText, {
+        type: 'update-component',
+        id: target,
+        changes: withoutUndefined(changes) as never,
+      }),
       async () =>
         withColorWarnings(
           {},
@@ -872,12 +901,17 @@ Example: { "id": "clinic.books", "direction": "directed", "limits": { "to": ["cl
       })
       .optional(),
     ids: externalIdChanges().optional(),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
-  run: async ({ id: target, ...changes }, program) =>
+  run: async ({ id: target, escapeText, ...changes }, program) =>
     act(
       program,
-      { type: 'update-relation-type', id: target, changes: withoutUndefined(changes) as never },
+      await escapeTextsIf(program, escapeText, {
+        type: 'update-relation-type',
+        id: target,
+        changes: withoutUndefined(changes) as never,
+      }),
       async () =>
         withColorWarnings(
           {},
@@ -904,10 +938,18 @@ Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs
     version: z.string().nullable().optional(),
     license: z.string().nullable().optional(),
     attribution: z.string().nullable().optional(),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
-  run: async ({ id: target, ...changes }, program) =>
-    act(program, { type: 'update-package', id: target, changes: withoutUndefined(changes) }),
+  run: async ({ id: target, escapeText, ...changes }, program) =>
+    act(
+      program,
+      await escapeTextsIf(program, escapeText, {
+        type: 'update-package',
+        id: target,
+        changes: withoutUndefined(changes),
+      }),
+    ),
 });
 
 const reorderElements = tool({
@@ -940,18 +982,19 @@ Example: { "name": "Who owns what", "perspective": { "name": "Ownership", "descr
       description: z.string().optional().describe(TAKES_MARKDOWN),
     }),
     nestingRelationTypes: z.array(id()).optional(),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
-  run: async (args, program) =>
+  run: async ({ escapeText, ...given }, program) =>
     act(
       program,
-      {
+      await escapeTextsIf(program, escapeText, {
         type: 'create-view',
         view: withoutUndefined({
-          ...args,
-          perspective: withoutUndefined(args.perspective),
+          ...given,
+          perspective: withoutUndefined(given.perspective),
         }),
-      },
+      }),
       (answer) => ({ view: answer.created[0] }),
     ),
 });
@@ -978,12 +1021,17 @@ Example, a view drawn curved: { "id": "signal-flow", "routeStyle": "curved" }`,
       .nullable()
       .optional()
       .describe('Its automatic routes straight or curved; null for orthogonal.'),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
-  run: async ({ id: target, ...changes }, program) =>
+  run: async ({ id: target, escapeText, ...changes }, program) =>
     act(
       program,
-      { type: 'update-view', id: target, changes: withoutUndefined(changes) },
+      await escapeTextsIf(program, escapeText, {
+        type: 'update-view',
+        id: target,
+        changes: withoutUndefined(changes),
+      }),
       async () => {
         if (changes.routeStyle === undefined) return {};
         const state = await program.project();
@@ -1296,13 +1344,17 @@ A note can have a fill and a stroke, and an arrow a stroke, as #RRGGBB, drawn as
 
 Example: { "view": "system-overview", "shape": { "kind": "note", "x": 40, "y": 560, "width": 240, "height": 80, "text": "Reminders go out the day before." } }
 Example: { "view": "system-overview", "shape": { "kind": "arrow", "from": { "x": 300, "y": 600 }, "to": { "x": 420, "y": 480 }, "stroke": "#C53030" } }`,
-  input: { view: id(), shape: freeShape() },
+  input: { view: id(), shape: freeShape(), escapeText: escapeTextInput() },
   hints: WRITE,
   run: async (args, program) => {
     const viewName = (await program.project()).views.find((each) => each.id === args.view)?.name;
     return act(
       program,
-      { type: 'create-free-shape', view: args.view, shape: args.shape },
+      await escapeTextsIf(program, args.escapeText, {
+        type: 'create-free-shape',
+        view: args.view,
+        shape: args.shape,
+      }),
       (answer) => {
         const warnings = freeShapeColorWarnings(
           args.shape,
@@ -1337,6 +1389,7 @@ Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "fill": "#
       fill: noteFill().nullable().optional(),
       stroke: freeStroke().nullable().optional(),
     }),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
   run: async (args, program) => {
@@ -1349,6 +1402,8 @@ Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "fill": "#
       );
     }
     const { fill, stroke, kind, ...given } = args.shape;
+    // Only the text given is escaped: the stored text, kept when none is given, is as it was.
+    given.text = escapedIf(args.escapeText, given.text);
     // The same kind keeps what is not given, its colors included; another kind is the shape given.
     const kept: Record<string, unknown> =
       kind === undefined || kind === stored.kind
@@ -1397,10 +1452,17 @@ Example: { "packages": ["systems", "data-modeling"] }`,
     name: z.string().min(1).optional(),
     description: z.string().nullable().optional().describe(TAKES_MARKDOWN),
     packages: z.array(id()).optional(),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
-  run: async (args, program) =>
-    act(program, { type: 'update-project', changes: withoutUndefined(args) }),
+  run: async ({ escapeText, ...changes }, program) =>
+    act(
+      program,
+      await escapeTextsIf(program, escapeText, {
+        type: 'update-project',
+        changes: withoutUndefined(changes),
+      }),
+    ),
 });
 
 const runCommands = tool({
@@ -1410,7 +1472,7 @@ const runCommands = tool({
 
 A delete, or a change-container, that would take more than it names (relations ending on what it deletes, or on the nesting relations it takes away; a nesting relation with data of its own) or break a scenario step is refused, as delete_from_model and change_container refuse it, each previewed over the project as the commands before it leave it: tell the person what would go, then call again with cascade true.
 
-When you import material again, change the elements and relations already there with one run_commands call, one update-element or update-relation each, so that the whole update is one action; and define what an import needs (create-package, then define-component and define-relation-type) as one action, once the person agrees.
+When you import material again, change the elements and relations already there with one run_commands call, one update-element or update-relation each, so that the whole update is one action; and define what an import needs (create-package, then define-component and define-relation-type) as one action, once the person agrees. With escapeText true, the descriptions, notes' texts and values of attributes that take emphasis that the commands set are written as the characters they are, as the material writes them.
 
 With propose true, the commands wait in your proposal for the person's review instead of applying, as every change does while the person reviews your changes: the answer says so, and the person accepts them, change by change, or refuses them in the app.
 
@@ -1432,14 +1494,15 @@ Example, proposed for review: { "label": "Split the API", "propose": true, "comm
       .describe(
         'Propose the commands rather than apply them: they wait in your proposal until the person accepts or refuses them in the app, even when the person does not review your changes. Use it for a large or uncertain change the person should see first. Nothing you send makes a change apply while the person reviews your changes.',
       ),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
   run: async (args, program) => {
-    const command: Command = {
+    const command = await escapeTextsIf(program, args.escapeText, {
       type: 'batch',
       label: args.label,
       commands: args.commands as never,
-    };
+    });
     const cascade = cascadeOf(await program.project(), command);
     if (!args.cascade && takesMore(cascade)) {
       return fail(cascadeRefusal(cascade, 'Nothing was done', 'what the commands delete'));

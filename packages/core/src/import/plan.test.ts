@@ -100,6 +100,46 @@ describe('planToCommand and text emphasis (ADR 0082)', () => {
     );
     expect(relation?.description).toBe('\\# h');
   });
+
+  it('writes a description the file says is Markdown as written', () => {
+    const state = testProject();
+    const markdown = '## Orders\n\n- **paid**\n  - [refunds](https://x.example)';
+    const planned = planToCommand(
+      state,
+      {
+        ...plan(),
+        elements: plan().elements.map((element) =>
+          element.key === 'orders'
+            ? { ...element, description: markdown, descriptionIsMarkdown: true }
+            : element,
+        ),
+        relations: plan().relations.map((relation) => ({
+          ...relation,
+          description: '*calls*',
+          descriptionIsMarkdown: true,
+        })),
+        views: plan().views.map((view) => ({
+          ...view,
+          description: '*one* page',
+          descriptionIsMarkdown: false,
+        })),
+      },
+      MAPPING,
+      sequentialIds(),
+    );
+    if (!planned.ok) throw new Error(planned.problems.join(' '));
+    const outcome = executeCommand(state, planned.command, { newId: sequentialIds() });
+    if (!outcome.ok) throw new Error(outcome.problems.map((each) => each.message).join(' '));
+    const described = (id: string | undefined) =>
+      [
+        ...outcome.state.model.elements,
+        ...outcome.state.model.relations,
+        ...outcome.state.views,
+      ].find((each) => each.id === id)?.description;
+    expect(described(planned.ids.get('orders'))).toBe(markdown);
+    expect(described(planned.ids.get('e1'))).toBe('*calls*');
+    expect(described(planned.ids.get('page-1'))).toBe('\\*one\\* page');
+  });
 });
 
 describe('planToCommand', () => {

@@ -53,7 +53,7 @@ import {
 } from './kit';
 import type { Tool } from './tools';
 import { STATE_HELP, STATE_PARTS, askedState } from './view-tools';
-import { TAKES_MARKDOWN } from './emphasis';
+import { TAKES_MARKDOWN, escapeTextInput, escapedIf } from './emphasis';
 
 const tourId = () => id().describe('The tour, by id: get_project lists the tours.');
 
@@ -233,6 +233,7 @@ Example: {
     name: z.string().min(1).max(MAX_TOUR_NAME),
     description: z.string().max(MAX_TOUR_DESCRIPTION).optional().describe(TAKES_MARKDOWN),
     steps: z.array(newStep()).max(200).optional(),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
   run: async (args, program) => {
@@ -247,7 +248,11 @@ Example: {
       program,
       {
         type: 'create-tour',
-        tour: withoutUndefined({ name: args.name, description: args.description, steps }),
+        tour: withoutUndefined({
+          name: args.name,
+          description: escapedIf(args.escapeText, args.description),
+          steps,
+        }),
       },
       (answer) => ({
         tour: answer.created[0],
@@ -427,13 +432,17 @@ Example: { "tour": "how-booking-works", "name": "Booking, step by step" }`,
       .nullable()
       .optional()
       .describe(TAKES_MARKDOWN),
+    escapeText: escapeTextInput(),
   },
   hints: WRITE,
   run: async (args, program) =>
     act(program, {
       type: 'update-tour',
       id: args.tour,
-      changes: withoutUndefined({ name: args.name, description: args.description }),
+      changes: withoutUndefined({
+        name: args.name,
+        description: escapedIf(args.escapeText, args.description),
+      }),
     }),
 });
 
