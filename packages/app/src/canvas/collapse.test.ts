@@ -5,11 +5,13 @@ import { selectionOf } from '../editor/selection';
 import {
   collapseActions,
   collapseDone,
+  collapsedHeaderWrap,
   collapsedIn,
   headerLines,
   insideCount,
   setCollapsedCommand,
 } from './collapse';
+import { bodyOf } from './geometry';
 import { indexScene } from './hit';
 import {
   AGGREGATED,
@@ -170,12 +172,63 @@ describe('a collapsed container', () => {
 
   it('writes its count on a line of its own when its header has room, or else before its detail', () => {
     const system = shapeOf(buildScene(systems(['system']), 'v'), 'system');
-    expect(headerLines(system, 64)).toEqual({ detail: 'Group', count: '2 inside', countRoom: 16 });
-    expect(headerLines(system, 59)).toEqual({ detail: 'Group', count: '2 inside', countRoom: 15 });
-    expect(headerLines(system, 52)).toEqual({ detail: '2 inside · Group' });
-    expect(headerLines({ ...system, detail: '' }, 52)).toEqual({ detail: '2 inside' });
+    const own = { detailRoom: 16, detailCut: false, count: '2 inside', countTop: 44 };
+    expect(headerLines(system, 64)).toEqual({ ...own, detail: 'Group', countRoom: 16 });
+    expect(headerLines(system, 59)).toEqual({ ...own, detail: 'Group', countRoom: 15 });
+    expect(headerLines(system, 52)).toEqual({
+      detail: '2 inside · Group',
+      detailRoom: 16,
+      detailCut: false,
+    });
+    expect(headerLines({ ...system, detail: '' }, 52)).toEqual({
+      detail: '2 inside',
+      detailRoom: 16,
+      detailCut: false,
+    });
     const open = shapeOf(buildScene(systems(), 'v'), 'system');
-    expect(headerLines(open, 400)).toEqual({ detail: 'Group' });
+    expect(headerLines(open, 400)).toEqual({ detail: 'Group', detailRoom: 16, detailCut: false });
+  });
+
+  it('wraps its detail to its lines, the count under them, and grows to hold them (ADR 0082)', () => {
+    const long = 'Holds the billing records of every clinic, kept for ten years by law';
+    const project = systems(['system']);
+    const withDetail: ProjectSnapshot = {
+      ...project,
+      model: {
+        ...project.model,
+        elements: project.model.elements.map((each) =>
+          each.id === 'system' ? { ...each, attributes: { purpose: long } } : each,
+        ),
+      },
+      packages: project.packages.map((each) => ({
+        ...each,
+        components: each.components.map((component) =>
+          component.id === 'p.group'
+            ? {
+                ...component,
+                attributes: [{ name: 'purpose', type: 'string' as const }],
+                appearance: {
+                  ...component.appearance,
+                  detail: { componentName: false, attributes: ['purpose'], lines: 3 },
+                },
+              }
+            : component,
+        ),
+      })),
+    };
+    const system = shapeOf(buildScene(withDetail, 'v'), 'system');
+    expect(system.detail).toBe(long);
+    const wrap = collapsedHeaderWrap(system.rect.width, false);
+    const header = headerLines(system, bodyOf(system).height, wrap);
+    expect(header.detail).toBe(long);
+    expect(header.detailRoom).toBeGreaterThan(16);
+    expect(header.countTop).toBeGreaterThan(44);
+    // Its body holds the detail's lines and the count under them.
+    expect(bodyOf(system).height).toBeGreaterThanOrEqual((header.countTop ?? 0) + 14);
+    expect(system.rect.height).toBeGreaterThan(64);
+    // One line, as its appearance may say, keeps the component's height.
+    const one = headerLines({ ...system, detailLines: 1 }, 59, wrap);
+    expect(one).toMatchObject({ countTop: 44, detailRoom: 16, detailCut: true });
   });
 
   it('draws the relations of its contents as aggregated relations, one per relation type and far end', () => {

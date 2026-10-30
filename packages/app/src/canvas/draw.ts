@@ -970,8 +970,14 @@ function writeShapeText(
         rooms.name,
       );
     }
-    // A collapsed container's count, on a line of its own or first on the detail's.
-    const { detail, count, countRoom } = headerLines(shape, height);
+    // A collapsed container's count, on a line of its own or first on the detail's, under its detail
+    // wrapped to its lines (ADR 0082).
+    const { detail, detailRoom, count, countTop, countRoom } = headerLines(
+      shape,
+      height,
+      wrap,
+      make?.measure,
+    );
     if (rooms.detail > 0 && detail !== '') {
       write(
         {
@@ -981,7 +987,7 @@ function writeShapeText(
           style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'left'),
         },
         true,
-        rooms.detail,
+        shape.collapsed === undefined ? rooms.detail : detailRoom,
         // Its detail with text emphasis, unless a collapsed one's count came first on its line.
         detail === (shape.detail ?? shape.componentName) ? shape.detailRuns : undefined,
       );
@@ -991,7 +997,7 @@ function writeShapeText(
         {
           text: count,
           x: x + TEXT_INSET + shift,
-          y: y + COUNT_LINE_TOP,
+          y: y + (countTop ?? COUNT_LINE_TOP),
           style: textStyle(DETAIL_SIZE, colors.detail, Math.max(1, width - 2 * TEXT_INSET), 'left'),
         },
         true,

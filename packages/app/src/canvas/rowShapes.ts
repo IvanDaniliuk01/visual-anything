@@ -31,6 +31,11 @@ export type RowParts =
       count: number;
       /** For a collapsed one, what its header says it holds: "12 × Column". */
       holding?: string;
+      /**
+       * In a view that draws only key rows (ADR 0080, section 5): the rows it leaves out, which its
+       * header counts and which its shape shows.
+       */
+      leftOut?: readonly Placement[];
     }
   | { kind: 'row'; index: number; undrawn: readonly Id[] };
 
@@ -76,6 +81,7 @@ export function rowsBox(
   position: ShapePosition | undefined,
   collapsed: boolean,
   rowsOf: () => Box[],
+  keyRows?: ReadonlySet<Id>,
 ): Box {
   const { appearance } = look;
   const offset = position ? { x: position.x, y: position.y } : undefined;
@@ -99,7 +105,13 @@ export function rowsBox(
       },
     };
   }
-  const rows = rowsOf();
+  const every = rowsOf();
+  // In a view that draws only key rows, the others are left out and counted (ADR 0080, section 5).
+  const rows = keyRows ? every.filter((row) => keyRows.has(row.placement.element)) : every;
+  const leftOut =
+    rows.length < every.length
+      ? every.filter((row) => !keyRows?.has(row.placement.element)).map((row) => row.placement)
+      : undefined;
   rows.forEach((row, index) => {
     row.offset = { x: 0, y: ROWS_HEADER + index * ROW_HEIGHT };
     row.width = width;
@@ -120,7 +132,7 @@ export function rowsBox(
       detail,
       position,
       contents: rows,
-      rows: { kind: 'rows', count: rows.length },
+      rows: { kind: 'rows', count: rows.length, ...(leftOut ? { leftOut } : {}) },
     },
   };
 }
@@ -152,6 +164,7 @@ export function rowsChanged(before: ElementShape, look: Look): boolean {
 export interface RowFields {
   kind: ShapeKind;
   rowCount?: number;
+  rowsLeft?: number;
   row?: number;
   undrawn?: readonly Id[];
   fitted?: FittedLine;
@@ -172,16 +185,15 @@ export function rowFieldsOf(parts: Measured, width: number, holdsContents: boole
     };
   }
   const collapsed = parts.folded !== undefined;
-  const said =
-    rows.holding === undefined
-      ? detail
-      : detail === ''
-        ? rows.holding
-        : `${detail} · ${rows.holding}`;
+  const left = rows.leftOut?.length ?? 0;
+  // What its header says after its detail: what a collapsed one holds, or how many rows it leaves out.
+  const after = rows.holding ?? (left > 0 ? t('{count} more', { count: left }) : undefined);
+  const said = after === undefined ? detail : detail === '' ? after : `${detail} · ${after}`;
   // A shape that draws rows always has room for its toggle, which it shows once it holds any.
   return {
     kind: rowsShapeKind(look.appearance.shape),
     rowCount: rows.count,
+    ...(left > 0 ? { rowsLeft: left } : {}),
     fitted: fittedOnce('header', element.name, said, width, holdsContents || collapsed, icon),
   };
 }
@@ -216,6 +228,7 @@ function fittedOnce(
 export function sameRowFields(before: ElementShape, fields: RowFields): boolean {
   return (
     before.rowCount === fields.rowCount &&
+    before.rowsLeft === fields.rowsLeft &&
     before.row === fields.row &&
     sameIds(before.undrawn, fields.undrawn) &&
     before.fitted?.name === fields.fitted?.name &&
@@ -227,6 +240,7 @@ export function sameRowFields(before: ElementShape, fields: RowFields): boolean 
 /** Puts the fields its rows give a shape on it, leaving out those it does not have. */
 export function withRowFields(shape: ElementShape, fields: RowFields): void {
   if (fields.rowCount !== undefined) shape.rowCount = fields.rowCount;
+  if (fields.rowsLeft !== undefined) shape.rowsLeft = fields.rowsLeft;
   if (fields.row !== undefined) shape.row = fields.row;
   if (fields.undrawn !== undefined) shape.undrawn = fields.undrawn;
   if (fields.fitted !== undefined) shape.fitted = fields.fitted;

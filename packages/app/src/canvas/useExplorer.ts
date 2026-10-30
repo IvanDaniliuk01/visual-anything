@@ -5,7 +5,9 @@
  * every source together.
  *
  * Focus follows the selection: once it is on, selecting elements or relations moves it to them, and
- * clearing the selection leaves it where it was.
+ * clearing the selection leaves it where it was. While it is off, in a view of more than 40 lines,
+ * the selection's relations stay and the other lines are drawn faintly, as the `selection` source
+ * (ADR 0080, section 5), unless the view turns it off.
  */
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
@@ -25,6 +27,7 @@ import {
   type FocusTargets,
 } from './explore';
 import { setHidden } from './navigation';
+import { selectionLinesEmphasis } from './selectionLines';
 import type { Scene } from './scene';
 
 /** Focus mode in a view: whether it is on, what it starts from, and how far it reaches. */
@@ -131,8 +134,19 @@ export function useExplorer({
         : undefined,
     [scene, project, focus, filtered],
   );
+  // The selection's relations, with the other lines faint, in a view of many lines, unless the view
+  // turns it off or focus says what is faint (ADR 0080, section 5).
+  const fades = project.views.find((each) => each.id === viewId)?.selectionFadesLines !== false;
+  const selectionShown = useMemo(
+    () =>
+      scene && fades && !focus.on
+        ? selectionLinesEmphasis(scene, selection, filtered.hidden)
+        : undefined,
+    [scene, fades, focus.on, selection, filtered],
+  );
   useSource(emphasis, 'filter', filterShown);
   useSource(emphasis, 'focus', focusShown);
+  useSource(emphasis, 'selection', selectionShown);
 
   // The keys skip what every source hides, as the canvas draws it; told without rendering again, as
   // the emphasis changes on every frame of playback.

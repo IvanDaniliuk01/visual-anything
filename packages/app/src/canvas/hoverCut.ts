@@ -4,6 +4,7 @@
  * shape, or the keys reach it, for 400 ms.
  */
 import type { Measure } from '../text/layout';
+import { collapsedHeaderWrap, headerLines } from './collapse';
 import { detailOf, labelArea, textBlockOf } from './draw';
 import { outlinedTextBlock } from './outlinedText';
 import { bodyOf } from './geometry';
@@ -30,6 +31,15 @@ export function cutOnCanvas(shape: ElementShape, measure: Measure = robotoMeasur
   const oneLine = (width: number) =>
     measure(shape.name, 'bold', 14) > width ||
     (detail !== '' && measure(detail, 'regular', 11) > width);
+  if (shape.collapsed !== undefined && !shape.outline) {
+    // Its name on one line, and its detail wrapped to its lines (ADR 0082).
+    const body = bodyOf(shape);
+    const wrap = collapsedHeaderWrap(shape.rect.width, shape.image !== undefined);
+    return (
+      measure(shape.name, 'bold', 14) > body.width - 2 * TEXT_INSET ||
+      headerLines(shape, body.height, wrap, measure).detailCut
+    );
+  }
   if (shape.holdsContents || shape.collapsed !== undefined) {
     return oneLine(bodyOf(shape).width - 2 * TEXT_INSET);
   }

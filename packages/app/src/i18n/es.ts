@@ -2853,6 +2853,15 @@ export const ui: Catalog = {
     one: 'Se desfijó 1 forma: el diseño automático ya puede ubicarla.',
     other: 'Se desfijaron {count} formas: el diseño automático ya puede ubicarlas.',
   },
+  // How a view reads many lines: its tables' key rows, and the selection's lines (ADR 0080, section 5).
+  'Every row': 'Todas las filas',
+  'Key rows only': 'Solo las filas clave',
+  'Key rows are those part of a primary key and those a relation ends on; a table’s header counts the rest.':
+    'Las filas clave son las que forman parte de una clave primaria y aquellas en las que termina una relación; la cabecera de cada tabla cuenta las demás.',
+  'Fade the other lines when selecting': 'Atenuar las demás líneas al seleccionar',
+  'In a view of more than 40 lines, selecting keeps the lines that touch the selection and draws the others faintly.':
+    'En una vista de más de 40 líneas, seleccionar deja como están las líneas que tocan la selección y dibuja atenuadas las demás.',
+  '{count} more': '{count} más',
 };
 
 /**
@@ -5487,6 +5496,12 @@ export const messages: Catalog = {
   'Draw the lines of "{view}" orthogonal': 'Dibujar ortogonales las líneas de "{view}"',
   'Draw the lines of "{view}" straight': 'Dibujar rectas las líneas de "{view}"',
   'Draw the lines of "{view}" curved': 'Dibujar curvas las líneas de "{view}"',
+  'Draw only the key rows in "{view}"': 'Dibujar solo las filas clave en "{view}"',
+  'Draw every row in "{view}"': 'Dibujar todas las filas en "{view}"',
+  'Fade the other lines when selecting in "{view}"':
+    'Atenuar las demás líneas al seleccionar en "{view}"',
+  'Keep every line when selecting in "{view}"':
+    'Dejar todas las líneas como están al seleccionar en "{view}"',
 
   // M8b W56: HTML imported as a drawing (ADR 0068). What making a drawing dropped, kind by kind, as
   // the local program counts it, then why a drawing was not made, and the history's label.

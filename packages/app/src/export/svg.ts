@@ -1205,7 +1205,7 @@ function headerText(
   const { shift, beside } = room;
   const wrap = Math.max(1, width - 2 * TEXT_INSET - beside - shift);
   const rooms = { name: Math.min(20, height - 12), detail: Math.min(16, height - 32) };
-  const header = headerLines(shape, height);
+  const header = headerLines(shape, height, wrap, robotoMeasure);
   return (
     (rooms.name > 0
       ? writer.text({
@@ -1231,7 +1231,7 @@ function headerText(
           y: y + 8 + NAME_SIZE + 6,
           anchor: 'top',
           wrap,
-          room: rooms.detail,
+          room: shape.collapsed === undefined ? rooms.detail : header.detailRoom,
         })
       : '') +
     (header.count !== undefined && header.countRoom !== undefined
@@ -1241,7 +1241,7 @@ function headerText(
           fill: colors.detail,
           x: x + TEXT_INSET + shift,
           align: 'start',
-          y: y + COUNT_LINE_TOP,
+          y: y + (header.countTop ?? COUNT_LINE_TOP),
           anchor: 'top',
           wrap: Math.max(1, width - 2 * TEXT_INSET),
           room: header.countRoom,
