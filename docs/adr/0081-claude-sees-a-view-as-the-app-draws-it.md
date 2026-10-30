@@ -40,3 +40,35 @@ While Claude built the user's data model, it could not see what it had made.
 - The program gains the capture messages, with a 20 s wait for the answer.
 - The app gains an off-screen render at a given size.
 - Claude's instructions say to check a view with `capture_view` after building or laying it out.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-30 under the user's standing delegation of design decisions, while building M3d's "Claude sees the view". -->
+
+- 2026-10-30 (M3d, building it): **how `capture_view` is built.**
+  - **The messages** (`core/src/capture.ts`), read strictly on both sides:
+    - `capture/request` carries `requestId`, `view` (optional), `region`, `width` and `theme` (optional).
+    - `capture/answer` carries exactly one of three things:
+      - `picture`: `png` in base64, `width`, `height`, `view`, `theme`, `scale` (pixels per canvas unit) and `missing` (elements of a region with no shape drawn);
+      - `passed: "other-tab"`;
+      - `failed`, one of `other-view` (with `shows`), `too-large` (with `bytes`), `empty`, `not-drawn`, `no-canvas` and `failed` (with `why`, at most 500 characters).
+    - Claude's endpoint gains `capture` and its answer `capture/taken`, which carries the report.
+  - **The wait** (`server/src/capture-waits.ts`) follows `layout/done`'s pattern without its queue, since a picture changes nothing. Several pictures wait at once, each by its own id. The request goes to the apps through the session's queue, so a picture shows the work asked for before it. The wait ends:
+    - at the first picture or failure;
+    - as `passed`, when every tab passed it over;
+    - as `gone`, when the apps closed;
+    - as `timed-out`, after 20 s.
+  - **Only the view a tab shows.** With `view` left out, the picture is of the view the tab used last shows. A view it does not show is answered `other-view`: the tab never opens another view for a picture, since that would move the person's tab. The answer says how to show that view: `open_app` naming it, or guidance naming it. A view that tab has never laid out would draw unplaced shapes anyway.
+  - **The PNG export's path.** The ADR names `canvas/capture.ts`, but that is the tour's copy of the frame on screen, at the screen's size. The PNG export's path is `CanvasRenderer.exportImage` with `export/image.ts`: it draws into textures in pieces, every tile in full, and puts back what it changed before the next frame. Its body is now `drawImage`. `exportImage` and the new `captureImage` both use it, so the picture holds the same scene, emphasis, theme, overlays and legend band, without marks.
+  - **The other theme draws off screen** (`app/src/capture/mirror.ts`). Switching the person's canvas would show in their tab. Instead, a renderer of its own starts in that theme, in a host outside the window. It is given what the canvas draws from (`CanvasRenderer.drawnFrom`: the scene, emphasis, legend, package code's drawings and comparison), and the tab's camera for `viewport`. It draws one frame, takes the picture, and goes. Pictures it has not decoded within that frame show as their placeholders, as the export shows those of tiles far off screen.
+  - **Framing and size** (`app/src/capture/frame.ts`):
+    - `whole` is the scene's bounds with the export's margin, 32 units.
+    - `viewport` is what the canvas shows, written as the screen writes it.
+    - A list of elements frames every shape of theirs that the emphasis does not hide, with the same margin.
+    - The picture is `width` pixels wide. A region taller than 4,096 pixels at that width is drawn narrower.
+    - Apart from `viewport`, a canvas unit takes at most 2 pixels, as the export's 2×. A smaller frame is widened around its middle, which shows what lies around it.
+    - Names and details are written as the canvas writes them at the picture's zoom, so a large view seen whole shows blocks. The answer gives `scale`, and the tool's description says to frame some elements to read them.
+  - **The cap is 4 MiB of base64**: the picture as it travels and as Claude reads it, a PNG of 3 MiB. It stays under the 5 MB the Claude API takes for one image. The app measures the PNG before encoding it, and answers `too-large` with the base64 size. The tool then says to ask for a smaller width or a region. The live connection's largest message from an app (`LIVE_MAX_PAYLOAD`) grows from 4 MiB to 5 MiB, so the most a picture may be fits with its message. A picture's sides are at most 16,384 pixels, the export's most, since the legend's band adds to the drawing.
+  - **The answer Claude reads.** An MCP image content (PNG) comes first, then a short text: the view's name and id, what the picture shows, its size, theme and zoom, and the elements with no shape there. Every case without a picture is an error with a sentence. With no app open, that sentence says `open_app` opens one. The tool never starts a browser. `ToolOutcome` gains `image` for this.
+  - **Reads gain `capture`.** The tools' rule on the names of the tools that only read becomes get, list, find, read, preview, export, check or capture.
+  - **Nothing the person sees.** The tab shows nothing while it takes a picture, so `es.ts` gains nothing. The reasons a drawing failed go to Claude only, in English.

@@ -3,7 +3,8 @@
  * runs its commands with Claude as their author, and an import from the command line, which it reads
  * and maps itself, with the person as its author (ADR-0049); it shows its guidance in the open apps,
  * keeps, clears and reads back live values (ADR 0057), says which package code the person approved
- * (ADR 0054) and opens the app when asked. It lists the project's versions and compares one with the
+ * (ADR 0054), asks the tab the person used last for a picture of a view (ADR 0081) and opens the app
+ * when asked. It lists the project's versions and compares one with the
  * project now, as the program listed it, without the version's project (ADR 0071, ADR-0029). While the
  * person reviews Claude's changes, or when a command asks to, Claude's commands join its proposal and
  * are answered with `proposal/made`; Claude may withdraw its proposal, but never accepts or refuses it
@@ -33,6 +34,9 @@ import {
 
 /** Why a program without versions answers that it has none. */
 const NO_VERSIONS = 'This Visual Anything reads no versions.';
+
+/** Why a program that takes no pictures refuses one. */
+const NO_CAPTURES = 'This Visual Anything takes no pictures of a view.';
 
 /** What the program does for Claude beyond the session. */
 export interface ClaudeActions {
@@ -207,6 +211,16 @@ export function attachClaude(
         }
         const apps = await session.guide(guidance);
         send({ type: 'guidance/shown', requestId: message.requestId, apps });
+        return;
+      }
+      case 'capture': {
+        // A read (ADR 0081): the tab the person used last answers, and nothing changes.
+        if (session.capture === undefined) {
+          refuse(message.requestId, [{ code: 'program-failed', message: NO_CAPTURES }]);
+          return;
+        }
+        const report = await session.capture(message.ask);
+        send({ type: 'capture/taken', requestId: message.requestId, report });
         return;
       }
       case 'live/set': {

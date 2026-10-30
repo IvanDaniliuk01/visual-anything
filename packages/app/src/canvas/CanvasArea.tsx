@@ -43,6 +43,7 @@ import { useCodeDrawings } from '../code/context';
 import { elementDestinations } from '../destinations/follow';
 import { useFollow } from '../destinations/follower';
 import { useLendRenderer } from '../export/source';
+import { useCaptureAnswers } from '../capture/useCaptureAnswers';
 import { t as translateNow, useT, type Translator } from '../i18n';
 import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';
 import { LiveContext } from '../live/context';
@@ -226,6 +227,8 @@ export function CanvasArea({
   const controllerRef = useRef<CanvasController | null>(null);
   // The header's Export draws the open view with this canvas's renderer (R27).
   useLendRenderer(controllerRef);
+  // Claude's pictures of the view it draws, off screen, which move nothing here (ADR 0081).
+  useCaptureAnswers(controllerRef, view.id);
   // The containers shown expanded as the canvas zooms into them (ADR 0055).
   const zoom = useContext(ZoomExpansionContext);
   const [failure, setFailure] = useState<string>();

@@ -39,6 +39,8 @@ import {
   type HistorySummary,
   type IdGenerator,
   type LayoutReport,
+  type CaptureAsk,
+  type CaptureReport,
   type ListedAction,
   MAX_DRAWING_REPORT,
   type DrawingMakeMessage,
@@ -76,6 +78,7 @@ import { DrawingQueue, type DrawingMaker } from './drawings/queue';
 import { projectDestinationWarnings, type OpenOtherProject } from './other-project';
 import { LiveValues, type LiveKept, type LiveListing } from './live';
 import { LayoutWaits, type LayoutGuidance, type LayoutWait } from './layout-waits';
+import { CaptureWaits } from './capture-waits';
 import { PackageFetcher, networkGrantOf, type FetcherOptions } from './live-fetch';
 import type { LogEvent, ProgramEvent } from './program-log';
 import type { PreferencesStore } from './preferences';
@@ -148,6 +151,13 @@ export interface LiveSession {
    * clarification of 2026-10-30). Absent where the program runs no layouts.
    */
   layOut?(guidance: LayoutGuidance): Promise<LayoutReport>;
+  /**
+   * Asks the open apps for a picture of a view as the canvas draws it (ADR 0081), after the work
+   * asked for before it, and resolves once the tab the person used last answers with it or with why
+   * it took none, or no app is left to, or 20 s ran out. It changes nothing. Absent where the program
+   * takes no pictures.
+   */
+  capture?(ask: CaptureAsk): Promise<CaptureReport>;
   /**
    * Takes live values (ADR 0057) that a sender sent on a connection, and says what it kept. They are
    * never commands: nothing is saved and nothing enters the history.
@@ -282,6 +292,8 @@ export interface SessionOptions {
   onProposal?: (lastJoined: number | undefined) => void;
   /** How long Claude's layouts wait for the app; ADR 0015's 20 s per layout, and 10 s more. */
   layoutWait?: LayoutWait;
+  /** How long a picture Claude asks for waits for the app, in milliseconds; 20 s (ADR 0081). */
+  captureWait?: number;
 }
 
 /** The outcome of opening a session: the session, or every problem that keeps the project closed. */
@@ -361,6 +373,8 @@ export class Session implements LiveSession {
   readonly #drawings: DrawingQueue;
   /** Claude's layouts, sent to the apps one at a time, each once the one before was answered (M3d). */
   readonly #layouts: LayoutWaits;
+  /** The pictures Claude asked the apps for, each waited for by its own id (ADR 0081). */
+  readonly #captures: CaptureWaits;
   /**
    * The project as the program opened it, or last read it again from disk: the version as opened
    * (ADR 0070), which needs no git.
@@ -397,6 +411,18 @@ export class Session implements LiveSession {
           return Promise.resolve(apps);
         }),
       options.layoutWait,
+    );
+    // In the queue too, so that a picture shows the work asked for before it.
+    this.#captures = new CaptureWaits(
+      (ask, requestId) =>
+        this.#enqueue(() => {
+          const apps = [...this.#clients];
+          for (const client of apps) {
+            this.#send(client, { type: 'capture/request', requestId, ...ask });
+          }
+          return Promise.resolve(apps);
+        }),
+      options.captureWait,
     );
     this.#versions = new Versions(folder, {
       ...options.versions,
@@ -542,6 +568,7 @@ export class Session implements LiveSession {
       if (this.#clients.delete(client)) this.#logAttached('gone', 'app');
       this.#live.forget(client);
       this.#layouts.gone(client);
+      this.#captures.gone(client);
     };
   }
 
@@ -622,6 +649,11 @@ export class Session implements LiveSession {
     return this.#layouts.layOut(guidance);
   }
 
+  capture(ask: CaptureAsk): Promise<CaptureReport> {
+    if (this.#closed) return Promise.resolve({ apps: 0 });
+    return this.#captures.capture(ask);
+  }
+
   /**
    * Handles a message from an app: a command runs with the user as its author, and an undo or a redo
    * is applied. A message that is not valid is answered with `command/rejected` when it has a request
@@ -698,6 +730,10 @@ export class Session implements LiveSession {
       case 'layout/done':
         // What the tab that ran Claude's layout moved, or why this tab passed it over (M3d).
         this.#layouts.answered(client, message);
+        return;
+      case 'capture/answer':
+        // The picture the tab the person used last took for Claude, or why it took none (ADR 0081).
+        this.#captures.answered(client, message);
         return;
     }
   }
@@ -1397,6 +1433,7 @@ export class Session implements LiveSession {
       this.#live.close();
       this.#versions.close();
       this.#layouts.close();
+      this.#captures.close();
       await this.#queue;
       const changes = this.#proposal.changeKeys().length;
       const dropped = this.#proposal.close('dropped');

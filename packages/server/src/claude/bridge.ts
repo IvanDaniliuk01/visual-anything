@@ -21,6 +21,9 @@ import {
   type Command,
   type Guidance,
   type LayoutReport,
+  CAPTURE_WAIT,
+  type CaptureAsk,
+  type CaptureReport,
   type Problem,
   type ProjectSnapshot,
   type ProposalShownMessage,
@@ -113,6 +116,11 @@ export interface Program {
    * done, with what it moved, or why it was not (M3d). Absent where it cannot wait: `guide` sends it.
    */
   layOut?(guidance: Extract<Guidance, { kind: 'layout' }>): Promise<LayoutReport>;
+  /**
+   * Asks the tab the person used last for a picture of a view as its canvas draws it, and resolves
+   * with it, or with why none was taken (ADR 0081). It changes nothing. Absent where it cannot.
+   */
+  capture?(ask: CaptureAsk): Promise<CaptureReport>;
   /**
    * Opens the app in the browser, at an address that works once; with a view state, the tab opens the
    * project there (ADR-0044).
@@ -351,6 +359,19 @@ export class ProgramBridge implements Program {
       this.#layoutsWaiting -= bound;
     }
     if (answer.type === 'guidance/shown') return { apps: answer.apps, ...answer.layout };
+    if (answer.type === 'command/rejected') {
+      throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  async capture(ask: CaptureAsk): Promise<CaptureReport> {
+    // The program bounds the wait for the app at 20 s; this one waits as long, and its usual time.
+    const answer = await this.#request(
+      (requestId) => ({ type: 'capture', requestId, ask }),
+      CAPTURE_WAIT + (this.#options.requestTimeout ?? REQUEST_TIMEOUT),
+    );
+    if (answer.type === 'capture/taken') return answer.report;
     if (answer.type === 'command/rejected') {
       throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
     }

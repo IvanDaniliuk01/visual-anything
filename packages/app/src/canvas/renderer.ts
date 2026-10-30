@@ -32,7 +32,14 @@ import type { Legend, ThemeName } from '@visual-anything/core';
 import type { Id, LevelOfDetail } from '@visual-anything/schema';
 import { levelDetail, namesFromOf, type TileDetail } from './levels';
 import type { Emphasis } from '../editor/emphasis';
-import { ImageError, drawInChunks, planImage, toPng, type ImageRequest } from '../export/image';
+import {
+  ImageError,
+  drawInChunks,
+  planImage,
+  toPng,
+  type ImagePlan,
+  type ImageRequest,
+} from '../export/image';
 import { withLegendBand } from '../export/legendBand';
 import { t } from '../i18n';
 import type { Selection } from '../editor/selection';
@@ -408,6 +415,36 @@ export interface RendererOptions {
 }
 
 type Status = 'starting' | 'ready' | 'failed' | 'destroyed';
+
+/** A picture for Claude (ADR 0081): a frame of the view, at so many pixels a canvas unit. */
+export interface CaptureImage {
+  /** What it shows, in canvas units. */
+  frame: Rect;
+  pixelsPerUnit: number;
+  /** Its size in pixels, before the legend's band. */
+  width: number;
+  height: number;
+  /** Whether it shows what the canvas shows now, written as the screen writes it. */
+  asShown: boolean;
+  /** Whether it shows the whole view. */
+  whole: boolean;
+}
+
+/** An image drawn: its PNG, and its size in pixels, the legend's band included. */
+export interface DrawnImage {
+  blob: Blob;
+  width: number;
+  height: number;
+}
+
+/** What a canvas draws from, as it was given it. */
+export interface DrawnFrom {
+  indexed?: IndexedScene;
+  emphasis: Emphasis;
+  legend?: Legend;
+  codeDrawings?: ReadonlyMap<Id, CodeDrawing>;
+  comparison?: ComparisonScene;
+}
 
 export class CanvasRenderer {
   private readonly app = new Application();
@@ -1010,6 +1047,7 @@ export class CanvasRenderer {
 
   /** Draws what package code drew inside shapes from now on, by element (ADR 0054). */
   setCodeDrawings(drawings: ReadonlyMap<Id, CodeDrawing>): void {
+    this.codeDrawn = drawings;
     this.codeDrawings.setDrawings(drawings);
     this.followCodeDrawings();
     this.requestRender();
@@ -1231,16 +1269,64 @@ export class CanvasRenderer {
       bounds: indexed.scene.bounds,
     });
     if (!planned.ok) throw new ImageError(planned.problem);
-    const { plan } = planned;
+    const drawn = await this.drawImage(planned.plan, {
+      asShown: request.area === 'visible',
+      everything: request.area === 'view',
+      legendScale: request.scale,
+    });
+    return drawn.blob;
+  }
+
+  /**
+   * Draws a picture for Claude (ADR 0081) through the PNG export's path, at the size it is given: a
+   * frame of the view, in canvas units, at so many pixels a unit. `asShown` writes names and details
+   * as the screen does now, for what the canvas shows; otherwise as the canvas would at the
+   * picture's own zoom. `whole` plans every cell of the view first, as the export of the whole view
+   * does. Nothing it changes is seen: it is put back before the next frame.
+   */
+  async captureImage(capture: CaptureImage): Promise<DrawnImage> {
+    if (this.status !== 'ready' || !this.indexed) throw new ImageError({ reason: 'not-ready' });
+    const { frame, pixelsPerUnit, width, height, asShown, whole } = capture;
+    return this.drawImage(
+      {
+        frame,
+        pixelsPerUnit,
+        drawingScale: asShown ? this.camera.scale : pixelsPerUnit,
+        width,
+        height,
+      },
+      { asShown, everything: whole, legendScale: 1 },
+    );
+  }
+
+  /**
+   * What the canvas draws from, as it was given it: the scene, the emphasis, the legend of its
+   * overlays, package code's drawings and a comparison, so that a canvas off screen draws the same
+   * (ADR 0081).
+   */
+  get drawnFrom(): DrawnFrom {
+    return {
+      ...(this.indexed === undefined ? {} : { indexed: this.indexed }),
+      emphasis: this.emphasis,
+      ...(this.legend === undefined ? {} : { legend: this.legend }),
+      ...(this.codeDrawn === undefined ? {} : { codeDrawings: this.codeDrawn }),
+      ...(this.comparisonShown === undefined ? {} : { comparison: this.comparisonShown }),
+    };
+  }
+
+  /** Draws an image as planned: the PNG export and Claude's pictures. */
+  private async drawImage(
+    plan: ImagePlan,
+    how: { asShown: boolean; everything: boolean; legendScale: number },
+  ): Promise<DrawnImage> {
     const scale = plan.drawingScale;
     // What is visible is written as the screen writes it; the whole view as the canvas would at 1:1.
-    const detail: { coarse: boolean; wanted: Tile['level'] } =
-      request.area === 'visible'
-        ? this.detailNow()
-        : {
-            coarse: scale < COARSE_BELOW,
-            wanted: scale >= DETAILS_FROM ? 2 : scale >= NAMES_FROM ? 1 : 0,
-          };
+    const detail: { coarse: boolean; wanted: Tile['level'] } = how.asShown
+      ? this.detailNow()
+      : {
+          coarse: scale < COARSE_BELOW,
+          wanted: scale >= DETAILS_FROM ? 2 : scale >= NAMES_FROM ? 1 : 0,
+        };
     const { coarse, wanted } = detail;
     // What is changed for the image, to put back once it is drawn, the last change first.
     const putBack: (() => void)[] = [];
@@ -1266,7 +1352,7 @@ export class CanvasRenderer {
       // A container's grid is drawn among the shapes, but it is a mark too.
       change(this.gridMarks.inside, 'visible', false);
       // Every cell the image shows is planned from the scene as it is.
-      if (request.area === 'view') this.planEverything();
+      if (how.everything) this.planEverything();
       else this.planWithin(plan.frame);
       const lookups = this.lookups();
       for (const tile of this.tiles.values()) {
@@ -1288,7 +1374,7 @@ export class CanvasRenderer {
         // screen shows it, the whole view at the scale it is drawn at (ADR 0055).
         const own =
           tile.kind === 'shapes' && tile.levels !== undefined
-            ? request.area === 'visible' && tile.levelDetail
+            ? how.asShown && tile.levelDetail
               ? tile.levelDetail
               : this.detailOf(tile, detail, scale, false)
             : { coarse, wanted: wantedFor(tile.kind, wanted) };
@@ -1357,9 +1443,10 @@ export class CanvasRenderer {
     }
     // The legend of the view's overlays goes in a band below the drawing (ADR 0055).
     const legend = this.legend;
-    return toPng(
-      legend ? withLegendBand(canvas, legend, t, this.painter.name, request.scale) : canvas,
-    );
+    const image = legend
+      ? withLegendBand(canvas, legend, t, this.painter.name, how.legendScale)
+      : canvas;
+    return { blob: await toPng(image), width: image.width, height: image.height };
   }
 
   /**
@@ -1367,6 +1454,7 @@ export class CanvasRenderer {
    * `show` draws as any other.
    */
   setComparison(shown: ComparisonScene | undefined): void {
+    this.comparisonShown = shown;
     this.comparison.setScale(this.camera.scale, true);
     this.comparison.set(shown);
     this.requestRender();
@@ -1384,6 +1472,9 @@ export class CanvasRenderer {
   }
 
   private legend: Legend | undefined;
+  /** Package code's drawings and the comparison, as given, for a canvas off screen to draw too. */
+  private codeDrawn: ReadonlyMap<Id, CodeDrawing> | undefined;
+  private comparisonShown: ComparisonScene | undefined;
 
   /**
    * Lets go of what an image drew for a tile that the canvas had not drawn so, unless the tile is

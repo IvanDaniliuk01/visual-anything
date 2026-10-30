@@ -197,7 +197,7 @@ describe('the built app', () => {
     }
   });
 
-  it('takes a 3 MiB message on the live connection, and closes it with code 1009 for a 5 MiB one', async () => {
+  it('takes a 4 MiB message on the live connection, and closes it with code 1009 for a 6 MiB one', async () => {
     const socket = new WebSocket(
       `ws://127.0.0.1:${server.port}${LIVE_PATH}?${TOKEN_PARAM}=${server.token}`,
       {
@@ -212,14 +212,14 @@ describe('the built app', () => {
     });
     const message = (size: number) =>
       JSON.stringify({ type: 'nothing', requestId: 'r1', padding: 'x'.repeat(size) });
-    expect(message(3 * 1024 * 1024).length).toBeLessThan(LIVE_MAX_PAYLOAD);
-    socket.send(message(3 * 1024 * 1024));
+    expect(message(4 * 1024 * 1024).length).toBeLessThan(LIVE_MAX_PAYLOAD);
+    socket.send(message(4 * 1024 * 1024));
     await expect
       .poll(() => messages.map((each) => decodeServerMessage(each).type))
       .toContain('command/rejected');
 
     const closed = new Promise<number>((resolve) => socket.once('close', (code) => resolve(code)));
-    socket.send(message(5 * 1024 * 1024));
+    socket.send(message(6 * 1024 * 1024));
     expect(await closed).toBe(1009);
   });
 });

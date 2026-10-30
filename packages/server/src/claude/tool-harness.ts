@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
   PROTOCOL_VERSION,
   type CodeApproval,
@@ -40,6 +41,8 @@ export interface ToolHarness {
   value(name: string, args?: Record<string, unknown>): Promise<Record<string, unknown>>;
   /** The message of a call that was refused; throws when it worked. */
   failure(name: string, args?: Record<string, unknown>): Promise<string>;
+  /** What a call answered as MCP gives it, its content as it is, an image's included. */
+  content(name: string, args?: Record<string, unknown>): Promise<CallToolResult>;
   /** Opens an app on the project, as a tab does; it closes with the harness. */
   openApp(): Promise<LiveClient>;
   /** The guidance an app received, in order. */
@@ -140,6 +143,8 @@ export async function startToolHarness(
       if (outcome.ok) throw new Error(`${name} worked: ${JSON.stringify(outcome.value)}`);
       return outcome.message;
     },
+    content: async (name, args = {}) =>
+      (await client.callTool({ name, arguments: args })) as CallToolResult,
     openApp: async () => {
       const app = await openLiveClient(server.port, server.token);
       apps.push(app);

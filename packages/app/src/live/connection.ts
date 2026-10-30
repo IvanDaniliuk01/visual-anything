@@ -6,6 +6,7 @@
  */
 import {
   LAUNCH_PARAM,
+  MAX_CAPTURE_WHY,
   OperationError,
   TOKEN_PARAM,
   ProtocolError,
@@ -13,6 +14,8 @@ import {
   decodeServerMessage,
   encodeMessage,
   type AppMessage,
+  type CaptureAsk,
+  type CaptureRequestMessage,
   type Command,
   type CommandRejectedMessage,
   type HistorySummary,
@@ -38,6 +41,8 @@ import {
   type GuidanceState,
   type GuidedLayoutAnswer,
 } from '../guidance/state';
+import type { CaptureOutcome } from '../capture/take';
+import { tabUse } from '../guidance/tabs';
 import { fill } from '../i18n/translate';
 import { LiveValueBook } from '../live-values/book';
 
@@ -141,7 +146,15 @@ export interface LiveConnectionOptions {
    * one. Without it, such a tab fails at once.
    */
   join?: () => Promise<string | null>;
+  /**
+   * Whether no other open tab of the app was used after this one, which answers Claude's pictures
+   * (ADR 0081); the tab's own tracker by default (`guidance/tabs.ts`).
+   */
+  isLastUsed?: () => boolean;
 }
+
+/** Takes a picture Claude asked for with the tab's canvas, or says why it took none (ADR 0081). */
+export type TakeCapture = (ask: CaptureAsk) => Promise<CaptureOutcome>;
 
 /**
  * A problem with a request: one the local program found, or the connection closing before it
@@ -270,6 +283,8 @@ export class LiveConnection {
   private joinAsked = false;
   /** Whether a connection is wanted now: between `connect` and `disconnect`. */
   private wanted = false;
+  /** What takes Claude's pictures: the canvas, while it is mounted (ADR 0081). */
+  private capturer: TakeCapture | undefined;
   /**
    * The live values the local program keeps for the open project (ADR 0057), outside the state, so
    * that values arriving every second re-render only what reads them.
@@ -594,6 +609,50 @@ export class LiveConnection {
     this.sendOn(socket, encodeMessage(message), answer, () => undefined);
   };
 
+  /**
+   * Lends the connection what takes Claude's pictures with the tab's canvas (ADR 0081); returns what
+   * takes it back.
+   */
+  readonly lendCapture = (capture: TakeCapture): (() => void) => {
+    this.capturer = capture;
+    return () => {
+      if (this.capturer === capture) this.capturer = undefined;
+    };
+  };
+
+  /**
+   * Answers a picture Claude asked for (ADR 0081): the tab the person used last takes it with its
+   * canvas, or says why it took none; every other tab passes it over. Taking it changes nothing.
+   */
+  private async answerCapture(message: CaptureRequestMessage): Promise<void> {
+    const socket = this.socket;
+    if (socket === undefined) return;
+    const { requestId, view, region, width, theme } = message;
+    const ask: CaptureAsk = {
+      ...(view === undefined ? {} : { view }),
+      region,
+      width,
+      ...(theme === undefined ? {} : { theme }),
+    };
+    let outcome: CaptureOutcome | { passed: 'other-tab' };
+    const lastUsed = this.options.isLastUsed ?? (() => tabUse().isLastUsed());
+    const capture = this.capturer;
+    if (!lastUsed()) outcome = { passed: 'other-tab' };
+    else if (capture === undefined) outcome = { failed: 'no-canvas' };
+    else {
+      try {
+        outcome = await capture(ask);
+      } catch (error) {
+        const why = error instanceof Error ? error.message : String(error);
+        outcome = { failed: 'failed', why: why.slice(0, MAX_CAPTURE_WHY) };
+      }
+    }
+    // The program stops waiting for a tab whose connection closed.
+    if (this.socket !== socket) return;
+    const answer: AppMessage = { type: 'capture/answer', requestId, ...outcome };
+    this.sendOn(socket, encodeMessage(answer), requestId, () => undefined);
+  }
+
   /** Stops showing a notice. */
   readonly dismiss = (id: number): void => {
     const notices = this.state.notices.filter((each) => each.id !== id);
@@ -791,6 +850,9 @@ export class LiveConnection {
           answered.resolve({ ok: false, problems: message.problems });
         break;
       }
+      case 'capture/request':
+        void this.answerCapture(message);
+        break;
       case 'guidance':
         this.guidanceCount += 1;
         this.update({
