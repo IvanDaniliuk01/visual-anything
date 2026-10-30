@@ -782,7 +782,7 @@ Its tasks run one at a time, after M3c's Stage 0b, in this order:
   - **Built-in packages stay closed** (`define_component` names only the project's own packages). Its refusal says to derive in a package of the project's own, with an example.
   - **The user's project keeps working.** Its own `postgres` package stays valid. A note in the README says how to move such a model onto the built-in components with `update_element`.
   - follow-ups decided on merging (2026-10-30): a relation type "has type" from a column to the enum its `type` names, built in "Fixes from use"; Data modeling's "reads from" and "writes to" keep the names Systems' share, since the palette and the inspector group definitions by package.
-- [ ] **Large models from Claude** (`server/src/claude/`, the recipes):
+- [x] **Large models from Claude** (`server/src/claude/`, the recipes):
   - `add_to_model` takes an `id` of Claude's own for each element and relation, checked as `create-element` checks it.
   - The recipes say how to send a large model in batches that refer to one another by those ids.
   - For a file the import reads (Mermaid, CSV, JSON), the tools' descriptions name `visual-anything import <folder> <file>`, which goes through the running program. The program never reads a path Claude names: that would let Claude read any file the program can.
