@@ -1342,7 +1342,7 @@ export function labelRooms(shape: ElementShape): { name: number; detail: number 
 }
 
 /** The part of a shape its text is centered in: below a person's head, below a cylinder's top cap. */
-function labelArea(shape: ElementShape): Rect {
+export function labelArea(shape: ElementShape): Rect {
   const { x, y, width, height } = shape.rect;
   if (shape.kind === 'person') {
     const top = personHead(shape.rect) * 1.6;

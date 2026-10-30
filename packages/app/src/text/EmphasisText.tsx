@@ -25,6 +25,11 @@ export function EmphasisRuns({ text }: { text: string }) {
   return <Runs runs={runs} />;
 }
 
+/** Runs read already, as a shape's detail carries them (`text/detail.ts`). */
+export function EmphasisRunsOf({ runs }: { runs: readonly EmphasisRun[] }) {
+  return <Runs runs={runs} />;
+}
+
 interface EmphasisBlocksProps {
   /** A text of several lines: a note's, a description, a caption, a reveal or speaker notes. */
   text: string;
