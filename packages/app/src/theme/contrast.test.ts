@@ -22,6 +22,8 @@ const BACKGROUNDS: readonly Token[] = [
   'accentSoft', // a selected row in the outline and World's tree, badges
   'problemSoft', // an error notice, a canvas failure, a status screen's detail
   'warningSoft', // a warning notice, the shell's notice, the inspector's warnings
+  'emphasisHighlight', // a run of text emphasis written ==highlight== (ADR 0082)
+  'emphasisCode', // inline code and code blocks in a text that takes emphasis (ADR 0082)
 ];
 
 /** Every color text is written in, on any of the backgrounds. */

@@ -107,3 +107,27 @@ export function outlineColorOf(
   }
   return color;
 }
+
+/** What a run of text emphasis is drawn on (ADR 0082): its highlight's back and its code's. */
+export interface EmphasisBacks {
+  highlight: Color;
+  code: Color;
+}
+
+const DARK_TEXT_BACKS: EmphasisBacks = {
+  highlight: THEMES.light.shell.colors.emphasisHighlight,
+  code: THEMES.light.shell.colors.emphasisCode,
+};
+const LIGHT_TEXT_BACKS: EmphasisBacks = {
+  highlight: THEMES.dark.shell.colors.emphasisHighlight,
+  code: THEMES.dark.shell.colors.emphasisCode,
+};
+
+/**
+ * The backs a highlight and a code run are drawn on under text of this color: the light theme's
+ * behind dark text and the dark theme's behind light text, whichever theme the canvas is in, since a
+ * label's text follows its shape's fill (`readableTextColors`). Each reads at 4.5:1 under its text.
+ */
+export function emphasisBacks(text: Color): EmphasisBacks {
+  return ratioOf(text, '#000000') > ratioOf(text, '#FFFFFF') ? LIGHT_TEXT_BACKS : DARK_TEXT_BACKS;
+}
