@@ -117,6 +117,7 @@ describe('project appearances', () => {
       componentName: false,
       attributes: [],
       badges: DATA_MODELING_BADGES,
+      lines: 3,
     });
   });
 

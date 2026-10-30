@@ -61,6 +61,7 @@ import { decisionHolding } from './record-decisions';
 import './scenarios.css';
 import type { ScenarioSession, ScenarioState } from './session';
 import { StepDetails } from './StepDetails';
+import { EmphasisBlocks } from '../text/EmphasisText';
 import type { CanvasCamera } from '../view-state/canvas';
 
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
@@ -451,7 +452,11 @@ function OpenScenario({
         </div>
       )}
       {scenario.description !== undefined && (
-        <p className="scenario-description">{scenario.description}</p>
+        <EmphasisBlocks
+          className="scenario-description"
+          text={scenario.description}
+          headingLevel={4}
+        />
       )}
       {!blocks.ok && (
         <div className="scenario-confirm" role="note">

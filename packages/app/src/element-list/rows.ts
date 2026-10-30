@@ -15,6 +15,7 @@ import {
   componentOrEssence,
   isDestination,
   liveAge,
+  plainText,
   shownByScope,
   type AttributeOrigin,
   type Definitions,
@@ -211,6 +212,11 @@ export interface ShownCell {
   text: string;
   /** For an attribute with a value: where it comes from (ADR 0057). */
   origin?: AttributeOrigin;
+  /**
+   * Set when the value is a text that takes text emphasis (ADR 0082): the list draws its runs, and
+   * `text` is its plain text, which the filter matches.
+   */
+  emphasis?: string;
   /** For a live value: whether it is older than its sender said it stays fresh. */
   stale?: boolean;
   /** For a live value, who sent it; for a computed value, the package whose code computed it. */
@@ -232,6 +238,14 @@ export function shownCell(
 ): ShownCell {
   if (column.kind !== 'attribute' || !lookup.overrides(element.id)) {
     const value = cellValue(element, column, definitions);
+    if (typeof value === 'string' && takesEmphasis(element, column, definitions)) {
+      return {
+        value,
+        text: plainText(value, { blocks: false }),
+        emphasis: value,
+        origin: ownValue(element, column) ? 'stored' : 'default',
+      };
+    }
     const text = cellText(t, project, value);
     if (column.kind !== 'attribute' || value === undefined) return { value, text };
     return { value, text, origin: ownValue(element, column) ? 'stored' : 'default' };
@@ -246,6 +260,16 @@ export function shownCell(
     shown.from = sender.kind === 'package' ? { package: sender.package } : { sender: sender.kind };
   } else if (reading.package !== undefined) shown.from = { package: reading.package };
   return shown;
+}
+
+/** Whether a column is an attribute whose definition, for this element, takes text emphasis. */
+function takesEmphasis(element: Element, column: Column, definitions: Definitions): boolean {
+  if (column.kind !== 'attribute') return false;
+  return (
+    componentOrEssence(definitions, element.component).attributes.find(
+      (each) => each.name === column.name,
+    )?.format === 'emphasis'
+  );
 }
 
 /** Whether a cell holds the element's own value, rather than its component's default. */
@@ -310,11 +334,18 @@ export function sortElements(
   lookup: AttributeLookup = STORED_ONLY,
 ): Element[] {
   const sign = direction === 'ascending' ? 1 : -1;
-  const keyed = elements.map((element, at) => ({
-    element,
-    at,
-    value: shownValue(element, column, definitions, lookup),
-  }));
+  const keyed = elements.map((element, at) => {
+    const value = shownValue(element, column, definitions, lookup);
+    // A text that takes text emphasis sorts by its plain text (ADR 0082).
+    return {
+      element,
+      at,
+      value:
+        typeof value === 'string' && takesEmphasis(element, column, definitions)
+          ? plainText(value, { blocks: false })
+          : value,
+    };
+  });
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
   keyed.sort((a, b) => {
     const empty = (value: JsonValue | undefined) =>

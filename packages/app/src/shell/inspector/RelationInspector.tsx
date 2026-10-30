@@ -24,6 +24,7 @@ import { Detail, End, Lineage, Title } from './parts';
 import { RelationAppearanceSection } from './RelationAppearanceSection';
 import { perform } from './send';
 import { sameOptionalText } from './text';
+import { EmphasisBlocks } from '../../text/EmphasisText';
 
 interface RelationInspectorProps {
   relation: Relation;
@@ -81,6 +82,7 @@ export function RelationInspector({
           id={descriptionId}
           value={relation.description ?? ''}
           multiline
+          emphasis
           disabled={disabled}
           same={sameOptionalText}
           onCommit={async (text) => {
@@ -194,9 +196,11 @@ function RelationTypeSection({
         ))}
       </SelectControl>
       {relationType.description !== undefined && (
-        <p className="inspector-notes">
-          {t.description(relationType.id, relationType.description)}
-        </p>
+        <EmphasisBlocks
+          className="inspector-notes"
+          text={t.description(relationType.id, relationType.description)}
+          headingLevel={5}
+        />
       )}
       {known ? (
         <>

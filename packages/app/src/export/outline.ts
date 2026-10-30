@@ -27,7 +27,7 @@ import {
   type RelationItem,
   type ShapeItem,
 } from '../shell/outlineItems';
-import { codeSpan, markdownBlock, markdownInline } from './markdown';
+import { codeSpan, markdownInline, markdownOfEmphasis } from './markdown';
 
 /** A text export: its text, and what it could not say, in the language the app reads in. */
 export interface TextExport {
@@ -50,7 +50,8 @@ export function writeOutline(project: ProjectSnapshot, viewId: Id): TextExport {
   );
   const lines: string[] = [`# ${markdownInline(view.name)}`, ''];
   const description = view.description?.trim();
-  if (description) lines.push(markdownBlock(description), '');
+  // Under the view's heading and before the outline's sections, its headings start at the third.
+  if (description) lines.push(markdownOfEmphasis(description, { headingLevel: 3 }), '');
   lines.push(
     t('Perspective: {perspective}.', { perspective: markdownInline(view.perspective.name) }),
     '',
@@ -84,9 +85,14 @@ export function writeOutline(project: ProjectSnapshot, viewId: Id): TextExport {
         );
         return;
       }
-      case 'note':
-        notes.push(`- ${markdownInline(item.note.text)}`);
+      case 'note': {
+        // A note takes text emphasis and blocks (ADR 0082), written under its item of the list.
+        const [first = '', ...rest] = markdownOfEmphasis(item.note.text, {
+          headingLevel: 3,
+        }).split('\n');
+        notes.push(`- ${first}`.trimEnd(), ...rest.map((line) => (line === '' ? '' : `  ${line}`)));
         return;
+      }
       case 'arrow':
         return;
     }
@@ -183,7 +189,7 @@ function scenarioLines(project: ProjectSnapshot, scenario: ScenarioFile): string
   const index = modelIndexOf(project);
   const lines = [`### ${markdownInline(scenario.name)}`, ''];
   const description = scenario.description?.trim();
-  if (description) lines.push(markdownBlock(description), '');
+  if (description) lines.push(markdownOfEmphasis(description, { headingLevel: 4 }), '');
   scenario.steps.forEach((step: Step, at) => {
     const text =
       step.description.trim() === '' ? t('(no description)') : markdownInline(step.description);

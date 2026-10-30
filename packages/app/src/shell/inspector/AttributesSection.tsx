@@ -18,6 +18,7 @@ import { DestinationControl } from '../../destinations/DestinationControl';
 import { EditorContext } from '../../editor/EditorContext';
 import { useFocusKeeper, type FocusKeeper } from './focus';
 import { Mark } from './parts';
+import { EmphasisRuns } from '../../text/EmphasisText';
 
 /** A change to attributes, sent as one command. */
 export interface AttributeChange {
@@ -159,10 +160,12 @@ function AttributeItem({
   const describedBy = [typeId, notesId, ...(particularity ? [markId] : [])].join(' ');
   const definer = t(DEFINER[of]);
   const { definition } = row;
-  const notes = [
+  // The definition's description takes text emphasis (ADR 0082), drawn inline in this short note.
+  const description =
     definition?.description === undefined
       ? undefined
-      : t.attribute(lineage, row.name, definition.description),
+      : t.attribute(lineage, row.name, definition.description);
+  const notes = [
     definition === undefined
       ? t('Not defined by its {definer}.', { definer })
       : definition.default === undefined
@@ -204,6 +207,12 @@ function AttributeItem({
         onSet={onSet}
       />
       <p id={notesId} className="inspector-notes">
+        {description !== undefined && description !== '' && (
+          <>
+            <EmphasisRuns text={description} />
+            {notes === '' ? '' : ' '}
+          </>
+        )}
         {notes}
       </p>
       {row.reset !== undefined && (
@@ -289,6 +298,8 @@ function ValueControl({
         <TextControl
           key={kind}
           {...common}
+          // A string attribute whose definition says so takes text emphasis (ADR 0082).
+          emphasis={row.definition?.format === 'emphasis'}
           value={typeof value === 'string' ? value : ''}
           onCommit={(text) => onSet(text)}
         />

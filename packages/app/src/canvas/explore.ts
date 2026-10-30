@@ -171,6 +171,9 @@ export function applyFilters(
   const onRelations = conditions.filter((condition) => condition.of === 'relations');
   const componentDefaults = defaultsBy((id) => definitions.component(id)?.attributes);
   const typeDefaults = defaultsBy((id) => definitions.relationType(id)?.attributes);
+  // Attributes that take text emphasis are filtered by their plain text (ADR 0082).
+  const componentEmphasis = emphasisedBy((id) => definitions.component(id)?.attributes);
+  const typeEmphasis = emphasisedBy((id) => definitions.relationType(id)?.attributes);
   const elementRange = filters.range?.of === 'elements' ? filters.range : undefined;
   const relationRange = filters.range?.of === 'relations' ? filters.range : undefined;
 
@@ -183,10 +186,17 @@ export function applyFilters(
         found !== undefined &&
         !filters.components.has(found.component) &&
         (lookup?.overrides(found.id) === true
-          ? meetsAllRead(onElements, (name) =>
-              lookup.value({ kind: 'element', element: found }, name, definitions),
+          ? meetsAllRead(
+              onElements,
+              (name) => lookup.value({ kind: 'element', element: found }, name, definitions),
+              componentEmphasis(found.component),
             )
-          : meetsAll(onElements, found.attributes, componentDefaults(found.component))) &&
+          : meetsAll(
+              onElements,
+              found.attributes,
+              componentDefaults(found.component),
+              componentEmphasis(found.component),
+            )) &&
         inTimeRange(elementRange, (name) =>
           lookup?.overrides(found.id) === true
             ? lookup.value({ kind: 'element', element: found }, name, definitions)
@@ -234,10 +244,17 @@ export function applyFilters(
       relation === undefined ||
       (!filters.relationTypes.has(relation.relationType) &&
         (lookup?.overrides(relation.id) === true
-          ? meetsAllRead(onRelations, (name) =>
-              lookup.value({ kind: 'relation', relation }, name, definitions),
+          ? meetsAllRead(
+              onRelations,
+              (name) => lookup.value({ kind: 'relation', relation }, name, definitions),
+              typeEmphasis(relation.relationType),
             )
-          : meetsAll(onRelations, relation.attributes, typeDefaults(relation.relationType))) &&
+          : meetsAll(
+              onRelations,
+              relation.attributes,
+              typeDefaults(relation.relationType),
+              typeEmphasis(relation.relationType),
+            )) &&
         inTimeRange(relationRange, (name) =>
           lookup?.overrides(relation.id) === true
             ? lookup.value({ kind: 'relation', relation }, name, definitions)
@@ -591,14 +608,22 @@ function meetsAll(
   conditions: readonly AttributeCondition[],
   own: Attributes | undefined,
   defaults: ReadonlyMap<string, JsonValue>,
+  emphasised: ReadonlySet<string>,
 ): boolean {
   return conditions.every((condition) => {
     const value =
       own && Object.hasOwn(own, condition.attribute)
         ? own[condition.attribute]
         : defaults.get(condition.attribute);
-    return meetsCondition(value, condition.test, condition.value);
+    return meetsCondition(value, condition.test, condition.value, formatOf(emphasised, condition));
   });
+}
+
+function formatOf(
+  emphasised: ReadonlySet<string>,
+  condition: AttributeCondition,
+): 'plain' | 'emphasis' {
+  return emphasised.has(condition.attribute) ? 'emphasis' : 'plain';
 }
 
 /**
@@ -631,13 +656,38 @@ function ownOrDefault(
 function meetsAllRead(
   conditions: readonly AttributeCondition[],
   read: (name: string) => JsonValue | undefined,
+  emphasised: ReadonlySet<string>,
 ): boolean {
   return conditions.every((condition) =>
-    meetsCondition(read(condition.attribute), condition.test, condition.value),
+    meetsCondition(
+      read(condition.attribute),
+      condition.test,
+      condition.value,
+      formatOf(emphasised, condition),
+    ),
   );
 }
 
 /** The defaults a definition's chain gives its attributes, worked out once for each definition. */
+/** The attributes of a definition that take text emphasis, worked out once for each definition. */
+function emphasisedBy(
+  attributesOf: (id: Id) => readonly AttributeDefinition[] | undefined,
+): (id: Id) => ReadonlySet<string> {
+  const known = new Map<Id, Set<string>>();
+  return (id) => {
+    let names = known.get(id);
+    if (!names) {
+      names = new Set(
+        (attributesOf(id) ?? [])
+          .filter((definition) => definition.format === 'emphasis')
+          .map((definition) => definition.name),
+      );
+      known.set(id, names);
+    }
+    return names;
+  };
+}
+
 function defaultsBy(
   attributesOf: (id: Id) => readonly AttributeDefinition[] | undefined,
 ): (id: Id) => ReadonlyMap<string, JsonValue> {

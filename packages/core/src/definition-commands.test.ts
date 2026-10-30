@@ -116,6 +116,9 @@ describe('define-component and define-relation-type', () => {
         default: 'at least once',
         choices: ['at most once', 'at least once'],
       },
+      // Text emphasis in its values (ADR 0082), and the default said out loud.
+      { name: 'summary', type: 'string' as const, format: 'emphasis' as const },
+      { name: 'topic', type: 'string' as const, format: 'plain' as const },
     ];
     expect(ok(defineQueue({ appearance, attributes })).warnings).toEqual([]);
 
@@ -185,6 +188,8 @@ describe('define-component and define-relation-type', () => {
       [{ name: 'mode', type: 'string', choices: [] }],
       [{ name: 'mode', type: 'string', choices: ['a', 'a'] }],
       [{ name: 'depth', type: 'number', unit: '' }],
+      [{ name: 'depth', type: 'number', format: 'emphasis' }],
+      [{ name: 'note', type: 'string', format: 'markdown' }],
       [
         { name: 'depth', type: 'number' },
         { name: 'depth', type: 'string' },

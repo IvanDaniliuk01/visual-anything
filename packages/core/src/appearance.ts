@@ -29,6 +29,8 @@ export interface ResolvedDetail {
   componentName: boolean;
   attributes: readonly string[];
   badges: readonly Badge[];
+  /** The most lines it wraps to (ADR 0082). */
+  lines: number;
 }
 
 /** How an element's shapes are drawn, with every trait worked out. */
@@ -39,6 +41,8 @@ export interface ResolvedAppearance {
   width: number;
   height: number;
   detail: ResolvedDetail;
+  /** Where the block of the name and the detail sits in the label area (ADR 0082). */
+  textPlacement: NonNullable<Appearance['textPlacement']>;
   contentsAsRows: boolean;
   /** Empty when relations attach anywhere on the border. */
   connectionPoints: readonly ConnectionPoint[];
@@ -74,6 +78,7 @@ export const APPEARANCE_TRAITS = listingEvery<keyof Appearance>()([
   'width',
   'height',
   'detail',
+  'textPlacement',
   'contentsAsRows',
   'connectionPoints',
   'image',
@@ -91,7 +96,8 @@ export type TraitPath =
   | Exclude<AppearanceTrait, 'detail'>
   | 'detail.componentName'
   | 'detail.attributes'
-  | 'detail.badges';
+  | 'detail.badges'
+  | 'detail.lines';
 
 /** Every trait path, in the order the component editor shows them. */
 export const TRAIT_PATHS: readonly TraitPath[] = [
@@ -103,6 +109,8 @@ export const TRAIT_PATHS: readonly TraitPath[] = [
   'detail.componentName',
   'detail.attributes',
   'detail.badges',
+  'detail.lines',
+  'textPlacement',
   'contentsAsRows',
   'connectionPoints',
   'image',
@@ -150,7 +158,9 @@ export function resolveAppearance(
       componentName: nearest(details, 'componentName') ?? base.detail.componentName,
       attributes: nearest(details, 'attributes') ?? base.detail.attributes,
       badges: nearest(details, 'badges') ?? base.detail.badges,
+      lines: nearest(details, 'lines') ?? base.detail.lines,
     },
+    textPlacement: nearest(chain, 'textPlacement') ?? base.textPlacement,
     contentsAsRows: nearest(chain, 'contentsAsRows') ?? base.contentsAsRows,
     connectionPoints: nearest(chain, 'connectionPoints') ?? base.connectionPoints,
     ...(levels === undefined || levels.length === 0 ? {} : { levels }),

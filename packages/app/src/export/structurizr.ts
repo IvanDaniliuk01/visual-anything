@@ -33,6 +33,7 @@ import { buildScene, type ElementShape, type RelationLine } from '../canvas/scen
 import { shapeColors } from '../canvas/theme/paint';
 import { t, type PluralText } from '../i18n';
 import { lostBeyondBoxes } from './beyond-lost';
+import { plainTexts } from './plain-texts';
 import type { TextExport } from './outline';
 
 /** What a Systems component becomes in the C4 model. */
@@ -153,6 +154,8 @@ export function writeStructurizr(
   if (!view) throw new RangeError(`The project has no view "${viewId}".`);
   const theme = options.theme ?? 'light';
   const scene = buildScene(project, viewId);
+  // Descriptions take text emphasis (ADR 0082); Structurizr gets their plain text.
+  const texts = plainTexts();
   const index = modelIndexOf(project);
   const definitions = definitionsIn(project);
 
@@ -231,7 +234,7 @@ export function writeStructurizr(
 
   const componentName = (entry: Written) => entry.shape.componentName;
   const fields = (entry: Written): string => {
-    const description = dslString(entry.element.description ?? '');
+    const description = dslString(texts.plain(entry.element.description));
     const technology = entry.element.attributes?.technology;
     const tag = dslString(componentName(entry));
     switch (entry.kind) {
@@ -306,7 +309,7 @@ export function writeStructurizr(
   const key = (text: string) => text.replace(/[^A-Za-z0-9_-]/g, '_');
   const viewKey = key(view.id);
   const views: string[] = [
-    `        systemLandscape ${dslString(viewKey)} ${dslString(view.description ?? view.name)} {`,
+    `        systemLandscape ${dslString(viewKey)} ${dslString(view.description === undefined ? view.name : texts.plain(view.description))} {`,
     '            include *',
     '            autoLayout lr',
     '        }',
@@ -340,6 +343,7 @@ export function writeStructurizr(
   }
 
   const free = scene.notes.length + scene.arrows.length;
+  const workspaceDescription = texts.plain(project.project.description);
   const pictures = [...written.values()].filter((entry) => entry.shape.image).length;
   const scenarios = project.scenarios.filter((scenario) => scenario.view === view.id).length;
   const lost = [
@@ -361,6 +365,7 @@ export function writeStructurizr(
       'Structurizr',
     ),
     ...(scenarios > 0 ? [t('Scenarios are left out.')] : []),
+    ...texts.lost(),
     // Structurizr draws no legend, though its styles take the overlays' colors (ADR 0055).
     ...(legendShows(legendOf(view, definitions, theme))
       ? [
@@ -380,7 +385,7 @@ export function writeStructurizr(
       }),
     ),
     ...lost.map((each) => comment(t('Lost: {what}', { what: each }))),
-    `workspace ${dslString(project.project.name)} ${dslString(project.project.description ?? '')} {`,
+    `workspace ${dslString(project.project.name)} ${dslString(workspaceDescription)} {`,
     '    model {',
     ...model,
     ...relationships,

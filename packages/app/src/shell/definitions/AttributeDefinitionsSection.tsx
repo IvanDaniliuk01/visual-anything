@@ -4,7 +4,7 @@ import { useId, useState, type FormEvent } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
 import { ATTRIBUTE_TYPES, typeName, type AttributeType } from '../inspector/attributes';
-import { InlineProblem, SelectControl, TextControl } from '../inspector/controls';
+import { CheckboxControl, InlineProblem, SelectControl, TextControl } from '../inspector/controls';
 import { sameOptionalText } from '../inspector/text';
 import {
   choicesText,
@@ -19,6 +19,7 @@ import type { DefinitionKind } from './commands';
 import { Field } from './Field';
 import { attributeSources, inheritedAttributes, sourceText } from './traits';
 import { useSender } from './useSender';
+import { EmphasisBlocks } from '../../text/EmphasisText';
 
 interface AttributeDefinitionsSectionProps {
   kind: DefinitionKind;
@@ -188,6 +189,26 @@ function OwnAttribute({
           )}
         </Field>
       )}
+      {type === 'string' && (
+        <Field
+          label={t('Takes text emphasis')}
+          note={t(
+            'Its values may be written with **bold**, *italic*, `code` and the rest; leave it off for identifiers and code.',
+          )}
+        >
+          {({ id, describedBy, send }) => (
+            <CheckboxControl
+              id={id}
+              checked={attribute.format === 'emphasis'}
+              disabled={readOnly}
+              describedBy={describedBy}
+              onCommit={(checked) =>
+                send(set(withTrait(attribute, 'format', checked ? 'emphasis' : undefined)))
+              }
+            />
+          )}
+        </Field>
+      )}
       {type === 'number' && (
         <Field label={t('Unit')}>
           {({ id, describedBy, send }) => (
@@ -216,6 +237,7 @@ function OwnAttribute({
                 : t.attribute(lineage, name, attribute.description)
             }
             multiline
+            emphasis
             disabled={readOnly}
             describedBy={describedBy}
             same={sameOptionalText}
@@ -359,7 +381,11 @@ function InheritedAttribute({
         <span className="definition-source">{source}</span>
       </div>
       {attribute.description !== undefined && (
-        <p className="inspector-notes">{t.attribute(lineage, name, attribute.description)}</p>
+        <EmphasisBlocks
+          className="inspector-notes"
+          text={t.attribute(lineage, name, attribute.description)}
+          headingLevel={6}
+        />
       )}
       {attribute.default !== undefined && (
         <p className="inspector-notes">

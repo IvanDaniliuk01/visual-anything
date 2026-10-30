@@ -17,6 +17,7 @@ import { Detail } from './inspector/parts';
 import { RelationInspector } from './inspector/RelationInspector';
 import { ScopeEditor } from './inspector/ScopeEditor';
 import { SelectionAppearance } from './inspector/SelectionAppearance';
+import { EmphasisBlocks, EmphasisRuns } from '../text/EmphasisText';
 import './inspector.css';
 
 interface InspectorProps {
@@ -92,7 +93,7 @@ export function Inspector({ view, scene, definitions, id, hidden }: InspectorPro
         {inspected.kind === 'note' && (
           <>
             <h3 className="inspector-title">{t('Note')}</h3>
-            <p className="inspector-note-text">{inspected.note.text}</p>
+            <EmphasisBlocks className="inspector-note-text" text={inspected.note.text} />
             <p className="inspector-notes">{t('Edit its text on the canvas.')}</p>
             <FreeShapeAppearance key={inspected.note.id} shape={inspected.note} />
           </>
@@ -139,14 +140,18 @@ function ViewDetails({ view, scene, definitions }: InspectorProps) {
       <dl className="details">
         <Detail term={t('Name')}>{view.name}</Detail>
         {view.description !== undefined && (
-          <Detail term={t('Description')}>{view.description}</Detail>
+          <Detail term={t('Description')}>
+            <EmphasisBlocks text={view.description} headingLevel={5} />
+          </Detail>
         )}
         <Detail term={t('Perspective')}>
           <span className="detail-value">{view.perspective.name}</span>
           {view.perspective.description !== undefined && (
             <>
               {' '}
-              <span className="detail-note">{view.perspective.description}</span>
+              <span className="detail-note">
+                <EmphasisRuns text={view.perspective.description} />
+              </span>
             </>
           )}
         </Detail>

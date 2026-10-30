@@ -7,6 +7,7 @@
 import {
   definitionsIn,
   modelIndexOf,
+  plainText,
   relationTypeOrRelatesTo,
   type ModelIndex,
   type ProjectSnapshot,
@@ -156,7 +157,8 @@ export function describeSelection(
     if (relation !== undefined) return describeRelation(project, relation);
     const [free] = freeShapes;
     const note = indexed.scene.notes.find((each) => each.id === free);
-    return note ? asSentence(t('Note: {text}', { text: note.text })) : t('Arrow.');
+    // A note's text takes text emphasis (ADR 0082): it is said without its markers.
+    return note ? asSentence(t('Note: {text}', { text: plainText(note.text) })) : t('Arrow.');
   }
   const parts: string[] = [];
   if (elements.size > 0) parts.push(t(ELEMENTS, { count: elements.size }));

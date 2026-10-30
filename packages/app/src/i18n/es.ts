@@ -2055,6 +2055,8 @@ export const ui: Catalog = {
     'La vista no muestra ningún elemento del paquete Sistemas.',
   'Pictures are left out.': 'Se omiten las imágenes.',
   'Scenarios are left out.': 'Se omiten los escenarios.',
+  'Text emphasis (bold, italic and the rest) is written as plain text.':
+    'El énfasis de texto (negrita, cursiva y el resto) se escribe como texto simple.',
   // M8b W58: what the text exports lose beyond boxes, and the outline's contents of anchored parts.
   '{count} shapes drawn by their free geometry are drawn as their kinds.': {
     one: 'Una forma dibujada por su geometría libre se dibuja según su tipo.',
@@ -2180,11 +2182,16 @@ export const ui: Catalog = {
     'El paso {n} corta desde el paso {m} con un fundido, hacia otra vista.',
   Title: 'Título',
   Caption: 'Rótulo',
-  'Plain text: a blank line starts a paragraph, and lines starting with “- ” make a list.':
-    'Texto simple: una línea en blanco empieza un párrafo, y las líneas que empiezan con “- ” forman una lista.',
+  'Markdown: **bold**, *italic*, `code`, lists, headings and links; a blank line starts a paragraph.':
+    'Markdown: **negrita**, *cursiva*, `código`, listas, títulos y direcciones web; una línea en blanco empieza un párrafo.',
   'Changed the title of step {n}.': 'Se cambió el título del paso {n}.',
   'Changed the caption of step {n}.': 'Se cambió el rótulo del paso {n}.',
   'Speaker notes': 'Notas del orador',
+  // M3d: text emphasis (ADR 0082), in the fields that edit a text and the attribute editor.
+  'As it is drawn': 'Como se dibuja',
+  'Takes text emphasis': 'Admite énfasis de texto',
+  'Its values may be written with **bold**, *italic*, `code` and the rest; leave it off for identifiers and code.':
+    'Sus valores pueden escribirse con **negrita**, *cursiva*, `código` y el resto; dejarlo desactivado para identificadores y código.',
   'Changed the speaker notes of step {n}.': 'Se cambiaron las notas del orador del paso {n}.',
   'Mark the selection': 'Marcar la selección',
   'Clear marks': 'Quitar las marcas',
@@ -3412,6 +3419,9 @@ export const messages: Catalog = {
   'The detail of {of} writes at most 8 badges.':
     'El detalle de {of} escribe como máximo 8 insignias.',
   'The detail of {of} has no "{key}".': 'El detalle de {of} no tiene "{key}".',
+  'The detail of {of} takes 1 to 6 lines.': 'El detalle de {of} ocupa de 1 a 6 líneas.',
+  'The text of {of} is placed at the "top", in the "middle" or at the "bottom".':
+    'El texto de {of} se ubica arriba ("top"), en el medio ("middle") o abajo ("bottom").',
   '{Of} has at most 32 connection points.': '{Of} tiene como máximo 32 puntos de conexión.',
   'A connection point of {of} has no "{key}".': 'Un punto de conexión de {of} no tiene "{key}".',
   'A connection point of {of} has a name of 1 to 32 characters.':
@@ -3451,6 +3461,10 @@ export const messages: Catalog = {
     'Solo un atributo number tiene unidad; "{name}" de {of} es {type}.',
   'The unit of "{name}" of {of} has 1 to 16 characters.':
     'La unidad de "{name}" de {of} tiene de 1 a 16 caracteres.',
+  'The values of "{name}" of {of} are written "plain" or with "emphasis".':
+    'Los valores de "{name}" de {of} se escriben simples ("plain") o con énfasis ("emphasis").',
+  'Only a string attribute takes text emphasis; "{name}" of {of} is a {type}.':
+    'Solo un atributo string admite énfasis de texto; "{name}" de {of} es {type}.',
   '{Of} defines the attribute "{name}" twice.': '{Of} define el atributo "{name}" dos veces.',
   'Attribute changes have no "{key}".': 'Los cambios de atributos no tienen "{key}".',
   '{Of} does not define "{name}" itself, so it cannot rename it.':

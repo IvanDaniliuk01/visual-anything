@@ -45,6 +45,8 @@ import { useToursHost } from './context';
 import { describeMarks } from './describe';
 import { drawnBounds } from './drawn-bounds';
 import { MotionPreferences } from './MotionPreferences';
+import { EmphasisPreview } from '../text/EmphasisText';
+import { useEmphasisKeys } from '../text/useEmphasisKeys';
 import './tours.css';
 
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
@@ -405,8 +407,9 @@ function StepItem({
         max={MAX_CAPTION_TEXT}
         disabled={!editable}
         multiline
+        emphasis
         hint={t(
-          'Plain text: a blank line starts a paragraph, and lines starting with “- ” make a list.',
+          'Markdown: **bold**, *italic*, `code`, lists, headings and links; a blank line starts a paragraph.',
         )}
         onCommit={(text) =>
           change(
@@ -429,6 +432,7 @@ function StepItem({
           max={MAX_SPEAKER_NOTES}
           disabled={!editable}
           multiline
+          emphasis
           onCommit={(notes) =>
             change(
               (each) => {
@@ -557,6 +561,7 @@ function Field({
   disabled,
   multiline = false,
   required = false,
+  emphasis = false,
   hint,
   onCommit,
 }: {
@@ -568,10 +573,13 @@ function Field({
   disabled: boolean;
   multiline?: boolean;
   required?: boolean;
+  /** Whether the text takes text emphasis (ADR 0082): its keys, and the text drawn under it. */
+  emphasis?: boolean;
   hint?: string;
   onCommit: (value: string) => void;
 }) {
   const hintId = useId();
+  const keys = useEmphasisKeys();
   const [draft, setDraft] = useState<string>();
   const shown = draft ?? value;
   const commit = () => {
@@ -600,6 +608,7 @@ function Field({
           {...common}
           rows={3}
           onKeyDown={(event) => {
+            if (emphasis && keys.onKeyDown(event, setDraft)) return;
             if (event.key === 'Escape') setDraft(undefined);
           }}
         />
@@ -612,6 +621,7 @@ function Field({
           }}
         />
       )}
+      {emphasis && <EmphasisPreview text={shown} headingLevel={6} />}
       {hint !== undefined && (
         <p id={hintId} className="tour-field-hint">
           {hint}

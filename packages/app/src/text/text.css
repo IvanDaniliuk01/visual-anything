@@ -1,0 +1,127 @@
+/* Text emphasis in panels (ADR 0082): the colors are the theme's, checked in both themes. */
+
+.emphasis-text > :first-child,
+.emphasis-text blockquote > :first-child {
+  margin-top: 0;
+}
+
+.emphasis-text > :last-child,
+.emphasis-text blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.emphasis-text p,
+.emphasis-text ul,
+.emphasis-text ol,
+.emphasis-text blockquote,
+.emphasis-text pre,
+.emphasis-text .emphasis-table {
+  margin: var(--space-1) 0;
+}
+
+.emphasis-text ul,
+.emphasis-text ol {
+  padding-inline-start: var(--space-5);
+}
+
+.emphasis-text .emphasis-heading {
+  margin: var(--space-2) 0 var(--space-1);
+  font-weight: var(--weight-heading);
+  line-height: var(--line-normal);
+}
+
+.emphasis-text .emphasis-heading-1 {
+  font-size: 1.3em;
+}
+
+.emphasis-text .emphasis-heading-2 {
+  font-size: 1.15em;
+}
+
+.emphasis-text .emphasis-heading-3 {
+  font-size: 1em;
+}
+
+.emphasis-text li.emphasis-task {
+  list-style: none;
+  margin-inline-start: calc(-1 * var(--space-4));
+}
+
+.emphasis-text li.emphasis-task > input {
+  margin: 0 var(--space-1) 0 0;
+  vertical-align: middle;
+}
+
+.emphasis-text blockquote {
+  margin-inline: 0;
+  padding-inline-start: var(--space-2);
+  border-left: 3px solid var(--border);
+  color: var(--text-muted);
+}
+
+.emphasis-text hr {
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+.emphasis-text code,
+.emphasis-preview code {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.92em;
+  padding: 0 0.2em;
+  border-radius: var(--radius-sm);
+  background: var(--surface-pressed);
+}
+
+.emphasis-text pre {
+  overflow-x: auto;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-pressed);
+}
+
+.emphasis-text pre code {
+  padding: 0;
+  background: none;
+}
+
+.emphasis-text mark,
+.emphasis-preview mark {
+  color: var(--text);
+  background: var(--warning-soft);
+}
+
+.emphasis-text .emphasis-table {
+  overflow-x: auto;
+}
+
+.emphasis-text table {
+  border-collapse: collapse;
+}
+
+.emphasis-text th,
+.emphasis-text td {
+  padding: 0 var(--space-1);
+  border: 1px solid var(--border);
+  text-align: start;
+}
+
+.emphasis-text th {
+  font-weight: var(--weight-strong);
+}
+
+.emphasis-text .emphasis-align-center {
+  text-align: center;
+}
+
+.emphasis-text .emphasis-align-right {
+  text-align: end;
+}
+
+/* The drawn text under a field that edits its source. */
+.emphasis-preview {
+  margin-top: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-left: 2px solid var(--border);
+  font-size: var(--text-sm);
+}

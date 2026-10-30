@@ -232,7 +232,14 @@ function ruleTest(
     case 'attribute': {
       const wanted = rule.value ?? '';
       return (element) =>
-        meetsCondition(attributeValue(definitions, element, rule.attribute), rule.test, wanted);
+        meetsCondition(
+          attributeValue(definitions, element, rule.attribute),
+          rule.test,
+          wanted,
+          componentOrEssence(definitions, element.component).attributes.find(
+            (attribute) => attribute.name === rule.attribute,
+          )?.format,
+        );
     }
   }
 }

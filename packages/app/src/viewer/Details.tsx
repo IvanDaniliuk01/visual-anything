@@ -10,6 +10,7 @@ import { useEditor } from '../editor/EditorContext';
 import { EMPTY_SELECTION, sizeOf } from '../editor/selection';
 import { useT, type Translator } from '../i18n';
 import { DismissIcon } from '../shell/icons';
+import { EmphasisBlocks, EmphasisRuns } from '../text/EmphasisText';
 import { leavingTitleOf } from './leaving';
 
 export function Details() {
@@ -47,7 +48,7 @@ export function Details() {
         </div>
         <p className="viewer-kind">{t.definition(component.id, component.name)}</p>
         {element.description !== undefined && element.description !== '' && (
-          <p>{element.description}</p>
+          <EmphasisBlocks text={element.description} headingLevel={3} />
         )}
         <AttributeList t={t} values={element.attributes} defined={component.attributes} />
         {leaving !== undefined && leaving.length > 0 && (
@@ -74,7 +75,7 @@ export function Details() {
           })}
         </p>
         {relation.description !== undefined && relation.description !== '' && (
-          <p>{relation.description}</p>
+          <EmphasisBlocks text={relation.description} headingLevel={3} />
         )}
         <AttributeList t={t} values={relation.attributes} defined={type.attributes} />
       </section>
@@ -90,7 +91,9 @@ export function Details() {
           <h2>{shape.kind === 'note' ? t('Note') : t('Arrow')}</h2>
           {close}
         </div>
-        {shape.kind === 'note' && <p className="viewer-note-text">{shape.text}</p>}
+        {shape.kind === 'note' && (
+          <EmphasisBlocks className="viewer-note-text" text={shape.text} headingLevel={3} />
+        )}
       </section>
     );
   }
@@ -131,12 +134,19 @@ function AttributeList({
     if (!names.has(name)) names.set(name, value);
   if (names.size === 0) return null;
   const units = new Map(defined.map((attribute) => [attribute.name, attribute.unit]));
+  const formats = new Map(defined.map((attribute) => [attribute.name, attribute.format]));
   return (
     <dl className="viewer-attributes" aria-label={t('Attributes')}>
       {[...names].map(([name, value]) => (
         <div key={name}>
           <dt>{name}</dt>
-          <dd>{valueText(value, units.get(name))}</dd>
+          <dd>
+            {typeof value === 'string' && formats.get(name) === 'emphasis' ? (
+              <EmphasisRuns text={value} />
+            ) : (
+              valueText(value, units.get(name))
+            )}
+          </dd>
         </div>
       ))}
     </dl>

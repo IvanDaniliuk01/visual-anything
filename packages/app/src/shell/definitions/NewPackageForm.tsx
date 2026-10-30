@@ -1,6 +1,8 @@
 import { useId, useState, type FormEvent, type Ref } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
+import { EmphasisPreview } from '../../text/EmphasisText';
+import { useEmphasisKeys } from '../../text/useEmphasisKeys';
 import { InlineProblem } from '../inspector/controls';
 import { Title } from '../inspector/parts';
 import { packageIdProblem, proposedPackageId } from './commands';
@@ -21,6 +23,7 @@ export function NewPackageForm({ titleRef }: { titleRef: Ref<HTMLHeadingElement>
   const idId = useId();
   const descriptionId = useId();
   const problemId = useId();
+  const keys = useEmphasisKeys();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   // Undefined while the id follows the name.
@@ -84,7 +87,9 @@ export function NewPackageForm({ titleRef }: { titleRef: Ref<HTMLHeadingElement>
           rows={3}
           value={description}
           onChange={(event) => setDescription(event.target.value)}
+          onKeyDown={(event) => keys.onKeyDown(event, setDescription)}
         />
+        <EmphasisPreview text={description} />
       </div>
       {sender.problem !== undefined && <InlineProblem id={problemId} text={sender.problem} />}
       <div className="definition-actions">

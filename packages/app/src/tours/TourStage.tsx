@@ -9,7 +9,7 @@
  * It knows nothing of the live editor: it takes a project, a tour, a step and what to do on each
  * control, so that the read-only page (ADR 0041) can play tours with it too.
  */
-import { tourStepProblems, type ProjectSnapshot } from '@visual-anything/core';
+import { plainText, tourStepProblems, type ProjectSnapshot } from '@visual-anything/core';
 import type { TourFile } from '@visual-anything/schema';
 import {
   useEffect,
@@ -335,7 +335,7 @@ export function TourStage({
             <p className="tour-notes-position">{position}</p>
             <h1 className="tour-notes-title">{shown.caption.title}</h1>
             {shown.notes !== undefined ? (
-              <TourText className="tour-notes-text" text={shown.notes} />
+              <TourText className="tour-notes-text" text={shown.notes} headingLevel={2} />
             ) : (
               <p className="tour-notes-none">{t('This step has no speaker notes.')}</p>
             )}
@@ -501,7 +501,10 @@ function announce(t: Translator, project: ProjectSnapshot, tour: TourFile, said:
   if (said.kind === 'reveal') {
     const shown = reveals[said.reveal - 1];
     if (!shown) return '';
-    return [shown.text, shown.marks.length > 0 ? describeMarks(t, project, shown.marks) : '']
+    return [
+      shown.text === undefined ? undefined : plainText(shown.text),
+      shown.marks.length > 0 ? describeMarks(t, project, shown.marks) : '',
+    ]
       .filter((part) => part !== undefined && part !== '')
       .join(' ');
   }
@@ -517,8 +520,10 @@ function announce(t: Translator, project: ProjectSnapshot, tour: TourFile, said:
       total: tour.steps.length,
       title: step.caption.title,
     }),
-    step.caption.text,
-    ...reveals.slice(0, said.reveal).map((each) => each.text),
+    step.caption.text === undefined ? undefined : plainText(step.caption.text),
+    ...reveals
+      .slice(0, said.reveal)
+      .map((each) => (each.text === undefined ? undefined : plainText(each.text))),
     marks.length > 0 ? describeMarks(t, project, marks) : '',
   ]
     .filter((part) => part !== undefined && part !== '')

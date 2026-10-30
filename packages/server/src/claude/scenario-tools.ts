@@ -67,6 +67,7 @@ import {
   withoutUndefined,
 } from './kit';
 import type { Tool, ToolOutcome } from './tools';
+import { TAKES_MARKDOWN } from './emphasis';
 
 const json = () => z.unknown().describe('Any JSON value.');
 
@@ -186,7 +187,7 @@ Example, with a decision: {
 }`,
   input: {
     name: z.string().min(1),
-    description: z.string().optional(),
+    description: z.string().optional().describe(TAKES_MARKDOWN),
     view: id().describe('The view it plays over.'),
     steps: z
       .array(treeItem(3))
@@ -400,7 +401,7 @@ Example, with decisions: {
   input: {
     scenario: id(),
     name: z.string().min(1).optional(),
-    description: z.string().nullable().optional(),
+    description: z.string().nullable().optional().describe(TAKES_MARKDOWN),
     view: id().optional().describe('Another view for it to play over.'),
     edits: z.array(edit()).optional(),
     cascade: z

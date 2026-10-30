@@ -348,6 +348,13 @@ export interface AttributeDefinition {
    * @maxLength 16
    */
   unit?: string;
+  /**
+   * For a string attribute, how its values are written (ADR 0082): `plain`, the default, as the
+   * characters they are; `emphasis`, with text emphasis (`**bold**`, `*italic*`, `~~struck~~`,
+   * `` `code` ``, `==highlight==`, `++underline++`) wherever they are drawn. Identifiers, SQL and
+   * names stay plain.
+   */
+  format?: 'plain' | 'emphasis';
 }
 
 /** How an element's shapes are drawn. Whatever an appearance leaves out is inherited. */
@@ -376,6 +383,12 @@ export interface Appearance {
   height?: number;
   /** What its shapes write under the element's name. Each part is inherited on its own. */
   detail?: DetailRules;
+  /**
+   * Where its shapes place the block of the element's name and detail inside their label area, with
+   * an inset of 8 units (ADR 0082): from its top, centred, or ending at its bottom. Essence sets
+   * `middle`. Containers and rows write their header at the top whatever it says.
+   */
+  textPlacement?: 'top' | 'middle' | 'bottom';
   /**
    * Whether its shapes draw the elements they hold as rows: one under another below a header, as wide
    * as the shape, in the model's order, as a table draws its columns. Rows have no positions of their
@@ -518,7 +531,10 @@ export interface PartReference {
   image?: Id;
 }
 
-/** What a shape writes under its element's name, on one line. */
+/**
+ * What a shape writes under its element's name, wrapped to at most `lines` lines; the whole of it
+ * shows on hover (ADR 0082).
+ */
 export interface DetailRules {
   /** Whether it writes the component's name. Essence writes it. */
   componentName?: boolean;
@@ -536,6 +552,15 @@ export interface DetailRules {
    * @maxItems 8
    */
   badges?: Badge[];
+  /**
+   * The most lines the detail takes, from 1 to 6; Essence gives 3. Its last line ends with "…" when
+   * the text is longer.
+   *
+   * @asType integer
+   * @minimum 1
+   * @maximum 6
+   */
+  lines?: number;
 }
 
 /**

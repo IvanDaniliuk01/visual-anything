@@ -53,6 +53,7 @@ import {
 } from './kit';
 import type { Tool } from './tools';
 import { STATE_HELP, STATE_PARTS, askedState } from './view-tools';
+import { TAKES_MARKDOWN } from './emphasis';
 
 const tourId = () => id().describe('The tour, by id: get_project lists the tours.');
 
@@ -82,7 +83,7 @@ const caption = () => ({
     .max(MAX_CAPTION_TEXT)
     .optional()
     .describe(
-      'The caption card’s text, plain text, never HTML: a blank line starts a paragraph; lines that start with "- ", or with a number and ". ", make a list. A few sentences: the person reads it while the step shows.',
+      `The caption card’s text, never HTML: a blank line starts a paragraph; lines that start with "- ", or with a number and ". ", make a list. A few sentences: the person reads it while the step shows. ${TAKES_MARKDOWN}`,
     ),
 });
 
@@ -120,7 +121,7 @@ const notes = () =>
     .string()
     .max(MAX_SPEAKER_NOTES)
     .describe(
-      'Speaker notes: what the person presenting says while the step shows, in the notes window only. Plain text, as the caption.',
+      'Speaker notes: what the person presenting says while the step shows, in the notes window only. Markdown, as the caption’s text.',
     );
 
 const reveal = () =>
@@ -137,7 +138,7 @@ const reveal = () =>
           .max(MAX_CAPTION_TEXT)
           .optional()
           .describe(
-            'A paragraph added to the caption as it comes in: plain text, as the caption’s text.',
+            'A paragraph added to the caption as it comes in: Markdown, as the caption’s text.',
           ),
       }),
     )
@@ -230,7 +231,7 @@ Example: {
 }`,
   input: {
     name: z.string().min(1).max(MAX_TOUR_NAME),
-    description: z.string().max(MAX_TOUR_DESCRIPTION).optional(),
+    description: z.string().max(MAX_TOUR_DESCRIPTION).optional().describe(TAKES_MARKDOWN),
     steps: z.array(newStep()).max(200).optional(),
   },
   hints: WRITE,
@@ -420,7 +421,12 @@ Example: { "tour": "how-booking-works", "name": "Booking, step by step" }`,
   input: {
     tour: tourId(),
     name: z.string().min(1).max(MAX_TOUR_NAME).optional(),
-    description: z.string().max(MAX_TOUR_DESCRIPTION).nullable().optional(),
+    description: z
+      .string()
+      .max(MAX_TOUR_DESCRIPTION)
+      .nullable()
+      .optional()
+      .describe(TAKES_MARKDOWN),
   },
   hints: WRITE,
   run: async (args, program) =>

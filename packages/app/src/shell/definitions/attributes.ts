@@ -8,8 +8,9 @@ import { t } from '../../i18n';
 import { readJson, readNumber, type AttributeType, type Reading } from '../inspector/attributes';
 
 /**
- * The attribute with another type. Its default stays while it fits the new type, its choices while it
- * is a string and its unit while it is a number; its name and description always stay.
+ * The attribute with another type. Its default stays while it fits the new type, its choices and its
+ * format while it is a string and its unit while it is a number; its name and description always
+ * stay.
  */
 export function retyped(definition: AttributeDefinition, type: AttributeType): AttributeDefinition {
   const next: AttributeDefinition = { name: definition.name, type };
@@ -18,12 +19,13 @@ export function retyped(definition: AttributeDefinition, type: AttributeType): A
   }
   if (definition.description !== undefined) next.description = definition.description;
   if (type === 'string' && definition.choices !== undefined) next.choices = definition.choices;
+  if (type === 'string' && definition.format !== undefined) next.format = definition.format;
   if (type === 'number' && definition.unit !== undefined) next.unit = definition.unit;
   return next;
 }
 
 /** The attribute with one optional trait set, or taken out when `value` is `undefined`. */
-export function withTrait<K extends 'default' | 'description' | 'choices' | 'unit'>(
+export function withTrait<K extends 'default' | 'description' | 'choices' | 'unit' | 'format'>(
   definition: AttributeDefinition,
   key: K,
   value: AttributeDefinition[K] | undefined,
