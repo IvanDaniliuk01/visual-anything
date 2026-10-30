@@ -4223,6 +4223,13 @@ export const messages: Catalog = {
   '"recentColors" holds {n} colors, more than {limit}.':
     '"recentColors" tiene {n} colores, más de {limit}.',
   '"{name}" must be true or false, not {value}.': '"{name}" debe ser true o false, no {value}.',
+  // The side panels' widths and strips (ADR 0032's clarification of 2026-10-30).
+  '"sidePanels" must hold "model" and "inspector", and nothing else.':
+    '"sidePanels" debe tener "model" e "inspector", y nada más.',
+  '"{name}" must hold "width" and "collapsed", and nothing else.':
+    '"{name}" debe tener "width" y "collapsed", y nada más.',
+  '"{name}" must be a whole number of pixels from 200 to 2000, not {value}.':
+    '"{name}" debe ser un número entero de píxeles de 200 a 2000, no {value}.',
   // How tours and scenarios move (ADR 0077).
   '"motion" must be "system", "reduced" or "full", not {value}.':
     '"motion" debe ser "system", "reduced" o "full", no {value}.',

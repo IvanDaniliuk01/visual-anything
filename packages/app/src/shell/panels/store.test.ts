@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Camera } from '../../canvas/camera';
 import type { CanvasCamera } from '../../view-state/canvas';
-import { DEFAULT_LAYOUT, PANEL_STORAGE_KEY, readLayout } from './layout';
+import { DEFAULT_LAYOUT, type PanelLayout } from './layout';
+import type { PanelStorage } from './storage';
 import { PanelLayoutStore } from './store';
 
 const WINDOW = 1600;
@@ -30,18 +31,36 @@ function manualFrames() {
   };
 }
 
-function memory(): Storage {
-  const kept = new Map<string, string>();
-  return {
-    get length() {
-      return kept.size;
+/** A storage that keeps what it is given, and records what it was asked to keep. */
+interface MemoryStorage extends PanelStorage {
+  kept: PanelLayout;
+  written: PanelLayout[];
+  /** A change made elsewhere, as by another tab. */
+  elsewhere(layout: PanelLayout): void;
+}
+
+/** A storage that keeps what it is given, and tells its listeners when it changes elsewhere. */
+function memory(initial: PanelLayout = DEFAULT_LAYOUT): MemoryStorage {
+  const listeners = new Set<() => void>();
+  const storage: MemoryStorage = {
+    kept: initial,
+    written: [] as PanelLayout[],
+    read: () => storage.kept,
+    write: (layout: PanelLayout) => {
+      storage.written.push(layout);
+      storage.kept = layout;
+      for (const listener of [...listeners]) listener();
     },
-    clear: () => kept.clear(),
-    key: (index) => [...kept.keys()][index] ?? null,
-    getItem: (key) => kept.get(key) ?? null,
-    setItem: (key, value) => void kept.set(key, value),
-    removeItem: (key) => void kept.delete(key),
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+    elsewhere(layout: PanelLayout) {
+      storage.kept = layout;
+      for (const listener of [...listeners]) listener();
+    },
   };
+  return storage;
 }
 
 /** The width a column of the shell takes, as the stylesheet reads what the store writes. */
@@ -114,17 +133,58 @@ describe('the side panels’ store', () => {
     expect('modelPanelCollapsed' in shell.dataset).toBe(false);
   });
 
-  it('keeps each change in local storage, and starts from what it kept', () => {
+  it('keeps each change, and starts from what it kept', () => {
     const { store, storage } = setUp();
     store.setWidth('model', 333);
     store.toggle('inspector');
-    expect(readLayout(storage)).toEqual({
+    expect(storage.kept).toEqual({
       model: { width: 333, collapsed: false },
       inspector: { width: 320, collapsed: true },
     });
+    expect(storage.written).toHaveLength(2);
     const again = new PanelLayoutStore({ storage, windowWidth: () => WINDOW });
-    expect(again.snapshot().layout).toEqual(readLayout(storage));
-    expect(storage.getItem(PANEL_STORAGE_KEY)).not.toBeNull();
+    expect(again.snapshot().layout).toEqual(storage.kept);
+  });
+
+  it('follows what is kept as it changes elsewhere, keeping the middle, but not during a drag', () => {
+    const { store, storage, shell, frames } = setUp();
+    const stop = store.watch(window);
+    const canvas = fakeCanvas(shell, { x: 10, y: 10, scale: 2 });
+    store.setCanvas(canvas);
+    const middle = middleOf(canvas);
+    const elsewhere = {
+      model: { width: 400, collapsed: false },
+      inspector: { width: 320, collapsed: true },
+    };
+    storage.elsewhere(elsewhere);
+    expect(store.snapshot().layout).toEqual(elsewhere);
+    expect(shell.style.getPropertyValue('--model-panel-width')).toBe('400px');
+    expect(shell).toHaveAttribute('data-inspector-collapsed');
+    expect(middleOf(canvas)).toEqual(middle);
+    // Following it writes nothing back.
+    expect(storage.written).toEqual([]);
+
+    store.setResizing(true);
+    store.preview('model', 450);
+    storage.elsewhere(DEFAULT_LAYOUT);
+    frames.run();
+    expect(store.snapshot().layout.model.width).toBe(450);
+    store.setResizing(false);
+    store.commit('model', 460);
+    expect(storage.kept.model.width).toBe(460);
+    stop();
+    storage.elsewhere(DEFAULT_LAYOUT);
+    expect(store.snapshot().layout.model.width).toBe(460);
+  });
+
+  it('opens a collapsed panel when asked to, and leaves an open one as it is', () => {
+    const { store, storage } = setUp();
+    store.open('model');
+    expect(storage.written).toEqual([]);
+    store.toggle('model');
+    store.open('model');
+    expect(store.snapshot().layout.model.collapsed).toBe(false);
+    expect(store.snapshot().announcement).toMatchObject({ side: 'model', collapsed: false });
   });
 
   it('keeps the widths within 200 px and half the window, and gives back the default', () => {
@@ -154,14 +214,14 @@ describe('the side panels’ store', () => {
     frames.run();
     expect(shell.style.getPropertyValue('--model-panel-width')).toBe('330px');
     // What a drag shows is kept only when it ends.
-    expect(readLayout(storage).model.width).toBe(288);
+    expect(storage.written).toEqual([]);
     store.preview('model', 340);
     store.preview('model', 350);
     expect(frames.request).toHaveBeenCalledTimes(2);
     store.commit('model', 360);
     expect(frames.pending).toBe(0);
     expect(shell.style.getPropertyValue('--model-panel-width')).toBe('360px');
-    expect(readLayout(storage).model.width).toBe(360);
+    expect(storage.written.map((layout) => layout.model.width)).toEqual([360]);
   });
 
   it('keeps the same point of the view in the canvas’s middle as a panel opens, closes or changes width', () => {

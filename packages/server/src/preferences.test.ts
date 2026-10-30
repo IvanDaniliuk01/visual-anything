@@ -255,7 +255,17 @@ describe('openPreferences', () => {
         '  "author": null,',
         '  "motion": "system",',
         '  "fades": true,',
-        '  "reviewClaude": false',
+        '  "reviewClaude": false,',
+        '  "sidePanels": {',
+        '    "model": {',
+        '      "width": 288,',
+        '      "collapsed": false',
+        '    },',
+        '    "inspector": {',
+        '      "width": 320,',
+        '      "collapsed": false',
+        '    }',
+        '  }',
         '}',
         '',
       ].join('\n'),
@@ -314,6 +324,19 @@ describe('openPreferences', () => {
       reason: 'there is no folder to keep it in',
     });
     expect(store.current().theme).toBe('dark');
+  });
+
+  it('keeps the side panels’ widths and strips, for the next time the program starts', async () => {
+    const sidePanels = {
+      model: { width: 420, collapsed: false },
+      inspector: { width: 320, collapsed: true },
+    };
+    const { store } = await openPreferences(folder);
+    await store.set({ sidePanels });
+    await store.close();
+    const again = await openPreferences(folder);
+    expect(again.store.current().sidePanels).toEqual(sidePanels);
+    expect(JSON.parse(await readFile(file, 'utf8'))).toMatchObject({ sidePanels });
   });
 
   it('gives copies, so that what it hands out cannot change what it keeps', async () => {

@@ -1,11 +1,19 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { DEFAULT_PREFERENCES } from '@visual-anything/core';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { KeyboardHelp } from '../../canvas/KeyboardHelp';
 import { setCurrentLanguage } from '../../i18n/language';
 import { ui } from '../../i18n/es';
+import { ComparisonStore } from '../../canvas/comparison/mode';
+import { comparedSample } from '../../test/comparison';
 import { loadSample } from '../../test/sample';
+import {
+  appliedPreferences,
+  changePreferences,
+  linkPreferences,
+  resetPreferencesForTests,
+} from '../../theme/store';
 import { Shell } from '../Shell';
-import { PANEL_STORAGE_KEY } from './layout';
 import { PANEL_KEYS } from './keys';
 
 vi.mock('../../canvas/CanvasArea', () => import('../../test/FakeCanvasArea'));
@@ -17,7 +25,6 @@ const MODEL_PANEL = 'Outline and model';
 let frames: Map<number, FrameRequestCallback>;
 
 beforeEach(() => {
-  localStorage.clear();
   frames = new Map();
   let next = 1;
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
@@ -28,9 +35,15 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  resetPreferencesForTests();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+
+/** The side panels as the person's preference holds them now. */
+function kept() {
+  return appliedPreferences().preferences.sidePanels;
+}
 
 function runFrames(): void {
   const waiting = [...frames.values()];
@@ -183,14 +196,13 @@ describe('the side panels', () => {
     expect(inspector).toHaveAttribute('aria-valuenow', '420');
   });
 
-  it('are kept in this browser’s local storage, and open as they were left', () => {
+  it('are kept as the person’s preference, and open as they were left', () => {
     const { unmount } = render(<Shell project={sample} />);
     fireEvent.keyDown(screen.getByRole('separator', { name: 'Width of the model panel' }), {
       key: 'ArrowRight',
     });
     fireEvent.click(screen.getByRole('button', { name: 'Collapse the inspector' }));
-    expect(JSON.parse(localStorage.getItem(PANEL_STORAGE_KEY) ?? '')).toEqual({
-      version: 1,
+    expect(kept()).toEqual({
       model: { width: 304, collapsed: false },
       inspector: { width: 320, collapsed: true },
     });
@@ -203,18 +215,90 @@ describe('the side panels', () => {
     expect(screen.getByRole('button', { name: 'Open the inspector' })).toBeInTheDocument();
   });
 
-  it('open at the defaults when local storage cannot be read or written', () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
-      throw new Error('blocked');
-    });
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new Error('blocked');
-    });
+  it('keep a drag’s width only once it ends, never while it goes on', () => {
     render(<Shell project={sample} />);
     const model = screen.getByRole('separator', { name: 'Width of the model panel' });
-    expect(model).toHaveAttribute('aria-valuenow', '288');
-    fireEvent.keyDown(model, { key: 'ArrowRight' });
-    expect(model).toHaveAttribute('aria-valuenow', '304');
+    fireEvent.pointerDown(model, { pointerId: 1, button: 0, clientX: 288 });
+    fireEvent.pointerMove(model, { pointerId: 1, clientX: 340 });
+    runFrames();
+    fireEvent.pointerMove(model, { pointerId: 1, clientX: 360 });
+    runFrames();
+    expect(model).toHaveAttribute('aria-valuenow', '360');
+    expect(kept()).toEqual(DEFAULT_PREFERENCES.sidePanels);
+    fireEvent.pointerUp(model, { pointerId: 1, clientX: 370 });
+    expect(kept().model).toEqual({ width: 370, collapsed: false });
+  });
+
+  it('follow the preference as the program sends it, as after a change in another tab', () => {
+    render(<Shell project={sample} />);
+    const sidePanels = {
+      model: { width: 240, collapsed: false },
+      inspector: { width: 320, collapsed: true },
+    };
+    act(() => {
+      linkPreferences({
+        status: 'open',
+        preferences: { ...DEFAULT_PREFERENCES, sidePanels },
+        notify: vi.fn(),
+      });
+    });
+    expect(screen.getByRole('separator', { name: 'Width of the model panel' })).toHaveAttribute(
+      'aria-valuenow',
+      '240',
+    );
+    expect(screen.queryByRole('complementary', { name: 'Inspector' })).not.toBeInTheDocument();
+  });
+
+  it('show a stored width no wider than half the window', () => {
+    changePreferences({
+      sidePanels: {
+        model: { width: 1800, collapsed: false },
+        inspector: { width: 320, collapsed: false },
+      },
+    });
+    render(<Shell project={sample} />);
+    const half = String(Math.floor(window.innerWidth / 2));
+    expect(screen.getByRole('separator', { name: 'Width of the model panel' })).toHaveAttribute(
+      'aria-valuenow',
+      half,
+    );
+    expect(shellOf().style.getPropertyValue('--model-panel-width')).toBe(`${half}px`);
+    expect(kept().model.width).toBe(1800);
+  });
+
+  it('open the model panel when a comparison brings the Changes tab forward', () => {
+    const store = new ComparisonStore();
+    const { older, newer, comparison } = comparedSample();
+    render(<Shell project={newer} comparisons={store} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse the model panel' }));
+    expect(screen.queryByRole('complementary', { name: MODEL_PANEL })).not.toBeInTheDocument();
+    act(() => {
+      store.showComparison({
+        older,
+        newer,
+        comparison,
+        title: 'Compared with HEAD',
+        onEnd: vi.fn(),
+      });
+    });
+    const panel = screen.getByRole('complementary', { name: MODEL_PANEL });
+    expect(within(panel).getByRole('tab', { name: 'Changes' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByText('The model panel is open.')).toBeInTheDocument();
+  });
+
+  it('open the inspector when a component is opened in it for editing', async () => {
+    render(<Shell project={sample} onCommand={vi.fn(() => Promise.resolve({ ok: true }))} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse the inspector' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Components' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'New component' }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const inspector = screen.getByRole('complementary', { name: 'Inspector' });
+    expect(within(inspector).getByRole('button', { name: 'Define the component' })).toBeVisible();
   });
 
   it('are listed in the keyboard help', () => {

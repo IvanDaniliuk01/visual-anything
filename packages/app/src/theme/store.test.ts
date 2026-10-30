@@ -339,6 +339,31 @@ describe('changePreferences', () => {
     expect(appliedPreferences().preferences.author).toEqual({ name: 'Ana' });
   });
 
+  it('sends the side panels’ widths and strips, and says nothing of them while not connected', () => {
+    startPreferences(window);
+    const listener = vi.fn();
+    subscribePreferences(listener);
+    const sidePanels = {
+      model: { width: 360, collapsed: false },
+      inspector: { width: 320, collapsed: true },
+    };
+    const { link, asked } = fakeLink();
+    linkPreferences(link);
+    changePreferences({ sidePanels });
+    expect(appliedPreferences().preferences.sidePanels).toEqual(sidePanels);
+    expect(listener).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(SEND_DELAY_MS);
+    expect(asked).toEqual([{ sidePanels }]);
+
+    resetPreferencesForTests();
+    startPreferences(window);
+    const closed = fakeLink({ status: 'closed' });
+    linkPreferences(closed.link);
+    changePreferences({ sidePanels });
+    expect(closed.link.notify).not.toHaveBeenCalled();
+    expect(appliedPreferences().preferences.sidePanels).toEqual(sidePanels);
+  });
+
   it('keeps the change in the tab, silently, when the session cannot carry preferences', () => {
     startPreferences(window);
     const { link } = fakeLink();

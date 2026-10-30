@@ -48,6 +48,7 @@ import { useViewState } from '../view-state/useViewState';
 import { Header } from './Header';
 import { Inspector } from './Inspector';
 import { ModelPanel } from './ModelPanel';
+import { OpenWhenShown } from './panels/OpenWhenShown';
 import { PanelAnnouncer, PanelEdge } from './panels/PanelEdge';
 import { PanelLayoutStore } from './panels/store';
 import { usePanelShortcuts } from './panels/usePanelShortcuts';
@@ -270,8 +271,8 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
   // Threads of comments (ADR 0059): what the tab does with them, lent the view state's goTo.
   const comments = useCommentsStore(viewState.goTo);
   // Choosing a change in the Changes tab shows it as search shows what it found (ADR 0070).
-  // The side panels' widths and strips, kept in this browser; resizing one draws only its edge and
-  // the canvas, which keeps the same point of the view in its middle.
+  // The side panels' widths and strips, the person's preference (ADR 0032's clarification of
+  // 2026-10-30); resizing one draws only its edge and the canvas, which keeps its middle in place.
   const [panels] = useState(() => new PanelLayoutStore());
   const modelCollapsed = useSyncExternalStore(
     panels.subscribe,
@@ -287,7 +288,7 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
     panels.attach(shellElement.current);
     return () => panels.attach(null);
   }, [panels]);
-  useEffect(() => panels.watchWindow(window), [panels]);
+  useEffect(() => panels.watch(window), [panels]);
   useEffect(() => panels.setCanvas(canvas), [panels, canvas]);
   usePanelShortcuts(panels, tours.playback.tour !== undefined);
   const modelPanelId = useId();
@@ -443,6 +444,12 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                           definitions={definitions}
                         />
                         <PanelAnnouncer store={panels} />
+                        <OpenWhenShown
+                          panels={panels}
+                          changes={changes}
+                          comparisons={comparisons}
+                          comments={comments}
+                        />
                         <ScenarioPanel
                           session={scenarios}
                           canvas={canvas}

@@ -8,19 +8,21 @@
  * A drag shows its width once a frame, never on each pointer move, and keeps it where it ends. Each
  * change keeps the same point of the view in the canvas's middle: the camera moves by half of what the
  * canvas gained or lost, in the change that resizes it, before the browser draws the frame.
+ *
+ * The layout is kept through a `PanelStorage`, the person's preference by default: written once a
+ * change is done, and followed when it changes elsewhere, as in another tab, but not during a drag.
  */
 import { panBy } from '../../canvas/camera';
 import type { CanvasCamera } from '../../view-state/canvas';
 import {
   DEFAULT_PANEL_WIDTH,
   PANEL_SIDES,
-  browserStorage,
-  readLayout,
+  sameLayout,
   shownWidth,
-  writeLayout,
   type PanelLayout,
   type PanelSide,
 } from './layout';
+import { PREFERENCE_STORAGE, type PanelStorage } from './storage';
 
 /** The frames a drag and the window's resizing wait for: the browser's by default. */
 export interface PanelFrames {
@@ -34,8 +36,8 @@ const BROWSER_FRAMES: PanelFrames = {
 };
 
 export interface PanelStoreOptions {
-  /** Where the layout is kept: this browser's local storage by default. */
-  storage?: Pick<Storage, 'getItem' | 'setItem'> | undefined;
+  /** Where the layout is kept: the person's preference by default. */
+  storage?: PanelStorage;
   frames?: PanelFrames;
   /** The window's width in CSS pixels, of which a panel takes half at most. */
   windowWidth?: () => number;
@@ -75,7 +77,7 @@ const WIDTH_PROPERTY: Readonly<Record<PanelSide, string>> = {
 };
 
 export class PanelLayoutStore {
-  private readonly storage: Pick<Storage, 'getItem' | 'setItem'> | undefined;
+  private readonly storage: PanelStorage;
   private readonly frames: PanelFrames;
   private readonly windowWidth: () => number;
   private state: PanelSnapshot;
@@ -87,13 +89,15 @@ export class PanelLayoutStore {
   private frame: number | undefined;
   private windowFrame: number | undefined;
   private focusWanted: { side: PanelSide; control: PanelControl } | undefined;
+  /** Whether an edge is being dragged, while what is kept elsewhere waits. */
+  private resizing = false;
 
   constructor(options: PanelStoreOptions = {}) {
-    this.storage = 'storage' in options ? options.storage : browserStorage();
+    this.storage = options.storage ?? PREFERENCE_STORAGE;
     this.frames = options.frames ?? BROWSER_FRAMES;
     this.windowWidth = options.windowWidth ?? (() => window.innerWidth);
     this.state = {
-      layout: readLayout(this.storage),
+      layout: this.storage.read(),
       windowWidth: this.windowWidth(),
       announcement: undefined,
     };
@@ -146,7 +150,16 @@ export class PanelLayoutStore {
 
   /** Marks the shell while an edge is dragged, so that the pointer shows it and no text is selected. */
   setResizing(resizing: boolean): void {
+    this.resizing = resizing;
     this.element?.toggleAttribute('data-panel-resizing', resizing);
+  }
+
+  /**
+   * Opens a collapsed panel, as whatever brings content forward in it does: the Changes tab, a comment
+   * thread, a definition opened in the inspector. An open panel stays as it is.
+   */
+  open(side: PanelSide): void {
+    if (this.state.layout[side].collapsed) this.toggle(side);
   }
 
   /**
@@ -183,16 +196,29 @@ export class PanelLayoutStore {
     });
   }
 
-  /** Follows the window's resizing until the function it returns is called. */
-  watchWindow(target: Window): () => void {
+  /**
+   * Follows the window's resizing, and the layout kept as it changes elsewhere, until the function it
+   * returns is called.
+   */
+  watch(target: Window): () => void {
     const listener = () => this.followWindow();
     target.addEventListener('resize', listener);
+    const stopFollowing = this.storage.subscribe(() => this.followKept());
+    this.followKept();
     return () => {
+      stopFollowing();
       target.removeEventListener('resize', listener);
       if (this.windowFrame !== undefined) this.frames.cancel(this.windowFrame);
       this.windowFrame = undefined;
       this.dropPending();
     };
+  }
+
+  /** Takes the layout kept, as another tab or the program left it, except while an edge is dragged. */
+  private followKept(): void {
+    if (this.resizing || this.pending !== undefined) return;
+    const kept = this.storage.read();
+    if (!sameLayout(kept, this.state.layout)) this.change(kept, false);
   }
 
   private withWidth(side: PanelSide, width: number): PanelLayout {
@@ -207,17 +233,14 @@ export class PanelLayoutStore {
   }
 
   private change(layout: PanelLayout, keep: boolean, announcement?: PanelAnnouncement): void {
-    const before = this.state.layout;
-    const same = PANEL_SIDES.every(
-      (side) =>
-        before[side].width === layout[side].width &&
-        before[side].collapsed === layout[side].collapsed,
-    );
-    if (same && announcement === undefined) return;
-    this.state = { ...this.state, layout, announcement: announcement ?? this.state.announcement };
-    this.keepingTheMiddle(() => this.write());
-    if (keep) writeLayout(this.storage, layout);
-    this.notify();
+    if (!sameLayout(layout, this.state.layout) || announcement !== undefined) {
+      this.state = { ...this.state, layout, announcement: announcement ?? this.state.announcement };
+      this.keepingTheMiddle(() => this.write());
+      this.notify();
+    }
+    // A drag's frames showed its width without keeping it: its end keeps it.
+    const shown = this.state.layout;
+    if (keep && !sameLayout(shown, this.storage.read())) this.storage.write(shown);
   }
 
   /** Runs a change of the canvas's size, and moves the camera so that its middle shows what it did. */

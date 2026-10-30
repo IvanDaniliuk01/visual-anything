@@ -59,7 +59,28 @@ export interface Preferences {
    * rather than apply at once (ADR 0073). Claude's tools never read or change it.
    */
   reviewClaude: boolean;
+  /**
+   * How wide the side panels beside the canvas are, and whether each is collapsed to a strip (ADR
+   * 0032's clarification of 2026-10-30). The app shows a panel no wider than half the window.
+   */
+  sidePanels: SidePanelsPreference;
 }
+
+/** One side panel: its width in whole pixels, and whether it is collapsed to a strip. */
+export interface SidePanelPreference {
+  width: number;
+  collapsed: boolean;
+}
+
+/** The model panel, left of the canvas, and the inspector, right of it. */
+export interface SidePanelsPreference {
+  model: SidePanelPreference;
+  inspector: SidePanelPreference;
+}
+
+/** The narrowest and the widest a side panel's stored width is, in pixels. */
+export const MIN_SIDE_PANEL_WIDTH = 200;
+export const MAX_SIDE_PANEL_WIDTH = 2000;
 
 /** The name, and optional email, a person's comments are signed with (ADR 0059). */
 export interface AuthorPreference {
@@ -94,6 +115,10 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   motion: 'system',
   fades: true,
   reviewClaude: false,
+  sidePanels: Object.freeze({
+    model: Object.freeze({ width: 288, collapsed: false }),
+    inspector: Object.freeze({ width: 320, collapsed: false }),
+  }),
 });
 
 /** The known names, in the order the file writes them. */
@@ -109,6 +134,7 @@ export const PREFERENCE_NAMES: readonly PreferenceName[] = Object.freeze([
   'motion',
   'fades',
   'reviewClaude',
+  'sidePanels',
 ]);
 
 /** What the preferences file holds, read leniently. */
@@ -224,7 +250,7 @@ export function applyPreferenceChanges(
       (next as Record<PreferenceName, unknown>)[name] = Array.isArray(value)
         ? [...value]
         : typeof value === 'object' && value !== null
-          ? { ...(value as object) }
+          ? copyValue(value)
           : value;
     }
   }
@@ -285,6 +311,10 @@ const LENIENT: Record<PreferenceName, Lenient> = {
   motion: (value) => (isMotionChoice(value) ? value : undefined),
   fades: booleanOrUndefined,
   reviewClaude: booleanOrUndefined,
+  sidePanels: (value) => {
+    const checked = checkSidePanels(value);
+    return checked.ok ? checked.value : undefined;
+  },
 };
 
 type Checked = { ok: true; value: unknown } | { ok: false; message: string };
@@ -371,7 +401,65 @@ const STRICT: Record<PreferenceName, (value: unknown) => Checked> = {
         },
   fades: (value) => strictBoolean('fades', value),
   reviewClaude: (value) => strictBoolean('reviewClaude', value),
+  sidePanels: checkSidePanels,
 };
+
+const SIDE_PANELS = ['model', 'inspector'] as const;
+
+/**
+ * Checks the side panels' widths and strips: "model" and "inspector", each with a whole number of
+ * pixels from 200 to 2000 and whether it is collapsed, and nothing else.
+ */
+function checkSidePanels(value: unknown): Checked {
+  if (!isRecord(value) || !sameKeys(value, SIDE_PANELS)) {
+    return {
+      ok: false,
+      message: '"sidePanels" must hold "model" and "inspector", and nothing else.',
+    };
+  }
+  const panels: Record<string, SidePanelPreference> = {};
+  for (const side of SIDE_PANELS) {
+    const panel = value[side];
+    const name = `sidePanels.${side}`;
+    if (!isRecord(panel) || !sameKeys(panel, ['width', 'collapsed'])) {
+      return {
+        ok: false,
+        message: `"${name}" must hold "width" and "collapsed", and nothing else.`,
+      };
+    }
+    const { width, collapsed } = panel;
+    if (
+      typeof width !== 'number' ||
+      !Number.isInteger(width) ||
+      width < MIN_SIDE_PANEL_WIDTH ||
+      width > MAX_SIDE_PANEL_WIDTH
+    ) {
+      return {
+        ok: false,
+        message: `"${name}.width" must be a whole number of pixels from ${MIN_SIDE_PANEL_WIDTH} to ${MAX_SIDE_PANEL_WIDTH}, not ${JSON.stringify(width)}.`,
+      };
+    }
+    if (typeof collapsed !== 'boolean') {
+      return {
+        ok: false,
+        message: `"${name}.collapsed" must be true or false, not ${JSON.stringify(collapsed)}.`,
+      };
+    }
+    panels[side] = { width, collapsed };
+  }
+  return { ok: true, value: panels };
+}
+
+/** Whether an object holds exactly these names. */
+function sameKeys(value: Record<string, unknown>, names: readonly string[]): boolean {
+  const keys = Object.keys(value);
+  return keys.length === names.length && names.every((name) => Object.hasOwn(value, name));
+}
+
+/** A copy of a preference's value that is an object, sharing nothing with it. */
+function copyValue(value: unknown): unknown {
+  return JSON.parse(JSON.stringify(value)) as unknown;
+}
 
 function booleanOrUndefined(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
@@ -394,6 +482,10 @@ function copyOf(preferences: Readonly<Preferences>): Preferences {
     recentColors: [...preferences.recentColors],
     codeApprovals: [...preferences.codeApprovals],
     author: preferences.author === null ? null : { ...preferences.author },
+    sidePanels: {
+      model: { ...preferences.sidePanels.model },
+      inspector: { ...preferences.sidePanels.inspector },
+    },
   };
 }
 

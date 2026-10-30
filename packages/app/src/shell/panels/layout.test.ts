@@ -1,52 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_PREFERENCES } from '@visual-anything/core';
 import {
   DEFAULT_LAYOUT,
   MIN_PANEL_WIDTH,
-  PANEL_STORAGE_KEY,
   keyedWidth,
   maxPanelWidth,
   panelShortcut,
-  readLayout,
+  sameLayout,
   shownWidth,
-  writeLayout,
 } from './layout';
-
-/** A storage that keeps what it is given, as local storage does. */
-function memory(initial?: string): Storage & { kept: Map<string, string> } {
-  const kept = new Map<string, string>();
-  if (initial !== undefined) kept.set(PANEL_STORAGE_KEY, initial);
-  return {
-    kept,
-    get length() {
-      return kept.size;
-    },
-    clear: () => kept.clear(),
-    key: (index) => [...kept.keys()][index] ?? null,
-    getItem: (key) => kept.get(key) ?? null,
-    setItem: (key, value) => void kept.set(key, value),
-    removeItem: (key) => void kept.delete(key),
-  };
-}
-
-/** A storage whose every use throws, as a browser that blocks storage does. */
-const BROKEN: Storage = {
-  length: 0,
-  clear: () => {
-    throw new Error('blocked');
-  },
-  key: () => {
-    throw new Error('blocked');
-  },
-  getItem: () => {
-    throw new Error('blocked');
-  },
-  setItem: () => {
-    throw new Error('blocked');
-  },
-  removeItem: () => {
-    throw new Error('blocked');
-  },
-};
 
 describe('the side panels’ widths', () => {
   it('go from 200 px to half the window, and never below 200 px', () => {
@@ -54,6 +16,21 @@ describe('the side panels’ widths', () => {
     expect(maxPanelWidth(1600)).toBe(800);
     expect(maxPanelWidth(1001)).toBe(500);
     expect(maxPanelWidth(300)).toBe(200);
+  });
+
+  it('never go past the 2,000 px the preference keeps, however wide the window', () => {
+    expect(maxPanelWidth(5000)).toBe(2000);
+    expect(shownWidth(2400, 5000)).toBe(2000);
+  });
+
+  it('open at the preference’s defaults, 288 and 320 px', () => {
+    expect(DEFAULT_LAYOUT).toBe(DEFAULT_PREFERENCES.sidePanels);
+    expect(DEFAULT_LAYOUT.model).toEqual({ width: 288, collapsed: false });
+    expect(DEFAULT_LAYOUT.inspector).toEqual({ width: 320, collapsed: false });
+    expect(sameLayout(DEFAULT_LAYOUT, { ...DEFAULT_LAYOUT })).toBe(true);
+    expect(
+      sameLayout(DEFAULT_LAYOUT, { ...DEFAULT_LAYOUT, model: { width: 288, collapsed: true } }),
+    ).toBe(false);
   });
 
   it('show the width chosen, within what the window allows now', () => {
@@ -106,53 +83,5 @@ describe('the side panels’ shortcuts', () => {
     expect(panelShortcut(press('m', { ctrlKey: true }))).toBeUndefined();
     expect(panelShortcut(press('m', { metaKey: true }))).toBeUndefined();
     expect(panelShortcut(press('i'))).toBeUndefined();
-  });
-});
-
-describe('the side panels kept in local storage', () => {
-  it('start from the defaults when nothing is kept', () => {
-    expect(readLayout(memory())).toEqual(DEFAULT_LAYOUT);
-    expect(readLayout(undefined)).toEqual(DEFAULT_LAYOUT);
-  });
-
-  it('read back what was written', () => {
-    const storage = memory();
-    const layout = {
-      model: { width: 260, collapsed: true },
-      inspector: { width: 410, collapsed: false },
-    };
-    writeLayout(storage, layout);
-    expect(JSON.parse(storage.kept.get(PANEL_STORAGE_KEY) ?? '')).toEqual({
-      version: 1,
-      ...layout,
-    });
-    expect(readLayout(storage)).toEqual(layout);
-  });
-
-  it('take the default for each value that cannot be read, and keep the rest', () => {
-    expect(
-      readLayout(
-        memory(
-          JSON.stringify({
-            version: 1,
-            model: { width: 'wide', collapsed: true },
-            inspector: { width: 12, collapsed: 'yes' },
-          }),
-        ),
-      ),
-    ).toEqual({
-      model: { width: DEFAULT_LAYOUT.model.width, collapsed: true },
-      inspector: { width: MIN_PANEL_WIDTH, collapsed: false },
-    });
-    expect(readLayout(memory('{not json'))).toEqual(DEFAULT_LAYOUT);
-    expect(readLayout(memory('[1, 2]'))).toEqual(DEFAULT_LAYOUT);
-    expect(readLayout(memory(JSON.stringify({ model: { width: Infinity } })))).toEqual(
-      DEFAULT_LAYOUT,
-    );
-  });
-
-  it('fall back to the defaults, and keep working, when storage throws', () => {
-    expect(readLayout(BROKEN)).toEqual(DEFAULT_LAYOUT);
-    expect(() => writeLayout(BROKEN, DEFAULT_LAYOUT)).not.toThrow();
   });
 });

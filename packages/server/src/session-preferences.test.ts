@@ -134,6 +134,59 @@ describe('preferences/set', () => {
     });
   });
 
+  it('changes the side panels’ widths and strips, as any other preference', async () => {
+    const store = new FakeStore();
+    const session = await open({ preferences: store });
+    const client = new FakeClient();
+    session.connect(client);
+    const sidePanels = {
+      model: { width: 200, collapsed: true },
+      inspector: { width: 640, collapsed: false },
+    };
+
+    await session.receive(client, setMessage({ sidePanels }));
+
+    expect(store.asked).toEqual([{ sidePanels }]);
+    expect(client.ofType('preferences/changed').at(-1)).toMatchObject({
+      type: 'preferences/changed',
+      preferences: { sidePanels },
+      requestId: 'request-1',
+    });
+  });
+
+  it('refuses a side panel wider than 2000 pixels, and changes nothing', async () => {
+    const store = new FakeStore();
+    const session = await open({ preferences: store });
+    const client = new FakeClient();
+    session.connect(client);
+    const before = client.messages.length;
+
+    await session.receive(
+      client,
+      setMessage({
+        sidePanels: {
+          model: { width: 2001, collapsed: false },
+          inspector: { width: 320, collapsed: false },
+        },
+      }),
+    );
+
+    expect(client.messages.slice(before)).toEqual([
+      {
+        type: 'command/rejected',
+        requestId: 'request-1',
+        problems: [
+          {
+            code: 'invalid-command',
+            message:
+              '"sidePanels.model.width" must be a whole number of pixels from 200 to 2000, not 2001.',
+          },
+        ],
+      },
+    ]);
+    expect(store.asked).toEqual([]);
+  });
+
   it('refuses changes it cannot use, naming each problem, and changes nothing', async () => {
     const store = new FakeStore();
     const session = await open({ preferences: store });

@@ -220,12 +220,16 @@ export type {
   PreferenceName,
   Preferences,
   PreferencesRead,
+  SidePanelPreference,
+  SidePanelsPreference,
   ThemeChoice,
   ThemeName,
 } from './preferences';
 export {
   DEFAULT_PREFERENCES,
   MAX_RECENT_COLORS,
+  MAX_SIDE_PANEL_WIDTH,
+  MIN_SIDE_PANEL_WIDTH,
   MOTION_CHOICES,
   PREFERENCES_VERSION,
   PREFERENCE_NAMES,

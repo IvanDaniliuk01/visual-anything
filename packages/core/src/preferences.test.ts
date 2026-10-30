@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PREFERENCES,
   MAX_RECENT_COLORS,
+  MAX_SIDE_PANEL_WIDTH,
+  MIN_SIDE_PANEL_WIDTH,
   PREFERENCES_VERSION,
   LANGUAGE_CHOICES,
   MOTION_CHOICES,
@@ -59,7 +61,16 @@ const preferences: fc.Arbitrary<Preferences> = fc.record({
   motion: fc.constantFrom(...MOTION_CHOICES),
   fades: fc.boolean(),
   reviewClaude: fc.boolean(),
+  // The side panels' widths and strips (ADR 0032's clarification of 2026-10-30).
+  sidePanels: fc.record({ model: sidePanel(), inspector: sidePanel() }),
 });
+
+function sidePanel() {
+  return fc.record({
+    width: fc.integer({ min: MIN_SIDE_PANEL_WIDTH, max: MAX_SIDE_PANEL_WIDTH }),
+    collapsed: fc.boolean(),
+  });
+}
 
 /** Any JSON value, as it reads back from its text (so without -0). */
 const json = fc.jsonValue().map((value) => JSON.parse(JSON.stringify(value)) as unknown);
@@ -95,6 +106,10 @@ describe('DEFAULT_PREFERENCES', () => {
       motion: 'system',
       fades: true,
       reviewClaude: false,
+      sidePanels: {
+        model: { width: 288, collapsed: false },
+        inspector: { width: 320, collapsed: false },
+      },
     });
     expect(PREFERENCE_NAMES).toEqual(Object.keys(DEFAULT_PREFERENCES));
   });
@@ -103,6 +118,8 @@ describe('DEFAULT_PREFERENCES', () => {
     expect(Object.isFrozen(DEFAULT_PREFERENCES)).toBe(true);
     expect(Object.isFrozen(DEFAULT_PREFERENCES.recentColors)).toBe(true);
     expect(Object.isFrozen(DEFAULT_PREFERENCES.codeApprovals)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_PREFERENCES.sidePanels)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_PREFERENCES.sidePanels.model)).toBe(true);
   });
 });
 
@@ -160,6 +177,10 @@ describe('readPreferences', () => {
       motion: 'reduced',
       fades: false,
       reviewClaude: true,
+      sidePanels: {
+        model: { width: 200, collapsed: true },
+        inspector: { width: 2000, collapsed: false },
+      },
     });
     expect(read.preferences).toEqual({
       theme: 'light',
@@ -173,8 +194,27 @@ describe('readPreferences', () => {
       motion: 'reduced',
       fades: false,
       reviewClaude: true,
+      sidePanels: {
+        model: { width: 200, collapsed: true },
+        inspector: { width: 2000, collapsed: false },
+      },
     });
     expect(read.unread).toEqual([]);
+  });
+
+  it('keeps side panels it cannot read as they are, and uses the default widths', () => {
+    for (const value of [
+      'wide',
+      { model: { width: 288, collapsed: false } },
+      { model: { width: 150, collapsed: false }, inspector: { width: 320, collapsed: false } },
+      { model: { width: 288.5, collapsed: false }, inspector: { width: 320, collapsed: false } },
+      { model: { width: 288, collapsed: 'no' }, inspector: { width: 320, collapsed: false } },
+    ]) {
+      const read = readPreferences({ sidePanels: value });
+      expect(read.preferences.sidePanels).toEqual(DEFAULT_PREFERENCES.sidePanels);
+      expect(read.kept).toEqual({ sidePanels: value });
+      expect(read.unread).toEqual(['sidePanels']);
+    }
   });
 
   it('reads an author without an email, and keeps one it cannot read as it is', () => {
@@ -281,6 +321,16 @@ describe('formatPreferences', () => {
         '  "motion": "system",',
         '  "fades": true,',
         '  "reviewClaude": false,',
+        '  "sidePanels": {',
+        '    "model": {',
+        '      "width": 288,',
+        '      "collapsed": false',
+        '    },',
+        '    "inspector": {',
+        '      "width": 320,',
+        '      "collapsed": false',
+        '    }',
+        '  },',
         '  "apple": [',
         '    1,',
         '    2',
@@ -421,6 +471,56 @@ describe('checkPreferenceChanges', () => {
       '"fades" must be true or false, not "on".',
     ],
     [
+      'side panels that are not an object',
+      { sidePanels: 'wide' },
+      '"sidePanels" must hold "model" and "inspector", and nothing else.',
+    ],
+    [
+      'side panels without the inspector',
+      { sidePanels: { model: { width: 288, collapsed: false } } },
+      '"sidePanels" must hold "model" and "inspector", and nothing else.',
+    ],
+    [
+      'a side panel with more than a width and whether it is collapsed',
+      {
+        sidePanels: {
+          model: { width: 288, collapsed: false, side: 'left' },
+          inspector: { width: 320, collapsed: false },
+        },
+      },
+      '"sidePanels.model" must hold "width" and "collapsed", and nothing else.',
+    ],
+    [
+      'a side panel narrower than 200 pixels',
+      {
+        sidePanels: {
+          model: { width: 288, collapsed: false },
+          inspector: { width: 199, collapsed: false },
+        },
+      },
+      '"sidePanels.inspector.width" must be a whole number of pixels from 200 to 2000, not 199.',
+    ],
+    [
+      'a side panel width that is not whole',
+      {
+        sidePanels: {
+          model: { width: 300.5, collapsed: false },
+          inspector: { width: 320, collapsed: false },
+        },
+      },
+      '"sidePanels.model.width" must be a whole number of pixels from 200 to 2000, not 300.5.',
+    ],
+    [
+      'a side panel collapsed that is not true or false',
+      {
+        sidePanels: {
+          model: { width: 288, collapsed: 'yes' },
+          inspector: { width: 320, collapsed: false },
+        },
+      },
+      '"sidePanels.model.collapsed" must be true or false, not "yes".',
+    ],
+    [
       'an author that is no object',
       { author: 'Ana' },
       '"author" must be null, or a name and an email.',
@@ -477,5 +577,19 @@ describe('applyPreferenceChanges', () => {
     expect(after.author).toEqual({ name: 'Ana' });
     expect(after.author).not.toBe(changes.author);
     expect(applyPreferenceChanges(after, { author: null }).author).toBeNull();
+  });
+
+  it('shares no side panel with the changes or the preferences before', () => {
+    const changes: PreferenceChanges = {
+      sidePanels: {
+        model: { width: 400, collapsed: true },
+        inspector: { width: 320, collapsed: false },
+      },
+    };
+    const after = applyPreferenceChanges(DEFAULT_PREFERENCES, changes);
+    expect(after.sidePanels).toEqual(changes.sidePanels);
+    expect(after.sidePanels.model).not.toBe(changes.sidePanels?.model);
+    const again = applyPreferenceChanges(after, {});
+    expect(again.sidePanels.inspector).not.toBe(after.sidePanels.inspector);
   });
 });

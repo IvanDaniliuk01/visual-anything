@@ -122,6 +122,11 @@ function OpenEdge({ store, side, controls }: PanelEdgeProps) {
     const current = drag.current;
     if (current?.pointer !== event.pointerId) return;
     drag.current = undefined;
+    // Where the pointer is let go is where the edge ends; a cancelled drag ends where it was last.
+    if (event.type === 'pointerup') {
+      const moved = event.clientX - current.x;
+      current.last = current.width + (side === 'model' ? moved : -moved);
+    }
     store.setResizing(false);
     store.commit(side, current.last);
   };

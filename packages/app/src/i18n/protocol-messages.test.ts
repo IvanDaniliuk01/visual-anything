@@ -311,6 +311,35 @@ function said(): { name: string; message: string }[] {
     // How tours and scenarios move (ADR 0077).
     ['a motion there is not', { motion: 'slow' }],
     ['fades that are not true or false', { fades: 'on' }],
+    // The side panels' widths and strips (ADR 0032's clarification of 2026-10-30).
+    ['side panels that are not an object', { sidePanels: 'wide' }],
+    [
+      'a side panel with more than its width and strip',
+      {
+        sidePanels: {
+          model: { width: 288, collapsed: false, side: 'left' },
+          inspector: { width: 320, collapsed: false },
+        },
+      },
+    ],
+    [
+      'a side panel too wide',
+      {
+        sidePanels: {
+          model: { width: 2400, collapsed: false },
+          inspector: { width: 320, collapsed: false },
+        },
+      },
+    ],
+    [
+      'a side panel collapsed that is not true or false',
+      {
+        sidePanels: {
+          model: { width: 288, collapsed: false },
+          inspector: { width: 320, collapsed: 1 },
+        },
+      },
+    ],
   ] as const) {
     const checked = checkPreferenceChanges(changes);
     for (const problem of checked.ok ? [] : checked.problems) {

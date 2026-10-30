@@ -57,9 +57,11 @@ export const MOTION_NOT_CONNECTED =
 
 /**
  * What a change says while the tab is not connected: about the language, or the grid and the rulers,
- * when it changes only that.
+ * when it changes only that. The side panels' widths and strips say nothing: they change with every
+ * collapse and every drag, and the tab keeps them as they are.
  */
-function notConnected(changes: PreferenceChanges): string {
+function notConnected(changes: PreferenceChanges): string | undefined {
+  if (Object.keys(changes).every((name) => name === 'sidePanels')) return undefined;
   if (changes.codeApprovals !== undefined) return APPROVAL_NOT_CONNECTED;
   if (changes.author !== undefined) return AUTHOR_NOT_CONNECTED;
   if (changes.theme !== undefined) return NOT_CONNECTED;
@@ -220,7 +222,8 @@ export function changePreferences(changes: PreferenceChanges): void {
   const { link } = state;
   if (link?.setPreferences === undefined) return;
   if (link.status === 'closed' || link.status === 'failed') {
-    link.notify('info', notConnected(changes));
+    const said = notConnected(changes);
+    if (said !== undefined) link.notify('info', said);
     return;
   }
   sendSoon();
@@ -354,7 +357,8 @@ function answered(link: PreferencesLink, changes: PreferenceChanges, answer: Pre
   } else if (answer.problems.some((problem) => problem.code === 'connection-closed')) {
     // The program may never have heard of it: it stays in this tab, under any newer change.
     state.unsent = { ...changes, ...state.unsent };
-    (state.link ?? link).notify('info', notConnected(changes));
+    const said = notConnected(changes);
+    if (said !== undefined) (state.link ?? link).notify('info', said);
   } else {
     const why = answer.problems.map((problem) => problem.message).join(' ');
     link.notify('error', fill('Could not change your preferences: {why}', { why }));
@@ -447,6 +451,11 @@ function samePreferences(a: Preferences, b: Preferences): boolean {
     a.author?.email === b.author?.email &&
     // How tours and scenarios move (ADR 0077).
     a.motion === b.motion &&
-    a.fades === b.fades
+    a.fades === b.fades &&
+    // The side panels' widths and strips (ADR 0032's clarification of 2026-10-30).
+    a.sidePanels.model.width === b.sidePanels.model.width &&
+    a.sidePanels.model.collapsed === b.sidePanels.model.collapsed &&
+    a.sidePanels.inspector.width === b.sidePanels.inspector.width &&
+    a.sidePanels.inspector.collapsed === b.sidePanels.inspector.collapsed
   );
 }
