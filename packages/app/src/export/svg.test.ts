@@ -22,6 +22,9 @@ import { FRAME, ORGANS_ID, TRIANGLE, beyondBoxes } from '../test/beyond';
 import { SAMPLE_VIEW, collapsedSample, drawnBounds, pathPoints, richSample } from '../test/exports';
 import { loadSample } from '../test/sample';
 import { usersAndOrders, VIEW as TABLES_VIEW } from '../test/tables';
+import { FACES_VIEW, facedProject } from '../test/faces';
+import { faceRect } from '../canvas/faces';
+import { robotoWidth, type RobotoVariant } from '@visual-anything/core';
 import { THEMES } from '../theme/themes';
 import { SVG_MARGIN, writeSvg } from './svg';
 
@@ -102,7 +105,18 @@ const PROJECTS: [string, () => ProjectSnapshot, string][] = [
     () => beyond({ routeStyle: 'straight' }),
     BEYOND_VIEW,
   ],
+  // Faces (ADR 0083): a container's, a table's over its rows' and a face of size content.
+  ['faces on a container, a table, its rows and a shape of its own', facedProject, FACES_VIEW],
+  ['faces on a collapsed container', () => facedProject({ collapsed: true }), FACES_VIEW],
 ];
+
+/** The variant a `<tspan>` is written in, by its weight, style and family. */
+function variantOf(span: Element): RobotoVariant {
+  if ((span.getAttribute('font-family') ?? '').includes('Mono')) return 'mono';
+  const bold = span.getAttribute('font-weight') !== null;
+  const italic = span.getAttribute('font-style') === 'italic';
+  return bold ? (italic ? 'boldItalic' : 'bold') : italic ? 'italic' : 'regular';
+}
 
 describe('writeSvg', () => {
   describe.each(PROJECTS)('of %s', (_name, make, viewId) => {
@@ -149,6 +163,42 @@ describe('writeSvg', () => {
         ...scene.notes.map((note) => note.id),
         ...scene.arrows.map((arrow) => arrow.id),
       ]);
+    });
+
+    it('draws each face inside where the canvas lays it out, its texts in Roboto’s widths', () => {
+      const project = make();
+      const scene = buildScene(project, viewId);
+      const document = readSvg(writeSvg(project, viewId).text);
+      for (const shape of scene.shapes) {
+        const area = faceRect(shape);
+        const within = (x: number, y: number, width: number, height: number) =>
+          x >= area.x - 0.01 &&
+          y >= area.y - 0.01 &&
+          x + width <= area.x + area.width + 0.01 &&
+          y + height <= area.y + area.height + 0.01;
+        const faces = document.querySelectorAll(
+          `g[data-part="shapes"] > g[data-shape="${shape.key}"] g[data-part="face"]`,
+        );
+        for (const face of faces) {
+          for (const drawn of face.querySelectorAll('rect, use')) {
+            const [x, y, width, height] = ['x', 'y', 'width', 'height'].map((name) =>
+              Number(drawn.getAttribute(name) ?? 0),
+            ) as [number, number, number, number];
+            expect(within(x, y, width, height), shape.key).toBe(true);
+          }
+          for (const span of face.querySelectorAll('tspan')) {
+            const size = Number(span.getAttribute('font-size'));
+            const width = robotoWidth(span.textContent ?? '', variantOf(span), size);
+            const x = Number(span.getAttribute('x'));
+            // From its baseline, its letters stand above and hang below within its line.
+            const y = Number(span.getAttribute('y'));
+            expect(
+              within(x, y - size, width, size * 1.3),
+              `${shape.key}: ${span.textContent}`,
+            ).toBe(true);
+          }
+        }
+      }
     });
 
     it('writes the same file from the scene the canvas drew and from one made afresh', () => {

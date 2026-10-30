@@ -1,5 +1,6 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Face } from '@visual-anything/schema';
+import { VIEW, tablesProject } from './tables';
 
 /**
  * A table's face (ADR 0083): its name in bold over its component's name, padded, as the header of its
@@ -56,4 +57,54 @@ export function withFaces(project: ProjectSnapshot, faces: Record<string, Face>)
       }),
     })),
   };
+}
+
+/** The view of `facedProject`. */
+export const FACES_VIEW = VIEW;
+
+/**
+ * A project drawn with faces (ADR 0083): a system with its face, holding a table with its face over
+ * rows that draw their columns' faces, and a service of its own beside it with a face of size
+ * `content` and a description that wraps; the system collapsed when asked. With `appearances`, the
+ * faces are the project's appearances of those built-in components, as a project gives them one
+ * (ADR 0034), rather than the built-in packages changed.
+ */
+export function facedProject(
+  options: { collapsed?: boolean; appearances?: boolean } = {},
+): ProjectSnapshot {
+  const faces = {
+    'data-modeling.table': TABLE_FACE,
+    'data-modeling.column': COLUMN_FACE,
+    'systems.system': SYSTEM_FACE,
+    'systems.service': CARD_FACE,
+  };
+  const project = tablesProject({
+    tables: [
+      {
+        id: 'users',
+        in: 'billing',
+        columns: [
+          { id: 'users-id', name: 'id', type: 'uuid', primaryKey: true },
+          { id: 'users-email', name: 'email', type: 'text' },
+          { id: 'users-name', name: 'name' },
+        ],
+      },
+    ],
+    elements: [
+      { id: 'billing', component: 'systems.system', name: 'Billing' },
+      {
+        id: 'mailer',
+        component: 'systems.service',
+        name: 'Mailer',
+        attributes: {
+          description: 'Sends the reminders and the receipts, every night, to every patient',
+        },
+      },
+    ],
+    positions: [{ element: 'mailer', x: 900, y: 0, height: 40 }],
+    ...(options.collapsed ? { collapsed: ['billing'] } : {}),
+  });
+  if (!options.appearances) return withFaces(project, faces);
+  const components = Object.fromEntries(Object.entries(faces).map(([id, face]) => [id, { face }]));
+  return { ...project, project: { ...project.project, appearances: { components } } };
 }

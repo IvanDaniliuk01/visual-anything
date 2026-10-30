@@ -11,7 +11,9 @@ import { pageScene } from '../canvas/routing/avoided';
 import { buildScene, type Scene } from '../canvas/scene';
 import { writeSvg } from '../export/svg';
 import { translateMessage, untranslatedParts } from '../i18n/translate';
+import { shapeFaceDrawing } from '../canvas/faces';
 import { beyondBoxes } from '../test/beyond';
+import { FACES_VIEW, facedProject } from '../test/faces';
 import { loadSample } from '../test/sample';
 import { PAGE_FORMAT, pageDataOf, readPageData, type PageData } from './data';
 
@@ -328,5 +330,27 @@ describe('A page of a view beyond boxes (M8b)', () => {
     expect(drawn.lines.filter((line) => line.curve).length).toBeGreaterThan(1);
     // Its drawing is the one the exports write of the app's.
     expect(writeSvg(result.project, 'anatomy').text).toBe(writeSvg(project, 'anatomy').text);
+  });
+});
+
+describe('A page of a view with faces (ADR 0083)', () => {
+  it('carries the faces a project gives built-in components, and draws them as the app does', () => {
+    const project = facedProject({ appearances: true });
+    const result = read(pageDataOf(project));
+    if (!result.ok) throw new Error(result.problems.join('\n'));
+    const app = pageScene(buildScene(project, FACES_VIEW));
+    const page = pageScene(buildScene(result.project, FACES_VIEW));
+    // Every shape of the view has its face in the page, laid out as in the app.
+    expect(page.shapes.every((shape) => shape.face !== undefined)).toBe(true);
+    expect(page.shapes.map((shape) => [shape.key, shape.rect, shape.header])).toEqual(
+      app.shapes.map((shape) => [shape.key, shape.rect, shape.header]),
+    );
+    expect(page.shapes.map((shape) => shapeFaceDrawing(shape))).toEqual(
+      app.shapes.map((shape) => shapeFaceDrawing(shape)),
+    );
+    // Its drawing is the one the exports write of the app's, faces and all.
+    const drawn = writeSvg(result.project, FACES_VIEW).text;
+    expect(drawn).toBe(writeSvg(project, FACES_VIEW).text);
+    expect(drawn.match(/data-part="face"/g)).toHaveLength(page.shapes.length);
   });
 });
