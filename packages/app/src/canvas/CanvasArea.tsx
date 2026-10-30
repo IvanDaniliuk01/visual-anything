@@ -54,7 +54,7 @@ import type { ScenarioSession } from '../scenarios/session';
 import { useCanvasRecording } from '../scenarios/useCanvasRecording';
 import { THEMES } from '../theme/themes';
 import { canvasCamera, type CanvasCamera } from '../view-state/canvas';
-import { screenToWorld, worldToScreen, type Camera } from './camera';
+import { screenToWorld, type Camera } from './camera';
 import type { AlignHow } from './align';
 import { alignActions, alignCommand, alignableCount } from './alignActions';
 import {
@@ -98,9 +98,8 @@ import { RouteMenu } from './routing/RouteMenu';
 import { relationLinesOf, type ElementShape, type Scene } from './scene';
 import type { ComparisonScene } from './comparison/scene';
 import { ShapeMenu } from './ShapeMenu';
-import { HoverCard } from './HoverCard';
-import { HOVER_CARD_DELAY, cutOnCanvas } from './hoverCut';
-import { glyphMeasure } from './emphasisLabels';
+import { PlacedHoverCard } from './HoverCard';
+import { useHoverCard } from './useHoverCard';
 import { LegendPanel } from './overlays/LegendPanel';
 import { ZoomExpansionContext, withoutZoomExpanded } from './overlays/useZoomExpansion';
 import { restackCommand, stackingActions, stackingShortcut, type StackingMove } from './stacking';
@@ -349,18 +348,7 @@ export function CanvasArea({
   });
   const themeShown = useEffectEvent((shown: ThemeName) => onThemeShown?.(shown));
   // The shape whose hover card shows, once the pointer or the keys rested on it (ADR 0082).
-  const [hoverCard, setHoverCard] = useState<string>();
-  const hoverTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const hoverShape = useEffectEvent((key: string | undefined) => {
-    clearTimeout(hoverTimer.current);
-    setHoverCard(undefined);
-    if (key === undefined) return;
-    hoverTimer.current = setTimeout(() => {
-      const shape = latest.current.indexed?.byKey.get(key);
-      if (shape && cutOnCanvas(shape, glyphMeasure)) setHoverCard(key);
-    }, HOVER_CARD_DELAY);
-  });
-  useEffect(() => () => clearTimeout(hoverTimer.current), []);
+  const [hoverCard, hoverShape] = useHoverCard((key) => latest.current.indexed?.byKey.get(key));
   // A destination's mark, Alt+Enter and the shape's menu follow it (ADR 0056).
   const follower = useFollow();
   const follow = useEffectEvent((element: Id) => {
@@ -538,7 +526,7 @@ export function CanvasArea({
       controllerRef.current = null;
     };
     // The controller lives as long as the canvas area; `latest` gives it the current props.
-  }, [cameras, changePreferences]);
+  }, [cameras, changePreferences, hoverShape]);
 
   useEffect(() => {
     controllerRef.current?.setGrid(grid);
@@ -1421,21 +1409,6 @@ class CameraWatch {
   readonly current = (): Camera | undefined => this.camera;
 
   readonly scale = (): number | undefined => this.camera?.scale;
-}
-
-/** A shape's hover card, under the shape where the camera shows it now. */
-function PlacedHoverCard({
-  shape,
-  cameras,
-}: {
-  shape: ElementShape | undefined;
-  cameras: CameraWatch;
-}) {
-  const camera = useSyncExternalStore(cameras.subscribe, cameras.current);
-  if (!shape || !camera) return null;
-  const { x, y, height } = shape.rect;
-  const at = worldToScreen(camera, { x, y: y + height });
-  return <HoverCard shape={shape} at={{ x: at.x, y: at.y + 6 }} />;
 }
 
 /**

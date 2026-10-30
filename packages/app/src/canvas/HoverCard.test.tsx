@@ -1,9 +1,10 @@
 import { emphasisRuns } from '@visual-anything/core';
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { act, render, renderHook, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { loadSample } from '../test/sample';
 import { HoverCard } from './HoverCard';
 import { cutOnCanvas } from './hoverCut';
+import { useHoverCard } from './useHoverCard';
 import { buildScene, type ElementShape } from './scene';
 
 const scene = buildScene(loadSample(), 'system-overview');
@@ -35,6 +36,36 @@ describe('a shape’s hover card (ADR 0082)', () => {
     expect(card.textContent).toBe(`${whatsapp.name}the orders table, ${LONG}`);
     expect(container.querySelector('strong')?.textContent).toBe('orders');
     expect(card.style.transform).toBe('translate(10px, 20px)');
+  });
+
+  it('shows 400 ms after the pointer rests, and goes when it leaves', () => {
+    vi.useFakeTimers();
+    try {
+      const cut = { ...whatsapp, detail: LONG };
+      const { result } = renderHook(() =>
+        useHoverCard((key) => (key === cut.key ? cut : undefined)),
+      );
+      act(() => result.current[1](cut.key));
+      act(() => {
+        vi.advanceTimersByTime(399);
+      });
+      expect(result.current[0]).toBeUndefined();
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(result.current[0]).toBe(cut.key);
+      act(() => result.current[1](undefined));
+      expect(result.current[0]).toBeUndefined();
+      // A shape the canvas holds whole shows none.
+      const { result: whole } = renderHook(() => useHoverCard(() => whatsapp));
+      act(() => whole.current[1](whatsapp.key));
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+      expect(whole.current[0]).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('writes markup in a detail that takes no emphasis as the characters it is', () => {
