@@ -461,7 +461,7 @@ describe('the legend of an SVG', () => {
     const english = readSvg(writeSvg(withOverlays([team]), SAMPLE_VIEW).text);
     const warned = textsIn(english.querySelector('g[data-part="legend"]')).join(' ');
     expect(warned).toContain(
-      '"Scheduling team" and "Patients" of "Team" are 1.0:1 apart, under 3:1.',
+      '"Scheduling team" and "Patients" of "Team" differ by 6, under 20: hard to tell apart.',
     );
 
     setCurrentLanguage('es');
@@ -469,7 +469,9 @@ describe('the legend of an SVG', () => {
     const said = textsIn(spanish.querySelector('g[data-part="legend"]')).join(' ');
     expect(said).toContain('Relleno según owner');
     expect(said).toContain('Cualquier otro valor');
-    expect(said).toContain('"Scheduling team" y "Patients" de "Team" están a 1.0:1, menos de 3:1.');
+    expect(said).toContain(
+      '"Scheduling team" y "Patients" de "Team" difieren en 6, menos de 20: cuesta distinguirlos.',
+    );
   });
 
   it('measures its warnings against the canvas of the theme it is drawn in', () => {

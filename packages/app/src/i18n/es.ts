@@ -4737,10 +4737,10 @@ export const messages: Catalog = {
     'Cualquier otro valor de "{overlay}" tiene {n}:1 contra el lienzo claro, menos de 3:1.',
   'Any other value of "{overlay}" is {n}:1 against the dark canvas, under 3:1.':
     'Cualquier otro valor de "{overlay}" tiene {n}:1 contra el lienzo oscuro, menos de 3:1.',
-  '"{label}" and "{other}" of "{overlay}" are {n}:1 apart, under 3:1.':
-    '"{label}" y "{other}" de "{overlay}" están a {n}:1, menos de 3:1.',
-  '"{label}" and any other value of "{overlay}" are {n}:1 apart, under 3:1.':
-    '"{label}" y cualquier otro valor de "{overlay}" están a {n}:1, menos de 3:1.',
+  '"{label}" and "{other}" of "{overlay}" differ by {n}, under {least}: hard to tell apart.':
+    '"{label}" y "{other}" de "{overlay}" difieren en {n}, menos de {least}: cuesta distinguirlos.',
+  '"{label}" and any other value of "{overlay}" differ by {n}, under {least}: hard to tell apart.':
+    '"{label}" y cualquier otro valor de "{overlay}" difieren en {n}, menos de {least}: cuesta distinguirlos.',
   '…and {n} more warnings about the colors of "{overlay}".':
     '…y {n} advertencias más sobre los colores de "{overlay}".',
   'The levels of {of} must be a list.': 'Los niveles de {of} deben ser una lista.',

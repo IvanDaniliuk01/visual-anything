@@ -35,7 +35,7 @@ describe('set_overlays and get_overlays', () => {
     expect(result.undo).toBeDefined();
     // The legend warns about the colors hard to tell apart, in either theme.
     expect(result.legendWarnings).toContain(
-      '"A" and "Team B" of "Team" are 1.0:1 apart, under 3:1.',
+      '"A" and "Team B" of "Team" differ by 6, under 20: hard to tell apart.',
     );
     const file = JSON.parse(
       await readFile(join(tools.session.folder, 'views', 'overview.vaview'), 'utf8'),

@@ -57,6 +57,41 @@ export const MINIMUM_TEXT_CONTRAST = 4.5;
 /** The least contrast a line, a mark or a boundary needs, from WCAG 2.1 level AA. */
 export const MINIMUM_MARK_CONTRAST = 3;
 
+/**
+ * A color in CIELAB, under the D65 white point: lightness from 0 to 100, then the red–green and the
+ * yellow–blue axes. Any other value than a color counts as white.
+ */
+export function labOf(color: string): readonly [number, number, number] {
+  const hex = isColor(color) ? color : '#FFFFFF';
+  const linear = (at: number): number => {
+    const value = parseInt(hex.slice(at, at + 2), 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  const [r, g, b] = [linear(1), linear(3), linear(5)];
+  const x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
+  const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+  const f = (t: number): number => (t > 216 / 24389 ? Math.cbrt(t) : ((24389 / 27) * t + 16) / 116);
+  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
+}
+
+/**
+ * How far apart two colors look: their distance in CIELAB (ΔE 1976). About 2 is the least a person
+ * notices side by side; categories read apart from about 20.
+ */
+export function colorDifference(a: string, b: string): number {
+  const [l1, a1, b1] = labOf(a);
+  const [l2, a2, b2] = labOf(b);
+  return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+}
+
+/**
+ * The least difference two colors that stand for different values need (ADR 0080's clarification of
+ * 2026-10-30). Their contrast with one another is not asked for: colors that each keep 3:1 against
+ * both canvases cannot also keep 3:1 between them.
+ */
+export const MINIMUM_COLOR_DIFFERENCE = 20;
+
 /** How a color reads on the canvas of each theme: its contrast ratio against each. */
 export function legibility(color: Color): Readonly<Record<ThemeName, number>> {
   return {

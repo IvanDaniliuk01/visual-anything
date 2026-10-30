@@ -137,7 +137,7 @@ describe('the tours panel', () => {
     );
     fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
     expect(tab).toHaveTextContent(
-      'A step marks elements and relations, and "gone-element" is neither.',
+      'A step marks elements, relations, notes and arrows of its view, and "gone-element" is none of them.',
     );
   });
 });
