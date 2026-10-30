@@ -810,6 +810,9 @@ textarea.inline-editor {
 .notice-message {
   flex: 1;
   min-width: 0;
+  /* A long notice, such as the warnings of a project as it opens, scrolls within a third of the window. */
+  max-height: 33vh;
+  overflow-y: auto;
   padding-top: 0.15rem;
   overflow-wrap: anywhere;
 }
