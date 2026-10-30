@@ -16,6 +16,7 @@
 import {
   definitionsIn,
   modelIndexOf,
+  type GlideShape,
   type ProjectSnapshot,
   type TourRect,
 } from '@visual-anything/core';
@@ -65,6 +66,30 @@ function drawnView(project: ProjectSnapshot, view: ViewFile): Drawn {
   const drawn = { scene, shapes, from };
   drawnViews.set(view, drawn);
   return drawn;
+}
+
+/**
+ * The shapes each view of the project draws, as `checkTour`'s `shapesOf` takes them (ADR 0084): each
+ * element's shapes with their container paths, their keys, and their rectangles in canvas units; none
+ * for a view the project does not have.
+ */
+export function drawnShapes(project: ProjectSnapshot): (view: Id) => GlideShape[] | undefined {
+  const made = new Map<Id, GlideShape[] | undefined>();
+  return (id) => {
+    if (!made.has(id)) {
+      const view = project.views.find((each) => each.id === id);
+      made.set(
+        id,
+        view &&
+          drawnView(project, view).scene.shapes.map((shape) => ({
+            element: shape.element,
+            path: shape.key,
+            rect: shape.rect,
+          })),
+      );
+    }
+    return made.get(id);
+  };
 }
 
 /**

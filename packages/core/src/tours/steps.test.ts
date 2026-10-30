@@ -652,3 +652,85 @@ describe('idsNamedByTours', () => {
     expect([...ids].sort()).toEqual(['a', 'b', 'c', 'd', 'walk']);
   });
 });
+
+describe('a caption that points, and a pulse (ADR 0084)', () => {
+  it('flags a pulse whose relations do not join, are gone, or are not drawn by its view', () => {
+    const problems = (relations: string[]) =>
+      tourStepProblems(project(), step({ pulse: { relations } })).map((each) => [
+        each.part,
+        each.subject,
+      ]);
+    expect(problems(['client-calls-api', 'api-reads-db'])).toEqual([]);
+    // A relation that ends on another shares none of its ends: the marker could not run on.
+    expect(problems(['client-calls-api', 'contract-governs-call'])).toEqual([
+      ['pulse', 'contract-governs-call'],
+    ]);
+    expect(problems(['api-reads-db', 'contract-governs-call'])).toEqual([
+      ['pulse', 'contract-governs-call'],
+    ]);
+    expect(problems(['client-calls-api', 'gone'])).toEqual([['pulse', 'gone']]);
+    // A relation the view nests by draws no line to run along.
+    expect(problems(['api-in-system'])).toEqual([['pulse', 'api-in-system']]);
+  });
+
+  it('flags a caption that points at nothing its view holds, and not at a mark that is there', () => {
+    const at = (pointTo: string, marks?: string[]) =>
+      tourStepProblems(
+        project(),
+        step({ caption: { title: 'Here', pointTo }, ...(marks ? { marks } : {}) }),
+      ).map((each) => [each.part, each.subject]);
+    expect(at('api', ['api'])).toEqual([]);
+    // Not one of the marks, but there: `checkTour` says so, the step is not broken.
+    expect(at('db', ['api'])).toEqual([]);
+    expect(at('gone')).toEqual([['point-to', 'gone']]);
+    // A mark that is gone is said once, as a mark.
+    expect(at('gone', ['gone'])).toEqual([[undefined, 'gone']]);
+  });
+
+  it('plays the pointing, the pulse and the cut as written, and without them once they break', () => {
+    expect(
+      playableStep(
+        project(),
+        step({
+          caption: { title: 'Here', pointTo: 'db' },
+          marks: ['api'],
+          reveal: [{ marks: ['db'] }],
+          transition: 'cut',
+          pulse: { relations: ['client-calls-api', 'api-reads-db'], repeat: 2 },
+        }),
+      ),
+    ).toMatchObject({
+      transition: 'cut',
+      pointTo: { id: 'db', reveal: 1 },
+      pulse: {
+        legs: [
+          { relation: 'client-calls-api', forward: true },
+          { relation: 'api-reads-db', forward: true },
+        ],
+        repeat: 2,
+      },
+    });
+    const broken = playableStep(
+      project(),
+      step({
+        caption: { title: 'Here', pointTo: 'db' },
+        marks: ['api'],
+        pulse: { relations: ['api-reads-db', 'contract-governs-call'] },
+      }),
+    );
+    expect(broken?.pointTo).toBeUndefined();
+    expect(broken?.pulse).toBeUndefined();
+    expect(broken?.marks).toEqual(['api']);
+  });
+
+  it('names what a caption points at and what a pulse runs along', () => {
+    const ids = idsNamedByTours([
+      {
+        id: 'walk',
+        name: 'Walk',
+        steps: [step({ caption: { title: 'Here', pointTo: 'p' }, pulse: { relations: ['r'] } })],
+      },
+    ]);
+    expect([...ids].sort()).toEqual(['p', 'r', 'walk']);
+  });
+});

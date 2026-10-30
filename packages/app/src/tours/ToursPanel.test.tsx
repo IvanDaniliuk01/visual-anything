@@ -194,6 +194,71 @@ describe('the tour’s check in the panel', () => {
     expect(look(4)).toMatch(/^Step 4 moves on after 1 s, but its text takes .+ to read/);
   });
 
+  it('says which steps into another view glide or cut, a pointing that misses and a pulse that is not a chain (ADR 0084)', () => {
+    const [view] = sample.views;
+    if (!view) throw new Error('The sample has no view.');
+    const project: ProjectSnapshot = {
+      ...sample,
+      views: [...sample.views, { ...view, id: 'again', name: 'Again' }],
+      tours: [
+        {
+          id: 'explained',
+          name: 'Explained',
+          steps: [
+            { id: 'here', viewState: { view: view.id }, caption: { title: 'Here' } },
+            {
+              id: 'there',
+              viewState: { view: 'again' },
+              caption: { title: 'There', pointTo: 'patient' },
+              marks: ['booking-agent'],
+            },
+            {
+              id: 'back',
+              viewState: { view: view.id },
+              caption: { title: 'Back' },
+              transition: 'cut',
+              pulse: { relations: ['patient-to-whatsapp', 'api-reads-db'] },
+            },
+          ],
+        },
+      ],
+    };
+    const { tab } = openTours(project);
+    fireEvent.click(within(tab).getByRole('button', { name: /^Explained/ }));
+    const look = (n: number) =>
+      within(tab)
+        .queryByRole('list', { name: `What to look at in step ${n}` })
+        ?.textContent?.trim();
+    expect(look(2)).toMatch(
+      /^Step 2's caption points at "Patient", which is not one of the step's marks: no leader line shows\.Step 2 glides the \d+ shapes it shares with step 1 into another view\.$/,
+    );
+    expect(look(3)).toMatch(/^Step 3's pulse does not play: The pulse is not a chain/);
+    expect(look(3)).toMatch(/Step 3 cuts from step 2 with a cross-fade, as it asks to\.$/);
+  });
+
+  it('chooses what a caption points at, cutting, and a pulse along the selected relations', async () => {
+    const { tab, sent } = openTours();
+    fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
+    const steps = within(tab).getByRole('list', { name: 'Steps of “How booking works”' });
+    const pointing = within(steps).getAllByLabelText('The caption points at')[1] as HTMLElement;
+    fireEvent.change(pointing, { target: { value: (tour.steps[1]?.marks ?? [])[0] } });
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    const pointed = sent[0];
+    expect(pointed?.type === 'update-tour' && pointed.changes.steps?.[1]?.caption.pointTo).toBe(
+      (tour.steps[1]?.marks ?? [])[0],
+    );
+    fireEvent.click(
+      within(steps).getAllByLabelText('Always cut, never glide its shapes')[1] as HTMLElement,
+    );
+    await vi.waitFor(() => expect(sent).toHaveLength(2));
+    const cut = sent[1];
+    expect(cut?.type === 'update-tour' && cut.changes.steps?.[1]?.transition).toBe('cut');
+    // With no relation selected, there is no chain to pulse along.
+    expect(
+      within(steps).getAllByRole('button', { name: 'Pulse along the selected relations' })[1],
+    ).toBeDisabled();
+  });
+
   it('says nothing to look at in a tour that plays as written', () => {
     const { tab } = openTours();
     fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));

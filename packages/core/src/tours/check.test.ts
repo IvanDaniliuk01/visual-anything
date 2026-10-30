@@ -174,3 +174,98 @@ describe('checkTour', () => {
     ]);
   });
 });
+
+describe('checkTour on what ADR 0084 adds', () => {
+  /** The test project with a second view that draws the same elements elsewhere. */
+  function twoViews() {
+    const state = testProject();
+    const [overview] = state.views;
+    if (!overview) throw new Error('No view.');
+    return { ...state, views: [overview, { ...overview, id: 'detail', name: 'Detail' }] };
+  }
+  const drawn = (count: number) =>
+    Array.from({ length: count }, (_, at) => ({
+      element: `e${at}`,
+      path: `e${at}`,
+      rect: { x: at * 10, y: 0, width: 8, height: 8 },
+    }));
+
+  it('says which steps into another view glide, and which cut and why', () => {
+    const into = (id: string, view: string, parts: Partial<TourStep> = {}) =>
+      step(id, { viewState: { view }, ...parts });
+    const many = drawn(401);
+    const checks = checkTour(
+      twoViews(),
+      tour(
+        into('one', 'overview'),
+        into('two', 'detail'),
+        into('three', 'overview', { transition: 'cut' }),
+        into('four', 'overview', { caption: { title: 'Same view' } }),
+        into('five', 'detail', { viewState: { view: 'detail', select: ['api'] } }),
+      ),
+      { shapesOf: (view) => (view === 'overview' ? drawn(5) : drawn(2)) },
+    );
+    expect(checks.map((check) => check.shapes)).toEqual([
+      undefined,
+      { kind: 'cut', reason: 'too-few', shared: 2 },
+      { kind: 'cut', reason: 'opted-out', shared: 0 },
+      undefined,
+      { kind: 'cut', reason: 'too-few', shared: 2 },
+    ]);
+    const gliding = checkTour(twoViews(), tour(into('one', 'overview'), into('two', 'detail')), {
+      shapesOf: () => drawn(5),
+    });
+    expect(gliding[1]?.shapes).toEqual({ kind: 'glide', shared: 5 });
+    const crowded = checkTour(twoViews(), tour(into('one', 'overview'), into('two', 'detail')), {
+      shapesOf: () => many,
+    });
+    expect(crowded[1]?.shapes).toEqual({ kind: 'cut', reason: 'too-many', shared: 401 });
+    expect(kinds(crowded)).toEqual([[], ['glide-too-many']]);
+  });
+
+  it('says a step that asks to cut cuts where its camera would glide, without warning of it', () => {
+    const checks = checkTour(
+      testProject(),
+      tour(
+        step('one', { viewState: { view: 'overview', camera: { x: 0, y: 0, zoom: 1 } } }),
+        step('two', {
+          viewState: { view: 'overview', camera: { x: 800, y: 0, zoom: 1 } },
+          transition: 'cut',
+        }),
+      ),
+      { screen: SCREEN },
+    );
+    expect(checks.map((check) => check.camera)).toEqual(['cut', 'cut']);
+    expect(kinds(checks)).toEqual([[], []]);
+  });
+
+  it('says when a caption points at what the step does not mark', () => {
+    const checks = checkTour(
+      testProject(),
+      tour(
+        step('marked', { caption: { title: 'A', pointTo: 'api' }, marks: ['api'] }),
+        step('revealed', {
+          caption: { title: 'B', pointTo: 'db' },
+          viewState: { view: 'overview', select: ['db'] },
+          reveal: [{ marks: ['db'] }],
+        }),
+        step('unmarked', {
+          caption: { title: 'C', pointTo: 'db' },
+          viewState: { view: 'overview', select: ['client'] },
+          marks: ['api'],
+        }),
+      ),
+    );
+    expect(kinds(checks)).toEqual([[], [], ['point-to-not-mark']]);
+  });
+
+  it('says when a pulse is not a chain, apart from what is broken', () => {
+    const checks = checkTour(
+      testProject(),
+      tour(step('pulse', { pulse: { relations: ['api-reads-db', 'contract-governs-call'] } })),
+    );
+    expect(checks[0]?.warnings.map((each) => [each.kind, each.subjects])).toEqual([
+      ['pulse-not-chain', ['contract-governs-call']],
+    ]);
+  });
+});

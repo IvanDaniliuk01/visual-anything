@@ -11,6 +11,7 @@ import type {
   TourCaption,
   TourFile,
   TourPlayback,
+  TourPulse,
   TourReveal,
   TourStep,
 } from '@visual-anything/schema';
@@ -30,6 +31,7 @@ import {
   tourStepProblems,
   tourTextLength,
 } from '../tours/steps';
+import { MAX_PULSE_RELATIONS, PULSE_REPEAT } from '../tours/pulse';
 import { MAX_VIEW_STATE_CHOICES } from '../view-state';
 import {
   Rejection,
@@ -235,6 +237,8 @@ function checkedStep(given: NewTourStep, n: number): Omit<TourStep, 'id'> {
   const reveal = checkedReveals(given.reveal, where, marks ?? []);
   const dimRest = checkedDimRest(given.dimRest);
   const advance = checkedAdvance(given.advance, where, play !== undefined);
+  const transition = checkedTransition(given.transition);
+  const pulse = checkedPulse(given.pulse, where);
   const notes = checkedText(given.notes, MAX_SPEAKER_NOTES, {
     notText: 'Speaker notes are text.',
     tooLong: `Speaker notes hold at most ${MAX_SPEAKER_NOTES} characters.`,
@@ -247,6 +251,8 @@ function checkedStep(given: NewTourStep, n: number): Omit<TourStep, 'id'> {
     reveal,
     dimRest,
     advance,
+    transition,
+    pulse,
     notes,
   });
 }
@@ -255,9 +261,18 @@ function checkedCaption(value: unknown, where: string): TourCaption {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     reject('invalid-command', `${where} needs a caption with a title.`);
   }
-  const { title, text, place, ...rest } = value as Record<string, unknown>;
+  const { title, text, place, pointTo, ...rest } = value as Record<string, unknown>;
   if (Object.keys(rest).length > 0) {
-    reject('invalid-command', 'A caption holds a title, a text and a place, nothing else.');
+    reject(
+      'invalid-command',
+      'A caption holds a title, a text, a place and the mark it points at, nothing else.',
+    );
+  }
+  if (pointTo !== undefined && !isId(pointTo)) {
+    reject(
+      'invalid-id',
+      `A caption points at one of its step's marks by its id, and "${typeof pointTo === 'string' ? pointTo : typeof pointTo}" is not one.`,
+    );
   }
   if (typeof title !== 'string' || title.trim() === '') {
     reject('empty-name', `${where} needs a caption with a title.`);
@@ -270,7 +285,7 @@ function checkedCaption(value: unknown, where: string): TourCaption {
     tooLong: `A caption's text holds at most ${MAX_CAPTION_TEXT} characters.`,
   });
   const corner = checkedPlace(place);
-  return compact({ title, text: checked, place: corner });
+  return compact({ title, text: checked, place: corner, pointTo: pointTo });
 }
 
 /** The corners a caption may be fixed in; `auto`, the side farthest from the marks, is never written. */
@@ -374,6 +389,65 @@ function checkedAdvance(value: unknown, where: string, plays: boolean): TourAdva
     );
   }
   return value;
+}
+
+/** How a step moves in: `cut` always cuts; `glide`, the default, is never written (ADR 0084). */
+function checkedTransition(value: unknown): 'cut' | undefined {
+  if (value === undefined || value === 'glide') return undefined;
+  if (value !== 'cut') {
+    reject(
+      'invalid-command',
+      `A step's transition is "cut", to always cut, or "glide", to glide when it can.`,
+    );
+  }
+  return 'cut';
+}
+
+/**
+ * A step's pulse (ADR 0084): a chain of 1 to {@link MAX_PULSE_RELATIONS} relations, each once, and
+ * how many times it runs, from 1 to 3, left out when once. Whether the chain joins is a step problem.
+ */
+function checkedPulse(value: unknown, where: string): TourPulse | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    reject('invalid-command', `${where} sends a pulse: an object with its relations.`);
+  }
+  const { relations, repeat, ...rest } = value as Record<string, unknown>;
+  if (Object.keys(rest).length > 0) {
+    reject(
+      'invalid-command',
+      'A pulse holds its relations and how many times it runs, nothing else.',
+    );
+  }
+  if (!Array.isArray(relations) || relations.length === 0) {
+    reject('invalid-command', `${where} sends a pulse along one relation at least.`);
+  }
+  if (relations.length > MAX_PULSE_RELATIONS) {
+    reject('invalid-command', `A pulse runs along at most ${MAX_PULSE_RELATIONS} relations.`);
+  }
+  const seen = new Set<Id>();
+  for (const id of relations) {
+    if (!isId(id)) reject('invalid-id', `"${String(id)}" is not a valid id.`);
+    if (seen.has(id))
+      reject(
+        'invalid-command',
+        `The pulse of ${where.charAt(0).toLowerCase()}${where.slice(1)} runs along "${id}" twice.`,
+      );
+    seen.add(id);
+  }
+  if (
+    repeat !== undefined &&
+    (typeof repeat !== 'number' ||
+      !Number.isInteger(repeat) ||
+      repeat < PULSE_REPEAT.least ||
+      repeat > PULSE_REPEAT.most)
+  ) {
+    reject('invalid-command', 'A pulse runs 1 to 3 times.');
+  }
+  return compact({
+    relations: [...seen],
+    repeat: repeat === undefined || repeat === 1 ? undefined : repeat,
+  });
 }
 
 /** A text of at most `max` characters, left out when empty. */

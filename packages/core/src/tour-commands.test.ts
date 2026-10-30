@@ -159,6 +159,62 @@ describe('create-tour', () => {
     expect(applyOperations(outcome.state, outcome.inverse).state).toEqual(state);
   });
 
+  it('keeps a step’s transition, pointing and pulse, never writing their defaults (ADR 0084)', () => {
+    const state = testProject();
+    const outcome = done(state, {
+      type: 'create-tour',
+      tour: {
+        name: 'Explained',
+        steps: [
+          {
+            viewState: { view: 'overview' },
+            caption: { title: 'The call', pointTo: 'client-calls-api' },
+            marks: ['client-calls-api'],
+            transition: 'cut',
+            pulse: { relations: ['client-calls-api', 'api-reads-db'], repeat: 3 },
+          },
+          {
+            viewState: { view: 'overview' },
+            caption: { title: 'Plain' },
+            transition: 'glide' as never,
+            pulse: { relations: ['api-reads-db'], repeat: 1 },
+          },
+        ],
+      },
+    });
+    const [explained, plain] = outcome.state.tours[0]?.steps ?? [];
+    expect(explained).toEqual({
+      id: 'step-2',
+      viewState: { view: 'overview' },
+      caption: { title: 'The call', pointTo: 'client-calls-api' },
+      marks: ['client-calls-api'],
+      transition: 'cut',
+      pulse: { relations: ['client-calls-api', 'api-reads-db'], repeat: 3 },
+    });
+    expect(plain).toEqual({
+      id: 'step-3',
+      viewState: { view: 'overview' },
+      caption: { title: 'Plain' },
+      pulse: { relations: ['api-reads-db'] },
+    });
+    expect(applyOperations(outcome.state, outcome.inverse).state).toEqual(state);
+  });
+
+  it('keeps a step whose pulse broke when a relation was deleted, flagged', () => {
+    const made = done(testProject(), {
+      type: 'create-tour',
+      tour: {
+        id: 'walk',
+        name: 'Walk',
+        steps: [{ ...START, pulse: { relations: ['client-calls-api', 'api-reads-db'] } }],
+      },
+    });
+    const deleted = done(made.state, { type: 'delete', relations: ['api-reads-db'] });
+    const [kept] = deleted.state.tours[0]?.steps ?? [];
+    expect(kept?.pulse).toEqual({ relations: ['client-calls-api', 'api-reads-db'] });
+    expect(kept && isBrokenTourStep(deleted.state, kept)).toBe(true);
+  });
+
   it.each<[string, Partial<NewTourStep>, string]>([
     [
       'a reveal of something gone',
@@ -216,6 +272,42 @@ describe('create-tour', () => {
       'a caption in no corner',
       { caption: { title: 'T', place: 'middle' as never } },
       'A caption sits in a corner',
+    ],
+    [
+      'a caption pointing at no id',
+      { caption: { title: 'T', pointTo: 'not an id' } },
+      'A caption points at one of its step',
+    ],
+    [
+      'a caption pointing at nothing there',
+      { caption: { title: 'T', pointTo: 'gone' } },
+      'The caption points at "gone"',
+    ],
+    [
+      'a transition by another name',
+      { transition: 'fade' as never },
+      'A step\'s transition is "cut"',
+    ],
+    ['a pulse of nothing', { pulse: { relations: [] } }, 'along one relation at least'],
+    [
+      'a pulse of too many relations',
+      { pulse: { relations: Array.from({ length: 13 }, (_, at) => `r${at}`) } },
+      'at most 12 relations',
+    ],
+    [
+      'a pulse along one relation twice',
+      { pulse: { relations: ['api-reads-db', 'api-reads-db'] } },
+      'runs along "api-reads-db" twice',
+    ],
+    [
+      'a pulse repeated too often',
+      { pulse: { relations: ['api-reads-db'], repeat: 4 } },
+      'A pulse runs 1 to 3 times.',
+    ],
+    [
+      'a pulse that is not a chain',
+      { pulse: { relations: ['api-reads-db', 'contract-governs-call'] } },
+      'The pulse is not a chain: relation 2',
     ],
   ])('refuses a step with %s', (_what, parts, words) => {
     const refused = refusal(testProject(), {
@@ -333,7 +425,7 @@ describe('create-tour', () => {
         tour: { name: 'T', steps: [{ ...START, caption: { title: 'T', html: '<b>' } as never }] },
       },
       'invalid-command',
-      'A caption holds a title, a text and a place, nothing else.',
+      'A caption holds a title, a text, a place and the mark it points at, nothing else.',
     ],
     [
       'a malformed view state',

@@ -22,6 +22,7 @@
  * phases of package code drawing a gauge inside every shape (`code.ts`, ADR 0054). `?live` adds the
  * phases of live values changing four times a second in every shape's detail, and of 1,000 of them
  * changing at a time under an overlay that colors every shape by them (`live.ts`, ADR 0057).
+ * A tour step glides 400 shapes on the glide layer, judged by the frame budget (`glide.ts`, ADR 0084).
  * `?geometry` measures the beyond-boxes project instead (`geometry.ts`, M8b): free geometry,
  * drawings with parts and relations on outlines, through the phases of `beyond.ts` alone. `?curves`
  * makes the view curve every automatic route that no appearance gives a style (ADR 0069), with
@@ -76,6 +77,7 @@ import { measureAvoidance, type AvoidBench } from './avoid';
 import { measureBeyondBoxes, type BeyondBench } from './beyond';
 import { measureElementList } from './elementList';
 import { measureFrames, type FrameSteps } from './frames';
+import { measureGlide, type GlideBench } from './glide';
 import { measureResizes, selectAt } from './gestures';
 import { syntheticGeometry, withCurves } from './geometry';
 import {
@@ -542,6 +544,8 @@ async function run(): Promise<void> {
   phases.push(overlays.phase);
   themeNotes.push(overlays.note);
   if (!tables) phases.push(await measureLevelCrossing(overlayBench()));
+  // A tour step gliding 400 shapes into another view (ADR 0084).
+  phases.push(await measureGlide(glideBench(), COARSE_BELOW * 1.04));
   // Routes around the shapes in their way, routed in the worker (ADR 0039): `avoid.ts` beside this.
   if (!tables) {
     move(cameraAt(NAMES_FROM * 1.3));
@@ -733,6 +737,18 @@ function avoidBench(): AvoidBench {
     nextTask,
     move,
     shapeInTheMiddle,
+  };
+}
+
+/** What the phase of a tour step gliding needs of the benchmark (`glide.ts`). */
+function glideBench(): GlideBench {
+  return {
+    renderer: controller.renderer,
+    scene: () => indexed.scene,
+    settle,
+    measure: (name, count, step) => measure(name, count, step),
+    move,
+    cameraAt,
   };
 }
 

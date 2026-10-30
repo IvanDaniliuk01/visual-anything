@@ -51,10 +51,17 @@ export type GoTo =
  * address's jump: with neither a camera nor a selection, it shows the whole view; and `move` says how
  * to get there, once the canvas has drawn it, from where the camera is: over some milliseconds, along
  * a path and after a delay when it gives them, or at once with 0. `sameView` says whether the step
- * stays in the view open when it started.
+ * stays in the view open when it started, and `scene` is the scene of the view it goes to, for its
+ * shapes to glide to (ADR 0084).
  */
 export interface Travel {
-  move(from: Camera | undefined, to: Camera, viewport: Size, sameView: boolean): TravelGlide;
+  move(
+    from: Camera | undefined,
+    to: Camera,
+    viewport: Size,
+    sameView: boolean,
+    scene?: Scene,
+  ): TravelGlide;
   /**
    * What a step without a camera frames, in the scene of its view, in place of its selection or the
    * whole view: everything the scenario it plays plays over its range (ADR 0077). Nothing to frame
@@ -255,6 +262,7 @@ export class ViewStateApplier {
         to,
         viewport,
         asked.travel.sameView,
+        context.scene,
       );
       canvas.glideTo(to, duration, glide);
     } else if (asked.camera !== undefined && canvas) {

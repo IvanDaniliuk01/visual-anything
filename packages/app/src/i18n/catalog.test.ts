@@ -355,7 +355,8 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   { word: /\bsimulaci[oó]n(es)?\b/i },
   { word: /\betapas?\b/i },
   { word: /\bhu[eé]rfan[oa]s?\b/i },
-  { word: /\bpulsos?\b/i },
+  // A pulse is a tour step's (ADR 0084), "pulso": never the travelling marker's, "marcador".
+  { word: /\bpulsos?\b/i, unless: /^(?![\s\S]*\bmarcador)/i },
   { word: /\bpresentaci[oó]n(es)?\b/i },
   { word: /\bdiapositivas?\b/i },
   { word: /\bconector(es)?\b/i },

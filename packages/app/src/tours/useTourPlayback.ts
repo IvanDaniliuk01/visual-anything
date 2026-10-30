@@ -18,6 +18,11 @@
  *   while the person paused it, while the scenario is paused, and while the steps' index is open.
  * - **What screen readers hear**: each step and reveal the person brings in, and the scenario's step
  *   when it is paused; nothing that comes on a timer.
+ * - **Explaining (ADR 0084):** a step into another view glides the shapes it shares with the step
+ *   before (`glide-layer.ts`); the lines its marks and reveals bring in draw from their start; its
+ *   caption's leader line follows the camera to the mark it points at; and its pulse runs along its
+ *   chain once its transition is over, R playing it again. Under reduced motion each cuts or is
+ *   marked at once.
  */
 import {
   playableStep,
@@ -36,6 +41,7 @@ import {
   type RefObject,
 } from 'react';
 import type { Rect } from '../canvas/geometry';
+import { LINE_DRAW_TIME } from '../canvas/lineDraw';
 import type { Scene } from '../canvas/scene';
 import type { Emphasis, EmphasisStore } from '../editor/emphasis';
 import { useMotion } from '../scenarios/motion';
@@ -45,7 +51,10 @@ import { tourGlide, type CanvasCamera } from '../view-state/canvas';
 import type { ViewStateLink } from '../view-state/useViewState';
 import { AdvanceTimer, advanceEvery } from './advance';
 import type { ToursHost } from './context';
+import { glideSideOf } from './glide-layer';
+import { leaderLine, leaderTargetOf, type Leader } from './leader';
 import { dimRestOf, keysOfMarks, shownMarks } from './marks';
+import { PULSE_EMPHASIS, pulseFrame } from './pulse';
 import { marksOnScreen, placeCaption, type CaptionPlace, type CardRoom } from './placement';
 import { TourPlayer, applyTourKey, type TourKeyAction, type TourPlayback } from './player';
 import { ScenarioRange, type RangeSession } from './range';
@@ -121,6 +130,11 @@ export interface TourStageView {
   /** How many reveals the step whose caption shows had: the step left's while it fades out. */
   captionReveal: number;
   fades: boolean;
+  /**
+   * The caption's leader line to the mark it points at (ADR 0084), on screen, or `off` when that mark
+   * is off the canvas; none when the step points at nothing shown.
+   */
+  leader: Leader | undefined;
 }
 
 /** What the shell gets: the player, its state, the host the tours panel reads, and the stage. */
@@ -180,23 +194,34 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
   // How a tour's steps move the camera: along the bounded path, or a cut, timed by the transition.
   const travel = useMemo<Travel>(
     () => ({
-      move: (from, to, viewport, sameView) => {
+      move: (from, to, viewport, sameView, scene) => {
         const now = settings.current;
+        // A step that always cuts cuts its camera too (ADR 0084).
+        const cutting = player.playing && cutsAlways.current;
         const { move, along } = tourGlide(from, to, viewport, {
-          reducedMotion: now.reduced,
+          reducedMotion: now.reduced || cutting,
           sameView,
         });
+        // Into another view, the shapes on screen there, for the shapes shared to glide to.
+        const glideTo =
+          !sameView && scene && !now.reduced && !cutting
+            ? {
+                side: glideSideOf(scene, to, viewport, { hidden: emphasis.get().hidden }),
+                screen: viewport,
+              }
+            : undefined;
         const glide = transitions.move(move, to, {
           ...(along ? { along } : {}),
           canvas: now.canvas,
           fades: now.fades,
+          ...(glideTo ? { glideTo } : {}),
         });
         // Where the step puts the camera, for Back to the step once the person looks around.
         if (player.playing) stepCamera.arrive(to, (glide.delay ?? 0) + glide.duration);
         return glide;
       },
     }),
-    [transitions, player, stepCamera],
+    [transitions, player, stepCamera, emphasis],
   );
 
   const go = useCallback(
@@ -230,6 +255,10 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
   const step = tour?.steps[playback.step];
   const playable = useMemo(() => (step ? playableStep(project, step) : undefined), [project, step]);
   const { reveal } = playback;
+  const cutsAlways = useRef(false);
+  useEffect(() => {
+    cutsAlways.current = playable?.transition === 'cut';
+  });
   // What the step marks with the reveals shown so far.
   const marks = useMemo(() => (playable ? shownMarks(playable, reveal) : []), [playable, reveal]);
 
@@ -287,6 +316,22 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
         const open = viewState.current()?.view;
         stage.setLeft(last?.reveal ?? 0);
         stepCamera.leave();
+        cutsAlways.current = now.playable?.transition === 'cut';
+        const intoAnother = open !== undefined && open !== now.playable?.viewState.view;
+        // Into another view, the shapes on screen now, which may glide there (ADR 0084).
+        const camera = canvasNow?.camera();
+        const glide =
+          last &&
+          intoAnother &&
+          !reducedNow &&
+          !cutsAlways.current &&
+          now.scene &&
+          camera &&
+          canvasNow
+            ? glideSideOf(now.scene, camera, canvasNow.viewport(), {
+                hidden: emphasis.get().hidden,
+              })
+            : undefined;
         transitions.begin({
           target,
           step: now.step,
@@ -294,9 +339,11 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
           kept,
           canvas: canvasNow,
           fades: fadesNow,
-          // Into another view, or under reduced motion, the camera cuts whatever its move.
-          cuts: reducedNow || open === undefined || open !== now.playable?.viewState.view,
+          // Into another view, under reduced motion, or for a step that always cuts, the camera
+          // cuts whatever its move.
+          cuts: reducedNow || open === undefined || intoAnother || cutsAlways.current,
           moves: now.playable !== undefined && canvasNow !== undefined,
+          ...(glide ? { glide } : {}),
         });
         if (now.playable) now.go(now.playable);
         if (told) stage.say({ kind: 'step', step: now.step, reveal: now.reveal });
@@ -307,7 +354,7 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
     // The first step waits for the canvas to fill the window, so that its camera fits it.
     if (first.current) return afterLayout(show);
     show();
-  }, [shownKey, target, remember, transitions, viewState, stage, stepCamera]);
+  }, [shownKey, target, remember, transitions, viewState, stage, stepCamera, emphasis]);
 
   // When the tour ends, the tab goes back to where it was, once the panels are back.
   useEffect(() => {
@@ -353,10 +400,19 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
     if (highlighted.size === 0 && dimmed === undefined) return undefined;
     return {
       ...(highlighted.size > 0 ? { highlighted } : {}),
-      ...(arriving.size > 0 ? { arriving: { keys: arriving, duration: transition.arriving } } : {}),
+      ...(arriving.size > 0
+        ? {
+            arriving: {
+              keys: arriving,
+              duration: transition.arriving,
+              // The lines that come in draw from their start (ADR 0084), but under reduced motion.
+              ...(reduced ? {} : { draw: LINE_DRAW_TIME }),
+            },
+          }
+        : {}),
       ...(dimmed ? { dimmed } : {}),
     };
-  }, [transition.marks, transition.arriving, shownKeys, keptKeys, dimmed]);
+  }, [transition.marks, transition.arriving, shownKeys, keptKeys, dimmed, reduced]);
   const playing = playback.tour !== undefined;
   // Until the transition to the step shown has begun, what shows stays as it was.
   const begun = target !== undefined && transition.target === target;
@@ -431,6 +487,94 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
     );
   }, [placeAt, shownKey, stage]);
 
+  // The caption's leader line to the mark it points at (ADR 0084), once that mark is shown: it
+  // follows the camera and the card's place.
+  const pointTo = playable?.pointTo;
+  const pointing =
+    playing && arrived && pointTo !== undefined && reveal >= pointTo.reveal
+      ? pointTo.id
+      : undefined;
+  const [leader, setLeader] = useState<Leader>();
+  const place = stageState.place;
+  useEffect(() => {
+    const canvasNow = settings.current.canvas;
+    if (pointing === undefined || !canvasNow) {
+      setLeader(undefined);
+      return;
+    }
+    let frame: number | undefined;
+    const update = () => {
+      frame = undefined;
+      const camera = canvasNow.camera();
+      const shownScene = latest.current.scene;
+      const measured = cardRect(card.current);
+      const target =
+        camera && shownScene ? leaderTargetOf(shownScene, pointing, camera) : undefined;
+      const next =
+        target && measured ? leaderLine(measured, target, canvasNow.viewport()) : undefined;
+      setLeader((was) => (sameLeader(was, next) ? was : next));
+    };
+    const schedule = () => {
+      if (frame === undefined) frame = nextFrame(update);
+    };
+    schedule();
+    const unsubscribe = canvasNow.subscribe(schedule);
+    return () => {
+      unsubscribe();
+      if (frame !== undefined) cancelFrame(frame);
+    };
+  }, [pointing, place, scene]);
+
+  // A step's pulse along its chain, once its transition is over (ADR 0084): R plays it again, and a
+  // press forward or back ends it.
+  const [pulseRun, setPulseRun] = useState(0);
+  const pulseAt =
+    playing && settled && playable?.pulse !== undefined ? `${shownKey} ${pulseRun}` : undefined;
+  const pulsed = useRef<string>(undefined);
+  const pulseStop = useRef<() => void>(undefined);
+  const stopPulse = useCallback(() => {
+    pulseStop.current?.();
+    pulseStop.current = undefined;
+    emphasis.set(PULSE_EMPHASIS, undefined);
+  }, [emphasis]);
+  useEffect(() => stopPulse, [shownKey, reveal, playing, stopPulse]);
+  useEffect(() => {
+    if (pulseAt === undefined || pulsed.current === pulseAt) return;
+    const run = latest.current.playable?.pulse;
+    if (!run) return;
+    pulsed.current = pulseAt;
+    stopPulse();
+    const reducedNow = settings.current.reduced;
+    const start = performance.now();
+    let frame: number | undefined;
+    let live = true;
+    const tick = () => {
+      frame = undefined;
+      if (!live) return;
+      const at = pulseFrame(run.legs, run.repeat, performance.now() - start, reducedNow);
+      const now = latest.current;
+      const keys =
+        at.marked.length > 0 && now.scene
+          ? keysOfMarks(at.marked, now.scene, now.project)
+          : NO_KEYS;
+      emphasis.set(
+        PULSE_EMPHASIS,
+        at.markers.length > 0 || keys.size > 0
+          ? {
+              ...(at.markers.length > 0 ? { markers: at.markers } : {}),
+              ...(keys.size > 0 ? { highlighted: keys } : {}),
+            }
+          : undefined,
+      );
+      if (!at.done) frame = nextFrame(tick);
+    };
+    frame = nextFrame(tick);
+    pulseStop.current = () => {
+      live = false;
+      if (frame !== undefined) cancelFrame(frame);
+    };
+  }, [pulseAt, emphasis, stopPulse]);
+
   // Advancing by itself (ADR 0077), never during a transition.
   const every = playable ? advanceEvery(playable) : undefined;
   const steps = tour?.steps.length ?? 0;
@@ -499,6 +643,10 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
           return;
         case 'replay':
           if (played) range.replay();
+          if (now.playable?.pulse) {
+            pulsed.current = undefined;
+            setPulseRun((run) => run + 1);
+          }
           return;
         case 'back':
           if (stepCamera.getState().looked) stepCamera.back(settings.current);
@@ -560,9 +708,28 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
     said: stageState.said,
     captionReveal: transition.caption === playback.step ? playback.reveal : stageState.left,
     fades,
+    leader: pointing === undefined ? undefined : leader,
   };
 
   return { player, playback, host, transition, stage: stageView, act, goTo, card };
+}
+
+/** Whether two leader lines run the same way. */
+function sameLeader(a: Leader | undefined, b: Leader | undefined): boolean {
+  if (a === b) return true;
+  if (a === undefined || b === undefined || a === 'off' || b === 'off') return false;
+  return a.from.x === b.from.x && a.from.y === b.from.y && a.to.x === b.to.x && a.to.y === b.to.y;
+}
+
+/** The browser's next frame, or a timer where there are no frames, as in tests. */
+function nextFrame(run: () => void): number {
+  if (typeof requestAnimationFrame === 'function') return requestAnimationFrame(run);
+  return setTimeout(run, 16) as unknown as number;
+}
+
+function cancelFrame(handle: number): void {
+  if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(handle);
+  clearTimeout(handle);
 }
 
 /** Where the caption card is in the stage, once it has been laid out; none before, as in tests. */

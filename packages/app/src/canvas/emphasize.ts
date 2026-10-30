@@ -44,6 +44,8 @@ export interface Emphasized {
   /** Of what it highlights, what fades in (ADR 0077), and over how many milliseconds: 0 for none. */
   arriving: Lit;
   arrivingFor: number;
+  /** Over how many milliseconds the lines that arrive draw from their start (ADR 0084): 0 for none. */
+  arrivingDraw: number;
   /**
    * Each marker on the line that draws its relation, a fraction of the way along its route, and
    * where its trail starts, when it leaves one.
@@ -75,6 +77,7 @@ export const NOTHING_EMPHASIZED: Emphasized = {
   highlighted: NOTHING_LIT,
   arriving: NOTHING_LIT,
   arrivingFor: 0,
+  arrivingDraw: 0,
   markers: [],
 };
 
@@ -241,6 +244,7 @@ export function emphasize(scene: Scene, emphasis: Emphasis): Emphasized {
     highlighted: lit,
     arriving,
     arrivingFor: arriving === NOTHING_LIT ? 0 : (emphasis.arriving?.duration ?? 0),
+    arrivingDraw: arriving.lines.length === 0 ? 0 : (emphasis.arriving?.draw ?? 0),
     markers: placed,
   };
 }

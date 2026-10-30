@@ -1668,6 +1668,13 @@ export interface TourStep {
   /** Moves on by itself; left out, the step waits for the person. */
   advance?: TourAdvance;
   /**
+   * `cut` makes the step always cut with a cross-fade (ADR 0084); left out, the shapes it shares with
+   * the step before glide to their new places when it can.
+   */
+  transition?: 'cut';
+  /** A marker sent along a chain of relations once the step's transition is over (ADR 0084). */
+  pulse?: TourPulse;
+  /**
    * What the person presenting reads while the step shows, in the speaker notes window only: plain
    * text, as a caption's.
    *
@@ -1694,6 +1701,34 @@ export interface TourCaption {
   text?: string;
   /** The corner the card sits in; left out, the side of the screen farthest from the step's marks. */
   place?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  /**
+   * One of the step's marks that a leader line from the card points at (ADR 0084): an element, a
+   * relation, a note or an arrow.
+   */
+  pointTo?: Id;
+}
+
+/**
+ * A pulse (ADR 0084): a marker travels along each relation of a chain in turn, to show what follows
+ * what within one step.
+ */
+export interface TourPulse {
+  /**
+   * The chain, in order: each relation shares an end with the next.
+   *
+   * @minItems 1
+   * @maxItems 12
+   * @uniqueItems true
+   */
+  relations: Id[];
+  /**
+   * How many times it runs; left out, once.
+   *
+   * @minimum 2
+   * @maximum 3
+   * @asType integer
+   */
+  repeat?: number;
 }
 
 /** A scenario a step plays, from one of its steps to another. */

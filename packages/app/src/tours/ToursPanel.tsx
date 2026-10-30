@@ -4,7 +4,10 @@
  * Add step takes the canvas as it is now; captions and marks are edited in place; steps are moved,
  * duplicated and deleted, each one action. A step that names what the project no longer holds is
  * kept and flagged, and plays without it. Under each step, the tour's check says where it cuts, what
- * its marks miss and whether it could be a reveal of the step before (ADR 0077), as `check_tour` does.
+ * its marks miss and whether it could be a reveal of the step before (ADR 0077), as `check_tour` does,
+ * and whether it glides its shapes into another view, points at what it does not mark or sends a
+ * pulse that is not a chain (ADR 0084). Each step chooses the mark its caption points at, whether it
+ * always cuts, and the chain its pulse runs along, taken from the selected relations.
  */
 import {
   MAX_CAPTION_TEXT,
@@ -12,8 +15,12 @@ import {
   MAX_SPEAKER_NOTES,
   MAX_TOUR_MARKS,
   MAX_TOUR_NAME,
+  MIN_GLIDE_SHARED,
   TOUR_CHECK_SCREEN,
+  chainOrder,
   checkTour,
+  marksOf,
+  modelIndexOf,
   isBrokenTourStep,
   savedViewStateOf,
   tourStepProblems,
@@ -43,7 +50,7 @@ import {
 } from './commands';
 import { useToursHost } from './context';
 import { describeMarks } from './describe';
-import { drawnBounds } from './drawn-bounds';
+import { drawnBounds, drawnShapes } from './drawn-bounds';
 import { MotionPreferences } from './MotionPreferences';
 import { EmphasisPreview } from '../text/EmphasisText';
 import { useEmphasisKeys } from '../text/useEmphasisKeys';
@@ -215,7 +222,13 @@ function OpenTour({
   const [deleting, setDeleting] = useState(false);
   const view = project.views.find((each) => each.id === viewId);
   const checks = useMemo(
-    () => (active ? checkTour(project, tour, { boundsOf: drawnBounds(project) }) : undefined),
+    () =>
+      active
+        ? checkTour(project, tour, {
+            boundsOf: drawnBounds(project),
+            shapesOf: drawnShapes(project),
+          })
+        : undefined,
     [active, project, tour],
   );
   const warnings = checks?.reduce((sum, check) => sum + check.warnings.length, 0) ?? 0;
@@ -480,6 +493,7 @@ function StepItem({
           </button>
         )}
       </div>
+      <StepExplains step={step} n={n} editable={editable} change={change} />
       <div className="tour-step-actions" role="group" aria-label={t('Step {n}', { n })}>
         <button
           type="button"
@@ -529,6 +543,181 @@ function StepItem({
         </StepButton>
       </div>
     </li>
+  );
+}
+
+/**
+ * What a step adds to explain (ADR 0084): the mark its caption points at, one of its own or its
+ * reveals' marks; whether it always cuts; and its pulse, along the selected relations put in the
+ * order that joins them, run one to three times.
+ */
+function StepExplains({
+  step,
+  n,
+  editable,
+  change,
+}: {
+  step: TourStep;
+  n: number;
+  editable: boolean;
+  change: (update: (step: TourStep) => TourStep, done: string) => void;
+}) {
+  const t = useT();
+  const { project, selection } = useEditor();
+  const ids = { pointTo: useId(), repeat: useId() };
+  const index = modelIndexOf(project);
+  const nameOf = (id: string) => index.element(id)?.name ?? index.relation(id)?.name ?? id;
+  const marks = marksOf(step);
+  const pointTo = step.caption.pointTo;
+  const choices = pointTo !== undefined && !marks.includes(pointTo) ? [...marks, pointTo] : marks;
+  const selected = [...selection.relations].flatMap((id) => {
+    const relation = index.relation(id);
+    return relation ? [{ id, from: relation.from, to: relation.to }] : [];
+  });
+  const [refused, setRefused] = useState(false);
+  const pulse = step.pulse;
+  return (
+    <div className="tour-step-explains">
+      <div className="tour-field">
+        <label htmlFor={ids.pointTo}>{t('The caption points at')}</label>
+        <select
+          id={ids.pointTo}
+          value={pointTo ?? ''}
+          disabled={!editable || choices.length === 0}
+          onChange={(event) => {
+            const chosen = event.target.value;
+            change(
+              (each) => {
+                const caption: TourStep['caption'] = { ...each.caption, pointTo: chosen };
+                if (chosen === '') delete caption.pointTo;
+                return { ...each, caption };
+              },
+              chosen === ''
+                ? t('Step {n} points at nothing.', { n })
+                : t('Step {n} points at “{name}”.', { n, name: nameOf(chosen) }),
+            );
+          }}
+        >
+          <option value="">{t('Nothing')}</option>
+          {choices.map((id) => (
+            <option key={id} value={id}>
+              {nameOf(id)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <label className="tour-step-check">
+        <input
+          type="checkbox"
+          checked={step.transition === 'cut'}
+          disabled={!editable}
+          onChange={(event) => {
+            const cut = event.target.checked;
+            change(
+              (each) => {
+                const next: TourStep = { ...each, transition: 'cut' };
+                if (!cut) delete next.transition;
+                return next;
+              },
+              cut
+                ? t('Step {n} always cuts.', { n })
+                : t('Step {n} glides its shapes when it can.', { n }),
+            );
+          }}
+        />
+        {t('Always cut, never glide its shapes')}
+      </label>
+      <div className="tour-step-marks">
+        <span>
+          {pulse
+            ? t('Pulses along {names}.', {
+                names: pulse.relations.map((id) => `“${nameOf(id)}”`).join(', '),
+              })
+            : t('No pulse.')}
+        </span>
+        <button
+          type="button"
+          className="tour-button"
+          disabled={!editable || selected.length === 0}
+          onClick={() => {
+            const order = chainOrder(selected);
+            setRefused(order === undefined);
+            if (!order) return;
+            change(
+              (each) => ({
+                ...each,
+                pulse: {
+                  relations: order,
+                  ...(each.pulse?.repeat ? { repeat: each.pulse.repeat } : {}),
+                },
+              }),
+              t('Step {n} pulses along the selected relations.', { n }),
+            );
+          }}
+        >
+          {t('Pulse along the selected relations')}
+        </button>
+        {pulse && (
+          <>
+            <label htmlFor={ids.repeat} className="visually-hidden">
+              {t('How many times it runs')}
+            </label>
+            <select
+              id={ids.repeat}
+              value={pulse.repeat ?? 1}
+              disabled={!editable}
+              onChange={(event) => {
+                const repeat = Number(event.target.value);
+                change(
+                  (each) => ({
+                    ...each,
+                    pulse: {
+                      relations: each.pulse?.relations ?? pulse.relations,
+                      ...(repeat > 1 ? { repeat } : {}),
+                    },
+                  }),
+                  t(
+                    { one: 'Step {n} pulses once.', other: 'Step {n} pulses {count} times.' },
+                    {
+                      n,
+                      count: repeat,
+                    },
+                  ),
+                );
+              }}
+            >
+              <option value={1}>{t('Once')}</option>
+              <option value={2}>{t('Twice')}</option>
+              <option value={3}>{t('Three times')}</option>
+            </select>
+            <button
+              type="button"
+              className="tour-button"
+              disabled={!editable}
+              onClick={() =>
+                change(
+                  (each) => {
+                    const next = { ...each };
+                    delete next.pulse;
+                    return next;
+                  },
+                  t('Step {n} sends no pulse.', { n }),
+                )
+              }
+            >
+              {t('No pulse')}
+            </button>
+          </>
+        )}
+        {refused && (
+          <p className="tour-field-hint" role="status">
+            {t(
+              'The selected relations do not join into a chain: each must share an end with the next.',
+            )}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -648,12 +837,42 @@ function whatToLookAt(
     .map((warning) => ({ text: t.message(warning.message), warning: true }));
   const before = tour.steps[check.n - 2];
   const step = tour.steps[check.n - 1];
-  if (check.camera === 'cut' && before && step && before.viewState.view !== step.viewState.view) {
+  const where = { n: check.n, m: check.n - 1 };
+  const { shapes } = check;
+  // Into another view: whether its shapes glide there, and why it cuts (ADR 0084).
+  if (shapes?.kind === 'glide') {
     looks.push({
-      text: t('Step {n} cuts from step {m} with a cross-fade, into another view.', {
-        n: check.n,
-        m: check.n - 1,
-      }),
+      text: t(
+        {
+          one: 'Step {n} glides the {count} shape it shares with step {m} into another view.',
+          other: 'Step {n} glides the {count} shapes it shares with step {m} into another view.',
+        },
+        { ...where, count: shapes.shared },
+      ),
+      warning: false,
+    });
+  } else if (shapes?.kind === 'cut' && shapes.reason === 'opted-out') {
+    looks.push({
+      text: t('Step {n} cuts from step {m} with a cross-fade, as it asks to.', where),
+      warning: false,
+    });
+  } else if (shapes?.kind === 'cut' && shapes.reason === 'too-few') {
+    looks.push({
+      text: t(
+        'Step {n} cuts from step {m} with a cross-fade, into another view: they share fewer than {least} shapes.',
+        { ...where, least: MIN_GLIDE_SHARED },
+      ),
+      warning: false,
+    });
+  } else if (
+    shapes === undefined &&
+    check.camera === 'cut' &&
+    before &&
+    step &&
+    before.viewState.view !== step.viewState.view
+  ) {
+    looks.push({
+      text: t('Step {n} cuts from step {m} with a cross-fade, into another view.', where),
       warning: false,
     });
   }

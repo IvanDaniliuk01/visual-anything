@@ -105,6 +105,40 @@
 }
 
 /*
+ * The caption's leader line (ADR 0084): thin, in the card's accent, with a dot where it ends, under
+ * the card and over the canvas. It fades with the caption.
+ */
+.tour-leader {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  transition-property: opacity;
+  transition-timing-function: linear;
+}
+
+.tour-leader:is([data-phase='out'], [data-phase='away']) {
+  opacity: 0;
+}
+
+.tour-leader line {
+  stroke: var(--accent);
+  stroke-width: 1.5px;
+}
+
+.tour-leader circle {
+  fill: var(--accent);
+}
+
+.tour-card-off {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/*
  * Where the card sits (ADR 0077): at the side of the screen farthest from the step's marks, which the
  * stage works out when the camera stops, or in the corner the step's caption fixes. At a side or in a
  * corner it is 25rem wide, as `useTourPlayback` reckons with.
@@ -574,7 +608,8 @@
   font-weight: var(--weight-medium);
 }
 
-.tour-field :is(input, textarea) {
+.tour-field :is(input, textarea, select),
+.tour-step-marks select {
   width: 100%;
   min-height: var(--control-sm);
   padding: var(--space-1) var(--space-2);
@@ -589,7 +624,24 @@
   resize: vertical;
 }
 
-.tour-field :is(input, textarea):disabled {
+.tour-step-marks select {
+  width: auto;
+}
+
+/* What a step adds to explain (ADR 0084): the mark its caption points at, cutting, its pulse. */
+.tour-step-explains {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.tour-step-check {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: var(--text-sm);
+}
+
+.tour-field :is(input, textarea, select):disabled {
   color: var(--text-muted);
 }
 

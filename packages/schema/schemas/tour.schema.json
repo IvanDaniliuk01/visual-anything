@@ -93,6 +93,15 @@
           "$ref": "#/definitions/TourAdvance",
           "description": "Moves on by itself; left out, the step waits for the person."
         },
+        "transition": {
+          "type": "string",
+          "const": "cut",
+          "description": "`cut` makes the step always cut with a cross-fade (ADR 0084); left out, the shapes it shares with the step before glide to their new places when it can."
+        },
+        "pulse": {
+          "$ref": "#/definitions/TourPulse",
+          "description": "A marker sent along a chain of relations once the step's transition is over (ADR 0084)."
+        },
         "notes": {
           "type": "string",
           "description": "What the person presenting reads while the step shows, in the speaker notes window only: plain text, as a caption's.",
@@ -400,6 +409,10 @@
             "bottom-right"
           ],
           "description": "The corner the card sits in; left out, the side of the screen farthest from the step's marks."
+        },
+        "pointTo": {
+          "$ref": "#/definitions/Id",
+          "description": "One of the step's marks that a leader line from the card points at (ADR 0084): an element, a relation, a note or an arrow."
         }
       },
       "required": [
@@ -475,6 +488,32 @@
       "description": "Milliseconds a step shows before it moves on by itself.",
       "minimum": 500,
       "maximum": 600000
+    },
+    "TourPulse": {
+      "type": "object",
+      "properties": {
+        "relations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "description": "The chain, in order: each relation shares an end with the next.",
+          "minItems": 1,
+          "maxItems": 12,
+          "uniqueItems": true
+        },
+        "repeat": {
+          "type": "integer",
+          "description": "How many times it runs; left out, once.",
+          "minimum": 2,
+          "maximum": 3
+        }
+      },
+      "required": [
+        "relations"
+      ],
+      "additionalProperties": false,
+      "description": "A pulse (ADR 0084): a marker travels along each relation of a chain in turn, to show what follows what within one step."
     },
     "FileConflict": {
       "type": "object",

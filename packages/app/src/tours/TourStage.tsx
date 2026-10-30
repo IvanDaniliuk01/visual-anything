@@ -4,12 +4,18 @@
  * plays; the progress line; the controls, with the steps' index, Back to the step and a pause control
  * for a step that advances by itself; what screen readers hear; and the keys that move through the
  * steps. It shows a step and says what moves; where the canvas goes is its host's. The speaker notes
- * show in a second window when one is opened.
+ * show in a second window when one is opened. A caption that points at a mark draws its leader line
+ * from the card (ADR 0084), and says so when the mark is off the canvas.
  *
  * It knows nothing of the live editor: it takes a project, a tour, a step and what to do on each
  * control, so that the read-only page (ADR 0041) can play tours with it too.
  */
-import { plainText, tourStepProblems, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  modelIndexOf,
+  plainText,
+  tourStepProblems,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import type { TourFile } from '@visual-anything/schema';
 import {
   useEffect,
@@ -32,6 +38,7 @@ import {
   PreviousIcon,
 } from '../shell/icons';
 import { describeMarks } from './describe';
+import type { Leader } from './leader';
 import { tourKeyAction, type TourKeyAction } from './player';
 import { openNotesWindow, type NotesWindow } from './notes-window';
 import type { CaptionPlace } from './placement';
@@ -77,6 +84,11 @@ export interface TourStageProps {
   fades?: boolean;
   /** The caption card, for its host to see where it is. */
   cardRef?: Ref<HTMLElement>;
+  /**
+   * The caption's leader line to the mark it points at, on screen, or `off` when that mark is off the
+   * canvas (ADR 0084); none by default.
+   */
+  leader?: Leader | undefined;
 }
 
 export function TourStage({
@@ -96,6 +108,7 @@ export function TourStage({
   said,
   fades = true,
   cardRef,
+  leader,
 }: TourStageProps) {
   const t = useT();
   const heading = useId();
@@ -205,6 +218,17 @@ export function TourStage({
           style={{ transform: `scaleX(${(step + 1) / total})` }}
         />
       </div>
+      {own && leader !== undefined && leader !== 'off' && (
+        <svg
+          className="tour-leader"
+          aria-hidden="true"
+          data-phase={phase}
+          style={{ transitionDuration: `${fade}ms` }}
+        >
+          <line x1={leader.from.x} y1={leader.from.y} x2={leader.to.x} y2={leader.to.y} />
+          <circle cx={leader.to.x} cy={leader.to.y} r={4} />
+        </svg>
+      )}
       <article
         ref={cardRef}
         className="tour-card"
@@ -219,6 +243,9 @@ export function TourStage({
         {revealTexts.map((text, at) => (
           <TourText key={at} className="tour-card-text tour-card-reveal" text={text} />
         ))}
+        {own && leader === 'off' && (
+          <p className="tour-card-off">{t('It explains something off the canvas.')}</p>
+        )}
         {problems.length > 0 && (
           <p className="tour-card-flag">
             {viewGone
@@ -501,9 +528,13 @@ function announce(t: Translator, project: ProjectSnapshot, tour: TourFile, said:
   if (said.kind === 'reveal') {
     const shown = reveals[said.reveal - 1];
     if (!shown) return '';
+    const pointTo = step.caption.pointTo;
     return [
       shown.text === undefined ? undefined : plainText(shown.text),
       shown.marks.length > 0 ? describeMarks(t, project, shown.marks) : '',
+      pointTo !== undefined && shown.marks.includes(pointTo)
+        ? pointingAt(t, project, pointTo)
+        : undefined,
     ]
       .filter((part) => part !== undefined && part !== '')
       .join(' ');
@@ -525,9 +556,41 @@ function announce(t: Translator, project: ProjectSnapshot, tour: TourFile, said:
       .slice(0, said.reveal)
       .map((each) => (each.text === undefined ? undefined : plainText(each.text))),
     marks.length > 0 ? describeMarks(t, project, marks) : '',
+    step.caption.pointTo !== undefined && marks.includes(step.caption.pointTo)
+      ? pointingAt(t, project, step.caption.pointTo)
+      : undefined,
+    pulseOf(t, project, step),
   ]
     .filter((part) => part !== undefined && part !== '')
     .join(' ');
+}
+
+/** "Pointing at “X”.", for a caption that points at one of its step's marks (ADR 0084). */
+function pointingAt(t: Translator, project: ProjectSnapshot, id: string): string {
+  const index = modelIndexOf(project);
+  const name = index.element(id)?.name ?? index.relation(id)?.name ?? id;
+  return t('Pointing at “{name}”.', { name });
+}
+
+/** The chain a step's pulse runs along, its relations' names in order (ADR 0084). */
+function pulseOf(
+  t: Translator,
+  project: ProjectSnapshot,
+  step: TourFile['steps'][number],
+): string | undefined {
+  const relations = step.pulse?.relations;
+  if (!relations || tourStepProblems(project, step).some((each) => each.part === 'pulse')) {
+    return undefined;
+  }
+  const index = modelIndexOf(project);
+  const names = relations.map((id) => {
+    const relation = index.relation(id);
+    const from = relation && (index.element(relation.from)?.name ?? relation.from);
+    const to = relation && (index.element(relation.to)?.name ?? relation.to);
+    const name = relation?.name ?? id;
+    return from && to ? `“${from}” ${name} “${to}”` : `“${name}”`;
+  });
+  return t('A pulse follows the chain: {names}.', { names: names.join('; ') });
 }
 
 /** Whether a key presses the control that has the focus: Space or Enter on a button. */
