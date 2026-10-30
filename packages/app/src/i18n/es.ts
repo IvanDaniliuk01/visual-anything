@@ -5702,6 +5702,200 @@ export const messages: Catalog = {
     'La propuesta "{id}" ya no es la que espera, así que no se decidió nada.',
   'The proposal changed since it was shown: review it again.':
     'La propuesta cambió desde que se mostró: revisarla de nuevo.',
+
+  // Faces (ADR 0083, M3e F4): the core's refusals, warnings and problems, with their line and column.
+  // A problem is where it is, then what is wrong, its first letter lowercased; the face editor shows
+  // it alone, and the core's messages after whose face it is. A slot, {{…}}, is «ranura».
+  'the markup': 'el marcado',
+  'the style': 'el estilo',
+  'the variant "{id}"': 'la variante "{id}"',
+  'In {of}: {why}': 'En {of}: {why}',
+  'Line {n} of {of}: {why}': 'Línea {n} de {of}: {why}',
+  'Line {n}, column {m} of {of}: {why}': 'Línea {n}, columna {m} de {of}: {why}',
+  'The face of {of}: {why}': 'La cara de {of}: {why}',
+  'The face of {of} has {n} more problems.': {
+    one: 'La cara de {of} tiene {n} problema más.',
+    other: 'La cara de {of} tiene {n} problemas más.',
+  },
+  'The package "{name}" holds {n} KiB of faces, past the 512 KiB a package may hold.':
+    'El paquete "{name}" tiene {n} KiB de caras, más de los 512 KiB que puede tener un paquete.',
+  // The face's parts, as a command checks them before compiling it.
+  'The face of {of} must be "none" or an object of its parts.':
+    'La cara de {of} debe ser "none" o un objeto JSON de sus partes.',
+  'The changes to the face of {of} must be "none" or an object.':
+    'Los cambios a la cara de {of} deben ser "none" o un objeto JSON.',
+  'The face of {of} has no "{key}".': 'La cara de {of} no tiene "{key}".',
+  'The face of {of} is sized by its "content" or by its "shape".':
+    'El tamaño de la cara de {of} lo da su "content" o su "shape".',
+  'The markup of the face of {of} is a list of lines of text.':
+    'El marcado de la cara de {of} es una lista de líneas de texto.',
+  'The style of the face of {of} is a list of lines of text.':
+    'El estilo de la cara de {of} es una lista de líneas de texto.',
+  'Line {n} of the markup of the face of {of} holds a line break or more than 2,000 characters.':
+    'La línea {n} del marcado de la cara de {of} tiene un salto de línea o más de 2.000 caracteres.',
+  'Line {n} of the style of the face of {of} holds a line break or more than 2,000 characters.':
+    'La línea {n} del estilo de la cara de {of} tiene un salto de línea o más de 2.000 caracteres.',
+  'The variants of the face of {of} are a list.': 'Las variantes de la cara de {of} son una lista.',
+  'A variant of the face of {of} is an object.':
+    'Una variante de la cara de {of} es un objeto JSON.',
+  'A variant of the face of {of} has no "{key}".':
+    'Una variante de la cara de {of} no tiene "{key}".',
+  'A variant of the face of {of} has an id of lowercase letters, digits and "-", a letter first.':
+    'Una variante de la cara de {of} tiene un id de letras minúsculas, dígitos y "-", que empieza con una letra.',
+  'The face of {of} names its collapsed variant by its id.':
+    'La cara de {of} nombra su variante contraída por su id.',
+  // What the strict reader refuses in a markup.
+  'a comment is never closed with "-->".': 'un comentario nunca se cierra con "-->".',
+  'a comment holds "--", which XHTML refuses.': 'un comentario tiene "--", que XHTML rechaza.',
+  'doctypes, CDATA sections and processing instructions are not part of a face.':
+    'los doctypes, las secciones CDATA y las instrucciones de procesamiento no son parte de una cara.',
+  'the closing tag of "{name}" ends with ">".':
+    'la etiqueta de cierre de "{name}" termina con ">".',
+  '"</{name}>" closes no open element.': '"</{name}>" no cierra ningún elemento abierto.',
+  '"</{name}>" closes "{other}", opened at line {n}, column {m}.':
+    '"</{name}>" cierra "{other}", abierto en la línea {n}, columna {m}.',
+  'elements nest more than {n} deep.': 'los elementos se anidan más de {n} niveles.',
+  '"<{name}>" is never closed: write "</{name}>", or "<{name}/>" when it is empty.':
+    '"<{name}>" nunca se cierra: escribir "</{name}>", o "<{name}/>" si está vacío.',
+  'the tag "<{name}" is never ended with ">".': 'la etiqueta "<{name}" nunca termina con ">".',
+  'attributes of "{name}" are separated by spaces.':
+    'los atributos de "{name}" se separan con espacios.',
+  'a closing tag': 'una etiqueta de cierre',
+  'an element': 'un elemento',
+  'an attribute of "{name}"': 'un atributo de "{name}"',
+  '{of} is named in lowercase.': '{of} se nombra en minúsculas.',
+  '{of} needs a name, a letter first.': '{of} necesita un nombre, que empiece con una letra.',
+  '{of} is named in lowercase letters, digits and "-".':
+    '{of} se nombra con letras minúsculas, dígitos y "-".',
+  'the attribute "{attribute}" of "{name}" needs a quoted value, such as {attribute}="…".':
+    'el atributo "{attribute}" de "{name}" necesita un valor entre comillas, como {attribute}="…".',
+  'the value of "{attribute}" is written in quotes.':
+    'el valor de "{attribute}" se escribe entre comillas.',
+  'the value of "{attribute}" is never closed.': 'el valor de "{attribute}" nunca se cierra.',
+  'the value of "{attribute}" holds "<", which is written "&lt;".':
+    'el valor de "{attribute}" tiene "<", que se escribe "&lt;".',
+  '"{name}" has the attribute "{attribute}" twice.':
+    '"{name}" tiene el atributo "{attribute}" dos veces.',
+  'a "&" starts an entity, such as "&amp;", which ends with ";".':
+    'un "&" empieza algo como "&amp;", que termina con ";".',
+  '"&{name};" is not a character XHTML allows.': '"&{name};" no es un carácter que XHTML permita.',
+  '"&{name};" is not an entity a face takes: only &amp;, &lt;, &gt;, &quot;, &apos; and numeric ones.':
+    'una cara no acepta la entidad "&{name};": solo &amp;, &lt;, &gt;, &quot;, &apos; y las numéricas.',
+  // What a face may hold: its elements, attributes and variants, and its caps.
+  'two variants are named "{id}".': 'dos variantes se llaman "{id}".',
+  'a collapsed container shows the variant "{id}", which the face does not have.':
+    'un contenedor contraído muestra la variante "{id}", que la cara no tiene.',
+  'a face has at most {n} variants.': 'una cara tiene como máximo {n} variantes.',
+  "a face's markup, its variants' included, holds at most {n} lines.":
+    'el marcado de una cara, con el de sus variantes, tiene como máximo {n} líneas.',
+  "a face's markup, its variants' included, holds at most {n} KiB.":
+    'el marcado de una cara, con el de sus variantes, tiene como máximo {n} KiB.',
+  "a face's style holds at most {n} KiB.": 'el estilo de una cara tiene como máximo {n} KiB.',
+  "a face's style holds at most {n} rules.": 'el estilo de una cara tiene como máximo {n} reglas.',
+  'a line holds at most 2,000 characters and no line break.':
+    'una línea tiene como máximo 2.000 caracteres y ningún salto de línea.',
+  '<{name}/> is the last element at the top of the markup, under what the face shows above it.':
+    '<{name}/> es el último elemento del primer nivel del marcado, debajo de lo que la cara muestra arriba.',
+  'an element takes "if" or "else", not both: write the condition in "else".':
+    'un elemento lleva "if" o "else", no los dos: escribir la condición en "else".',
+  '"else" follows an element with "if", or one with "else" and a condition.':
+    '"else" va después de un elemento con "if", o de uno con "else" y una condición.',
+  '<{name}> is not part of a face: nothing in a face runs or is fetched.':
+    '<{name}> no es parte de una cara: nada en una cara se ejecuta ni se descarga.',
+  '<{name}> is not an element a face takes.': '<{name}> no es un elemento que una cara acepte.',
+  'a markup holds <{name}/> once.': 'un marcado tiene <{name}/> una sola vez.',
+  'a markup holds <rows/> or <contents/>, not both.':
+    'un marcado tiene <rows/> o <contents/>, no los dos.',
+  '<{name}/> holds nothing: write it "<{name}/>".':
+    '<{name}/> no contiene nada: escribirlo "<{name}/>".',
+  "<rows/> takes no condition: it shows where the shape's rows go.":
+    '<rows/> no lleva condición: muestra dónde van las filas de la forma.',
+  "<contents/> takes no condition: it shows where the shape's contents go.":
+    '<contents/> no lleva condición: muestra dónde va el contenido de la forma.',
+  '"ref" belongs to <image/> only.': '"ref" es solo de <image/>.',
+  'an image is named by the id its package gives it.':
+    'una imagen se nombra por el id que le da su paquete.',
+  '"{name}" is refused: nothing in a face runs.':
+    'se rechaza "{name}": nada en una cara se ejecuta.',
+  '"{name}" is refused: nothing in a face is fetched.':
+    'se rechaza "{name}": nada en una cara se descarga.',
+  '"{name}" is not an attribute a face takes: only class, style, if and else.':
+    '"{name}" no es un atributo que una cara acepte: solo class, style, if y else.',
+  '<image/> names an image of the package with ref="its id".':
+    '<image/> nombra una imagen del paquete con ref="su id".',
+  '"of" names "attributes", or a list attribute by its name.':
+    '"of" nombra "attributes", o un atributo de lista por su nombre.',
+  '<each> makes no box of its own: put "{name}" on what it repeats.':
+    '<each> no forma una caja propia: poner "{name}" en lo que repite.',
+  '"{name}" is not an attribute <each> takes: only of, only, except, if and else.':
+    '"{name}" no es un atributo que <each> acepte: solo of, only, except, if y else.',
+  '<each> says what it repeats over with "of".': '<each> dice con "of" sobre qué repite.',
+  '"only" and "except" choose among the attributes, with of="attributes".':
+    '"only" y "except" eligen entre los atributos, con of="attributes".',
+  // Slots and conditions.
+  'a "{{" is never closed with "}}".': 'un "{{" nunca se cierra con "}}".',
+  'a slot names an attribute as attr "its name".':
+    'una ranura nombra un atributo como attr "su nombre".',
+  'a slot names what it writes: name, component, count, or an attribute.':
+    'una ranura nombra lo que escribe: name, component, count o un atributo.',
+  '"{word}" is a word of slots: write attr "{word}" for an attribute of that name.':
+    '"{word}" es una palabra de las ranuras: escribir attr "{word}" para un atributo con ese nombre.',
+  'a slot gives one text in quotes after "??".':
+    'una ranura da un solo texto entre comillas después de "??".',
+  'a slot takes "| plain" only.': 'una ranura acepta solo "| plain".',
+  'a slot is a name, then ?? "a text" or | plain if wanted.':
+    'una ranura es un nombre, y luego ?? "un texto" o | plain si se quiere.',
+  '"not" goes before a value alone, as in "not archived".':
+    '"not" va antes de un valor solo, como en "not archived".',
+  "a condition compares with =, !=, <, <=, >, >= or in, as in status = 'live'.":
+    "una condición compara con =, !=, <, <=, >, >= o in, como en status = 'live'.",
+  'a condition compares with a text in quotes or a number.':
+    'una condición compara con un texto entre comillas o un número.',
+  "a condition with in lists texts in quotes or numbers, as in status in 'live' 'frozen'.":
+    "una condición con in enumera textos entre comillas o números, como en status in 'live' 'frozen'.",
+  'a condition compares with one text in quotes or one number.':
+    'una condición compara con un solo texto entre comillas o un solo número.',
+  '"{op}" compares with a number.': '"{op}" compara con un número.',
+  // Style the subset drops.
+  '"@" rules are not part of a face: they are dropped.':
+    'las reglas "@" no son parte de una cara: se descartan.',
+  'this text is not a rule: a rule is selectors, then declarations in braces.':
+    'este texto no es una regla: una regla son selectores, y luego declaraciones entre llaves.',
+  'rules do not nest: this rule is dropped.': 'las reglas no se anidan: esta regla se descarta.',
+  'a rule lists at most {n} selectors: it is dropped.':
+    'una regla enumera como máximo {n} selectores: se descarta.',
+  'a selector joins at most {n} parts: "{selector}" is dropped.':
+    'un selector une como máximo {n} partes: se descarta "{selector}".',
+  'the selector "{selector}" is not one a face takes: an element, a class, both, or those joined by spaces. It is dropped.':
+    'el selector "{selector}" no es uno que una cara acepte: una clase o un nombre de elemento, los dos juntos, o varios de esos unidos por espacios. Se descarta.',
+  '"{text}" is not a declaration: it is a property, ":" and a value.':
+    '"{text}" no es una declaración: una declaración es un nombre, ":" y un valor.',
+  '"!important" is not part of a face: "{property}" is dropped.':
+    '"!important" no es parte de una cara: se descarta "{property}".',
+  'the value of "{property}" holds characters a face\'s style does not take: it is dropped.':
+    'el valor de "{property}" tiene caracteres que el estilo de una cara no acepta: se descarta.',
+  '"{value}" is not a value "{property}" takes in a face: it is dropped.':
+    '"{value}" no es un valor que "{property}" acepte en una cara: se descarta.',
+  'a grid has at most {n} columns: "{property}" is dropped.':
+    'una cuadrícula tiene como máximo {n} columnas: se descarta "{property}".',
+  'a face\'s text is {n} to {m} px: "font-size: {value}" is dropped.':
+    'el texto de una cara mide de {n} a {m} px: se descarta "font-size: {value}".',
+  '"{property}" is not a property a face takes: it is dropped.':
+    '"{property}" no es algo que el estilo de una cara acepte: se descarta.',
+  // Contrast, attributes, and laying a face out.
+  'its text, {text} on {back}, reads at {n}:1 in the light theme, under {m}:1.':
+    'su texto, {text} sobre {back}, se lee a {n}:1 en el tema claro, menos de {m}:1.',
+  'its text, {text} on {back}, reads at {n}:1 in the dark theme, under {m}:1.':
+    'su texto, {text} sobre {back}, se lee a {n}:1 en el tema oscuro, menos de {m}:1.',
+  'its contrast was checked only in part: its conditions and classes made from values give more ways to draw it than the check reads.':
+    'su contraste se revisó solo en parte: sus condiciones y sus atributos class hechos con valores dan más formas de dibujarla de las que lee la revisión.',
+  'it names the attribute "{name}", which the component does not have.':
+    'nombra el atributo "{name}", que el componente no tiene.',
+  'a face lays out at most {n} runs of text.': 'una cara organiza como máximo {n} tramos de texto.',
+  'a face fills at most {n} parts of its markup.':
+    'una cara completa como máximo {n} partes de su marcado.',
+  'a face lays out at most {n} boxes.': 'una cara organiza como máximo {n} cajas.',
+  'the face has no markup.': 'la cara no tiene marcado.',
 };
 
 /**
