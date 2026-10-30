@@ -1,56 +1,12 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import { runsText } from '@visual-anything/core';
-import type { Component } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
-import { loadSample } from '../test/sample';
+import { EMPHASIS_VIEW as VIEW, calendarOf, withEmphasis as withNote } from '../test/emphasis';
 import { buildScene, buildSceneAfresh } from './scene';
 
-const VIEW = 'system-overview';
-
-/**
- * The sample with its Calendar taking a `note` that takes text emphasis, shown in its detail with
- * its own lines and placement, and the calendar's note written with emphasis.
- */
-function withNote(note: string, own: Partial<Component['appearance']> = {}): ProjectSnapshot {
-  const sample = loadSample();
-  const packages = sample.packages.map((each) =>
-    each.id !== 'clinic'
-      ? each
-      : {
-          ...each,
-          components: (each.components ?? []).map((component) =>
-            component.id !== 'clinic.calendar'
-              ? component
-              : {
-                  ...component,
-                  attributes: [
-                    ...(component.attributes ?? []),
-                    { name: 'note', type: 'string' as const, format: 'emphasis' as const },
-                    { name: 'code', type: 'string' as const },
-                  ],
-                  appearance: {
-                    ...component.appearance,
-                    detail: { attributes: ['note', 'code'] },
-                    ...own,
-                  },
-                },
-          ),
-        },
-  );
-  const elements = sample.model.elements.map((element) =>
-    element.component === 'clinic.calendar'
-      ? { ...element, attributes: { ...element.attributes, note: note, code: "'**'::text" } }
-      : element,
-  );
-  return { ...sample, packages, model: { ...sample.model, elements } };
-}
-
 function calendarShape(project: ProjectSnapshot) {
-  const shape = buildScene(project, VIEW).shapes.find((each) =>
-    project.model.elements.some(
-      (element) => element.id === each.element && element.component === 'clinic.calendar',
-    ),
-  );
+  const id = calendarOf(project);
+  const shape = buildScene(project, VIEW).shapes.find((each) => each.element === id);
   if (!shape) throw new Error('The sample draws no calendar.');
   return shape;
 }

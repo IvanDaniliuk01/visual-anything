@@ -202,8 +202,9 @@ describe('writeSvg', () => {
         }
       }
     }
+    // A name too long for one line takes the lines it needs first, before the detail (ADR 0082).
     const long = document.querySelector('g[data-element="appointments-api"] text');
-    expect(long?.textContent).toContain('…');
+    expect(long?.querySelectorAll('tspan').length).toBeGreaterThan(1);
   });
 
   it('draws in the dark theme: its canvas, and built-in colors in their dark shades', () => {
