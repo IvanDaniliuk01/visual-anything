@@ -95,7 +95,7 @@ An element drawn as one line of its container's shape, because the container's a
 _Avoid_: line item
 
 **Key row**:
-A row whose element is part of its table's primary key, or that a relation the view draws ends on. A view can draw only key rows (`rows: "keys"`), each table counting the rows it leaves out in its header and showing them when one is looked for (ADR 0080).
+A row whose element is part of its table's primary key, or that a relation the view can draw ends on, whatever its scope. A view can draw only key rows (`rows: "keys"`), each table counting the rows it leaves out in its header and showing them when one is looked for (ADR 0080).
 _Avoid_: key column (alone), index row
 
 **Detail**:
@@ -131,7 +131,7 @@ A single relation drawn in place of many relations of the same type between the 
 _Avoid_: bundle, summary edge
 
 **Expand in place**:
-How a collapsed container opens: it keeps its corner and grows toward the free room. The shapes it now covers move aside by the least that clears it, in their order. Pinned shapes never move. Collapsing it again gives the moved shapes their places back (ADR 0080).
+How a collapsed container opens: it keeps its corner and grows toward the free room. The shapes it now covers move aside by the least that clears it, in their order. Pinned shapes never move. Collapsing it again gives the moved shapes their places back; when it has none to give back, collapsing closes the room it leaves, moving what stood right of it or below it back left or up by the least, pinned shapes never (ADR 0080).
 _Avoid_: unfold, explode
 
 **Trunk**:

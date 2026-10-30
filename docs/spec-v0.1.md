@@ -720,15 +720,15 @@ The first three tasks are the seams, built in the main session in this order. Th
 
 **M3c · Layout that reads.** Planned on 2026-10-29, ahead of M11b's remaining tasks, from the layout research and benchmark on the user's PostgreSQL model (73 tables, 1,088 columns, 163 references in 9 schemas), which no view drew readably (ADR 0080). Done when:
 
-- after Layout, a fixture shaped like that model (same counts and structure, generated names) meets ADR 0080's quality thresholds on its `esquema-engine`, `overview` expanded and `procesamiento` with its tables open:
+- after Layout, a fixture shaped like that model (same counts and structure, generated names) meets ADR 0080's quality thresholds on its `esquema-engine`, `overview` expanded and unpinned, and `procesamiento` with its tables open (`overview` expanded as stored, with its pinned schemas covering their own tables' ends, is held at the numbers reached, ADR 0080's clarification; crossings per line and fill are recorded, not held, ADR 0080's "Not held, and why"):
   - no segment shared by two lines without a common end;
   - no automatic line through a shape that is not one of its ends;
   - no overlapping siblings;
   - every end on a row at that row's middle;
   - crossings no more than before;
-- expanding a container, by hand or by zoom, keeps its corner, moves only what it covers by the least, overlaps nothing, and keeps the box on screen, and undo puts everything back;
-- the generated overlay colors stay 3:1 apart, and a relation from a row to its own table draws a short C;
-- the 10,000-element view still lays out and routes without blocking the main thread (numbers recorded, not held).
+- expanding a container, by hand or by zoom, keeps its corner, moves only what it covers by the least, and overlaps nothing; expanding by hand keeps the box on screen and undo puts everything back, while expanding by zoom draws the moved places and stores nothing;
+- each generated overlay color keeps 3:1 against both canvases and every two differ by at least ΔE76 20 (ADR 0080's clarification), and a relation from a row to its own table draws a short C;
+- the 10,000-element view still lays out and routes in the worker, with the main thread's steps measured (numbers recorded, not held; what misses goes to A4).
 
 Its tasks run one at a time, in this order:
 
@@ -741,7 +741,7 @@ Its tasks run one at a time, in this order:
 - [x] **Stage 0b: lines beside rows routed in channels, the palette and the self-reference** (`app/src/canvas/routing/`, the overlays' colors, ADR 0080 sections 2 and 6):
   - lines beside rows and on shapes that draw rows go through the program's own router, leaving at their row's middle on the facing side;
   - a channel pass spreads collinear segments of different lines at least 8 units apart, lines from one row staying one trunk;
-  - routing stays in the worker and incremental;
+  - routing stays in the worker and incremental, while the channel pass runs over every line drawn, in the worker;
   - the validated overlay palette, and the short C of a self-reference;
   - the quality thresholds on routing, on the fixture;
   - curves past 24 in a container drawn orthogonal with rounded corners through the router, the view's inspector saying so (ADR 0080 section 3, moved forward from Stage 2);
@@ -1045,7 +1045,7 @@ Its tasks run in this order:
 - [x] Rulers with the selection's extent
 - [x] W51, asked for by the user beside M8b (ADR 0074): resize handles on a shape selected alone (Shift keeps proportions, Alt from the middle, Escape cancels, one action `Resize "X"`); alignment guides while dragging and resizing, within 6 pixels, before the grid, off with Ctrl (⌘); Align left, centers, right, top, middles and bottom, Distribute horizontally and vertically, and Same width and height, from the shape menu, the toolbar's Align and Alt+Shift with an arrow key; and Claude's `align_shapes`
 
-**A4 · Polish.** Done when no color, size, spacing, radius, shadow or z-index is written out in any stylesheet outside the generated tokens, every control has hover, pressed, disabled and focus-visible states, every icon comes from one icon set kept in the app, and every empty state says what to do next.
+**A4 · Polish.** Done when no color, size, spacing, radius, shadow or z-index is written out in any stylesheet outside the generated tokens, every control has hover, pressed, disabled and focus-visible states, every icon comes from one icon set kept in the app, and every empty state says what to do next, and the layout at 10,000 elements and the main-thread steps that `docs/designs/benchmark-5.md` lists are measured again after an attempt to bring them within ADR 0015's 20 s and the 50 ms frame (recorded, not held).
 
 **Track L · Languages**, beside the milestones, starting now (ADR 0038). Its commits start with `L<n>:`.
 

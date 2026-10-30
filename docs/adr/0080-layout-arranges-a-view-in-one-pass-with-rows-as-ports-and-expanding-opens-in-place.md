@@ -28,7 +28,7 @@ On the same input, a benchmark of 28 engine settings (draw.io 28.1.2 in its own 
 - lines beside rows routed by the program's own router, with a channel pass that spreads parallel segments apart;
 - the overlay palette, and the short self-reference.
 
-libavoid comes in the second stage, once it routes incrementally in the worker within its budget. The program's router stays as its fallback.
+libavoid comes in the second stage, once it routes incrementally in the worker within its budget. The program's router stays as its fallback. (Superseded on 2026-10-30: libavoid leaves the shipped app; see the clarification of that date.)
 
 ### 1. One layout pass over the view, with rows as ports
 
@@ -70,7 +70,7 @@ libavoid comes in the second stage, once it routes incrementally in the worker w
   - Collinear segments of different lines that share a corridor are ordered so as not to cross.
   - They are then spread across the corridor at least 8 units apart, ideally 12. Lines from the same row stay together as one trunk until they part.
   - No two lines without a common end share a segment.
-- **The router is libavoid** (Adaptagrams, through `libavoid-js`, LGPL-2.1-or-later, a WASM file loaded by the routing worker `avoid.worker.ts`):
+- **The router is libavoid** (Adaptagrams, through `libavoid-js`, LGPL-2.1-or-later, a WASM file loaded by the routing worker `avoid.worker.ts`). (Superseded on 2026-10-30: libavoid leaves the shipped app; see the clarification of that date.) Its settings, kept for the quality tests that compare it:
   - shapes are its obstacles, at a distance of 12;
   - each related row gets a pin on each side of its table, and libavoid takes the cheaper one;
   - nudging is on (`idealNudgingDistance` 10, `nudgeOrthogonalSegmentsConnectedToShapes`, `nudgeSharedPathsWithCommonEndPoint`, `nudgeOrthogonalTouchingColinearSegments`);
@@ -164,7 +164,7 @@ When an overlay's colors are generated, they come from a palette validated to st
   - ADR 0069's automatic curves beyond 24 lines in a container.
 - **Unchanged.** ADR 0009, 0015's worker and budget, 0024's command and 0065's joining stay as they are.
 - **The view file** gains the optional `rows` (`"all"`, the default, or `"keys"`). The live protocol's version goes up.
-- **A new dependency**, `libavoid-js` (LGPL-2.1-or-later), joins the licenses ADR 0047 lists for code that ships. It ships as a separate WASM file the person can replace.
+- **A new dependency**, `libavoid-js` (LGPL-2.1-or-later), joins the licenses ADR 0047 lists for code that ships. It ships as a separate WASM file the person can replace. (Superseded on 2026-10-30: libavoid leaves the shipped app; see the clarification of that date.)
 - **ELK's run over a whole view costs more than a block per container.** On the user's views it took 0.1 to 2.5 s in Node, against 0.1 to 0.6 s today. The budget in section 1 keeps the 10,000-element view on today's path.
 - **ELK's interactive strategies refuse a hierarchical run.** `layering`, `crossingMinimization`, `cycleBreaking` and `nodePlacement` set to `INTERACTIVE` throw `UnsupportedGraphException` for LAYER_SWEEP. So stability across layouts relies on `semiInteractive` and on expanding in place, not on those strategies.
 - **libavoid routing everything at once does not scale.**
@@ -218,6 +218,7 @@ When an overlay's colors are generated, they come from a palette validated to st
     - **Bends at most 2 on average** on `overview`: its lines cross the whole view, and ELK's own routes there bend 3.3 times a line, as the research measured (3.17).
     - **0 shared** on `overview` with its pinned schemas: the corridors between the tables they cover hold more lines than they have room for. Unpinned, 0.
     - **Crossings** on `processing`: 2 more, from the 13 curves that crossed tables and now go around them.
+    - **Crossings per line at most 0.6 and fill at least 0.25** (added on 2026-10-30, from M3c's review): `schema-view` reaches 0.67 and 0.24, `overview` expanded 11.17 and 0.15, unpinned 10.31 and 0.15, and `processing` 1.36 and 0.13. The research's marks came from views of one schema; a whole database's lines cross the view, and tables with their rows leave room between their blocks that ELK's layered arrangement does not fill. They are recorded, and the fixture's test holds the numbers reached.
   - **The 10,000-element view** (the synthetic tables view, 10,301 shapes and 997 lines, Node on the user's laptop). On the main thread: the routing request 26 ms with the lines drawn already 5 ms, a composition 11 ms, the channel pass's input 15 ms, its routes applied 7 ms. In the worker: every line routed in 0.48 s, 11 given up (1.1%), and the channel pass 0.7 s. Recorded, not held.
 
 <!-- Decided by Claude on 2026-10-30 under the user's standing delegation of design decisions, merging Stage 0b. -->
@@ -287,8 +288,9 @@ When an overlay's colors are generated, they come from a palette validated to st
 - 2026-10-30 (M3c, after merging Stage 3): **what Stage 3 asked.** Decided by Claude under the user's standing delegation.
   - **Where the 10% rule applies.** It holds for what places a table on its own: the automatic placement a new table gets when it joins. A Layout the person or Claude asks for is a request to arrange afresh, and it may move what it needs to. A person who wants shapes kept pins them, and Layout leaves pinned shapes in place. ELK's options cannot keep the previous order in a one-pass run without raising crossings, and a layout that remembers the previous one would need an ADR of its own.
   - **How far a shape may be pushed aside.** The bound is what the schema grew plus 40, in place of "80 on average", because a table with its rows is taller than 80.
-  - **Layout at 10,000 elements** takes 26 to 32 s, over ADR 0015's 20 s per layout. It runs in the worker, so it never blocks the main thread. Per the project's rule on benchmarks this is not a blocker. It is followed up in A4: about 13 s of the worker's time on the tables view is ours, not ELK's.
-  - **The second run's extra scene build** stays on the main thread, capped at 1,500 shapes, so it remains within a frame budget's order of magnitude. Above the cap, no second run is made.
+  - **Layout at 10,000 elements** takes 26 to 32 s, over ADR 0015's 20 s per layout. ELK runs in the worker; the main-thread steps over 50 ms that `docs/designs/benchmark-5.md` lists (the scene after layout, the layout's input, applying the command) go to A4 with it. Per the project's rule on benchmarks this is not a blocker. It is followed up in A4: about 13 s of the worker's time on the tables view is ours, not ELK's.
+  - **The second run's extra scene build** stays on the main thread, capped at 1,500 shapes; above the cap, no second run is made. Its time at the cap is to be measured in `timing.ts` and recorded in `docs/designs/benchmark-5.md`.
+
 <!-- Decided by Claude on 2026-10-30 under the user's standing delegation of design decisions, while building Stage 2. -->
 
 - 2026-10-30: **how Stage 2 builds section 5, with what M3d's part B handed to it, and what it measured.**
