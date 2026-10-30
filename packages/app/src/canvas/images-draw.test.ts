@@ -462,12 +462,23 @@ describe('the pictures of faces (ADR 0083)', () => {
     // Its picture is asked for, and drawn once made: its box meanwhile.
     expect(textures(first.graphics)).toBe(0);
     expect(fills(first.graphics)).toBe(1);
-    for (let frame = 0; frame < 3; frame++) {
-      images.frame([], view(1, false));
-      await arrived();
-    }
+    let repaints = 0;
+    const repaint = first.repaint.bind(first);
+    first.repaint = () => {
+      repaints += 1;
+      repaint();
+    };
+    // While its picture decodes, frames that make no texture paint it not again.
+    images.frame([], view(1, false));
+    images.frame([], view(1, false));
     expect(platform.decodes).toBe(1);
+    expect(repaints).toBe(0);
+    await arrived();
+    images.frame([], view(1, false));
+    expect(repaints).toBe(1);
     expect(textures(first.graphics)).toBe(1);
+    images.frame([], view(1, false));
+    expect(repaints).toBe(1);
     // Over its box.
     const actions = first.graphics.context.instructions.map((each) => each.action);
     expect(actions.indexOf('texture')).toBeGreaterThan(actions.indexOf('fill'));

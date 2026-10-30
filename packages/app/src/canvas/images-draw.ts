@@ -138,9 +138,13 @@ export class TileImages<
   readonly #kept = new Set<string>([FACES]);
   /** The textures faces draw their pictures with, which the store keeps for them. */
   readonly #faceKeys = new Set<string>();
-  /** The faces that draw pictures, and those still waiting for a texture. */
+  /**
+   * The faces that draw pictures; those waiting for a texture; and those whose textures were made
+   * since, to paint again.
+   */
   readonly #faces = new Set<FaceLabel>();
   #waiting = new Set<FaceLabel>();
+  readonly #ready = new Set<FaceLabel>();
   #sweepAt = FACE_SWEEP;
 
   constructor(platform: ImagePlatform<T, P>, onArrive?: () => void) {
@@ -181,23 +185,17 @@ export class TileImages<
   }
 
   /**
-   * Paints again the faces that waited for a texture, within the frame's budget, and says whether
-   * some are left for the next frame.
+   * Paints again, within the frame's budget, the faces that waited for a texture made since
+   * (`#ready`), and says whether some are left for the next frame. A face whose pictures are not all
+   * made yet waits again (`textureFor`).
    */
   #repaintFaces(spent: () => number): boolean {
-    const waiting = this.#waiting;
-    this.#waiting = new Set();
-    let left = false;
-    for (const face of waiting) {
-      if (face.destroyed) continue;
-      if (left || spent() >= IMAGE_LIMITS.workAfter) {
-        this.#waiting.add(face);
-        left = true;
-        continue;
-      }
-      face.repaint();
+    for (const face of this.#ready) {
+      if (spent() >= IMAGE_LIMITS.workAfter) return true;
+      this.#ready.delete(face);
+      if (!face.destroyed) face.repaint();
     }
-    return left;
+    return false;
   }
 
   /**
@@ -298,6 +296,9 @@ export class TileImages<
         })
       : []) {
       if (id === FACES) {
+        // A texture faces wait for is made: every face waiting is painted again, as the budget allows.
+        for (const face of this.#waiting) this.#ready.add(face);
+        this.#waiting = new Set();
         facesLeft = this.#repaintFaces(spent);
         continue;
       }
@@ -307,8 +308,8 @@ export class TileImages<
       rebuilt += 1;
     }
     waiting.sort((a, b) => a.distance - b.distance);
-    // Faces an earlier frame's budget left waiting for a texture made since.
-    if (!facesLeft && this.#waiting.size > 0 && shows) facesLeft = this.#repaintFaces(spent);
+    // Faces an earlier frame's budget left to paint again.
+    if (!facesLeft && this.#ready.size > 0 && shows) facesLeft = this.#repaintFaces(spent);
     let more = (shows && this.store.more) || facesLeft;
     for (const each of waiting) {
       if (rebuilt >= IMAGE_LIMITS.tileRebuilds || spent() >= IMAGE_LIMITS.workAfter) {
@@ -377,6 +378,7 @@ export class TileImages<
     // Faces drop the textures that went, and ask again.
     this.#faceKeys.clear();
     this.#waiting = new Set();
+    this.#ready.clear();
     for (const face of this.#faces) {
       if (face.destroyed) this.#faces.delete(face);
       else face.repaint();
