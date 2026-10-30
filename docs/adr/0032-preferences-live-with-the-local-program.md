@@ -51,3 +51,16 @@ This is the first file the program writes outside the project folder; tests alwa
   - The file writes them after `author`, so that a file written before reads as it did and gains them with their defaults at the next change. A value this build cannot read, such as a motion added later, is kept as found, as every preference's is. A change to them is refused with `"motion" must be "system", "reduced" or "full", not …` or `"fades" must be true or false, not …`.
   - They are set in the tours panel, under the list of tours, and apply in the tab at once; while the tab is not connected it says that they apply to this tab only.
   - The read-only page, which has no program to keep them, follows the system's setting with fades on, and offers no choice of them.
+
+<!-- Decided by Claude on 2026-10-30 under the user's standing delegation of design decisions, merging M3d's "Side panels that collapse and resize". -->
+
+- 2026-10-30: **the side panels' widths and collapsed states are preferences.**
+  - **What is kept:** `sidePanels`, holding `model` and `inspector`, each with a `width` in pixels (200 to 2,000, whole numbers) and `collapsed`. It is checked strictly when set, and read leniently, as every preference is.
+  - **Not local storage,** for this ADR's own reasons. The origin changes with the port, and the program Claude starts takes a free port each run, so widths kept in local storage would be lost on almost every run.
+  - **Written once a change is done:** at the end of a drag, a collapse or an opening, never while dragging. While a drag goes on, the tab keeps its width in memory.
+  - **A panel never shows wider than half the window,** whatever its stored width. The stored width comes back when the window widens again.
+  - **The panels' own choices, kept with them:**
+    - the shortcuts are Alt+Shift+M (model panel) and Alt+Shift+N (inspector). Alt+Shift+I opens Chrome's and Edge's feedback form;
+    - the default widths are 288 and 320 pixels;
+    - while the scenario panel is open, the inspector's strip runs across the top of the right column;
+    - whatever brings content forward in a collapsed panel opens it first: the Changes tab, a comment thread, the inspector following a selection the person asks to inspect, a search result shown in the model panel.

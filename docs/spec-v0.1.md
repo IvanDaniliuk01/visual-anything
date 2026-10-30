@@ -790,7 +790,7 @@ Its tasks run one at a time, after M3c's Stage 0b, in this order:
   - the model panel on the left and the inspector on the right each collapse to a thin strip, from a button on their edge and from the keyboard, and open again from it;
   - each takes the width the person drags its inner edge to, between 200 px and half the window, with the keyboard too (a focusable separator, arrows by 16 px, Home and End), and a double click gives back its default width;
   - the canvas takes the room they leave, and keeps the same point of the view in its middle;
-  - widths and collapsed states are kept per browser in local storage, never in the project;
+  - widths and collapsed states are preferences, kept by the local program and never in the project (ADR 0032's clarification of 2026-10-30), and whatever brings content forward in a collapsed panel opens it first;
   - announcements and labels in English and Spanish.
 - [ ] **Claude sees the view** (ADR 0081): `capture_view`, the capture messages, the off-screen render at a given size, and Claude's instructions.
 - [ ] **Text that takes emphasis** (ADR 0082, with its clarification of 2026-10-30: Markdown with headings, lists, quotes, code blocks, tables and links in texts of several lines): bold, italic, strikethrough and inline code, written as a Markdown subset and drawn on the canvas, the read-only page and the exports, in:
