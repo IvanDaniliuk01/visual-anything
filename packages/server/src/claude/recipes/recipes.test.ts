@@ -271,11 +271,14 @@ describe('the SQL DDL recipe', () => {
     expect(await fixture('shop.sql')).toBe(SQL_DDL.example.input);
   });
 
-  it('builds tables with their columns as rows, in order, and the foreign keys', async () => {
+  it('builds one database with its schema, tables and view with their columns as rows, in order, and the foreign keys', async () => {
     const { snapshot } = (await runExample(SQL_DDL)).session;
     expect(snapshot.project.packages).toEqual(['systems', 'data-modeling']);
     expect(modelLines(snapshot)).toEqual({
       elements: [
+        'orders: systems.database {"engine":"postgres"}',
+        'shop: data-modeling.schema',
+        'order_status: data-modeling.enum {"values":"placed, paid, shipped"}',
         'customers: data-modeling.table',
         'id: data-modeling.column {"type":"uuid","primaryKey":true}',
         'email: data-modeling.column {"type":"varchar(255)","notNull":true,"unique":true}',
@@ -283,28 +286,62 @@ describe('the SQL DDL recipe', () => {
         'orders: data-modeling.table',
         'id: data-modeling.column {"type":"uuid","primaryKey":true}',
         'customer_id: data-modeling.column {"type":"uuid","notNull":true}',
+        'status: data-modeling.column {"type":"shop.order_status","notNull":true,"default":"\'placed\'"}',
         'placed_at: data-modeling.column {"type":"timestamptz","notNull":true,"default":"now()"}',
+        'updated_at: data-modeling.column {"type":"timestamptz"}',
         'total_cents: data-modeling.column {"type":"integer","notNull":true,"check":"total_cents >= 0"}',
         'order_items: data-modeling.table',
         'order_id: data-modeling.column {"type":"uuid","notNull":true,"primaryKey":true}',
         'product_sku: data-modeling.column {"type":"varchar(32)","notNull":true,"primaryKey":true}',
         'quantity: data-modeling.column {"type":"integer","notNull":true,"default":"1"}',
+        'open_orders: data-modeling.view',
+        'id: data-modeling.column {"type":"uuid"}',
+        'email: data-modeling.column {"type":"varchar(255)"}',
+        'total_cents: data-modeling.column {"type":"integer"}',
+        'touch_updated_at: data-modeling.function {"language":"plpgsql","returns":"trigger"}',
+        'orders_touch: data-modeling.trigger {"timing":"before","events":"update","level":"row"}',
       ],
       relations: [
+        'shop -systems.is-part-of-> orders',
+        'order_status -systems.is-part-of-> shop',
+        'customers -systems.is-part-of-> shop',
         'id -data-modeling.is-column-of-> customers',
         'email -data-modeling.is-column-of-> customers',
         'name -data-modeling.is-column-of-> customers',
+        'orders -systems.is-part-of-> shop',
         'id -data-modeling.is-column-of-> orders',
         'customer_id -data-modeling.is-column-of-> orders',
+        'status -data-modeling.is-column-of-> orders',
         'placed_at -data-modeling.is-column-of-> orders',
+        'updated_at -data-modeling.is-column-of-> orders',
         'total_cents -data-modeling.is-column-of-> orders',
+        'order_items -systems.is-part-of-> shop',
         'order_id -data-modeling.is-column-of-> order_items',
         'product_sku -data-modeling.is-column-of-> order_items',
         'quantity -data-modeling.is-column-of-> order_items',
+        'open_orders -systems.is-part-of-> shop',
+        'id -data-modeling.is-column-of-> open_orders',
+        'email -data-modeling.is-column-of-> open_orders',
+        'total_cents -data-modeling.is-column-of-> open_orders',
+        'touch_updated_at -systems.is-part-of-> shop',
+        'orders_touch -systems.is-part-of-> shop',
         'customer_id -data-modeling.references-> id {"onDelete":"cascade"}',
         'order_id -data-modeling.references-> id {"onDelete":"cascade"}',
+        'open_orders -data-modeling.reads-from-> orders',
+        'open_orders -data-modeling.reads-from-> customers',
+        'orders_touch -data-modeling.fires-on-> orders',
+        'orders_touch -data-modeling.runs-> touch_updated_at',
       ],
     });
+    // One database holds the schema, whatever the schema holds: never a database per schema.
+    expect(
+      snapshot.model.elements.filter((each) => each.component === 'systems.database'),
+    ).toHaveLength(1);
+    // The model holds no code: no attribute holds the view's query or the function's body.
+    const texts = JSON.stringify(snapshot.model);
+    for (const code of ['SELECT', 'WHERE', 'BEGIN', 'RETURN NEW', 'EXECUTE FUNCTION']) {
+      expect(texts).not.toContain(code);
+    }
     // Each foreign key ends on the primary key of the table it names.
     const byId = new Map(snapshot.model.elements.map((each) => [each.id, each]));
     const tableOf = (column: string) =>
@@ -322,7 +359,7 @@ describe('the SQL DDL recipe', () => {
         ),
     ).toEqual(['orders.customer_id → customers.id', 'order_items.order_id → orders.id']);
     expect(snapshot.views.map((view) => [view.name, view.nestingRelationTypes])).toEqual([
-      ['Shop tables', ['data-modeling.is-column-of']],
+      ['Orders database', ['systems.is-part-of', 'data-modeling.is-column-of']],
     ]);
     expect(snapshot.scenarios).toEqual([]);
   });

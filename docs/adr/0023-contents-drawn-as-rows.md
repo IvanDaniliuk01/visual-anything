@@ -53,3 +53,35 @@ A view that does not nest by the relation type holding a container's rows shows 
   - every expansion opens in place.
 
   Read ADR 0080's Consequences for exactly which clarifications it replaces.
+
+<!-- Decided by Claude on 2026-10-29 under the user's standing delegation of design decisions. -->
+
+- 2026-10-29 (M3d): **Data modeling holds a whole database.** The first real model (one PostgreSQL database with 9 schemas, 73 tables and 19 views) had to make these in a package of its own. The package gains them by additions only: no id it had changes, and "is column of" only widens its limits.
+  - **Components:**
+    - Schema, a namespace of a database that holds tables, views, enums, functions, triggers and sequences;
+    - View, a named query read as a table, which draws its columns as rows as a table does;
+    - Materialized view, a view whose rows the database stores;
+    - Enum, with `values`;
+    - Function, a function or a procedure, with `language`, `arguments` and `returns`;
+    - Trigger, with `timing` (`before`, `after` or `instead of`), `events` and `level` (`row` or `statement`);
+    - Sequence, with `type`, `start` and `increment`.
+
+    The column gains `default` and `check`.
+  - **Relation types**, all directed and derived from "relates to":
+    - "reads from", from a view or a function to a table or a view;
+    - "writes to", from a function to a table, a view or a sequence, since taking a sequence's next number changes it;
+    - "fires on", from a trigger to a table or a view, since PostgreSQL's `INSTEAD OF` triggers fire on views;
+    - "runs", from a trigger to a function.
+
+    "Is column of" now also places a column in a view.
+  - **Everything derives from Essence, Schema included.** Table does, so the package needs no other and keeps opening alone. Deriving Schema from Systems' System would make Data modeling need Systems and hand schemas a team `owner` and a system's look. A project's own schema component derived from System, as the first real model made, stays valid.
+  - **A schema sits in its database, and what it holds in it, through Systems' "is part of".** The package defines no "is part of" of its own. The database is Systems' Database, so a project with schemas uses Systems already. The SQL recipe and the first real model already nest that way, so one view nests by `systems.is-part-of` and `data-modeling.is-column-of` from database to column. A second "is part of" would split nesting between views, and `nestingTypeFor` would choose it over Systems' for every table dropped into a schema.
+  - **View and Materialized view are two components, not one with a `materialized` attribute.** Materialized view derives from View, so a limit or a filter that names View takes both, while the palette, filters and appearances still tell them apart. That is also how the first real model's own package drew them.
+  - **View derives from Essence, not from Table.** A view is not a table: a filter, a limit or "references" that names Table would take views too. It draws its columns as rows, so "is column of" names both in its `to` limit.
+  - **No code is held.** No attribute holds a view's query, a function's body or a trigger's condition. Every attribute that comes from the material is text as written (`arguments`, `returns`, `events`, a column's `default` and `check`), and nothing reads it as code. No attribute has a default, so every value is data. `timing` and `level` take lower case, as `onDelete` does; values outside their choices only warn.
+  - **An enum's `values` is one text, separated by commas,** not JSON, so that a shape writes it in its detail and filters compare it as text. A column of an enum's type names the enum in its `type`; no relation type joins them yet.
+  - **The names.** "reads from" and "writes to" share their English names with Systems' relation types, whose limits are a service and a data store; the ids and limits tell them apart. The component View keeps the SQL word: its description says it is a view of a database, never a view of the model. In Spanish: Esquema, Vista, Vista materializada, Enum, Función, Trigger and Secuencia; "lee de", "escribe en", "se dispara en" and "ejecuta".
+  - **Appearances.** Each new component has its own colours, with a dark shade for each color it sets that meets ADR 0033's thresholds, and its own icon. The icons are plain SVG drawn for Visual Anything, CC0-1.0 (ADR 0047, ADR 0051), each in one colour that reads at 3:1 on its component's fill in both themes. Table and Column keep no icon, so tables already drawn look the same.
+  - **The SQL recipe** makes one `systems.database` for the database. Each `CREATE SCHEMA` becomes a Schema inside it, never a database per schema. Views, functions, triggers, enums and sequences become their components, with what each reads from, writes to, fires on and runs, never their code. The material's text is written as text, as the material writes it.
+  - **Built-in packages stay closed.** `define_component` and `define_relation_type` refuse a built-in package before the core does. The refusal says that built-in packages are closed and names a definition the package already has under that name. It gives the call that derives the definition in the project's first package of its own, or in one `create_package` makes first.
+  - **A project's own database package keeps working.** It opens with the same warnings as before, and the README says how to move such a model onto these components with `update_element` and `update_relation`.

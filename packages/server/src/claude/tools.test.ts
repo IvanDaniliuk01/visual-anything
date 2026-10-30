@@ -508,6 +508,33 @@ describe('other write tools', () => {
     ).toMatch(/^Refused, so nothing changed/);
   });
 
+  it('refuse to define in a built-in package, saying to derive in one of the project’s own', async () => {
+    const before = session.snapshot;
+    expect(
+      await failure('define_component', {
+        package: 'systems',
+        component: { name: 'Queue', derivesFrom: 'systems.service' },
+      }),
+    ).toBe(
+      'The package "systems" is built in, and built-in packages are closed: no project adds to them or changes them. Derive the component in a package of the project’s own instead, as in define_component { "package": "shop", "component": { "name": "Queue", "derivesFrom": "systems.service" } }.',
+    );
+    expect(
+      await failure('define_component', {
+        package: 'systems',
+        component: { name: 'service', derivesFrom: 'systems.box' },
+      }),
+    ).toMatch(/Use "systems\.service", which "systems" defines already, or derive the component/);
+    expect(
+      await failure('define_relation_type', {
+        package: 'systems',
+        relationType: { name: 'publishes to', derivesFrom: 'systems.communicates-with' },
+      }),
+    ).toBe(
+      'The package "systems" is built in, and built-in packages are closed: no project adds to them or changes them. Derive the relation type in a package of the project’s own instead, as in define_relation_type { "package": "shop", "relationType": { "name": "publishes to", "derivesFrom": "systems.communicates-with" } }.',
+    );
+    expect(session.snapshot).toBe(before);
+  });
+
   it('add a note to a view', async () => {
     const result = await value('add_free_shape', {
       view: 'overview',
