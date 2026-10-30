@@ -432,6 +432,7 @@ function samePreferences(a: Preferences, b: Preferences): boolean {
     a.language === b.language &&
     a.grid === b.grid &&
     a.snapToGrid === b.snapToGrid &&
+    a.reviewClaude === b.reviewClaude &&
     a.rulers === b.rulers &&
     a.recentColors.length === b.recentColors.length &&
     a.recentColors.every((color, index) => color === b.recentColors[index]) &&

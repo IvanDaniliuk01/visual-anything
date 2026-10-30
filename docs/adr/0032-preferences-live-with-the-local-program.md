@@ -64,3 +64,4 @@ This is the first file the program writes outside the project folder; tests alwa
     - the default widths are 288 and 320 pixels;
     - while the scenario panel is open, the inspector's strip runs across the top of the right column;
     - whatever brings content forward in a collapsed panel opens it first: the Changes tab, a comment thread, the inspector following a selection the person asks to inspect, a search result shown in the model panel.
+- 2026-10-30 (merging the side panels): **a selection alone never opens a collapsed inspector.** The person collapsed it on purpose, and selecting on the canvas, in the outline or from search happens all the time. Only asking to inspect or edit something opens it: a component, relation type or package opened for editing. The Changes tab coming forward and a comment thread opening open the model panel.

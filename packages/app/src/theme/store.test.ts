@@ -364,6 +364,17 @@ describe('changePreferences', () => {
     expect(appliedPreferences().preferences.sidePanels).toEqual(sidePanels);
   });
 
+  it('tells its listeners when Review Claude’s changes alone is turned on', () => {
+    startPreferences(window);
+    const listener = vi.fn();
+    subscribePreferences(listener);
+    const { link } = fakeLink();
+    linkPreferences(link);
+    changePreferences({ reviewClaude: true });
+    expect(appliedPreferences().preferences.reviewClaude).toBe(true);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the change in the tab, silently, when the session cannot carry preferences', () => {
     startPreferences(window);
     const { link } = fakeLink();
