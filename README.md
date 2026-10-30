@@ -104,6 +104,16 @@ From the repository, run `pnpm exec tsx packages/server/src/cli.ts export …`. 
 
 Each says on standard error what it could not hold. It writes only the file given with `--out`, and never a project file; without `--out`, the export goes to standard output.
 
+## Comparing versions for a pull request
+
+```sh
+visual-anything compare <folder> --base <ref> [--head <ref>] [--view <id>]... --out <folder> [--theme light|dark] [--image-url <prefix>]
+```
+
+It compares two versions of the project in `folder` by id (ADR 0070) and writes, in the out folder, `summary.md`, every change with what differs in Markdown, and for each view that changed `<view>.before.svg`, `<view>.after.svg` and `<view>.comparison.svg`, drawn as the app draws a comparison. The base is a branch, a tag, a commit or `HEAD` of the project's git repository; the head is another, or by default the files on disk. It reads the repository through your own git, read-only (ADR 0071), needs no Visual Anything running, and writes only in the out folder, each file atomically; the out folder may not be the project folder, one of its kind folders or inside `.git`. `--view` keeps the drawings and the summary to some views, and `--image-url` links the drawings from the summary at the address they are uploaded to, for a pull request's comment. It says on standard error what a drawing could not hold.
+
+From the repository, run `pnpm exec tsx packages/server/src/cli.ts compare …`. To run it from the sources on a project in another repository, set `TSX_TSCONFIG_PATH=<checkout>/packages/server/tsconfig.json` first, for the reason given under Claude through MCP below.
+
 ## Live values
 
 ```sh

@@ -249,6 +249,28 @@ export async function resolveRef(
   }
 }
 
+/**
+ * What a commit resolved from the person's ref says of itself: its short id, subject, author's name
+ * and time, as a listing gives them, for naming it. The id is one `rev-parse` gave.
+ */
+export async function commitInfo(
+  repository: Repository,
+  commit: string,
+  signal?: AbortSignal,
+): Promise<CommitInfo> {
+  const [info] = parseLog(
+    await repository.git.run({
+      args: ['log', '-z', LOG_FORMAT, '-n', '1', '--end-of-options', commit],
+      ...(signal === undefined ? {} : { signal }),
+    }),
+    repository.place.format,
+  );
+  if (info === undefined || info.commit !== commit) {
+    throw new GitError('output', 'Git’s answer about a commit did not read.');
+  }
+  return info;
+}
+
 // ——— A commit's project files ———
 
 /** How a commit is read: its limits, and what stops it. */

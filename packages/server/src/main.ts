@@ -6,6 +6,8 @@
  *   visual-anything mcp [folder] [--dev]
  *   visual-anything new <folder> [--from <sample>] [--port <n>] [--no-open] [--dev]
  *   visual-anything export <folder> --view <id> --format <format> [--theme <theme>] [--out <file>]
+ *   visual-anything compare <folder> --base <ref> [--head <ref>] [--view <id>]... --out <folder>
+ *                           [--theme <theme>] [--image-url <prefix>]
  *   visual-anything import <folder> <file> [--map <kind>=<id>]... [--dry-run]
  *   visual-anything live <folder> [--fresh-for <seconds>] < values.jsonl
  *   visual-anything notices
@@ -17,7 +19,8 @@
  * entry point, which Claude Code and Claude Desktop start: it speaks MCP on
  * stdin and stdout, so it writes nothing else there, and every line of its own goes to stderr. `new`
  * starts a new project; `export` writes a view as a file, reading the project itself
- * (`export-command.ts`); `import` imports a file into a project as one action of the person's
+ * (`export-command.ts`); `compare` writes what changed between two versions, for a pull request,
+ * reading them itself (`compare-command.ts`, ADR 0070); `import` imports a file into a project as one action of the person's
  * (ADR-0042); `live` pipes live values into the program running on the folder
  * (`live-command.ts`, ADR 0057); and `merge-driver` is what git runs to merge two edits of a project
  * file by id, once `merge-driver --install` defines it in the person's git configuration
@@ -46,6 +49,9 @@ export const OPEN_COMMAND = 'open';
 /** The subcommand that exports a view as a file (M6b), with no program running. */
 export const EXPORT_COMMAND = 'export';
 
+/** The subcommand that compares two versions for a pull request (ADR 0070), with no program running. */
+export const COMPARE_COMMAND = 'compare';
+
 /** The subcommand that starts a new project, from a sample or empty, then opens it (ADR 0051). */
 export const NEW_COMMAND = 'new';
 
@@ -63,13 +69,22 @@ export const MERGE_DRIVER_COMMAND = 'merge-driver';
 
 /** Which entry point a command line runs, with the arguments that entry point reads. */
 export interface Entry {
-  kind: 'program' | 'mcp' | 'new' | 'export' | 'import' | 'live' | 'notices' | 'merge-driver';
+  kind:
+    | 'program'
+    | 'mcp'
+    | 'new'
+    | 'export'
+    | 'compare'
+    | 'import'
+    | 'live'
+    | 'notices'
+    | 'merge-driver';
   argv: string[];
 }
 
 /**
  * Which entry point a command line runs: the MCP entry point when its first argument is `mcp`, the
- * export when it is `export`, the import when it is `import`, a new project when it is `new`, the
+ * export when it is `export`, the comparison when it is `compare`, the import when it is `import`, a new project when it is `new`, the
  * merge driver when it is `merge-driver`, the local program otherwise, with `open` before its folder
  * left out. A folder named like a subcommand, such as `mcp` or `open`, is opened as `./mcp` or
  * `./open`.
@@ -77,6 +92,7 @@ export interface Entry {
 export function entryOf(argv: readonly string[]): Entry {
   if (argv[0] === MCP_COMMAND) return { kind: 'mcp', argv: argv.slice(1) };
   if (argv[0] === EXPORT_COMMAND) return { kind: 'export', argv: argv.slice(1) };
+  if (argv[0] === COMPARE_COMMAND) return { kind: 'compare', argv: argv.slice(1) };
   if (argv[0] === IMPORT_COMMAND) return { kind: 'import', argv: argv.slice(1) };
   if (argv[0] === OPEN_COMMAND) return { kind: 'program', argv: argv.slice(1) };
   if (argv[0] === NEW_COMMAND) return { kind: 'new', argv: argv.slice(1) };
@@ -96,24 +112,26 @@ export function main(argv: readonly string[]): void {
         })
       : entry.kind === 'export'
         ? runExportCommand(entry.argv)
-        : entry.kind === 'import'
-          ? runImport(entry.argv, {
-              cwd: process.cwd(),
-              out: (line) => console.log(line),
-              err: (line) => console.error(line),
-              runtimeFolder: runtimeFolder(process.platform, process.env, homedir()),
-            })
-          : entry.kind === 'live'
-            ? runLiveCommand(entry.argv)
-            : entry.kind === 'notices'
-              ? Promise.resolve(printNotices())
-              : entry.kind === 'merge-driver'
-                ? runMergeDriverCommand(entry.argv)
-                : runProgram(
-                    entry.argv,
-                    isExecutable(),
-                    entry.kind === 'new' ? runNewCommand : runCommand,
-                  );
+        : entry.kind === 'compare'
+          ? runCompareCommand(entry.argv)
+          : entry.kind === 'import'
+            ? runImport(entry.argv, {
+                cwd: process.cwd(),
+                out: (line) => console.log(line),
+                err: (line) => console.error(line),
+                runtimeFolder: runtimeFolder(process.platform, process.env, homedir()),
+              })
+            : entry.kind === 'live'
+              ? runLiveCommand(entry.argv)
+              : entry.kind === 'notices'
+                ? Promise.resolve(printNotices())
+                : entry.kind === 'merge-driver'
+                  ? runMergeDriverCommand(entry.argv)
+                  : runProgram(
+                      entry.argv,
+                      isExecutable(),
+                      entry.kind === 'new' ? runNewCommand : runCommand,
+                    );
   void run.then((code) => {
     if (code !== undefined) process.exitCode = code;
   });
@@ -129,6 +147,19 @@ export async function runExportCommand(argv: readonly string[]): Promise<number>
     cwd: process.cwd(),
     stdout: (data) => process.stdout.write(data),
     stdoutIsTerminal: process.stdout.isTTY === true,
+    err: (line) => console.error(line),
+  });
+}
+
+/**
+ * Runs the compare command on the process's own streams. Like the export, its writers are loaded only
+ * for it.
+ */
+export async function runCompareCommand(argv: readonly string[]): Promise<number> {
+  const { runCompare } = await import('./compare-command');
+  return runCompare(argv, {
+    cwd: process.cwd(),
+    out: (line) => console.log(line),
     err: (line) => console.error(line),
   });
 }
