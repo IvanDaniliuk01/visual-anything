@@ -150,7 +150,7 @@ function shapeEndsOf(
 
 /** Whether a line takes an automatic orthogonal route: drawn so, or with rounded corners (ADR 0080). */
 function automatic(line: RelationLine): boolean {
-  return !line.hand && line.style === undefined && (!line.curve || line.rounded === true);
+  return !line.hand && line.style === undefined && (!line.curve || line.rounded !== undefined);
 }
 
 /**
@@ -752,7 +752,7 @@ export function channelBatchOf(
     const moves =
       routed.has(line.relation) &&
       !own &&
-      (!line.curve || line.rounded === true) &&
+      (!line.curve || line.rounded !== undefined) &&
       orthogonalRoute(line.route) &&
       !keeps?.(line);
     movable[index] = moves ? 1 : 0;

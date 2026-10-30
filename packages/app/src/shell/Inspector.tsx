@@ -10,6 +10,7 @@ import { countsOf } from './inspector/describe';
 import { ElementInspector } from './inspector/ElementInspector';
 import { FreeShapeAppearance } from './inspector/FreeShapeAppearance';
 import { inspectedKey, inspectedOf } from './inspector/inspected';
+import { LayoutNotes } from './inspector/LayoutNotes';
 import { LinesControl } from './inspector/LinesControl';
 import { OverlaysSection } from './inspector/OverlaysSection';
 import { Detail } from './inspector/parts';
@@ -154,6 +155,8 @@ function ViewDetails({ view, scene, definitions }: InspectorProps) {
       </dl>
       {/* How it draws the automatic routes its relations leave to it (ADR 0069). */}
       <LinesControl view={view} />
+      {/* Curves drawn with rounded corners, and pinned shapes in the way of Layout (ADR 0080). */}
+      <LayoutNotes view={view} scene={scene} />
       {/* What the view shows of the model, and its scope's editor (ADR-0040). */}
       <ScopeEditor view={view} />
     </section>

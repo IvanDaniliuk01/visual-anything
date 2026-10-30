@@ -144,7 +144,11 @@ export class RoutesAround {
       return;
     }
     this.channelling?.stop();
-    const asked = { view: wanted.view, drawn: wanted.drawn, stop: () => undefined };
+    const asked: { view: Id; drawn: Scene; stop: () => void } = {
+      view: wanted.view,
+      drawn: wanted.drawn,
+      stop: () => undefined,
+    };
     asked.stop = runner.channels(batch.input, (output) => {
       if (this.channelling === asked) this.channelling = undefined;
       const routes = new Map<string, { from: readonly Point[]; to: Point[] }>();
@@ -158,7 +162,11 @@ export class RoutesAround {
         }
         routes.set(line.relation, { from: line.route, to });
       });
+      const before = this.channelled.get(wanted.view);
       this.channelled.set(wanted.view, { asked: wanted.drawn, routes });
+      // The canvas is told only when the pass moved a line, or one it moved before.
+      const moved = [...routes.values()].some(({ from, to }) => !sameRoute(from, to));
+      if (!moved && !before) return;
       this.channelVersion += 1;
       this.tell();
     });
@@ -368,6 +376,13 @@ function corridorBox(route: Float64Array): Rect {
     boxes.set(route, box);
   }
   return box;
+}
+
+function sameRoute(a: readonly Point[], b: readonly Point[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((point, at) => point.x === (b[at] as Point).x && point.y === (b[at] as Point).y)
+  );
 }
 
 function sameRect(a: Rect, b: Rect): boolean {

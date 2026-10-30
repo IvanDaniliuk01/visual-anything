@@ -89,6 +89,7 @@ import { EXPAND_CAMERA_MS, cameraToShow, collapseCommand, showInPlace } from './
 import { laidOutBounds } from './layout/laidOut';
 import { useLayout } from './layout/useLayout';
 import { useReducedMotion } from '../scenarios/motion';
+import { pinnedInTheWay } from './layout/pinnedInTheWay';
 import { useAvoidedRoutes } from './routing/useAvoidedRoutes';
 import { RelationMenu } from './RelationMenu';
 import { onRouteEditingRequest } from './routing/requests';
@@ -528,6 +529,14 @@ export function CanvasArea({
   useEffect(() => {
     controllerRef.current?.renderer.setLegend(legend.overlays.length > 0 ? legend : undefined);
   }, [legend]);
+  // The pinned shapes in the way of Layout, outlined (ADR 0080).
+  const inTheWay = useMemo(
+    () => pinnedInTheWay(drawn).map(({ shape }) => shape.plate ?? shape.rect),
+    [drawn],
+  );
+  useEffect(() => {
+    controllerRef.current?.renderer.setPinnedInTheWay(inTheWay);
+  }, [inTheWay]);
   // A comparison's marks, over the scene it draws (ADR 0070).
   useEffect(() => {
     controllerRef.current?.renderer.setComparison(comparison);

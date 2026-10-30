@@ -19,6 +19,7 @@ import { relationAttribute } from '../../canvas/overlays/decorate';
 import { useEditor } from '../../editor/EditorContext';
 import { useT, type Translator } from '../../i18n';
 import './overlays.css';
+import { paletteColor } from './overlayPalette';
 
 /** What an overlay maps its attribute by. */
 type MappingKind = Overlay['mapping']['kind'];
@@ -44,18 +45,6 @@ interface Draft {
   otherwise: { on: boolean; to: string };
 }
 
-/** Colors that tell values apart and read on both canvases, for values added all at once. */
-const PALETTE = [
-  '#2563EB',
-  '#D97706',
-  '#059669',
-  '#DC2626',
-  '#7C3AED',
-  '#0891B2',
-  '#DB2777',
-  '#65A30D',
-];
-
 /** The most values "Add each value it has" adds. */
 const MOST_VALUES = 24;
 
@@ -67,7 +56,7 @@ function startOf(channel: OverlayChannel, at = 0): string {
   switch (channel) {
     case 'fill':
     case 'stroke':
-      return PALETTE[at % PALETTE.length] as string;
+      return paletteColor(at);
     case 'size':
       return '1';
     case 'opacity':

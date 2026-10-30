@@ -12,6 +12,9 @@ import type { Point } from '../geometry';
 import type { ElementShape, RelationLine } from '../scene';
 import type { CurveSpan } from './hand';
 
+/** Why a curved line is drawn with rounded corners: its container's many curves, or a shape in its way. */
+export type RoundedBecause = 'many' | 'crossing';
+
 /** The most automatic curved lines a container holds and still draws curved. */
 export const MOST_CURVES = 24;
 /** The radius of the corners of a line drawn with rounded corners, in canvas units. */
