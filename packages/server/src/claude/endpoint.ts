@@ -198,7 +198,14 @@ export function attachClaude(
         );
         return;
       case 'guidance': {
-        const apps = await session.guide(message.guidance);
+        const { guidance } = message;
+        // A layout is answered once the app has laid the view out, after the ones before it (M3d).
+        if (guidance.kind === 'layout' && session.layOut !== undefined) {
+          const { apps, ...layout } = await session.layOut(guidance);
+          send({ type: 'guidance/shown', requestId: message.requestId, apps, layout });
+          return;
+        }
+        const apps = await session.guide(guidance);
         send({ type: 'guidance/shown', requestId: message.requestId, apps });
         return;
       }

@@ -82,6 +82,7 @@ describe('the built-in Data modeling package', () => {
       'writes to',
       'fires on',
       'runs',
+      'has type',
     ]);
     for (const { id } of [
       ...DATA_MODELING.components,
@@ -111,6 +112,7 @@ describe('the built-in Data modeling package', () => {
       'data-modeling.writes-to',
       'data-modeling.fires-on',
       'data-modeling.runs',
+      'data-modeling.has-type',
     ]);
   });
 
@@ -126,7 +128,7 @@ describe('the built-in Data modeling package', () => {
     const definitions = definitionsOf([SYSTEMS, DATA_MODELING]);
     expect(definitions.problems).toEqual([]);
     expect(definitions.relationType('data-modeling.is-column-of')?.nests).toBe(true);
-    for (const id of ['references', 'reads-from', 'writes-to', 'fires-on', 'runs']) {
+    for (const id of ['references', 'reads-from', 'writes-to', 'fires-on', 'runs', 'has-type']) {
       expect(definitions.relationType(`data-modeling.${id}`)?.nests, id).toBe(false);
     }
     expect(definitions.component('data-modeling.table')?.appearance.contentsAsRows).toBe(true);
@@ -202,6 +204,10 @@ describe('the built-in Data modeling package', () => {
       from: ['data-modeling.trigger'],
       to: ['data-modeling.function'],
     });
+    expect(relationType('data-modeling.has-type').limits).toEqual({
+      from: ['data-modeling.column'],
+      to: ['data-modeling.enum'],
+    });
     for (const each of DATA_MODELING.relationTypes)
       expect(each.direction, each.id).toBe('directed');
   });
@@ -256,6 +262,7 @@ describe('the built-in Data modeling package', () => {
         relation('touch', 'data-modeling.writes-to', 'invoice-numbers'),
         relation('invoices-touch', 'data-modeling.fires-on', 'invoices'),
         relation('invoices-touch', 'data-modeling.runs', 'touch'),
+        relation('invoices-status', 'data-modeling.has-type', 'status'),
       ],
     );
     expect(checkProject(state)).toEqual({ errors: [], warnings: [] });

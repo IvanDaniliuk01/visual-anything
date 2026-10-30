@@ -38,6 +38,7 @@ import {
   type HistoryStep,
   type HistorySummary,
   type IdGenerator,
+  type LayoutReport,
   type ListedAction,
   MAX_DRAWING_REPORT,
   type DrawingMakeMessage,
@@ -74,6 +75,7 @@ import type { MadeDrawing } from './drawings/make';
 import { DrawingQueue, type DrawingMaker } from './drawings/queue';
 import { projectDestinationWarnings, type OpenOtherProject } from './other-project';
 import { LiveValues, type LiveKept, type LiveListing } from './live';
+import { LayoutWaits, type LayoutGuidance, type LayoutWait } from './layout-waits';
 import { PackageFetcher, networkGrantOf, type FetcherOptions } from './live-fetch';
 import type { LogEvent, ProgramEvent } from './program-log';
 import type { PreferencesStore } from './preferences';
@@ -140,6 +142,12 @@ export interface LiveSession {
    * many apps it reached. Guidance changes nothing: no file, no history.
    */
   guide(guidance: Guidance): Promise<number>;
+  /**
+   * Lays a view out in the open apps, after the layouts asked for before it, and resolves once the
+   * tab that runs it says what it moved, or no app is left to, or the wait runs out (M3d, ADR 0029's
+   * clarification of 2026-10-30). Absent where the program runs no layouts.
+   */
+  layOut?(guidance: LayoutGuidance): Promise<LayoutReport>;
   /**
    * Takes live values (ADR 0057) that a sender sent on a connection, and says what it kept. They are
    * never commands: nothing is saved and nothing enters the history.
@@ -272,6 +280,8 @@ export interface SessionOptions {
    * joined it, or undefined once none waits. `--stop-when-idle` keeps the program running for it.
    */
   onProposal?: (lastJoined: number | undefined) => void;
+  /** How long Claude's layouts wait for the app; ADR 0015's 20 s per layout, and 10 s more. */
+  layoutWait?: LayoutWait;
 }
 
 /** The outcome of opening a session: the session, or every problem that keeps the project closed. */
@@ -349,6 +359,8 @@ export class Session implements LiveSession {
   readonly #fetcher: PackageFetcher;
   /** The drawings of HTML the apps and the command line ask for, made one at a time (ADR 0068). */
   readonly #drawings: DrawingQueue;
+  /** Claude's layouts, sent to the apps one at a time, each once the one before was answered (M3d). */
+  readonly #layouts: LayoutWaits;
   /**
    * The project as the program opened it, or last read it again from disk: the version as opened
    * (ADR 0070), which needs no git.
@@ -376,6 +388,16 @@ export class Session implements LiveSession {
     });
     this.#fetcher = new PackageFetcher(options.fetcher);
     this.#drawings = new DrawingQueue(options.makeDrawing);
+    // In the session's queue, so that a layout reaches the apps after the work asked for before it.
+    this.#layouts = new LayoutWaits(
+      (guidance, answer) =>
+        this.#enqueue(() => {
+          const apps = [...this.#clients];
+          for (const client of apps) this.#send(client, { type: 'guidance', guidance, answer });
+          return Promise.resolve(apps);
+        }),
+      options.layoutWait,
+    );
     this.#versions = new Versions(folder, {
       ...options.versions,
       warn: options.versions?.warn ?? ((line) => this.#err(line)),
@@ -519,6 +541,7 @@ export class Session implements LiveSession {
     return () => {
       if (this.#clients.delete(client)) this.#logAttached('gone', 'app');
       this.#live.forget(client);
+      this.#layouts.gone(client);
     };
   }
 
@@ -594,6 +617,11 @@ export class Session implements LiveSession {
     });
   }
 
+  layOut(guidance: LayoutGuidance): Promise<LayoutReport> {
+    if (this.#closed) return Promise.resolve({ apps: 0 });
+    return this.#layouts.layOut(guidance);
+  }
+
   /**
    * Handles a message from an app: a command runs with the user as its author, and an undo or a redo
    * is applied. A message that is not valid is answered with `command/rejected` when it has a request
@@ -666,6 +694,10 @@ export class Session implements LiveSession {
         return;
       case 'proposal/refuse':
         await this.#decideProposal(origin, message.proposal, 'refused');
+        return;
+      case 'layout/done':
+        // What the tab that ran Claude's layout moved, or why this tab passed it over (M3d).
+        this.#layouts.answered(client, message);
         return;
     }
   }
@@ -1364,6 +1396,7 @@ export class Session implements LiveSession {
       this.#watcher = undefined;
       this.#live.close();
       this.#versions.close();
+      this.#layouts.close();
       await this.#queue;
       const changes = this.#proposal.changeKeys().length;
       const dropped = this.#proposal.close('dropped');

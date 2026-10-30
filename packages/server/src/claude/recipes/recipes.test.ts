@@ -331,8 +331,28 @@ describe('the SQL DDL recipe', () => {
         'unshipped_orders -data-modeling.reads-from-> customers',
         'orders_touch -data-modeling.fires-on-> orders',
         'orders_touch -data-modeling.runs-> touch_updated_at',
+        'status -data-modeling.has-type-> order_status',
       ],
     });
+    // A column whose type names an enum of the material has that type; no other column does.
+    const enums = new Map(
+      snapshot.model.elements
+        .filter((each) => each.component === 'data-modeling.enum')
+        .map((each) => [each.id, each.name]),
+    );
+    const typed = snapshot.model.elements.filter(
+      (each) =>
+        each.component === 'data-modeling.column' &&
+        [...enums.values()].some((name) => {
+          const type = each.attributes?.type;
+          return typeof type === 'string' && type.endsWith(`.${name}`);
+        }),
+    );
+    expect(
+      snapshot.model.relations
+        .filter((each) => each.relationType === 'data-modeling.has-type')
+        .map((each) => [each.from, enums.get(each.to)]),
+    ).toEqual(typed.map((each) => [each.id, 'order_status']));
     // One database holds the schema, whatever the schema holds: never a database per schema.
     expect(
       snapshot.model.elements.filter((each) => each.component === 'systems.database'),

@@ -8,6 +8,7 @@ import type {
   VersionRef,
   VersionsListedMessage,
 } from '@visual-anything/core';
+import type { GuidedLayoutAnswer } from '../guidance/state';
 import type { LiveValueBook } from '../live-values/book';
 import type {
   CommandResult,
@@ -51,6 +52,11 @@ export interface Live extends LiveState {
   dismiss: (id: number) => void;
   /** Stops showing Claude's guidance in this tab; absent where there is no live session to clear. */
   clearGuidance?: () => void;
+  /**
+   * Tells the local program what Claude's layout came to in this tab, by the id it came with, or why
+   * this tab ran none (M3d); absent where there is no live session to tell.
+   */
+  answerLayout?: (answer: string, outcome: GuidedLayoutAnswer) => void;
   /**
    * Asks the local program to change some of the person's preferences; absent where there is no live
    * session to carry them, as in tests that give components a session of their own.

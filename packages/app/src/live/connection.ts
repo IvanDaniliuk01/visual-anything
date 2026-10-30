@@ -32,7 +32,12 @@ import {
   type VersionsListedMessage,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
-import { NO_GUIDANCE, applyGuidance, type GuidanceState } from '../guidance/state';
+import {
+  NO_GUIDANCE,
+  applyGuidance,
+  type GuidanceState,
+  type GuidedLayoutAnswer,
+} from '../guidance/state';
 import { fill } from '../i18n/translate';
 import { LiveValueBook } from '../live-values/book';
 
@@ -574,6 +579,21 @@ export class LiveConnection {
     if (this.state.guidance !== NO_GUIDANCE) this.update({ guidance: NO_GUIDANCE });
   };
 
+  /**
+   * Tells the local program, by the id Claude's layout came with, what each layout it asked for came
+   * to, or why this tab ran none (M3d). Nothing waits for an answer: with the connection closed, the
+   * program stops waiting for this tab anyway.
+   */
+  readonly answerLayout = (answer: string, outcome: GuidedLayoutAnswer): void => {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') return;
+    const message: AppMessage =
+      outcome.layouts === undefined
+        ? { type: 'layout/done', requestId: answer, passed: outcome.passed }
+        : { type: 'layout/done', requestId: answer, layouts: outcome.layouts };
+    this.sendOn(socket, encodeMessage(message), answer, () => undefined);
+  };
+
   /** Stops showing a notice. */
   readonly dismiss = (id: number): void => {
     const notices = this.state.notices.filter((each) => each.id !== id);
@@ -778,6 +798,7 @@ export class LiveConnection {
             this.state.guidance ?? NO_GUIDANCE,
             message.guidance,
             this.guidanceCount,
+            message.answer,
           ),
         });
         break;

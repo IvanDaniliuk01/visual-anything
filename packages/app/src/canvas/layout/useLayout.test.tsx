@@ -9,7 +9,7 @@ import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { EMPTY_SELECTION, selectionOf, type Selection } from '../../editor/selection';
-import type { GuidedLayoutRequest } from '../../guidance/state';
+import type { GuidedLayoutAnswer, GuidedLayoutRequest } from '../../guidance/state';
 import { loadSample } from '../../test/sample';
 import { buildScene, type Scene } from '../scene';
 import { LayoutStopped, type LayoutRunner } from './client';
@@ -91,6 +91,8 @@ function canvas(
   const joins: (number | undefined)[] = [];
   const said: string[] = [];
   const done: (readonly LayoutScope[])[] = [];
+  /** What the canvas answered Claude about each of its layouts (M3d). */
+  const answered: GuidedLayoutAnswer[] = [];
   const send = vi.fn((command: Command, options?: { joins?: number }) => {
     sent.push(command);
     joins.push(options?.joins);
@@ -113,6 +115,7 @@ function canvas(
       ...(guided === undefined ? {} : { guided }),
       ...(actions === undefined ? {} : { actions }),
       onGuidedDone: (scopes) => done.push(scopes),
+      onGuidedAnswered: (_request, answer) => answered.push(answer),
     };
   };
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -129,6 +132,7 @@ function canvas(
     said,
     /** What each of Claude's layouts said it laid out once it was done. */
     done,
+    answered,
     get project() {
       return project;
     },
@@ -282,6 +286,51 @@ describe('a layout Claude asks for (ADR 0029)', () => {
     act(() => view.guide({ request: 1, view: 'another-view' }));
     await quietly();
     expect(runner.runs).toBe(0);
+    expect(view.answered).toEqual([]);
+  });
+
+  it('answers Claude, once it is done, with how many shapes it moved (M3d)', async () => {
+    const view = canvas(loadSample());
+    await quietly();
+    act(() => view.guide({ request: 1, answer: 'layout-1' }));
+    await waitFor(() => expect(view.answered).toHaveLength(1), ELK_WAIT);
+    const [answer] = view.answered;
+    expect(answer).toEqual({ layouts: [{ ended: 'done', moved: expect.any(Number) as number }] });
+    expect(answer?.layouts?.[0]?.moved).toBeGreaterThan(0);
+    // Laid out again, nothing moves, and it says so.
+    act(() => view.guide({ request: 2, answer: 'layout-2' }));
+    await waitFor(() => expect(view.answered).toHaveLength(2), ELK_WAIT);
+    expect(view.answered[1]).toEqual({ layouts: [{ ended: 'done', moved: 0 }] });
+  });
+
+  it('answers each container it was asked for, in order, those it cannot lay out as empty', async () => {
+    const view = canvas(loadSample());
+    await quietly();
+    act(() =>
+      view.guide({ request: 1, answer: 'a', containers: ['appointments-api', 'scheduling'] }),
+    );
+    await waitFor(() => expect(view.answered).toHaveLength(1), ELK_WAIT);
+    expect(view.answered[0]?.layouts).toEqual([
+      { container: 'appointments-api', ended: 'empty', moved: 0 },
+      { container: 'scheduling', ended: 'done', moved: expect.any(Number) as number },
+    ]);
+  });
+
+  it('answers that the person stopped it, when they do', async () => {
+    const held = heldRunner();
+    const view = canvas(loadSample(), { runner: held.runner });
+    await quietly();
+    act(() => view.guide({ request: 1, answer: 'a' }));
+    await waitFor(() => expect(view.hook.result.current.control.busy).toBe(true));
+    act(() => view.hook.result.current.control.run());
+    await waitFor(() => expect(view.answered).toHaveLength(1));
+    expect(view.answered[0]).toEqual({ layouts: [{ ended: 'stopped', moved: 0 }] });
+  });
+
+  it('answers that it cannot lay out where the browser has no web workers', async () => {
+    const view = canvas(loadSample(), { runner: null });
+    act(() => view.guide({ request: 1, answer: 'a' }));
+    await waitFor(() => expect(view.answered).toEqual([{ passed: 'cannot-lay-out' }]));
   });
 });
 

@@ -20,6 +20,7 @@ import {
   type CodeApproval,
   type Command,
   type Guidance,
+  type LayoutReport,
   type Problem,
   type ProjectSnapshot,
   type ProposalShownMessage,
@@ -40,6 +41,7 @@ import {
   type ProgramRecord,
   type RuntimeContext,
 } from './discovery';
+import { LAYOUT_WAIT_MARGIN, LAYOUT_WAIT_PER_LAYOUT } from '../layout-waits';
 import type { LiveKept, LiveListing } from '../live';
 import type { ProposalEnding } from '../proposals';
 import {
@@ -106,6 +108,11 @@ export interface Program {
   withdrawProposal?(): Promise<WithdrawAnswer>;
   /** Shows guidance in the open apps; resolves with how many it reached. */
   guide(guidance: Guidance): Promise<number>;
+  /**
+   * Lays a view out in the open app, after the layouts asked for before it, and resolves once it is
+   * done, with what it moved, or why it was not (M3d). Absent where it cannot wait: `guide` sends it.
+   */
+  layOut?(guidance: Extract<Guidance, { kind: 'layout' }>): Promise<LayoutReport>;
   /**
    * Opens the app in the browser, at an address that works once; with a view state, the tab opens the
    * project there (ADR-0044).
@@ -222,6 +229,11 @@ const POLL = 100;
 /** How long a read waits for the proposal rebased on a change, which follows the change at once. */
 const PROPOSAL_SETTLE = 10_000;
 
+/** How long the program waits for one layout guidance: per layout it asks for, and a margin. */
+function layoutBound(guidance: Extract<Guidance, { kind: 'layout' }>): number {
+  return LAYOUT_WAIT_PER_LAYOUT * (guidance.containers?.length ?? 1) + LAYOUT_WAIT_MARGIN;
+}
+
 /** The program's command line, run with the same Node.js and loaders as this process. */
 const CLI = fileURLToPath(new URL('../cli.ts', import.meta.url));
 
@@ -232,6 +244,8 @@ export class ProgramBridge implements Program {
   readonly #context: RuntimeContext;
   #attaching: Promise<Attached> | undefined;
   #current: Attached | undefined;
+  /** How long the layouts this bridge waits for may take in all, as the program bounds each. */
+  #layoutsWaiting = 0;
 
   constructor(options: BridgeOptions) {
     this.#options = options;
@@ -316,6 +330,27 @@ export class ProgramBridge implements Program {
   async guide(guidance: Guidance): Promise<number> {
     const answer = await this.#request((requestId) => ({ type: 'guidance', requestId, guidance }));
     if (answer.type === 'guidance/shown') return answer.apps;
+    if (answer.type === 'command/rejected') {
+      throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  async layOut(guidance: Extract<Guidance, { kind: 'layout' }>): Promise<LayoutReport> {
+    // The program bounds each layout's wait; this one waits for those this bridge asked for before.
+    const bound = layoutBound(guidance);
+    const ahead = this.#layoutsWaiting;
+    this.#layoutsWaiting += bound;
+    let answer: ProgramMessage;
+    try {
+      answer = await this.#request(
+        (requestId) => ({ type: 'guidance', requestId, guidance }),
+        ahead + bound + (this.#options.requestTimeout ?? REQUEST_TIMEOUT),
+      );
+    } finally {
+      this.#layoutsWaiting -= bound;
+    }
+    if (answer.type === 'guidance/shown') return { apps: answer.apps, ...answer.layout };
     if (answer.type === 'command/rejected') {
       throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
     }
@@ -427,12 +462,14 @@ export class ProgramBridge implements Program {
     );
   }
 
-  /** Sends a request and waits for the program's answer to it. */
-  async #request(message: (requestId: string) => ClaudeMessage): Promise<ProgramMessage> {
+  /** Sends a request and waits for the program's answer to it, `timeout` at most. */
+  async #request(
+    message: (requestId: string) => ClaudeMessage,
+    timeout = this.#options.requestTimeout ?? REQUEST_TIMEOUT,
+  ): Promise<ProgramMessage> {
     const attached = await this.#attached();
     requestCount += 1;
     const requestId = `claude-${process.pid}-${requestCount}`;
-    const timeout = this.#options.requestTimeout ?? REQUEST_TIMEOUT;
     const answer = await new Promise<ProgramMessage | Error>((resolve) => {
       const timer = setTimeout(() => {
         attached.waiting.delete(requestId);

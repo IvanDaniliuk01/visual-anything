@@ -805,4 +805,25 @@ describe('guidance', () => {
     socket.drop();
     expect(connection.getState()).toMatchObject({ status: 'closed', guidance: {} });
   });
+  it('keeps the id a layout is answered by, and sends the answer the canvas gives (M3d)', () => {
+    const { connection, socket } = openConnection();
+    socket.receive(
+      encodeServerMessage({
+        type: 'guidance',
+        guidance: { kind: 'layout', view: 'v' },
+        answer: 'layout-3',
+      }),
+    );
+    expect(connection.getState().guidance?.layout).toEqual({
+      view: 'v',
+      request: 1,
+      answer: 'layout-3',
+    });
+    connection.answerLayout('layout-3', { layouts: [{ ended: 'done', moved: 2 }] });
+    connection.answerLayout('layout-3', { passed: 'other-tab' });
+    expect(socket.sent.slice(-2)).toEqual([
+      { type: 'layout/done', requestId: 'layout-3', layouts: [{ ended: 'done', moved: 2 }] },
+      { type: 'layout/done', requestId: 'layout-3', passed: 'other-tab' },
+    ]);
+  });
 });

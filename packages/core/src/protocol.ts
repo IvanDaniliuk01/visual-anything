@@ -53,6 +53,7 @@ import {
   type VersionsListMessage,
   type VersionsListedMessage,
 } from './versions/messages';
+import { readLayoutDone, type LayoutDoneMessage } from './layout-answer';
 
 /**
  * The version of the live protocol; the app and the local program must agree on it, so that one from
@@ -74,7 +75,8 @@ import {
  *    shipped. Playback guidance that chooses an alternative at a decision, and that opens, plays or
  *    goes to a step with choices (ADR 0078), came in 7 as well, for the same reason. So did versions
  *    and proposals (M11b, ADR 0071, ADR 0073): `versions/list` and `version/compare` with their
- *    answers, the proposal shown, accepted, refused and closed, and the guidance `comparison`.
+ *    answers, the proposal shown, accepted, refused and closed, and the guidance `comparison`. And
+ *    layout guidance with an `answer`, which the app answers with `layout/done` (M3d).
  */
 export const PROTOCOL_VERSION = 7;
 
@@ -375,10 +377,16 @@ export const MAX_FILTER_CONDITIONS = 32;
 /** The longest attribute name, or value, in a condition of guidance's filters. */
 export const MAX_FILTER_TEXT = 200;
 
-/** Sent to every open app when Claude guides; nothing else changes. */
+/**
+ * Sent to every open app when Claude guides; nothing else changes. Layout guidance from
+ * `lay_out_view` carries `answer`, the id each app answers by with `layout/done` once it has laid the
+ * view out or passed it over, so that the program waits for it (M3d, ADR 0029's clarification of
+ * 2026-10-30).
+ */
 export interface GuidanceMessage {
   type: 'guidance';
   guidance: Guidance;
+  answer?: string;
 }
 
 /**
@@ -674,7 +682,8 @@ export type AppMessage =
   | VersionsListMessage
   | VersionCompareMessage
   | ProposalAcceptMessage
-  | ProposalRefuseMessage;
+  | ProposalRefuseMessage
+  | LayoutDoneMessage;
 
 /** The longest name the start screen may give a new project or its first view. */
 export const MAX_START_NAME = 200;
@@ -786,8 +795,15 @@ export function decodeServerMessage(text: string): ServerMessage {
         throw new ProtocolError('The session token is text.');
       }
       break;
-    case 'guidance':
-      return { type: 'guidance', guidance: readGuidance(message.guidance) };
+    case 'guidance': {
+      const guidance = readGuidance(message.guidance);
+      const { answer } = message;
+      if (answer === undefined) return { type: 'guidance', guidance };
+      if (typeof answer !== 'string' || answer === '' || answer.length > MAX_REQUEST_ID) {
+        throw new ProtocolError('Guidance is answered by an id of 1 to 100 characters.');
+      }
+      return { type: 'guidance', guidance, answer };
+    }
     case 'history/listed':
       return { type: 'history/listed', actions: readListedActions(message.actions) };
     case 'project/reloaded':
@@ -905,6 +921,11 @@ export function decodeAppMessage(text: string): AppMessage {
       return readVersion(readProposalAccept(message, message.requestId));
     case 'proposal/refuse':
       return readVersion(readProposalRefuse(message, message.requestId));
+    case 'layout/done': {
+      const read = readLayoutDone(message, message.requestId, MAX_GUIDANCE_TARGETS);
+      if (!read.ok) throw new ProtocolError(read.reason);
+      return read.value;
+    }
     default:
       throw new ProtocolError(`Unknown message type: ${JSON.stringify(message.type)}.`);
   }
