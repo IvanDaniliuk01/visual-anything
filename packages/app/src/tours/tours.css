@@ -22,7 +22,7 @@
  * While a tour plays, only errors show among the notices: info and warnings, such as those of a
  * project as it opens, would cover the canvas the viewer is watching. They come back when it ends.
  */
-:root .shell.tour-playing .notices > :not(.notice-error) {
+:root:has(.shell.tour-playing) .notices > :not(.notice-error) {
   display: none;
 }
 
