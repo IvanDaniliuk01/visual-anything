@@ -20,6 +20,8 @@ import type {
   EndAttachment,
   ExternalId,
   ExternalIds,
+  Face,
+  FaceVariant,
   FreeGeometry,
   FreeShape,
   Id,
@@ -207,6 +209,20 @@ export interface AppearanceChanges {
   levels?: LevelOfDetail[] | null;
   /** The scale from which its collapsed shapes expand as the canvas zooms into them (ADR 0055). */
   expandFrom?: number | null;
+  /**
+   * Its face (ADR 0083), each part on its own; `none` takes an inherited face away, and `null` for
+   * the whole face takes all of its parts out.
+   */
+  face?:
+    | {
+        size?: NonNullable<Face['size']> | null;
+        markup?: string[] | null;
+        style?: string[] | null;
+        variants?: FaceVariant[] | null;
+        collapsed?: string | null;
+      }
+    | 'none'
+    | null;
 }
 
 /** Changes to how a relation type's relations are drawn, trait by trait, as for an appearance. */

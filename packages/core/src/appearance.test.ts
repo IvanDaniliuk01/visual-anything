@@ -124,6 +124,7 @@ describe('resolveAppearance', () => {
       'part',
       'levels',
       'expandFrom',
+      'face',
     ]);
   });
 
@@ -213,6 +214,12 @@ describe('traitSources', () => {
       // Nor declares levels of detail or a scale to expand from (ADR 0055).
       levels: 'essence',
       expandFrom: 'essence',
+      // Nor a face, each of whose parts is inherited on its own (ADR 0083).
+      'face.size': 'essence',
+      'face.markup': 'essence',
+      'face.style': 'essence',
+      'face.variants': 'essence',
+      'face.collapsed': 'essence',
     });
     expect(Object.keys(sources.traits)).toEqual([...TRAIT_PATHS]);
     expect([...sources.attributes]).toEqual([

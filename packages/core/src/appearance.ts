@@ -12,6 +12,7 @@ import type {
   Color,
   ConnectionPoint,
   DetailRules,
+  Face,
   FreeGeometry,
   Id,
   JsonValue,
@@ -23,6 +24,7 @@ import { ESSENCE_ID } from '@visual-anything/schema';
 import { ESSENCE } from './builtin/essence-and-relates-to';
 import { isDestination } from './destinations';
 import type { Definitions } from './definitions';
+import type { ResolvedFace } from './faces/compile';
 
 /** What a shape writes under its element's name, with every part worked out. */
 export interface ResolvedDetail {
@@ -57,6 +59,8 @@ export interface ResolvedAppearance {
   levels?: readonly LevelOfDetail[];
   /** The scale from which its collapsed shapes expand as the canvas zooms into them, if any. */
   expandFrom?: number;
+  /** Its face (ADR 0083), each part from the nearest appearance that sets it; absent without markup. */
+  face?: ResolvedFace;
 }
 
 /**
@@ -86,6 +90,7 @@ export const APPEARANCE_TRAITS = listingEvery<keyof Appearance>()([
   'part',
   'levels',
   'expandFrom',
+  'face',
 ]);
 
 /** A trait of an appearance. */
@@ -93,11 +98,25 @@ export type AppearanceTrait = (typeof APPEARANCE_TRAITS)[number];
 
 /** A trait, or one part of the detail, each of which is inherited on its own. */
 export type TraitPath =
-  | Exclude<AppearanceTrait, 'detail'>
+  | Exclude<AppearanceTrait, 'detail' | 'face'>
   | 'detail.componentName'
   | 'detail.attributes'
   | 'detail.badges'
-  | 'detail.lines';
+  | 'detail.lines'
+  | FaceTraitPath;
+
+/** A part of a face, each of which is inherited on its own (ADR 0083). */
+export type FaceTraitPath =
+  'face.size' | 'face.markup' | 'face.style' | 'face.variants' | 'face.collapsed';
+
+/** The parts of a face, in the order the component editor shows them. */
+export const FACE_PARTS = [
+  'size',
+  'markup',
+  'style',
+  'variants',
+  'collapsed',
+] as const satisfies readonly (keyof Face)[];
 
 /** Every trait path, in the order the component editor shows them. */
 export const TRAIT_PATHS: readonly TraitPath[] = [
@@ -118,6 +137,11 @@ export const TRAIT_PATHS: readonly TraitPath[] = [
   'part',
   'levels',
   'expandFrom',
+  'face.size',
+  'face.markup',
+  'face.style',
+  'face.variants',
+  'face.collapsed',
 ];
 
 /** The value the nearest member of a chain sets for a key, if one does. */
@@ -167,6 +191,46 @@ export function resolveAppearance(
     ...(expandFrom === undefined ? {} : { expandFrom }),
     ...(geometry === undefined || geometry === 'none' ? {} : { geometry }),
     ...(part === undefined || part === 'none' ? {} : { part }),
+    ...faceOf(chain, base.face),
+  };
+}
+
+/**
+ * A face worked out along a chain, nearest first, over the base's: each part from the nearest member
+ * that sets it. `none` takes away every part beyond it, the base's included. A face without markup is
+ * no face.
+ */
+function faceOf(
+  chain: readonly (Appearance | undefined)[],
+  base: ResolvedFace | undefined,
+): { face?: ResolvedFace } {
+  const parts: Partial<Record<(typeof FACE_PARTS)[number], unknown>> = {};
+  let taken = false;
+  for (const member of chain) {
+    const face = member?.face;
+    if (face === undefined || face === null) continue;
+    if (face === 'none') {
+      taken = true;
+      break;
+    }
+    for (const key of FACE_PARTS) {
+      if (parts[key] === undefined && face[key] !== undefined && face[key] !== null)
+        parts[key] = face[key];
+    }
+  }
+  if (!taken && base !== undefined) {
+    for (const key of FACE_PARTS) if (parts[key] === undefined) parts[key] = base[key];
+  }
+  const markup = parts.markup as readonly string[] | undefined;
+  if (markup === undefined) return {};
+  return {
+    face: {
+      size: (parts.size as ResolvedFace['size'] | undefined) ?? 'shape',
+      markup,
+      style: (parts.style as readonly string[] | undefined) ?? [],
+      variants: (parts.variants as ResolvedFace['variants'] | undefined) ?? [],
+      ...(parts.collapsed === undefined ? {} : { collapsed: parts.collapsed as string }),
+    },
   };
 }
 
@@ -193,8 +257,16 @@ export interface AppearanceMember {
 
 /** The value an appearance gives a trait path, such as `detail.badges`; `undefined` when it sets none. */
 export function traitValue(appearance: Appearance | undefined, path: TraitPath): unknown {
-  const [trait, part] = path.split('.') as [AppearanceTrait, keyof DetailRules | undefined];
-  const value = part === undefined ? appearance?.[trait] : appearance?.detail?.[part];
+  const [trait, part] = path.split('.') as [AppearanceTrait, string | undefined];
+  if (trait === 'face' && part !== undefined) {
+    // `none` sets every part of a face: to nothing.
+    const face = appearance?.face;
+    if (face === 'none') return 'none';
+    const value = face?.[part as keyof Face];
+    return value === null ? undefined : value;
+  }
+  const value =
+    part === undefined ? appearance?.[trait] : appearance?.detail?.[part as keyof DetailRules];
   return value === null ? undefined : value;
 }
 

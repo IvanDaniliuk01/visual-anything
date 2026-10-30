@@ -431,7 +431,60 @@ export interface Appearance {
    * @maximum 8
    */
   expandFrom?: number;
+  /**
+   * What its shapes show inside their body, written in a subset of HTML and CSS and laid out by
+   * Visual Anything itself (ADR 0083); `none` takes an inherited face away. Each of its parts is
+   * inherited on its own.
+   */
+  face?: Face | 'none';
 }
+
+/**
+ * A component's face (ADR 0083): markup in strict XHTML, filled from the element's name and
+ * attributes through `{{…}}` slots, and style in a subset of CSS. Nothing in it runs and nothing in it
+ * is fetched. Each part left out is inherited.
+ */
+export interface Face {
+  /**
+   * `content`: the face's height is the shape's height, as rows give a table its height. `shape`, the
+   * default: it is laid out in the shape's size and cut where it overflows.
+   */
+  size?: 'content' | 'shape';
+  /**
+   * Its markup, a line each, so that git shows the lines a change touched. Its caps are the core's,
+   * which a command refuses past and opening only warns about: 200 lines and 16 KiB, its variants'
+   * included.
+   */
+  markup?: FaceLine[];
+  /** Its style rules, a line each, shared by its variants: at most 128 rules and 16 KiB. */
+  style?: FaceLine[];
+  /** Other markups, at most 8, each with an id, which levels of detail and collapsed containers show. */
+  variants?: FaceVariant[];
+  /** The id of the variant a collapsed container shows on its sheet. */
+  collapsed?: FaceVariantId;
+}
+
+/** Another markup of a face, sharing the face's style. */
+export interface FaceVariant {
+  id: FaceVariantId;
+  /** Its markup, a line each. */
+  markup: FaceLine[];
+}
+
+/**
+ * The id of a face's variant.
+ *
+ * @pattern ^[a-z][a-z0-9-]{0,31}$
+ */
+export type FaceVariantId = string;
+
+/**
+ * One line of a face's markup or style, without its line ending.
+ *
+ * @maxLength 2000
+ * @pattern ^[^\r\n]*$
+ */
+export type FaceLine = string;
 
 /**
  * A shape's own outline (ADR 0066): closed contours written in a box of their own, drawn filled and

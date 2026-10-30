@@ -167,6 +167,10 @@ _Avoid_: look and style (for this data), skin
 What a component's shapes show inside their body, laid out from a subset of HTML and CSS that its appearance holds: boxes, texts filled from the element's name and attributes, its detail and badges, and where its rows or contents go. Visual Anything reads, lays out and draws it itself, and nothing in it runs. It is inherited part by part, and may differ by level and when a container is collapsed (ADR 0083).
 _Avoid_: template, card (the Hover card is not a face), skin
 
+**Face drawing**:
+What laying a face out for one element answers: boxes, runs of text in Roboto with their bands, images by id, and the places where its rows, its contents and its package code's drawing go, with its height and whether anything was cut. The core makes it, the same in Node and the browser, and the canvas, the exports and the page draw it as it is (ADR 0083).
+_Avoid_: render, rendering, template output
+
 **Text emphasis**:
 Bold, italic, strikethrough, inline code, highlight and underline in a text, written as a small Markdown subset (`**bold**`, `*italic*`, `~~struck~~`, `` `code` ``, `==highlight==`, `++underline++`) and stored as typed. Notes, captions, reveals, speaker notes and descriptions always take it, and with it Markdown's blocks: headings, lists, task lists, quotes, rules, fenced code, tables and links to `http:`, `https:` and `mailto:` addresses. A text attribute takes the inline part when its definition's format is `emphasis`; names never do (ADR 0082). Not the canvas's emphasis of a shape.
 _Avoid_: rich text, formatting, markup
