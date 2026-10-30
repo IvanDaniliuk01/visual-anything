@@ -109,3 +109,23 @@ The user's real tours explain a data model. They go from an overview to one sche
   - **`escapeText`** on `create_tour`, `add_tour_step` and `update_tour_step` escapes the caption's text, the reveals' texts and the speaker notes; a caption's title is plain text and stays as given.
   - **The benchmark's phase** glides the first 400 shapes on screen at the zoom where shapes draw in full, toward a camera twice as near and half a screen over, drawing one eased frame of the layer a frame while the canvas draws its own.
 - 2026-10-30 (after merging M11d): **`check_tour` counts what the stage glides.** For a step that keeps a camera, `check_tour` counts only the shapes that camera shows on its screen, as the stage glides only the shapes on screen. So a step into a large view no longer warns `glide-too-many` when the stage would glide it. A step without a camera still counts every shape the view draws, since the canvas frames the whole view.
+
+<!-- Decided by Claude on 2026-10-30 under the user's standing delegation of design decisions, while fixing the findings of M11d's spec review. -->
+
+- 2026-10-30 (M11d, after its spec review): **a chain is a walk, and what the review found.**
+  - **What draws from its start is the highlight:** a relation a step marks, or a reveal brings in, keeps its own drawing whole, and its highlight draws over it from its `from` end, the end's dot showing as it arrives.
+  - **A chain is a walk the marker runs without leaping.** Each relation starts at the end the one before left the marker at; the marker may start at either end of the first. Sharing an end with the next was too loose: a star of three relations shares its middle each time, yet the marker would leap back to it.
+    - `chainBreak` follows the marker from either end of the first relation, and a chain that breaks says so at the relation where the start that runs farther stops: "relation 3, … does not start where relation 2, … leaves the marker."
+    - A pulse stored as a star, accepted before, is now `pulse-not-chain`: kept, flagged, and not played.
+    - The schema's comment, "each relation shares an end with the next", stays true of a walk and is left as it is.
+  - **Ordering the selected relations is linear.** "Pulse along the selected relations" searched every order, 1.5 s at 11 relations and about 16 s at 12, on the page's thread.
+    - `chainOrder` now refuses at once when the relations' ends are not connected, or when more than two ends meet an odd number of them, a star of three or more among them.
+    - Otherwise it orders them with Hierholzer's walk, which runs each relation once, from the odd end the earliest relation given has, and keeps the order given when it joins already.
+    - Its property tests hold that it orders exactly the relations some order joins, each once, and that 12 relations given in the worst orders take under 5 ms.
+  - **The glide layer writes names in the canvas's own Roboto,** `Visual Anything Roboto`, with the system's fonts after it until it loads (`SANS_FAMILY`, which the canvas's labels and text emphasis share).
+  - **What screen readers hear is never an id.**
+    - A caption pointing at a note says its first six words, "…" after them when it says more: "Pointing at the note “Every booking goes through the API…”."
+    - One pointing at an arrow says "Pointing at an arrow."
+    - A relation without a name is said by its type's name, in "Pointing at …" and in the pulse's chain.
+  - **The leader line's 1.5 px** stays written out in `tours.css`: no token gives a stroke's width. A4 takes it up with the other values written out.
+  - **The glide's numbers** are recorded in `docs/designs/benchmark-7.md`, measured in Node: working out a glide of 400 shapes before against the step after takes about 2 to 3 ms, once, and a frame of the layer's own work under 2 ms at the median for 400 shapes. The frames on a real canvas wait for the next browser run.

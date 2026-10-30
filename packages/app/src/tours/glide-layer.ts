@@ -10,6 +10,7 @@
 import { simplifyOutline, tourEase, type GlideRect, type GlideShape } from '@visual-anything/core';
 import type { Camera } from '../canvas/camera';
 import type { Rect, ShapeKind, Size } from '../canvas/geometry';
+import { cssFontFamily, SANS_FAMILY } from '../canvas/robotoFonts';
 import type { ElementShape, Scene } from '../canvas/scene';
 
 /** How a shape is drawn while it glides. */
@@ -144,6 +145,8 @@ export type GlideContext = Pick<
 /** The size names are written at while shapes glide, in pixels, and the least height that holds one. */
 const NAME_SIZE = 12;
 const NAME_ROOM = 16;
+/** Names are written in the canvas's own Roboto, with the system's fonts after it until it loads. */
+export const NAME_FAMILY = cssFontFamily(SANS_FAMILY);
 
 /**
  * Draws one frame of a glide, a part of the way from 0 to 1 already eased: the background over the
@@ -160,7 +163,7 @@ export function drawGlideFrame(
   context.fillStyle = surface.background;
   context.fillRect(0, 0, size.width, size.height);
   context.lineWidth = 1.5;
-  context.font = `${NAME_SIZE}px Roboto, sans-serif`;
+  context.font = `${NAME_SIZE}px ${NAME_FAMILY}`;
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   for (const item of items) {

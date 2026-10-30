@@ -17,6 +17,25 @@ export const ROBOTO = 'Visual Anything Roboto';
 /** The family Roboto Mono is registered under. */
 export const ROBOTO_MONO = 'Visual Anything Roboto Mono';
 
+/** The fonts the canvas writes text in, first available first: Roboto, then the system's until it loads. */
+export const SANS_FAMILY: readonly string[] = [
+  ROBOTO,
+  'system-ui',
+  'Segoe UI',
+  'Roboto',
+  'Helvetica Neue',
+  'Arial',
+  'sans-serif',
+];
+
+/**
+ * A list of families as a CSS `font-family` value: a name of letters and hyphens alone, which the
+ * generic families are, as it is, and any other quoted.
+ */
+export function cssFontFamily(families: readonly string[]): string {
+  return families.map((each) => (/^[a-z-]+$/i.test(each) ? each : `"${each}"`)).join(', ');
+}
+
 /** What registers a font: the document's `FontFaceSet`, as far as this uses it. */
 interface FontSet {
   add(face: FontFace): unknown;

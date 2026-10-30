@@ -22,11 +22,11 @@ import {
   type LaidText,
 } from '../text/layout';
 import { emphasisBacks } from './colors';
-import { ROBOTO, ROBOTO_MONO } from './robotoFonts';
+import { ROBOTO_MONO, SANS_FAMILY } from './robotoFonts';
 import { canvasMeasure } from './textBlock';
 
 /** The fonts the family is drawn in, first available first: Roboto, then the system's until it loads. */
-const SANS = [ROBOTO, 'system-ui', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'];
+const SANS = [...SANS_FAMILY];
 const MONO = [ROBOTO_MONO, 'ui-monospace', 'Cascadia Mono', 'Roboto Mono', 'Consolas', 'monospace'];
 
 const FONT_NAMES: Record<FontVariant, string> = {

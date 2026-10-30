@@ -2228,10 +2228,12 @@ export const ui: Catalog = {
   'Three times': 'Tres veces',
   'No pulse': 'Sin pulso',
   'Step {n} sends no pulse.': 'El paso {n} no envía ningún pulso.',
-  'The selected relations do not join into a chain: each must share an end with the next.':
-    'Las relaciones seleccionadas no forman una cadena: cada una debe compartir un extremo con la siguiente.',
+  'The selected relations do not join into a chain: the marker must run each from where the one before left it.':
+    'Las relaciones seleccionadas no forman una cadena: el marcador debe recorrer cada una desde donde lo dejó la anterior.',
   'It explains something off the canvas.': 'Explica algo que está fuera del lienzo.',
   'Pointing at “{name}”.': 'Apunta a “{name}”.',
+  'Pointing at the note “{text}”.': 'Apunta a la nota “{text}”.',
+  'Pointing at an arrow.': 'Apunta a una flecha.',
   'A pulse follows the chain: {names}.': 'Un pulso sigue la cadena: {names}.',
   Title: 'Título',
   Caption: 'Rótulo',
@@ -3764,8 +3766,8 @@ export const messages: Catalog = {
     'La relación {r} del pulso, "{id}", no es una relación que el proyecto tenga.',
   'The pulse runs along "{name}", which the view "{view}" does not draw as a line.':
     'El pulso corre por "{name}", que la vista "{view}" no dibuja como una línea.',
-  'The pulse is not a chain: relation {r}, "{name}", shares no end with relation {before}, "{other}".':
-    'El pulso no es una cadena: la relación {r}, "{name}", no comparte ningún extremo con la relación {before}, "{other}".',
+  'The pulse is not a chain: relation {r}, "{name}", does not start where relation {before}, "{other}", leaves the marker.':
+    'El pulso no es una cadena: la relación {r}, "{name}", no empieza donde termina el recorrido por la relación {before}, "{other}".',
   'A caption sits in a corner, top-left, top-right, bottom-left or bottom-right, or where it reads best, auto.':
     'Un rótulo va en una esquina, top-left, top-right, bottom-left o bottom-right, o donde mejor se lee, auto.',
   'Step {n} of the tour reveals a list of marks.':

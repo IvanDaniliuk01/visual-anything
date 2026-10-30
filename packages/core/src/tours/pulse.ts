@@ -1,8 +1,9 @@
 /**
  * A tour step's pulse (ADR 0084): a marker that travels along a chain of relations, one after the
- * other, to show what follows what within one step. A chain joins when each relation shares an end
- * with the next; one that does not, or that names a relation the step's view does not draw, is a step
- * problem, kept and flagged as other problems are. Pure.
+ * other, to show what follows what within one step. A chain joins when the marker can run each
+ * relation from the end of the one before that it reached, so that it never leaps; one that does not,
+ * or that names a relation the step's view does not draw, is a step problem, kept and flagged as other
+ * problems are. Pure.
  */
 import type { Id, TourStep } from '@visual-anything/schema';
 import { nestingTypesInView } from '../containers';
@@ -33,72 +34,101 @@ export interface PulseLeg {
 }
 
 /**
- * Where a chain breaks: the index of the first relation that shares no end with the one before it,
- * or -1 when every relation does, so that the chain joins.
+ * Where a chain breaks: the index of the first relation the marker cannot run next, from the end of
+ * the one before that it reached, or -1 when it runs them all, so that the chain joins. The marker
+ * may start at either end of the first relation; when neither start runs them all, the break is
+ * where the start that runs farther stops.
  */
 export function chainBreak(links: readonly ChainLink[]): number {
-  for (let at = 1; at < links.length; at++) {
-    const before = links[at - 1] as ChainLink;
-    const link = links[at] as ChainLink;
-    if (!shares(before, link)) return at;
+  const first = links[0];
+  if (first === undefined) return -1;
+  const fromStart = runsUntil(links, first.from);
+  if (fromStart < 0) return -1;
+  const fromEnd = runsUntil(links, first.to);
+  if (fromEnd < 0) return -1;
+  return Math.max(fromStart, fromEnd);
+}
+
+/** The index of the first relation the marker cannot run when it starts at `start`, or -1. */
+function runsUntil(links: readonly ChainLink[], start: Id): number {
+  let at = start;
+  for (let index = 0; index < links.length; index++) {
+    const link = links[index] as ChainLink;
+    if (at !== link.from && at !== link.to) return index;
+    at = at === link.from ? link.to : link.from;
   }
   return -1;
 }
 
-function shares(a: ChainLink, b: ChainLink): boolean {
-  return a.from === b.from || a.from === b.to || a.to === b.from || a.to === b.to;
-}
-
 /**
  * The relations in an order that joins them into a chain: the order given when it joins already,
- * otherwise the first order found; none when no order does, or past {@link MAX_PULSE_RELATIONS}.
+ * otherwise a walk that runs each relation once; none when no order does, or past
+ * {@link MAX_PULSE_RELATIONS}.
+ *
+ * Relations join in some order exactly when their ends are connected and at most two ends meet an
+ * odd number of them, so anything else is refused at once, a star of more than two relations among
+ * them. Otherwise the walk is Hierholzer's, in time linear in the relations: from an end that meets an
+ * odd number of them when there is one, it follows relations not yet run, in the order given, and
+ * splices in the loops it finds when it is stuck.
  */
 export function chainOrder(links: readonly ChainLink[]): Id[] | undefined {
   if (links.length === 0 || links.length > MAX_PULSE_RELATIONS) return undefined;
   if (chainBreak(links) < 0) return links.map((link) => link.id);
-  const used = new Array<boolean>(links.length).fill(false);
-  const order: number[] = [];
-  const extend = (): boolean => {
-    if (order.length === links.length) return true;
-    const last = order.length === 0 ? undefined : links[order.at(-1) as number];
-    for (let at = 0; at < links.length; at++) {
-      if (used[at]) continue;
-      const link = links[at] as ChainLink;
-      if (last && !shares(last, link)) continue;
-      used[at] = true;
-      order.push(at);
-      if (extend()) return true;
-      order.pop();
-      used[at] = false;
+  // The relations each end meets, in the order given; a relation from an end to itself meets it twice.
+  const meets = new Map<Id, number[]>();
+  links.forEach((link, index) => {
+    for (const end of [link.from, link.to]) {
+      const list = meets.get(end);
+      if (list) list.push(index);
+      else meets.set(end, [index]);
     }
-    return false;
-  };
-  return extend() ? order.map((at) => (links[at] as ChainLink).id) : undefined;
+  });
+  const odd = [...meets].filter(([, met]) => met.length % 2 === 1).map(([end]) => end);
+  if (odd.length > 2) return undefined;
+  const first = links[0] as ChainLink;
+  // Start at the odd end that the earliest relation given has, so that the walk keeps close to it.
+  const start =
+    odd.length === 0
+      ? first.from
+      : (links.flatMap((link) => [link.from, link.to]).find((end) => odd.includes(end)) as Id);
+  const run = new Array<boolean>(links.length).fill(false);
+  const next = new Map<Id, number>();
+  const stack: { at: Id; by: number }[] = [{ at: start, by: -1 }];
+  const walked: number[] = [];
+  while (stack.length > 0) {
+    const top = stack[stack.length - 1] as { at: Id; by: number };
+    const met = meets.get(top.at) as number[];
+    let cursor = next.get(top.at) ?? 0;
+    while (cursor < met.length && run[met[cursor] as number]) cursor++;
+    next.set(top.at, cursor);
+    if (cursor < met.length) {
+      const index = met[cursor] as number;
+      const link = links[index] as ChainLink;
+      run[index] = true;
+      stack.push({ at: top.at === link.from ? link.to : link.from, by: index });
+    } else {
+      stack.pop();
+      if (top.by >= 0) walked.push(top.by);
+    }
+  }
+  // A walk that leaves relations unrun means their ends are not connected.
+  if (walked.length !== links.length) return undefined;
+  return walked.reverse().map((index) => (links[index] as ChainLink).id);
 }
 
 /**
- * Which way the marker runs each relation of a joined chain: it starts at the end of the first that
- * the second does not share, and runs each next one from the end it arrived at.
+ * Which way the marker runs each relation of a joined chain: from the end of the first at which it
+ * runs them all, its `from` when both do, then each next one from the end it arrived at.
  */
 export function pulseLegs(links: readonly ChainLink[]): PulseLeg[] {
-  const legs: PulseLeg[] = [];
-  let at: Id | undefined;
-  links.forEach((link, index) => {
-    let forward: boolean;
-    if (index === 0) {
-      const next = links[1];
-      // Backwards only when the next relation meets this one's start and not its end.
-      forward = !(
-        next !== undefined &&
-        (next.from === link.from || next.to === link.from) &&
-        next.from !== link.to &&
-        next.to !== link.to
-      );
-    } else forward = at !== link.to;
-    legs.push({ relation: link.id, forward });
+  const first = links[0];
+  if (first === undefined) return [];
+  let at = runsUntil(links, first.from) < 0 ? first.from : first.to;
+  return links.map((link) => {
+    const forward = at === link.from;
     at = forward ? link.to : link.from;
+    return { relation: link.id, forward };
   });
-  return legs;
 }
 
 /**
@@ -161,7 +191,7 @@ export function pulseProblems(
       const one = links[broken - 1] as ChainLink;
       const two = links[broken] as ChainLink;
       problems.push({
-        message: `The pulse is not a chain: relation ${broken + 1}, "${nameOf(project, two.id)}", shares no end with relation ${broken}, "${nameOf(project, one.id)}".`,
+        message: `The pulse is not a chain: relation ${broken + 1}, "${nameOf(project, two.id)}", does not start where relation ${broken}, "${nameOf(project, one.id)}", leaves the marker.`,
         subject: two.id,
       });
     }
