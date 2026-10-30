@@ -34,6 +34,7 @@ import {
   strokeWarnings,
 } from './appearance-tools';
 import { ALIGN_TOOLS } from './align-tools';
+import { FACE_TOOLS } from './face-tools';
 import { IN_BATCHES, MAX_ADDITIONS } from './batches';
 import { NO_APP_NOTE, layoutAnswer } from './layout-report';
 import { builtInPackageRefusal } from './builtin-refusal';
@@ -1664,6 +1665,8 @@ export const TOOLS: readonly Tool[] = [
   updateRelationType,
   // How a component or a relation type looks, built-in ones included (ADR-0034).
   ...APPEARANCE_TOOLS,
+  // Faces, set and previewed (ADR 0083).
+  ...FACE_TOOLS,
   updatePackage,
   reorderElements,
   createView,
