@@ -20,13 +20,15 @@
 
 /*
  * With the scenario panel open, the inspector's column keeps its width for it: the inspector's strip
- * goes across the top of the column, and the scenario panel takes the rest of it.
+ * goes across the top of the column, and the scenario panel takes the rest of it. Never while a tour
+ * plays, whose one cell the canvas fills (tours.css): these rows, as specific as that rule and later,
+ * would put the canvas in a row of no height.
  */
-.shell[data-inspector-collapsed]:has(> .scenario-panel) {
+.shell[data-inspector-collapsed]:not(.tour-playing):has(> .scenario-panel) {
   grid-template-rows: auto auto auto minmax(0, 1fr);
 }
 
-.shell[data-inspector-collapsed]:has(> .element-list):has(> .scenario-panel) {
+.shell[data-inspector-collapsed]:not(.tour-playing):has(> .element-list):has(> .scenario-panel) {
   grid-template-areas:
     'header header header'
     'notice notice notice'
