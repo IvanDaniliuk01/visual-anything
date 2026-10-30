@@ -4,6 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { checkProject } from '../check';
 import { contrastRatio } from '../colors';
 import { definitionsOf } from '../definitions';
+import {
+  compileFace,
+  faceDrawingText,
+  faceInputOf,
+  facePalette,
+  faceProblems,
+  layOutFace,
+} from '../faces';
 import type { ProjectSnapshot } from '../snapshot';
 import { DATA_MODELING } from './data-modeling';
 import { BUILTIN_PACKAGES, RESERVED_PACKAGE_IDS, builtinPackage } from './index';
@@ -393,6 +401,100 @@ describe('the built-in Data modeling package', () => {
         }
       }
     }
+  });
+
+  describe('faces (ADR 0083)', () => {
+    const definitions = definitionsOf([SYSTEMS, DATA_MODELING]);
+    const resolved = (id: string) => {
+      const found = definitions.component(id);
+      if (found?.appearance.face === undefined) throw new Error(`${id} has no face`);
+      return { component: found, face: found.appearance.face };
+    };
+    /** Every problem of a component's face, in both themes, as opening would find them. */
+    const problemsOf = (id: string) => {
+      const { component: found, face } = resolved(id);
+      return faceProblems(face, {
+        attributes: new Set(found.attributes.map((each) => each.name)),
+        palettes: {
+          light: facePalette('light', found.appearance.fill, found.appearance.stroke),
+          dark: facePalette('dark', found.darkColors.fill, found.darkColors.stroke),
+        },
+      });
+    };
+    const drawn = (id: string, of: Element, options: { width: number; height?: number }) => {
+      const input = faceInputOf(of, definitions);
+      return layOutFace(compileFace(resolved(id).face), input, options);
+    };
+
+    it('gives a table a header with its name and its schema, then its rows, as tall as the canvas’s own', () => {
+      expect(problemsOf('data-modeling.table')).toEqual([]);
+      expect(attributeNames('data-modeling.table')).toEqual(['schema']);
+      const table = drawn(
+        'data-modeling.table',
+        element('invoices', 'data-modeling.table', { schema: 'billing' }),
+        { width: 240 },
+      );
+      expect(faceDrawingText(table)).toBe('invoices\nbilling');
+      expect(table.regions.map((each) => [each.kind, each.y])).toEqual([['rows', 32]]);
+      const run = (text: string) => table.runs.find((each) => each.text === text)!;
+      // The name on the left, as the canvas writes it, the schema on the right, left of the toggle.
+      expect(run('invoices')).toMatchObject({ x: 12, variant: 'bold', size: 14 });
+      expect(run('billing').x + run('billing').width).toBeLessThanOrEqual(240 - 24);
+      // Without a schema, the name alone; a long name is cut on one line.
+      const alone = drawn(
+        'data-modeling.table',
+        element('a_table_with_a_name_far_too_long_for_its_header', 'data-modeling.table'),
+        { width: 240 },
+      );
+      expect(alone.runs).toHaveLength(1);
+      expect(alone.runs[0]!.text.endsWith('…')).toBe(true);
+      expect(alone.regions[0]!.y).toBe(32);
+    });
+
+    it('gives a column its name, its type, and its PK, FK, NOT NULL and UNIQUE badges on its row', () => {
+      expect(problemsOf('data-modeling.column')).toEqual([]);
+      const state = project(
+        [
+          element('orders', 'data-modeling.table'),
+          element('customers', 'data-modeling.table'),
+          element('customer-id', 'data-modeling.column', {
+            type: 'uuid',
+            primaryKey: true,
+            notNull: true,
+            unique: true,
+          }),
+          element('order-customer', 'data-modeling.column', { type: 'uuid', notNull: true }),
+          element('note', 'data-modeling.column'),
+        ],
+        [relation('order-customer', 'data-modeling.references', 'customer-id')],
+      );
+      const fromState = definitionsOf(state.packages);
+      const face = compileFace(fromState.component('data-modeling.column')!.appearance.face!);
+      const row = (id: string) => {
+        const column = state.model.elements.find((each) => each.id === id)!;
+        const started = new Set(
+          state.model.relations.filter((each) => each.from === id).map((each) => each.relationType),
+        );
+        return layOutFace(face, faceInputOf(column, fromState, { startedTypes: started }), {
+          width: 240,
+          height: 24,
+        });
+      };
+      const key = row('customer-id');
+      expect(faceDrawingText(key)).toBe('customer-id\nuuid\nPK\nNOT NULL\nUNIQUE');
+      expect(key.cut).toBe(false);
+      expect(faceDrawingText(row('order-customer'))).toBe('order-customer\nuuid\nFK\nNOT NULL');
+      expect(faceDrawingText(row('note'))).toBe('note');
+      // On one line, each text a run of its own, inside its band and its width.
+      for (const drawing of [key, row('order-customer')]) {
+        expect(drawing.runs).toHaveLength(faceDrawingText(drawing).split('\n').length);
+        for (const each of drawing.runs) {
+          expect(each.y).toBeGreaterThan(0);
+          expect(each.y).toBeLessThan(24);
+          expect(each.x + each.width).toBeLessThanOrEqual(240);
+        }
+      }
+    });
   });
 
   it('is built in, and its id is reserved with those of the domains planned next', () => {

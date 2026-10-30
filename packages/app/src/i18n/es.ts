@@ -6005,6 +6005,9 @@ export const builtins: Readonly<
   'data-modeling.table': {
     name: 'Tabla',
     description: 'Una tabla de una base de datos. Dibuja sus columnas como sus filas.',
+    attributes: {
+      schema: 'El esquema al que pertenece, como "billing", que su cara escribe junto a su nombre.',
+    },
   },
   'data-modeling.column': {
     name: 'Columna',
