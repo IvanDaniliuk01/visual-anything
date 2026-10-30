@@ -4,6 +4,8 @@
  * one undoable action. They answer the risk of invented content (benchmark 2, R29).
  */
 
+import { IN_BATCHES, MAX_ADDITIONS } from '../batches';
+
 /** One rule, with a short name the prompt shows in bold. */
 export interface Rule {
   readonly name: string;
@@ -33,7 +35,11 @@ export const RULES: readonly Rule[] = [
   },
   {
     name: 'One undoable action per call',
-    text: 'Every write call is one action in the person’s undo history, labelled as yours, which the person undoes in the app. Make each call one idea, with a label that says what it did: all the elements and relations of the material in one add_to_model call, each view in one create_view call, each scenario in one create_scenario_from_steps call, and changes to many elements already there in one run_commands call. You cannot undo: to take something back, make the opposite change.',
+    text: `Every write call is one action in the person’s undo history, labelled as yours, which the person undoes in the app. Make each call one idea, with a label that says what it did: all the elements and relations of the material in one add_to_model call, or, past ${MAX_ADDITIONS} of them, in batches as the next rule says; each view in one create_view call, each scenario in one create_scenario_from_steps call, and changes to many elements already there in one run_commands call. You cannot undo: to take something back, make the opposite change.`,
+  },
+  {
+    name: 'Send a large model in batches',
+    text: IN_BATCHES,
   },
   {
     name: 'preview_delete before any delete',

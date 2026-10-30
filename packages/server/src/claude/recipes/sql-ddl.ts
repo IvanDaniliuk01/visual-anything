@@ -3,6 +3,7 @@
  * foreign keys as references, and its views, enums, functions, triggers and sequences as structure:
  * what reads from, writes to, fires on and runs what, never their code.
  */
+import { MAX_ADDITIONS } from '../batches';
 import type { Recipe } from './recipe';
 
 const INPUT = `-- Database: orders (PostgreSQL).
@@ -158,6 +159,13 @@ export const SQL_DDL: Recipe = {
     '`CREATE INDEX`, which you can offer to note in a column’s description.',
     'Domains, composite types and range types, which you can offer as a column’s description.',
     '`GRANT`, row-level security policies, rules, extensions, partitions, and `INSERT`s of seed data.',
+  ],
+  batches: [
+    `A database past ${MAX_ADDITIONS} elements and relations, such as 73 tables with about 1,300 columns and their foreign keys, goes in batches of at most ${MAX_ADDITIONS}, as the rule says: four or five add_to_model calls, each one action.`,
+    'Give everything an id from its names as the material writes them, so that every batch can name what the others made: `db.<database>` for the database, `s.<schema>` for a schema, `t.<schema>.<table>` for a table, `v.<schema>.<view>` for a view or a materialized view, `c.<schema>.<table>.<column>` for a column of a table or a view, `e.<schema>.<enum>`, `f.<schema>.<function>` (with `.2`, `.3` for overloads), `tr.<schema>.<table>.<trigger>` and `seq.<schema>.<sequence>`. Without schemas, leave `<schema>.` out. Give a foreign key the id `fk.<schema>.<table>.<column>`, of the column that references; the other relations can leave their id to the program.',
+    `First the database and its schemas, then whole tables, each with all its columns in order, as many as fit in ${MAX_ADDITIONS}; the next batches go on with the next tables. A table goes in one batch, unless it alone has more columns than a batch takes.`,
+    'Then the views with their columns, the enums, functions, triggers and sequences; then the relations, references, reads from, writes to, fires on and runs, each naming its ends by those ids. A foreign key can go with its table instead, once the table it references was sent in an earlier batch or comes in the same one.',
+    'Label each batch with the database, its number and what it holds, such as `Import the audit database (2 of 5): billing tables`.',
   ],
   example: {
     file: 'db/shop.sql',

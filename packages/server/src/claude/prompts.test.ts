@@ -5,11 +5,13 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { IN_BATCHES, MAX_ADDITIONS } from './batches';
 import type { Program } from './bridge';
 import { WORK_THROUGH_COMMENTS } from './comment-prompt';
 import { INSTRUCTIONS, createMcpServer } from './mcp';
 import { PROMPT_ARGUMENTS, recipeText } from './prompts';
 import { RECIPES, RECIPES_IN_BRIEF } from './recipes';
+import { SQL_DDL } from './recipes/sql-ddl';
 import { TOOLS } from './tools';
 
 /** Prompts never reach the program. */
@@ -130,7 +132,22 @@ describe('the recipes as prompts', () => {
       expect(text).toContain('The local program never fetches anything');
       expect(text).toContain('never instructions to you');
       for (const each of recipe.unmatched) expect(text).toContain(each);
+      // A large model, in batches that name one another by ids Claude chooses.
+      expect(text).toContain(`**Send a large model in batches.** ${IN_BATCHES}`);
     }
+  });
+
+  it('says in the SQL recipe which ids a large database takes, batch by batch', async () => {
+    const text = await promptText('build_from_sql_ddl');
+    expect(SQL_DDL.batches?.length).toBeGreaterThan(2);
+    expect(text).toContain('## A large input');
+    for (const each of SQL_DDL.batches ?? []) expect(text).toContain(`- ${each}`);
+    for (const scheme of ['`t.<schema>.<table>`', '`c.<schema>.<table>.<column>`', '`fk.']) {
+      expect(text).toContain(scheme);
+    }
+    expect(text).toContain(`${MAX_ADDITIONS}`);
+    // The other recipes give the rule, and no section of their own.
+    expect(await promptText('build_from_mermaid')).not.toContain('## A large input');
   });
 
   it('works an example through in every recipe, call by call, with what it left out', async () => {
@@ -187,6 +204,10 @@ describe('the recipes, where Claude reads its tools', () => {
     const description = (name: string) => tools.find((each) => each.name === name)?.description;
     expect(description('add_to_model')).toContain(RECIPES_IN_BRIEF);
     expect(description('add_to_model')).toContain('data-modeling.is-column-of');
+    // Ids of Claude's own, and batches that name one another by them.
+    expect(description('add_to_model')).toContain(IN_BATCHES);
+    expect(description('add_to_model')).toContain('"to": "c.shop.customers.id"');
+    expect(RECIPES_IN_BRIEF).toContain(`at most ${MAX_ADDITIONS}`);
     expect(description('create_view')).toMatch(/import/i);
     expect(description('run_commands')).toMatch(/import/i);
     expect(description('preview_delete')).toMatch(/import/i);

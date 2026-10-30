@@ -90,6 +90,9 @@ export function recipeText(recipe: Recipe, args: PromptArguments): string {
     '',
     ...bullets(recipe.unmatched),
     '',
+    ...(recipe.batches === undefined
+      ? []
+      : ['## A large input', '', ...bullets(recipe.batches), '']),
     ...workedExample(recipe),
     '',
     '## When you are done',
