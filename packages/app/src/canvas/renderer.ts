@@ -2635,6 +2635,7 @@ export class CanvasRenderer {
             tile.labelPaint,
             this.lookups(),
             faces,
+            this.pictures,
           )
         : tile.kind === 'relations'
           ? painter.relationLabels(tile.lines.slice(from, to), this.text, tile.labelPaint)
@@ -2918,7 +2919,15 @@ export class CanvasRenderer {
         const write = (some: readonly ElementShape[], withDetails: boolean) =>
           some.length === 0
             ? []
-            : this.painter.shapeLabels(some, withDetails, this.text, undefined, this.lookups(), {});
+            : this.painter.shapeLabels(
+                some,
+                withDetails,
+                this.text,
+                undefined,
+                this.lookups(),
+                {},
+                this.pictures,
+              );
         return [
           ...write(
             chosen.filter((shape) => ownDetail(shape).wanted === 1),

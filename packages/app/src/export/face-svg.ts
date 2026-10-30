@@ -22,10 +22,8 @@ import {
   type FacePalette,
   type FaceRun,
 } from '@visual-anything/core';
-import type { LevelOfDetail } from '@visual-anything/schema';
 import type { Point, Rect } from '../canvas/geometry';
-import { levelDetail } from '../canvas/levels';
-import { faceBoxPieces, type FaceShow } from '../canvas/faces';
+import { deepestFaceShow, faceBoxPieces } from '../canvas/faces';
 import { MONO_FAMILY } from './emphasis-svg';
 import { element, empty, textElement, type AttributeValue } from './markup';
 
@@ -41,18 +39,9 @@ export type FacePicture = (image: FaceImage, rect: Rect) => string;
 
 /**
  * What faces an export draws of a shape: what the canvas draws at the most detailed level the shape
- * declares, as an export draws every detail: the face, in the variant that level names; none when
- * that level shows no face. Without levels, its face as the canvas draws it wherever names are
- * written; a row its own face, whatever variant its container's level names.
+ * declares, as an export draws every detail (`deepestFaceShow`).
  */
-export function exportedFaceShow(shape: {
-  levels?: readonly LevelOfDetail[];
-  row?: number;
-}): FaceShow | undefined {
-  if (shape.levels === undefined || shape.levels.length === 0) return {};
-  return levelDetail(shape.levels, Number.POSITIVE_INFINITY, undefined, shape.row !== undefined)
-    .detail.face;
-}
+export const exportedFaceShow = deepestFaceShow;
 
 /** What a run is written with, beyond its text and place. */
 function runValues(run: FaceRun): Record<string, AttributeValue> {

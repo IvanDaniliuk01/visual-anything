@@ -400,3 +400,32 @@ The layout is block, flex and a simple grid: a small engine, not a browser's.
 - 2026-10-30 (M3e, after merging F4): **what F4 asked.** Decided by Claude under the user's standing delegation.
   - **Table's `schema` attribute stays.** It is optional, and the face writes the schema only when it is set; the SQL recipe sets it. A slot that reads the container's name would remove the need to repeat it, and is left for later under this ADR.
   - **Controls that change nothing may stay live in a read-only project.** The face preview's choices are marked `data-changes-nothing`, and the inspector's read-only guard skips them.
+
+
+<!-- Decided by Claude on 2026-10-30 under the user's standing delegation of design decisions, while building F5 of M3e and F3's two canvas follow-ups. -->
+
+- 2026-10-30 (M3e, F5): **what a face takes the place of on the canvas, its pictures there, and the checks.**
+  - **The face that decides is the most detailed level's.** Whether a shape hangs a name tag, and whether its icon is drawn apart from its face, are read from the face it shows at the most detailed level it declares (`deepestFaceShow`, which the exports already draw), never from the level the zoom reaches. So a shape's bounds, its hits, where its relations attach and its layout never change with the zoom.
+  - **No name tag where a face writes the name** (`faceWritesName`):
+    - a face writes the name when the markup that level shows holds a `{{name}}` slot in its text, under a condition or not (a slot in a `class` writes no text), or when the face cannot be laid out and is drawn as the shape's name; it is read from the face alone, not from a layout;
+    - such a shape hangs no tag on the canvas, in the SVG, the PDF and the page: its bounds, its band in the index, its hits, its relations' ends, layout's room around it and the export's drawing count its own outline or box alone;
+    - at a level that shows no face, such a shape writes no name under itself, since it has no tag to write it in; its hover card names it;
+    - a face that does not write the name keeps the tag, which writes the name and the detail again, on the canvas and in the exports, rather than an empty box beside the face.
+  - **`<icon/>` takes the icon's place on the canvas too.** A shape whose face draws its own image by `<icon/>`, as the exports lay it out, draws its icon, or its header's icon, nowhere else on the canvas; a drawing's picture stays. As the face that decides is the most detailed level's, a level that shows another variant, or no face, shows no icon either.
+  - **Pictures in a face on the canvas** (`faceDraw.ts`):
+    - they are drawn in the face's own drawing among its tile's labels, after its boxes and before its bands and text, fitted in their boxes with their proportions kept and centred, by the function the SVG uses too (`facePictureRect`);
+    - their textures come from the image store, through the image drawings (`FacePictures`): one for each picture and size of box, made at 4 device pixels a unit (twice the box's size on a 2× screen), shared by every face that shows it, kept while the scene shows the picture whatever is within reach, and a silhouette tinted as icons are;
+    - a face whose texture is not made yet draws a stand-in of another size, or nothing, and is drawn again once it is made, as many as the frame's 8 ms of image work allow, the rest in the next frames; when the store starts from nothing, every face that draws pictures asks again;
+    - the scene finds the images a face names by `<image ref="…"/>` once for each face (`ShapeFace.pictures`), in its component's package, by id or by id within the package; the SVG reads them from there, so both draw the same images.
+  - **The benchmark with faces.**
+    - `?faces` gives every component the view draws a face through project appearances, every table and column with `?tables`: a table a header with its name over its component's name, a column its name, type and badges, any other component its name over its component's. It times the scene's first build and a move's build with them, then pans where names and details show and zooms across the label threshold, and notes the face layout cache's hit rate over them.
+    - `bench/faces-timing.ts` measures the scene in Node beside the same view without faces; the canvas counts the drawings asked for and laid out (`faceCounts`). The numbers are in `docs/designs/benchmark-6.md`; the frames are left for the next browser run.
+    - What it found: faces add little to the scene's builds; laying every face out once takes 0.04 to 0.08 ms a face; a table's face is laid out twice, at its width alone for its header and at the header's height for its tile, so its first drawing is never the cache's. Reusing the first is a follow-up, if the first frames over many tables are slow.
+  - **The fixture with faces.**
+    - Its faces are defined beside the fixture (`withDataModelFaces`), not taken from Data modeling's built-in ones, which F4 builds at the same time: a table's and a database view's header writes its name and its schema, an attribute the fixture's own package defines and each table and view is given from the schema it is part of; a column writes its name, type and PK and FK badges.
+    - `quality.faces.test.ts` holds overlaps, row ends, lines through shapes, crossings, bends and fill as `quality.fixture.test.ts` holds them without faces, and shared segments as reached with faces: 30 on the overview with its pinned schemas (16 without) and 1 unpinned (0 without), since the faces' taller headers move every row down and ELK lays the overview out otherwise. ADR 0080 wants none; that miss by one is recorded, not chased.
+    - Every face fits its shape there: none is cut, drawn as its name, or draws past the rectangle the canvas lays it out in.
+- 2026-10-30 (M3e, after merging F5): **what F5 left.** Decided by Claude under the user's standing delegation.
+  - **One shared segment on the fixture's unpinned overview with faces** is recorded and accepted. ADR 0080 wants none; the faces' taller headers narrow one corridor.
+  - **A table's face is laid out twice,** for its header and for its tile, in different cache entries. Sharing them goes to A4, with the layout's time at 10,000 elements.
+  - **The frames at 10,000 faced shapes are not measured in a browser yet.** They are recorded when the bench is next run there, and they are not a blocker.

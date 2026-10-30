@@ -5,23 +5,21 @@
  * router beside rows and the channel pass), against the routing thresholds and the numbers Stage 0a
  * gave; and expanding in place, by hand, against the expansion thresholds.
  */
-import {
-  applyOperations,
-  executeCommand,
-  positionKey,
-  type Command,
-  type ProjectSnapshot,
-} from '@visual-anything/core';
-import type { Id, ViewFile } from '@visual-anything/schema';
+import { applyOperations, positionKey } from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { describe, expect, it } from 'vitest';
-import { loadDataModel } from '../../test/dataModel';
+import {
+  applied as apply,
+  fixtureCases,
+  gaveUpOn,
+  laidOutView,
+  loadDataModel,
+  viewIn as viewOf,
+} from '../../test/dataModel';
 import type { Camera } from '../camera';
 import type { Rect } from '../geometry';
-import { avoidRoutes } from '../routing/avoid';
-import { avoidBatchOf } from '../routing/avoided';
-import { buildSceneAfresh, type ElementShape, type RelationLine, type Scene } from '../scene';
-import { layoutCommand } from './command';
+import { buildSceneAfresh, type ElementShape, type Scene } from '../scene';
 import { layOut } from './engine';
 import {
   ExpansionMemory,
@@ -30,77 +28,13 @@ import {
   expansionCommand,
   planExpansion,
 } from './expand';
-import { layoutInput } from './input';
-import { keepRoutes, routedWithKept, type KeptRoutes } from './keptRoutes';
 import { measureScene, type LayoutQuality } from './quality';
 
 const elk = new ELK();
 const base = loadDataModel();
-
-function apply(project: ProjectSnapshot, command: Command) {
-  const done = executeCommand(project, command);
-  if (!done.ok) throw new Error(done.problems.map((each) => each.message).join(' '));
-  return done;
-}
-
-function viewOf(project: ProjectSnapshot, id: Id): ViewFile {
-  return project.views.find((view) => view.id === id) as ViewFile;
-}
-
-/** The three views ADR 0080 holds, as the research opened them. */
-function cases(): { name: string; view: Id; project: ProjectSnapshot }[] {
-  const overview = viewOf(base, 'overview');
-  const processing = viewOf(base, 'processing');
-  return [
-    { name: 'schema-view', view: 'schema-view', project: base },
-    {
-      name: 'overview expanded',
-      view: 'overview',
-      project: apply(base, {
-        type: 'set-collapsed',
-        view: 'overview',
-        elements: [...(overview.collapsed ?? [])],
-        collapsed: false,
-      }).state,
-    },
-    {
-      name: 'overview expanded, unpinned',
-      view: 'overview',
-      project: unpinned(
-        apply(base, {
-          type: 'set-collapsed',
-          view: 'overview',
-          elements: [...(overview.collapsed ?? [])],
-          collapsed: false,
-        }).state,
-        'overview',
-      ),
-    },
-    {
-      name: 'processing with its tables open',
-      view: 'processing',
-      project: apply(base, {
-        type: 'set-collapsed',
-        view: 'processing',
-        elements: (processing.collapsed ?? []).filter((id) => id.startsWith('table-')),
-        collapsed: false,
-      }).state,
-    },
-  ];
-}
-
-/**
- * The project with every shape the view pins unpinned, as the view's inspector offers when pinned
- * shapes keep the one-pass layout from placing what they hold (ADR 0080, Stage 0b).
- */
-function unpinned(project: ProjectSnapshot, viewId: Id): ProjectSnapshot {
-  const pinned = viewOf(project, viewId).positions.filter((each) => each.pinned === true);
-  return apply(project, {
-    type: 'set-positions',
-    view: viewId,
-    positions: pinned.map((each) => ({ ...each, pinned: false })),
-  }).state;
-}
+const cases = () => fixtureCases(base);
+const laidOut = (project: Parameters<typeof laidOutView>[0], viewId: Id) =>
+  laidOutView(project, viewId, elk);
 
 /**
  * What the Layout before ADR 0080 drew of each view, measured on this fixture on 2026-10-29 with
@@ -154,31 +88,6 @@ const STAGE_0A: Record<
     bendsPerLine: 0.93,
   },
 };
-
-/** Lays out a view as Layout does, and draws it as the canvas does right after. */
-async function laidOut(project: ProjectSnapshot, viewId: Id) {
-  const before = buildSceneAfresh(project, viewId);
-  const input = layoutInput(before, project, { kind: 'view' });
-  if (!input) throw new Error('Nothing to lay out.');
-  const result = await layOut(input, elk);
-  const action = layoutCommand(project, viewId, before, { kind: 'view' }, result.shapes);
-  if (!action) throw new Error('The layout moved nothing.');
-  const after = apply(project, action.command).state;
-  const built = buildSceneAfresh(after, viewId);
-  const kept = keepRoutes(built, result.routes);
-  return { before, after, built, result, scene: routedWithKept(built, kept), kept };
-}
-
-/**
- * How many of the lines the router is given it gives up on, keeping their lane routes: those not
- * drawn along ELK's kept routes.
- */
-function gaveUpOn(scene: Scene, kept: KeptRoutes | undefined): number {
-  const batch = avoidBatchOf(scene);
-  return avoidRoutes(batch.shapes, batch.lines).filter(
-    (each, at) => each.gaveUp && !kept?.routes.has((batch.drawn[at] as RelationLine).relation),
-  ).length;
-}
 
 describe("Layout on a view shaped like the user's data model (ADR 0080)", () => {
   it.each(cases())('$name: no overlaps, ends at their rows, fewer crossings', async (each) => {

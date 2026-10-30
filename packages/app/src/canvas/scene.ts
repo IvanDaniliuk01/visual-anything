@@ -69,6 +69,7 @@ import {
   compiledFaceOf,
   faceContentHeight,
   faceHeader,
+  faceImageRefs,
   faceWidthIn,
   heightForFace,
   type ShapeFace,
@@ -156,6 +157,7 @@ import {
   type SideInfo,
 } from './rowShapes';
 import {
+  facePicturesOf,
   imageLookOf,
   placedAgain,
   placeImage,
@@ -1448,10 +1450,15 @@ function faceFor(
       startedTypes: look.startedFor.get(detail) ?? NO_TYPES,
       ...(count === undefined ? {} : { count }),
     });
+    const compiled = compiledFaceOf(resolved);
     face = {
-      compiled: compiledFaceOf(resolved),
+      compiled,
       input: { ...input, component: t.definition(element.component, look.componentName) },
     };
+    // The pictures its `<image ref="…"/>` name, of its component's package (ADR 0083).
+    const refs = faceImageRefs(compiled);
+    const pictures = refs.length > 0 && facePicturesOf(definitions, element.component, refs);
+    if (pictures) face.pictures = pictures;
     look.faces.set(key, face);
   }
   return face;
@@ -1710,7 +1717,21 @@ function measured(
 /** Whether two faces are compiled alike and filled from equal values. */
 function sameFace(a: ShapeFace, b: ShapeFace): boolean {
   return (
-    a === b || (a.compiled === b.compiled && JSON.stringify(a.input) === JSON.stringify(b.input))
+    a === b ||
+    (a.compiled === b.compiled &&
+      JSON.stringify(a.input) === JSON.stringify(b.input) &&
+      samePictures(a.pictures, b.pictures))
+  );
+}
+
+/** Whether two faces draw the same pictures: the same images by the same refs. */
+function samePictures(a: ShapeFace['pictures'], b: ShapeFace['pictures']): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const refs = Object.keys(a);
+  return (
+    refs.length === Object.keys(b).length &&
+    refs.every((ref) => a[ref]?.serial === b[ref]?.serial && a[ref]?.image === b[ref]?.image)
   );
 }
 

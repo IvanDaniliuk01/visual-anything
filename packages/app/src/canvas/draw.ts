@@ -499,8 +499,11 @@ export function writeShapeLabels(
       return text;
     };
     const face = faceOf?.(shape);
-    if (face) texts.push(face);
-    else writeShapeText(shape, write, backdrop, make);
+    if (face) {
+      texts.push(face);
+      // A face that does not write the name leaves it to the shape's name tag (ADR 0083).
+      if (writesNameBelow(shape)) writeNameTag(shape, readableTextColors(fillOf(shape)), write);
+    } else writeShapeText(shape, write, backdrop, make);
     writeLeavingMark(shape, write);
   }
   return texts;

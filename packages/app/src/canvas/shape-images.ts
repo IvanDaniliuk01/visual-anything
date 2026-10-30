@@ -142,6 +142,31 @@ export function shownImagesOf(definitions: Definitions): (id: Id) => CleanedImag
 }
 
 /**
+ * The images a face of a component names by `<image ref="…"/>` (ADR 0083), by their `ref`: each an
+ * image of the package the component comes from, named by its id or by its id within the package
+ * (`ref="photo"` for `pictures.photo`), through the cleaned view; a `ref` the package does not hold,
+ * or that the catalog cannot draw, is left out. None when none is left.
+ */
+export function facePicturesOf(
+  definitions: Definitions,
+  component: Id,
+  refs: readonly string[],
+): Record<string, { image: CleanedImage; serial: number }> | undefined {
+  const catalog = catalogs.get(definitions);
+  const owner = definitions.components.get(component)?.package;
+  if (!catalog || owner === undefined) return undefined;
+  let pictures: Record<string, { image: CleanedImage; serial: number }> | undefined;
+  for (const ref of refs) {
+    const id = [ref, `${owner}.${ref}`].find((each) => catalog.image(each)?.package === owner);
+    const image = id === undefined ? undefined : catalog.shown(id);
+    if (!image) continue;
+    pictures ??= {};
+    pictures[ref] = { image, serial: imageSerial(image) };
+  }
+  return pictures;
+}
+
+/**
  * The image an element's shapes show, from its own appearance or its component's, through the cleaned
  * view; none when no appearance shows one, or when the catalog cannot draw it (unknown, refused by
  * cleaning, or past its package's total).

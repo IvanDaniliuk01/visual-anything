@@ -12,6 +12,10 @@
  *   `<contents/>`; the scene works both out before layout, which reads them like any size.
  * - **Where it is drawn:** in the shape's label area, in its free geometry's `label` rectangle, over a
  *   row's band, or in the header of a shape that draws rows or holds contents.
+ * - **What it takes the place of** (ADR 0083's clarification of F5): a shape whose face writes its name
+ *   hangs no name tag under itself (`faceWritesName`), and one whose face draws `<icon/>` draws its icon
+ *   nowhere else (`faceDrawsIcon`), as the face the exports draw decides, so that its bounds never
+ *   change with the zoom.
  *
  * This module is pure, for the scene; `faceDraw.ts` draws.
  */
@@ -19,7 +23,9 @@ import {
   compileFace,
   faceDrawingText,
   layOutFace,
+  type CleanedImage,
   type CompiledFace,
+  type CompiledMarkup,
   type FaceBox,
   type FaceColor,
   type FaceDrawing,
@@ -27,14 +33,27 @@ import {
   type FaceLayoutOptions,
   type ResolvedFace,
 } from '@visual-anything/core';
+import type { LevelOfDetail } from '@visual-anything/schema';
 import { bodyOf, cylinderCap, personHead, type Rect, type ShapeKind } from './geometry';
+import { levelDetail } from './levels';
 import { labelAreaOn } from './outlined';
 import type { ElementShape } from './scene';
+
+/** A picture a face draws by `<image ref="…"/>`: an image of its component's package. */
+export interface FacePicture {
+  image: CleanedImage;
+  serial: number;
+}
 
 /** A shape's face: compiled, with what fills it from the shape's element. */
 export interface ShapeFace {
   compiled: CompiledFace;
   input: FaceInput;
+  /**
+   * The images its `<image ref="…"/>` name, by their `ref`, as its component's package holds them;
+   * absent when it names none, and a `ref` the package does not hold is left out.
+   */
+  pictures?: Readonly<Record<string, FacePicture>>;
 }
 
 /** What a tile writes of its shapes' faces: the variant its level names, if any (ADR 0055). */
@@ -59,8 +78,25 @@ const drawings = new WeakMap<ShapeFace, Map<string, FaceDrawing>>();
 /** The most drawings kept for one face, which a shape resized by hand runs through. */
 const KEPT_PER_FACE = 8;
 
+/** How many face drawings were asked for, and how many of them had to be laid out, for the benchmark. */
+const counts = { asked: 0, laidOut: 0 };
+
+/**
+ * How many face drawings were asked for since `resetFaceCounts`, and how many of them were laid out
+ * rather than found kept: the benchmark's hit rate of the face layout cache (ADR 0083, F5).
+ */
+export function faceCounts(): { asked: number; laidOut: number } {
+  return { ...counts };
+}
+
+export function resetFaceCounts(): void {
+  counts.asked = 0;
+  counts.laidOut = 0;
+}
+
 /** A face laid out with these options, kept: laid out again only for another size or variant. */
 export function faceDrawingOf(face: ShapeFace, options: FaceLayoutOptions): FaceDrawing {
+  counts.asked += 1;
   let kept = drawings.get(face);
   if (!kept) {
     kept = new Map();
@@ -71,6 +107,7 @@ export function faceDrawingOf(face: ShapeFace, options: FaceLayoutOptions): Face
   }`;
   let drawing = kept.get(key);
   if (!drawing) {
+    counts.laidOut += 1;
     drawing = layOutFace(face.compiled, face.input, options);
     if (kept.size >= KEPT_PER_FACE) kept.delete(kept.keys().next().value as string);
     kept.set(key, drawing);
@@ -207,6 +244,158 @@ export function facePaints(drawing: FaceDrawing): boolean {
 /** Whether the canvas cut a shape's face, which its hover card then gives back whole. */
 export function faceCut(shape: ElementShape): boolean {
   return shapeFaceDrawing(shape)?.cut === true;
+}
+
+// ——— What a face takes the place of ——————————————————————————————————————————————————————————————
+
+/**
+ * What face a shape shows at the most detailed level it declares, as an export draws every detail:
+ * the face, in the variant that level names; none when that level shows no face. Without levels, its
+ * face as the canvas draws it wherever names are written; a row its own face, whatever variant its
+ * container's level names. What the exports draw, and what decides the name tag and the icon a face
+ * takes the place of, whatever the zoom (ADR 0083's clarifications of F3 and F5).
+ */
+export function deepestFaceShow(shape: {
+  levels?: readonly LevelOfDetail[];
+  row?: number;
+}): FaceShow | undefined {
+  if (shape.levels === undefined || shape.levels.length === 0) return {};
+  return levelDetail(shape.levels, Number.POSITIVE_INFINITY, undefined, shape.row !== undefined)
+    .detail.face;
+}
+
+/** A shape as what its face takes the place of reads it. */
+interface Faced {
+  face?: ShapeFace;
+  levels?: readonly LevelOfDetail[];
+  row?: number;
+  collapsed?: unknown;
+}
+
+/** The markup a face is laid out from with a variant, or collapsed, as `layOutFace` picks it. */
+function markupShown(
+  compiled: CompiledFace,
+  variant: string | undefined,
+  collapsed: boolean,
+): CompiledMarkup | undefined {
+  if (variant !== undefined) return compiled.variants.get(variant) ?? compiled.markup;
+  if (collapsed && compiled.collapsed !== undefined) {
+    return compiled.variants.get(compiled.collapsed) ?? compiled.markup;
+  }
+  return compiled.markup;
+}
+
+type TemplateNode = CompiledMarkup['nodes'][number];
+
+const namesWritten = new WeakMap<CompiledMarkup, boolean>();
+
+/** Whether a markup writes `{{name}}` in its text anywhere, under a condition or not. */
+function markupWritesName(markup: CompiledMarkup): boolean {
+  let known = namesWritten.get(markup);
+  if (known === undefined) {
+    known = markup.nodes.some(writesName);
+    namesWritten.set(markup, known);
+  }
+  return known;
+}
+
+function writesName(node: TemplateNode): boolean {
+  switch (node.kind) {
+    case 'text':
+      return node.template.some((part) => typeof part !== 'string' && part.ref.kind === 'name');
+    case 'element':
+    case 'each':
+      return node.children.some(writesName);
+    case 'choice':
+      return node.branches.some((branch) => writesName(branch.node));
+  }
+}
+
+/**
+ * Whether a shape's face writes its name (ADR 0083: "the name tag is not used while a face writes
+ * `{{name}}`"): the markup it shows at its most detailed level (`deepestFaceShow`) holds a `{{name}}`
+ * slot in its text, under a condition or not, or the face cannot be laid out and is drawn as the
+ * shape's name. Such a shape hangs no name tag, so that its bounds, its hits, where its relations
+ * attach and its layout never count an empty one. Read from the face alone, never from its layout.
+ */
+export function faceWritesName(shape: Faced): boolean {
+  if (!shape.face) return false;
+  const show = deepestFaceShow(shape);
+  if (show === undefined) return false;
+  const { compiled } = shape.face;
+  if (!compiled.ok) return true;
+  const markup = markupShown(compiled, show.variant, shape.collapsed !== undefined);
+  return markup === undefined || markupWritesName(markup);
+}
+
+const drawsIcon = new WeakMap<ElementShape, boolean>();
+
+/**
+ * Whether a shape's face draws its own image by `<icon/>`, as the exports draw it: the face it shows
+ * at its most detailed level, where the canvas lays it out, draws one. Its icon, or its header's
+ * icon, is then drawn nowhere else; a drawing's picture stays.
+ */
+export function faceDrawsIcon(shape: ElementShape): boolean {
+  if (!shape.face || !shape.image) return false;
+  let known = drawsIcon.get(shape);
+  if (known === undefined) {
+    const show = deepestFaceShow(shape);
+    const drawing = show && shapeFaceDrawing(shape, show);
+    known =
+      drawing !== undefined &&
+      facePaints(drawing) &&
+      drawing.images.some((each) => each.kind === 'icon');
+    drawsIcon.set(shape, known);
+  }
+  return known;
+}
+
+/** Whether a shape's own image, placed as it is, is drawn by its face rather than on its own. */
+export function iconInFace(shape: ElementShape): boolean {
+  const placement = shape.image?.placement;
+  return (placement === 'icon' || placement === 'header') && faceDrawsIcon(shape);
+}
+
+const imageRefs = new WeakMap<CompiledFace, readonly string[]>();
+
+/** The ids a face's `<image ref="…"/>` name, in its markup and its variants, each once. */
+export function faceImageRefs(compiled: CompiledFace): readonly string[] {
+  let refs = imageRefs.get(compiled);
+  if (!refs) {
+    const found = new Set<string>();
+    const visit = (node: TemplateNode): void => {
+      if (node.kind === 'text') return;
+      if (node.kind === 'choice') {
+        for (const branch of node.branches) visit(branch.node);
+        return;
+      }
+      if (node.kind === 'element' && node.tag === 'image' && node.ref !== undefined) {
+        found.add(node.ref);
+      }
+      for (const child of node.children) visit(child);
+    };
+    for (const markup of [compiled.markup, ...compiled.variants.values()]) {
+      for (const node of markup?.nodes ?? []) visit(node);
+    }
+    refs = [...found];
+    imageRefs.set(compiled, refs);
+  }
+  return refs;
+}
+
+/**
+ * Where a face draws a picture of this size in its box: fitted, its proportions kept, centred; none
+ * for a picture or a box of no size. The canvas and the exports place it so.
+ */
+export function facePictureRect(box: Rect, width: number, height: number): Rect | undefined {
+  const scale = Math.min(box.width / width, box.height / height);
+  if (!(scale > 0) || !Number.isFinite(scale)) return undefined;
+  return {
+    x: box.x + (box.width - width * scale) / 2,
+    y: box.y + (box.height - height * scale) / 2,
+    width: width * scale,
+    height: height * scale,
+  };
 }
 
 // ——— How a face's boxes are painted ———————————————————————————————————————————————————————————————

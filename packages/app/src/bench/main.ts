@@ -23,6 +23,9 @@
  * phases of live values changing four times a second in every shape's detail, and of 1,000 of them
  * changing at a time under an overlay that colors every shape by them (`live.ts`, ADR 0057).
  * A tour step glides 400 shapes on the glide layer, judged by the frame budget (`glide.ts`, ADR 0084).
+ * `?faces` gives every component the view draws a face (`faces.ts`, ADR 0083), every table and
+ * column with `?tables`: it times the scene's first build and a move's build with them, and pans and
+ * zooms where faces show, counting how often the face layout cache already held a tile's drawing.
  * `?geometry` measures the beyond-boxes project instead (`geometry.ts`, M8b): free geometry,
  * drawings with parts and relations on outlines, through the phases of `beyond.ts` alone. `?curves`
  * makes the view curve every automatic route that no appearance gives a style (ADR 0069), with
@@ -68,6 +71,8 @@ import {
   withLiveDetail,
 } from './live';
 import { withEmphasisDetail } from './emphasis';
+import { faceCounts, resetFaceCounts } from '../canvas/faces';
+import { hitRate, measureFacesScene, withBenchFaces } from './faces';
 import '../theme/tokens.css';
 import { THEMES } from '../theme/themes';
 import { measureLevelCrossing, measureOverlays, type OverlayBench } from './overlays';
@@ -378,6 +383,54 @@ async function run(): Promise<void> {
     await settle(300);
   }
 
+  // With `?faces`, every component the view draws has a face, every table and column with `?tables`
+  // (ADR 0083, F5): the scene's first build and a move's build with them, then pans and a zoom where
+  // faces show. Recorded, never held.
+  const facesTimed: Timed[] = [];
+  const facesNotes: string[] = [];
+  if (search.has('faces')) {
+    performance.mark('phase Faces: the scene');
+    const faced = withBenchFaces(project);
+    const numbers = measureFacesScene(faced, VIEW, { moves: 10 });
+    facesTimed.push(
+      {
+        name: 'Faces: the scene built first, from nothing',
+        times: numbers.firstBuilds,
+        note: `${numbers.faced.toLocaleString()} of ${numbers.shapes.toLocaleString()} shapes with a face, ${numbers.firstBuildCounts.laidOut.toLocaleString()} of them laid out before layout`,
+      },
+      { name: 'Faces: the scene built again after one move', times: numbers.moves },
+    );
+    indexed = indexScene(buildScene(faced, VIEW));
+    controller.update(faced, VIEW, indexed, false);
+    resetFaceCounts();
+    move(cameraAt(NAMES_FROM * 1.3));
+    await settle(300);
+    phases.push(
+      await measure('Pan, names shown, faces', 180, (frame) =>
+        move(panBy(controller.camera, frame < 90 ? -8 : 8, frame < 90 ? -4 : 4)),
+      ),
+    );
+    phases.push(
+      await measure('Zoom across the label threshold, faces', 180, (frame) =>
+        move(zoomAt(controller.camera, middle, frame < 90 ? 1 / 1.02 : 1.02)),
+      ),
+    );
+    move(cameraAt(DETAILS_FROM * 1.15));
+    await settle(300);
+    phases.push(
+      await measure('Pan, details shown, faces', 180, (frame) =>
+        move(panBy(controller.camera, frame < 90 ? -8 : 8, frame < 90 ? -4 : 4)),
+      ),
+    );
+    const counts = faceCounts();
+    facesNotes.push(
+      `Faces: the tiles asked for ${counts.asked.toLocaleString()} face drawings while they panned and zoomed and laid out ${counts.laidOut.toLocaleString()}, a hit rate of ${hitRate(counts)}; laying out every face of the view once took ${(numbers.drawn.took ?? 0).toFixed(0)} ms`,
+    );
+    indexed = indexScene(buildScene(project, VIEW));
+    controller.update(project, VIEW, indexed, false);
+    await settle(300);
+  }
+
   controller.fitWhole();
   await settle(300);
   const latency: number[] = [];
@@ -418,7 +471,7 @@ async function run(): Promise<void> {
 
   // Theme switches (ADR-0033): each draws the tiles on screen again within the frame's clock, and
   // then shows them, with the page, in one frame.
-  const themeNotes: string[] = [];
+  const themeNotes: string[] = [...facesNotes];
   const switchPhase = async (name: string, place: () => void) => {
     place();
     await settle(1000);
@@ -514,7 +567,7 @@ async function run(): Promise<void> {
   // Edits, near the middle of the screen, where they are drawn in full and named.
   move(cameraAt(NAMES_FROM * 1.3));
   await settle(300);
-  const timed: Timed[] = [await measureEdits(10), ...liveTimed];
+  const timed: Timed[] = [await measureEdits(10), ...liveTimed, ...facesTimed];
   if (tables) timed.push(await measureColumnEdits(10));
   timed.push(await measureLayouts(4));
   // Resizing the shape in the middle by a handle, the guides showing (W51, ADR 0074).
