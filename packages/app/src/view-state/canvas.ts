@@ -16,6 +16,7 @@ import type { Camera } from '../canvas/camera';
 import { FrameCapture } from '../canvas/capture';
 import type { CanvasController } from '../canvas/controller';
 import type { Size } from '../canvas/geometry';
+import type { GlideSurface } from '../tours/glide-layer';
 
 /** How a glide goes, besides its time. */
 export interface GlideOptions {
@@ -60,6 +61,11 @@ export interface CanvasCamera {
    * 0077); none where the canvas cannot copy its frames.
    */
   capture?(): FrameCapture | undefined;
+  /**
+   * A 2D canvas laid over the canvas for a tour step's shapes to glide on (ADR 0084); none where the
+   * canvas cannot lend one.
+   */
+  glideSurface?(): GlideSurface | undefined;
 }
 
 /** Where the camera is, as the canvas area keeps it for what follows it. */
@@ -183,6 +189,10 @@ export function canvasCamera(
       return element === undefined
         ? undefined
         : new FrameCapture(element, undefined, (listener) => renderer.afterNextFrame(listener));
+    },
+    glideSurface: () => {
+      const { renderer } = controller;
+      return typeof renderer.glideSurface === 'function' ? renderer.glideSurface() : undefined;
     },
   };
 }

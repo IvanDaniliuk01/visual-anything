@@ -486,6 +486,44 @@ describe('TourStage’s reveals, scenario card and controls', () => {
       stage();
       expect(status()).toHaveTextContent(/^\s*$/);
     });
+
+    it('says what the caption points at, and the chain a pulse follows (ADR 0084)', () => {
+      const explaining: TourFile = {
+        ...tour,
+        steps: [
+          {
+            id: 'explains',
+            viewState: { view: 'system-overview' },
+            caption: { title: 'Who books', pointTo: 'api-writes-db' },
+            marks: ['api-writes-db'],
+            pulse: { relations: ['agent-to-api', 'api-writes-db'] },
+          },
+        ],
+      };
+      stage({ tour: explaining, said: { kind: 'step', step: 0, reveal: 0, count: 1 } });
+      expect(status()).toHaveTextContent(
+        /Pointing at “.+”\. A pulse follows the chain: “Booking agent” .+ “Appointments API”; “Appointments API” .+ “Appointments DB”\./,
+      );
+    });
+  });
+
+  describe('a caption’s leader line (ADR 0084)', () => {
+    it('draws from the card to its mark, and says when the mark is off the canvas', () => {
+      const { container, rerender, onAction } = stage({
+        leader: { from: { x: 10, y: 20 }, to: { x: 30, y: 40 } },
+      });
+      const line = container.querySelector('.tour-leader line');
+      expect(line).toHaveAttribute('x1', '10');
+      expect(line).toHaveAttribute('y2', '40');
+      expect(container.querySelector('.tour-leader')).toHaveAttribute('aria-hidden', 'true');
+      rerender(
+        <TourStage project={sample} tour={tour} step={0} onAction={onAction} leader="off" />,
+      );
+      expect(container.querySelector('.tour-leader')).toBeNull();
+      expect(screen.getByRole('article')).toHaveTextContent(
+        'It explains something off the canvas.',
+      );
+    });
   });
 });
 

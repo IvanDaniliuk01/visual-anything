@@ -8,6 +8,7 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 import type { Camera } from '../canvas/camera';
 import { MAX_CAPTURE_WAIT, type FrameCapture } from '../canvas/capture';
+import type { GlideSide } from './glide-layer';
 import { TourTransitions, type TransitionTimers } from './transition';
 
 /** Timers that run only as the test moves the clock on. */
@@ -367,5 +368,91 @@ describe('TourTransitions, outside a step’s transition', () => {
     expect(made.move(CUT, TO, { canvas, fades: true })).toEqual({ duration: 0 });
     expect(captures[0]?.fadeOut).toHaveBeenCalledWith(TOUR_CROSS_FADE, { afterFrame: true });
     expect(made.move('stay', TO, { canvas, fades: true })).toEqual({ duration: 0 });
+  });
+});
+
+describe('TourTransitions, gliding shapes into another view (ADR 0084)', () => {
+  /** A side of a glide: `count` shapes in a row, `x` across. */
+  const side = (count: number, x = 0): GlideSide => ({
+    shapes: Array.from({ length: count }, (_, at) => ({
+      element: `e${at}`,
+      path: `e${at}`,
+      rect: { x: x + at * 10, y: 0, width: 8, height: 8 },
+    })),
+    looks: Array.from({ length: count }, (_, at) => ({
+      kind: 'rectangle' as const,
+      fill: '#ffffff',
+      stroke: '#000000',
+      name: `e${at}`,
+    })),
+  });
+  const SCREEN = { width: 1000, height: 600 };
+
+  function gliding(count: number) {
+    const timers = manualTimers();
+    const fake = fakeCanvas();
+    const element = {
+      setAttribute: vi.fn(),
+      getContext: () => null,
+      remove: vi.fn(),
+      style: { opacity: '1' },
+      width: 1,
+      height: 1,
+    } as unknown as HTMLCanvasElement;
+    const canvas = {
+      ...fake.canvas,
+      glideSurface: vi.fn(() => ({ element, background: '#fff', dark: false, resolution: 1 })),
+    };
+    const frames: ((time: number) => void)[] = [];
+    const made = new TourTransitions(timers.clock, {
+      now: () => 0,
+      request: (run) => frames.push(run),
+      cancel: () => {},
+    });
+    made.begin({
+      target: 'step 1',
+      step: 1,
+      from: 0,
+      kept: [],
+      canvas,
+      fades: true,
+      cuts: true,
+      moves: true,
+      glide: side(count),
+    });
+    const glide = made.move(CUT, TO, {
+      canvas,
+      fades: true,
+      glideTo: { side: side(count, 500), screen: SCREEN },
+    });
+    return { made, timers, canvas, element, glide, captures: fake.captures };
+  }
+
+  it('glides the shapes it shares, the frame before fading out over them, then fades them out', () => {
+    const { made, timers, canvas, element, glide, captures } = gliding(5);
+    expect(glide).toEqual({ duration: 0 });
+    expect(canvas.glideSurface).toHaveBeenCalled();
+    expect(made.glided).toBe(5);
+    // The frame before, held since the press, fades out over the shapes.
+    expect(captures[0]?.hold).toHaveBeenCalled();
+    expect(captures[0]?.fadeOut).toHaveBeenCalledWith(TOUR_FADE_OUT);
+    // Half a screen's width: 325 ms of glide after the out stage, then the in stage.
+    timers.to(TOUR_FADE_OUT + 324);
+    expect(made.getState().marks).toBe('waiting');
+    timers.to(TOUR_FADE_OUT + 325);
+    expect(made.getState().marks).toBe('arriving');
+    // A press finishes it: the layer goes.
+    made.finish();
+    expect(element.remove).toHaveBeenCalled();
+  });
+
+  it('cuts, as before, when the steps share fewer than 3 shapes', () => {
+    const { made, canvas, captures } = gliding(2);
+    expect(canvas.glideSurface).not.toHaveBeenCalled();
+    expect(made.glided).toBe(0);
+    expect(captures[0]?.fadeOut).toHaveBeenCalledWith(
+      TOUR_CROSS_FADE,
+      expect.objectContaining({ afterFrame: true }),
+    );
   });
 });

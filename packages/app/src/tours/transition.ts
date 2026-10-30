@@ -10,6 +10,12 @@
  *   is held from the start.
  * - **In:** the step's marks fade in by the opacity of their halos, and the new caption fades in.
  *
+ * - **Glide, into another view (ADR 0084):** where the two steps share 3 to 400 shapes on screen, the
+ *   cut becomes a glide. Once the view after has drawn, the glide layer shows the shared shapes
+ *   simply at their places before, under the frame before, which fades out with what is not shared;
+ *   the shapes move to their places after on the camera's timing; and the layer fades out over the
+ *   in stage, the full drawing of the view after replacing them.
+ *
  * A press during a transition finishes it at once, the camera where it goes, before the next starts:
  * transitions never queue. A reveal fades its marks in; taking one away fades out a capture of the
  * frame that showed it. With fades off, the fades take no time and a cut is plain.
@@ -21,12 +27,15 @@ import {
   TOUR_CROSS_FADE,
   TOUR_FADE_IN,
   TOUR_FADE_OUT,
+  planGlide,
   tourTransition,
   type TourMove,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import type { Camera } from '../canvas/camera';
 import { MAX_CAPTURE_WAIT, type FrameCapture } from '../canvas/capture';
+import type { Size } from '../canvas/geometry';
+import { GlideLayer, type GlideClock, type GlideSide } from './glide-layer';
 import type { TravelGlide } from '../view-state/applier';
 import type { CanvasCamera } from '../view-state/canvas';
 
@@ -60,7 +69,7 @@ export interface TransitionTimers {
 }
 
 /** What a transition needs of the canvas. */
-export type TransitionCanvas = Pick<CanvasCamera, 'capture' | 'setCamera'>;
+export type TransitionCanvas = Pick<CanvasCamera, 'capture' | 'setCamera' | 'glideSurface'>;
 
 /** A step a tour comes to. */
 export interface StepRequest {
@@ -75,6 +84,11 @@ export interface StepRequest {
   cuts: boolean;
   /** Whether a move of the camera will come: not when the step's view is gone, or without a canvas. */
   moves: boolean;
+  /**
+   * The shapes on screen in the step left, when the step goes into another view and may glide them
+   * to their places in it (ADR 0084): not under reduced motion, nor for a step that always cuts.
+   */
+  glide?: GlideSide | undefined;
 }
 
 /** A reveal a tour's step brings in, or takes away. */
@@ -114,7 +128,12 @@ interface Pending {
   start: number;
   fades: boolean;
   canvas: TransitionCanvas | undefined;
+  /** The shapes on screen in the step left, to glide (ADR 0084). */
+  glide?: GlideSide | undefined;
 }
+
+/** A camera path that stays, for timing a glide's stages as a move's. */
+const STILL = { length: 0, zoomOut: 1, at: () => ({ x: 0, y: 0, zoom: 1 }) };
 
 export class TourTransitions {
   #state: TransitionState = IDLE;
@@ -126,11 +145,23 @@ export class TourTransitions {
   #pending: Pending | undefined;
   /** Where the camera glides, until when, and on which canvas, to finish it at once. */
   #glide: { to: Camera; until: number; canvas: TransitionCanvas } | undefined;
+  /** The shapes gliding into another view (ADR 0084). */
+  #layer: GlideLayer | undefined;
+  /** Whether the step come to glided its shapes, for its host and the benchmark. */
+  #glided = 0;
   /** The step come to, and whether its caption showed from the start. */
   #step = 0;
   #first = false;
 
-  constructor(private readonly clock: TransitionTimers = BROWSER_TIMERS) {}
+  constructor(
+    private readonly clock: TransitionTimers = BROWSER_TIMERS,
+    private readonly glideClock?: GlideClock,
+  ) {}
+
+  /** How many shapes the last step's transition glided: 0 when it cut or moved its camera. */
+  get glided(): number {
+    return this.#glided;
+  }
 
   readonly subscribe = (listener: () => void): (() => void) => {
     this.#listeners.add(listener);
@@ -173,7 +204,13 @@ export class TourTransitions {
       }
     }
     // The first step has nothing to fade out: its camera moves at once.
-    this.#pending = { start: this.#first ? now - out : now, fades, canvas };
+    this.#glided = 0;
+    this.#pending = {
+      start: this.#first ? now - out : now,
+      fades,
+      canvas,
+      ...(request.glide && !this.#first ? { glide: request.glide } : {}),
+    };
     if (!request.moves) {
       this.#settle('stay', undefined, undefined);
       return;
@@ -196,10 +233,12 @@ export class TourTransitions {
       along?: (part: number) => Camera;
       canvas?: TransitionCanvas | undefined;
       fades: boolean;
+      /** The shapes on screen in the step come to, where the step goes into another view. */
+      glideTo?: { side: GlideSide; screen: Size } | undefined;
     },
   ): TravelGlide {
     const { along } = options;
-    if (this.#pending) return this.#settle(move, to, along);
+    if (this.#pending) return this.#settle(move, to, along, options.glideTo);
     if (move === 'stay') return { duration: 0 };
     if (move.kind === 'ease') return { duration: move.duration, ...(along ? { along } : {}) };
     if (options.fades) options.canvas?.capture?.()?.fadeOut(TOUR_CROSS_FADE, { afterFrame: true });
@@ -234,6 +273,8 @@ export class TourTransitions {
   finish(): void {
     for (const stop of this.#timers.splice(0)) stop();
     for (const capture of this.#captures.splice(0)) capture.drop();
+    this.#layer?.drop();
+    this.#layer = undefined;
     this.#held = undefined;
     this.#pending = undefined;
     const glide = this.#glide;
@@ -269,9 +310,14 @@ export class TourTransitions {
     move: TourMove | 'stay',
     to: Camera | undefined,
     along: ((part: number) => Camera) | undefined,
+    glideTo?: { side: GlideSide; screen: Size },
   ): TravelGlide {
     const pending = this.#pending as Pending;
     this.#pending = undefined;
+    if (move !== 'stay' && move.kind === 'cut' && pending.glide && glideTo) {
+      const glided = this.#glideShapes(pending, glideTo);
+      if (glided) return glided;
+    }
     const now = this.clock.now();
     const plan = tourTransition(move, { fades: pending.fades });
     const cameraStart = Math.max(pending.start + plan.camera.start, now);
@@ -298,6 +344,51 @@ export class TourTransitions {
       this.#glide = { to, until: cameraStart + move.duration, canvas: pending.canvas };
     }
     return { duration: move.duration, delay: cameraStart - now, ...(along ? { along } : {}) };
+  }
+
+  /**
+   * Glides the shapes the two steps share into the view come to (ADR 0084): the frame before fades
+   * out over the layer, the shapes move, and the layer fades out over the in stage. Nothing, so that
+   * the step cuts, when they share fewer than 3 shapes or more than 400, or the canvas lends no layer.
+   */
+  #glideShapes(
+    pending: Pending,
+    glideTo: { side: GlideSide; screen: Size },
+  ): TravelGlide | undefined {
+    const before = pending.glide as GlideSide;
+    const after = glideTo.side;
+    const plan = planGlide(before.shapes, after.shapes, {
+      screen: glideTo.screen,
+      reducedMotion: false,
+    });
+    if (plan.kind !== 'glide') return undefined;
+    const surface = pending.canvas?.glideSurface?.();
+    if (!surface) return undefined;
+    const items = plan.pairs.flatMap((pair) => {
+      const from = before.shapes[pair.before];
+      const to = after.shapes[pair.after];
+      const look = after.looks[pair.after];
+      return from && to && look ? [{ from: from.rect, to: to.rect, look }] : [];
+    });
+    const layer = new GlideLayer(surface, items, glideTo.screen, this.glideClock);
+    this.#layer = layer;
+    this.#glided = items.length;
+    const timing = tourTransition(
+      { kind: 'ease', duration: plan.duration, path: STILL },
+      { fades: pending.fades },
+    );
+    const now = this.clock.now();
+    // The frame before fades out over the shapes that glide: what they do not share goes with it.
+    const held = this.#held;
+    this.#held = undefined;
+    if (held) held.fadeOut(timing.out.duration);
+    const moveStart = now + timing.out.duration;
+    layer.move(moveStart, plan.duration);
+    this.#at(moveStart + (timing.in.start - timing.camera.start), () => {
+      layer.fadeOut(this.clock.now(), timing.in.duration);
+      this.#in(timing.in.duration);
+    });
+    return { duration: 0 };
   }
 
   /** The in stage: the marks and the new caption fade in. */

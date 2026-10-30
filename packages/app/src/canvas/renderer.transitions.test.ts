@@ -100,6 +100,26 @@ describe('marks that arrive', () => {
     expect(inside(renderer).arriving.alpha).toBe(1);
   });
 
+  it('draw their lines from their start, at full strength, then join the rest (ADR 0084)', async () => {
+    const { renderer } = await started();
+    renderer.show(indexed);
+    renderer.setEmphasis({
+      highlighted: new Set([line.relation]),
+      arriving: { keys: new Set([line.relation]), duration: 200, draw: 400 },
+    });
+    const drawing = (renderer as unknown as { lineDrawMarks: Graphics }).lineDrawMarks;
+    // Nothing of the line yet: it draws from its start as time goes on.
+    expect(drawing.context.instructions).toHaveLength(0);
+    expect(inside(renderer).arrivingMarks.context.instructions).toHaveLength(0);
+    time += 200;
+    renderer.renderNow();
+    expect(drawing.context.instructions.length).toBeGreaterThan(0);
+    time += 250;
+    renderer.renderNow();
+    expect(drawing.context.instructions).toHaveLength(0);
+    expect(inside(renderer).arrivingMarks.context.instructions.length).toBeGreaterThan(0);
+  });
+
   it('are drawn with the rest once nothing arrives', async () => {
     const { renderer } = await started();
     renderer.show(indexed);

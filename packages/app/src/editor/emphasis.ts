@@ -34,6 +34,11 @@ export interface Emphasis {
 export interface Arriving {
   keys: ReadonlySet<string>;
   duration: number;
+  /**
+   * Present when the lines among them draw from their start rather than fade in, over this many
+   * milliseconds from when the canvas is given them (ADR 0084).
+   */
+  draw?: number;
 }
 
 /**
@@ -96,6 +101,7 @@ export class EmphasisStore {
       was.from.length === from.length &&
       was.from.every((each, at) => each === from[at]) &&
       was.arriving.duration === arriving.duration &&
+      was.arriving.draw === arriving.draw &&
       sameKeys(was.arriving.keys, arriving.keys)
     ) {
       return arriving === was.arriving ? union : { ...union, arriving: was.arriving };
@@ -152,12 +158,14 @@ function arrivingOf(all: readonly Emphasis[]): Arriving | undefined {
   if (only && ![...only.keys].some((key) => shown.has(key))) return only;
   const keys = new Set<string>();
   let duration = 0;
+  let draw = 0;
   for (const emphasis of asking) {
     const each = emphasis.arriving as Arriving;
     duration = Math.max(duration, each.duration);
+    draw = Math.max(draw, each.draw ?? 0);
     for (const key of each.keys) if (!shown.has(key)) keys.add(key);
   }
-  return keys.size === 0 ? undefined : { keys, duration };
+  return keys.size === 0 ? undefined : { keys, duration, ...(draw > 0 ? { draw } : {}) };
 }
 
 /** The store of the open project, which the shell provides. */

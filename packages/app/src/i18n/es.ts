@@ -2189,6 +2189,41 @@ export const ui: Catalog = {
   'What to look at in step {n}': 'Qué revisar en el paso {n}',
   'Step {n} cuts from step {m} with a cross-fade, into another view.':
     'El paso {n} corta desde el paso {m} con un fundido, hacia otra vista.',
+  // M11d: tours that explain (ADR 0084), in the Tours panel and on the stage.
+  'Step {n} glides the {count} shapes it shares with step {m} into another view.': {
+    one: 'El paso {n} desliza hacia otra vista la {count} forma que comparte con el paso {m}.',
+    other: 'El paso {n} desliza hacia otra vista las {count} formas que comparte con el paso {m}.',
+  },
+  'Step {n} cuts from step {m} with a cross-fade, as it asks to.':
+    'El paso {n} corta desde el paso {m} con un fundido, como pide.',
+  'Step {n} cuts from step {m} with a cross-fade, into another view: they share fewer than {least} shapes.':
+    'El paso {n} corta desde el paso {m} con un fundido, hacia otra vista: comparten menos de {least} formas.',
+  'The caption points at': 'El rótulo apunta a',
+  'Step {n} points at nothing.': 'El paso {n} no apunta a nada.',
+  'Step {n} points at “{name}”.': 'El paso {n} apunta a “{name}”.',
+  'Always cut, never glide its shapes': 'Cortar siempre, sin deslizar sus formas',
+  'Step {n} always cuts.': 'El paso {n} corta siempre.',
+  'Step {n} glides its shapes when it can.': 'El paso {n} desliza sus formas cuando puede.',
+  'Pulses along {names}.': 'Envía un pulso por {names}.',
+  'No pulse.': 'Sin pulso.',
+  'Pulse along the selected relations': 'Pulso por las relaciones seleccionadas',
+  'Step {n} pulses along the selected relations.':
+    'El paso {n} envía un pulso por las relaciones seleccionadas.',
+  'How many times it runs': 'Cuántas veces corre',
+  'Step {n} pulses {count} times.': {
+    one: 'El paso {n} envía el pulso una vez.',
+    other: 'El paso {n} envía el pulso {count} veces.',
+  },
+  Once: 'Una vez',
+  Twice: 'Dos veces',
+  'Three times': 'Tres veces',
+  'No pulse': 'Sin pulso',
+  'Step {n} sends no pulse.': 'El paso {n} no envía ningún pulso.',
+  'The selected relations do not join into a chain: each must share an end with the next.':
+    'Las relaciones seleccionadas no forman una cadena: cada una debe compartir un extremo con la siguiente.',
+  'It explains something off the canvas.': 'Explica algo que está fuera del lienzo.',
+  'Pointing at “{name}”.': 'Apunta a “{name}”.',
+  'A pulse follows the chain: {names}.': 'Un pulso sigue la cadena: {names}.',
   Title: 'Título',
   Caption: 'Rótulo',
   'Markdown: **bold**, *italic*, `code`, lists, headings and links; a blank line starts a paragraph.':

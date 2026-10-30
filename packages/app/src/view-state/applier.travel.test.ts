@@ -65,7 +65,7 @@ describe('a tour step’s move', () => {
     applier.goTo({ kind: 'address', state: { view: VIEW }, travel }, context);
     applier.sync(context);
     expect(canvas.targetOf).toHaveBeenCalledWith({ whole: true });
-    expect(move).toHaveBeenCalledWith(HERE, WHOLE, VIEWPORT, true);
+    expect(move).toHaveBeenCalledWith(HERE, WHOLE, VIEWPORT, true, expect.anything());
     expect(canvas.glideTo).toHaveBeenCalledWith(WHOLE, 320, { along, delay: 150 });
     expect(canvas.setCamera).not.toHaveBeenCalled();
   });
@@ -122,7 +122,8 @@ describe('a tour step’s move', () => {
     const opened = contextOf(second, canvas);
     applier.sync(opened);
     applier.sync(opened);
-    expect(move).toHaveBeenCalledWith(HERE, WHOLE, VIEWPORT, false);
+    // It goes with the scene of the view it goes to, for its shapes to glide to (ADR 0084).
+    expect(move).toHaveBeenCalledWith(HERE, WHOLE, VIEWPORT, false, expect.anything());
   });
 
   // ADR 0077: a step without a camera that plays a scenario frames everything its range plays.

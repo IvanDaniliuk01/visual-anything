@@ -81,6 +81,7 @@ import { TileImages, type ImageView } from './images-draw';
 import { bitmapText, installFonts } from './labels';
 import { THEMES, type CanvasTheme } from '../theme/themes';
 import { DIMMED_ALPHA } from './colors';
+import { drawnPieces } from './lineDraw';
 import { lengthOf, midpointOf, pointAlong, type RouteEnd } from './route';
 import { drawRouteOverlay, type RouteOverlay } from './routing/overlay';
 import { drawShapeEditOverlay, type ShapeEditOverlay } from './shapeEditMarks';
@@ -472,6 +473,12 @@ export class CanvasRenderer {
   private readonly arrivingMarks = new Graphics();
   private readonly arriving = new Container({ isRenderGroup: true });
   private arrivingFade: { since: number; duration: number } | undefined;
+  /**
+   * The lines that arrive drawing from their start rather than fading in (ADR 0084), traced again
+   * each frame while they draw, and since when.
+   */
+  private readonly lineDrawMarks = new Graphics();
+  private arrivingDraw: { since: number; duration: number } | undefined;
   private readonly markerMarks = new Graphics();
   /** Told once the canvas has drawn its next frame, as a capture waits for after a cut (ADR 0077). */
   private readonly frameListeners = new Set<() => void>();
@@ -670,6 +677,7 @@ export class CanvasRenderer {
     this.marks.addChild(
       this.emphasisMarks,
       this.arriving,
+      this.lineDrawMarks,
       this.hoverMark,
       this.selectionMarks,
       this.movingMarks,
@@ -3228,9 +3236,15 @@ export class CanvasRenderer {
    * each end. The corner marks and the dots tell a highlight apart without its color.
    */
   private drawHighlights(): void {
-    const { highlighted, arriving } = this.emphasized;
+    const { highlighted } = this.emphasized;
+    let { arriving } = this.emphasized;
     this.arrivingMarks.clear();
-    if (countLit(arriving) === 0) {
+    // Lines that draw from their start are traced each frame apart, at full strength (ADR 0084).
+    if (this.arrivingDraw) {
+      this.drawDrawing();
+      arriving = { ...arriving, lines: [] };
+    }
+    if (countLit(this.emphasized.arriving) === 0) {
       this.drawLit(this.emphasisMarks, highlighted);
       return;
     }
@@ -3240,7 +3254,7 @@ export class CanvasRenderer {
     };
     this.drawLit(this.emphasisMarks, {
       shapes: without(highlighted.shapes, arriving.shapes),
-      lines: without(highlighted.lines, arriving.lines),
+      lines: without(highlighted.lines, this.emphasized.arriving.lines),
       notes: without(highlighted.notes, arriving.notes),
       arrows: without(highlighted.arrows, arriving.arrows),
     });
@@ -3256,27 +3270,89 @@ export class CanvasRenderer {
       this.finishArriving();
       return;
     }
-    this.arrivingFade = { since: performance.now(), duration: emphasized.arrivingFor };
+    const now = performance.now();
+    this.arrivingFade = { since: now, duration: emphasized.arrivingFor };
     this.arriving.alpha = 0;
+    this.arrivingDraw =
+      emphasized.arrivingDraw > 0 && emphasized.arriving.lines.length > 0
+        ? { since: now, duration: emphasized.arrivingDraw }
+        : undefined;
+    if (!this.arrivingDraw) this.lineDrawMarks.clear();
   }
 
-  /** Shows at once what arrives, as when a transition is finished. */
+  /** Shows at once what arrives, as when a transition is finished: lines drawing are drawn whole. */
   private finishArriving(): void {
     this.arrivingFade = undefined;
     if (this.arriving.alpha !== 1) this.arriving.alpha = 1;
+    if (this.arrivingDraw) {
+      this.arrivingDraw = undefined;
+      this.lineDrawMarks.clear();
+      this.drawHighlights();
+    }
   }
 
-  /** Where the fade of what arrives is now: one value a frame, whatever it marks. */
+  /**
+   * Where the fade of what arrives is now: one value a frame, whatever it marks; and the lines that
+   * draw from their start, traced again a little further.
+   */
   private followArriving(): void {
+    const drawing = this.arrivingDraw;
+    if (drawing) {
+      if (!(performance.now() - drawing.since < drawing.duration)) {
+        this.arrivingDraw = undefined;
+        this.lineDrawMarks.clear();
+        this.drawHighlights();
+      } else this.drawDrawing();
+      this.requestRender();
+    }
     const fade = this.arrivingFade;
     if (!fade) return;
     const part = (performance.now() - fade.since) / fade.duration;
     if (!(part < 1)) {
-      this.finishArriving();
+      this.arrivingFade = undefined;
+      if (this.arriving.alpha !== 1) this.arriving.alpha = 1;
       return;
     }
     this.arriving.alpha = Math.max(0, part);
     this.requestRender();
+  }
+
+  /**
+   * Traces the lines that arrive as far as they have drawn from their start (ADR 0084): a directed
+   * one from its `from` end, an undirected one from both ends, the dot at an end showing once the
+   * line reaches it.
+   */
+  private drawDrawing(): void {
+    const marks = this.lineDrawMarks;
+    marks.clear();
+    const drawing = this.arrivingDraw;
+    if (!drawing) return;
+    const part = Math.max(0, (performance.now() - drawing.since) / drawing.duration);
+    const { scale } = this.camera;
+    const { highlight } = this.painter.theme;
+    const halo = { color: highlight, alpha: 0.28, join: 'round', cap: 'round' } as const;
+    const ends: Point[] = [];
+    for (const line of this.emphasized.arriving.lines) {
+      const directed = line.arrowhead !== undefined;
+      const pieces = drawnPieces(line.route, part, directed);
+      for (const piece of pieces) {
+        traceRoute(marks, piece);
+        marks.stroke({ ...halo, width: line.width + 12 / scale });
+        traceRoute(marks, piece);
+        marks.stroke({
+          color: highlight,
+          width: line.width + 2 / scale,
+          join: 'round',
+          cap: 'round',
+        });
+      }
+      const start = line.route[0];
+      if (start && pieces.length > 0) ends.push(start);
+      const end = line.route.at(-1);
+      if (end && (part >= 1 || (!directed && pieces.length > 0))) ends.push(end);
+    }
+    for (const end of ends) marks.circle(end.x, end.y, 4 / scale);
+    if (ends.length > 0) marks.fill(highlight);
   }
 
   /** Marks these in `marks`, as `drawHighlights` says. */
@@ -3630,6 +3706,38 @@ export class CanvasRenderer {
     });
     source.after(copy);
     return copy;
+  }
+
+  /**
+   * A 2D canvas of the drawing buffer's size laid over the canvas, under the captures taken before
+   * it, for a tour step's shapes to glide on (ADR 0084), with the background and the theme it draws
+   * them in. Undefined before the canvas starts. Whoever takes it removes it.
+   */
+  glideSurface():
+    | { element: HTMLCanvasElement; background: string; dark: boolean; resolution: number }
+    | undefined {
+    if (this.status !== 'ready') return undefined;
+    const source = this.app.canvas;
+    const element = document.createElement('canvas');
+    element.width = source.width;
+    element.height = source.height;
+    Object.assign(element.style, {
+      position: 'absolute',
+      left: '0',
+      top: '0',
+      width: '100%',
+      height: '100%',
+      pointerEvents: 'none',
+      opacity: '1',
+    });
+    source.after(element);
+    const width = this.viewport.width;
+    return {
+      element,
+      background: this.painter.theme.background,
+      dark: this.painter.name === 'dark',
+      resolution: width > 0 ? source.width / width : 1,
+    };
   }
 
   private requestRender(): void {
@@ -4713,6 +4821,7 @@ function keptEmphasized(before: Emphasized, after: Emphasized): Emphasized {
   const wasComing = before.arriving;
   const arriving =
     after.arrivingFor === before.arrivingFor &&
+    after.arrivingDraw === before.arrivingDraw &&
     sameList(coming.shapes, wasComing.shapes) &&
     sameList(coming.lines, wasComing.lines) &&
     sameList(coming.notes, wasComing.notes) &&
@@ -4726,6 +4835,7 @@ function keptEmphasized(before: Emphasized, after: Emphasized): Emphasized {
     highlighted,
     arriving,
     arrivingFor: after.arrivingFor,
+    arrivingDraw: after.arrivingDraw,
     markers,
   };
 }

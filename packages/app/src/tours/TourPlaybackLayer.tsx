@@ -43,6 +43,7 @@ export function TourPlaybackLayer({
       said={stage.said}
       fades={stage.fades}
       cardRef={card}
+      leader={stage.leader}
     />
   );
 }

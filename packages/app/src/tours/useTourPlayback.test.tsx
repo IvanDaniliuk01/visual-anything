@@ -208,6 +208,41 @@ describe('useTourPlayback’s stages', () => {
     expect(result.current.transition.phase).toBe('shown');
   });
 
+  it('draws the lines a step brings in from their start, and sends its pulse once it settles (ADR 0084)', () => {
+    const pulsing: TourFile = {
+      id: 'pulsing',
+      name: 'Pulsing',
+      steps: [
+        {
+          id: 'chain',
+          viewState: { view: VIEW },
+          caption: { title: 'Chain' },
+          marks: ['agent-to-api'],
+          pulse: { relations: ['whatsapp-to-agent', 'agent-to-api'] },
+        },
+      ],
+    };
+    const { result, emphasis, pass, arrive } = setUp({ played: pulsing });
+    act(() => result.current.host.play(pulsing));
+    pass(40);
+    act(() => {
+      arrive();
+    });
+    expect(emphasis.get().arriving?.draw).toBe(400);
+    pass(TOUR_FADE_IN);
+    pass(50);
+    // The marker runs along the first relation, then the second, then goes.
+    expect(emphasis.get().markers?.[0]?.relation).toBe('whatsapp-to-agent');
+    pass(600);
+    expect(emphasis.get().markers?.[0]?.relation).toBe('agent-to-api');
+    pass(700);
+    expect(emphasis.get().markers).toBeUndefined();
+    // R plays it again.
+    act(() => result.current.act('replay'));
+    pass(32);
+    expect(emphasis.get().markers?.[0]?.relation).toBe('whatsapp-to-agent');
+  });
+
   it('brings a reveal in one press at a time, and takes it away one press back', () => {
     const { result, captures, arrive, emphasis, tourMarks, pass } = setUp();
     act(() => result.current.host.play(tour, 1));
