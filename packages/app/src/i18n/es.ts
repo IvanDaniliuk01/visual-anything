@@ -5633,7 +5633,8 @@ export const builtins: Readonly<
   },
   'data-modeling': {
     name: 'Modelado de datos',
-    description: 'Tablas y sus columnas, y las referencias entre columnas.',
+    description:
+      'Tablas y sus columnas, y las referencias entre columnas; los esquemas, vistas, enums, funciones, triggers y secuencias de una base de datos, y qué lee de qué, escribe en qué, se dispara en qué y ejecuta qué.',
   },
   'data-modeling.table': {
     name: 'Tabla',
@@ -5641,17 +5642,76 @@ export const builtins: Readonly<
   },
   'data-modeling.column': {
     name: 'Columna',
-    description: 'Una columna de una tabla.',
+    description: 'Una columna de una tabla o de una vista.',
     attributes: {
       type: 'Su tipo de datos, como "uuid", "integer" o "varchar(255)".',
       primaryKey: 'Si forma parte de la clave primaria de su tabla.',
       notNull: 'Si rechaza valores vacíos.',
       unique: 'Si dos registros no pueden tener el mismo valor.',
+      default:
+        'El valor que toma cuando un registro no da ninguno, tal como está escrito, como "now()" o "0". Es texto, y nunca se ejecuta.',
+      check:
+        'La condición que deben cumplir sus valores, tal como está escrita, como "total_cents >= 0". Es texto, y nunca se ejecuta.',
+    },
+  },
+  'data-modeling.schema': {
+    name: 'Esquema',
+    description:
+      'Un espacio de nombres de una base de datos, como "billing", que tiene tablas, vistas, enums, funciones, triggers y secuencias. Es parte de su base de datos.',
+  },
+  'data-modeling.view': {
+    name: 'Vista',
+    description:
+      'Una vista de una base de datos: una consulta con nombre que se lee como una tabla. Dibuja sus columnas como sus filas, y lee de las tablas y vistas que nombra.',
+  },
+  'data-modeling.materialized-view': {
+    name: 'Vista materializada',
+    description:
+      'Una vista cuyos registros guarda la base de datos, y que actualiza cuando se le pide.',
+  },
+  'data-modeling.enum': {
+    name: 'Enum',
+    description:
+      'Un tipo que toma uno de una lista fija y ordenada de valores. Una columna de ese tipo lo nombra como su tipo.',
+    attributes: {
+      values: 'Sus valores en orden, separados por comas, como "draft, paid, void".',
+    },
+  },
+  'data-modeling.function': {
+    name: 'Función',
+    description:
+      'Una función o un procedimiento guardado en una base de datos. El modelo tiene lo que lee, escribe y devuelve, nunca su código.',
+    attributes: {
+      language: 'En qué está escrita, como "sql" o "plpgsql".',
+      arguments: 'Sus argumentos tal como están escritos, como "order_id uuid, amount integer".',
+      returns:
+        'Lo que devuelve, tal como está escrito, como "trigger", "boolean" o "setof orders".',
+    },
+  },
+  'data-modeling.trigger': {
+    name: 'Trigger',
+    description:
+      'Lo que hace una base de datos cuando cambia una tabla o una vista: se dispara en ellas y ejecuta una función. El modelo tiene cuándo se dispara, nunca su código.',
+    attributes: {
+      timing: 'Cuándo se dispara, respecto del cambio.',
+      events:
+        'Los cambios en los que se dispara, tal como están escritos, como "insert, update" o "update of status".',
+      level: 'Si se dispara una vez por cada registro que cambia o una vez por cada sentencia.',
+    },
+  },
+  'data-modeling.sequence': {
+    name: 'Secuencia',
+    description:
+      'Un contador de una base de datos que entrega el número siguiente, a menudo al valor por omisión de una columna.',
+    attributes: {
+      type: 'Su tipo de datos, como "bigint".',
+      start: 'El primer número que entrega.',
+      increment: 'Lo que suma para el número siguiente.',
     },
   },
   'data-modeling.is-column-of': {
     name: 'es columna de',
-    description: 'Ubica una columna en su tabla.',
+    description: 'Ubica una columna en su tabla o en su vista.',
   },
   'data-modeling.references': {
     name: 'referencia',
@@ -5661,6 +5721,23 @@ export const builtins: Readonly<
       onDelete:
         'Qué pasa con los registros que tienen este valor cuando se elimina el registro al que se refieren.',
     },
+  },
+  'data-modeling.reads-from': {
+    name: 'lee de',
+    description: 'Una vista o una función lee los registros de una tabla o de una vista.',
+  },
+  'data-modeling.writes-to': {
+    name: 'escribe en',
+    description:
+      'Una función inserta, actualiza o elimina los registros de una tabla o de una vista, o toma el número siguiente de una secuencia.',
+  },
+  'data-modeling.fires-on': {
+    name: 'se dispara en',
+    description: 'Un trigger se dispara cuando cambian los registros de esta tabla o vista.',
+  },
+  'data-modeling.runs': {
+    name: 'ejecuta',
+    description: 'Un trigger ejecuta esta función cada vez que se dispara.',
   },
   c4: {
     name: 'Arquitectura C4',

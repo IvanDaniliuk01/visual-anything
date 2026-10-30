@@ -245,7 +245,7 @@ Each recipe takes three arguments, all optional: `source`, where the material is
 | PlantUML | `build_from_plantuml` | Components, databases, actors and the packages that hold them, and arrows; sequence diagrams become scenarios. |
 | draw.io | `build_from_drawio` | Shapes, the shapes they sit in, and arrows; each page becomes a view, with the drawing's positions. |
 | Structurizr DSL | `build_from_structurizr` | People, and software systems holding their containers and components; dynamic views become scenarios. |
-| SQL DDL | `build_from_sql_ddl` | Each table becomes a Table that draws its columns as rows, and each foreign key a "references" relation. |
+| SQL DDL | `build_from_sql_ddl` | One database holding its schemas; each table and view draws its columns as rows, each foreign key becomes a "references" relation, and enums, functions, triggers and sequences say what reads from, writes to, fires on and runs what, never their code. |
 | OpenAPI | `build_from_openapi` | The API becomes a service that draws its operations as rows, and its schemas tables when you want them. |
 | Terraform | `build_from_terraform` | What runs and stores data, placed in its network, and which resource calls which. |
 | Kubernetes manifests | `build_from_kubernetes` | Workloads inside their namespaces, and which workload calls which. |
@@ -262,6 +262,10 @@ Every recipe holds Claude to the same rules:
 - **Layout places the shapes,** except where the material has positions of its own, as draw.io does.
 
 The tools' descriptions sum the recipes up too, so asking in your own words works: "Model what docker-compose.yml runs", "Turn the Mermaid diagrams in docs/ into views", or "Make a scenario of this trace". Each recipe ends with a worked example, which the tests run through the real MCP server.
+
+### Moving a database model onto Data modeling's components
+
+Data modeling holds a whole database: Schema, Table, Column, View, Materialized view, Enum, Function, Trigger and Sequence, with "reads from", "writes to", "fires on" and "runs" (ADR 0023). Built-in packages are closed, so a project adds what one lacks by deriving in a package of its own. A model made that way before these existed, such as one with a `postgres` package (`postgres.esquema`, `postgres.tabla`, `postgres.vista`, `postgres.funcion`, `postgres.trigger`, and relations `lee-de`, `lee`, `escribe`, `se-dispara-en` and `ejecuta`), keeps opening as it is. To move it, ask Claude to change each element's component with `update_element` (`{ "id": "…", "component": "data-modeling.view" }`, and likewise `data-modeling.schema`, `data-modeling.function` and `data-modeling.trigger`; a table whose component derives from Table can stay as it is, or become `data-modeling.table`), copying the attributes it needs into the built-in ones (`lenguaje` into `language`, `momento` into `timing`, in lower case) with `removeAttributes` for the old names, and each relation's type with `update_relation` (`lee-de` and `lee` become `data-modeling.reads-from`, `escribe` `data-modeling.writes-to`, `se-dispara-en` `data-modeling.fires-on`, and `ejecuta` `data-modeling.runs`). Schemas stay inside their database, and what they hold inside them, through `systems.is-part-of`, as before. Once nothing is made from one of the project's own components or relation types, nothing derives from it and no view nests by it, `remove_definition` takes it away.
 
 ## Contributor notes
 

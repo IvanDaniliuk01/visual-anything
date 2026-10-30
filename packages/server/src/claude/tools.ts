@@ -34,6 +34,7 @@ import {
   strokeWarnings,
 } from './appearance-tools';
 import { ALIGN_TOOLS } from './align-tools';
+import { builtInPackageRefusal } from './builtin-refusal';
 import { ProgramUnavailableError, type Program } from './bridge';
 import { cascadeOf, cascadeRefusal, takesMore } from './cascade';
 import { EXPLORE_TOOLS } from './explore-tools';
@@ -622,7 +623,7 @@ Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs
 const defineComponent = tool({
   name: 'define_component',
   title: 'Define a component',
-  description: `Defines a component in one of the project's own packages, as one undoable action, written as the package file's JSON writes it. It derives from exactly one component and inherits everything it does not redefine. Leave the id out to have the program make one from the name. To create, pass createOnly: then an id the package already has is refused rather than redefined. To change some traits of a component, use update_component instead. Read list_definitions first. Colors are #RRGGBB: the answer warns about a stroke under 3:1 against either canvas and a shape that blends into one, as set_appearance does, and never refuses one.
+  description: `Defines a component in one of the project's own packages, as one undoable action, written as the package file's JSON writes it. It derives from exactly one component and inherits everything it does not redefine. Built-in packages are closed: to add to one, derive from its components in a package of the project's own. Leave the id out to have the program make one from the name. To create, pass createOnly: then an id the package already has is refused rather than redefined. To change some traits of a component, use update_component instead. Read list_definitions first. Colors are #RRGGBB: the answer warns about a stroke under 3:1 against either canvas and a shape that blends into one, as set_appearance does, and never refuses one.
 
 Example: { "package": "clinic", "createOnly": true, "component": { "name": "Calendar", "derivesFrom": "systems.database", "attributes": [{ "name": "slotMinutes", "type": "number", "default": 15 }], "appearance": { "fill": "#E3F2E9" } } }`,
   input: {
@@ -636,8 +637,15 @@ Example: { "package": "clinic", "createOnly": true, "component": { "name": "Cale
       ),
   },
   hints: WRITE,
-  run: async (args, program) =>
-    act(
+  run: async (args, program) => {
+    const refusal = builtInPackageRefusal(
+      await program.project(),
+      'component',
+      args.package,
+      args.component,
+    );
+    if (refusal !== undefined) return fail(refusal);
+    return act(
       program,
       {
         type: 'define-component',
@@ -656,13 +664,14 @@ Example: { "package": "clinic", "createOnly": true, "component": { "name": "Cale
             colorsSet(args.component.appearance),
           ),
         ),
-    ),
+    );
+  },
 });
 
 const defineRelationType = tool({
   name: 'define_relation_type',
   title: 'Define a relation type',
-  description: `Defines a relation type in one of the project's own packages, as one undoable action. It derives from exactly one relation type. direction is "directed" or "undirected"; nests: true makes its relations put the from end inside the to end; limits name the components each end should come from, and only warn. Leave the id out to have the program make one; pass createOnly to create rather than redefine. To change some traits, use update_relation_type instead.
+  description: `Defines a relation type in one of the project's own packages, as one undoable action. It derives from exactly one relation type. Built-in packages are closed: to add to one, derive in a package of the project's own. direction is "directed" or "undirected"; nests: true makes its relations put the from end inside the to end; limits name the components each end should come from, and only warn. Leave the id out to have the program make one; pass createOnly to create rather than redefine. To change some traits, use update_relation_type instead.
 
 Example: { "package": "clinic", "createOnly": true, "relationType": { "name": "books", "derivesFrom": "relates-to", "direction": "directed", "limits": { "from": ["systems.person"] } } }`,
   input: {
@@ -676,8 +685,15 @@ Example: { "package": "clinic", "createOnly": true, "relationType": { "name": "b
       ),
   },
   hints: WRITE,
-  run: async (args, program) =>
-    act(
+  run: async (args, program) => {
+    const refusal = builtInPackageRefusal(
+      await program.project(),
+      'relation-type',
+      args.package,
+      args.relationType,
+    );
+    if (refusal !== undefined) return fail(refusal);
+    return act(
       program,
       {
         type: 'define-relation-type',
@@ -695,7 +711,8 @@ Example: { "package": "clinic", "createOnly": true, "relationType": { "name": "b
             colorsSet(args.relationType.appearance),
           ),
         ),
-    ),
+    );
+  },
 });
 
 const removeDefinition = tool({
