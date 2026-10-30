@@ -331,8 +331,7 @@ describe('update_view with rows and selectionFadesLines (ADR 0080, section 5)', 
   });
 
   it('names both in its description', () => {
-    const described = (name: string) =>
-      TOOLS.find((each) => each.name === name)?.description ?? '';
+    const described = (name: string) => TOOLS.find((each) => each.name === name)?.description ?? '';
     expect(described('update_view')).toContain('"rows": "keys"');
     expect(described('update_view')).toContain('selectionFadesLines');
   });

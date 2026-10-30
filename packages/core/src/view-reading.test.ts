@@ -26,8 +26,11 @@ function refused(command: Command): ProblemCode[] {
 }
 
 const view = (state: ProjectSnapshot) => state.views[0] as ProjectSnapshot['views'][number];
-const update = (changes: Record<string, unknown>): Command =>
-  ({ type: 'update-view', id: 'overview', changes }) as Command;
+const update = (changes: Record<string, unknown>): Command => ({
+  type: 'update-view',
+  id: 'overview',
+  changes,
+});
 
 describe('how a view reads many lines (ADR 0080, section 5)', () => {
   it('draws only key rows with rows: keys, and every row again with all or null', () => {
