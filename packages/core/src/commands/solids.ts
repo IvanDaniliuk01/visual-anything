@@ -105,7 +105,7 @@ export function updateSolid(draft: Draft, command: UpdateSolidCommand): string {
         key,
         key === 'description' ? 1000 : 500,
         false,
-      ) as string;
+      );
   }
   if (changes.license !== undefined) {
     if (changes.license === null) delete next.license;
@@ -228,7 +228,7 @@ function checkedDefinition(given: unknown): SolidDefinition {
     parts,
     camera,
     animations,
-  }) as SolidDefinition;
+  });
 }
 
 function checkedPoint(value: unknown, what: string): SpacePoint {
