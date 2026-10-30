@@ -11,11 +11,13 @@
  * - `contents`: for rows, their texts, which a row writes only from there; nothing else of a
  *   container, whose contents follow their own levels;
  * - `image`: their pictures, as the canvas shows pictures: without it, none.
+ * - `face`: for shapes with a face, the face, in the variant the level names (ADR 0083), in place of
+ *   their name and detail; a level that shows a name or a detail but not the face writes those.
  *
  * Shapes that declare no levels follow the canvas's own steps, as before: names from 0.45, details
- * from 0.9 and plain blocks below 0.25.
+ * from 0.9 and plain blocks below 0.25. Their faces show with their names.
  */
-import { levelAt, partsAt } from '@visual-anything/core';
+import { levelAt, partsAt, sortedLevels } from '@visual-anything/core';
 import type { LevelOfDetail } from '@visual-anything/schema';
 
 /** What a tile of shapes shows at a scale. */
@@ -26,6 +28,8 @@ export interface TileDetail {
   wanted: 0 | 1 | 2;
   /** Whether its pictures show. */
   images: boolean;
+  /** Whether its shapes' faces show, and in which variant: none, the face's own markup, or one. */
+  face?: { variant?: string };
 }
 
 /**
@@ -49,10 +53,21 @@ export function levelDetail(
         : 0
       : parts.has('detail')
         ? 2
-        : parts.has('name')
+        : parts.has('name') || parts.has('face')
           ? 1
           : 0;
-  return { at, detail: { coarse, wanted, images: !coarse && parts.has('image') } };
+  const variant = sortedLevels(levels)[at]?.face;
+  // Rows draw their own component's face, whatever variant their container's level names.
+  const face =
+    coarse || (!rows && !parts.has('face'))
+      ? undefined
+      : variant === undefined || rows
+        ? {}
+        : { variant };
+  return {
+    at,
+    detail: { coarse, wanted, images: !coarse && parts.has('image'), ...(face ? { face } : {}) },
+  };
 }
 
 const namesFromLevels = new WeakMap<readonly LevelOfDetail[], number>();
@@ -81,7 +96,11 @@ export function namesFromOf(
       from = Infinity;
       for (const level of levels) {
         if (level.shows.includes('silhouette')) continue;
-        if (level.shows.includes('name') || level.shows.includes('detail')) {
+        if (
+          level.shows.includes('name') ||
+          level.shows.includes('detail') ||
+          level.shows.includes('face')
+        ) {
           from = Math.min(from, level.from);
         }
       }

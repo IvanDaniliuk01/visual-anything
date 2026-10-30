@@ -131,7 +131,13 @@ export function labelsFollowTheme(tile: TileItems): boolean {
     follows =
       tile.kind === 'shapes'
         ? // The name under a picture is written on the canvas or its container, which follow it.
-          tile.shapes.some((shape) => shapeFollowsTheme(shape) || nameBandOf(shape) !== undefined)
+          // A face's tokens take the theme's colors (ADR 0083).
+          tile.shapes.some(
+            (shape) =>
+              shapeFollowsTheme(shape) ||
+              nameBandOf(shape) !== undefined ||
+              shape.face !== undefined,
+          )
         : tile.kind === 'relations'
           ? tile.lines.some((line) => line.label !== undefined)
           : tile.notes.some((note) => note.fill === undefined);

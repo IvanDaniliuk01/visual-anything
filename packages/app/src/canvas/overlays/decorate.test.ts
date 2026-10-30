@@ -14,7 +14,9 @@ import {
 import type { LevelOfDetail, Overlay, ViewFile } from '@visual-anything/schema';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
+import { withFaces } from '../../test/faces';
 import { loadSample } from '../../test/sample';
+import { faceText } from '../faces';
 import { indexScene, indexSceneAfresh } from '../hit';
 import { buildScene, buildSceneAfresh, type ElementShape, type Scene } from '../scene';
 import { NOT_EXPANDED } from './collapsed';
@@ -178,6 +180,27 @@ describe('overlays on the scene', () => {
     const own = shapeOf(plain, DB).detail ?? '';
     expect(shapeOf(scene, DB).detail).toBe(own === '' ? 'postgres' : `${own} · postgres`);
     expect(shapeOf(scene, API).detail).toBe(shapeOf(plain, API).detail);
+  });
+
+  it('write a badge among a face’s badges (ADR 0083)', () => {
+    const badge: Overlay = {
+      id: 'engine',
+      of: 'elements',
+      attribute: 'engine',
+      channel: 'badge',
+      mapping: { kind: 'passthrough' },
+    };
+    const db = shapeOf(buildSceneAfresh(withOverlays([badge]), VIEW), DB).element;
+    const component = loadSample().model.elements.find((each) => each.id === db)?.component;
+    const project = withFaces(withOverlays([badge]), {
+      [component as string]: { markup: ['<b>{{name}}</b> <badges/>'] },
+    });
+    const shape = shapeOf(buildSceneAfresh(project, VIEW), DB);
+    expect(shape.face?.input.badges?.at(-1)).toBe('postgres');
+    expect(faceText(shape)).toContain('postgres');
+    // Each badge is laid out once.
+    const first = shapeOf(buildScene(project, VIEW), DB);
+    expect(shapeOf(buildScene({ ...project }, VIEW), DB).face).toBe(first.face);
   });
 
   it('change relations’ lines: their stroke, width, name and fade', () => {

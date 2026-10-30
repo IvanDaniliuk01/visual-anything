@@ -120,7 +120,7 @@ export function placeFarNames(
     if (placed.length >= most) break;
     if (options.hidden?.has(shape.key)) continue;
     const body = bodyOf(shape);
-    const header = shape.rowCount !== undefined ? ROWS_HEADER : CONTAINER_HEADER;
+    const header = shape.header ?? (shape.rowCount !== undefined ? ROWS_HEADER : CONTAINER_HEADER);
     if (!meets({ ...body, height: Math.min(body.height, header) }, shown)) continue;
     const width = body.width * scale;
     if (width < LEAST_WIDTH) continue;

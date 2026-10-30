@@ -196,7 +196,10 @@ export function rowSlotAt(
       ? count
       : Math.max(
           0,
-          Math.min(count, Math.round((point.y - target.rect.y - ROWS_HEADER) / ROW_HEIGHT)),
+          Math.min(
+            count,
+            Math.round((point.y - target.rect.y - (target.header ?? ROWS_HEADER)) / ROW_HEIGHT),
+          ),
         );
   const before = rows[at];
   const after = at === 0 ? undefined : rows[at - 1];
@@ -219,7 +222,7 @@ export function slotBar(target: ElementShape, slot: RowSlot): Rect | undefined {
   const { x, y, width } = target.rect;
   return {
     x: x + 2,
-    y: y + ROWS_HEADER + at * ROW_HEIGHT,
+    y: y + (target.header ?? ROWS_HEADER) + at * ROW_HEIGHT,
     width: Math.max(0, width - 4),
     height: 0,
   };

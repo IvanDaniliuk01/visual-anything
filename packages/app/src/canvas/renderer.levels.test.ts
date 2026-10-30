@@ -3,11 +3,13 @@
  * what its level shows at the scale, entering a level at its scale and leaving it 10% below, and
  * shapes without levels keep the canvas's own steps.
  */
+import { compileFace, faceDrawingText } from '@visual-anything/core';
 import type { LevelOfDetail } from '@visual-anything/schema';
 import { Container, type Graphics } from 'pixi.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FakeApplication, FakeResizeObserver } from '../test/FakeApplication';
 import type { TextFactory } from './draw';
+import { FaceLabel } from './faceDraw';
 import type { Rect } from './geometry';
 import { indexScene } from './hit';
 import { CanvasRenderer, COARSE_BELOW } from './renderer';
@@ -201,5 +203,62 @@ describe('levels of detail by tile', () => {
     const tile = tileOf(renderer, 'late');
     expect(tile.key).toBe('shapes 0 0,0 lod=1:n');
     expect(tile.plainShown).toBe(true);
+  });
+});
+
+describe('faces by level (ADR 0083)', () => {
+  /** A shape with a face, and a variant of it for far out. */
+  function withFace(shape: ElementShape): ElementShape {
+    return {
+      ...shape,
+      face: {
+        compiled: compileFace({
+          size: 'shape',
+          markup: ['<b>{{name}}</b>', '<p>{{component}}</p>'],
+          style: [],
+          variants: [{ id: 'far', markup: ['<b>far {{name}}</b>'] }],
+        }),
+        input: { name: shape.name, component: 'Box', attributes: [] },
+      },
+    };
+  }
+
+  /** What the faces a tile writes say. */
+  function facesSaid(tile: TileView): string[] {
+    return (tile.labels?.children ?? []).map((label) =>
+      label instanceof FaceLabel
+        ? faceDrawingText(label.drawing).replaceAll('\n', ' / ')
+        : `name ${label.label}`,
+    );
+  }
+
+  it('draws faces with the names, without levels', async () => {
+    const renderer = await started();
+    const at = { x: 0, y: 0, width: 120, height: 60 };
+    renderer.show(indexScene(sceneOf([withFace(shapeAt('plain', at))])));
+    renderer.setCamera({ x: 0, y: 0, scale: 1 });
+    settle(renderer);
+    expect(facesSaid(tileOf(renderer, 'plain'))).toEqual(['plain / Box']);
+  });
+
+  it('draws the variant a level names, the face’s own markup closer in, and names where a level shows no face', async () => {
+    const renderer = await started();
+    const levels: LevelOfDetail[] = [
+      { from: 0.3, shows: ['name'] },
+      { from: 0.5, shows: ['face'], face: 'far' },
+      { from: 1, shows: ['face', 'detail'] },
+    ];
+    const at = { x: 0, y: 0, width: 120, height: 60 };
+    renderer.show(indexScene(sceneOf([withFace(shapeAt('table', at, levels))])));
+    const camera = (scale: number) => {
+      renderer.setCamera({ x: 0, y: 0, scale });
+      settle(renderer);
+      return facesSaid(tileOf(renderer, 'table'));
+    };
+    expect(camera(0.35)).toEqual(['name table']);
+    expect(camera(0.6)).toEqual(['far table']);
+    expect(camera(1.2)).toEqual(['table / Box']);
+    // Back out, the variant again, and the tile written afresh.
+    expect(camera(0.6)).toEqual(['far table']);
   });
 });

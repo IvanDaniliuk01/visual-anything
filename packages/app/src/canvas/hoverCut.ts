@@ -6,6 +6,7 @@
 import type { Measure } from '../text/layout';
 import { collapsedHeaderWrap, headerLines } from './collapse';
 import { detailOf, labelArea, textBlockOf } from './draw';
+import { faceCut } from './faces';
 import { outlinedTextBlock } from './outlinedText';
 import { bodyOf } from './geometry';
 import { nameTagOf, outlinedDetailOf } from './nameTags';
@@ -22,6 +23,8 @@ const TEXT_INSET = 12;
 
 /** Whether the canvas cut a shape's name or detail, as it writes them. */
 export function cutOnCanvas(shape: ElementShape, measure: Measure = canvasMeasure): boolean {
+  // A face writes in place of its name and detail, and says when it cut something (ADR 0083).
+  if (shape.face) return faceCut(shape);
   const detail = detailOf(shape);
   if (shape.fitted) {
     // A row and a shape that draws rows cut their lines when fitted, told from their source: a

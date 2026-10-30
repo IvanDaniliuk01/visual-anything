@@ -77,6 +77,11 @@ export interface LayoutShape {
    * not anchored parts are arranged below it.
    */
   pictureBottom?: number;
+  /**
+   * On a container whose face gives it a header taller than the canvas's own (ADR 0083): how tall,
+   * from its top. Its contents are laid out under it.
+   */
+  header?: number;
 }
 
 /** Where a relation's end is fixed on its shape's border, chosen by hand in the view (ADR 0039). */

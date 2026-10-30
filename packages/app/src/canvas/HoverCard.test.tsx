@@ -1,4 +1,4 @@
-import { emphasisRuns } from '@visual-anything/core';
+import { compileFace, emphasisRuns } from '@visual-anything/core';
 import { act, render, renderHook, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { loadSample } from '../test/sample';
@@ -87,5 +87,28 @@ describe('a shape’s hover card (ADR 0082)', () => {
   it('writes markup in a detail that takes no emphasis as the characters it is', () => {
     render(<HoverCard shape={{ ...whatsapp, detail: '<b>**x**</b>' }} at={{ x: 0, y: 0 }} />);
     expect(screen.getByText('<b>**x**</b>', { selector: 'div' })).toBeTruthy();
+  });
+
+  it('shows for a face the canvas cut, and gives the whole face back, a paragraph a line (ADR 0083)', () => {
+    const face = {
+      compiled: compileFace({
+        size: 'shape',
+        markup: ['<b>{{name}}</b>', '<p>{{component}}</p>', '<p>{{note}}</p>'],
+        style: [],
+        variants: [],
+      }),
+      input: {
+        name: 'Billing',
+        component: 'Service',
+        attributes: [{ name: 'note', value: LONG }],
+      },
+    };
+    const small = { ...whatsapp, name: 'Billing', face, rect: { ...whatsapp.rect, height: 40 } };
+    expect(cutOnCanvas(small)).toBe(true);
+    const tall = { ...small, rect: { ...small.rect, width: 600, height: 400 } };
+    expect(cutOnCanvas(tall)).toBe(false);
+    render(<HoverCard shape={small} at={{ x: 0, y: 0 }} />);
+    expect(screen.getByText('Service', { selector: 'div' })).toBeTruthy();
+    expect(screen.getByText(LONG, { selector: 'div' })).toBeTruthy();
   });
 });

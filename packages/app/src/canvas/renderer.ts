@@ -80,6 +80,7 @@ import type { Drawing as CodeDrawing } from '@visual-anything/core';
 import { TileImages, type ImageView } from './images-draw';
 import { bitmapText, installFonts } from './labels';
 import { loadRobotoFonts } from './robotoFonts';
+import type { FaceShow } from './faces';
 import { THEMES, type CanvasTheme } from '../theme/themes';
 import { DIMMED_ALPHA } from './colors';
 import { lengthOf, midpointOf, pointAlong, type RouteEnd } from './route';
@@ -312,6 +313,8 @@ interface Tile {
   /** The labels written, and for which level of detail. */
   labels?: Container;
   level: 0 | 1 | 2;
+  /** Which faces its labels draw (ADR 0083), as `faceKeyOf` names them; absent before any. */
+  labelFace?: string;
   /** How many of its shapes or relations have their labels at `level`; the rest come later. */
   labelled: number;
   /** For free shapes: the arrows it draws. */
@@ -2597,13 +2600,16 @@ export class CanvasRenderer {
 
   /** Writes a tile's labels for `wanted`, from where they stopped up to `until` of them. */
   private labelUpTo(tile: Tile, wanted: Tile['level'], until: number): number {
-    if (tile.level !== wanted || !tile.labels) {
+    const faces = faceShowOf(tile);
+    const faceKey = faceKeyOf(faces);
+    if (tile.level !== wanted || !tile.labels || tile.labelFace !== faceKey) {
       tile.labels?.destroy({ children: true });
       // Drawn on its own: labels are many, and showing or writing them then makes PixiJS gather
       // again only the tile's labels, not the drawings of its whole region.
       tile.labels = new Container({ isRenderGroup: true });
       tile.container.addChild(tile.labels);
       tile.level = wanted;
+      tile.labelFace = faceKey;
       tile.labelled = 0;
       tile.labelPaint = [];
       tile.labelStamp = this.stampFor(tile, this.painter.name, 'labels');
@@ -2620,6 +2626,7 @@ export class CanvasRenderer {
             this.text,
             tile.labelPaint,
             this.lookups(),
+            faces,
           )
         : tile.kind === 'relations'
           ? painter.relationLabels(tile.lines.slice(from, to), this.text, tile.labelPaint)
@@ -2742,7 +2749,11 @@ export class CanvasRenderer {
       }
       if (!near) continue;
       const draw = !coarse && !tile.full;
-      const label = wanted > 0 && (tile.level !== wanted || tile.labelled < labelCount(tile));
+      const label =
+        wanted > 0 &&
+        (tile.level !== wanted ||
+          tile.labelled < labelCount(tile) ||
+          tile.labelFace !== faceKeyOf(faceShowOf(tile)));
       if (!draw && !label) continue;
       const center = centerOf(tile.bounds);
       work.push({
@@ -2796,12 +2807,19 @@ export class CanvasRenderer {
       if (wanted === 0 || (tile.coarse && !tile.full)) continue;
       // A few at a time, so that no frame goes much over the budget, however full the tile.
       const total = labelCount(tile);
-      while (tile.level !== wanted || tile.labelled < total) {
+      while (
+        tile.level !== wanted ||
+        tile.labelled < total ||
+        tile.labelFace !== faceKeyOf(faceShowOf(tile))
+      ) {
         if (spent()) {
           more = true;
           break labelling;
         }
-        const from = tile.level === wanted ? tile.labelled : 0;
+        const from =
+          tile.level === wanted && tile.labelFace === faceKeyOf(faceShowOf(tile))
+            ? tile.labelled
+            : 0;
         written += this.labelUpTo(tile, wanted, from + LABEL_BATCH);
       }
     }
@@ -2892,7 +2910,7 @@ export class CanvasRenderer {
         const write = (some: readonly ElementShape[], withDetails: boolean) =>
           some.length === 0
             ? []
-            : this.painter.shapeLabels(some, withDetails, this.text, undefined, this.lookups());
+            : this.painter.shapeLabels(some, withDetails, this.text, undefined, this.lookups(), {});
         return [
           ...write(
             chosen.filter((shape) => ownDetail(shape).wanted === 1),
@@ -4745,6 +4763,21 @@ function lineOrderOf(lines: readonly RelationLine[]): Map<string, number> {
     lineOrders.set(lines, order);
   }
   return order;
+}
+
+/**
+ * What faces a tile's labels draw (ADR 0083): with the canvas's own steps, every face, whenever names
+ * are written; with levels of detail, as the level reached says, in the variant it names.
+ */
+function faceShowOf(tile: Tile): FaceShow | undefined {
+  if (tile.kind !== 'shapes') return undefined;
+  if (tile.levels === undefined) return {};
+  return tile.levelDetail?.face;
+}
+
+/** A short name for what faces labels draw, which changes when they must be written again. */
+function faceKeyOf(show: FaceShow | undefined): string {
+  return show === undefined ? '-' : `=${show.variant ?? ''}`;
 }
 
 function readinessOf(tile: Tile): Readiness {

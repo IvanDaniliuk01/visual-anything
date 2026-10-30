@@ -12,7 +12,9 @@ import {
 import type { Id, PackageFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { applyFilters, filterChoices, NO_FILTERS } from '../canvas/explore';
+import { faceText } from '../canvas/faces';
 import { buildScene } from '../canvas/scene';
+import { withFaces } from '../test/faces';
 import type { ElementAnswers } from '../code/messages';
 import { t } from '../i18n';
 import { NO_LIVE_VALUES, type LiveView } from './book';
@@ -212,6 +214,23 @@ describe('the detail on the canvas', () => {
       t,
     );
     expect(stored.shapes.find((shape) => shape.element === 'api')?.detailRuns).toBeUndefined();
+  });
+
+  it('fills a face with the values it reads, live over stored (ADR 0083)', () => {
+    const faced = withFaces(state, {
+      'ops.service': { markup: ['<b>{{name}}</b>', '<p>{{tier}}</p>'] },
+    });
+    const base = buildScene(faced, 'v');
+    const scenes = (lookup: AttributeLookup) =>
+      liveSceneOf(base, faced, definitionsIn(faced), lookup, t).shapes.find(
+        (shape) => shape.element === 'api',
+      );
+    expect(scenes(new AttributeLookup(NO_LIVE_VALUES))?.face).toBe(
+      base.shapes.find((shape) => shape.element === 'api')?.face,
+    );
+    const api = scenes(new AttributeLookup(viewOf([live('api', 'tier', 'gold')], 20_000)));
+    expect(api?.face?.input.attributes.find((each) => each.name === 'tier')?.value).toBe('gold');
+    expect(faceText(api!)).toContain('gold');
   });
 
   it('writes a live value with its mark, and a stale one faded with its age', () => {

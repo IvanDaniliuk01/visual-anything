@@ -9,12 +9,17 @@ import { useSyncExternalStore } from 'react';
 import { EmphasisRunsOf } from '../text/EmphasisText';
 import { worldToScreen, type Camera } from './camera';
 import { detailOf } from './draw';
+import { faceText } from './faces';
 import type { Point } from './geometry';
 import type { ElementShape } from './scene';
 import './hover-card.css';
 
 export function HoverCard({ shape, at }: { shape: ElementShape; at: Point }) {
   const detail = detailOf(shape);
+  // A face's card gives back the whole face, a paragraph a line, as text (ADR 0083).
+  const face = faceText(shape)
+    ?.split('\n')
+    .filter((line, at) => !(at === 0 && line === shape.name));
   return (
     <div
       className="canvas-hover-card"
@@ -23,7 +28,12 @@ export function HoverCard({ shape, at }: { shape: ElementShape; at: Point }) {
       style={{ transform: `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px)` }}
     >
       <div className="canvas-hover-card-name">{shape.name}</div>
-      {detail !== '' && (
+      {face?.map((line, at) => (
+        <div key={at} className="canvas-hover-card-detail">
+          {line}
+        </div>
+      ))}
+      {face === undefined && detail !== '' && (
         <div className="canvas-hover-card-detail">
           {shape.detailRuns && shape.collapsed === undefined ? (
             <EmphasisRunsOf runs={shape.detailRuns} />

@@ -82,16 +82,20 @@ export function rowsBox(
   collapsed: boolean,
   rowsOf: () => Box[],
   keyRows?: ReadonlySet<Id>,
+  headerOf?: (width: number) => number,
 ): Box {
   const { appearance } = look;
   const offset = position ? { x: position.x, y: position.y } : undefined;
   const width = rowsWidth(position?.width, appearance.width);
   const stored = position !== undefined;
+  // Its face's header, when taller than the canvas's own (ADR 0083).
+  const own = headerOf?.(width);
+  const header = own === undefined || own === ROWS_HEADER ? undefined : own;
   if (collapsed && placement.contents.length > 0) {
     return {
       placement,
       width,
-      height: collapsedRowsHeight(),
+      height: collapsedRowsHeight(header),
       offset,
       stored,
       measured: {
@@ -102,6 +106,7 @@ export function rowsBox(
         contents: [],
         folded: placement.contents.length,
         rows: { kind: 'rows', count: 0, holding: holdingOf(rowsOf()) },
+        ...(header === undefined ? {} : { header }),
       },
     };
   }
@@ -113,7 +118,7 @@ export function rowsBox(
       ? every.filter((row) => !keyRows?.has(row.placement.element)).map((row) => row.placement)
       : undefined;
   rows.forEach((row, index) => {
-    row.offset = { x: 0, y: ROWS_HEADER + index * ROW_HEIGHT };
+    row.offset = { x: 0, y: (header ?? ROWS_HEADER) + index * ROW_HEIGHT };
     row.width = width;
     row.height = ROW_HEIGHT;
     row.stored = false;
@@ -123,7 +128,7 @@ export function rowsBox(
   return {
     placement,
     width,
-    height: measureRows(width, rows.length).height,
+    height: measureRows(width, rows.length, header).height,
     offset,
     stored,
     measured: {
@@ -133,6 +138,7 @@ export function rowsBox(
       position,
       contents: rows,
       rows: { kind: 'rows', count: rows.length, ...(leftOut ? { leftOut } : {}) },
+      ...(header === undefined ? {} : { header }),
     },
   };
 }
@@ -408,7 +414,8 @@ export function dragEnds(
     const container = containerKey === undefined ? undefined : rectOf(containerKey);
     const own = rectOf(shape.key);
     if (!container || !own) return undefined;
-    const y = shape.row === undefined ? headerMiddle(container) : own.y + own.height / 2;
+    const y =
+      shape.row === undefined ? headerMiddle(container, shape.header) : own.y + own.height / 2;
     return { container, y };
   };
   const a = beside(ends.from);
@@ -440,7 +447,7 @@ export function sideEndOf(
   info: SideInfo,
 ): SideEnd | undefined {
   let container: Rect = shape.rect;
-  let y = headerMiddle(shape.rect);
+  let y = headerMiddle(shape.rect, shape.header);
   if (shape.row !== undefined) {
     const at = shape.containerShape === undefined ? undefined : keyIndex.get(shape.containerShape);
     const holder = at === undefined ? undefined : shapes[at];
