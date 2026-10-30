@@ -115,6 +115,15 @@
           "$ref": "#/definitions/DetailRules",
           "description": "What its shapes write under the element's name. Each part is inherited on its own."
         },
+        "textPlacement": {
+          "type": "string",
+          "enum": [
+            "top",
+            "middle",
+            "bottom"
+          ],
+          "description": "Where its shapes place the block of the element's name and detail inside their label area, with an inset of 8 units (ADR 0082): from its top, centred, or ending at its bottom. Essence sets `middle`. Containers and rows write their header at the top whatever it says."
+        },
         "contentsAsRows": {
           "type": "boolean",
           "description": "Whether its shapes draw the elements they hold as rows: one under another below a header, as wide as the shape, in the model's order, as a table draws its columns. Rows have no positions of their own in views, and the shape's height follows its rows."
@@ -209,10 +218,16 @@
           },
           "description": "The badges it writes after the values, each while its element meets the badge's condition.",
           "maxItems": 8
+        },
+        "lines": {
+          "type": "integer",
+          "description": "The most lines the detail takes, from 1 to 6; Essence gives 3. Its last line ends with \"…\" when the text is longer.",
+          "minimum": 1,
+          "maximum": 6
         }
       },
       "additionalProperties": false,
-      "description": "What a shape writes under its element's name, on one line."
+      "description": "What a shape writes under its element's name, wrapped to at most `lines` lines; the whole of it shows on hover (ADR 0082)."
     },
     "Badge": {
       "type": "object",

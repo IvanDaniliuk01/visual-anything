@@ -42,6 +42,7 @@ const detail: fc.Arbitrary<DetailRules> = fc.record(
     componentName: fc.boolean(),
     attributes: fc.uniqueArray(fc.string(), { maxLength: 3 }),
     badges: fc.array(badge, { maxLength: 2 }),
+    lines: fc.integer({ min: 1, max: 6 }),
   },
   { requiredKeys: [] },
 );
@@ -59,6 +60,7 @@ const appearance: fc.Arbitrary<Appearance> = fc.record(
     width: fc.integer({ min: 1, max: 1000 }),
     height: fc.integer({ min: 1, max: 1000 }),
     detail,
+    textPlacement: fc.constantFrom('top' as const, 'middle' as const, 'bottom' as const),
     contentsAsRows: fc.boolean(),
     connectionPoints: fc.array(connectionPoint, { maxLength: 2 }),
   },
@@ -94,7 +96,9 @@ describe('resolveAppearance', () => {
               ),
               attributes: nearest((each) => each.detail?.attributes, base.detail.attributes),
               badges: nearest((each) => each.detail?.badges, base.detail.badges),
+              lines: nearest((each) => each.detail?.lines, base.detail.lines),
             },
+            textPlacement: nearest((each) => each.textPlacement, base.textPlacement),
             contentsAsRows: nearest((each) => each.contentsAsRows, base.contentsAsRows),
             // An empty list is set: relations attach anywhere on the border, whatever is inherited.
             connectionPoints: nearest((each) => each.connectionPoints, base.connectionPoints),
@@ -112,6 +116,7 @@ describe('resolveAppearance', () => {
       'width',
       'height',
       'detail',
+      'textPlacement',
       'contentsAsRows',
       'connectionPoints',
       'image',
@@ -129,7 +134,8 @@ describe('resolveAppearance', () => {
       stroke: '#52606D',
       width: 160,
       height: 72,
-      detail: { componentName: true, attributes: [], badges: [] },
+      detail: { componentName: true, attributes: [], badges: [], lines: 3 },
+      textPlacement: 'middle',
       contentsAsRows: false,
       connectionPoints: [],
     });
@@ -146,7 +152,7 @@ describe('resolveAppearance', () => {
       shape: 'rounded-rectangle',
       fill: '#123456',
       width: 180,
-      detail: { componentName: false, attributes: [], badges: [] },
+      detail: { componentName: false, attributes: [], badges: [], lines: 3 },
     });
     expect(appearanceOf({ component: 'test.nope' }, definitions)).toEqual(ESSENCE.appearance);
   });
@@ -195,6 +201,8 @@ describe('traitSources', () => {
       'detail.componentName': 'layered.queue',
       'detail.attributes': 'layered.box',
       'detail.badges': 'essence',
+      'detail.lines': 'essence',
+      textPlacement: 'essence',
       contentsAsRows: 'essence',
       connectionPoints: 'layered.service',
       // Nothing in the chain shows an image, so it comes from Essence, which shows none.

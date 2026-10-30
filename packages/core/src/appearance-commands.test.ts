@@ -486,8 +486,46 @@ describe('an element’s colors', () => {
     ['a width that is not a number', { width: Number.NaN }],
     ['a height that is not finite', { height: Number.POSITIVE_INFINITY }],
     ['an unknown shape', { shape: 'hexagon' }],
+    ['no lines of detail', { detail: { lines: 0 } }],
+    ['seven lines of detail', { detail: { lines: 7 } }],
+    ['part of a line of detail', { detail: { lines: 2.5 } }],
+    ['text placed nowhere known', { textPlacement: 'left' }],
   ])('are not all an appearance refuses: %s', (_, appearance) => {
     expect(refused(setService(appearance as Appearance))).toEqual(['invalid-appearance']);
+  });
+
+  it('take the lines a detail wraps to and where the text is placed (ADR 0082)', () => {
+    const outcome = ok(setService({ detail: { lines: 5 }, textPlacement: 'top' }));
+    const service = definitionsIn(outcome.state).component('systems.service')!.appearance;
+    expect(service.detail.lines).toBe(5);
+    expect(service.textPlacement).toBe('top');
+    expect(definitionsIn(colorProject()).component('systems.service')!.appearance).toMatchObject({
+      detail: { lines: 3 },
+      textPlacement: 'middle',
+    });
+    expect(messages(setService({ detail: { lines: 9 } }))).toEqual([
+      'The detail of the component "Service" takes 1 to 6 lines.',
+    ]);
+    expect(messages(setService({ textPlacement: 'left' } as unknown as Appearance))).toEqual([
+      'The text of the component "Service" is placed at the "top", in the "middle" or at the "bottom".',
+    ]);
+  });
+
+  it('change the lines of a detail on their own, as each part of it is', () => {
+    const before = withAppearances({
+      components: { 'systems.service': { detail: { componentName: false } } },
+    });
+    const outcome = ok(
+      {
+        type: 'set-component-appearance',
+        component: 'systems.service',
+        appearanceTraits: { detail: { lines: 2 } },
+      },
+      before,
+    );
+    expect(outcome.state.project.appearances?.components?.['systems.service']).toEqual({
+      detail: { componentName: false, lines: 2 },
+    });
   });
 });
 

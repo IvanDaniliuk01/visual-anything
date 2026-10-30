@@ -5,7 +5,8 @@ import { TEST_PACKAGE } from './test/fixtures';
 
 /** The traits Essence gives that the test package never sets. */
 const ESSENCE_EXTRAS = {
-  detail: { componentName: true, attributes: [], badges: [] },
+  detail: { componentName: true, attributes: [], badges: [], lines: 3 },
+  textPlacement: 'middle',
   contentsAsRows: false,
   connectionPoints: [],
 };

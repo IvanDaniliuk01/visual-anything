@@ -9,7 +9,8 @@ import type { ResolvedAppearance } from '../appearance';
 
 /**
  * Essence, with every trait it gives to the components that derive from it: a plain rectangle that
- * writes its component's name, with no badges, no connection points and no rows.
+ * writes its component's name on up to three lines of detail, its text in the middle, with no
+ * badges, no connection points and no rows.
  */
 export const ESSENCE = {
   id: ESSENCE_ID,
@@ -21,7 +22,8 @@ export const ESSENCE = {
     stroke: '#52606D',
     width: 160,
     height: 72,
-    detail: { componentName: true, attributes: [], badges: [] },
+    detail: { componentName: true, attributes: [], badges: [], lines: 3 },
+    textPlacement: 'middle',
     contentsAsRows: false,
     connectionPoints: [],
   } satisfies ResolvedAppearance as ResolvedAppearance,

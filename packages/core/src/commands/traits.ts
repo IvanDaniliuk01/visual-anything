@@ -147,11 +147,12 @@ function checkedBadges(value: unknown, of: string): Badge[] {
   return value.map((badge) => checkedBadge(badge, of));
 }
 
+/** The parts of a detail, each inherited on its own. */
+const DETAIL_PARTS = ['componentName', 'attributes', 'badges', 'lines'] as const;
+
 function checkedDetail(value: unknown, of: string): DetailRules {
   if (!isRecord(value)) invalid(`The detail of ${of} must be an object.`);
-  onlyKeys(value, ['componentName', 'attributes', 'badges'], (key) =>
-    invalid(`The detail of ${of} has no "${key}".`),
-  );
+  onlyKeys(value, DETAIL_PARTS, (key) => invalid(`The detail of ${of} has no "${key}".`));
   const detail: DetailRules = {};
   if (value.componentName !== undefined) {
     detail.componentName = checkedBoolean(value.componentName, 'writes its component’s name', of);
@@ -160,7 +161,26 @@ function checkedDetail(value: unknown, of: string): DetailRules {
     detail.attributes = checkedDetailAttributes(value.attributes, of);
   }
   if (value.badges !== undefined) detail.badges = checkedBadges(value.badges, of);
+  if (value.lines !== undefined) {
+    const { lines } = value;
+    if (typeof lines !== 'number' || !Number.isInteger(lines) || lines < 1 || lines > 6) {
+      invalid(`The detail of ${of} takes 1 to 6 lines.`);
+    }
+    detail.lines = lines;
+  }
   return detail;
+}
+
+const TEXT_PLACEMENTS = ['top', 'middle', 'bottom'] as const;
+
+function checkedTextPlacement(
+  value: unknown,
+  of: string,
+): NonNullable<Appearance['textPlacement']> {
+  if (!TEXT_PLACEMENTS.includes(value as (typeof TEXT_PLACEMENTS)[number])) {
+    invalid(`The text of ${of} is placed at the "top", in the "middle" or at the "bottom".`);
+  }
+  return value as NonNullable<Appearance['textPlacement']>;
 }
 
 function checkedConnectionPoints(value: unknown, of: string): ConnectionPoint[] {
@@ -312,6 +332,7 @@ const TRAIT_CHECKS: {
   width: (value, of) => checkedSize(value, 'width', of),
   height: (value, of) => checkedSize(value, 'height', of),
   detail: checkedDetail,
+  textPlacement: checkedTextPlacement,
   contentsAsRows: (value, of) => checkedBoolean(value, 'draws its contents as rows', of),
   connectionPoints: checkedConnectionPoints,
   image: checkedImage,
@@ -487,7 +508,7 @@ function changedDetail(
   if (!isRecord(changes)) invalid(`The changes to the detail of ${of} must be an object.`);
   const next: Record<string, unknown> = { ...own };
   for (const [part, value] of Object.entries(changes)) {
-    if (!['componentName', 'attributes', 'badges'].includes(part)) {
+    if (!(DETAIL_PARTS as readonly string[]).includes(part)) {
       invalid(`The detail of ${of} has no "${part}".`);
     }
     if (value === undefined) continue;
@@ -606,10 +627,12 @@ function invalidAttribute(message: string): never {
 /** One attribute definition a command sets, checked. */
 export function checkedAttributeDefinition(value: unknown, of: string): AttributeDefinition {
   if (!isRecord(value)) invalidAttribute(`An attribute of ${of} must be an object.`);
-  onlyKeys(value, ['name', 'type', 'default', 'description', 'choices', 'unit'], (key) =>
-    invalidAttribute(`An attribute definition has no "${key}".`),
+  onlyKeys(
+    value,
+    ['name', 'type', 'default', 'description', 'choices', 'unit', 'format'],
+    (key) => invalidAttribute(`An attribute definition has no "${key}".`),
   );
-  const { name, type, description, choices, unit } = value;
+  const { name, type, description, choices, unit, format } = value;
   if (typeof name !== 'string' || name.trim() === '') {
     reject('empty-name', `An attribute of ${of} needs a name.`);
   }
@@ -667,6 +690,17 @@ export function checkedAttributeDefinition(value: unknown, of: string): Attribut
       invalidAttribute(`The unit of "${name}" of ${of} has 1 to 16 characters.`);
     }
     checked.unit = unit;
+  }
+  if (format !== undefined) {
+    if (format !== 'plain' && format !== 'emphasis') {
+      invalidAttribute(`The values of "${name}" of ${of} are written "plain" or with "emphasis".`);
+    }
+    if (attributeType !== 'string' && format === 'emphasis') {
+      invalidAttribute(
+        `Only a string attribute takes text emphasis; "${name}" of ${of} is a ${attributeType}.`,
+      );
+    }
+    checked.format = format;
   }
   return checked;
 }

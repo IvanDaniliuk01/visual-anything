@@ -237,6 +237,7 @@ function componentChanges(
             componentName: next.detail.componentName ?? null,
             attributes: next.detail.attributes ?? null,
             badges: next.detail.badges ?? null,
+            lines: next.detail.lines ?? null,
           }
         : (value ?? null);
   }

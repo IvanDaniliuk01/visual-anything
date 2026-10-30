@@ -188,7 +188,9 @@ export interface AppearanceChanges {
     componentName?: boolean | null;
     attributes?: string[] | null;
     badges?: Badge[] | null;
+    lines?: number | null;
   } | null;
+  textPlacement?: NonNullable<Appearance['textPlacement']> | null;
   contentsAsRows?: boolean | null;
   /** An empty list has relations attach anywhere on the border, whatever is inherited. */
   connectionPoints?: ConnectionPoint[] | null;
