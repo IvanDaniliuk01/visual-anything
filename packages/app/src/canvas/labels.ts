@@ -5,9 +5,12 @@
  * back tinted to the canvas, so that a new theme or a new fill only tints labels again.
  */
 import { BitmapFont, BitmapText, Cache, Container, Sprite, Texture } from 'pixi.js';
-import type { TextStyleOptions } from 'pixi.js';
+import type { CanvasTextOptions, TextStyleOptions } from 'pixi.js';
+import { parseEmphasis, type EmphasisRun } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
-import { FONT_FAMILY, fitText, type LabelKind, type TextFactory } from './draw';
+import { FONT_FAMILY, fitText, noteTextPlace, type LabelKind, type TextFactory } from './draw';
+import { emphasisLabel, glyphMeasure, noteLabel } from './emphasisLabels';
+import { robotoMeasure } from './textBlock';
 import { RELATION_LABEL_HALO, RELATION_LABEL_TEXT } from './colors';
 
 const FONTS: Record<LabelKind, string> = {
@@ -85,9 +88,10 @@ export class RelationLabel extends Container {
  * its shape gives it: shortened with "…" when too tall, or left out when even that does not fit. A
  * relation's name takes its fill as its text's tint, and its stroke's color as its back's.
  */
-export const bitmapText: TextFactory = (options, kind, room) => {
+export const bitmapText: TextFactory = (options, kind, room, runs) => {
   installFonts();
   const style: TextStyleOptions = options.style ?? {};
+  if (runs && kind === 'detail') return detailWithEmphasis(options, style, room, runs);
   const text = new BitmapText({
     text: options.text,
     ...(options.anchor === undefined ? {} : { anchor: options.anchor }),
@@ -108,6 +112,57 @@ export const bitmapText: TextFactory = (options, kind, room) => {
   }
   return relationLabel(text, style);
 };
+bitmapText.measure = glyphMeasure;
+bitmapText.measureName = nameMeasure;
+bitmapText.note = (note, color) =>
+  noteLabel(note.text, () => parseEmphasis(note.text, { blocks: true }), {
+    ...noteTextPlace(note),
+    fill: color,
+  });
+
+/** A detail with text emphasis (ADR 0082), laid out and placed as its bitmap text would be. */
+function detailWithEmphasis(
+  options: CanvasTextOptions,
+  style: TextStyleOptions,
+  room: number | undefined,
+  runs: readonly EmphasisRun[],
+): Container | undefined {
+  const { anchor } = options;
+  const at =
+    anchor === undefined
+      ? { x: 0, y: 0 }
+      : typeof anchor === 'number'
+        ? { x: anchor, y: anchor }
+        : { x: anchor.x ?? 0, y: anchor.y ?? 0 };
+  return emphasisLabel(runs, {
+    x: options.x ?? 0,
+    y: options.y ?? 0,
+    anchor: at,
+    size: typeof style.fontSize === 'number' ? style.fontSize : 11,
+    width: style.wordWrapWidth ?? 100,
+    align: style.align === 'center' ? 'center' : 'left',
+    room,
+    fill: typeof style.fill === 'string' ? style.fill : '#000000',
+  });
+}
+
+/** How wide a name is in the name's own font, once installed; in Roboto's widths until then. */
+function nameMeasure(text: string): number {
+  const font = Cache.has(CACHED[0])
+    ? Cache.get<{
+        chars?: BitmapFont['chars'];
+        fontMetrics?: { fontSize: number };
+        ensureCharacters?: (chars: string) => void;
+      }>(CACHED[0])
+    : undefined;
+  const chars = font?.chars;
+  const drawn = font?.fontMetrics?.fontSize;
+  if (!chars || !drawn) return robotoMeasure(text, 'bold', 14);
+  font.ensureCharacters?.(text);
+  let width = 0;
+  for (const character of text) width += chars[character]?.xAdvance ?? 0;
+  return (width * 14) / drawn;
+}
 
 /** A relation's name over its back, both centered where the text was placed. */
 function relationLabel(text: BitmapText, style: TextStyleOptions): RelationLabel {

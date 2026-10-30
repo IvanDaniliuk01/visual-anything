@@ -93,6 +93,12 @@ import {
   nameBandOf,
 } from './shape-images';
 import type { RoutePiece } from './tiles';
+import type { EmphasisRun } from '@visual-anything/core';
+import type { Measure } from '../text/layout';
+import { BLOCK_INSET, DETAIL_SIZE, NAME_SIZE, placeTextBlock, type TextBlock } from './textBlock';
+
+/** How big a note's text is written. */
+const NOTE_SIZE = 13;
 
 /** The fonts text is drawn in, first available first. */
 export const FONT_FAMILY = [
@@ -111,10 +117,28 @@ export type LabelKind = 'name' | 'detail' | 'relation';
  * Makes what a label is drawn with, from text laid out by this module. `room` is the height the label
  * may take inside its shape; a factory that cannot fit the text in it gives nothing.
  */
-export type TextFactory = (
+export interface TextFactory {
+  /** `runs`, on a detail, are its text emphasis (ADR 0082), drawn in place of `options.text`. */
+  (
+    options: CanvasTextOptions,
+    kind: LabelKind,
+    room?: number,
+    runs?: readonly EmphasisRun[],
+  ): Container | undefined;
+  /** How it measures a detail, so that a shape's text block is placed as it draws; Roboto's otherwise. */
+  measure?: Measure;
+  /** How it measures a name. */
+  measureName?: (text: string) => number;
+  /** How it draws a note's text, as canvas text otherwise. */
+  note?: (note: NoteShape, color: Color) => Container;
+}
+
+/** How a label is written: where, in what room, and with what text emphasis. */
+type Write = (
   options: CanvasTextOptions,
-  kind: LabelKind,
-  room?: number,
+  detail: boolean,
+  room: number,
+  runs?: readonly EmphasisRun[],
 ) => Container | undefined;
 
 /** Labels as canvas text: sharp at any resolution, but slow to make by the thousand. */
@@ -125,8 +149,6 @@ const BLOCK_OUTLINE = SHAPE_STROKE_WIDTH * 4;
 /** The contrast below which a block's fill needs an outline to stand out from the canvas, from WCAG 1.4.11. */
 const BLOCK_CONTRAST = 3;
 const TEXT_INSET = 12;
-const NAME_SIZE = 14;
-const DETAIL_SIZE = 11;
 
 /** A label that can be shortened: its text, and how tall it comes out. */
 export interface FittingText {
@@ -464,12 +486,13 @@ export function writeShapeLabels(
 ): Container[] {
   const texts: Container[] = [];
   for (const shape of shapes) {
-    const write = (options: CanvasTextOptions, detail: boolean, room: number) => {
-      if (detail && !details) return;
-      const text = make(options, detail ? 'detail' : 'name', room);
+    const write: Write = (options, detail, room, runs) => {
+      if (detail && !details) return undefined;
+      const text = make(options, detail ? 'detail' : 'name', room, runs);
       if (text) texts.push(text);
+      return text;
     };
-    writeShapeText(shape, write, backdrop);
+    writeShapeText(shape, write, backdrop, make);
     writeLeavingMark(shape, write);
   }
   return texts;
@@ -615,17 +638,36 @@ export function drawFreeShapes(
  * Writes the text of notes: in white, tinted to the color that reads on the note's fill, so that a new
  * theme or a new fill only tints it again.
  */
-export function writeNoteTexts(notes: readonly NoteShape[]): Text[] {
+export function writeNoteTexts(notes: readonly NoteShape[], make?: TextFactory): Container[] {
   return notes.map((note) => {
+    const color = note.fill === undefined ? NOTE_TEXT : readableTextColors(note.fill).name;
+    if (make?.note) return make.note(note, color);
     const text = new Text({
       text: note.text,
       x: note.rect.x + TEXT_INSET,
       y: note.rect.y + 10,
-      style: textStyle(13, '#FFFFFF', Math.max(1, note.rect.width - 2 * TEXT_INSET), 'left'),
+      style: textStyle(NOTE_SIZE, '#FFFFFF', Math.max(1, note.rect.width - 2 * TEXT_INSET), 'left'),
     });
-    text.tint = note.fill === undefined ? NOTE_TEXT : readableTextColors(note.fill).name;
+    text.tint = color;
     return text;
   });
+}
+
+/** Where a note writes its text, and at what size: inside it, 12 units in at the sides. */
+export function noteTextPlace(note: NoteShape): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  size: number;
+} {
+  return {
+    x: note.rect.x + TEXT_INSET,
+    y: note.rect.y + 10,
+    width: Math.max(1, note.rect.width - 2 * TEXT_INSET),
+    height: Math.max(0, note.rect.height - 18),
+    size: NOTE_SIZE,
+  };
 }
 
 /**
@@ -895,8 +937,9 @@ export function detailOf(shape: ElementShape): string {
  */
 function writeShapeText(
   shape: ElementShape,
-  write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+  write: Write,
   backdrop: (shape: ElementShape) => Color = () => CANVAS_BACKGROUND,
+  make?: TextFactory,
 ): void {
   if (writeRowsText(shape, write)) return;
   if (writesNameBelow(shape)) {
@@ -940,6 +983,8 @@ function writeShapeText(
         },
         true,
         rooms.detail,
+        // Its detail with text emphasis, unless a collapsed one's count came first on its line.
+        detail === (shape.detail ?? shape.componentName) ? shape.detailRuns : undefined,
       );
     }
     if (count !== undefined && countRoom !== undefined) {
@@ -963,36 +1008,57 @@ function writeShapeText(
   }
   // Right of the icon beside its name, when it shows one.
   const area = besideImage(shape, labelArea(shape));
+  if (area.height <= 0) return;
   const centerX = area.x + area.width / 2;
-  const centerY = area.y + area.height / 2;
   const wrap = Math.max(1, area.width - TEXT_INSET);
-  if (rooms.name > 0) {
-    write(
-      {
-        text: shape.name,
-        anchor: { x: 0.5, y: 1 },
-        x: centerX,
-        y: centerY + 2,
-        style: textStyle(NAME_SIZE, colors.name, wrap, 'center', '600'),
-      },
-      false,
-      rooms.name,
-    );
-  }
-  const detail = detailOf(shape);
-  if (rooms.detail > 0 && detail !== '') {
-    write(
-      {
-        text: detail,
-        anchor: { x: 0.5, y: 0 },
-        x: centerX,
-        y: centerY + 4,
-        style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'center'),
-      },
-      true,
-      rooms.detail,
-    );
-  }
+  const block = textBlockOf(shape, area, wrap, make);
+  write(
+    {
+      text: shape.name,
+      anchor: { x: 0.5, y: 0 },
+      x: centerX,
+      y: block.nameTop,
+      style: textStyle(NAME_SIZE, colors.name, wrap, 'center', '600'),
+    },
+    false,
+    block.nameRoom,
+  );
+  if (block.detailLines === 0) return;
+  write(
+    {
+      text: detailOf(shape),
+      anchor: { x: 0.5, y: 0 },
+      x: centerX,
+      y: block.detailTop,
+      style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'center'),
+    },
+    true,
+    block.detailRoom,
+    shape.detailRuns,
+  );
+}
+
+/**
+ * A shape's name and detail as one block in its label area (`textBlock.ts`, ADR 0082), measured as
+ * `make` draws them.
+ */
+export function textBlockOf(
+  shape: ElementShape,
+  area: Rect,
+  wrap: number,
+  make?: Pick<TextFactory, 'measure' | 'measureName'>,
+): TextBlock {
+  return placeTextBlock({
+    area,
+    wrap,
+    name: shape.name,
+    detail: detailOf(shape),
+    ...(shape.detailRuns ? { detailRuns: shape.detailRuns } : {}),
+    ...(shape.detailLines === undefined ? {} : { lines: shape.detailLines }),
+    ...(shape.textPlacement === undefined ? {} : { placement: shape.textPlacement }),
+    ...(make?.measure ? { measure: make.measure } : {}),
+    ...(make?.measureName ? { measureName: make.measureName } : {}),
+  });
 }
 
 /** The height a name takes on one line, which a shape with its own outline gives it at least. */
@@ -1012,11 +1078,7 @@ const NAME_LINE = 20;
  * (`writesNameBelow`, ADR 0066's clarifications). A container whose header has no room writes
  * nothing, and the hover and selection marks write its name beside it.
  */
-function writeOutlinedText(
-  shape: ElementShape,
-  outline: ShapeOutline,
-  write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
-): void {
+function writeOutlinedText(shape: ElementShape, outline: ShapeOutline, write: Write): void {
   const colors = readableTextColors(fillOf(shape));
   if (shape.part?.inDrawing === true) {
     writePartName(shape, outline, colors.name, write);
@@ -1052,6 +1114,7 @@ function writeOutlinedText(
         },
         true,
         rooms.detail,
+        detail === (shape.detail ?? shape.componentName) ? shape.detailRuns : undefined,
       );
     }
     return;
@@ -1064,7 +1127,15 @@ function writeOutlinedText(
   const detail = outlinedDetailOf(shape);
   const nameHeight = lines.length * PART_NAME_LINE;
   const withDetail = detail !== '' && text.height >= nameHeight + DETAIL_LINE;
-  const top = text.y + (text.height - nameHeight - (withDetail ? DETAIL_LINE : 0)) / 2;
+  // The block in its label area as its text placement says (ADR 0082), centred unless it says not.
+  const height = nameHeight + (withDetail ? DETAIL_LINE : 0);
+  const inset = Math.max(0, Math.min(BLOCK_INSET, (text.height - height) / 2));
+  const top =
+    shape.textPlacement === 'top'
+      ? text.y + inset
+      : shape.textPlacement === 'bottom'
+        ? text.y + text.height - inset - height
+        : text.y + (text.height - height) / 2;
   write(
     {
       text: lines.join('\n'),
@@ -1087,6 +1158,7 @@ function writeOutlinedText(
       },
       true,
       DETAIL_LINE,
+      detail === (shape.detail ?? shape.componentName) ? shape.detailRuns : undefined,
     );
   }
 }
@@ -1215,7 +1287,7 @@ function writeBandText(
   band: Rect,
   rooms: { name: number; detail: number },
   colors: { name: Color; detail: Color },
-  write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+  write: Write,
 ): void {
   const centerX = band.x + band.width / 2;
   const wrap = Math.max(1, band.width - TEXT_INSET);
@@ -1244,14 +1316,15 @@ function writeBandText(
       },
       true,
       rooms.detail,
+      shape.detailRuns,
     );
   }
 }
 
 /**
  * How tall a shape's name and its component's name may be, so that they stay inside it: in a
- * container, one line each in its header; elsewhere, the name above the middle of its label area and
- * the component's name below it.
+ * container, one line each in its header; elsewhere, the lines its text block gives the name and then
+ * the detail (`textBlock.ts`, ADR 0082), in Roboto's widths.
  */
 export function labelRooms(shape: ElementShape): { name: number; detail: number } {
   if (shape.outline && shape.rowCount === undefined && shape.row === undefined) {
@@ -1263,8 +1336,9 @@ export function labelRooms(shape: ElementShape): { name: number; detail: number 
     const { height } = bodyOf(shape);
     return { name: Math.min(20, height - 12), detail: Math.min(16, height - 32) };
   }
-  const area = labelArea(shape);
-  return { name: area.height / 2, detail: area.height / 2 - 6 };
+  const area = besideImage(shape, labelArea(shape));
+  const block = textBlockOf(shape, area, Math.max(1, area.width - TEXT_INSET));
+  return { name: block.nameRoom, detail: block.detailRoom };
 }
 
 /** The part of a shape its text is centered in: below a person's head, below a cylinder's top cap. */
