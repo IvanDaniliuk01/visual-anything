@@ -590,20 +590,37 @@ export async function layOut(
       }
     }
 
-    // What each level the run reaches leaves out, packed in rows into one block.
-    const loose = new Map<number, { nodes: number[]; places: Point[]; size: Size }>();
-    for (const level of plan.levels) {
+    // What each level the run reaches leaves out, packed in rows into one block, at the sizes
+    // `sizeOf` gives its shapes.
+    const looseAt = (level: number, sizeOf: (node: number) => Size) => {
       const nodes = freeAt(level).filter((node) => !plan.related.has(node));
-      if (nodes.length === 0) continue;
-      const places = packInRows(nodes.map((node) => tree.sizeOf(node)));
+      if (nodes.length === 0) return undefined;
+      const places = packInRows(nodes.map(sizeOf));
       const size = boundsOf(
-        nodes.map((node, at) => ({ ...(places[at] as Point), ...tree.sizeOf(node) })),
+        nodes.map((node, at) => ({ ...(places[at] as Point), ...sizeOf(node) })),
       ) as Rect;
-      loose.set(level, { nodes, places, size: { width: size.width, height: size.height } });
-    }
+      return { nodes, places, size: { width: size.width, height: size.height } };
+    };
+    /**
+     * The size a shape left out of the run will have once the run is placed, from the first pass's
+     * rectangles: a copy of a container the run arranges takes its first copy's size, since the
+     * contents they share move. The size it has now is the one before the layout, which a second
+     * layout would no longer find (ADR 0080's clarification of Stage 3).
+     */
+    const sizeAfterRun =
+      (first: ReadonlyMap<number, Rect>) =>
+      (node: number): Size => {
+        const element = input.shapes[node]?.element;
+        const copy = element === undefined ? undefined : tree.firstCopyOf(element);
+        const rect = copy === undefined || copy === node ? undefined : first.get(copy);
+        return rect && plan.levels.has(copy as number)
+          ? { width: rect.width, height: rect.height }
+          : tree.sizeOf(node);
+      };
     const beside = new Map<number, boolean>();
     const paddingOf = (first: ReadonlyMap<number, Rect>): Map<number, Padding> => {
       const padding = new Map<number, Padding>();
+      const sizeOf = sizeAfterRun(first);
       for (const level of plan.levels) {
         if (level === WORLD) continue;
         const rect = first.get(level);
@@ -612,7 +629,7 @@ export async function layOut(
         const room = { ...COMPOUND_PADDING };
         const width = rect.width - room.left - room.right;
         const height = rect.height - room.top - room.bottom;
-        const block = loose.get(level);
+        const block = looseAt(level, sizeOf);
         if (block) {
           const side = besideIsNearer({ width, height }, block.size);
           beside.set(level, side);
@@ -678,7 +695,8 @@ export async function layOut(
             places.set(node, place);
             arranged.push({ ...place, ...tree.sizeOf(node) });
           }
-          const block = loose.get(level);
+          // Packed again at the sizes its shapes have now that the levels inside are placed.
+          const block = looseAt(level, (node) => tree.sizeOf(node));
           if (block) {
             const around = boundsOf(arranged);
             const start = !around

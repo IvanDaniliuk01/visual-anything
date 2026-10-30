@@ -261,6 +261,56 @@ const projects = fc
     return { ...bare, views: [{ ...view, positions: [...positions.values()] }] };
   });
 
+/**
+ * The counterexample fast-check found on 2026-10-30 (seed -1300337465), shrunk: e3 has a copy in e0
+ * and one in e1, inside e0, and its content e5 relates to e2. The copy in e0 is left out of the one
+ * pass, and was packed at the size it had before e5 was placed, so a second Layout, finding it grown,
+ * packed it otherwise (ADR 0080's clarification of Stage 3).
+ */
+function copiedContainer(): ProjectSnapshot {
+  const elements: Element[] = Array.from({ length: 7 }, (_, at) => ({
+    id: `e${at}`,
+    component: 'systems.system',
+    name: `E${at}`,
+  }));
+  const inside = (from: string, to: string): Relation => ({
+    id: `in-${from}-${to}`,
+    relationType: 'systems.is-part-of',
+    from,
+    to,
+  });
+  return {
+    project: { schemaVersion: 1, name: 'Random', packages: ['systems'] },
+    model: {
+      world: { id: 'world', component: 'essence', name: 'World' },
+      elements,
+      relations: [
+        inside('e1', 'e0'),
+        inside('e2', 'e0'),
+        inside('e3', 'e0'),
+        inside('e3', 'e1'),
+        inside('e4', 'e0'),
+        inside('e5', 'e3'),
+        { id: 'r1', relationType: 'systems.communicates-with', from: 'e5', to: 'e2' },
+      ],
+    },
+    packages: [SYSTEMS],
+    views: [
+      {
+        id: 'v',
+        name: 'V',
+        perspective: { name: 'Random' },
+        nestingRelationTypes: ['systems.is-part-of'],
+        positions: [{ element: 'e5', container: 'e3', x: -200, y: -100 }],
+        freeShapes: [],
+      },
+    ],
+    scenarios: [],
+    tours: [],
+    comments: [],
+  };
+}
+
 describe('layout of random views', () => {
   it('keeps pinned shapes, covers nothing, stays on the step, and changes nothing when done again', async () => {
     await fc.assert(
@@ -276,7 +326,7 @@ describe('layout of random views', () => {
         const twice = await lay(once.project, 'v', { kind: 'view' });
         expect(twice.action).toBeUndefined();
       }),
-      { numRuns: 15 },
+      { numRuns: 15, examples: [[copiedContainer()]] },
     );
   }, 120_000);
 
