@@ -730,12 +730,12 @@ The first three tasks are the seams, built in the main session in this order. Th
 - screen readers hear "pointing at …" after the caption and the chain's names in order for a pulse, in English and Spanish;
 - the 10,000-element benchmark has a phase with a gliding step of 400 shapes (recorded, not held).
 
-- [ ] **Seam, the schema and the core:** `TourStep.transition`, `TourCaption.pointTo` and `TourStep.pulse` with their checks, the JSON Schema regenerated; matching shapes between two scenes and the glide's plan; the chain check in a step's problems; `check_tour`'s new warnings; property tests (matching is symmetric, the chain check accepts exactly the joined chains).
-- [ ] **The glide on the canvas:** the glide layer with its simple drawing, its bounds, and the cut under reduced motion, the Motion preference and `transition: "cut"`.
-- [ ] **Lines that draw, the leader line and the pulse:** lines drawn from their start, the caption's leader line with its off-canvas notice, and the pulse reusing the travelling marker and its trail, each cut or simplified under reduced motion.
-- [ ] **The Tours panel and the stage's words:** the panel's warnings and its controls for the new keys, the screen-reader text, and every string in `es.ts`.
-- [ ] **Claude:** the tour tools' new keys with examples, and `escapeText` for captions, reveals and speaker notes.
-- [ ] **The benchmark:** a phase with a gliding step of 400 shapes on the 10,000-element view (written; measured when a quiet machine is free, never holding the milestone).
+- [x] **Seam, the schema and the core:** `TourStep.transition`, `TourCaption.pointTo` and `TourStep.pulse` with their checks, the JSON Schema regenerated; matching shapes between two scenes and the glide's plan; the chain check in a step's problems; `check_tour`'s new warnings; property tests (matching is symmetric, the chain check accepts exactly the joined chains).
+- [x] **The glide on the canvas:** the glide layer with its simple drawing, its bounds, and the cut under reduced motion, the Motion preference and `transition: "cut"`.
+- [x] **Lines that draw, the leader line and the pulse:** lines drawn from their start, the caption's leader line with its off-canvas notice, and the pulse reusing the travelling marker and its trail, each cut or simplified under reduced motion.
+- [x] **The Tours panel and the stage's words:** the panel's warnings and its controls for the new keys, the screen-reader text, and every string in `es.ts`.
+- [x] **Claude:** the tour tools' new keys with examples, and `escapeText` for captions, reveals and speaker notes.
+- [x] **The benchmark:** a phase with a gliding step of 400 shapes on the 10,000-element view (written in `bench/glide.ts`, not yet measured: it waits for a quiet machine, never holding the milestone).
 
 **M3c · Layout that reads.** Planned on 2026-10-29, ahead of M11b's remaining tasks, from the layout research and benchmark on the user's PostgreSQL model (73 tables, 1,088 columns, 163 references in 9 schemas), which no view drew readably (ADR 0080). Done when:
 

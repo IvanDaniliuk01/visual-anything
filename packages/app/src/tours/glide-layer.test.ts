@@ -82,7 +82,7 @@ function recorder(): GlideContext & { calls: string[] } {
     font: '',
     textAlign: 'center',
     textBaseline: 'middle',
-  } as GlideContext & { calls: string[] };
+  };
 }
 
 const ITEM: GlideItem = {
@@ -172,10 +172,11 @@ describe('GlideLayer', () => {
       cancel: vi.fn(),
     };
     const context = recorder();
+    const remove = vi.fn();
     const element = {
       setAttribute: vi.fn(),
       getContext: () => context,
-      remove: vi.fn(),
+      remove,
       style: { opacity: '1' },
       width: 10,
       height: 10,
@@ -191,6 +192,6 @@ describe('GlideLayer', () => {
     expect(element.style.opacity).toBe('0.5');
     frames.shift()?.(300);
     expect(layer.gone).toBe(true);
-    expect(element.remove).toHaveBeenCalled();
+    expect(remove).toHaveBeenCalled();
   });
 });

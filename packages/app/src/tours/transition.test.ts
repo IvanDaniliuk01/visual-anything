@@ -391,10 +391,11 @@ describe('TourTransitions, gliding shapes into another view (ADR 0084)', () => {
   function gliding(count: number) {
     const timers = manualTimers();
     const fake = fakeCanvas();
+    const remove = vi.fn();
     const element = {
       setAttribute: vi.fn(),
       getContext: () => null,
-      remove: vi.fn(),
+      remove,
       style: { opacity: '1' },
       width: 1,
       height: 1,
@@ -425,11 +426,11 @@ describe('TourTransitions, gliding shapes into another view (ADR 0084)', () => {
       fades: true,
       glideTo: { side: side(count, 500), screen: SCREEN },
     });
-    return { made, timers, canvas, element, glide, captures: fake.captures };
+    return { made, timers, canvas, remove, glide, captures: fake.captures };
   }
 
   it('glides the shapes it shares, the frame before fading out over them, then fades them out', () => {
-    const { made, timers, canvas, element, glide, captures } = gliding(5);
+    const { made, timers, canvas, remove, glide, captures } = gliding(5);
     expect(glide).toEqual({ duration: 0 });
     expect(canvas.glideSurface).toHaveBeenCalled();
     expect(made.glided).toBe(5);
@@ -443,7 +444,7 @@ describe('TourTransitions, gliding shapes into another view (ADR 0084)', () => {
     expect(made.getState().marks).toBe('arriving');
     // A press finishes it: the layer goes.
     made.finish();
-    expect(element.remove).toHaveBeenCalled();
+    expect(remove).toHaveBeenCalled();
   });
 
   it('cuts, as before, when the steps share fewer than 3 shapes', () => {

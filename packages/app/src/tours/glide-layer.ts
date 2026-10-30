@@ -275,7 +275,7 @@ export class GlideLayer {
     private readonly clock: GlideClock = BROWSER_CLOCK,
   ) {
     surface.element.setAttribute('aria-hidden', 'true');
-    this.#context = surface.element.getContext('2d') as GlideContext | null;
+    this.#context = surface.element.getContext('2d');
     this.#draw(0);
   }
 
