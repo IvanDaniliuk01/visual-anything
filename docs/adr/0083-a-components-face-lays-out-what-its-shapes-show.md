@@ -334,3 +334,6 @@ The layout is block, flex and a simple grid: a small engine, not a browser's.
     - its height, whether anything was cut, and `fallback` when it is the shape's name instead: bold, 14 px, centred, on at most 2 lines.
 
     `faceDrawingText` reads it in order, a paragraph a line. Compiled faces are kept by their text, 512 at most, each with the SHA-256 of its parts.
+- 2026-10-30 (M3e, after merging F0's core half and F1): **what F1 asked.** Decided by Claude under the user's standing delegation.
+  - **`LevelOfDetail.face` and `shows: "face"`** come with F2, which first draws a face. Adding them before would break the levels editor for no use.
+  - **`--text` keeps following the shape's fill.** A box with a background of its own sets its own text color, and the contrast check warns when it does not. This holds for the built-in faces of F4 too. Following the nearest background instead would hide a dark badge's unreadable text in one theme.
