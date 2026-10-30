@@ -605,6 +605,23 @@ describe('a scene built after an edit', () => {
     );
   }, 60_000);
 
+  it('places a drawing’s icon alike after a drag as when built from nothing (seed 1775277967)', () => {
+    run(beyondBoxes(VIEW), [
+      { kind: 'picture', element: 132, which: 46 },
+      { kind: 'unrelate', relation: 0 },
+      { kind: 'drag', shape: 611, dx: 0, dy: 0 },
+      { kind: 'geometry', element: 0, which: 0 },
+    ] as Edit[]);
+  });
+
+  it('orders a drawing’s contents again when a resize takes its picture away (seed -36734158)', () => {
+    run(beyondBoxes(VIEW), [
+      { kind: 'take-out', shape: 1 },
+      { kind: 'picture', element: 0, which: 64 },
+      { kind: 'resize', shape: 0, width: 40, height: 40 },
+    ] as Edit[]);
+  });
+
   it('writes a column’s detail with its type and badges, again when a reference comes or goes', () => {
     const project = tables();
     const first = buildScene(project, VIEW);

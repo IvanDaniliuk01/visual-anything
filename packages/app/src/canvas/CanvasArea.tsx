@@ -98,6 +98,8 @@ import { RouteMenu } from './routing/RouteMenu';
 import { relationLinesOf, type ElementShape, type Scene } from './scene';
 import type { ComparisonScene } from './comparison/scene';
 import { ShapeMenu } from './ShapeMenu';
+import { PlacedHoverCard } from './HoverCard';
+import { useHoverCard } from './useHoverCard';
 import { LegendPanel } from './overlays/LegendPanel';
 import { ZoomExpansionContext, withoutZoomExpanded } from './overlays/useZoomExpansion';
 import { restackCommand, stackingActions, stackingShortcut, type StackingMove } from './stacking';
@@ -345,6 +347,8 @@ export function CanvasArea({
     latest.current = { project, view, indexed, selection, onSelect, onCommand, theme };
   });
   const themeShown = useEffectEvent((shown: ThemeName) => onThemeShown?.(shown));
+  // The shape whose hover card shows, once the pointer or the keys rested on it (ADR 0082).
+  const [hoverCard, hoverShape] = useHoverCard((key) => latest.current.indexed?.byKey.get(key));
   // A destination's mark, Alt+Enter and the shape's menu follow it (ADR 0056).
   const follower = useFollow();
   const follow = useEffectEvent((element: Id) => {
@@ -505,6 +509,7 @@ export function CanvasArea({
         addRow: (container, below) => addRowFromCanvas(container, below),
         themeShown: (shown) => themeShown(shown),
         follow: (element) => follow(element),
+        hoverShape: (key) => hoverShape(key),
       },
       // The canvas starts in the theme shown now, and follows it from then on.
       {
@@ -521,7 +526,7 @@ export function CanvasArea({
       controllerRef.current = null;
     };
     // The controller lives as long as the canvas area; `latest` gives it the current props.
-  }, [cameras, changePreferences]);
+  }, [cameras, changePreferences, hoverShape]);
 
   useEffect(() => {
     controllerRef.current?.setGrid(grid);
@@ -1018,6 +1023,9 @@ export function CanvasArea({
         tabIndex={0}
       />
       <div ref={captionRef} className="canvas-drop-caption" aria-hidden="true" />
+      {hoverCard !== undefined && editing === undefined && menu === undefined && (
+        <PlacedHoverCard shape={indexed?.byKey.get(hoverCard)} cameras={cameras} />
+      )}
       <div
         ref={acrossRef}
         className="canvas-ruler-pointer canvas-ruler-pointer-across"

@@ -26,6 +26,8 @@
   --warning: #6b4e00;
   --warning-soft: #fff4d6;
   --highlight: #c2410c;
+  --emphasis-highlight: #ffeb99;
+  --emphasis-code: #e8ecf1;
   --change-added: #007a5a;
   --change-removed: #c44d00;
   --change-changed: #946200;
@@ -63,6 +65,8 @@
     --warning: #f2c14e;
     --warning-soft: #3a2e10;
     --highlight: #fb923c;
+    --emphasis-highlight: #4a3800;
+    --emphasis-code: #303844;
     --change-added: #2dc59a;
     --change-removed: #f07a3a;
     --change-changed: #e6a817;
@@ -100,6 +104,8 @@
   --warning: #f2c14e;
   --warning-soft: #3a2e10;
   --highlight: #fb923c;
+  --emphasis-highlight: #4a3800;
+  --emphasis-code: #303844;
   --change-added: #2dc59a;
   --change-removed: #f07a3a;
   --change-changed: #e6a817;

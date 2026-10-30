@@ -20,6 +20,7 @@ import { outlineColorOf, readableTextColors } from './colors';
 import { arrowheadAt, toggleRect, type Point, type Rect } from './geometry';
 import { outlineAt, type PlacedOutline } from './outlines';
 import { midpointOf } from './route';
+import { DETAIL_LINE_HEIGHT, NAME_LINE_HEIGHT } from './textBlock';
 import { buildScene, type ElementShape, type RelationLine } from './scene';
 import { routePieces } from './tiles';
 
@@ -181,14 +182,18 @@ describe('labelRooms', () => {
     expect(labelRooms(low(30)).detail).toBeLessThanOrEqual(0);
   });
 
-  it('gives a content’s name the upper half of its label area, and its component’s name the lower', () => {
-    expect(labelRooms(shapeOf('whatsapp'))).toEqual({ name: 36, detail: 30 });
-    // A cylinder's label area leaves out its caps: 80 - 3 × 12.
-    expect(labelRooms(shapeOf('appointments-db'))).toEqual({ name: 22, detail: 16 });
-    const patient = labelRooms(shapeOf('patient'));
-    expect(patient.name).toBeCloseTo((80 - 0.22 * 80 * 1.6) / 2);
-    const ellipse = { ...shapeOf('whatsapp'), kind: 'ellipse' as const };
-    expect(labelRooms(ellipse).name).toBeCloseTo((72 * 0.7) / 2);
+  it('gives a content’s name its lines first, then its detail the lines left (ADR 0082)', () => {
+    const whatsapp = shapeOf('whatsapp');
+    const area = whatsapp.rect.height;
+    const rooms = labelRooms(whatsapp);
+    // One line each, a quarter of a line over: the name and its component's name are short.
+    expect(rooms).toEqual({ name: NAME_LINE_HEIGHT * 1.25, detail: DETAIL_LINE_HEIGHT * 1.25 });
+    expect(rooms.name + rooms.detail).toBeLessThanOrEqual(area);
+    // A cylinder's label area leaves out its caps, 80 - 3 × 12, and still holds both.
+    expect(labelRooms(shapeOf('appointments-db')).detail).toBeGreaterThan(0);
+    // A long name takes more lines before its detail does.
+    const long = { ...whatsapp, name: 'A name long enough to take two lines', detail: 'Chat' };
+    expect(labelRooms(long).name).toBeGreaterThan(rooms.name);
   });
 
   it('leaves out a component’s name a container has no room for', () => {
@@ -205,7 +210,10 @@ describe('labelRooms', () => {
 describe('fitText', () => {
   it('cuts a long name with “…” so that it fits its shape, and leaves short names alone', () => {
     const service = shapeOf('whatsapp');
-    const long = { ...service, name: 'A very long name for a channel that patients write to' };
+    const long = {
+      ...service,
+      name: 'A very long name for a channel that patients write to, and longer still than that',
+    };
     const [name] = writeShapeLabels([long], false, measured) as Measured[];
     expect(name?.text.endsWith('…')).toBe(true);
     expect(name?.height).toBeLessThanOrEqual(labelRooms(long).name);

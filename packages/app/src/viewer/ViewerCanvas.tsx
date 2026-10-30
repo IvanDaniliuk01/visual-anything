@@ -24,6 +24,8 @@ import { FitIcon, ZoomInIcon, ZoomOutIcon } from '../shell/icons';
 import { THEMES } from '../theme/themes';
 import { canvasCamera, type CanvasCamera } from '../view-state/canvas';
 import { KEY_ZOOM, ViewerController } from './controller';
+import { PlacedHoverCard } from '../canvas/HoverCard';
+import { useHoverCard } from '../canvas/useHoverCard';
 
 interface ViewerCanvasProps {
   project: ProjectSnapshot;
@@ -76,6 +78,8 @@ export function ViewerCanvas({
     }
   }, [scene]);
   const indexed = indexing.indexed;
+  // The shape whose hover card shows, as on the editor's canvas (ADR 0082).
+  const [hoverCard, hoverShape] = useHoverCard((key) => indexed?.byKey.get(key));
   const collapse = useEffectEvent((action: CollapseAction, collapsed: boolean) =>
     latest.current.onCollapse(action, collapsed),
   );
@@ -91,6 +95,7 @@ export function ViewerCanvas({
         camera: (camera) => cameras.set(camera),
         failure: (error) => setFailure(error instanceof Error ? error.message : String(error)),
         announce: (text) => setAnnouncement((last) => ({ text, count: last.count + 1 })),
+        hoverShape: (key) => hoverShape(key),
       },
       { theme: THEMES[latest.current.theme].canvas },
     );
@@ -100,7 +105,7 @@ export function ViewerCanvas({
       controller.destroy();
       controllerRef.current = null;
     };
-  }, [cameras]);
+  }, [cameras, hoverShape]);
 
   useEffect(() => {
     controllerRef.current?.renderer.setTheme(THEMES[theme].canvas);
@@ -171,6 +176,9 @@ export function ViewerCanvas({
           <FitIcon />
         </button>
       </div>
+      {hoverCard !== undefined && (
+        <PlacedHoverCard shape={indexed?.byKey.get(hoverCard)} cameras={cameras} />
+      )}
       <div role="status" aria-label={t('Selection')} className="visually-hidden">
         {announcement.text}
         {announcement.count % 2 === 1 ? ' ' : ''}

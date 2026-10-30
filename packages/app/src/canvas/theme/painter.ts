@@ -28,6 +28,7 @@ import {
   type TextFactory,
 } from '../draw';
 import type { Arrowhead } from '../geometry';
+import { tintLabel } from '../emphasisLabels';
 import { RelationLabel } from '../labels';
 import { rowColorsOf } from '../rowsDraw';
 import {
@@ -161,12 +162,20 @@ export class Painter {
   ): Container[] {
     let current = '';
     const recording: TextFactory | undefined = records
-      ? (options, kind, room) => {
-          const label = make(options, kind, room);
-          if (label)
-            records.push({ label, role: kind === 'detail' ? 'detail' : 'name', shape: current });
-          return label;
-        }
+      ? Object.assign(
+          (...args: Parameters<TextFactory>) => {
+            const label = make(...args);
+            const kind = args[1];
+            if (label)
+              records.push({ label, role: kind === 'detail' ? 'detail' : 'name', shape: current });
+            return label;
+          },
+          // It measures as `make` does, so that shapes place their text as it draws.
+          {
+            ...(make.measure ? { measure: make.measure } : {}),
+            ...(make.measureName ? { measureName: make.measureName } : {}),
+          },
+        )
       : undefined;
     const written: Container[] = [];
     for (const shape of shapes) {
@@ -193,11 +202,11 @@ export class Painter {
   }
 
   /** The text of notes, tinted to read on the fill each note is drawn in. */
-  noteTexts(notes: readonly NoteShape[], records?: LabelPaint[]): Container[] {
-    const texts = writeNoteTexts(notes);
+  noteTexts(notes: readonly NoteShape[], records?: LabelPaint[], make?: TextFactory): Container[] {
+    const texts = writeNoteTexts(notes, make);
     texts.forEach((text, at) => {
       const note = notes[at] as NoteShape;
-      text.tint = noteColors(note, this.theme).text;
+      tintLabel(text, noteColors(note, this.theme).text);
       records?.push({ label: text, role: 'note', note: note.id });
     });
     return texts;
@@ -212,12 +221,12 @@ export class Painter {
       if (record.role === 'relation') {
         if (label instanceof RelationLabel)
           label.paint(theme.relationLabelText, theme.relationLabelBack);
-        else label.tint = theme.relationLabelText;
+        else tintLabel(label, theme.relationLabelText);
         continue;
       }
       if (record.role === 'note') {
         const note = lookups.note(record.note);
-        if (note) label.tint = noteColors(note, theme).text;
+        if (note) tintLabel(label, noteColors(note, theme).text);
         continue;
       }
       const shape = lookups.shape(record.shape);
@@ -228,7 +237,7 @@ export class Painter {
       const colors = readableTextColors(
         under ?? shape.part?.color ?? shapeColors(shape, this.name).fill,
       );
-      label.tint = record.role === 'name' ? colors.name : colors.detail;
+      tintLabel(label, record.role === 'name' ? colors.name : colors.detail);
     }
   }
 

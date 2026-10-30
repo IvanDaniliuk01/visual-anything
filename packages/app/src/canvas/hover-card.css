@@ -1,0 +1,26 @@
+/* A shape's hover card (ADR 0082): its name and whole detail, under the shape. */
+.canvas-hover-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: var(--z-editor);
+  max-width: 22rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  box-shadow: var(--shadow-2);
+  pointer-events: none;
+  overflow-wrap: anywhere;
+}
+
+.canvas-hover-card-name {
+  font-weight: 600;
+}
+
+.canvas-hover-card-detail {
+  color: var(--text-muted);
+}

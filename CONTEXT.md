@@ -95,8 +95,12 @@ An element drawn as one line of its container's shape, because the container's a
 _Avoid_: line item
 
 **Detail**:
-The smaller text a shape writes with its element's name, as its appearance says: its component's name, the values of chosen attributes and badges. It wraps to the lines its appearance gives, three unless it says otherwise, and the whole of it shows on hover (ADR 0082).
+The smaller text a shape writes with its element's name, as its appearance says: its component's name, the values of chosen attributes and badges. It wraps to the lines its appearance gives, three unless it says otherwise, and the whole of it shows in the shape's hover card. The name and the detail are one block that the appearance's text placement puts at the top, in the middle or at the bottom of the shape (ADR 0082).
 _Avoid_: subtitle
+
+**Hover card**:
+The card under a shape that gives back what the canvas cut of its name or detail, whole and with its text emphasis, once the pointer rests on the shape or the keys reach it (ADR 0082).
+_Avoid_: tooltip, popover
 
 **Badge**:
 A short text, such as "PK" or "FK", that a shape writes in its detail while its element meets the badge's condition: a boolean attribute is true, or the element is the `from` end of a relation of a given relation type.

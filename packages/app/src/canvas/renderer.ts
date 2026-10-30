@@ -1640,7 +1640,7 @@ export class CanvasRenderer {
       outlines,
       ...painter.shapeLabels(shapes, true, this.text),
       ...painter.relationLabels(lines, this.text),
-      ...painter.noteTexts(notes),
+      ...painter.noteTexts(notes, undefined, this.text),
     );
     sample.position.set(-100_000, -100_000);
     this.app.stage.addChild(sample);
@@ -2601,7 +2601,7 @@ export class CanvasRenderer {
           )
         : tile.kind === 'relations'
           ? painter.relationLabels(tile.lines.slice(from, to), this.text, tile.labelPaint)
-          : painter.noteTexts(tile.notes, tile.labelPaint);
+          : painter.noteTexts(tile.notes, tile.labelPaint, this.text);
     for (const text of texts) {
       if (text instanceof Text) text.resolution = this.textResolution();
       tile.labels.addChild(text);
@@ -2959,7 +2959,7 @@ export class CanvasRenderer {
       this.painter.freeShapes(free, notes, arrows);
       this.dragged.addChild(free);
       if (named) {
-        for (const text of this.painter.noteTexts(notes)) {
+        for (const text of this.painter.noteTexts(notes, undefined, this.text)) {
           if (text instanceof Text) text.resolution = this.textResolution();
           this.dragged.addChild(text);
         }

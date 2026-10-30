@@ -150,6 +150,11 @@ export interface ControllerCallbacks {
   themeShown?(theme: ThemeName): void;
   /** Asks to follow the first destination of an element, from its mark or Alt+Enter (ADR 0056). */
   follow?(element: Id): void;
+  /**
+   * Says which shape the pointer rests on, or the keys reached, for its hover card (ADR 0082); none
+   * when it leaves it or a gesture starts.
+   */
+  hoverShape?(key: string | undefined, by: 'pointer' | 'keyboard'): void;
 }
 
 /**
@@ -368,6 +373,8 @@ export class CanvasController {
   private readonly routes: RouteEditor;
   /** Resizes the shape selected alone, and guides what is dragged or resized (ADR 0074). */
   private readonly shapes: ShapeEditor;
+  /** The shape last said to be hovered, for its hover card. */
+  private hoverSaid: string | undefined;
 
   constructor(
     private readonly host: HTMLElement,
@@ -1640,6 +1647,7 @@ export class CanvasController {
     if (reached.kind === 'shape') {
       this.current = reached.shape.key;
       this.choose(selectionOf([{ kind: 'element', id: reached.shape.element }]));
+      this.callbacks.hoverShape?.(reached.shape.key, 'keyboard');
     } else {
       const id = reached.kind === 'note' ? reached.note.id : reached.arrow.id;
       this.current = id;
@@ -2079,6 +2087,11 @@ export class CanvasController {
 
   private refreshMarks(): void {
     this.renderer.setSelection(this.selection, this.hovered?.key);
+    const hovered = this.gesture.kind === 'idle' ? this.hovered?.key : undefined;
+    if (hovered !== this.hoverSaid) {
+      this.hoverSaid = hovered;
+      this.callbacks.hoverShape?.(hovered, 'pointer');
+    }
     this.routes.refresh();
     this.shapes.refresh();
     if (this.gesture.kind === 'idle') {

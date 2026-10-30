@@ -28,6 +28,7 @@ import {
   Unmatched,
   attributesFrom,
   descriptionFrom,
+  markdownFrom,
   nameFrom,
   quote,
   reading,
@@ -245,16 +246,18 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
     if (!elementHints.has(kind)) elementHints.set(kind, elementSuggestions(kind, shape));
     const kindKey = elementKinds.add(kind);
     logical.set(key, { key, title, kind });
-    const description =
-      textOf(json, own(object, 'description'), `${path}.description`) ??
-      textOf(json, own(object, 'summary'), `${path}.summary`);
+    const description = textOf(json, own(object, 'description'), `${path}.description`);
+    const described =
+      description.description === undefined
+        ? textOf(json, own(object, 'summary'), `${path}.summary`)
+        : description;
     const attributes = attributesFrom(attributesOf(json, object, path, unmatched));
     elements.push({
       key,
       sourceId: name,
       name: nameFrom(title, name.slice(name.lastIndexOf('.') + 1), unmatched),
       kind: kindKey,
-      ...(description === undefined ? {} : { description }),
+      ...described,
       ...(attributes === undefined ? {} : { attributes }),
     });
   };
@@ -329,7 +332,7 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
           sourceId: name,
           name: nameFrom(title ?? of?.title, name.slice(name.lastIndexOf('.') + 1), unmatched),
           kind: elementKinds.add(kindName),
-          ...(description === undefined ? {} : { description }),
+          ...description,
           ...(attributes === undefined ? {} : { attributes }),
         });
         continue;
@@ -345,7 +348,7 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
         sourceId: name,
         name: nameFrom(title, name.slice(name.lastIndexOf('.') + 1), unmatched),
         kind: elementKinds.add(kindName),
-        ...(description === undefined ? {} : { description }),
+        ...description,
         ...(attributes === undefined ? {} : { attributes }),
       });
     }
@@ -599,14 +602,31 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
   };
 }
 
-/** A description LikeC4 writes as text, as `{ txt }` or as `{ md }`, kept as the text it is. */
-function textOf(json: JsonReader, value: unknown, path: string): string | undefined {
-  if (value === undefined || value === null) return undefined;
-  if (typeof value === 'string') return descriptionFrom(value);
+/**
+ * A description LikeC4 writes: as a string or as `{ txt }`, plain text, which the import escapes; as
+ * `{ md }`, Markdown by its author's intent, imported as written so that it is drawn with its
+ * emphasis (ADR 0082). Its links still open only http, https and mailto addresses, and nothing in it
+ * becomes HTML: the core's reader draws the rest as the characters it is.
+ */
+function textOf(
+  json: JsonReader,
+  value: unknown,
+  path: string,
+): Pick<PlannedElement, 'description' | 'descriptionIsMarkdown'> {
+  if (value === undefined || value === null) return {};
+  if (typeof value === 'string') return described(descriptionFrom(value));
   const object = json.object(value, path);
-  return descriptionFrom(
-    json.textOr(own(object, 'txt'), `${path}.txt`) ?? json.textOr(own(object, 'md'), `${path}.md`),
-  );
+  const plain = json.textOr(own(object, 'txt'), `${path}.txt`);
+  if (plain !== undefined) return described(descriptionFrom(plain));
+  const markdown = markdownFrom(json.textOr(own(object, 'md'), `${path}.md`));
+  return markdown === undefined ? {} : { description: markdown, descriptionIsMarkdown: true };
+}
+
+/** A plain description, when there is one. */
+function described(
+  description: string | undefined,
+): Pick<PlannedElement, 'description' | 'descriptionIsMarkdown'> {
+  return description === undefined ? {} : { description };
 }
 
 /** What an element or relation keeps as attributes: its technology, tags, web links and metadata. */

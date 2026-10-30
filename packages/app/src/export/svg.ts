@@ -138,6 +138,12 @@ import { layOutBand, type BandItem, type BandLayout } from './legendLayout';
 import { element, empty, num, textElement, type AttributeValue } from './markup';
 import { textWidth } from './measure';
 import { layOutText, type TextSpec } from './text-layout';
+import { laidTextSvg } from './emphasis-svg';
+import { parseEmphasis } from '@visual-anything/core';
+import { placeTextBlock, robotoMeasure } from '../canvas/textBlock';
+import { drawsDifferently } from '../text/drawn';
+import { detailPlainText } from '../text/detail';
+import { layOutBlocks } from '../text/layout';
 
 /** The room left around the scene's bounds, in canvas units, as the PNG of the whole view keeps. */
 export const SVG_MARGIN = 32;
@@ -1128,7 +1134,8 @@ function plateOf(box: Rect, fill: Color): string {
  * one; and on a collapsed container, how many shapes it holds.
  */
 function detailOf(shape: ElementShape): string {
-  const detail = shape.detail ?? shape.componentName;
+  // Without the markers of its text emphasis where it is not drawn with them (ADR 0082).
+  const detail = detailPlainText(shape);
   if (shape.collapsed === undefined) return detail;
   const inside = t('{count} inside', { count: shape.collapsed.contents });
   return detail === '' ? inside : `${detail} · ${inside}`;
@@ -1181,7 +1188,7 @@ function shapeText(writer: Writer, shape: ElementShape, fill: Color): string {
     });
   }
   const area = besideImage(shape, labelAreaOf(shape.kind, shape.rect));
-  return centredText(writer, area, colors, shape.name, detail);
+  return centredText(writer, shape, area, colors, detail);
 }
 
 /**
@@ -1245,46 +1252,67 @@ function headerText(
   );
 }
 
-/** A name and the detail under it, centred in an area: the name above its middle, the detail below. */
+/**
+ * A shape's name and detail as one block in its label area, placed as the canvas places it
+ * (`textBlock.ts`, ADR 0082): the name's lines first, then the detail's, wrapped to its lines and
+ * written with its text emphasis.
+ */
 function centredText(
   writer: Writer,
+  shape: ElementShape,
   area: Rect,
   colors: { name: Color; detail: Color },
-  name: string,
   detail: string,
 ): string {
   const centerX = area.x + area.width / 2;
-  const centerY = area.y + area.height / 2;
   const wrap = Math.max(1, area.width - TEXT_INSET);
-  const rooms = { name: area.height / 2, detail: area.height / 2 - 6 };
+  const block = placeTextBlock({
+    area,
+    wrap,
+    name: shape.name,
+    detail,
+    ...(shape.detailRuns && shape.collapsed === undefined ? { detailRuns: shape.detailRuns } : {}),
+    ...(shape.detailLines === undefined ? {} : { lines: shape.detailLines }),
+    ...(shape.textPlacement === undefined ? {} : { placement: shape.textPlacement }),
+  });
+  const name = writer.text({
+    text: shape.name,
+    size: NAME_SIZE,
+    bold: true,
+    fill: colors.name,
+    x: centerX,
+    align: 'middle',
+    y: block.nameTop,
+    anchor: 'top',
+    wrap,
+    room: block.nameRoom,
+  });
+  if (block.detailLines === 0) return name;
+  if (shape.detailRuns && block.detail) {
+    return (
+      name +
+      laidTextSvg(
+        block.detail,
+        { x: centerX - wrap / 2, y: block.detailTop },
+        colors.detail,
+        robotoMeasure,
+        writer.texts,
+      )
+    );
+  }
   return (
-    (rooms.name > 0
-      ? writer.text({
-          text: name,
-          size: NAME_SIZE,
-          bold: true,
-          fill: colors.name,
-          x: centerX,
-          align: 'middle',
-          y: centerY + 2,
-          anchor: 'bottom',
-          wrap,
-          room: rooms.name,
-        })
-      : '') +
-    (rooms.detail > 0 && detail !== ''
-      ? writer.text({
-          text: detail,
-          size: DETAIL_SIZE,
-          fill: colors.detail,
-          x: centerX,
-          align: 'middle',
-          y: centerY + 4,
-          anchor: 'top',
-          wrap,
-          room: rooms.detail,
-        })
-      : '')
+    name +
+    writer.text({
+      text: detail,
+      size: DETAIL_SIZE,
+      fill: colors.detail,
+      x: centerX,
+      align: 'middle',
+      y: block.detailTop,
+      anchor: 'top',
+      wrap,
+      room: block.detailRoom,
+    })
   );
 }
 
@@ -1885,18 +1913,32 @@ function noteParts(writer: Writer, note: NoteShape): string {
       stroke: colors.stroke,
       'stroke-width': 1,
     }) +
-      writer.text({
-        text: note.text,
-        size: NOTE_TEXT_SIZE,
-        fill: colors.text,
-        x: x + TEXT_INSET,
-        align: 'start',
-        y: y + 10,
-        anchor: 'top',
-        wrap: Math.max(1, width - 2 * TEXT_INSET),
-        // The canvas lets a long text run past the note; here it stops at the note's bottom.
-        room: height - 16,
-      }),
+      (drawsDifferently(note.text)
+        ? laidTextSvg(
+            layOutBlocks(parseEmphasis(note.text, { blocks: true }), {
+              measure: robotoMeasure,
+              size: NOTE_TEXT_SIZE,
+              width: Math.max(1, width - 2 * TEXT_INSET),
+              align: 'left',
+              maxHeight: height - 16,
+            }),
+            { x: x + TEXT_INSET, y: y + 10 },
+            colors.text,
+            robotoMeasure,
+            writer.texts,
+          )
+        : writer.text({
+            text: note.text,
+            size: NOTE_TEXT_SIZE,
+            fill: colors.text,
+            x: x + TEXT_INSET,
+            align: 'start',
+            y: y + 10,
+            anchor: 'top',
+            wrap: Math.max(1, width - 2 * TEXT_INSET),
+            // The canvas stops a long text at the note's bottom, and so does this.
+            room: height - 16,
+          })),
   );
 }
 

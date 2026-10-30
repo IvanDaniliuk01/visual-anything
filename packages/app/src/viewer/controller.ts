@@ -65,6 +65,8 @@ export interface ViewerCallbacks {
   announce(message: string): void;
   /** Says that the canvas shows a theme, in the frame that first shows it. */
   themeShown?(theme: ThemeName): void;
+  /** Says which shape the pointer rests on, for its hover card (ADR 0082); none when it leaves. */
+  hoverShape?(key: string | undefined): void;
 }
 
 type Gesture =
@@ -120,6 +122,8 @@ export class ViewerController {
   /** Where each pointer pressed on the canvas is now, on screen. */
   private readonly pointers = new Map<number, Point>();
   private hovered: ElementShape | undefined;
+  /** The shape last said to be hovered, for its hover card. */
+  private hoverSaid: string | undefined;
   /** The shape the keys move on from, by its key or a free shape's id. */
   private current: string | undefined;
   /** The element whose relations ] and [ step through, and the relation they are on. */
@@ -677,6 +681,11 @@ export class ViewerController {
 
   private refreshMarks(): void {
     this.renderer.setSelection(this.selection, this.hovered?.key);
+    const hovered = this.gesture.kind === 'idle' ? this.hovered?.key : undefined;
+    if (hovered !== this.hoverSaid) {
+      this.hoverSaid = hovered;
+      this.callbacks.hoverShape?.(hovered);
+    }
   }
 
   private local(event: MouseEvent): Point {

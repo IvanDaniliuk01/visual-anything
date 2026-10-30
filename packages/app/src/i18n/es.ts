@@ -665,6 +665,8 @@ export const ui: Catalog = {
     '{name}, {component}, fila {position} de {count} en {container}, {relations}.',
   '{name}, {component}, {detail}, row {position} of {count} in {container}, {relations}.':
     '{name}, {component}, {detail}, fila {position} de {count} en {container}, {relations}.',
+  '{name}, {component}, {detail}, {where}, {relations}.':
+    '{name}, {component}, {detail}, {where}, {relations}.',
   '{count} other containers': { one: '{count} contenedor más', other: '{count} contenedores más' },
   'no relations': 'ninguna relación',
   'A relation that no longer exists.': 'Una relación que ya no existe.',
@@ -1699,6 +1701,13 @@ export const ui: Catalog = {
   'Badge text': 'Texto de la insignia',
   Written: 'Se escribe',
   'Add the badge': 'Agregar la insignia',
+  'Lines, at most': 'Líneas, como máximo',
+  'Where its text sits': 'Dónde va su texto',
+  'At the top': 'Arriba',
+  'In the middle': 'En el medio',
+  'At the bottom': 'Abajo',
+  'While it draws rows, it writes its name at the top.':
+    'Mientras dibuja filas, escribe su nombre arriba.',
   'point {count}': 'punto {count}',
   'Enter a number from 0 to 1.': 'Escribir un número de 0 a 1.',
   'Connection points': 'Puntos de conexión',

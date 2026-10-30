@@ -67,7 +67,7 @@ import {
   withoutUndefined,
 } from './kit';
 import type { Tool, ToolOutcome } from './tools';
-import { TAKES_MARKDOWN } from './emphasis';
+import { TAKES_MARKDOWN, escapeTextInput, escapedIf } from './emphasis';
 
 const json = () => z.unknown().describe('Any JSON value.');
 
@@ -188,6 +188,7 @@ Example, with a decision: {
   input: {
     name: z.string().min(1),
     description: z.string().optional().describe(TAKES_MARKDOWN),
+    escapeText: escapeTextInput(),
     view: id().describe('The view it plays over.'),
     steps: z
       .array(treeItem(3))
@@ -211,7 +212,7 @@ Example, with a decision: {
           type: 'create-scenario',
           scenario: withoutUndefined({
             name: args.name,
-            description: args.description,
+            description: escapedIf(args.escapeText, args.description),
             view: args.view,
             steps,
           }),
@@ -229,7 +230,7 @@ Example, with a decision: {
         type: 'create-scenario',
         scenario: withoutUndefined({
           name: args.name,
-          description: args.description,
+          description: escapedIf(args.escapeText, args.description),
           view: args.view,
           steps: flat.steps,
           blocks: flat.blocks,
@@ -402,6 +403,7 @@ Example, with decisions: {
     scenario: id(),
     name: z.string().min(1).optional(),
     description: z.string().nullable().optional().describe(TAKES_MARKDOWN),
+    escapeText: escapeTextInput(),
     view: id().optional().describe('Another view for it to play over.'),
     edits: z.array(edit()).optional(),
     cascade: z
@@ -439,7 +441,7 @@ Example, with decisions: {
         id: scenario.id,
         changes: withoutUndefined({
           name: args.name,
-          description: args.description,
+          description: escapedIf(args.escapeText, args.description),
           view: args.view,
           steps,
           blocks,

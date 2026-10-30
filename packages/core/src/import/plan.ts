@@ -78,6 +78,8 @@ export interface PlannedElement {
   /** The kind the mapping maps to a component. */
   kind: string;
   description?: string;
+  /** True when the file writes the description as Markdown, which is then imported as written. */
+  descriptionIsMarkdown?: boolean;
   attributes?: Attributes;
   /**
    * What it is in other catalogs, by scheme (ADR 0056). `matchByExternalIds` checks them, fills in
@@ -104,6 +106,8 @@ export interface PlannedRelation {
   kind: string;
   name?: string;
   description?: string;
+  /** True when the file writes the description as Markdown, which is then imported as written. */
+  descriptionIsMarkdown?: boolean;
   attributes?: Attributes;
   /**
    * A relation of the project this row of the file matched: its name, description and attribute
@@ -118,6 +122,8 @@ export interface PlannedView {
   key: string;
   name: string;
   description?: string;
+  /** True when the file writes the description as Markdown, which is then imported as written. */
+  descriptionIsMarkdown?: boolean;
   /** The elements it shows, when it shows only some: by keys; absent, it shows the whole model. */
   shows?: string[];
   /** Where its shapes sit, from the file's own layout; pinned, as placed by hand. */
@@ -230,9 +236,18 @@ export function planToCommand(
     if (component !== undefined) componentOfKey.set(element.key, component);
   }
   // Outside text is written as text (ADR 0082): a description, and the value of an attribute that
-  // takes text emphasis, are escaped so that they read back as the file wrote them.
-  const text = (description: string | undefined) =>
-    description === undefined ? {} : { description: escapeEmphasis(description) };
+  // takes text emphasis, are escaped so that they read back as the file wrote them. A description the
+  // file writes as Markdown, as LikeC4's `md`, is its author's emphasis, imported as written.
+  const text = ({
+    description,
+    descriptionIsMarkdown,
+  }: {
+    description?: string;
+    descriptionIsMarkdown?: boolean;
+  }) =>
+    description === undefined
+      ? {}
+      : { description: descriptionIsMarkdown === true ? description : escapeEmphasis(description) };
   const valuesAsText = (
     attributes: Attributes | undefined,
     defined: readonly { name: string; format?: 'plain' | 'emphasis' }[],
@@ -276,7 +291,7 @@ export function planToCommand(
       view: {
         id: idOf(view.key),
         name: view.name,
-        ...text(view.description),
+        ...text(view),
         perspective: { name: view.name },
         ...(nesting === undefined ? {} : { nestingRelationTypes: [nesting] }),
       },
@@ -301,7 +316,7 @@ export function planToCommand(
         id: idOf(element.key),
         component: chosen(mapping.elements, element.kind) as Id,
         name: element.name,
-        ...text(element.description),
+        ...text(element),
         ...elementValues(componentOfKey.get(element.key), element.attributes),
         ...(element.ids ? { ids: element.ids } : {}),
       },
@@ -322,7 +337,7 @@ export function planToCommand(
         id: relation.existing,
         changes: {
           ...(relation.name === undefined ? {} : { name: relation.name }),
-          ...text(relation.description),
+          ...text(relation),
           ...relationValues(index.relation(relation.existing)?.relationType, relation.attributes),
         },
       });
@@ -336,7 +351,7 @@ export function planToCommand(
         from: idOf(relation.from),
         to: idOf(relation.to),
         ...(relation.name === undefined ? {} : { name: relation.name }),
-        ...text(relation.description),
+        ...text(relation),
         ...relationValues(chosen(mapping.relations, relation.kind), relation.attributes),
       },
     });

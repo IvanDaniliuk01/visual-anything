@@ -8,7 +8,9 @@
  *   license lets it ship (Apache-2.0, ADR-0047), embedded with only the glyphs the file uses: the PDF
  *   reads the same on every computer. A character Roboto lacks is said to be lost. Roboto 2.137
  *   Regular and Bold are in `fonts/roboto.json`, as WOFF files in base64, taken unchanged from the npm
- *   package `roboto-fontface` 0.10.0; `fonts/LICENSE-roboto.txt` holds their license.
+ *   package `roboto-fontface` 0.10.0; `fonts/LICENSE-roboto.txt` holds their license. Text emphasis
+ *   (ADR 0082) adds Roboto Italic and Bold Italic, from the same package, and Roboto Mono 3.000, all
+ *   Apache-2.0, in `fonts/roboto-emphasis.json`: loaded and embedded only when a text uses them.
  * - **Pictures.** SVG pictures are drawn as vectors, PNG and JPEG bitmaps as images; WebP, which PDF
  *   cannot hold, and the silhouettes of bitmaps, which need filters, are said to be lost.
  * - **The page** is the size of the view, a canvas unit to a CSS pixel, three quarters of a point, and
@@ -26,6 +28,7 @@ import { decodeBase64, encodeBase64 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { t, type PluralText } from '../i18n';
 import { svgPieces, writeSvg, type SvgDrawing } from './svg';
+import { usesEmphasisFonts } from './emphasis-svg';
 
 /** Points to a canvas unit: a CSS pixel is three quarters of a point. */
 const POINTS_PER_UNIT = 0.75;
@@ -96,7 +99,7 @@ type SvgToPdf = (
     width: number;
     height: number;
     assumePt: boolean;
-    fontCallback: (family: string, bold: boolean) => string;
+    fontCallback: (family: string, bold: boolean, italic: boolean) => string;
     warningCallback: (warning: string) => void;
   },
 ) => void;
@@ -122,6 +125,29 @@ async function libraries(): Promise<{
     regular,
     bold,
   };
+}
+
+/** The fonts text emphasis adds (ADR 0082), loaded the first time a PDF has a text that uses them. */
+async function emphasisFonts(): Promise<{
+  italic: Uint8Array;
+  boldItalic: Uint8Array;
+  mono: Uint8Array;
+}> {
+  const fonts = (await import('./fonts/roboto-emphasis.json')).default;
+  const italic = decodeBase64(fonts.italic);
+  const boldItalic = decodeBase64(fonts.boldItalic);
+  const mono = decodeBase64(fonts.mono);
+  if (!italic || !boldItalic || !mono) {
+    throw new Error('The fonts the PDF embeds could not be read.');
+  }
+  return { italic, boldItalic, mono };
+}
+
+/** The embedded font a text of this family, weight and style is written in. */
+export function fontFor(family: string, bold: boolean, italic: boolean, more: boolean): string {
+  if (more && family.includes('Mono')) return 'va-mono';
+  if (more && italic) return bold ? 'va-bold-italic' : 'va-italic';
+  return bold ? 'va-bold' : 'va-regular';
 }
 
 /**
@@ -194,6 +220,8 @@ export async function pdfOfSvg(
   const { signal } = options;
   signal?.throwIfAborted();
   const { PDFDocument, svgToPdf, regular, bold } = await libraries();
+  const uses = usesEmphasisFonts(drawing.text);
+  const more = uses.italic || uses.mono ? await emphasisFonts() : undefined;
   signal?.throwIfAborted();
 
   const natural = {
@@ -230,6 +258,11 @@ export async function pdfOfSvg(
   });
   document.registerFont('va-regular', regular);
   document.registerFont('va-bold', bold);
+  if (more) {
+    document.registerFont('va-italic', more.italic);
+    document.registerFont('va-bold-italic', more.boldItalic);
+    document.registerFont('va-mono', more.mono);
+  }
   const chunks: Uint8Array[] = [];
   const done = new Promise<void>((resolve, reject) => {
     document.on('data', (chunk) => chunks.push(chunk));
@@ -257,7 +290,8 @@ export async function pdfOfSvg(
       width: natural.width,
       height: natural.height,
       assumePt: false,
-      fontCallback: (_family, isBold) => (isBold ? 'va-bold' : 'va-regular'),
+      fontCallback: (family, isBold, isItalic) =>
+        fontFor(family, isBold, isItalic, more !== undefined),
       warningCallback: (warning) => warnings.push(warning),
     });
     await pause();

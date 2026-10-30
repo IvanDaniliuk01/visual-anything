@@ -7,6 +7,14 @@ import { indexScene } from './hit';
 import { buildScene } from './scene';
 
 const sample = loadSample();
+const PLAIN = {
+  bold: false,
+  italic: false,
+  strike: false,
+  underline: false,
+  code: false,
+  highlight: false,
+};
 const indexed = indexScene(buildScene(sample, 'system-overview'));
 
 function shape(key: string, within = indexed) {
@@ -26,6 +34,25 @@ describe('describeShape', () => {
     expect(describeShape(indexed, sample, shape('clinic-booking'))).toBe(
       'Clinic booking, System, in World, no relations.',
     );
+  });
+
+  it('says a detail that says more than the component, by its plain text (ADR 0082)', () => {
+    const appointments = shape('clinic-booking/scheduling/appointments-api');
+    const said = (detail: Partial<typeof appointments>) =>
+      describeShape(indexed, sample, { ...appointments, ...detail });
+    expect(said({ detail: 'Service' })).toBe(
+      'Appointments API, Service, in Scheduling, 4 relations.',
+    );
+    expect(
+      said({
+        detail: 'Service · the **slots** table',
+        detailRuns: [
+          { text: 'Service · the ', ...PLAIN },
+          { text: 'slots', ...PLAIN, bold: true },
+          { text: ' table', ...PLAIN },
+        ],
+      }),
+    ).toBe('Appointments API, Service, Service · the slots table, in Scheduling, 4 relations.');
   });
 
   it('says how many other containers an element sits in', () => {

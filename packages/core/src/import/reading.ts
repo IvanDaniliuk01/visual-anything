@@ -211,6 +211,22 @@ export function descriptionFrom(text: string | undefined): string | undefined {
   return plain === '' ? undefined : plain;
 }
 
+/**
+ * A description the file writes as Markdown, as written (ADR 0082): invisible characters dropped, line
+ * ends made `\n`, and the blank lines at its ends and the spaces at its lines' ends taken away. Its
+ * indents and the spaces inside its lines stay, so that its nested lists and its code read as its
+ * author wrote them. Nothing when it is blank.
+ */
+export function markdownFrom(text: string | undefined): string | undefined {
+  if (text === undefined) return undefined;
+  const kept = text
+    .replace(/\r\n?/g, '\n')
+    .replace(INVISIBLE, '')
+    .replace(/[^\S\n]+$/gmu, '')
+    .replace(/^\n+|\n+$/g, '');
+  return kept.trim() === '' ? undefined : kept;
+}
+
 /** A web address the file gives, kept as text when it is one; anything else is nothing. */
 export function webAddress(text: string | undefined): string | undefined {
   if (text === undefined) return undefined;

@@ -57,6 +57,14 @@ export interface ShellColors {
   /** Reserved for Claude's live guidance (M4) and scenario playback (M5), always with a cue that is not color. */
   highlight: Color;
   /**
+   * Behind a run of text emphasis written `==highlight==` (ADR 0082), in the panels; every text color
+   * reads on it at 4.5:1. The canvas draws behind dark text the light theme's and behind light text
+   * the dark theme's (`emphasisBacks`), whatever the theme, since its text reads on a shape's fill.
+   */
+  emphasisHighlight: Color;
+  /** Behind inline code and code blocks in a text that takes emphasis (ADR 0082), as the highlight. */
+  emphasisCode: Color;
+  /**
    * The marks of a comparison (ADR 0070): what was added, removed, changed and moved. Okabe–Ito hues,
    * made darker on the light canvas and lighter on the dark one, each at 3:1 or more on the canvas
    * and the panels; each state also has a glyph and a line pattern, so that none is told by color
@@ -160,6 +168,8 @@ const LIGHT: ShellTheme = {
     warning: '#6B4E00',
     warningSoft: '#FFF4D6',
     highlight: '#C2410C',
+    emphasisHighlight: '#FFEB99',
+    emphasisCode: '#E8ECF1',
     // Okabe–Ito bluish green, vermillion, orange and reddish purple, darkened for the white canvas.
     changeAdded: '#007A5A',
     changeRemoved: '#C44D00',
@@ -200,6 +210,8 @@ const DARK: ShellTheme = {
     warning: '#F2C14E',
     warningSoft: '#3A2E10',
     highlight: '#FB923C',
+    emphasisHighlight: '#4A3800',
+    emphasisCode: '#303844',
     // The same hues, lightened for the dark canvas.
     changeAdded: '#2DC59A',
     changeRemoved: '#F07A3A',
