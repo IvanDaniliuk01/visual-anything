@@ -544,6 +544,16 @@ export interface UpdateViewCommand {
      * `null` draws them orthogonal again.
      */
     routeStyle?: 'straight' | 'curved' | null;
+    /**
+     * Which rows its shapes that draw rows draw (ADR 0080, section 5): only key rows with `keys`;
+     * every row with `all` or `null`, which leave it out of the file.
+     */
+    rows?: 'all' | 'keys' | null;
+    /**
+     * Whether selecting fades the lines that do not touch the selection (ADR 0080, section 5):
+     * `false` turns it off; `true` or `null` turn it on again, which leaves it out of the file.
+     */
+    selectionFadesLines?: boolean | null;
   };
 }
 

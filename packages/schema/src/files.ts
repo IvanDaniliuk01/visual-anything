@@ -693,6 +693,17 @@ export interface ViewFile {
    */
   routeStyle?: 'straight' | 'curved';
   /**
+   * Which rows the shapes that draw their contents as rows draw in this view (ADR 0080, section 5):
+   * every row, as when left out, or only their key rows, those whose element is part of a primary
+   * key or that a relation the view draws ends on, with a count of the rest.
+   */
+  rows?: 'all' | 'keys';
+  /**
+   * Whether selecting a shape or a relation, in a view with more than 40 lines, draws the lines that
+   * do not touch the selection faintly (ADR 0080, section 5). Left out, it does; `false` turns it off.
+   */
+  selectionFadesLines?: boolean;
+  /**
    * How this view colors, sizes, marks or fades its shapes by their attributes, in order (ADR 0055):
    * each channel of a shape is set by the first overlay that sets it. Left out when it has none.
    */

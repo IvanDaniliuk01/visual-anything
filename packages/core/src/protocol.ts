@@ -84,6 +84,8 @@ import {
  *    answers, the proposal shown, accepted, refused and closed, and the guidance `comparison`. And
  *    layout guidance with an `answer`, which the app answers with `layout/done` (M3d). And a
  *    picture of a view for Claude (ADR 0081), `capture/request` and its answer `capture/answer`.
+ *    And a view's `rows` and `selectionFadesLines` (ADR 0080, section 5), which an older app of 7
+ *    would refuse when it opens the view file.
  */
 export const PROTOCOL_VERSION = 7;
 

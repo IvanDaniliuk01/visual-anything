@@ -96,6 +96,27 @@ export function updateView(draft: Draft, command: UpdateViewCommand): string {
     }
     next.routeStyle = changes.routeStyle;
   }
+  if (changes.rows !== undefined) {
+    if (changes.rows !== null && changes.rows !== 'all' && changes.rows !== 'keys') {
+      reject(
+        'invalid-command',
+        `A view draws every row ("all", or null) or only key rows ("keys"), not ${JSON.stringify(changes.rows)}.`,
+      );
+    }
+    if (changes.rows === 'keys') next.rows = 'keys';
+    else delete next.rows;
+  }
+  if (changes.selectionFadesLines !== undefined) {
+    const fades = changes.selectionFadesLines;
+    if (fades !== null && typeof fades !== 'boolean') {
+      reject(
+        'invalid-command',
+        `Whether selecting fades the other lines is true, false or null, not ${JSON.stringify(fades)}.`,
+      );
+    }
+    if (fades === false) next.selectionFadesLines = false;
+    else delete next.selectionFadesLines;
+  }
   draft.apply({ op: 'set-view', view: current.id, properties: next });
   return `Edit the view "${next.name}"`;
 }
