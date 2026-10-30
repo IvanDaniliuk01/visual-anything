@@ -131,7 +131,7 @@ The shared first run of the lines that leave one row or one shape toward several
 _Avoid_: bundle (an aggregated relation stands for many relations; a trunk only draws several together)
 
 **View**:
-A projection of the model onto the canvas, seen from exactly one perspective and keeping its own positions. It shows the whole model, or the part its scope gives. It can also leave out relation types, each with the relation types derived from it unless exactly that one: their relations it draws as no line, aggregates into no collapsed container and counts as leaving nothing, though they stay in the model; a relation type it nests by is never left out (ADR 0064).
+A projection of the model onto the canvas, seen from exactly one perspective and keeping its own positions. It shows the whole model, or the part its scope gives. It can also leave out relation types, each with the relation types derived from it unless exactly that one: their relations it draws as no line, aggregates into no collapsed container and counts as leaving nothing, though they stay in the model; a relation type it nests by is never left out (ADR 0064). Not the View component of Data modeling, which is a view of a database; the app names that one "View (database)" where both could be read as one.
 _Avoid_: page, diagram, layer
 
 **Scope**:

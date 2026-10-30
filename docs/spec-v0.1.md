@@ -772,7 +772,8 @@ Its tasks run one at a time, after M3c's Stage 0b, in this order:
     - `get_item` and `read_view` say which routes are by hand, so Claude can `reset_route` them.
   - **Tour steps mark free shapes** (done in the main session, 56b2246). A step's `marks` and `reveal` take the ids of the notes and arrows its view holds, as `highlight` and the selection do (ADR 0077's clarification).
   - **Undefined attributes.** Claude's answers name the attributes an element carries that its component does not define. They stay particularities, never refused.
-- [ ] **Data modeling for whole databases** (`core/src/builtin/data-modeling.ts`, the SQL recipe, ADR 0023's clarification):
+  - **A column names its enum.** Data modeling gains the relation type "has type", from a column to an enum, and the SQL recipe draws it when a column's `type` names an enum of the material.
+- [x] **Data modeling for whole databases** (`core/src/builtin/data-modeling.ts`, the SQL recipe, ADR 0023's clarification):
   - **The column** gains `default` and `check`.
   - **New components:** Schema (a container inside a database), View, Materialized view, Enum, Function, Trigger and Sequence.
   - **New relation types:** "reads from", "writes to", "fires on" and "runs", with "is part of" for schemas.
@@ -780,6 +781,7 @@ Its tasks run one at a time, after M3c's Stage 0b, in this order:
   - **The SQL recipe** maps `CREATE SCHEMA` to a Schema inside one database, and views, functions and triggers to their components as structure (what reads, fires on and runs what), never their code.
   - **Built-in packages stay closed** (`define_component` names only the project's own packages). Its refusal says to derive in a package of the project's own, with an example.
   - **The user's project keeps working.** Its own `postgres` package stays valid. A note in the README says how to move such a model onto the built-in components with `update_element`.
+  - follow-ups decided on merging (2026-10-30): a relation type "has type" from a column to the enum its `type` names, built in "Fixes from use"; Data modeling's "reads from" and "writes to" keep the names Systems' share, since the palette and the inspector group definitions by package.
 - [ ] **Large models from Claude** (`server/src/claude/`, the recipes):
   - `add_to_model` takes an `id` of Claude's own for each element and relation, checked as `create-element` checks it.
   - The recipes say how to send a large model in batches that refer to one another by those ids.
