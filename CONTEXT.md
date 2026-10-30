@@ -321,6 +321,14 @@ _Avoid_: walkthrough, presentation, story
 A part of a tour step's marks that shows on its own press forward, with an optional sentence added to the caption, so that a step brings in what it explains one piece at a time (ADR 0077).
 _Avoid_: build, fragment, animation
 
+**Glide**:
+How a tour step's transition moves the shapes it shares with the step before, matched by element, from their places before to their places after, while the camera moves; the shapes it does not share fade (ADR 0084).
+_Avoid_: morph, magic move
+
+**Pulse**:
+A marker that a tour step sends along a chain of relations, one after the other, to show what follows what (ADR 0084). It is not a scenario: nothing of it is kept apart from the step.
+_Avoid_: flow, animation
+
 **Route**:
 The path a relation's line takes in a view: where it attaches to each end, the points it bends at, and its style (orthogonal, straight or curved). Automatic unless chosen by hand: an automatic route takes the style its relation's appearance gives, else its view's, else orthogonal, and is drawn again after every layout and move (ADR 0069). A view keeps only what was chosen by hand, and Reset route goes back to the automatic route. An automatic orthogonal route goes around the shapes in its way, and the name plates of the containers it runs in, inside the container that holds both its ends (ADR 0039).
 _Avoid_: path, connector, edge route, waypoints

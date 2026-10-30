@@ -150,3 +150,4 @@ The stages come from a pure function of the core, `tourTransition(from, to, trav
 <!-- Decided by Claude on 2026-10-29 under the user's standing delegation of design decisions. -->
 
 - 2026-10-29 (M3d, from the user's notes on their first real model): **a step marks and reveals notes and arrows too.** Its `marks` and its reveals' `marks` take the ids of the notes and arrows the step's view holds, besides elements and relations, as Claude's highlight and the selection do. The app already draws them marked, and `dimRest` keeps them at full strength. A note's id that the view no longer holds is a step problem, as an element's is.
+- 2026-10-30: **ADR 0084 decides shapes moving by id between steps** (their glide), lines that draw from their start, captions that point, and pulses along a chain. It removes "shapes moving by id between steps and views" from this ADR's "Later".
