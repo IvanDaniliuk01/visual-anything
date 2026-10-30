@@ -78,8 +78,25 @@ const drawings = new WeakMap<ShapeFace, Map<string, FaceDrawing>>();
 /** The most drawings kept for one face, which a shape resized by hand runs through. */
 const KEPT_PER_FACE = 8;
 
+/** How many face drawings were asked for, and how many of them had to be laid out, for the benchmark. */
+const counts = { asked: 0, laidOut: 0 };
+
+/**
+ * How many face drawings were asked for since `resetFaceCounts`, and how many of them were laid out
+ * rather than found kept: the benchmark's hit rate of the face layout cache (ADR 0083, F5).
+ */
+export function faceCounts(): { asked: number; laidOut: number } {
+  return { ...counts };
+}
+
+export function resetFaceCounts(): void {
+  counts.asked = 0;
+  counts.laidOut = 0;
+}
+
 /** A face laid out with these options, kept: laid out again only for another size or variant. */
 export function faceDrawingOf(face: ShapeFace, options: FaceLayoutOptions): FaceDrawing {
+  counts.asked += 1;
   let kept = drawings.get(face);
   if (!kept) {
     kept = new Map();
@@ -90,6 +107,7 @@ export function faceDrawingOf(face: ShapeFace, options: FaceLayoutOptions): Face
   }`;
   let drawing = kept.get(key);
   if (!drawing) {
+    counts.laidOut += 1;
     drawing = layOutFace(face.compiled, face.input, options);
     if (kept.size >= KEPT_PER_FACE) kept.delete(kept.keys().next().value as string);
     kept.set(key, drawing);
