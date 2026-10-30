@@ -246,7 +246,7 @@ export interface ElementShape {
    * On a row, and on a shape that draws rows: its name and what its header or line writes after it,
    * cut to one line each, ending in "…" when cut. `name` stays whole, for the editor and the outline.
    */
-  fitted?: { name: string; detail: string };
+  fitted?: { name: string; detail: string; detailCut?: boolean };
   /** The image its appearance shows, placed on it (`shape-images.ts`). */
   image?: ShapeImage;
   /**

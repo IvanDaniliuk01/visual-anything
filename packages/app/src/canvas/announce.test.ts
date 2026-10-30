@@ -52,7 +52,15 @@ describe('describeShape', () => {
           { text: ' table', ...PLAIN },
         ],
       }),
-    ).toBe('Appointments API, Service, Service · the slots table, in Scheduling, 4 relations.');
+    ).toBe('Appointments API, Service, the slots table, in Scheduling, 4 relations.');
+    // A detail that starts with the component's name is said without it, but one that only shares
+    // its first letters is said whole.
+    expect(said({ detail: 'Service · placed' })).toBe(
+      'Appointments API, Service, placed, in Scheduling, 4 relations.',
+    );
+    expect(said({ detail: 'Services · placed' })).toBe(
+      'Appointments API, Service, Services · placed, in Scheduling, 4 relations.',
+    );
   });
 
   it('says how many other containers an element sits in', () => {

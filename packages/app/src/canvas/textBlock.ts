@@ -79,6 +79,11 @@ export interface TextBlockInput {
   measure?: Measure;
   /** How the name is measured, when not by `measure` in bold. */
   measureName?: (text: string) => number;
+  /**
+   * A name laid out elsewhere, whole on its lines, as a shape with its own outline writes it
+   * (`nameLinesInside`): how many lines it takes and how tall each is. The detail then wraps under it.
+   */
+  nameBlock?: { lines: number; lineHeight: number };
 }
 
 /** Places a shape's name and detail in its label area. */
@@ -94,15 +99,19 @@ export function placeTextBlock(input: TextBlockInput): TextBlock {
       ? CENTRED_INSET
       : Math.max(CENTRED_INSET, Math.min(BLOCK_INSET, (area.height - NAME_LINE_HEIGHT) / 2));
   const usable = Math.max(0, area.height - 2 * inset);
-  const name = layOutRuns([plainRun(input.name)], {
-    measure: (text) => measureName(text),
-    size: NAME_SIZE,
-    width: wrap,
-    align: 'center',
-  });
+  const given = input.nameBlock;
+  const name = given
+    ? undefined
+    : layOutRuns([plainRun(input.name)], {
+        measure: (text) => measureName(text),
+        size: NAME_SIZE,
+        width: wrap,
+        align: 'center',
+      });
+  const lineHeight = given?.lineHeight ?? NAME_LINE_HEIGHT;
   const fitting = Math.max(1, Math.floor(usable / NAME_LINE_HEIGHT + 1e-6));
-  const nameLines = Math.min(Math.max(1, name.lines.length), fitting);
-  const nameHeight = nameLines * NAME_LINE_HEIGHT;
+  const nameLines = given ? given.lines : Math.min(Math.max(1, name?.lines.length ?? 1), fitting);
+  const nameHeight = nameLines * lineHeight;
   let detailLines = 0;
   let detail: LaidText | undefined;
   let detailCut = false;
@@ -135,8 +144,8 @@ export function placeTextBlock(input: TextBlockInput): TextBlock {
     nameTop: top,
     nameLines,
     nameHeight,
-    nameCut: name.lines.length > nameLines,
-    nameRoom: nameHeight + NAME_LINE_HEIGHT / 4,
+    nameCut: name !== undefined && name.lines.length > nameLines,
+    nameRoom: nameHeight + lineHeight / 4,
     detailTop: top + nameHeight + GAP,
     detailLines,
     detailHeight,

@@ -65,7 +65,10 @@ export interface ViewerCallbacks {
   announce(message: string): void;
   /** Says that the canvas shows a theme, in the frame that first shows it. */
   themeShown?(theme: ThemeName): void;
-  /** Says which shape the pointer rests on, for its hover card (ADR 0082); none when it leaves. */
+  /**
+   * Says which shape the pointer rests on, or the keys reached, for its hover card (ADR 0082); none
+   * when it leaves, when the keys reach a note or an arrow, on Escape and when the page loses focus.
+   */
   hoverShape?(key: string | undefined): void;
 }
 
@@ -150,6 +153,7 @@ export class ViewerController {
     host.addEventListener('pointerleave', this.onPointerLeave);
     host.addEventListener('wheel', this.onWheel, { passive: false });
     host.addEventListener('keydown', this.onKeyDown);
+    host.addEventListener('blur', this.onBlur);
   }
 
   /** Shows a project's view. */
@@ -219,6 +223,7 @@ export class ViewerController {
     host.removeEventListener('pointerleave', this.onPointerLeave);
     host.removeEventListener('wheel', this.onWheel);
     host.removeEventListener('keydown', this.onKeyDown);
+    host.removeEventListener('blur', this.onBlur);
     this.gesture = { kind: 'idle' };
     this.pointers.clear();
     this.renderer.destroy();
@@ -336,9 +341,15 @@ export class ViewerController {
     this.refreshMarks();
   };
 
+  /** The page lost the focus: a hover card the keys opened goes (ADR 0082). */
+  private readonly onBlur = (): void => {
+    this.callbacks.hoverShape?.(undefined);
+  };
+
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const command = event.ctrlKey || event.metaKey;
     if (event.key === 'Escape') {
+      this.callbacks.hoverShape?.(undefined);
       this.choose(EMPTY_SELECTION);
       return;
     }
@@ -541,10 +552,13 @@ export class ViewerController {
     if (reached.kind === 'shape') {
       this.current = reached.shape.key;
       this.choose(selectionOf([{ kind: 'element', id: reached.shape.element }]));
+      // Its hover card, when the canvas cut its text, as the editor shows it (ADR 0082).
+      this.callbacks.hoverShape?.(reached.shape.key);
     } else {
       const id = reached.kind === 'note' ? reached.note.id : reached.arrow.id;
       this.current = id;
       this.choose(selectionOf([{ kind: 'free-shape', id }]));
+      this.callbacks.hoverShape?.(undefined);
     }
     this.revealRect(rectOf(reached));
   }

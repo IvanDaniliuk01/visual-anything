@@ -86,6 +86,13 @@ export function rowRoom(width: number, { icon = false }: FitRoom = {}): number {
   return width - 2 * ROW_INSET - (icon ? ROW_ICON : 0);
 }
 
+/** A name and a detail fitted to one line, and whether the detail was cut to fit. */
+export interface FittedLine {
+  name: string;
+  detail: string;
+  detailCut?: boolean;
+}
+
 /**
  * A header's name and detail fitted to its line: the detail first, to at most 40% of the room, then
  * the name to what is left, so that the two never overlap.
@@ -95,7 +102,7 @@ export function fitHeader(
   detail: string,
   width: number,
   room: FitRoom = {},
-): { name: string; detail: string } {
+): FittedLine {
   return fitLine(name, detail, headerRoom(width, room), 0.4, {
     name: [HEADER_NAME_SIZE, true],
     detail: [HEADER_DETAIL_SIZE, false],
@@ -111,7 +118,7 @@ export function fitRow(
   detail: string,
   width: number,
   room: FitRoom = {},
-): { name: string; detail: string } {
+): FittedLine {
   return fitLine(name, detail, rowRoom(width, room), 0.45, {
     name: [ROW_NAME_SIZE, false],
     detail: [ROW_DETAIL_SIZE, false],
@@ -124,7 +131,7 @@ function fitLine(
   room: number,
   detailShare: number,
   sizes: { name: [number, boolean]; detail: [number, boolean] },
-): { name: string; detail: string } {
+): FittedLine {
   const [detailSize, detailBold] = sizes.detail;
   const [nameSize, nameBold] = sizes.name;
   const fittedDetail =
@@ -134,5 +141,7 @@ function fitLine(
   return {
     name: fitText(name, Math.max(0, room - taken), nameSize, nameBold),
     detail: fittedDetail,
+    // Told from the source, since a detail may end in "…" of its own.
+    ...(detail !== '' && fittedDetail !== oneLine(detail) ? { detailCut: true } : {}),
   };
 }

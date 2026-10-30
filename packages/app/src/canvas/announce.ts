@@ -50,15 +50,16 @@ export function describeShape(
   const relations = drawnRelations(indexed.scene, project).around(shape.element).length;
   const component = modelIndexOf(project).element(shape.element)?.component;
   // A row says its detail and its place among its container's rows (ADR 0023).
+  const componentName =
+    component === undefined ? shape.componentName : t.definition(component, shape.componentName);
   if (shape.row !== undefined && container?.rowCount !== undefined) {
     const values = {
       name: shape.name,
-      component:
-        component === undefined
-          ? shape.componentName
-          : t.definition(component, shape.componentName),
-      // By its plain text, without the markers of its text emphasis (ADR 0082).
-      detail: shape.detail === undefined ? '' : detailPlainText(shape),
+      component: componentName,
+      // By its plain text, without the markers of its text emphasis (ADR 0082), less the
+      // component's name it starts with, which is said already.
+      detail:
+        shape.detail === undefined ? '' : withoutLeading(detailPlainText(shape), componentName),
       position: shape.row + 1,
       count: container.rowCount,
       container: container.name,
@@ -76,10 +77,10 @@ export function describeShape(
   }
   const values = {
     name: shape.name,
-    component:
-      component === undefined ? shape.componentName : t.definition(component, shape.componentName),
-    // The whole detail, which the shape may cut, by its plain text (ADR 0082).
-    detail: shape.detail === undefined ? '' : detailPlainText(shape),
+    component: componentName,
+    // The whole detail, which the shape may cut, by its plain text (ADR 0082), less the
+    // component's name it starts with, which is said already.
+    detail: shape.detail === undefined ? '' : withoutLeading(detailPlainText(shape), componentName),
     where,
     relations: relations === 0 ? t('no relations') : t(RELATIONS, { count: relations }),
   };
@@ -89,6 +90,15 @@ export function describeShape(
       ? t('{name}, {component}, {where}, {relations}.', values)
       : t('{name}, {component}, {detail}, {where}, {relations}.', values),
   );
+}
+
+/**
+ * A detail without the component's name it starts with, as a part of its own (`Table · placed` says
+ * `placed`); the detail as it is when it does not start so.
+ */
+function withoutLeading(detail: string, component: string): string {
+  const lead = `${component} · `;
+  return component !== '' && detail.startsWith(lead) ? detail.slice(lead.length) : detail;
 }
 
 /** A shape's description, with how many relations leave the view from it, as its mark says (ADR-0040). */

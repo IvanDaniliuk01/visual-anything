@@ -78,4 +78,15 @@ describe('placing a shape’s name and detail (ADR 0082)', () => {
     ]);
     expect(block.detailHeight).toBe(DETAIL_LINE_HEIGHT);
   });
+
+  it('takes a name laid out elsewhere, whole on its lines, and wraps the detail under it', () => {
+    const block = placeTextBlock({ ...tall, nameBlock: { lines: 2, lineHeight: 17.5 }, wrap: 200 });
+    expect(block.nameLines).toBe(2);
+    expect(block.nameHeight).toBe(35);
+    expect(block.nameCut).toBe(false);
+    // Under a name of two lines, the 96 units hold three lines of the detail, which it wraps to.
+    expect(block.detailLines).toBe(3);
+    expect(block.detailCut).toBe(true);
+    expect(block.detailTop).toBeCloseTo(block.nameTop + 35 + 2);
+  });
 });

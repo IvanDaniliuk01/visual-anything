@@ -8,7 +8,7 @@ import type { Element, Id, ShapePosition } from '@visual-anything/schema';
 import type { Placement } from '@visual-anything/core';
 import { t } from '../i18n';
 import { centerOf, type Point, type Rect, type ShapeKind } from './geometry';
-import { fitHeader, fitRow } from './fit';
+import { fitHeader, fitRow, type FittedLine } from './fit';
 import { overlapHorizontally, sideToward, type AnyEnd, type SideEnd } from './rowRoutes';
 import type { RouteEnd } from './route';
 import {
@@ -154,7 +154,7 @@ export interface RowFields {
   rowCount?: number;
   row?: number;
   undrawn?: readonly Id[];
-  fitted?: { name: string; detail: string };
+  fitted?: FittedLine;
 }
 
 /** The fields a measured box gives its shape: its kind, and on rows and their containers, the rest. */
@@ -187,7 +187,7 @@ export function rowFieldsOf(parts: Measured, width: number, holdsContents: boole
 }
 
 /** Texts fitted before, by what they were fitted from: a table that moves fits none of its rows again. */
-const fittedTexts = new Map<string, { name: string; detail: string }>();
+const fittedTexts = new Map<string, FittedLine>();
 /** How many fitted texts are kept before they are all let go. */
 const MOST_FITTED = 50_000;
 
@@ -198,7 +198,7 @@ function fittedOnce(
   width: number,
   toggle: boolean,
   icon: boolean,
-): { name: string; detail: string } {
+): FittedLine {
   const key = `${kind}\u0000${width}\u0000${toggle ? 1 : 0}${icon ? 1 : 0}\u0000${name}\u0000${detail}`;
   let fitted = fittedTexts.get(key);
   if (!fitted) {
@@ -219,7 +219,8 @@ export function sameRowFields(before: ElementShape, fields: RowFields): boolean 
     before.row === fields.row &&
     sameIds(before.undrawn, fields.undrawn) &&
     before.fitted?.name === fields.fitted?.name &&
-    before.fitted?.detail === fields.fitted?.detail
+    before.fitted?.detail === fields.fitted?.detail &&
+    before.fitted?.detailCut === fields.fitted?.detailCut
   );
 }
 

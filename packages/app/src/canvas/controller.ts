@@ -1058,6 +1058,8 @@ export class CanvasController {
       return;
     }
     if (event.key === 'Escape') {
+      // A hover card the keys opened goes with it (ADR 0082).
+      this.callbacks.hoverShape?.(undefined, 'keyboard');
       if (this.gesture.kind !== 'idle') this.cancel();
       else this.choose(EMPTY_SELECTION);
       return;
@@ -1230,6 +1232,8 @@ export class CanvasController {
    */
   private readonly onBlur = (): void => {
     if (this.spaceHeld) this.releaseSpace();
+    // So does a hover card: nothing on the canvas is reached once the focus is elsewhere (ADR 0082).
+    this.callbacks.hoverShape?.(undefined, 'keyboard');
   };
 
   private releaseSpace(): void {
@@ -1651,6 +1655,7 @@ export class CanvasController {
     } else {
       const id = reached.kind === 'note' ? reached.note.id : reached.arrow.id;
       this.current = id;
+      this.callbacks.hoverShape?.(undefined, 'keyboard');
       this.choose(selectionOf([{ kind: 'free-shape', id }]));
     }
     this.revealRect(rectOf(reached));

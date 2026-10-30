@@ -5,7 +5,10 @@
  */
 import type { Measure } from '../text/layout';
 import { detailOf, labelArea, textBlockOf } from './draw';
+import { outlinedTextBlock } from './outlinedText';
 import { bodyOf } from './geometry';
+import { nameTagOf, outlinedDetailOf } from './nameTags';
+import { writesNameBelow } from './outlined';
 import type { ElementShape } from './scene';
 import { besideImage } from './shape-images';
 import { robotoMeasure } from './textBlock';
@@ -20,8 +23,9 @@ const TEXT_INSET = 12;
 export function cutOnCanvas(shape: ElementShape, measure: Measure = robotoMeasure): boolean {
   const detail = detailOf(shape);
   if (shape.fitted) {
-    // A row and a shape that draws rows cut their lines with "…" already.
-    return shape.fitted.name !== shape.name || shape.fitted.detail.endsWith('…');
+    // A row and a shape that draws rows cut their lines when fitted, told from their source: a
+    // detail may end in "…" of its own.
+    return shape.fitted.name !== shape.name || shape.fitted.detailCut === true;
   }
   const oneLine = (width: number) =>
     measure(shape.name, 'bold', 14) > width ||
@@ -29,7 +33,18 @@ export function cutOnCanvas(shape: ElementShape, measure: Measure = robotoMeasur
   if (shape.holdsContents || shape.collapsed !== undefined) {
     return oneLine(bodyOf(shape).width - 2 * TEXT_INSET);
   }
-  if (shape.outline || shape.image?.placement === 'drawing') {
+  if (shape.outline) {
+    // Its name whole on its lines, or in its name tag, and its detail wrapped under it (ADR 0082).
+    // A name tag holds the name whole, and its detail on one line, cut with "…".
+    if (writesNameBelow(shape)) {
+      const tag = nameTagOf(shape);
+      return tag !== undefined && tag.detail !== outlinedDetailOf(shape);
+    }
+    const placed = outlinedTextBlock(shape, shape.outline, measure);
+    if (!placed) return false;
+    return placed.block.nameCut || placed.block.detailCut;
+  }
+  if (shape.image?.placement === 'drawing') {
     return oneLine(shape.rect.width - TEXT_INSET);
   }
   const area = besideImage(shape, labelArea(shape));

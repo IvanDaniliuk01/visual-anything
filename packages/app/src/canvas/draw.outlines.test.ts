@@ -27,6 +27,7 @@ import { geometrySource, outlineIn, type ShapeOutline } from './outlines';
 import { buildScene, type ElementShape } from './scene';
 import { painterOf } from './theme/painter';
 import { placeImage } from './shape-images';
+import { DETAIL_LINE_HEIGHT } from './textBlock';
 import { readGeometry } from '@visual-anything/core';
 
 const scene = buildScene(beyondBoxes('anatomy'), 'anatomy');
@@ -219,9 +220,11 @@ describe('names in the label area', () => {
     expect(name?.label).toBe('name:Heart');
     expect(detail?.label).toBe('detail:Organ');
     expect(name?.x).toBeCloseTo(area.x + area.width / 2);
-    // The name's line and the detail's, centred together in the area.
-    expect(name?.y).toBeCloseTo(area.y + (area.height - PART_NAME_LINE - 15) / 2);
-    expect(detail?.y).toBeCloseTo((name?.y ?? 0) + PART_NAME_LINE + 1);
+    // The name's line and the detail's, centred together in the area as one block (ADR 0082).
+    expect(name?.y).toBeCloseTo(
+      area.y + (area.height - PART_NAME_LINE - 2 - DETAIL_LINE_HEIGHT) / 2,
+    );
+    expect(detail?.y).toBeCloseTo((name?.y ?? 0) + PART_NAME_LINE + 2);
     expect((name as Container & { style: TextStyleOptions }).style.fill).toBe(
       readableTextColors(shape.fill).name,
     );

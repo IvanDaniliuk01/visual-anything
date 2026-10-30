@@ -3,6 +3,7 @@ import { act, render, renderHook, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { loadSample } from '../test/sample';
 import { HoverCard } from './HoverCard';
+import { OVAL, outlinedShape } from '../test/outlined';
 import { cutOnCanvas } from './hoverCut';
 import { useHoverCard } from './useHoverCard';
 import { buildScene, type ElementShape } from './scene';
@@ -21,6 +22,21 @@ describe('a shape’s hover card (ADR 0082)', () => {
     const tall = { ...whatsapp, rect: { ...whatsapp.rect, width: 240, height: 200 } };
     expect(cutOnCanvas({ ...tall, detail: LONG })).toBe(true);
     expect(cutOnCanvas({ ...tall, detail: LONG, detailLines: 6 })).toBe(false);
+  });
+
+  it('tells a shape with its own outline cut by its wrapped block, not by one line', () => {
+    const box = outlinedShape('oval', OVAL, { x: 0, y: 0, width: 320, height: 240 });
+    // A name of two lines that fits whole, and a detail of three lines, are not cut.
+    const twoWords = 'Facturación electrónica de prestaciones';
+    expect(cutOnCanvas({ ...box, name: twoWords, detail: LONG.slice(0, 90) })).toBe(false);
+    // A detail longer than its lines is.
+    expect(cutOnCanvas({ ...box, name: 'Auditoría', detail: LONG, detailLines: 1 })).toBe(true);
+  });
+
+  it('tells a row cut by its source, not by a "…" the detail ends in', () => {
+    const row = { ...whatsapp, fitted: { name: whatsapp.name, detail: 'varchar…' } };
+    expect(cutOnCanvas(row)).toBe(false);
+    expect(cutOnCanvas({ ...row, fitted: { ...row.fitted, detailCut: true } })).toBe(true);
   });
 
   it('writes the name and the whole detail with its emphasis, as text', () => {

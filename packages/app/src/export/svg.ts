@@ -53,7 +53,6 @@ import {
   TAG_PADDING,
   drawnBoundsOf,
   nameTagOf,
-  outlinedDetailOf,
   placedTag,
   tagRadius,
 } from '../canvas/nameTags';
@@ -61,10 +60,8 @@ import {
   LEAST_HEADER_WIDTH,
   PART_NAME_LINE,
   PART_NAME_SIZE,
-  besideIcon,
   headerStretch,
   labelAreaOn,
-  nameLinesInside,
   partNameLines,
   showsContents,
   writesNameBelow,
@@ -140,6 +137,7 @@ import { textWidth } from './measure';
 import { layOutText, type TextSpec } from './text-layout';
 import { laidTextSvg } from './emphasis-svg';
 import { parseEmphasis } from '@visual-anything/core';
+import { outlinedTextBlock } from '../canvas/outlinedText';
 import { placeTextBlock, robotoMeasure } from '../canvas/textBlock';
 import { drawsDifferently } from '../text/drawn';
 import { detailPlainText } from '../text/detail';
@@ -1392,7 +1390,7 @@ function ownPartPicture(
  *   one whose header has no room writes nothing, as the canvas;
  * - any other shape inside its label area, right of its icon there, when its words fit there whole
  *   (`nameLinesInside`), in colors that read on its fill or its part's main color, with its detail
- *   under it when a line is left; otherwise in its name tag under its outline, which `outlineParts`
+ *   wrapped under it to its lines, the block placed by its text placement (`outlinedTextBlock`); otherwise in its name tag under its outline, which `outlineParts`
  *   draws (`writesNameBelow`, `nameTagParts`). A collapsed container's detail starts with its count.
  */
 function outlinedText(
@@ -1448,34 +1446,39 @@ function outlinedText(
         : '')
     );
   }
-  const detail = outlinedDetailOf(shape);
-  const lines = nameLinesInside(outlined);
-  if (!lines) return '';
-  const text = besideIcon(shape, labelAreaOn(outlined));
-  const centerX = text.x + text.width / 2;
-  const nameHeight = lines.length * PART_NAME_LINE;
-  const withDetail = detail !== '' && text.height >= nameHeight + DETAIL_INSIDE_LINE;
-  const top = text.y + (text.height - nameHeight - (withDetail ? DETAIL_INSIDE_LINE : 0)) / 2;
+  const placed = outlinedTextBlock(shape, outline, robotoMeasure);
+  if (!placed) return '';
+  const { lines, area, wrap, detail, runs, block } = placed;
+  const centerX = area.x + area.width / 2;
+  const name = wholeLines(writer, lines, centerX, block.nameTop, colors.name);
+  if (block.detailLines === 0) return name;
+  if (runs && block.detail) {
+    return (
+      name +
+      laidTextSvg(
+        block.detail,
+        { x: centerX - wrap / 2, y: block.detailTop },
+        colors.detail,
+        robotoMeasure,
+        writer.texts,
+      )
+    );
+  }
   return (
-    wholeLines(writer, lines, centerX, top, colors.name) +
-    (withDetail
-      ? writer.text({
-          text: detail,
-          size: DETAIL_SIZE,
-          fill: colors.detail,
-          x: centerX,
-          align: 'middle',
-          y: top + nameHeight + 1,
-          anchor: 'top',
-          wrap: Math.max(1, text.width),
-          room: DETAIL_INSIDE_LINE,
-        })
-      : '')
+    name +
+    writer.text({
+      text: detail,
+      size: DETAIL_SIZE,
+      fill: colors.detail,
+      x: centerX,
+      align: 'middle',
+      y: block.detailTop,
+      anchor: 'top',
+      wrap,
+      room: block.detailRoom,
+    })
   );
 }
-
-/** How tall the detail under a name written whole inside a shape with its own outline is. */
-const DETAIL_INSIDE_LINE = 15;
 
 /**
  * The name tag of a shape that writes its name in one (`writesNameBelow`, ADR 0066's clarification of
