@@ -25,6 +25,7 @@ import {
   sameJson,
   type Draft,
 } from './draft';
+import { followRoutes } from './follow';
 import { checkedColor } from './traits';
 import type {
   CreateFreeShapeCommand,
@@ -118,6 +119,8 @@ export function setPositions(draft: Draft, command: SetPositionsCommand): string
   const positions = requireList(command.positions, 'positions');
   if (positions.length === 0) reject('invalid-command', 'No positions were given.');
   putPositions(draft, view.id, positions);
+  // A route by hand follows its ends, in the same action (ADR 0039's clarification of 2026-10-30).
+  followRoutes(draft, view.id, view);
   const first = positions[0] as ShapePosition;
   return positions.length === 1
     ? `Move "${nameOf(draft.index, first.element)}" in "${view.name}"`

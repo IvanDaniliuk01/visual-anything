@@ -1,10 +1,11 @@
 /**
- * Layout never stores a route (ADR 0039; M3d, "Fixes from use"). The first real model found routes
+ * Layout never stores a route (ADR 0039; M3d, "Fixes from use"), and a route by hand follows its ends
+ * through every move (ADR 0039's clarification of 2026-10-30). The first real model found routes
  * with bend points in a view's file after `lay_out_view`, `set_positions` and `update_view` with
  * `routeStyle: curved`, as if drawn by hand. This replays that path, the app's layout through ELK in
  * one pass with the routes it keeps for the canvas (ADR 0080), then the commands Claude's
  * `set_positions` and `update_view` send, and checks that none of it writes `routes`; and that a
- * route chosen by hand stays exactly as it was through all of it.
+ * route chosen by hand stays the person's, its bend points following its ends.
  */
 import { executeCommand, type Command, type ProjectSnapshot } from '@visual-anything/core';
 import type { ShapePosition } from '@visual-anything/schema';
@@ -111,7 +112,7 @@ describe('layout and moves store no route', () => {
     for (const line of lines) expect(line.hand, line.relation).toBeUndefined();
   });
 
-  it('keeps a route chosen by hand as it was, through a layout, a move of its ends and a style', async () => {
+  it('keeps a route chosen by hand by hand, its bend points following its ends, through a layout, a move and a style', async () => {
     const hand = {
       bendPoints: [
         { x: 184, y: 82 },
@@ -120,14 +121,26 @@ describe('layout and moves store no route', () => {
     };
     const drawn = apply(shop(), { type: 'set-route', view: VIEW, relation: 'order-fk', ...hand });
     const { project } = await layIt(drawn);
-    expect(routesOf(project)).toEqual({ 'order-fk': hand });
+    // The layout moved its ends: the route stays the only one, by hand, with as many bend points,
+    // and they followed (ADR 0039's clarification of 2026-10-30).
+    const laid = routesOf(project);
+    expect(Object.keys(laid ?? {})).toEqual(['order-fk']);
+    expect(Object.keys(laid?.['order-fk'] ?? {})).toEqual(['bendPoints']);
+    expect(laid?.['order-fk']?.bendPoints).toHaveLength(2);
+    // Claude moves the payments, the route's from end, alone: its first corner moves along its run
+    // to the second, which stays.
     const moved = apply(project, claudesPositions([{ element: 'payments', x: 40, y: 900 }]));
-    expect(routesOf(moved)).toEqual({ 'order-fk': hand });
+    const [first, second] = routesOf(moved)?.['order-fk']?.bendPoints ?? [];
+    const [wasFirst, wasSecond] = laid?.['order-fk']?.bendPoints ?? [];
+    expect(second).toEqual(wasSecond);
+    expect(first?.x).toBe(wasFirst?.x);
+    expect(first?.y).not.toBe(wasFirst?.y);
+    // A style changes nothing of it.
     const curved = apply(moved, {
       type: 'update-view',
       id: VIEW,
       changes: { routeStyle: 'curved' },
     });
-    expect(routesOf(curved)).toEqual({ 'order-fk': hand });
+    expect(routesOf(curved)).toEqual(routesOf(moved));
   });
 });

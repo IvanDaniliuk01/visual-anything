@@ -1,10 +1,11 @@
 /**
  * The relations a view routes by hand, as Claude's tools name them (M3d, "Fixes from use"). A route
  * by hand is drawn by the person, or set with `set_route`, and kept in the view's `routes`; layout and
- * moves never write one (ADR 0039). Its bend points stay where they were set: the app's drag carries
- * them only when it moves both ends, so after `set_positions`, or once a route style draws them
- * curved, a route by hand can run far from its ends. These answers let Claude see that and send them
- * back to automatic routes with `reset_route`.
+ * moves never write one (ADR 0039). Its bend points follow its ends: all of them when both ends move
+ * together, only those next to an end that moves alone (ADR 0039's clarification of 2026-10-30), so
+ * after `set_positions` that moves ends apart, or once a route style draws them curved, a route by
+ * hand can still run far from its ends. These answers let Claude see that and send them back to
+ * automatic routes with `reset_route`.
  */
 import { modelIndexOf, relationLabel, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id, RelationRoute, ViewFile } from '@visual-anything/schema';
@@ -24,7 +25,7 @@ export const MAX_HAND_ROUTES_NAMED = 100;
 
 /** What read_view says about them. */
 export const ROUTED_BY_HAND_NOTE =
-  'These relations keep a route chosen by hand in this view, by the person or with set_route: layout and moves never change it, and its bend points stay where they were set, so a route whose ends moved can run far from them. When one runs where it should not, or was not meant, reset_route sends it back to the automatic route; ask the person first when they drew it.';
+  'These relations keep a route chosen by hand in this view, by the person or with set_route: layout and moves never replace it, and its bend points follow its ends, all of them when both ends move together and only those next to an end that moves alone, so a route whose ends moved apart can run far from them. When one runs where it should not, or was not meant, reset_route sends it back to the automatic route; ask the person first when they drew it.';
 
 /** The view's relations routed by hand, in the order its file keeps them. */
 export function routedByHand(state: ProjectSnapshot, view: ViewFile): RoutedByHand[] {
@@ -103,8 +104,10 @@ export function handRoutesOn(state: ProjectSnapshot, element: Id): { relation: I
 }
 
 /**
- * The relations routed by hand through bend points, in a view, one of whose ends a move of `moved`
- * took elsewhere: their bend points stay where they were, so the line runs to them still.
+ * The relations routed by hand through bend points, in a view, whose ends a move of `moved` took
+ * elsewhere other than together: the core carries the bend points with both ends when they move
+ * together, and otherwise only those next to an end that moved (ADR 0039's clarification of
+ * 2026-10-30), so the others stay where they were and the line may run far from its ends.
  */
 export function routesNotFollowing(
   before: ProjectSnapshot,
@@ -130,13 +133,31 @@ export function routesNotFollowing(
     const relation = index.relation(id);
     if (relation === undefined || (route.bendPoints?.length ?? 0) === 0) return [];
     if (!changed.has(relation.from) && !changed.has(relation.to)) return [];
+    const together = changed.has(relation.from) && changed.has(relation.to);
+    if (together && carriedWhole(was.routes?.[id]?.bendPoints, route.bendPoints)) return [];
     return [brief(index, id, route)];
   });
 }
 
+/** Whether bend points moved, all of them, by one same amount, as both ends moving together do. */
+function carriedWhole(
+  before: readonly { x: number; y: number }[] | undefined,
+  after: readonly { x: number; y: number }[] | undefined,
+): boolean {
+  if (before === undefined || after === undefined || before.length !== after.length) return false;
+  const [first, firstAfter] = [before[0], after[0]];
+  if (first === undefined || firstAfter === undefined) return false;
+  const dx = firstAfter.x - first.x;
+  const dy = firstAfter.y - first.y;
+  if (dx === 0 && dy === 0) return false;
+  return before.every(
+    (point, at) => after[at]?.x === point.x + dx && after[at]?.y === point.y + dy,
+  );
+}
+
 /** What set_positions says about such routes. */
 export const NOT_FOLLOWING_NOTE =
-  'These relations are routed by hand in this view through bend points of their own, and you moved one of their ends: their bend points stayed where they were, so each line still runs through them. Unless the person drew them so on purpose, call reset_route for them, and the lines take automatic routes between their ends.';
+  'These relations are routed by hand in this view through bend points of their own, and you moved their ends, but not together: the bend points next to an end you moved followed it, and the others stayed where they were, so a line may still run far from its ends. Unless the person drew them so on purpose, call reset_route for them, and the lines take automatic routes between their ends.';
 
 /**
  * The relations routed by hand through bend points in a view that take its automatic style, having

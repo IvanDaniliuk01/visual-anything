@@ -15,7 +15,7 @@ import {
 } from './commands';
 import { STUB, routeByHand } from './hand';
 import { handleAt, handlesOf } from './handles';
-import { cornersOf, moveSegment } from './segments';
+import { cornersOf, draggedBends, moveSegment } from './segments';
 import { aimEnd, snapBend, snapEnd } from './snap';
 
 const VIEW = 'system-overview';
@@ -232,6 +232,72 @@ describe('moving a segment of an orthogonal route', () => {
     expect(moveSegment(straight, 0, 70, slides)).toEqual([
       { x: 100, y: 70 },
       { x: 300, y: 70 },
+    ]);
+  });
+
+  it('stores only the corners near a dragged segment, not every corner of the line as drawn', () => {
+    // An automatic line around shapes, as the router draws it, with six corners.
+    const around = [
+      { x: 100, y: 50 },
+      { x: 150, y: 50 },
+      { x: 150, y: 250 },
+      { x: 250, y: 250 },
+      { x: 250, y: 150 },
+      { x: 400, y: 150 },
+      { x: 400, y: 450 },
+      { x: 600, y: 450 },
+    ];
+    const slides = {
+      from: { kind: 'slides', rect: { x: 0, y: 0, width: 100, height: 100 }, side: 'right' },
+      to: { kind: 'slides', rect: { x: 600, y: 400, width: 100, height: 100 }, side: 'left' },
+    } as const;
+    const moved = moveSegment(around, 3, 300, slides);
+    const bends = draggedBends(around, moved, {}, []);
+    // The segment's own corners, and the far corners of the two runs it stretches.
+    expect(bends).toEqual([
+      { x: 150, y: 250 },
+      { x: 300, y: 250 },
+      { x: 300, y: 150 },
+      { x: 400, y: 150 },
+    ]);
+    // Routed through them, the line runs along the segment where it was let go, and its neighbours.
+    const again = routeByHand(
+      { kind: 'shape', rect: slides.from.rect },
+      { kind: 'shape', rect: slides.to.rect },
+      bends,
+      'orthogonal',
+    ).route;
+    const at = again.findIndex((point) => point.x === 300 && point.y === 250);
+    expect(again.slice(at, at + 3)).toEqual(bends.slice(1));
+    // The far corner before it lies on the run that stretched into it.
+    const before = again[at - 1];
+    expect(before?.y).toBe(250);
+    expect(before?.x).toBeLessThanOrEqual(150);
+  });
+
+  it('keeps the bend points a route by hand has already, wherever they lie', () => {
+    const route = [
+      { x: 100, y: 50 },
+      { x: 150, y: 50 },
+      { x: 150, y: 250 },
+      { x: 250, y: 250 },
+      { x: 250, y: 150 },
+      { x: 400, y: 150 },
+      { x: 400, y: 450 },
+      { x: 600, y: 450 },
+    ];
+    const moved = moveSegment(route, 3, 300, ends);
+    const kept = [
+      { x: 150, y: 50 },
+      { x: 400, y: 450 },
+    ];
+    expect(draggedBends(route, moved, {}, kept)).toEqual([
+      { x: 150, y: 50 },
+      { x: 150, y: 250 },
+      { x: 300, y: 250 },
+      { x: 300, y: 150 },
+      { x: 400, y: 150 },
+      { x: 400, y: 450 },
     ]);
   });
 

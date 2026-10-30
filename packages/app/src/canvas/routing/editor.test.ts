@@ -8,8 +8,14 @@ import { worldToScreen } from '../camera';
 import { CanvasController } from '../controller';
 import { centerOf, type Point } from '../geometry';
 import { indexScene } from '../hit';
-import { buildScene, relationLinesOf, type RelationLine } from '../scene';
-import { handlesOf } from './handles';
+import {
+  buildScene,
+  relationLinesOf,
+  withRelations,
+  type RelationLine,
+  type Scene,
+} from '../scene';
+import { handlesOf, type Handle } from './handles';
 
 vi.mock('pixi.js', async (importOriginal) => {
   const pixi = await importOriginal<typeof import('pixi.js')>();
@@ -47,7 +53,11 @@ function key(host: HTMLElement, name: string, extra: Record<string, unknown> = {
 }
 
 /** A canvas showing a project with one relation selected, and what it sends and says. */
-async function canvasWith(project: ProjectSnapshot, relation: string) {
+async function canvasWith(
+  project: ProjectSnapshot,
+  relation: string,
+  drawn: (scene: Scene) => Scene = (scene) => scene,
+) {
   const host = document.createElement('div');
   host.tabIndex = 0;
   document.body.append(host);
@@ -75,7 +85,7 @@ async function canvasWith(project: ProjectSnapshot, relation: string) {
   app.finishInit();
   await Promise.resolve();
   await Promise.resolve();
-  const indexed = indexScene(buildScene(project, VIEW));
+  const indexed = indexScene(drawn(buildScene(project, VIEW)));
   controller.update(project, VIEW, indexed, true);
   controller.setSelection(selectionOf([{ kind: 'relation', id: relation }]));
   const line = relationLinesOf(indexed.scene).get(relation) as RelationLine;
@@ -146,6 +156,47 @@ describe('dragging an end of the selected relation', () => {
     dragOn(host, on(line.to), { x: 2, y: 2 });
     dragOn(host, on(line.to), on(centerOf(shapeOf('appointments-api').rect)));
     expect(sent).toEqual([]);
+  });
+});
+
+describe('dragging a segment', () => {
+  /** The scene with the agent's call to the API drawn around shapes, as the router may, six corners. */
+  const around = (scene: Scene): Scene => {
+    const route = [
+      { x: 680, y: 244 },
+      { x: 700, y: 244 },
+      { x: 700, y: 560 },
+      { x: 1240, y: 560 },
+      { x: 1240, y: 20 },
+      { x: 740, y: 20 },
+      { x: 740, y: 244 },
+      { x: 784, y: 244 },
+    ];
+    const relations = scene.relations.map((line) =>
+      line.relation === 'agent-to-api' ? { ...line, route, middle: { x: 970, y: 560 } } : line,
+    );
+    return withRelations(scene, relations, scene.bounds);
+  };
+
+  it('stores only the corners near it, not every corner of the line as drawn', async () => {
+    const { host, sent, line, on } = await canvasWith(sample, 'agent-to-api', around);
+    const handle = handlesOf(line, 1).find(
+      (each) => each.kind === 'middle' && each.segment === 2,
+    ) as Handle;
+    dragOn(host, on(handle.at), on({ x: handle.at.x, y: handle.at.y + 20 }));
+    expect(sent).toHaveLength(1);
+    const [command] = sent as [Extract<Command, { type: 'set-route' }>];
+    const scheduling = { x: 240, y: 40 };
+    // The segment's own corners, and the far corners of the runs either side of it, relative to the
+    // frame that holds both ends; not the corners at 740.
+    expect(command.bendPoints).toEqual(
+      [
+        { x: 700, y: 244 },
+        { x: 700, y: 580 },
+        { x: 1240, y: 580 },
+        { x: 1240, y: 20 },
+      ].map((point) => ({ x: point.x - scheduling.x, y: point.y - scheduling.y })),
+    );
   });
 });
 

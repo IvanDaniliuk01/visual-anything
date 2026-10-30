@@ -77,6 +77,43 @@ export function cornersOf(route: readonly Point[], stubs: { from?: Side; to?: Si
   return corners;
 }
 
+/**
+ * The bend points a dragged segment stores (ADR 0039's clarification of 2026-10-30): of the corners
+ * of the route as moved, only those near the segment, its own two corners and the far corners of the
+ * runs on either side that stretch with it, and those that are bend points of the route already,
+ * `kept`, wherever they lie; never its ends, nor the points where a stub of an end attached by hand
+ * turns. Not every corner of the line as drawn: after a layout, an automatic line drawn along ELK's
+ * route or around shapes has many, which would stay where they were once its ends moved.
+ */
+export function draggedBends(
+  before: readonly Point[],
+  moved: readonly Point[],
+  stubs: { from?: Side; to?: Side },
+  kept: readonly Point[],
+): Point[] {
+  const route = simplified(moved);
+  const keyOf = (point: Point) => `${point.x} ${point.y}`;
+  const was = new Set(before.map(keyOf));
+  const own = new Set(kept.map(keyOf));
+  const fresh = route.map((point) => !was.has(keyOf(point)));
+  const first = route[0];
+  const last = route.at(-1);
+  const isStub = (point: Point, end: Point | undefined, side: Side | undefined) => {
+    if (!end || side === undefined) return false;
+    const normal = normalOf(side);
+    return point.x === end.x + normal.x * STUB && point.y === end.y + normal.y * STUB;
+  };
+  const bends: Point[] = [];
+  for (let at = 1; at < route.length - 1; at++) {
+    const point = route[at] as Point;
+    if (at === 1 && isStub(point, first, stubs.from)) continue;
+    if (at === route.length - 2 && isStub(point, last, stubs.to)) continue;
+    const near = fresh[at] === true || fresh[at - 1] === true || fresh[at + 1] === true;
+    if (near || own.has(keyOf(point))) bends.push(point);
+  }
+  return bends;
+}
+
 /** The points without repeats, and without points in the middle of a straight run. */
 export function simplified(points: readonly Point[]): Point[] {
   const kept: Point[] = [];

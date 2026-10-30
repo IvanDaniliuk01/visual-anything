@@ -46,17 +46,10 @@ import {
 } from './commands';
 import { STUB, attachPoint, nearestBorderAttach, type Attach, type Side } from './hand';
 import { handleAt, handlesOf, segmentAt, stubsOf, type Handle } from './handles';
-import {
-  carriedOrthogonal,
-  endOutline,
-  onlyStrokes,
-  placeOfEnd,
-  routeBoxOf,
-  type OutlinedEnd,
-} from './outline-ends';
+import { endOutline, placeOfEnd, routeBoxOf } from './outline-ends';
 import { sameHandle, type RouteOverlay } from './overlay';
 import { routeLine, type LineEnds } from './scene-routes';
-import { cornersOf, moveSegment, type SegmentEnd } from './segments';
+import { draggedBends, moveSegment, type SegmentEnd } from './segments';
 import { aimEnd, snapBend, type EndAim } from './snap';
 
 /** How close to a handle, in screen pixels, the pointer grabs it. */
@@ -112,8 +105,6 @@ interface Draft {
   snapped?: { x: boolean; y: boolean }[];
   /** The end reconnected to another element's shape. */
   reconnect?: { end: 'from' | 'to'; shape: ElementShape };
-  /** The route drawn as it is, for a segment being moved. */
-  route?: Point[];
 }
 
 type Drag =
@@ -385,11 +376,19 @@ export class RouteEditor {
           const from = horizontal ? grid.origin.y : grid.origin.x;
           value = from + snap(value - from, grid.step);
         }
-        drag.draft.route = moveSegment(
+        const moved = moveSegment(
           drag.line.route,
           drag.segment,
           value,
           segmentEnds(state.indexed, drag.line),
+        );
+        // Only the corners near the segment are kept, and the preview routes through them, as the
+        // line will be drawn (ADR 0039's clarification of 2026-10-30).
+        drag.draft.bendPoints = draggedBends(
+          drag.line.route,
+          moved,
+          stubSides(drag.line),
+          drag.line.hand?.bendPoints ?? [],
         );
         this.showDraft(drag.line, drag.draft);
         return;
@@ -547,9 +546,8 @@ export class RouteEditor {
       case 'bend':
         return this.bendCommand(state, line, drag.draft.bendPoints ?? [], drag.draft.snapped);
       case 'segment': {
-        if (!drag.draft.route) return undefined;
-        const stubs = stubSides(line);
-        return this.bendCommand(state, line, cornersOf(drag.draft.route, stubs));
+        if (!drag.draft.bendPoints) return undefined;
+        return this.bendCommand(state, line, drag.draft.bendPoints);
       }
     }
   }
@@ -724,7 +722,6 @@ export class RouteEditor {
           bendPoints: bends,
           snapped: bends.map(() => ({ x: false, y: false })),
         };
-        delete keys.draft.route;
         keys.chosen = { kind: 'end', end: 'from', at: preview.from, byHand: false };
         this.host.announce(t('Bend point removed.'));
         return take();
@@ -785,7 +782,6 @@ export class RouteEditor {
       bendPoints: bends,
       snapped: bends.map(() => ({ x: false, y: false })),
     };
-    delete keys.draft.route;
     keys.chosen = { kind: 'bend', index, at };
     this.host.announce(t('Bend point added.'));
     this.showKeys();
@@ -827,7 +823,6 @@ export class RouteEditor {
           bendPoints: bends,
           snapped: bends.map(() => ({ x: false, y: false })),
         };
-        delete keys.draft.route;
         keys.chosen = { ...chosen, at: moved };
         return;
       }
@@ -846,8 +841,15 @@ export class RouteEditor {
             value,
             segmentEnds(state.indexed, keys.line),
           );
-          keys.draft = { ...keys.draft, bendPoints: cornersOf(route, stubSides(preview)) };
-          delete keys.draft.route;
+          keys.draft = {
+            ...keys.draft,
+            bendPoints: draggedBends(
+              preview.route,
+              route,
+              stubSides(preview),
+              draftBends(keys, preview),
+            ),
+          };
           const middle = horizontal
             ? { x: chosen.at.x, y: chosen.at.y + (value - a.y) }
             : { x: chosen.at.x + (value - a.x), y: chosen.at.y };
@@ -974,7 +976,6 @@ function changed(draft: Draft): boolean {
     draft.from !== undefined ||
     draft.to !== undefined ||
     draft.bendPoints !== undefined ||
-    draft.route !== undefined ||
     draft.reconnect !== undefined
   );
 }
@@ -1026,27 +1027,6 @@ function segmentEnds(
   };
 }
 
-/**
- * A route a segment drag drew, its ends that attach automatically on outlines carried on from the
- * boxes to them again (ADR 0066), as the scene will route it once the drag is let go.
- */
-function carriedDraft(indexed: IndexedScene, line: RelationLine, route: Point[]): Point[] {
-  const outlined = (which: 'from' | 'to'): OutlinedEnd | undefined => {
-    const drawn = line.ends?.[which];
-    const shape = drawn?.kind === 'shape' ? indexed.byKey.get(drawn.key) : undefined;
-    const attachment = line.hand?.route[which];
-    if (!shape || shape.points || (attachment && attachment.kind !== 'automatic')) return undefined;
-    const rect = shape.plate ?? shape.rect;
-    const outline = endOutline(shape, rect);
-    return outline && !onlyStrokes(outline)
-      ? { rect: routeBoxOf(shape, rect), outline }
-      : undefined;
-  };
-  const from = outlined('from');
-  const to = outlined('to');
-  return from || to ? carriedOrthogonal(route, from, to) : route;
-}
-
 /** The sides the stubs of a line's ends leave, for the ends attached by hand. */
 function stubSides(line: RelationLine): { from?: Side; to?: Side } {
   const sides: { from?: Side; to?: Side } = {};
@@ -1071,7 +1051,6 @@ export function previewOf(
   draft: Draft,
 ): RelationLine | undefined {
   if (!changed(draft)) return undefined;
-  if (draft.route) return lineAlong(line, carriedDraft(indexed, line, draft.route), undefined);
   const lines = relationLinesOf(indexed.scene);
   const shapeOf = (which: 'from' | 'to') => {
     if (draft.reconnect?.end === which) return draft.reconnect.shape;
