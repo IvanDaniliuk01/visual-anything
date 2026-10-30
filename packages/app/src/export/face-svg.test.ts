@@ -364,7 +364,7 @@ function withPictureComponent(project: ProjectSnapshot, face: Face): ProjectSnap
               {
                 id: 'pictures.mailer',
                 name: 'Mailer',
-                parent: 'systems.service',
+                derivesFrom: 'systems.service',
                 appearance: { face },
               },
             ],
