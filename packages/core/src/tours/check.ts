@@ -159,15 +159,8 @@ export function checkTour(
       });
     }
     const there = marked.filter((id) => index.element(id) ?? index.relation(id));
-    const saved = viewState.camera;
-    if (saved && options.boundsOf) {
-      const half = { width: screen.width / 2 / saved.zoom, height: screen.height / 2 / saved.zoom };
-      const shown = {
-        x: saved.x - half.width,
-        y: saved.y - half.height,
-        width: 2 * half.width,
-        height: 2 * half.height,
-      };
+    const shown = cameraArea(step, screen);
+    if (shown && options.boundsOf) {
       const outside = there.filter((id) => {
         const bounds = options.boundsOf?.(viewState.view, id);
         return bounds !== undefined && !meets(bounds, shown);
@@ -236,6 +229,19 @@ export function checkTour(
   });
 }
 
+/** What a step's camera shows of its view on this screen, when it keeps one. */
+function cameraArea(step: TourStep, screen: ScreenSize): TourRect | undefined {
+  const saved = step.viewState.camera;
+  if (saved === undefined) return undefined;
+  const half = { width: screen.width / 2 / saved.zoom, height: screen.height / 2 / saved.zoom };
+  return {
+    x: saved.x - half.width,
+    y: saved.y - half.height,
+    width: 2 * half.width,
+    height: 2 * half.height,
+  };
+}
+
 /** How a step's shapes get there from the step before in another view (ADR 0084). */
 function shapesOf(
   before: TourStep | undefined,
@@ -250,11 +256,14 @@ function shapesOf(
   const two = drawn?.(step.viewState.view);
   if (one === undefined || two === undefined) return undefined;
   const index = modelIndexOf(project);
-  // What a step's filters hide is not there to glide.
+  // What a step's filters hide is not there to glide, and neither is what its camera, when it keeps
+  // one, leaves off the screen: the stage glides only the shapes on screen in their own step.
   const shown = (shapes: readonly GlideShape[], of: TourStep) => {
     const hidden = new Set(of.viewState.filters?.components ?? []);
-    if (hidden.size === 0) return shapes;
+    const area = cameraArea(of, screen);
+    if (hidden.size === 0 && area === undefined) return shapes;
     return shapes.filter((shape) => {
+      if (area !== undefined && !meets(shape.rect, area)) return false;
       const component = index.element(shape.element)?.component;
       return component === undefined || !hidden.has(component);
     });

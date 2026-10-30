@@ -2,6 +2,7 @@ import type { Id, TourFile, TourStep } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { testProject } from '../test/fixtures';
 import { LONG_TOUR_RANGE, checkTour, type TourRect } from './check';
+import { MAX_GLIDE_SHAPES } from './glide';
 
 const SCREEN = { width: 1000, height: 600 };
 
@@ -221,6 +222,23 @@ describe('checkTour on what ADR 0084 adds', () => {
     });
     expect(crowded[1]?.shapes).toEqual({ kind: 'cut', reason: 'too-many', shared: 401 });
     expect(kinds(crowded)).toEqual([[], ['glide-too-many']]);
+  });
+
+  it('counts only the shapes a step’s camera shows, as the stage glides them', () => {
+    // 401 shapes 10 apart along a line 4,010 wide; a camera on its start, on a 1,000-wide screen at
+    // zoom 1, shows about 100 of them.
+    const camera = { x: 500, y: 0, zoom: 1 };
+    const checks = checkTour(
+      twoViews(),
+      tour(
+        step('one', { viewState: { view: 'overview', camera } }),
+        step('two', { viewState: { view: 'detail', camera } }),
+      ),
+      { shapesOf: () => drawn(401), screen: { width: 1000, height: 600 } },
+    );
+    expect(checks[1]?.shapes?.kind).toBe('glide');
+    expect(checks[1]?.shapes?.shared).toBeLessThanOrEqual(MAX_GLIDE_SHAPES);
+    expect(kinds(checks)[1]).not.toContain('glide-too-many');
   });
 
   it('says a step that asks to cut cuts where its camera would glide, without warning of it', () => {
