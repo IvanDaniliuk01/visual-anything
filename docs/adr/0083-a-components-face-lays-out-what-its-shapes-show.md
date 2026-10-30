@@ -324,7 +324,7 @@ The layout is block, flex and a simple grid: a small engine, not a browser's.
   - **Problems.**
     - Each has its part (the markup, the style or a variant), line, column and severity. A command refuses with the first error. Style the subset drops is a warning, and so are unknown attributes and contrast.
     - Opening checks a face where one of its parts is set, on the component or the element that sets it, at most 10 warnings a face and a count of the rest.
-    - The contrast check reads the compiled face: every branch of a condition, and a class made from a value without a rule and with each rule it could pick.
+    - The contrast check reads the compiled face: every branch of a condition, and a class made from a value without a rule and with each rule it could pick. Since those choices multiply through nested elements, it takes at most 4,096 steps, every element visited with each of its choices and every text counted, and past them it warns that it checked the face only in part. Whether a rule's class is one a slot could write is matched in linear time: the texts between slots in order, and what the slots write made of `[a-z0-9-]`, with no regular expression built from a face.
     - The messages are the core's, in English. Their Spanish templates come with F4, which first shows them in the app.
   - **The face drawing:**
     - boxes;

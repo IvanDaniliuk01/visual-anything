@@ -22,8 +22,12 @@ import {
 
 /** The most ways one element's classes are checked. */
 const MAX_CLASS_CHOICES = 8;
-/** The most texts one face's check looks at, so that conditions within conditions stay cheap. */
-const MAX_CHECKS = 4_000;
+/**
+ * The most steps one face's check takes, every element visited with each of its class choices and
+ * every text counted: class choices multiply through nested elements, so the walk stops when its
+ * budget is spent, and says so.
+ */
+const MAX_STEPS = 4_096;
 
 /** Large text, as WCAG counts it: 18 pt, or 14 pt in bold. */
 function large(style: FaceStyle): boolean {
@@ -44,7 +48,12 @@ export function faceContrastProblems(
         for (const name of compound.classes) classNames.add(name);
     }
   }
-  let checks = 0;
+  let steps = 0;
+  /** Takes a step of the budget, answering false once it is spent. */
+  const step = (): boolean => {
+    steps += 1;
+    return steps <= MAX_STEPS;
+  };
   const markups: CompiledMarkup[] = [
     ...(compiled.markup === undefined ? [] : [compiled.markup]),
     ...compiled.variants.values(),
@@ -58,7 +67,6 @@ export function faceContrastProblems(
     markup: CompiledMarkup,
     at: { line: number; column: number },
   ) => {
-    checks += 1;
     for (const theme of ['light', 'dark'] as const) {
       const palette = palettes[theme];
       const text = resolveFaceColor(style.color, palette);
@@ -88,10 +96,11 @@ export function faceContrastProblems(
     markup: CompiledMarkup,
   ): void => {
     for (const node of nodes) {
-      if (checks > MAX_CHECKS) return;
+      if (steps > MAX_STEPS) return;
       switch (node.kind) {
         case 'text':
           if (node.template.some((part) => typeof part !== 'string' || part.trim() !== '')) {
+            if (!step()) return;
             check(parent, back, markup, node.at);
           }
           break;
@@ -103,6 +112,7 @@ export function faceContrastProblems(
           break;
         case 'element':
           for (const classes of classChoices(node.classes, classNames)) {
+            if (!step()) return;
             const matched: Matched = { name: node.tag, classes };
             const style = computeStyle(parent, [
               ...(TAG_DEFAULTS[node.tag] ?? []),
@@ -122,6 +132,18 @@ export function faceContrastProblems(
 
   for (const markup of markups) {
     visit(markup.nodes, rootStyle, rootStyle.background ?? 'fill', [rootMatch], markup);
+    if (steps > MAX_STEPS) {
+      problems.push({
+        code: 'face-contrast',
+        severity: 'warning',
+        part: markup.part,
+        line: 0,
+        column: 0,
+        reason:
+          'Its contrast was checked only in part: its conditions and classes made from values give more ways to draw it than the check reads.',
+      });
+      break;
+    }
   }
   return problems;
 }
@@ -129,24 +151,68 @@ export function faceContrastProblems(
 /** The sets of classes an element is checked with: its literal ones, and each a slot could add. */
 function classChoices(templates: readonly TextTemplate[], known: ReadonlySet<string>): string[][] {
   const literal: string[] = [];
-  const patterns: RegExp[] = [];
+  const patterns: (readonly string[])[] = [];
   for (const template of templates) {
-    if (template.every((part) => typeof part === 'string')) {
-      literal.push(template.join(''));
-      continue;
-    }
-    const source = template
-      .map((part) =>
-        typeof part === 'string' ? part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '[a-z0-9-]*',
-      )
-      .join('');
-    patterns.push(new RegExp(`^${source}$`));
+    if (template.every((part) => typeof part === 'string')) literal.push(template.join(''));
+    else patterns.push(classPattern(template));
   }
   const choices = [literal];
   for (const name of known) {
     if (choices.length > MAX_CLASS_CHOICES) break;
-    if (!literal.includes(name) && patterns.some((pattern) => pattern.test(name)))
+    if (!literal.includes(name) && patterns.some((pattern) => classMatches(pattern, name))) {
       choices.push([...literal, name]);
+    }
   }
   return choices;
+}
+
+/**
+ * A class template as the literal texts between its slots, in order: slots side by side count as
+ * one, and the first and last texts are empty when the template starts or ends with a slot.
+ */
+export function classPattern(template: TextTemplate): readonly string[] {
+  const literals = [''];
+  let slotted = false;
+  for (const part of template) {
+    if (typeof part === 'string') {
+      literals[literals.length - 1] += part;
+      slotted = false;
+    } else if (!slotted) {
+      literals.push('');
+      slotted = true;
+    }
+  }
+  return literals;
+}
+
+const SLOT_CHARACTER = /^[a-z0-9-]$/;
+
+/**
+ * Whether a class name is one a template's slots could write, in time linear in the name: the first
+ * text as its start, the last as its end, the ones between found in order at their first place, and
+ * what the slots write made of `[a-z0-9-]` only. The first place is the best one: a later place would
+ * only give the slot before it more characters to hold.
+ */
+export function classMatches(literals: readonly string[], name: string): boolean {
+  if (literals.length === 1) return name === literals[0];
+  const first = literals[0]!;
+  const last = literals.at(-1)!;
+  if (first.length + last.length > name.length) return false;
+  if (!name.startsWith(first) || !name.endsWith(last)) return false;
+  const end = name.length - last.length;
+  let at = first.length;
+  const slotFits = (from: number, to: number): boolean => {
+    for (let index = from; index < to; index += 1) {
+      if (!SLOT_CHARACTER.test(name[index]!)) return false;
+    }
+    return true;
+  };
+  for (let index = 1; index < literals.length - 1; index += 1) {
+    const literal = literals[index]!;
+    const found = name.indexOf(literal, at);
+    if (found === -1 || found + literal.length > end) return false;
+    if (!slotFits(at, found)) return false;
+    at = found + literal.length;
+  }
+  return slotFits(at, end);
 }
