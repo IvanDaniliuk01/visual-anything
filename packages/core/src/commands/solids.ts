@@ -99,13 +99,7 @@ export function updateSolid(draft: Draft, command: UpdateSolidCommand): string {
   for (const key of ['description', 'source'] as const) {
     if (changes[key] === undefined) continue;
     if (changes[key] === null) delete next[key];
-    else
-      next[key] = checkedText(
-        changes[key],
-        key,
-        key === 'description' ? 1000 : 500,
-        false,
-      );
+    else next[key] = checkedText(changes[key], key, key === 'description' ? 1000 : 500, false);
   }
   if (changes.license !== undefined) {
     if (changes.license === null) delete next.license;
