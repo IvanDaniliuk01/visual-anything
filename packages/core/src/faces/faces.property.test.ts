@@ -344,6 +344,8 @@ describe('hostile faces', () => {
       '<p if="1; alert(1)">x</p>',
       '<image ref="javascript:alert(1)"/>',
       '<each of="attributes" onmouseover="x"/>',
+      // Found by the property: text that looks like a handler, outside any tag, is harmless text.
+      ' onb=',
     ),
     fc
       .array(
@@ -382,7 +384,8 @@ describe('hostile faces', () => {
           if (problem.line > 0)
             expect(problem.column).toBeLessThanOrEqual(lines[problem.line - 1]!.length + 1);
         }
-        if (/<(script|img|a|svg|iframe|template|object)\b|\son\w+=|<!|<\?/.test(markup)) {
+        // An event handler is refused as an attribute, inside a tag; outside one, " onb=" is text.
+        if (/<(script|img|a|svg|iframe|template|object)\b|<[^<>]*\son\w+=|<!|<\?/.test(markup)) {
           expect(compiled.ok).toBe(false);
           expect(compiled.problems.some((each) => each.severity === 'error' && each.line > 0)).toBe(
             true,
