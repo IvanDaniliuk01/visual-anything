@@ -30,6 +30,7 @@ import {
   NOTICES_FILE,
   bundleDrawingWorkerBeside,
   bundleServer,
+  bundleSolidWorkerBeside,
   collectAppAssets,
   executableName,
   programAssets,
@@ -59,13 +60,17 @@ say(`Bundling the server into ${shown(main)}`);
 const server = await bundleServer(main);
 const worker = await bundleDrawingWorkerBeside(main);
 say(`Bundling the drawing's worker, with satori and its WebAssembly, into ${shown(worker.file)}`);
+const solidWorker = await bundleSolidWorkerBeside(main);
+say(
+  `Bundling the solid cleaner's worker, with the glTF reader and meshoptimizer, into ${shown(solidWorker.file)}`,
+);
 const notices = join(OUT_DIR, NOTICES_FILE);
-await writeNotices([server, worker.metafile], notices);
+await writeNotices([server, worker.metafile, solidWorker.metafile], notices);
 say(`Writing the notice of the code it bundles to ${shown(notices)}`);
 
 const app = await collectAppAssets(APP_DIST);
 say(`Embedding the ${Object.keys(app).length} files of ${shown(APP_DIST)}`);
-const assets = { ...app, ...programAssets(worker.file, notices) };
+const assets = { ...app, ...programAssets(worker.file, solidWorker.file, notices) };
 const codeCache = values['no-code-cache'] !== true;
 await writeFile(
   config,

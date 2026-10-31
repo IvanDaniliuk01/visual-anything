@@ -1,9 +1,10 @@
 /**
- * The notice of the code a single executable bundles (ADR 0037, ADR 0068): every npm package esbuild
- * put in the server's bundle or the drawing's worker, with its version, its license and where its
- * source is, then Node.js and the fonts. MPL-2.0 asks those who ship satori in an executable to say
- * where its source can be had; this says so for every package. `pnpm package` writes it beside the
- * executable and holds it as an asset, which `visual-anything notices` prints.
+ * The notice of the code a single executable bundles (ADR 0037, ADR 0068, ADR 0075): every npm
+ * package esbuild put in the server's bundle, the drawing's worker or the solid cleaner's worker,
+ * with its version, its license and where its source is, then Node.js and the fonts. MPL-2.0 asks
+ * those who ship satori in an executable to say where its source can be had; this says so for every
+ * package. `pnpm package` writes it beside the executable and holds it as an asset, which
+ * `visual-anything notices` prints.
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -100,6 +101,14 @@ export function noticeText(packages: readonly BundledPackage[], nodeVersion: str
       `  Source: ${each.source}`,
       '',
     );
+    // What meshoptimizer's own files hold, compiled: its decoder and simplifier (ADR 0075).
+    if (each.name === 'meshoptimizer') {
+      lines.push(
+        '  It holds, in its own files, the WebAssembly of its decoder and simplifier, built from',
+        '  its own C++ sources, under the same license, at the same address.',
+        '',
+      );
+    }
     // What satori's own files hold, compiled: its layout engine and its text shaping.
     if (each.name === 'satori') {
       lines.push(

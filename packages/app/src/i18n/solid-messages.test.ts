@@ -76,7 +76,6 @@ const REASONS: string[] = [
   `The project has no solid file "solids/${HASH}.glb".`,
   `The solid file "solids/${HASH}.glb" cannot be read: The file is a link.`,
   `The bytes of the solid file "solids/${HASH}.glb" are not the ones its name says.`,
-  'This program cannot import solids yet.',
   'Visual Anything sent pieces of a solid’s file that do not fit together.',
 ];
 

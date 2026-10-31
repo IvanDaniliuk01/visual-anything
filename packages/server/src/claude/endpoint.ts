@@ -150,6 +150,20 @@ export function attachClaude(
         // own reading and mapping of that file makes. It is read and mapped in the session's queue,
         // in the turn that runs it, against the project the work asked for before it leaves.
         const request = importRequestOf(message.request);
+        if (request.solid !== undefined) {
+          // A solid the program prepared of the person's file, from its pieces (ADR 0075).
+          if (session.importSolid === undefined) {
+            refuse(message.requestId, [
+              { code: 'program-failed', message: 'This Visual Anything cleans no solids.' },
+            ]);
+            return;
+          }
+          await session.importSolid(request.solid, {}, 'user', {
+            client,
+            requestId: message.requestId,
+          });
+          return;
+        }
         if (isDrawingImport(request)) {
           await importDrawing(request, message.requestId);
           return;
@@ -172,6 +186,20 @@ export function attachClaude(
         );
         return;
       }
+      case 'solid/prepare':
+        // A piece of a file to import as a solid (ADR 0075): it changes nothing, and is answered once
+        // the file is cleaned and held, or refused.
+        if (session.prepareSolidPiece === undefined) {
+          send({
+            type: 'solid/refused',
+            requestId: message.requestId,
+            code: 'program-failed',
+            message: 'This Visual Anything cleans no solids.',
+          });
+          return;
+        }
+        await session.prepareSolidPiece(client, message);
+        return;
       case 'versions/list':
         // The session answers through the client: Claude's copy of a comparison never holds the
         // version's project (ADR-0029).

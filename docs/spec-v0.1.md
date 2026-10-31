@@ -935,6 +935,7 @@ Its tasks run in this order:
   - Import… with `.glb` and `.gltf`: the preview, the units, the up axis, the report and the single action; `visual-anything import` with `--units`, `--up` and `--simplify`;
   - the hostile-input tests;
   - the single executables carrying the reader and meshoptimizer, and their notice of bundled code.
+  - Built 2026-10-31 in the program, by a builder (ADR 0075's clarification of that date), all but two things: Import…'s dialog in the app, which the program answers with `solid/prepared` (its preview, units, up axis and report) and then takes `define-solid`, is left for the app's side; and textures past the core's bitmap cleaner's caps (1,024 pixels, 192 KiB), under a solid's own, are dropped until the core lets the cleaner pass a solid's caps.
 - [x] **The solid worker** (`app/src/solids/worker/`; ADR 0075). Done 2026-10-31, tested without a GPU behind a fake of its renderer; its drawing on a real GPU is first seen once the canvas task draws its pictures (ADR 0075's clarification):
   - three 0.186.1 and three-mesh-bvh 0.9.16, pinned, imported only by the worker;
   - the canonical file read with the core's reader and built into three.js objects, without GLTFLoader;

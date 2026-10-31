@@ -7,12 +7,14 @@ import { promisify } from 'node:util';
 import type { Metafile } from 'esbuild';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { APP_ASSET_PREFIX } from '../src/executable';
+import { box, inputGlb } from '../src/solids/test/gltf';
 import { testProject, writeProjectFolder } from '../src/test-support';
 import { repositoryAddress } from './notices';
 import {
   SEA_FUSE,
   bundleDrawingWorkerBeside,
   bundleServer,
+  bundleSolidWorkerBeside,
   collectAppAssets,
   executableName,
   programAssets,
@@ -164,6 +166,58 @@ describe('bundleServer', () => {
     expect(inputs.some((input) => input.endsWith('src/drawings/make.ts'))).toBe(true);
   });
 
+  it('holds none of the glTF reader nor meshoptimizer, which the cleaner’s worker holds (ADR 0075)', () => {
+    const inputs = Object.keys(metafile.inputs).map((input) => input.replaceAll('\\', '/'));
+    expect(
+      inputs.filter((input) =>
+        /node_modules\/(@gltf-transform|meshoptimizer|property-graph)\//.test(input),
+      ),
+    ).toEqual([]);
+    expect(inputs.some((input) => input.endsWith('src/solids/cleaner.ts'))).toBe(true);
+  });
+
+  describe('with the solid cleaner’s worker beside it', () => {
+    let worker: { file: string; metafile: Metafile };
+
+    beforeAll(async () => {
+      worker = await bundleSolidWorkerBeside(bundle);
+    }, 120_000);
+
+    it('imports a glTF file as a solid, as the executable does', async () => {
+      const project = join(folder, 'solid-project');
+      await writeProjectFolder(project, testProject());
+      await writeFile(
+        join(folder, 'part.glb'),
+        inputGlb({ nodes: [{ name: 'part', mesh: 0 }], meshes: [box()] }),
+      );
+      const imported = await run(
+        process.execPath,
+        [bundle, 'import', project, join(folder, 'part.glb')],
+        {
+          env: { ...process.env, VISUAL_ANYTHING_RUNTIME: join(folder, 'run') },
+        },
+      );
+      expect(imported.stdout).toContain(
+        'Done: Import "part.glb" as a solid, as one action you can undo in the app.',
+      );
+    }, 60_000);
+
+    it('writes the glTF reader and meshoptimizer into the notice', async () => {
+      const text = await writeNotices(
+        [metafile, worker.metafile],
+        join(folder, 'SOLID-NOTICES.txt'),
+        '24.0.0',
+      );
+      expect(text).toMatch(/@gltf-transform\/core 4\.5\.1\n {2}License: MIT/);
+      expect(text).toMatch(/@gltf-transform\/extensions 4\.5\.1\n {2}License: MIT/);
+      expect(text).toMatch(
+        /meshoptimizer 1\.3\.0\n {2}License: MIT\n {2}Source: https:\/\/github\.com\/zeux\/meshoptimizer/,
+      );
+      expect(text).toContain('the WebAssembly of its decoder and simplifier');
+      expect(text).toMatch(/property-graph \d/);
+    });
+  });
+
   describe('with the drawing’s worker beside it', () => {
     let worker: { file: string; metafile: Metafile };
 
@@ -207,8 +261,9 @@ describe('bundleServer', () => {
       expect(text).toMatch(
         /Roboto Mono 3\.000 Regular, which the PDF export writes code in\n {2}License: Apache-2\.0/,
       );
-      expect(programAssets(worker.file, 'n.txt')).toEqual({
+      expect(programAssets(worker.file, 's.cjs', 'n.txt')).toEqual({
         'drawings/worker.cjs': worker.file,
+        'solids/worker.cjs': 's.cjs',
         'NOTICES.txt': 'n.txt',
       });
     });

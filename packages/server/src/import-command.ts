@@ -12,9 +12,12 @@ import { parseArgs } from 'node:util';
 import {
   DRAWING_LIMITS,
   MAX_IMPORT_TEXT,
+  MAX_SOLID_INPUT_BYTES,
   recordOf,
   type BatchCommand,
   type ProjectSnapshot,
+  type SolidImportOptions,
+  type SolidPreparedMessage,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import {
@@ -33,11 +36,15 @@ import { describePreview, previewImport, type ImportRequest } from './import';
 import { toForwardSlashes } from './paths';
 import { formatProjectProblem } from './project';
 import { openSession } from './session';
+import { describeSolidImport, isSolidFile } from './solids/import';
+import { preparedMessage } from './solids/store';
 
 export const IMPORT_USAGE = `Usage: visual-anything import <folder> <file> [--map <kind>=<id>]... [--nesting <id>]
                              [--key <column>] [--format <format>] [--no-view] [--dry-run]
        visual-anything import <folder> <file.html> [--width <px>] [--component <id>]
                              [--element <id>] [--view <id>] [--dry-run]
+       visual-anything import <folder> <file.glb|file.gltf> [--units m|cm|mm|in] [--up y|z]
+                             [--simplify] [--dry-run]
 
 Imports a Mermaid diagram (flowchart, C4, ER or class), a spreadsheet (CSV or TSV), JSON, a
 Structurizr workspace in JSON, a LikeC4 model or a draw.io file (.drawio, .xml, .drawio.svg or
@@ -45,8 +52,11 @@ Structurizr workspace in JSON, a LikeC4 model or a draw.io file (.drawio, .xml, 
 not read: export it to JSON first, with structurizr-cli export -workspace workspace.dsl -format json.
 A static HTML file or fragment (.html or .htm, at most 512 KiB) is imported as a drawing instead: a
 picture of the page, laid out without running anything in it or fetching anything it names, shown
-by a new element or by the one you name. When Visual Anything runs on the project, the import goes
-through it; otherwise the project is opened, the import applied and saved.
+by a new element or by the one you name. A glTF file (.glb, or .gltf with its data inside, at most
+256 MiB) is imported as a solid: cleaned into solids/<hash>.glb, keeping only geometry, materials,
+textures, named nodes and animations that move them, with nothing that runs and nothing it names
+outside itself. When Visual Anything runs on the project, the import goes through it; otherwise the
+project is opened, the import applied and saved.
 
   --map <kind>=<id>  Map a kind of the file, as --dry-run lists them, to a component or relation
                      type by its id; give it again for more, and =<id> for rows that name no
@@ -62,6 +72,12 @@ through it; otherwise the project is opened, the import applied and saved.
                      default.
   --element <id>     For HTML: show the drawing on this element instead of a new one.
   --view <id>        For HTML: the view the new element is made in.
+  --units <unit>     For a solid: the unit the file is written in, m, cm, mm or in; meters by
+                     default. The solid is stored in meters.
+  --up <axis>        For a solid: the axis that is up in the file, y or z; y by default. The solid
+                     is stored with +Y up.
+  --simplify         For a solid past 1,000,000 triangles or vertices: simplify it to fit, rather
+                     than refuse it.
   --dry-run          Say what the import would do, and import nothing.
   -h, --help         Show this help.`;
 
@@ -82,6 +98,8 @@ interface ImportCommandLine {
   folder: string;
   file: string;
   request: Omit<ImportRequest, 'name' | 'text' | 'bytes'>;
+  /** For a solid: its units, its up axis and whether to simplify it (ADR 0075). */
+  solid: SolidImportOptions;
   dryRun: boolean;
 }
 
@@ -108,6 +126,9 @@ export function parseImportCommandLine(
         component: { type: 'string' },
         element: { type: 'string' },
         view: { type: 'string' },
+        units: { type: 'string' },
+        up: { type: 'string' },
+        simplify: { type: 'boolean' },
         'dry-run': { type: 'boolean' },
         help: { type: 'boolean', short: 'h' },
       },
@@ -145,6 +166,15 @@ export function parseImportCommandLine(
       };
     }
   }
+  if (values.units !== undefined && !['m', 'cm', 'mm', 'in'].includes(values.units)) {
+    return {
+      ok: false,
+      message: `--units takes m, cm, mm or in, not ${JSON.stringify(values.units)}.`,
+    };
+  }
+  if (values.up !== undefined && values.up !== 'y' && values.up !== 'z') {
+    return { ok: false, message: `--up takes y or z, not ${JSON.stringify(values.up)}.` };
+  }
   const [folder, file] = positionals as [string, string];
   return {
     ok: true,
@@ -152,6 +182,13 @@ export function parseImportCommandLine(
       folder,
       file,
       dryRun: values['dry-run'] === true,
+      solid: {
+        ...(values.units === undefined
+          ? {}
+          : { units: values.units as NonNullable<SolidImportOptions['units']> }),
+        ...(values.up === undefined ? {} : { up: values.up }),
+        ...(values.simplify === true ? { simplify: true } : {}),
+      },
       request: {
         ...(map.length === 0 ? {} : { map: recordOf(map) }),
         ...(values.nesting === undefined ? {} : { nesting: values.nesting }),
@@ -185,15 +222,33 @@ export async function runImport(
     environment.out(IMPORT_USAGE);
     return 0;
   }
-  const { folder: written, file: fileWritten, request, dryRun } = parsed.value;
+  const { folder: written, file: fileWritten, request, dryRun, solid } = parsed.value;
   const folder = resolve(environment.cwd, written);
   const path = resolve(environment.cwd, fileWritten);
+  const name = path.split(/[\\/]/).pop() ?? fileWritten;
+  if (isSolidFile(name) && request.format === undefined) {
+    const mixed = Object.keys(request).length > 0;
+    if (mixed) {
+      environment.err(
+        '--map, --nesting, --key, --no-view, --width, --component, --element and --view are not for glTF files, which are imported as solids.',
+      );
+      environment.err(IMPORT_USAGE);
+      return 2;
+    }
+    return importSolid(folder, path, name, solid, dryRun, environment);
+  }
+  if (Object.keys(solid).length > 0) {
+    environment.err(
+      '--units, --up and --simplify are for glTF files, which are imported as solids.',
+    );
+    environment.err(IMPORT_USAGE);
+    return 2;
+  }
   const file = await readImportFile(path);
   if (!file.ok) {
     environment.err(file.message);
     return 1;
   }
-  const name = path.split(/[\\/]/).pop() ?? fileWritten;
   const drawing = isDrawingImport({
     name,
     ...(request.format === undefined ? {} : { format: request.format }),
@@ -330,6 +385,143 @@ export async function runImport(
     }
   } finally {
     bridge?.close();
+  }
+}
+
+/**
+ * Imports a glTF file as a solid (ADR 0075): the program that runs on the project cleans it in its
+ * worker and defines it, as the person's action; without one, the project is opened here, and its
+ * session does the same. With `--dry-run`, the file is cleaned and nothing is imported.
+ */
+async function importSolid(
+  folder: string,
+  path: string,
+  name: string,
+  options: SolidImportOptions,
+  dryRun: boolean,
+  environment: ImportEnvironment,
+): Promise<number> {
+  const file = await readSolidImportFile(path);
+  if (!file.ok) {
+    environment.err(file.message);
+    return 1;
+  }
+  const say = (prepared: SolidPreparedMessage): void => {
+    for (const line of describeSolidImport(name, prepared)) environment.out(line);
+  };
+  const refused = (problems: readonly { message: string }[]): number => {
+    environment.err(`Could not import "${name}":`);
+    for (const problem of problems) environment.err(`  ${problem.message}`);
+    return 1;
+  };
+  const done = (answer: CommandAnswer): number => {
+    if (!answer.ok) return refused(answer.problems);
+    environment.out(
+      answer.changed
+        ? `Done: ${answer.label}, as one action you can undo in the app.`
+        : 'Nothing changed, so nothing was recorded.',
+    );
+    for (const warning of answer.warnings) environment.err(`Warning: ${warning.message}`);
+    return 0;
+  };
+
+  const bridge =
+    environment.runtimeFolder === undefined || environment.runtimeFolder === null
+      ? undefined
+      : new ProgramBridge({
+          folder,
+          runtime: environment.runtimeFolder,
+          attachOnly: true,
+          ...(environment.context === undefined ? {} : { context: environment.context }),
+        });
+  try {
+    let running: ProjectSnapshot | undefined;
+    if (bridge !== undefined) {
+      try {
+        running = await bridge.project();
+      } catch (error) {
+        if (error instanceof OtherBuildError) {
+          environment.err(error.message);
+          return 1;
+        }
+        if (!(error instanceof NoProgramRunningError || error instanceof ProgramUnavailableError)) {
+          throw error;
+        }
+      }
+    }
+    if (running !== undefined && bridge !== undefined) {
+      environment.out(
+        `Visual Anything runs on "${running.project.name}", so the import goes through it.`,
+      );
+      const prepared = await bridge.prepareSolid(name, file.bytes, options);
+      if (prepared.type === 'solid/refused') return refused([prepared]);
+      say(prepared);
+      if (dryRun) {
+        environment.out('Dry run: nothing was imported.');
+        return 0;
+      }
+      return done(await bridge.importSolidAsPerson(name, prepared.hash));
+    }
+    const opened = await openSession(folder, {
+      watch: false,
+      out: (line) => environment.out(line),
+      err: (line) => environment.err(line),
+    });
+    if (!opened.ok) {
+      environment.err(`Could not open the project in ${toForwardSlashes(folder)}:`);
+      for (const error of opened.errors) environment.err(formatProjectProblem(error));
+      return 1;
+    }
+    const { session } = opened;
+    try {
+      const prepared = await session.prepareSolid(file.bytes, name, options);
+      if (!prepared.ok) return refused(prepared.problems);
+      say(preparedMessage('import', prepared.prepared));
+      if (dryRun) {
+        environment.out('Dry run: nothing was imported.');
+        return 0;
+      }
+      const outcome = await session.importSolid(prepared.prepared.hash, {}, 'user');
+      return done(
+        outcome.ok
+          ? {
+              ok: true,
+              label: outcome.label,
+              changed: outcome.operations.length > 0,
+              created: outcome.created,
+              warnings: outcome.warnings,
+            }
+          : { ok: false, problems: outcome.problems },
+      );
+    } finally {
+      // Waits for the import to be saved.
+      await session.close();
+    }
+  } finally {
+    bridge?.close();
+  }
+}
+
+/** A glTF file to import as a solid, read whole: at most 256 MiB, as cleaning reads. */
+async function readSolidImportFile(
+  path: string,
+): Promise<{ ok: true; bytes: Uint8Array } | { ok: false; message: string }> {
+  try {
+    const info = await stat(path);
+    if (!info.isFile()) return { ok: false, message: `${toForwardSlashes(path)} is not a file.` };
+    if (info.size > MAX_SOLID_INPUT_BYTES) {
+      return {
+        ok: false,
+        message: `${toForwardSlashes(path)} is larger than 256 MiB; a solid is cleaned from at most 256 MiB.`,
+      };
+    }
+    const bytes = await readFile(path);
+    return { ok: true, bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) };
+  } catch (error) {
+    return {
+      ok: false,
+      message: `Could not read ${toForwardSlashes(path)}: ${errorReason(error)}`,
+    };
   }
 }
 

@@ -5411,9 +5411,243 @@ export const messages: Catalog = {
     'No se puede leer el archivo de sólido "solids/{hash}.glb": {why}',
   'The bytes of the solid file "solids/{hash}.glb" are not the ones its name says.':
     'Los bytes del archivo de sólido "solids/{hash}.glb" no son los que dice su nombre.',
-  'This program cannot import solids yet.': 'Este programa todavía no puede importar sólidos.',
   'Visual Anything sent pieces of a solid’s file that do not fit together.':
     'Visual Anything envió trozos del archivo de un sólido que no encajan entre sí.',
+  // M9: the solid cleaner's refusals and report, and the program's solid files (ADR 0075).
+  'The file is over 256 MiB, the most cleaning reads.':
+    'El archivo pasa de 256 MiB, lo más que lee la limpieza.',
+  'The GLB is cut short.': 'El GLB está cortado.',
+  'The file is not glTF 2.0.': 'El archivo no es glTF 2.0.',
+  'The GLB says it is longer than the file is.': 'El GLB dice que es más largo que el archivo.',
+  'The GLB does not start with its JSON.': 'El GLB no empieza con su JSON.',
+  'The JSON of the GLB runs past its end.': 'El JSON del GLB pasa de su final.',
+  'A chunk of the GLB runs past its end.': 'Un bloque del GLB pasa de su final.',
+  'The file is neither a GLB nor glTF in JSON.': 'El archivo no es ni un GLB ni glTF en JSON.',
+  'The JSON of the file is not UTF-8.': 'El JSON del archivo no está en UTF-8.',
+  'The JSON of the file cannot be read.': 'No se puede leer el JSON del archivo.',
+  'The JSON of the file is not an object.': 'El JSON del archivo no es un objeto JSON.',
+  'The JSON of the file nests too deep.': 'El JSON del archivo se anida demasiado.',
+  'Its copyright was taken out of the file, and is offered as its source.':
+    'Se sacó del archivo su copyright, que se ofrece como su fuente.',
+  'The name of the program that wrote it was taken out.':
+    'Se sacó el nombre del programa que lo escribió.',
+  'The file is compressed with Draco, which cleaning does not read: export it without compression.':
+    'El archivo está comprimido con Draco, que la limpieza no lee: expórtalo sin compresión.',
+  'The extension {name} was dropped: a solid keeps none of it.':
+    'Se descartó la extensión {name}: un sólido no guarda nada de ella.',
+  '1 set of extras': '1 conjunto de extras',
+  '{n} sets of extras': '{n} conjuntos de extras',
+  '1 light': '1 luz',
+  '{n} lights': '{n} luces',
+  '1 camera': '1 cámara',
+  '{n} cameras': '{n} cámaras',
+  '1 skin': '1 esqueleto (skin)',
+  '{n} skins': '{n} esqueletos (skins)',
+  '1 morph target': '1 objetivo de deformación (morph target)',
+  '{n} morph targets': '{n} objetivos de deformación (morph targets)',
+  '1 name of something other than a node': '1 nombre de algo que no es un nodo glTF',
+  '{n} names of things other than nodes': '{n} nombres de cosas que no son nodos glTF',
+  'The file holds {count} nodes, more than the {most} cleaning reads.':
+    'El archivo tiene {count} nodos glTF, más que los {most} que lee la limpieza.',
+  'The file holds {count} meshes, more than the {most} cleaning reads.':
+    'El archivo tiene {count} mallas glTF, más que las {most} que lee la limpieza.',
+  'The file holds {count} primitives, more than the {most} cleaning reads.':
+    'El archivo tiene {count} primitivas, más que las {most} que lee la limpieza.',
+  'The file holds {count} accessors, more than the {most} cleaning reads.':
+    'El archivo tiene {count} accesores, más que los {most} que lee la limpieza.',
+  'The file holds {count} materials, more than the {most} cleaning reads.':
+    'El archivo tiene {count} materiales, más que los {most} que lee la limpieza.',
+  'The file holds {count} images, more than the {most} cleaning reads.':
+    'El archivo tiene {count} imágenes, más que las {most} que lee la limpieza.',
+  'The file holds {count} textures, more than the {most} cleaning reads.':
+    'El archivo tiene {count} texturas, más que las {most} que lee la limpieza.',
+  'The file holds {count} animations, more than the {most} cleaning reads.':
+    'El archivo tiene {count} animaciones, más que las {most} que lee la limpieza.',
+  'The file holds {count} animation channels, more than the {most} cleaning reads.':
+    'El archivo tiene {count} canales de animación, más que los {most} que lee la limpieza.',
+  'The file holds something that is not in the form glTF gives it.':
+    'El archivo tiene algo que no está en la forma que le da glTF.',
+  'The file holds a count, an offset or a length that is not a whole number.':
+    'El archivo tiene una cantidad, un desplazamiento o una longitud que no es un número entero.',
+  'The file names a part of itself that it does not hold.':
+    'El archivo nombra una parte de sí mismo que no tiene.',
+  'The file names its data with something other than an address.':
+    'El archivo nombra sus datos con algo que no es una dirección.',
+  'The file names "{address}" outside itself, which cleaning never reads: bundle it as .glb, with every buffer and image inside.':
+    'El archivo nombra "{address}" fuera de sí mismo, que la limpieza nunca lee: empaquétalo como .glb, con todos sus búferes e imágenes dentro.',
+  'The file holds data in base64 that is cut short.':
+    'El archivo tiene datos en base64 que están cortados.',
+  'The binary chunk of the GLB is shorter than its buffer says.':
+    'El bloque binario del GLB es más corto de lo que dice su búfer.',
+  'A buffer of the file holds no data.': 'Un búfer del archivo no tiene datos.',
+  'A buffer of the file is shorter than it says.':
+    'Un búfer del archivo es más corto de lo que dice.',
+  'A buffer view of the file has a stride glTF does not have.':
+    'Una vista de búfer del archivo tiene un paso que glTF no tiene.',
+  'Compressed data of the file runs past its buffer.':
+    'Datos comprimidos del archivo pasan del final de su búfer.',
+  'Data of the file is compressed in a way meshopt does not have.':
+    'Datos del archivo están comprimidos de una forma que meshopt no tiene.',
+  'Compressed data of the file does not decode to its length.':
+    'Datos comprimidos del archivo no se decodifican a su longitud.',
+  'The compressed data of the file decodes to over 512 MiB.':
+    'Los datos comprimidos del archivo se decodifican a más de 512 MiB.',
+  'A buffer view of the file reads a buffer that holds no data.':
+    'Una vista de búfer del archivo lee un búfer que no tiene datos.',
+  'A buffer view of the file runs past its buffer.':
+    'Una vista de búfer del archivo pasa del final de su búfer.',
+  'An accessor of the file is not aligned.': 'Un accesor del archivo no está alineado.',
+  'An accessor of the file runs past its buffer view.':
+    'Un accesor del archivo pasa del final de su vista de búfer.',
+  'An accessor of the file is of a type glTF does not have.':
+    'Un accesor del archivo es de un tipo que glTF no tiene.',
+  'An accessor of the file holds nothing.': 'Un accesor del archivo no tiene nada.',
+  "The file's accessors would make over 512 MiB of data.":
+    'Los accesores del archivo harían más de 512 MiB de datos.',
+  'The sparse values of an accessor do not fit it.':
+    'Los valores dispersos de un accesor no encajan en él.',
+  '1 texture in another format': '1 textura en otro formato',
+  '{n} textures in other formats': '{n} texturas en otros formatos',
+  'A node of the file is placed with something other than numbers.':
+    'Un nodo glTF del archivo está ubicado con algo que no son números.',
+  'A node has more than one holder, or holds itself.':
+    'Un nodo glTF tiene más de un contenedor, o se contiene a sí mismo.',
+  'A scene holds a node that another node holds.':
+    'Una escena tiene un nodo glTF que otro nodo glTF contiene.',
+  'A scene holds a node twice.': 'Una escena tiene un nodo glTF dos veces.',
+  "Cleaned, it would be {size} MiB, past the 32 MiB of a solid's file: simplify it, or make its textures smaller.":
+    'Limpio, ocuparía {size} MiB, más que los 32 MiB del archivo de un sólido: simplifícalo, o achica sus texturas.',
+  'Cleaning the file needs more memory than it may use.':
+    'Limpiar el archivo necesita más memoria de la que puede usar.',
+  'The file could not be read as glTF: {why}': 'No se pudo leer el archivo como glTF: {why}',
+  'It was scaled from centimetres to meters.': 'Se escaló de centímetros a metros.',
+  'It was scaled from millimetres to meters.': 'Se escaló de milímetros a metros.',
+  'It was scaled from inches to meters.': 'Se escaló de pulgadas a metros.',
+  'It was turned so that +Y is up, where +Z was.':
+    'Se giró para que +Y quede arriba, donde estaba +Z.',
+  '1 node that draws nothing': '1 nodo glTF que no dibuja nada',
+  '{n} nodes that draw nothing': '{n} nodos glTF que no dibujan nada',
+  'The file draws no triangle a solid keeps.':
+    'El archivo no dibuja ningún triángulo que un sólido guarde.',
+  'It keeps {count} nodes, past the {most} a solid holds.':
+    'Guarda {count} nodos glTF, más que los {most} que tiene un sólido.',
+  'It keeps {count} meshes, past the {most} a solid holds.':
+    'Guarda {count} mallas glTF, más que las {most} que tiene un sólido.',
+  'It keeps {count} primitives, past the {most} a solid holds.':
+    'Guarda {count} primitivas, más que las {most} que tiene un sólido.',
+  'It keeps {count} materials, past the {most} a solid holds.':
+    'Guarda {count} materiales, más que los {most} que tiene un sólido.',
+  'It keeps {count} animations, past the {most} a solid holds.':
+    'Guarda {count} animaciones, más que las {most} que tiene un sólido.',
+  'It keeps {count} animation channels, past the {most} a solid holds.':
+    'Guarda {count} canales de animación, más que los {most} que tiene un sólido.',
+  'It keeps {count} keyframes, past the {most} a solid holds.':
+    'Guarda {count} fotogramas clave, más que los {most} que tiene un sólido.',
+  '1 primitive of points or lines': '1 primitiva de puntos o líneas',
+  '{n} primitives of points or lines': '{n} primitivas de puntos o líneas',
+  '1 primitive without positions': '1 primitiva sin posiciones',
+  '{n} primitives without positions': '{n} primitivas sin posiciones',
+  'A position of the file is not a finite number.':
+    'Una posición del archivo no es un número finito.',
+  '1 vertex attribute a solid keeps none of': '1 atributo de geometría que un sólido no guarda',
+  '{n} vertex attributes a solid keeps none of':
+    '{n} atributos de geometría que un sólido no guarda',
+  'The attributes of a primitive do not have as many vertices as its positions.':
+    'Los atributos de una primitiva no tienen tantos puntos como sus posiciones.',
+  "A primitive's indices are not whole numbers.":
+    'Los índices de una primitiva no son números enteros.',
+  'A triangle of the file names a vertex its primitive does not have.':
+    'Un triángulo del archivo nombra un punto que su primitiva no tiene.',
+  '1 primitive of triangle strips or fans, made a list of triangles':
+    '1 primitiva de tiras o abanicos de triángulos, hecha lista de triángulos',
+  '{n} primitives of triangle strips or fans, made lists of triangles':
+    '{n} primitivas de tiras o abanicos de triángulos, hechas listas de triángulos',
+  '1 primitive that draws no triangle': '1 primitiva que no dibuja ningún triángulo',
+  '{n} primitives that draw no triangle': '{n} primitivas que no dibujan ningún triángulo',
+  '1 texture that reads coordinates a solid drops':
+    '1 textura que lee coordenadas que un sólido descarta',
+  '{n} textures that read coordinates a solid drops':
+    '{n} texturas que leen coordenadas que un sólido descarta',
+  '1 texture past its caps': '1 textura que pasa sus límites',
+  '{n} textures past their caps': '{n} texturas que pasan sus límites',
+  '1 texture that could not be read': '1 textura que no se pudo leer',
+  '{n} textures that could not be read': '{n} texturas que no se pudieron leer',
+  'Its textures were rebuilt without their text, positions, profiles and times.':
+    'Sus texturas se rehicieron sin su texto, posiciones, perfil de color ni fechas.',
+  '1 named node past the 4,096 a solid names, drawn as part of the part holding it':
+    '1 nodo glTF con nombre más allá de los 4.096 que nombra un sólido, dibujado como parte de la parte que lo contiene',
+  '{n} named nodes past the 4,096 a solid names, drawn as part of the parts holding them':
+    '{n} nodos glTF con nombre más allá de los 4.096 que nombra un sólido, dibujados como parte de las partes que los contienen',
+  '1 animation channel that moves nothing a solid keeps':
+    '1 canal de animación que no mueve nada que un sólido guarde',
+  '{n} animation channels that move nothing a solid keeps':
+    '{n} canales de animación que no mueven nada que un sólido guarde',
+  '1 animation that moves nothing a solid keeps':
+    '1 animación que no mueve nada que un sólido guarde',
+  '{n} animations that move nothing a solid keeps':
+    '{n} animaciones que no mueven nada que un sólido guarde',
+  'An animation of the file lasts {n} s, past the 60 s a solid keeps.':
+    'Una animación del archivo dura {n} s, más que los 60 s que guarda un sólido.',
+  'It draws {count} triangles, past the 1,000,000 a solid holds: simplify it to fit.':
+    'Dibuja {count} triángulos, más que el 1.000.000 que tiene un sólido: simplifícalo para que entre.',
+  'It draws {count} vertices, past the 1,000,000 a solid holds: simplify it to fit.':
+    'Dibuja {count} puntos de geometría, más que el 1.000.000 que tiene un sólido: simplifícalo para que entre.',
+  'Simplified as far as it goes, it still draws {count} triangles and {more} vertices, past the 1,000,000 of each a solid holds.':
+    'Simplificado todo lo posible, todavía dibuja {count} triángulos y {more} puntos de geometría, más que el 1.000.000 de cada uno que tiene un sólido.',
+  'It was simplified from {count} to {more} triangles, to fit.':
+    'Se simplificó de {count} a {more} triángulos, para que entre.',
+  'The node "{from}" is named "{to}".': 'El nodo glTF "{from}" se llama "{to}".',
+  '1 more node is named otherwise.': '1 nodo glTF más se llama de otra forma.',
+  '{n} more nodes are named otherwise.': '{n} nodos glTF más se llaman de otra forma.',
+  'Its bounds pass 100 km a side.': 'Sus límites pasan de 100 km por lado.',
+  'It is less than a micrometre across.': 'Mide menos de un micrómetro.',
+  'Cleaning the file took over {n} seconds, so it was stopped.':
+    'Limpiar el archivo llevó más de {n} segundos, así que se detuvo.',
+  'Checking the solid file took over {n} seconds, so it was stopped.':
+    'Revisar el archivo del sólido llevó más de {n} segundos, así que se detuvo.',
+  'Cleaning the file needed over {size} MiB of memory, so it was stopped.':
+    'Limpiar el archivo necesitó más de {size} MiB de memoria, así que se detuvo.',
+  'Checking the solid file needed over {size} MiB of memory, so it was stopped.':
+    'Revisar el archivo del sólido necesitó más de {size} MiB de memoria, así que se detuvo.',
+  'Cleaning the file failed: {why}': 'Falló la limpieza del archivo: {why}',
+  'Checking the solid file failed: {why}': 'Falló la revisión del archivo del sólido: {why}',
+  'Cleaning the file could not start: {why}': 'La limpieza del archivo no pudo empezar: {why}',
+  'Checking the solid file could not start: {why}':
+    'La revisión del archivo del sólido no pudo empezar: {why}',
+  'Cleaning the file tried to reach the network or a file, which it never may, so nothing was kept.':
+    'La limpieza del archivo intentó llegar a la red o a un archivo, lo que nunca puede hacer, así que no se guardó nada.',
+  'Checking the solid file tried to reach the network or a file, which it never may, so nothing was kept.':
+    'La revisión del archivo del sólido intentó llegar a la red o a un archivo, lo que nunca puede hacer, así que no se guardó nada.',
+  'its worker stopped ({n}).': 'su worker se detuvo ({n}).',
+  'The file could not be cleaned.': 'No se pudo limpiar el archivo.',
+  'The solid file could not be checked.': 'No se pudo revisar el archivo del sólido.',
+  'The file could not be cleaned: {why}': 'No se pudo limpiar el archivo: {why}',
+  'Visual Anything is receiving two solids already: import this one once they are prepared.':
+    'Visual Anything ya está recibiendo dos sólidos: importa este cuando estén preparados.',
+  'Visual Anything is cleaning solids already: import this one once they are prepared.':
+    'Visual Anything ya está limpiando sólidos: importa este cuando estén preparados.',
+  'The pieces of the file to import do not fit together.':
+    'Los trozos del archivo para importar no encajan entre sí.',
+  'The solid file "solids/{hash}.glb" could not be written: {why}':
+    'No se pudo escribir el archivo de sólido "solids/{hash}.glb": {why}',
+  'Visual Anything holds no cleaned file "solids/{hash}.glb": import the file, and the program cleans it first.':
+    'Visual Anything no tiene un archivo limpio "solids/{hash}.glb": importa el archivo, y el programa lo limpia primero.',
+  'Visual Anything holds no prepared file "solids/{hash}.glb": prepare it again, as it holds one for ten minutes.':
+    'Visual Anything no tiene un archivo preparado "solids/{hash}.glb": prepáralo otra vez, ya que guarda uno durante diez minutos.',
+  'The solid file "solids/{hash}.glb" is not one Visual Anything cleaned: {why}':
+    'El archivo de sólido "solids/{hash}.glb" no es uno que Visual Anything haya limpiado: {why}',
+  'its hash is not its name': 'su resumen no es su nombre',
+  'The solid "{name}" says another description than its file "solids/{hash}.glb" holds; it is drawn as its file is.':
+    'El sólido "{name}" dice otra descripción que la que tiene su archivo "solids/{hash}.glb"; se dibuja como es su archivo.',
+  'The solid "{name}" is drawn as its placeholder. {why}':
+    'El sólido "{name}" se dibuja como su marcador. {why}',
+  'The solid "{name}" names the file "solids/{hash}.glb", which the project does not have; it is drawn as its placeholder.':
+    'El sólido "{name}" nombra el archivo "solids/{hash}.glb", que el proyecto no tiene; se dibuja como su marcador.',
+  'The solid "{name}" names "solids/{hash}.glb", which is not a regular file; it is drawn as its placeholder.':
+    'El sólido "{name}" nombra "solids/{hash}.glb", que no es un archivo normal; se dibuja como su marcador.',
+  'The solid "{name}" names the file "solids/{hash}.glb" of {n} bytes, but it holds {m}; it is drawn as its placeholder.':
+    'El sólido "{name}" nombra el archivo "solids/{hash}.glb" de {n} bytes, pero tiene {m}; se dibuja como su marcador.',
+  'This Visual Anything cleans no solids.': 'Este Visual Anything no limpia sólidos.',
   // Versions and proposals (ADR 0071, ADR 0073).
   'A version is the project as opened, or a commit the program listed, by its id.':
     'Una versión es el proyecto tal como se abrió, o un commit que el programa listó, por su id.',

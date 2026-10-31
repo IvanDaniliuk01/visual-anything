@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import {
   OperationError,
   PROTOCOL_VERSION,
+  SOLID_PIECE_BYTES,
   ProtocolError,
   applyOperations,
   type CodeApproval,
@@ -29,6 +30,9 @@ import {
   type Problem,
   type ProjectSnapshot,
   type ProposalShownMessage,
+  type SolidImportOptions,
+  type SolidPreparedMessage,
+  type SolidRefusedMessage,
   type VersionRef,
   type ViewState,
 } from '@visual-anything/core';
@@ -260,6 +264,9 @@ interface Attached {
 
 const START_TIMEOUT = 60_000;
 const REQUEST_TIMEOUT = 60_000;
+
+/** How long cleaning a solid may take in the program's worker (ADR 0075), with a margin. */
+const SOLID_WORKER_WAIT = 40_000;
 const POLL = 100;
 /** How long a read waits for the proposal rebased on a change, which follows the change at once. */
 const PROPOSAL_SETTLE = 10_000;
@@ -335,6 +342,55 @@ export class ProgramBridge implements Program {
     }
     if (answer.type === 'command/rejected') return { ok: false, problems: answer.problems };
     throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  /**
+   * Sends a file to import as a solid to the program, in pieces of 1 MiB (ADR 0075), and resolves
+   * with what the program prepared of it, or why it prepared nothing. It changes nothing: the program
+   * cleans the file in its worker and holds it for ten minutes.
+   */
+  async prepareSolid(
+    fileName: string,
+    bytes: Uint8Array,
+    options: SolidImportOptions = {},
+  ): Promise<SolidPreparedMessage | SolidRefusedMessage> {
+    const count = Math.max(1, Math.ceil(bytes.length / SOLID_PIECE_BYTES));
+    const answer = await this.#requestMany(
+      (requestId) =>
+        Array.from({ length: count }, (_, index) => ({
+          type: 'solid/prepare' as const,
+          requestId,
+          fileName,
+          piece: {
+            index,
+            count,
+            data: Buffer.from(
+              bytes.subarray(index * SOLID_PIECE_BYTES, (index + 1) * SOLID_PIECE_BYTES),
+            ).toString('base64'),
+          },
+          ...(index === 0 && Object.keys(options).length > 0 ? { options } : {}),
+        })),
+      // Cleaning has 30 s of its own, after the pieces and the files asked for before it.
+      SOLID_WORKER_WAIT + (this.#options.requestTimeout ?? REQUEST_TIMEOUT),
+    );
+    if (answer.type === 'solid/prepared' || answer.type === 'solid/refused') return answer;
+    if (answer.type === 'command/rejected') {
+      return {
+        type: 'solid/refused',
+        requestId: answer.requestId,
+        code: answer.problems[0]?.code ?? 'program-failed',
+        message: answer.problems.map((each) => each.message).join(' '),
+      };
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  /**
+   * Defines a file the program prepared of the person's file as a solid, as one action of the
+   * person's (ADR-0049, ADR 0075). Only `visual-anything import` calls it, never Claude's tools.
+   */
+  importSolidAsPerson(name: string, hash: string): Promise<CommandAnswer> {
+    return this.importAsPerson({ name, text: '', bytes: new Uint8Array(0), solid: hash });
   }
 
   /**
@@ -568,6 +624,31 @@ export class ProgramBridge implements Program {
         resolve(answer);
       });
       attached.socket.send(encodeClaudeMessage(message(requestId)));
+    });
+    if (answer instanceof Error) throw answer;
+    return answer;
+  }
+
+  /** Sends several messages under one request id, in order, and resolves with the first answer. */
+  async #requestMany(
+    messages: (requestId: string) => ClaudeMessage[],
+    timeout: number,
+  ): Promise<ProgramMessage> {
+    const attached = await this.#attached();
+    requestCount += 1;
+    const requestId = `claude-${process.pid}-${requestCount}`;
+    const answer = await new Promise<ProgramMessage | Error>((resolve) => {
+      const timer = setTimeout(() => {
+        attached.waiting.delete(requestId);
+        resolve(new ProgramUnavailableError('Visual Anything did not answer in time.'));
+      }, timeout);
+      attached.waiting.set(requestId, (answer) => {
+        clearTimeout(timer);
+        resolve(answer);
+      });
+      for (const message of messages(requestId)) {
+        attached.socket.send(encodeClaudeMessage(message));
+      }
     });
     if (answer instanceof Error) throw answer;
     return answer;

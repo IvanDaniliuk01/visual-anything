@@ -30,6 +30,8 @@ import {
   readFreshFor,
   readGuidance,
   readLiveValuesMessage,
+  readSolidPrepare,
+  type SolidPrepareMessage,
   type CodeApproval,
   type Command,
   type Guidance,
@@ -100,6 +102,12 @@ export type ClaudeMessage =
    */
   | { type: 'import'; requestId: string; request: ImportMessageRequest }
   /**
+   * A piece of a file to import as a solid (ADR 0075), as an app sends one: the program cleans the
+   * file once it has every piece, holds it, and answers with `solid/prepared` or `solid/refused`. It
+   * changes nothing; an `import` naming the prepared file by its hash then defines it.
+   */
+  | SolidPrepareMessage
+  /**
    * Live values (ADR 0057): kept by the program while the project is open, never saved and never in
    * the history; answered with `live/kept`. The command line sends them through this endpoint too.
    */
@@ -165,6 +173,11 @@ export interface ImportMessageRequest {
   component?: string;
   element?: string;
   view?: string;
+  /**
+   * For a solid (ADR 0075): the hash of the file the program prepared of it, sent before in pieces;
+   * `bytes` is then empty.
+   */
+  solid?: string;
 }
 
 /**
@@ -288,6 +301,11 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
     }
     case 'import':
       return { type: 'import', requestId, request: readImportRequest(message.request) };
+    case 'solid/prepare': {
+      const read = readSolidPrepare(message);
+      if (!read.ok) throw new ProtocolError(read.reason);
+      return read.value;
+    }
     case 'open-app': {
       if (message.state === undefined) return { type: 'open-app', requestId };
       const checked = checkViewState(message.state);
@@ -304,7 +322,7 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
       return readLiveList(message, requestId);
     default:
       throw new ProtocolError(
-        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, pictures of a view, opening the app, asking which package code is approved, live values, versions, withdrawing a proposal and imports from the command line. Undo, redo, preferences, and accepting or refusing a proposal are the person's, in the app.`,
+        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, pictures of a view, opening the app, asking which package code is approved, live values, versions, withdrawing a proposal, files to import as solids and imports from the command line. Undo, redo, preferences, and accepting or refusing a proposal are the person's, in the app.`,
       );
   }
 }
@@ -586,6 +604,7 @@ export function importMessageRequest(request: ImportRequest): ImportMessageReque
   if (request.component !== undefined) message.component = request.component;
   if (request.element !== undefined) message.element = request.element;
   if (request.view !== undefined) message.view = request.view;
+  if (request.solid !== undefined) message.solid = request.solid;
   return message;
 }
 
@@ -613,12 +632,14 @@ function readImportRequest(value: unknown): ImportMessageRequest {
         'component',
         'element',
         'view',
+        'solid',
       ].includes(key)
     ) {
       refuse(`may not hold ${JSON.stringify(key)}`);
     }
   }
-  const { name, bytes, format, key, map, nesting, views, width, component, element, view } = value;
+  const { name, bytes, format, key, map, nesting, views, width, component, element, view, solid } =
+    value;
   if (typeof name !== 'string' || name === '' || name.length > MAX_IMPORT_NAME) {
     return refuse('has no file name');
   }
@@ -660,6 +681,12 @@ function readImportRequest(value: unknown): ImportMessageRequest {
   if (checkedComponent !== undefined) request.component = checkedComponent;
   if (checkedElement !== undefined) request.element = checkedElement;
   if (checkedView !== undefined) request.view = checkedView;
+  if (solid !== undefined) {
+    if (typeof solid !== 'string' || !/^[0-9a-f]{64}$/.test(solid) || bytes !== '') {
+      refuse('names a solid by anything but the hash of a file it prepared');
+    }
+    request.solid = solid as string;
+  }
   return request;
 }
 
