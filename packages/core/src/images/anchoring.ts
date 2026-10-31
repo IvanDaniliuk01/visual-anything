@@ -21,7 +21,14 @@
  *   as its part by its own appearance, which names the part without its image, so that it follows the
  *   picture its drawing shows, replaced or not.
  */
-import type { Element, ExternalId, Id, IdScheme, ViewFile } from '@visual-anything/schema';
+import type {
+  Element,
+  ExternalId,
+  Id,
+  IdScheme,
+  PartReference,
+  ViewFile,
+} from '@visual-anything/schema';
 import type { BatchCommand, Command } from '../commands/types';
 import { nestingTypeFor, nestingTypesInView, type NestingChoice } from '../containers';
 import { appearanceOf, componentOrEssence } from '../definitions';
@@ -140,7 +147,7 @@ export function drawingPartsOf(
   const catalog = imagesIn(state);
   const cleaned = catalog.shown(shown.image);
   if (!cleaned || cleaned.kind !== 'svg') return undefined;
-  const contents = contentsOf(state, drawing, view);
+  const contents = drawingContentsOf(state, drawing, view);
   const listed = partsOf(cleaned);
   const byId = new Map(listed.map((part) => [part.id, part]));
   const drawnAs = new Map<string, AnchorContent>();
@@ -173,30 +180,91 @@ export function drawingPartsOf(
  * parts get an element of their own, as {@link anchoringCommand} then does in one action.
  */
 export function planAnchoring(state: ProjectSnapshot, request: AnchorRequest): AnchorPlanning {
-  const refuse = (code: Problem['code'], message: string, ids: Id[] = []): AnchorPlanning => ({
-    ok: false,
-    problem: problem(code, message, ids),
+  const found = anchoringDrawing(state, request);
+  if (!found.ok) return found;
+  const { element, view } = found;
+  const drawn = drawingPartsOf(state, element.id, view);
+  if (!drawn) {
+    return {
+      ok: false,
+      problem: problem(
+        'invalid-command',
+        `The element "${element.name}" is no drawing with parts: it does not show an SVG image with its parts.`,
+        [element.id],
+      ),
+    };
+  }
+  const matched = matchDrawingParts(state, request, element, view, drawn, {
+    idOf: (part) => part.id,
+    holder: 'picture',
   });
-  const index = modelIndexOf(state);
-  const element = index.element(request.drawing);
+  if (!matched.ok) return matched;
+  return { ok: true, plan: { ...drawn, ...matched.matched } };
+}
+
+/** The drawing and the view an Anchor parts… request names, or why there are none. */
+export function anchoringDrawing(
+  state: ProjectSnapshot,
+  request: AnchorRequest,
+):
+  | { readonly ok: true; readonly element: Element; readonly view: ViewFile | undefined }
+  | { readonly ok: false; readonly problem: Problem } {
+  const element = modelIndexOf(state).element(request.drawing);
   if (!element) {
-    return refuse('unknown-element', `There is no element "${request.drawing}".`, [
-      request.drawing,
-    ]);
+    return {
+      ok: false,
+      problem: problem('unknown-element', `There is no element "${request.drawing}".`, [
+        request.drawing,
+      ]),
+    };
   }
   let view: ViewFile | undefined;
   if (request.view !== undefined) {
     view = state.views.find((each) => each.id === request.view);
-    if (!view) return refuse('unknown-view', `There is no view "${request.view}".`, [request.view]);
+    if (!view) {
+      return {
+        ok: false,
+        problem: problem('unknown-view', `There is no view "${request.view}".`, [request.view]),
+      };
+    }
   }
-  const drawn = drawingPartsOf(state, element.id, view);
-  if (!drawn) {
-    return refuse(
-      'invalid-command',
-      `The element "${element.name}" is no drawing with parts: it does not show an SVG image with its parts.`,
-      [element.id],
-    );
-  }
+  return { ok: true, element, view };
+}
+
+/** What matching made of a drawing's parts, whatever draws them: an SVG image or a solid. */
+export interface MatchedParts<P> {
+  readonly parts: readonly { readonly part: P; readonly anchor: PartAnchor }[];
+  readonly matching: AnchorMatching;
+  readonly anchors: number;
+  readonly view?: Id;
+  readonly nesting?: NestingChoice;
+  readonly viewNesting?: readonly Id[];
+}
+
+/**
+ * Matches the parts of a drawing with parts to its contents, as {@link planAnchoring} says, for the
+ * parts of an SVG image or of a solid (ADR 0075): `idOf` gives a part's id, its name for a solid's,
+ * and `holder` names what holds the parts in a refusal ("The picture of …", "The solid of …").
+ */
+export function matchDrawingParts<P>(
+  state: ProjectSnapshot,
+  request: AnchorRequest,
+  element: Element,
+  view: ViewFile | undefined,
+  drawn: {
+    readonly parts: readonly { readonly part: P; readonly anchor: PartAnchor }[];
+    readonly contents: readonly AnchorContent[];
+  },
+  how: { readonly idOf: (part: P) => string; readonly holder: string },
+):
+  | { readonly ok: true; readonly matched: MatchedParts<P> }
+  | { readonly ok: false; readonly problem: Problem } {
+  const refuse = (code: Problem['code'], message: string, ids: Id[] = []) => ({
+    ok: false as const,
+    problem: problem(code, message, ids),
+  });
+  const { idOf } = how;
+  const index = modelIndexOf(state);
   const { matching } = request;
   if (matching.by === 'external' && !isScheme(matching.scheme)) {
     return refuse(
@@ -206,10 +274,10 @@ export function planAnchoring(state: ProjectSnapshot, request: AnchorRequest): A
   }
   const asked = request.parts === undefined ? undefined : new Set(request.parts);
   for (const id of asked ?? []) {
-    if (!drawn.parts.some((each) => each.part.id === id)) {
+    if (!drawn.parts.some((each) => idOf(each.part) === id)) {
       return refuse(
         'unknown-part',
-        `The picture of "${element.name}" has no part "${String(id)}".`,
+        `The ${how.holder} of "${element.name}" has no part "${String(id)}".`,
         [element.id],
       );
     }
@@ -246,10 +314,11 @@ export function planAnchoring(state: ProjectSnapshot, request: AnchorRequest): A
   const keys = candidates.map((content) => matcher.contentKeys(content));
   const taken = new Set<Id>();
   let anchors = 0;
-  const parts = drawn.parts.map((planned): PlannedPart => {
+  const parts = drawn.parts.map((planned): { part: P; anchor: PartAnchor } => {
     if (planned.anchor.kind === 'kept') return planned;
-    if (asked && !asked.has(planned.part.id)) return planned;
-    const wanted = matcher.partKeys(planned.part.id);
+    const id = idOf(planned.part);
+    if (asked && !asked.has(id)) return planned;
+    const wanted = matcher.partKeys(id);
     const at = candidates.findIndex(
       (content, position) =>
         !taken.has(content.id) && meets(wanted, keys[position] as ReadonlySet<string>),
@@ -263,14 +332,12 @@ export function planAnchoring(state: ProjectSnapshot, request: AnchorRequest): A
     if (create && nesting) {
       anchors += 1;
       const identifier =
-        matching.by === 'external'
-          ? { scheme: matching.scheme, id: identifierOf(planned.part.id) }
-          : undefined;
+        matching.by === 'external' ? { scheme: matching.scheme, id: identifierOf(id) } : undefined;
       return {
         part: planned.part,
         anchor: {
           kind: 'created',
-          name: partName(planned.part.id),
+          name: partName(id),
           component: create.component,
           ...(identifier && isExternalId(identifier.id) ? { identifier } : {}),
         },
@@ -288,8 +355,7 @@ export function planAnchoring(state: ProjectSnapshot, request: AnchorRequest): A
   const creates = nesting !== undefined && parts.some((each) => each.anchor.kind === 'created');
   return {
     ok: true,
-    plan: {
-      ...drawn,
+    matched: {
       parts,
       matching,
       anchors,
@@ -308,9 +374,21 @@ export function planAnchoring(state: ProjectSnapshot, request: AnchorRequest): A
  * when the plan anchors nothing.
  */
 export function anchoringCommand(plan: AnchorPlan): BatchCommand | undefined {
-  if (plan.anchors === 0) return undefined;
+  return matchedPartsCommand(plan, plan.drawing, (part) => ({ part: part.id }));
+}
+
+/**
+ * The one action that applies what matching made, whatever draws the parts: `reference` gives what
+ * an element drawn as a part names, `{ part }` for an image's, `{ part, solid }` for a solid's.
+ */
+export function matchedPartsCommand<P>(
+  matched: MatchedParts<P>,
+  drawing: AnchorContent,
+  reference: (part: P) => PartReference,
+): BatchCommand | undefined {
+  if (matched.anchors === 0) return undefined;
   const commands: Command[] = [];
-  const { nesting, view, viewNesting } = plan;
+  const { nesting, view, viewNesting } = matched;
   if (view !== undefined && viewNesting !== undefined) {
     commands.push({
       type: 'update-view',
@@ -318,12 +396,12 @@ export function anchoringCommand(plan: AnchorPlan): BatchCommand | undefined {
       changes: { nestingRelationTypes: [...viewNesting] },
     });
   }
-  for (const { part, anchor } of plan.parts) {
+  for (const { part, anchor } of matched.parts) {
     if (anchor.kind === 'matched') {
       commands.push({
         type: 'update-element',
         id: anchor.element.id,
-        changes: { appearanceTraits: { part: { part: part.id } } },
+        changes: { appearanceTraits: { part: reference(part) } },
       });
     } else if (anchor.kind === 'created' && nesting) {
       commands.push({
@@ -331,17 +409,17 @@ export function anchoringCommand(plan: AnchorPlan): BatchCommand | undefined {
         element: {
           component: anchor.component,
           name: anchor.name,
-          appearance: { part: { part: part.id } },
+          appearance: { part: reference(part) },
           ...(anchor.identifier
             ? { ids: { [anchor.identifier.scheme]: anchor.identifier.id } }
             : {}),
         },
-        containers: [{ container: plan.drawing.id, relationType: nesting.relationType }],
+        containers: [{ container: drawing.id, relationType: nesting.relationType }],
         ...(view === undefined ? {} : { inView: view }),
       });
     }
   }
-  return { type: 'batch', label: anchoringLabel(plan.anchors, plan.drawing.name), commands };
+  return { type: 'batch', label: anchoringLabel(matched.anchors, drawing.name), commands };
 }
 
 /** How the undo history names Anchor parts…: `Anchor 12 parts of "Heart"`. */
@@ -442,7 +520,11 @@ function meets(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
  * The contents of a drawing, in the model's order: the `from` ends of the nesting relations that end
  * on it, of the view's nesting relation types, or of any without a view.
  */
-function contentsOf(state: ProjectSnapshot, drawing: Id, view: ViewFile | undefined): Element[] {
+export function drawingContentsOf(
+  state: ProjectSnapshot,
+  drawing: Id,
+  view: ViewFile | undefined,
+): Element[] {
   const index = modelIndexOf(state);
   const types = view === undefined ? undefined : new Set(nestingTypesInView(state, view));
   const ids = new Set<Id>();

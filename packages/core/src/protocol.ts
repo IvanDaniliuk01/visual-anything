@@ -5,7 +5,7 @@
  * resulting operations to every open app. It also sends Claude's guidance, which marks and moves the
  * open view without changing the model.
  */
-import type { DecisionChoices, Id } from '@visual-anything/schema';
+import type { DecisionChoices, Id, SolidCamera } from '@visual-anything/schema';
 import type { Command } from './commands';
 import {
   readDrawingMade,
@@ -72,6 +72,7 @@ import {
   type SolidPreparedMessage,
   type SolidRefusedMessage,
 } from './solids/messages';
+import { readSolidCamera } from './solids/camera';
 
 /**
  * The version of the live protocol; the app and the local program must agree on it, so that one from
@@ -98,7 +99,8 @@ import {
  *    picture of a view for Claude (ADR 0081), `capture/request` and its answer `capture/answer`.
  *    And a view's `rows` and `selectionFadesLines` (ADR 0080, section 5), which an older app of 7
  *    would refuse when it opens the view file. And solids (M9, ADR 0075): `solid/prepare` and
- *    `solid/get` from an app, answered with `solid/prepared`, `solid/piece` or `solid/refused`.
+ *    `solid/get` from an app, answered with `solid/prepared`, `solid/piece` or `solid/refused`;
+ *    and the guidance `turn`, which turns a shape's solid to a camera.
  */
 export const PROTOCOL_VERSION = 7;
 
@@ -326,7 +328,18 @@ export type Guidance =
       version: VersionRef;
       view?: Id;
       show?: (typeof COMPARISON_DRAWINGS)[number];
-    };
+    }
+  /**
+   * Turns the solid a shape shows to a camera, as Turn does (ADR 0075): the app selects the target's
+   * shape in the open view, or in `view`, and draws its solid live from that camera, turning on from
+   * there as the person drags, until the person ends it with Escape or by selecting something else.
+   * Turning records nothing; only Use this view stores a camera.
+   */
+  | { kind: 'turn'; target: Id; camera: SolidCamera; view?: Id };
+
+/** Why turning guidance's camera cannot be read. */
+const TURN_CAMERA =
+  'Turning gives a camera: an azimuth from -180 to 180, an elevation from -89 to 89, and if it likes a zoom from 0.25 to 16, a target and a projection.';
 
 /** How a comparison is drawn: the older version, the newer one, or the two with what changed. */
 export const COMPARISON_DRAWINGS = ['before', 'after', 'comparison'] as const;
@@ -497,6 +510,13 @@ export function readGuidance(value: unknown): Guidance {
         ...view(),
         ...(show === undefined ? {} : { show: show as (typeof COMPARISON_DRAWINGS)[number] }),
       };
+    }
+    case 'turn': {
+      if (!isId(value.target)) throw new ProtocolError('Turning names the shape to turn by id.');
+      const camera = readSolidCamera(value.camera, 'the shape to turn', () => {
+        throw new ProtocolError(TURN_CAMERA);
+      });
+      return { kind: 'turn', target: value.target, camera, ...view() };
     }
     default:
       throw new ProtocolError(`Unknown kind of guidance: ${JSON.stringify(value.kind)}.`);

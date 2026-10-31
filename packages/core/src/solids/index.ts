@@ -10,6 +10,21 @@ import { readCanonicalGlb, SolidRefusal } from './glb';
 export * from './caps';
 export * from './camera';
 export * from './catalog';
+// Anchor parts… for solids, and the anchored parts a replacement loses.
+export {
+  planSolidAnchoring,
+  solidAnchoredElements,
+  solidAnchoringCommand,
+  solidDrawingPartsOf,
+  solidDrawnWithParts,
+  solidPartsLostByReplacing,
+  type IndexedSolidPart,
+  type PlannedSolidPart,
+  type SolidAnchorPlan,
+  type SolidAnchorPlanning,
+  type SolidAnchoredElement,
+  type SolidDrawingParts,
+} from './anchoring';
 export { checkSolids } from './check';
 export * from './messages';
 export { describeSolid, roundLength, type SolidDescription } from './describe';

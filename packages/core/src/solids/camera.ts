@@ -16,6 +16,63 @@ export const SOLID_FIT_MARGIN = 0.04;
 /** A solid's own camera when it starts: a three-quarter view. */
 export const DEFAULT_SOLID_CAMERA: SolidCamera = { azimuth: 30, elevation: 20 };
 
+/**
+ * A solid's camera (ADR 0075): a direction, a zoom, a target and a projection, within their ranges,
+ * or `refuse` with why not. The commands refuse with their codes, and the live protocol's turning
+ * guidance with a protocol error; it lives here, beside the camera's maths, so that the protocol
+ * reads it without the commands.
+ */
+export function readSolidCamera(
+  value: unknown,
+  of: string,
+  refuse: (message: string) => never,
+): SolidCamera {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    refuse(`The camera of ${of}'s solid must be an azimuth and an elevation, at least.`);
+  }
+  const { azimuth, elevation, zoom, target, projection, ...rest } = value as Record<
+    string,
+    unknown
+  >;
+  if (Object.keys(rest).length > 0) {
+    refuse(
+      `The camera of ${of}'s solid holds only its azimuth, elevation, zoom, target and projection.`,
+    );
+  }
+  const within = (number: unknown, low: number, high: number, what: string): number => {
+    if (typeof number !== 'number' || !Number.isFinite(number) || number < low || number > high) {
+      refuse(`The ${what} of ${of}'s solid's camera is a number from ${low} to ${high}.`);
+    }
+    return number;
+  };
+  const camera: SolidCamera = {
+    azimuth: within(azimuth, -180, 180, 'azimuth'),
+    elevation: within(elevation, -89, 89, 'elevation'),
+  };
+  if (zoom !== undefined) camera.zoom = within(zoom, 0.25, 16, 'zoom');
+  if (target !== undefined) {
+    if (typeof target !== 'object' || target === null || Array.isArray(target)) {
+      refuse(`The target of ${of}'s solid's camera is a point: x, y and z.`);
+    }
+    const { x, y, z, ...more } = target as Record<string, unknown>;
+    if (Object.keys(more).length > 0) {
+      refuse(`The target of ${of}'s solid's camera is a point: x, y and z.`);
+    }
+    camera.target = {
+      x: within(x, -100_000, 100_000, 'target'),
+      y: within(y, -100_000, 100_000, 'target'),
+      z: within(z, -100_000, 100_000, 'target'),
+    };
+  }
+  if (projection !== undefined) {
+    if (projection !== 'perspective' && projection !== 'orthographic') {
+      refuse(`The projection of ${of}'s solid's camera is "perspective" or "orthographic".`);
+    }
+    camera.projection = projection;
+  }
+  return camera;
+}
+
 type Vector = readonly [number, number, number];
 
 /** A camera fitted to a solid's bounds for a picture of a given aspect, width over height. */

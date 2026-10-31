@@ -93,4 +93,38 @@ describe('what the live connection says about solids, in Spanish', () => {
       `El proyecto no tiene el archivo de sólido "solids/${HASH}.glb".`,
     );
   });
+
+  it('says in Spanish why Anchor parts… refuses a solid’s drawing, and what it anchors', () => {
+    expect(
+      translateMessage(
+        'es',
+        'The element "Arm" is no drawing with parts of a solid: it does not show a solid with its parts.',
+      ),
+    ).toBe(
+      'El elemento "Arm" no es un dibujo con partes de un sólido: no muestra un sólido con sus partes.',
+    );
+    expect(translateMessage('es', 'The solid of "Arm" has no part "tail".')).toBe(
+      'El sólido de "Arm" no tiene ninguna parte "tail".',
+    );
+    expect(translateMessage('es', 'Anchor 6 parts of "Arm"')).toBe('Anclar 6 partes de "Arm"');
+  });
+
+  it('says in Spanish what opening and every action warn of solids and their parts', () => {
+    for (const warning of [
+      'The element "Booking" shows the solid "clinic.gone", which no package in use defines; it shows none.',
+      'The component "Arm" is drawn as a part of the solid "clinic.gone", which no package in use defines; it is drawn as an ordinary shape.',
+      'The element "Booking" is drawn as the part "wrist" of the solid "Arm", which has no such part; it is drawn as an ordinary shape.',
+      'The project appearance of "systems.service" shows the solid "clinic.gone", which no package in use defines; it shows none.',
+    ]) {
+      expect(untranslatedParts('es', warning), warning).toEqual([]);
+    }
+    expect(
+      translateMessage(
+        'es',
+        'The element "Booking" is drawn as the part "wrist" of the solid "Arm", which has no such part; it is drawn as an ordinary shape.',
+      ),
+    ).toBe(
+      'El elemento "Booking" se dibuja como la parte "wrist" del sólido "Arm", que no tiene esa parte; se dibuja como una forma común.',
+    );
+  });
 });

@@ -6,8 +6,9 @@
  * package code the person approved, which Claude can never approve itself (ADR 0054); live values,
  * set, cleared and read back, which are never saved (ADR 0057); an import the person ran on the
  * command line, which carries a file, never a command, and runs as the person's (ADR-0049); the
- * versions the program lists, and the comparison of one with the project now (ADR 0071); and the
- * withdrawal of Claude's own proposal (ADR 0073). Undo, redo, preferences, and accepting or refusing
+ * versions the program lists, and the comparison of one with the project now (ADR 0071); files to
+ * prepare as solids, sent in pieces or named by their path inside the project folder, which the
+ * program reads itself (ADR 0075); and the withdrawal of Claude's own proposal (ADR 0073). Undo, redo, preferences, and accepting or refusing
  * a proposal are the person's, and are refused.
  *
  * The program answers with the live protocol's own messages (`project/opened`, `project/changed`,
@@ -31,6 +32,7 @@ import {
   readGuidance,
   readLiveValuesMessage,
   readSolidPrepare,
+  type SolidImportOptions,
   type SolidPrepareMessage,
   type CodeApproval,
   type Command,
@@ -48,6 +50,7 @@ import {
   type ViewState,
 } from '@visual-anything/core';
 import type { ImportRequest } from '../import';
+import { MAX_SOLID_PATH } from '../solids/project-file';
 import type { LiveAttributeCount, LiveListing, LiveSummary } from '../live';
 import type { Id } from '@visual-anything/schema';
 
@@ -107,6 +110,18 @@ export type ClaudeMessage =
    * changes nothing; an `import` naming the prepared file by its hash then defines it.
    */
   | SolidPrepareMessage
+  /**
+   * A glTF file inside the project folder to prepare as a solid, for Claude's `import_solid` and
+   * `replace_solid` (ADR 0075): the program reads it itself, by its path from the folder, only as a
+   * regular file inside it, cleans it and answers with `solid/prepared` or `solid/refused`, as for a
+   * file sent in pieces. It changes nothing; the `define-solid` Claude then sends defines it.
+   */
+  | {
+      type: 'solid/prepare-file';
+      requestId: string;
+      path: string;
+      options?: SolidImportOptions;
+    }
   /**
    * Live values (ADR 0057): kept by the program while the project is open, never saved and never in
    * the history; answered with `live/kept`. The command line sends them through this endpoint too.
@@ -306,6 +321,8 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
       if (!read.ok) throw new ProtocolError(read.reason);
       return read.value;
     }
+    case 'solid/prepare-file':
+      return readSolidPrepareFile(message, requestId);
     case 'open-app': {
       if (message.state === undefined) return { type: 'open-app', requestId };
       const checked = checkViewState(message.state);
@@ -429,6 +446,41 @@ function readSenderKind(value: unknown, everyone: boolean): LiveSenderKind | 'ev
   }
   throw new ProtocolError('Live values come from Claude or from the command line.');
 }
+
+/**
+ * Reads `solid/prepare-file`: a path of at most {@link MAX_SOLID_PATH} characters, which the program
+ * checks against its folder before it reads anything, and the import's options.
+ */
+function readSolidPrepareFile(message: Record<string, unknown>, requestId: string): ClaudeMessage {
+  const { path, options } = message;
+  if (typeof path !== 'string' || path === '' || path.length > MAX_SOLID_PATH) {
+    throw new ProtocolError('A file to prepare as a solid is named by its path from the folder.');
+  }
+  if (options === undefined) return { type: 'solid/prepare-file', requestId, path };
+  if (!isRecord(options) || Object.keys(options).some((key) => !SOLID_OPTIONS.has(key))) {
+    throw new ProtocolError('Options are units, up and simplify.');
+  }
+  const { units, up, simplify } = options;
+  if (units !== undefined && !['m', 'cm', 'mm', 'in'].includes(units as string)) {
+    throw new ProtocolError('Units are m, cm, mm or in.');
+  }
+  if (up !== undefined && up !== 'y' && up !== 'z') throw new ProtocolError('Up is y or z.');
+  if (simplify !== undefined && typeof simplify !== 'boolean') {
+    throw new ProtocolError('Simplify is true or false.');
+  }
+  return {
+    type: 'solid/prepare-file',
+    requestId,
+    path,
+    options: {
+      ...(units === undefined ? {} : { units: units as NonNullable<SolidImportOptions['units']> }),
+      ...(up === undefined ? {} : { up }),
+      ...(simplify === undefined ? {} : { simplify }),
+    },
+  };
+}
+
+const SOLID_OPTIONS: ReadonlySet<string> = new Set(['units', 'up', 'simplify']);
 
 function readLiveSet(message: Record<string, unknown>, requestId: string): ClaudeMessage {
   const { values, freshFor } = message;

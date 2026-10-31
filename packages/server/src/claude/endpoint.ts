@@ -200,6 +200,26 @@ export function attachClaude(
         }
         await session.prepareSolidPiece(client, message);
         return;
+      case 'solid/prepare-file':
+        // A file inside the project folder for Claude's import_solid and replace_solid (ADR 0075):
+        // the program reads it itself, only as a regular file inside its folder, and cleans it. It
+        // changes nothing.
+        if (session.prepareSolidFile === undefined) {
+          send({
+            type: 'solid/refused',
+            requestId: message.requestId,
+            code: 'program-failed',
+            message: 'This Visual Anything cleans no solids.',
+          });
+          return;
+        }
+        await session.prepareSolidFile(
+          client,
+          message.requestId,
+          message.path,
+          message.options ?? {},
+        );
+        return;
       case 'versions/list':
         // The session answers through the client: Claude's copy of a comparison never holds the
         // version's project (ADR-0029).

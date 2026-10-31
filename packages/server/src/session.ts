@@ -101,6 +101,7 @@ import { watchProject, type ProjectWatcher, type WatchMode } from './watcher';
 import { removeFile, writeFileAtomic, type WriteOptions } from './writer';
 import { solidFileWarnings } from './solids/files';
 import { planSolidImport, type SolidChoices } from './solids/import';
+import { readProjectSolidFile } from './solids/project-file';
 import {
   SolidStore,
   preparedMessage,
@@ -212,6 +213,18 @@ export interface LiveSession {
    * `solid/prepared` or `solid/refused`. It changes nothing. Absent where the program cleans no solid.
    */
   prepareSolidPiece?(client: SessionClient, message: SolidPrepareMessage): Promise<void>;
+  /**
+   * Reads a glTF file inside the project folder, by its path from the folder, only as a regular file
+   * inside it, for Claude's `import_solid` and `replace_solid` (ADR 0075); cleans it as a file sent in
+   * pieces is cleaned, and answers through the client with `solid/prepared` or `solid/refused`. It
+   * changes nothing. Absent where the program cleans no solid.
+   */
+  prepareSolidFile?(
+    client: SessionClient,
+    requestId: string,
+    path: string,
+    options: SolidImportOptions,
+  ): Promise<void>;
   /**
    * Defines a file the program prepared as a solid, as one action (ADR 0075), in the turn of the queue
    * that runs it. Absent where the program cleans no solid.
@@ -815,13 +828,42 @@ export class Session implements LiveSession {
     }
     if (outcome.kind !== 'whole') return;
     const prepared = await this.prepareSolid(outcome.bytes, outcome.fileName, outcome.options);
+    this.#sendPrepared(client, message.requestId, prepared);
+  }
+
+  /**
+   * Reads a glTF file inside the project folder for Claude (ADR 0075), only as a regular file inside
+   * it within the 256 MiB cleaning reads, then cleans it as {@link prepareSolidPiece} does. A path
+   * outside the folder, a link, and a file that is no glTF file by its name are refused unread.
+   */
+  async prepareSolidFile(
+    client: SessionClient,
+    requestId: string,
+    path: string,
+    options: SolidImportOptions,
+  ): Promise<void> {
+    const read = await readProjectSolidFile(this.folder, path);
+    if (!read.ok) {
+      this.#send(client, {
+        type: 'solid/refused',
+        requestId,
+        code: read.problem.code,
+        message: read.problem.message,
+      });
+      return;
+    }
+    const prepared = await this.prepareSolid(read.bytes, read.fileName, options);
+    this.#sendPrepared(client, requestId, prepared);
+  }
+
+  #sendPrepared(client: SessionClient, requestId: string, prepared: Preparing): void {
     this.#send(
       client,
       prepared.ok
-        ? preparedMessage(message.requestId, prepared.prepared)
+        ? preparedMessage(requestId, prepared.prepared)
         : {
             type: 'solid/refused',
-            requestId: message.requestId,
+            requestId,
             code: prepared.problems[0]?.code ?? 'invalid-solid',
             message: prepared.problems.map((each) => each.message).join(' '),
           },

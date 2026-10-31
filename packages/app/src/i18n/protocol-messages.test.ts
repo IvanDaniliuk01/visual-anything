@@ -182,6 +182,14 @@ const UNREADABLE: readonly [string, () => unknown][] = [
     'a comparison shown no way',
     guidance({ kind: 'comparison', version: { kind: 'opened' }, show: 'side' }),
   ],
+  [
+    'turning no shape',
+    guidance({ kind: 'turn', target: '', camera: { azimuth: 0, elevation: 0 } }),
+  ],
+  [
+    'turning to a camera out of range',
+    guidance({ kind: 'turn', target: 'arm', camera: { azimuth: 0, elevation: 90 } }),
+  ],
   ['live values not lists', values({ values: 1 })],
   ['live value not an object', values({ values: [1] })],
   ['live value of no target', values({ values: [{ ...liveValue, target: 1 }] })],

@@ -955,12 +955,13 @@ Its tasks run in this order:
   - the Components tab's solids: name, description, source, license, size and counts, Replace with the parts it loses, Remove, and the files no package names;
   - Anchor parts… for solids;
   - every text in English and Spanish, and the catalog test's avoided words extended with the new terms' avoid lists.
-- [ ] **Claude's tools** (`server/src/claude/solid-tools.ts`):
+- [x] **Claude's tools** (`server/src/claude/solid-tools.ts`):
   - `import_solid`, from a regular file inside the project folder, with `units`, `up` and `simplify`;
   - `list_solid_parts`, `update_solid`, `replace_solid` with the parts it loses, and `remove_solid`;
   - `set_appearance` with `solid` and with `part.solid`, and `anchor_parts` for solids;
   - the guidance `turn`;
   - descriptions with examples.
+  - Done 2026-10-31, by a builder (ADR 0075's clarification of that date): the program reads the file by its path from its folder (`solid/prepare-file`); `list_solids` joins them; Anchor parts… for solids is the core's (`planSolidAnchoring`), and anchors name their solid; an action warns the `unknown-part` and `unknown-solid` it brings. The app keeps `turn` guidance's request, which the canvas task's Turn takes up.
 - [ ] **Exports and the read-only page:**
   - the app's PNG, SVG and PDF with solids' pictures and their parts' states, and the SVG's traced paths for anchored parts;
   - placeholders from the command line and `export_view`, each saying what it lost; the outline in Markdown listing solids with their descriptions; Mermaid and Structurizr saying they lost them;

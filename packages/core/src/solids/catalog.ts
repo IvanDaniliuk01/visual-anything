@@ -12,7 +12,6 @@ import type {
   PackageFile,
   PartReference,
   SolidDefinition,
-  SolidPart,
 } from '@visual-anything/schema';
 import type { Defined, Definitions } from '../definitions';
 import { problem, type Problem } from '../problems';
@@ -170,26 +169,4 @@ export function solidUsers(state: ProjectSnapshot, solidId: Id): Id[] {
     if (names(element.appearance)) users.add(element.id);
   }
   return [...users];
-}
-
-/**
- * The parts a solid's anchored elements are drawn as that a replacement would lose (ADR 0075): the
- * names of anchored parts the new parts lack, each with the elements drawn as it, in the model's
- * order. The replace dialog and `replace_solid` say them before the replacement applies; after it they
- * warn `unknown-part`, and an undo brings them back.
- */
-export function solidPartsLostByReplacing(
-  state: ProjectSnapshot,
-  solidId: Id,
-  newParts: readonly SolidPart[],
-): { part: string; elements: Id[] }[] {
-  const kept = new Set(newParts.map((part) => part.name));
-  const lost = new Map<string, Id[]>();
-  for (const element of [state.model.world, ...state.model.elements] as Element[]) {
-    const part = element.appearance?.part;
-    if (part === undefined || part === 'none' || part.solid !== solidId) continue;
-    if (kept.has(part.part)) continue;
-    lost.set(part.part, [...(lost.get(part.part) ?? []), element.id]);
-  }
-  return [...lost].map(([part, elements]) => ({ part, elements }));
 }

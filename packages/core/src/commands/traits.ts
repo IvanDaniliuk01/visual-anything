@@ -33,6 +33,7 @@ import type { Definitions } from '../definitions';
 import { isId } from '../ids';
 import { readGeometry } from '../geometry';
 import { LEVEL_PARTS, MAX_LEVELS, MAX_LEVEL_SCALE } from '../levels';
+import { readSolidCamera } from '../solids/camera';
 import { reject } from './draft';
 
 /** The largest width or height an appearance may give. */
@@ -557,50 +558,7 @@ export function checkedSolidCamera(
   of: string,
   refuse: (message: string) => never = invalid,
 ): SolidCamera {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    refuse(`The camera of ${of}'s solid must be an azimuth and an elevation, at least.`);
-  }
-  const { azimuth, elevation, zoom, target, projection, ...rest } = value as Record<
-    string,
-    unknown
-  >;
-  if (Object.keys(rest).length > 0) {
-    refuse(
-      `The camera of ${of}'s solid holds only its azimuth, elevation, zoom, target and projection.`,
-    );
-  }
-  const within = (number: unknown, low: number, high: number, what: string): number => {
-    if (typeof number !== 'number' || !Number.isFinite(number) || number < low || number > high) {
-      refuse(`The ${what} of ${of}'s solid's camera is a number from ${low} to ${high}.`);
-    }
-    return number;
-  };
-  const camera: SolidCamera = {
-    azimuth: within(azimuth, -180, 180, 'azimuth'),
-    elevation: within(elevation, -89, 89, 'elevation'),
-  };
-  if (zoom !== undefined) camera.zoom = within(zoom, 0.25, 16, 'zoom');
-  if (target !== undefined) {
-    if (typeof target !== 'object' || target === null || Array.isArray(target)) {
-      refuse(`The target of ${of}'s solid's camera is a point: x, y and z.`);
-    }
-    const { x, y, z, ...more } = target as Record<string, unknown>;
-    if (Object.keys(more).length > 0) {
-      refuse(`The target of ${of}'s solid's camera is a point: x, y and z.`);
-    }
-    camera.target = {
-      x: within(x, -100_000, 100_000, 'target'),
-      y: within(y, -100_000, 100_000, 'target'),
-      z: within(z, -100_000, 100_000, 'target'),
-    };
-  }
-  if (projection !== undefined) {
-    if (projection !== 'perspective' && projection !== 'orthographic') {
-      refuse(`The projection of ${of}'s solid's camera is "perspective" or "orthographic".`);
-    }
-    camera.projection = projection;
-  }
-  return camera;
+  return readSolidCamera(value, of, refuse);
 }
 
 /**

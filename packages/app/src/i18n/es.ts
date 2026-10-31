@@ -5753,6 +5753,10 @@ export const messages: Catalog = {
   'The proposal closed is named, with how it closed.':
     'La propuesta cerrada se nombra, con cómo se cerró.',
   'A comparison shows one of: {drawings}.': 'Una comparación muestra uno de: {drawings}.',
+  // M9: the guidance that turns a shape's solid (ADR 0075).
+  'Turning names the shape to turn by id.': 'Para girar se nombra por su id la forma que se gira.',
+  'Turning gives a camera: an azimuth from -180 to 180, an elevation from -89 to 89, and if it likes a zoom from 0.25 to 16, a target and a projection.':
+    'Para girar se da una cámara: un azimut de -180 a 180, una elevación de -89 a 89 y, si se quiere, un zoom de 0.25 a 16, un punto de giro y una proyección.',
   'The message has no command.': 'El mensaje no tiene ningún comando.',
   'The action to undo up to is named by its id.':
     'La acción hasta la que deshacer se nombra por su id.',
@@ -5885,6 +5889,18 @@ export const messages: Catalog = {
     'Las partes coinciden por un identificador externo en un catálogo, un nombre corto en minúsculas como "uberon"; "{scheme}" no lo es.',
   'The picture of "{name}" has no part "{part}".':
     'La imagen de "{name}" no tiene ninguna parte "{part}".',
+  // M9: Anchor parts… for solids (ADR 0075).
+  'The element "{name}" is no drawing with parts of a solid: it does not show a solid with its parts.':
+    'El elemento "{name}" no es un dibujo con partes de un sólido: no muestra un sólido con sus partes.',
+  'The solid of "{name}" has no part "{part}".':
+    'El sólido de "{name}" no tiene ninguna parte "{part}".',
+  // M9: what opening and every action say of solids an appearance or a part names (ADR 0075).
+  '{owner} shows the solid "{id}", which no package in use defines; it shows none.':
+    '{owner} muestra el sólido "{id}", que ningún paquete en uso define; no muestra ninguno.',
+  '{owner} is drawn as a part of the solid "{id}", which no package in use defines; it is drawn as an ordinary shape.':
+    '{owner} se dibuja como una parte del sólido "{id}", que ningún paquete en uso define; se dibuja como una forma común.',
+  '{owner} is drawn as the part "{part}" of the solid "{name}", which has no such part; it is drawn as an ordinary shape.':
+    '{owner} se dibuja como la parte "{part}" del sólido "{name}", que no tiene esa parte; se dibuja como una forma común.',
   'No nesting relation type can hold a new element of "{component}" inside "{name}".':
     'Ningún tipo de relación que anida puede contener un nuevo elemento de "{component}" dentro de "{name}".',
   // M8b seam 1: free geometry, named parts and automatic route styles (ADR 0066, 0067, 0069).

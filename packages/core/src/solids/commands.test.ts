@@ -245,7 +245,98 @@ describe('checkSolids', () => {
     const lacking = named('booking', { part: { part: 'wrist', solid: 'clinic.arm-k3f9q2' } });
     expect(checkSolids(lacking).warnings.map((each) => each.code)).toEqual(['unknown-part']);
   });
+
+  it('warns of a part a drawing’s solid lacks, for a content that names neither solid nor image', () => {
+    const drawing = run(withArmIn(imageProject()), {
+      type: 'update-element',
+      id: 'plain',
+      changes: { appearance: { solid: { solid: 'clinic.arm-k3f9q2', placement: 'parts' } } },
+    }).state;
+    const inside = (part: string) =>
+      run(drawing, {
+        type: 'batch',
+        label: 'Anchor',
+        commands: [
+          {
+            type: 'create-relation',
+            relation: { id: 'in', relationType: 'clinic.part-of', from: 'booking', to: 'plain' },
+          },
+          { type: 'update-element', id: 'booking', changes: { appearance: { part: { part } } } },
+        ],
+      }).state;
+    expect(checkSolids(inside('elbow')).warnings).toEqual([]);
+    expect(checkSolids(inside('wrist')).warnings).toEqual([
+      expect.objectContaining({
+        code: 'unknown-part',
+        message:
+          'The element "Booking" is drawn as the part "wrist" of the solid "Arm", which has no such part; it is drawn as an ordinary shape.',
+        subjects: ['booking'],
+      }),
+    ]);
+  });
 });
+
+describe('the warnings of an action on solids', () => {
+  const withArm = () => withArmIn(imageProject());
+
+  it('say the unknown-part and unknown-solid it brings, once', () => {
+    const anchored = run(withArm(), {
+      type: 'update-element',
+      id: 'booking',
+      changes: { appearance: { part: { part: 'wrist', solid: 'clinic.arm-k3f9q2' } } },
+    });
+    expect(anchored.warnings.map((each) => each.code)).toEqual(['unknown-part']);
+    // An action that does not bring it again says nothing of it.
+    const renamed = run(anchored.state, {
+      type: 'update-element',
+      id: 'plain',
+      changes: { name: 'Plainer' },
+    });
+    expect(renamed.warnings).toEqual([]);
+    const shown = run(withArm(), {
+      type: 'update-element',
+      id: 'plain',
+      changes: { appearance: { solid: { solid: 'clinic.gone' } } },
+    });
+    expect(shown.warnings.map((each) => each.code)).toEqual(['unknown-solid']);
+  });
+
+  it('say which anchored parts a replacement lost', () => {
+    const anchored = run(withArm(), {
+      type: 'update-element',
+      id: 'booking',
+      changes: { appearance: { part: { part: 'elbow', solid: 'clinic.arm-k3f9q2' } } },
+    });
+    expect(anchored.warnings).toEqual([]);
+    const replaced = run(anchored.state, {
+      type: 'define-solid',
+      package: 'clinic',
+      solid: { ...definition(), parts: [{ name: 'base', point: { x: 0, y: 0.05, z: 0 } }] },
+    });
+    expect(replaced.warnings).toEqual([
+      expect.objectContaining({ code: 'unknown-part', subjects: ['booking'] }),
+    ]);
+  });
+});
+
+/** The arm defined in the clinic's package, which gains a nesting relation type. */
+function withArmIn(state: ProjectSnapshot): ProjectSnapshot {
+  const clinic = state.packages[0];
+  if (!clinic) throw new Error('No clinic.');
+  const nesting: ProjectSnapshot = {
+    ...state,
+    packages: [
+      {
+        ...clinic,
+        relationTypes: [
+          { id: 'clinic.part-of', name: 'is part of', derivesFrom: 'relates-to', nests: true },
+        ],
+      },
+      ...state.packages.slice(1),
+    ],
+  };
+  return run(nesting, { type: 'define-solid', package: 'clinic', solid: definition() }).state;
+}
 
 describe('the messages about solids', () => {
   it('read a piece of a file to import, with its options in the first piece only', () => {
