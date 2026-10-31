@@ -44,6 +44,8 @@ import {
   type ListedAction,
   MAX_DRAWING_REPORT,
   type DrawingMakeMessage,
+  type SolidImportOptions,
+  type SolidPrepareMessage,
   type LiveFetchMessage,
   type LiveFilter,
   type LiveSender,
@@ -97,7 +99,14 @@ import { capOf, describeCap, readRegularFile } from './regular-files';
 import { comparisonOfView, Versions, type VersionsOptions } from './versions/versions';
 import { watchProject, type ProjectWatcher, type WatchMode } from './watcher';
 import { removeFile, writeFileAtomic, type WriteOptions } from './writer';
-import { solidFileAnswer } from './solids/serve';
+import { solidFileWarnings } from './solids/files';
+import { planSolidImport, type SolidChoices } from './solids/import';
+import {
+  SolidStore,
+  preparedMessage,
+  type Preparing,
+  type SolidStoreOptions,
+} from './solids/store';
 
 /** An open app, as the session sees it: something to send messages to. */
 export interface SessionClient {
@@ -197,6 +206,22 @@ export interface LiveSession {
    * `proposal/closed`, or with why none waits. Absent where the program keeps no proposal.
    */
   withdrawProposal?(origin: Origin): Promise<void>;
+  /**
+   * Takes a piece of a file to import as a solid, from an app or the command line (ADR 0075), and
+   * once it has them all, cleans the file in the cleaner's worker and answers through the client with
+   * `solid/prepared` or `solid/refused`. It changes nothing. Absent where the program cleans no solid.
+   */
+  prepareSolidPiece?(client: SessionClient, message: SolidPrepareMessage): Promise<void>;
+  /**
+   * Defines a file the program prepared as a solid, as one action (ADR 0075), in the turn of the queue
+   * that runs it. Absent where the program cleans no solid.
+   */
+  importSolid?(
+    hash: string,
+    choices: SolidChoices,
+    author: Author,
+    origin?: Origin,
+  ): Promise<SessionOutcome>;
 }
 
 /** How a command of Claude's runs: `propose` makes it join Claude's proposal (ADR 0073). */
@@ -295,6 +320,8 @@ export interface SessionOptions {
   layoutWait?: LayoutWait;
   /** How long a picture Claude asks for waits for the app, in milliseconds; 20 s (ADR 0081). */
   captureWait?: number;
+  /** How solids are cleaned and checked (ADR 0075); in the cleaner's worker by default. */
+  solids?: Pick<SolidStoreOptions, 'clean' | 'check'>;
 }
 
 /** The outcome of opening a session: the session, or every problem that keeps the project closed. */
@@ -372,6 +399,8 @@ export class Session implements LiveSession {
   readonly #fetcher: PackageFetcher;
   /** The drawings of HTML the apps and the command line ask for, made one at a time (ADR 0068). */
   readonly #drawings: DrawingQueue;
+  /** The solid files the program prepared, read and checked (ADR 0075). */
+  readonly #solids: SolidStore;
   /** Claude's layouts, sent to the apps one at a time, each once the one before was answered (M3d). */
   readonly #layouts: LayoutWaits;
   /** The pictures Claude asked the apps for, each waited for by its own id (ADR 0081). */
@@ -403,6 +432,16 @@ export class Session implements LiveSession {
     });
     this.#fetcher = new PackageFetcher(options.fetcher);
     this.#drawings = new DrawingQueue(options.makeDrawing);
+    this.#solids = new SolidStore(folder, {
+      ...options.solids,
+      ...(options.writer === undefined ? {} : { writer: options.writer }),
+      ...(options.now === undefined ? {} : { now: options.now }),
+      notClean: (found) => {
+        // The warnings change, and every app hears of the file found not clean.
+        this.#warnings = undefined;
+        this.#broadcast(warningNotice(locateProblems(found, this.#state, this.files)));
+      },
+    });
     // In the session's queue, so that a layout reaches the apps after the work asked for before it.
     this.#layouts = new LayoutWaits(
       (guidance, answer) =>
@@ -536,6 +575,9 @@ export class Session implements LiveSession {
       const { warnings } = checkProject(this.#state);
       // Whether a destination's project is there is for the program to tell (ADR 0056).
       warnings.push(...projectDestinationWarnings(this.#state, this.folder));
+      // So is whether the files the solids name are there, and clean (ADR 0075).
+      warnings.push(...solidFileWarnings(this.#state, this.folder));
+      warnings.push(...this.#solids.warnings(this.#state));
       known = { state: this.#state, warnings: locateProblems(warnings, this.#state, this.files) };
       this.#warnings = known;
     }
@@ -570,6 +612,7 @@ export class Session implements LiveSession {
       this.#live.forget(client);
       this.#layouts.gone(client);
       this.#captures.gone(client);
+      this.#solids.forget(client);
     };
   }
 
@@ -739,22 +782,99 @@ export class Session implements LiveSession {
       case 'solid/get':
         // A solid's file for the app's solid worker, in pieces (ADR 0075). It only reads, and never
         // waits behind the project's own work.
-        for (const answer of await solidFileAnswer(this.folder, message.requestId, message.hash)) {
+        for (const answer of await this.#solids.serve(
+          message.requestId,
+          message.hash,
+          this.#state,
+        )) {
           this.#send(client, answer);
         }
         return;
       case 'solid/prepare':
-        // Importing a solid comes with the cleaner (M9); its first piece is answered, the rest ignored.
-        if (message.piece.index === 0) {
-          this.#send(client, {
-            type: 'solid/refused',
-            requestId: message.requestId,
-            code: 'program-failed',
-            message: 'This program cannot import solids yet.',
-          });
-        }
+        await this.prepareSolidPiece(client, message);
         return;
     }
+  }
+
+  /**
+   * Takes a piece of a file to import as a solid (ADR 0075); once all its pieces are in, cleans it in
+   * the cleaner's worker, after the files asked for before it, and answers with what the program now
+   * holds, or why it holds nothing. Cleaning changes nothing, so it never waits behind the project's
+   * own work, and the project's work never waits behind it.
+   */
+  async prepareSolidPiece(client: SessionClient, message: SolidPrepareMessage): Promise<void> {
+    const outcome = this.#solids.receive(client, message);
+    if (outcome.kind === 'refused') {
+      this.#send(client, {
+        type: 'solid/refused',
+        requestId: message.requestId,
+        code: outcome.problem.code,
+        message: outcome.problem.message,
+      });
+      return;
+    }
+    if (outcome.kind !== 'whole') return;
+    const prepared = await this.prepareSolid(outcome.bytes, outcome.fileName, outcome.options);
+    this.#send(
+      client,
+      prepared.ok
+        ? preparedMessage(message.requestId, prepared.prepared)
+        : {
+            type: 'solid/refused',
+            requestId: message.requestId,
+            code: prepared.problems[0]?.code ?? 'invalid-solid',
+            message: prepared.problems.map((each) => each.message).join(' '),
+          },
+    );
+  }
+
+  /** Cleans a file to import as a solid and holds what it made (ADR 0075); it changes nothing. */
+  prepareSolid(
+    bytes: Uint8Array,
+    fileName: string,
+    options: SolidImportOptions = {},
+  ): Promise<Preparing> {
+    return this.#solids.prepare(bytes, fileName, options);
+  }
+
+  /**
+   * Defines a file the program prepared as a solid, as the one action `Import "arm.glb" as a solid`
+   * (ADR 0075), planned against the project as the work asked for before it leaves it.
+   */
+  importSolid(
+    hash: string,
+    choices: SolidChoices,
+    author: Author,
+    origin?: Origin,
+  ): Promise<SessionOutcome> {
+    return this.executePlanned(
+      (state) => {
+        const prepared = this.#solids.prepared(hash);
+        if (prepared === undefined) {
+          return {
+            ok: false,
+            problems: [
+              {
+                code: 'invalid-solid',
+                message: `Visual Anything holds no prepared file "solids/${hash}.glb": prepare it again, as it holds one for ten minutes.`,
+              },
+            ],
+          };
+        }
+        const planned = planSolidImport(state, prepared, choices, this.#options.newId);
+        return planned.ok
+          ? { ok: true, command: planned.command }
+          : {
+              ok: false,
+              problems: planned.problems.map((each) => ({
+                code: 'invalid-command' as const,
+                message: each,
+              })),
+            };
+      },
+      author,
+      origin,
+    );
   }
 
   /**
@@ -1297,11 +1417,14 @@ export class Session implements LiveSession {
     const outcome = this.#closed
       ? Promise.resolve(this.#refuse(origin, [CLOSED]))
       : this.#enqueue(() =>
-          this.#guarded(origin, () =>
-            author === 'claude' && this.#proposes(command, propose)
-              ? Promise.resolve(this.#runProposed(command, origin))
-              : this.#run(command, author, origin, joins),
-          ),
+          this.#guarded(origin, async () => {
+            // A solid is defined only of a file the program holds, with its description (ADR 0075).
+            const admitted = await this.#solids.admit(command);
+            if (!admitted.ok) return this.#refuse(origin, admitted.problems);
+            return author === 'claude' && this.#proposes(admitted.command, propose)
+              ? this.#runProposed(admitted.command, origin)
+              : this.#run(admitted.command, author, origin, joins);
+          }),
         );
     return this.#logRefusal(outcome, 'command', author, () => command);
   }
@@ -1317,11 +1440,13 @@ export class Session implements LiveSession {
     const outcome = this.#closed
       ? Promise.resolve(this.#refuse(origin, [CLOSED]))
       : this.#enqueue(() =>
-          this.#guarded(origin, () => {
+          this.#guarded(origin, async () => {
             const planned = plan(this.#state);
-            if (!planned.ok) return Promise.resolve(this.#refuse(origin, planned.problems));
+            if (!planned.ok) return this.#refuse(origin, planned.problems);
             command = planned.command;
-            return this.#run(planned.command, author, origin);
+            const admitted = await this.#solids.admit(planned.command);
+            if (!admitted.ok) return this.#refuse(origin, admitted.problems);
+            return this.#run(admitted.command, author, origin);
           }),
         );
     return this.#logRefusal(outcome, 'command', author, () => command);
