@@ -13,7 +13,16 @@ export * from './catalog';
 export { checkSolids } from './check';
 export * from './messages';
 export { describeSolid, roundLength, type SolidDescription } from './describe';
-export type { SolidDocument } from './glb';
+export {
+  readCanonicalGlb,
+  readElement,
+  SolidRefusal,
+  type SolidAccessor,
+  type SolidBufferView,
+  type SolidDocument,
+  type SolidMesh,
+  type SolidNode,
+} from './glb';
 
 /** What reading a solid's file answers: its description, or the problems that make it not canonical. */
 export type SolidReading =

@@ -57,7 +57,7 @@ import {
   SolidRefusal,
   type SolidAccessor,
   type SolidDocument,
-} from '../../../../core/src/solids/glb';
+} from '@visual-anything/core';
 import {
   interpolantFor,
   restAll,
