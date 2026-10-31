@@ -225,7 +225,7 @@ Example: { "close": true }`,
 
 /**
  * What `run_simulation` answers of a run: its stop and why, each number's first, last, lowest and
- * highest, and at most `MAX_TICKS_ANSWERED` ticks sampled evenly, the last held and the one before
+ * highest, each other value's first and last, and at most `MAX_TICKS_ANSWERED` ticks sampled evenly, the last held and the one before
  * the stop always among them.
  */
 export function summaryOf(
@@ -236,9 +236,15 @@ export function summaryOf(
   const held = all.slice(from);
   const numbers: Record<string, { first: number; last: number; lowest: number; highest: number }> =
     {};
+  const others: Record<string, { first: unknown; last: unknown }> = {};
   for (const tick of held) {
     for (const [name, value] of Object.entries(tick.values)) {
-      if (typeof value !== 'number') continue;
+      if (typeof value !== 'number') {
+        const seen = others[name];
+        if (!seen) others[name] = { first: value, last: value };
+        else seen.last = value;
+        continue;
+      }
       const seen = numbers[name];
       if (!seen) numbers[name] = { first: value, last: value, lowest: value, highest: value };
       else {
@@ -265,6 +271,8 @@ export function summaryOf(
     from,
     ...(stop ? { stop: describeStop(stop) } : {}),
     numbers,
+    // Strings and booleans: the first each tick answered, and the last.
+    others,
     sampled: ticks,
   };
 }
@@ -283,7 +291,7 @@ export function describeStop(stop: SimulationStop): Record<string, unknown> {
           ? `${stop.value} was not a finite number`
           : stop.limit === 'choices'
             ? `${stop.value} was ${JSON.stringify(stop.got)}, not one of its choices`
-            : `${stop.value} went ${stop.limit === 'max' ? 'above its highest' : 'below its lowest'}, ${stop.bound}, to ${String(stop.got)}`;
+            : `${stop.value} went ${stop.limit === 'max' ? 'above its highest' : 'below its lowest'}, ${stop.limitValue}, to ${String(stop.got)}`;
       return said(`At tick ${stop.tick}, ${past}; the run keeps the ticks before it.`);
     }
     case 'failed':

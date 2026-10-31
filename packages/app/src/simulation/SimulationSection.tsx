@@ -180,7 +180,12 @@ function RunControls({ store, run, element, packageName, labelledBy }: RunContro
         <button
           type="button"
           className="inspector-action simulation-text-button"
-          disabled={run.unavailable !== undefined || run.ticks.length === 0 || (atEnd && !run.stop)}
+          disabled={
+            run.unavailable !== undefined ||
+            run.ticks.length === 0 ||
+            run.stop?.kind === 'changed' ||
+            (atEnd && !run.stop)
+          }
           onClick={() => store.fromHere(id)}
         >
           {t('Run from here')}
@@ -464,7 +469,7 @@ function ValueRow({ value, run, shown, packageName, inPlace, onGoTo }: ValueRowP
 
 /** A value's limits in words; none when it has none. */
 function limitsText(t: Translator, value: SimulatedValueDefinition): string | undefined {
-  const of = (bound: number) => valueText(t, bound, value.unit);
+  const of = (limitValue: number) => valueText(t, limitValue, value.unit);
   if (value.min !== undefined && value.max !== undefined) {
     return t('Limits: from {min} to {max}', { min: of(value.min), max: of(value.max) });
   }

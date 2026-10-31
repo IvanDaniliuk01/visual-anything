@@ -86,17 +86,17 @@ function limitText(
 ): string {
   const unit = definition.values.find((each) => each.name === stop.value)?.unit;
   const got = valueText(t, stop.got, unit);
-  const bound = stop.bound === undefined ? '' : valueText(t, stop.bound, unit);
-  const values = { tick: stop.tick, value: stop.value, bound, got };
+  const limitValue = stop.limitValue === undefined ? '' : valueText(t, stop.limitValue, unit);
+  const values = { tick: stop.tick, value: stop.value, limitValue, got };
   switch (stop.limit) {
     case 'min':
       return t(
-        'At tick {tick}, “{value}” went below its lowest limit, {bound}: it was {got}. The ticks before it are kept.',
+        'At tick {tick}, “{value}” went below its lowest limit, {limitValue}: it was {got}. The ticks before it are kept.',
         values,
       );
     case 'max':
       return t(
-        'At tick {tick}, “{value}” went above its highest limit, {bound}: it was {got}. The ticks before it are kept.',
+        'At tick {tick}, “{value}” went above its highest limit, {limitValue}: it was {got}. The ticks before it are kept.',
         values,
       );
     case 'choices':

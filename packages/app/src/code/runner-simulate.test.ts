@@ -5,6 +5,7 @@
  * stops of the behavior's own that never count.
  */
 import {
+  codeHash,
   type ModelReader,
   type SimulateInput,
   type SimulatedTick,
@@ -216,7 +217,7 @@ describe('simulation runs in the code runner', () => {
       await it.run(start('loose', { parameters: { rate: 1 } }));
       expect(it.runs.get('loose')).toMatchObject({
         ticks: [],
-        stop: { kind: 'limit', tick: 0, value: 'level', limit: 'min', bound: 0, got: -1 },
+        stop: { kind: 'limit', tick: 0, value: 'level', limit: 'min', limitValue: 0, got: -1 },
       });
       await it.run(start('loose', { parameters: { rate: 2 } }));
       expect(it.runs.get('loose')?.stop).toMatchObject({ kind: 'limit', limit: 'finite' });
@@ -338,6 +339,49 @@ describe('simulation runs in the code runner', () => {
     await it.run(start('loose', { until: 5 }));
     await it.run({ kind: 'packages', packages: [simulationPackage(code)] });
     expect(it.runs.get('loose')).toMatchObject({ stop: { kind: 'changed', tick: 5 } });
+  });
+
+  it('reads the model a run started from, and ends a run of code granted model:read at any edit to it', async () => {
+    const counting = [
+      'export function simulate(element, context) {',
+      '  return { values: { level: context.model.elements().length, draw: 0 } };',
+      '}',
+    ];
+    const reading = simulationPackage(counting, {
+      hash: codeHash(counting, ['model:read']),
+      declared: ['model:read'],
+      granted: ['model:read'],
+    });
+    const project = simulationProject(counting);
+    const it = harness();
+    await it.run(
+      { kind: 'project', project },
+      { kind: 'packages', packages: [reading] },
+      start('loose', { until: 5 }),
+    );
+    const before = it.runs.get('loose')?.ticks.map((each) => each.values.level);
+    expect(before).toHaveLength(5);
+    // An element added far from the thermometer: what lies around it is the same, the model is not.
+    const edited = structuredClone(project);
+    edited.model.elements.push({ id: 'far', component: 'essence', name: 'Far away' });
+    await it.run({ kind: 'project', project: edited });
+    expect(it.runs.get('loose')).toMatchObject({ stop: { kind: 'changed', tick: 5 } });
+    // Run from here and Play more never go on from the model it started from.
+    await it.run({ kind: 'simulation/from-here', element: 'loose', tick: 2, until: 10 });
+    expect(it.runs.get('loose')).toMatchObject({ stop: { kind: 'changed' } });
+    expect(it.runs.get('loose')?.ticks.map((each) => each.values.level)).toEqual(before);
+    await it.run({ kind: 'simulation/more', element: 'loose', until: 20 });
+    expect(it.runs.get('loose')?.ticks).toHaveLength(5);
+  });
+
+  it('keeps a run of code that does not read the model going through an edit that does not touch its element', async () => {
+    const it = await played(TANK_CODE, start('loose', { until: 5 }));
+    const edited = structuredClone(simulationProject());
+    edited.model.elements.push({ id: 'far', component: 'essence', name: 'Far away' });
+    await it.run({ kind: 'project', project: edited });
+    expect(it.runs.get('loose')?.stop).toBeUndefined();
+    await it.run({ kind: 'simulation/until', element: 'loose', until: 8 });
+    expect(it.runs.get('loose')?.ticks).toHaveLength(8);
   });
 
   it('still answers the canvas’s hooks while a run works as fast as it goes', async () => {

@@ -15,7 +15,7 @@ import type { SimulationReply, SimulationRequest, SimulationUnavailable } from '
 import type { SimulationPort } from './store';
 
 /** A package's `simulate`, as a plain function: `random` is the tick's generator. */
-export type StandInStep = (input: SimulateInput, random: () => number) => unknown;
+export type StandInTick = (input: SimulateInput, random: () => number) => unknown;
 
 export interface StandInOptions {
   /** Why a package cannot simulate, by package; every other one can. */
@@ -37,7 +37,7 @@ export class StandInSimulation implements SimulationPort {
 
   constructor(
     project: ProjectSnapshot,
-    private readonly step: StandInStep,
+    private readonly tickOf: StandInTick,
     private readonly options: StandInOptions = {},
   ) {
     this.running = options.running ?? true;
@@ -50,7 +50,7 @@ export class StandInSimulation implements SimulationPort {
       },
       call: (_pkg, input, seed, tick): SimulateOutcome => {
         try {
-          return { ok: true, answer: this.step(input, tickRandom(seed, tick)) };
+          return { ok: true, answer: this.tickOf(input, tickRandom(seed, tick)) };
         } catch (error) {
           return { ok: false, failure: { kind: 'threw', message: String(error) } };
         }

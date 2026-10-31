@@ -44,14 +44,14 @@ describe('checkSimulateAnswer', () => {
       kind: 'limit',
       value: 'queue',
       limit: 'max',
-      bound: 5000,
+      limitValue: 5000,
       got: 5001,
     });
     expect(check({ values: { queue: -1 } })).toEqual({
       kind: 'limit',
       value: 'queue',
       limit: 'min',
-      bound: 0,
+      limitValue: 0,
       got: -1,
     });
     expect(check({ values: { queue: Number.POSITIVE_INFINITY } })).toMatchObject({

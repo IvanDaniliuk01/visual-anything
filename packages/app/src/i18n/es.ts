@@ -3438,10 +3438,10 @@ export const ui: Catalog = {
     one: 'Reprodujo su único tic.',
     other: 'Reprodujo sus {count} tics.',
   },
-  'At tick {tick}, “{value}” went below its lowest limit, {bound}: it was {got}. The ticks before it are kept.':
-    'En el tic {tick}, “{value}” bajó de su límite inferior, {bound}: valía {got}. Se conservan los tics anteriores.',
-  'At tick {tick}, “{value}” went above its highest limit, {bound}: it was {got}. The ticks before it are kept.':
-    'En el tic {tick}, “{value}” pasó su límite superior, {bound}: valía {got}. Se conservan los tics anteriores.',
+  'At tick {tick}, “{value}” went below its lowest limit, {limitValue}: it was {got}. The ticks before it are kept.':
+    'En el tic {tick}, “{value}” bajó de su límite inferior, {limitValue}: valía {got}. Se conservan los tics anteriores.',
+  'At tick {tick}, “{value}” went above its highest limit, {limitValue}: it was {got}. The ticks before it are kept.':
+    'En el tic {tick}, “{value}” pasó su límite superior, {limitValue}: valía {got}. Se conservan los tics anteriores.',
   'At tick {tick}, “{value}” was “{got}”, which is not one of its choices. The ticks before it are kept.':
     'En el tic {tick}, “{value}” valía “{got}”, que no es una de sus opciones. Se conservan los tics anteriores.',
   'At tick {tick}, “{value}” was not a finite number. The ticks before it are kept.':
@@ -6446,7 +6446,7 @@ export const messages: Catalog = {
   'The element "{name}" simulates nothing.': 'El elemento "{name}" no simula nada.',
   'The simulation has no parameter "{name}".': 'La simulación no tiene el parámetro "{name}".',
   'The parameters are not an object of values by name.':
-    'Los parámetros no son un objeto JSON de valores por nombre.',
+    'Los parámetros no son un conjunto de valores por nombre.',
   'The parameter "{name}" is not a number.': 'El parámetro "{name}" no es un número.',
   'The parameter "{name}" is below its lowest, {min}.':
     'El parámetro "{name}" está por debajo de su mínimo, {min}.',

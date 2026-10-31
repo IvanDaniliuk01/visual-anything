@@ -12,7 +12,7 @@ import {
 } from '@visual-anything/core';
 import type { SimulationDefinition } from '@visual-anything/schema';
 import { testProject } from '../../../core/src/test/fixtures';
-import { StandInSimulation, type StandInOptions, type StandInStep } from '../simulation/stand-in';
+import { StandInSimulation, type StandInOptions, type StandInTick } from '../simulation/stand-in';
 import { SimulationStore } from '../simulation/store';
 
 /** A queue under load: its length, with its limit, and the latency it gives, an attribute too. */
@@ -49,7 +49,7 @@ export function simulatingProject(): ProjectSnapshot {
  * The queue grows by the arrivals past what the workers take, each tick, without chance; its
  * latency follows it. Even ticks mark the API and its read of the database.
  */
-export const LOAD_STEP: StandInStep = (input: SimulateInput) => {
+export const LOAD_TICK: StandInTick = (input: SimulateInput) => {
   const { parameters, state, tick } = input.context;
   const before = typeof state === 'number' ? state : 0;
   const queue = Math.max(
@@ -64,9 +64,9 @@ export const LOAD_STEP: StandInStep = (input: SimulateInput) => {
 };
 
 /** A store over the stand-in, with the project and the services' simulation. */
-export function simulationHarness(step: StandInStep = LOAD_STEP, options?: StandInOptions) {
+export function simulationHarness(tickOf: StandInTick = LOAD_TICK, options?: StandInOptions) {
   const project = simulatingProject();
-  const worker = new StandInSimulation(project, step, options);
+  const worker = new StandInSimulation(project, tickOf, options);
   const store = new SimulationStore(worker);
   const simulation = simulationOf(definitionsIn(project), 'test.service') as ComponentSimulation;
   return { project, worker, store, simulation };

@@ -30,7 +30,7 @@ describe('the words of simulation runs', () => {
     expect(
       stopText(
         en,
-        { kind: 'limit', tick: 2, value: 'queue', limit: 'max', bound: 50, got: 57 },
+        { kind: 'limit', tick: 2, value: 'queue', limit: 'max', limitValue: 50, got: 57 },
         LOAD,
       ),
     ).toBe(
@@ -39,7 +39,7 @@ describe('the words of simulation runs', () => {
     expect(
       stopText(
         en,
-        { kind: 'limit', tick: 2, value: 'queue', limit: 'min', bound: 0, got: -1 },
+        { kind: 'limit', tick: 2, value: 'queue', limit: 'min', limitValue: 0, got: -1 },
         LOAD,
       ),
     ).toContain('went below its lowest limit, 0 items');
@@ -70,7 +70,7 @@ describe('the words of simulation runs', () => {
     expect(
       stopText(
         es,
-        { kind: 'limit', tick: 2, value: 'queue', limit: 'max', bound: 50, got: 57 },
+        { kind: 'limit', tick: 2, value: 'queue', limit: 'max', limitValue: 50, got: 57 },
         LOAD,
       ),
     ).toBe(

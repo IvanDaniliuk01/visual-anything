@@ -13,7 +13,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import { testProject } from '../../../core/src/test/fixtures';
 import { QUEUE } from '../../../core/src/test/simulation';
-import { StandInSimulation, type StandInStep } from './stand-in';
+import { StandInSimulation, type StandInTick } from './stand-in';
 import { SimulationStore } from './store';
 
 /** The test project, its services simulating a work queue. */
@@ -29,7 +29,7 @@ function project(): ProjectSnapshot {
 }
 
 /** A queue: arrivals drawn from the tick's generator, workers' work out, the queue between. */
-const queue: StandInStep = (input: SimulateInput, random) => {
+const queue: StandInTick = (input: SimulateInput, random) => {
   const { parameters, state, tick } = input.context;
   const before = typeof state === 'number' ? state : 0;
   const arrivals = Math.floor(random() * (parameters.arrivals as number) * 2);
@@ -38,11 +38,11 @@ const queue: StandInStep = (input: SimulateInput, random) => {
 };
 
 function setUp(
-  step: StandInStep = queue,
+  tickOf: StandInTick = queue,
   options?: ConstructorParameters<typeof StandInSimulation>[2],
 ) {
   const state = project();
-  const worker = new StandInSimulation(state, step, options);
+  const worker = new StandInSimulation(state, tickOf, options);
   const store = new SimulationStore(worker);
   const simulation = simulationOf(definitionsIn(state), 'test.service') as ComponentSimulation;
   return { state, worker, store, simulation };
@@ -198,7 +198,7 @@ describe('SimulationStore', () => {
   });
 
   it('stops cleanly past a limit, keeping the ticks before it, and says why', () => {
-    const flood: StandInStep = ({ context }) => ({ values: { queue: context.tick * 1000 } });
+    const flood: StandInTick = ({ context }) => ({ values: { queue: context.tick * 1000 } });
     const { worker, store, simulation } = setUp(flood);
     store.open('api', simulation);
     store.play('api', 'max');
@@ -207,14 +207,14 @@ describe('SimulationStore', () => {
     expect(store.get('api')).toMatchObject({
       shown: 5,
       playing: false,
-      stop: { kind: 'limit', tick: 6, value: 'queue', limit: 'max', bound: 5000, got: 6000 },
+      stop: { kind: 'limit', tick: 6, value: 'queue', limit: 'max', limitValue: 5000, got: 6000 },
     });
     expect(store.get('api')?.ticks.length).toBe(6);
     expect(worker.failures).toEqual([]);
   });
 
   it('stops when the code fails, counting the failure', () => {
-    const failing: StandInStep = ({ context }) => {
+    const failing: StandInTick = ({ context }) => {
       if (context.tick === 3) throw new Error('boom');
       return { values: { queue: 1 } };
     };
@@ -242,6 +242,23 @@ describe('SimulationStore', () => {
     };
     worker.refresh(edited);
     expect(store.get('api')?.stop).toEqual({ kind: 'changed', tick: 1 });
+  });
+
+  it('never runs from here once the model changed under a run: Reset takes it up', () => {
+    const { state, worker, store, simulation } = setUp();
+    store.open('api', simulation, { tick: 10 });
+    worker.work();
+    const renamed = state.model.elements.map((each) =>
+      each.id === 'api' ? { ...each, name: 'Gateway' } : each,
+    );
+    worker.refresh({ ...state, model: { ...state.model, elements: renamed } });
+    store.goTo('api', 4);
+    const held = store.get('api')?.ticks.length;
+    const asked = worker.requests.length;
+    store.fromHere('api');
+    expect(worker.requests.length).toBe(asked);
+    expect(store.get('api')?.ticks.length).toBe(held);
+    expect(store.get('api')?.stop?.kind).toBe('changed');
   });
 
   it('says why it cannot run: no worker, code not approved, or nothing to simulate', () => {

@@ -122,3 +122,11 @@ A component with `simulation` whose package code does not export `simulate`, or 
   - **Words.** In Spanish a simulation run is a "corrida", a tick a "tic", a parameter a "parámetro", a seed a "semilla" and a simulated value a "valor simulado". "Simulación" is a term of its own now: the catalog test avoids it only for scenarios, and avoids the new terms' Avoid lists where they are not other terms.
   - **The store**, as the seam left it, but for one fix and one saving: opening, closing and the worker's restart drop what `simulated()` and `marks()` kept, so a closed run's values are never read; and a run whose tick shown stayed keeps its map of values, so the canvas works out again only the elements whose tick moved.
   - **The code worker's host** is made by the shell, which lends it to package code (`usePackageCode`'s `makeHost`) and to the tab's simulation store, through a port lent again whenever React mounts the shell's effects again.
+
+<!-- Decided by Claude on 2026-10-31 under the user's standing delegation of design decisions, after M12's spec review. -->
+
+- 2026-10-31 (M12's spec review): **a run reads its model once, and goes on from nothing else.**
+  - **The model a run reads.** Code granted `model:read` reads, at every tick, the project the run started from, never the project as it is now. Since what such code reads cannot be told apart from the rest of the model, any edit to the model ends its run, as one to the element or what lies around it ends any run.
+  - **No going on from a changed model.** Run from here and Play after a run played its ticks first check that the run can still go on as it started; when the model or the code changed, they answer the stop `changed` and work nothing out. The section disables Run from here on that stop: Reset plays the run again from the model as it is now.
+  - **Words.** A limit's value is `limitValue` in a stop, in Claude's answers and in the app's templates, since the glossary avoids "bound"; tests and helpers name ticks, never steps.
+  - **Left for later:** a past tick worked out again that answers otherwise is recorded as a failure at the next tick, not at the one worked again; and no property test bounds the text of the states a thinned run keeps, which the real limits bound at 100 states of 64 KiB.

@@ -98,7 +98,12 @@ describe('the sample that simulates', () => {
 
   it('goes past what the queue holds when arrivals outgrow its workers, keeping what came before', () => {
     const { shown, worker } = played('audit-queue', { arrivals: 50 });
-    expect(shown.stop).toMatchObject({ kind: 'limit', value: 'queue', limit: 'max', bound: 5000 });
+    expect(shown.stop).toMatchObject({
+      kind: 'limit',
+      value: 'queue',
+      limit: 'max',
+      limitValue: 5000,
+    });
     expect(shown.stop?.tick).toBeGreaterThan(300);
     expect(shown.stop?.tick).toBeLessThan(599);
     expect(shown.ticks.length).toBe(shown.stop?.tick);
@@ -129,7 +134,7 @@ describe('the sample that simulates', () => {
       kind: 'limit',
       value: 'reviews',
       limit: 'max',
-      bound: 4,
+      limitValue: 4,
       got: 5,
     });
   });

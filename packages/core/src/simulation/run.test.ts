@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { QUEUE } from '../test/simulation';
-import { play, stepOf } from '../test/simulation-step';
+import { play, checkedTickOf } from '../test/simulation-tick';
 import { checkSimulateAnswer } from './answer';
 import { defaultParameters } from './parameters';
 import { SimulationRun, isFailure } from './run';
@@ -48,7 +48,7 @@ describe('SimulationRun', () => {
       tick: 1,
       value: 'queue',
       limit: 'max',
-      bound: 5000,
+      limitValue: 5000,
       got: 6000,
     });
     expect(run.length).toBe(1);
@@ -138,7 +138,7 @@ describe('SimulationRun', () => {
     run.goTo(250);
     const resume = run.fromHere();
     expect(resume.tick).toBe(201);
-    const again = stepOf(QUEUE, run, 201, resume.state);
+    const again = checkedTickOf(QUEUE, run, 201, resume.state);
     expect(again.kind === 'tick' && again.tick).toEqual(run.tickAt(201));
   });
 });

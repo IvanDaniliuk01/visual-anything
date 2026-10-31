@@ -7,7 +7,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { QUEUE } from '../test/simulation';
-import { play } from '../test/simulation-step';
+import { play } from '../test/simulation-tick';
 import { checkParameters, type RunParameters } from './parameters';
 import { SimulationRun, type RunBudget } from './run';
 

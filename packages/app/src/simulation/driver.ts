@@ -37,12 +37,22 @@ export interface SimulationHost {
    * The code of a package, running now and exporting `simulate`, with the hash it runs by; or why
    * it cannot simulate.
    */
-  code(pkg: Id): { ok: true; hash: string } | { ok: false; reason: SimulationUnavailable };
+  code(
+    pkg: Id,
+  ):
+    { ok: true; hash: string; readsModel?: boolean } | { ok: false; reason: SimulationUnavailable };
   /**
    * Calls the package's `simulate` once, with `input`, and `context.random()` and `Math.random()`
-   * drawing from `tickRandom(seed, tick)`.
+   * drawing from `tickRandom(seed, tick)`. Code granted `model:read` reads `project`, the one the
+   * run started from, never the project as it is now.
    */
-  call(pkg: Id, input: SimulateInput, seed: number, tick: number): SimulateOutcome;
+  call(
+    pkg: Id,
+    input: SimulateInput,
+    seed: number,
+    tick: number,
+    project: ProjectSnapshot,
+  ): SimulateOutcome;
   /** Counts a failure of a package's code towards turning it off (ADR 0054). */
   failed?(pkg: Id, failure: CodeFailure): void;
 }
@@ -54,6 +64,10 @@ interface Driven {
   base: HookInput;
   /** What the run read when it started, as JSON, to tell an edit to it. */
   baseKey: string;
+  /** The project the run started from, which code granted `model:read` reads at every tick. */
+  project: ProjectSnapshot;
+  /** Whether its code reads the whole model, so that any edit to the model ends the run. */
+  readsModel: boolean;
   markable: ReadonlySet<Id>;
   /** How many ticks the tab wants held. */
   until: number;
@@ -95,21 +109,67 @@ export class SimulationDriver {
     const replies: SimulationReply[] = [];
     for (const [element, driven] of this.runs) {
       if (driven.run.stop) continue;
-      const base = hookInputOf(project, element);
-      const code = this.host.code(driven.pkg);
-      const changed =
-        !base ||
-        JSON.stringify(base) !== driven.baseKey ||
-        !code.ok ||
-        code.hash !== driven.run.hash;
-      if (!changed) continue;
+      const stale = this.stale(element, driven, project);
+      if (!stale) continue;
       driven.run.modelChanged();
       replies.push(...this.flush(element, driven));
       // Code that can no longer simulate, such as code turned off after its third stop in a row,
       // says why, as a run that cannot start would.
-      if (base && !code.ok)
-        replies.push({ kind: 'simulation/unavailable', element, reason: code.reason });
+      if (stale.reason)
+        replies.push({ kind: 'simulation/unavailable', element, reason: stale.reason });
     }
+    return replies;
+  }
+
+  /**
+   * Whether a run can no longer go on as it started, and why it cannot run when that is the reason:
+   * its element or what lies around it changed, its code changed or can no longer simulate, or, for
+   * code that reads the whole model, the model changed at all.
+   */
+  private stale(
+    element: Id,
+    driven: Driven,
+    project: ProjectSnapshot,
+  ): { reason?: SimulationUnavailable } | undefined {
+    const base = hookInputOf(project, element);
+    const code = this.host.code(driven.pkg);
+    if (base && !code.ok) return { reason: code.reason };
+    const changed =
+      !base ||
+      !code.ok ||
+      code.hash !== driven.run.hash ||
+      (driven.readsModel && project.model !== driven.project.model) ||
+      JSON.stringify(base) !== driven.baseKey;
+    return changed ? {} : undefined;
+  }
+
+  /**
+   * The answer to Play more or Run from here on a run that can no longer go on as it started: the
+   * model changed, which Reset takes up from the model as it is now. Undefined when it can go on.
+   */
+  private refusedAsChanged(element: Id, driven: Driven): SimulationReply[] | undefined {
+    const project = this.project;
+    if (!project) return undefined;
+    const stale = this.stale(element, driven, project);
+    const changedBefore = driven.run.stop?.kind === 'changed';
+    if (!stale && !changedBefore) return undefined;
+    const stop: SimulationStop =
+      driven.run.stop?.kind === 'changed'
+        ? driven.run.stop
+        : { kind: 'changed', tick: driven.run.next };
+    driven.stopTold = stop;
+    const replies: SimulationReply[] = [
+      {
+        kind: 'simulation/ticks',
+        element,
+        from: driven.told,
+        ticks: [],
+        planned: driven.run.ticks,
+        stop,
+      },
+    ];
+    if (stale?.reason)
+      replies.push({ kind: 'simulation/unavailable', element, reason: stale.reason });
     return replies;
   }
 
@@ -130,6 +190,8 @@ export class SimulationDriver {
       case 'simulation/more': {
         const driven = this.runs.get(element);
         if (!driven) return [];
+        const refused = this.refusedAsChanged(element, driven);
+        if (refused) return refused;
         driven.run.more();
         driven.until = Math.max(driven.until, request.until);
         return [this.ticksReply(element, driven, driven.told, [])];
@@ -137,6 +199,8 @@ export class SimulationDriver {
       case 'simulation/from-here': {
         const driven = this.runs.get(element);
         if (!driven) return [];
+        const refused = this.refusedAsChanged(element, driven);
+        if (refused) return refused;
         driven.run.goTo(request.tick);
         const point = driven.run.fromHere();
         driven.replay = point.tick < driven.run.next ? { ...point } : undefined;
@@ -158,7 +222,7 @@ export class SimulationDriver {
       worked = false;
       for (const driven of this.runs.values()) {
         if (!wantsMore(driven)) continue;
-        this.step(driven);
+        this.workTick(driven);
         worked = true;
         if (done()) break;
       }
@@ -199,6 +263,8 @@ export class SimulationDriver {
       definition: simulated.definition,
       base,
       baseKey: JSON.stringify(base),
+      project,
+      readsModel: code.readsModel === true,
       markable: markableOf(base, project),
       until: request.until,
       told: 0,
@@ -207,7 +273,7 @@ export class SimulationDriver {
   }
 
   /** Works out one tick of a run: one worked again after Run from here, or the next. */
-  private step(driven: Driven): void {
+  private workTick(driven: Driven): void {
     const { run } = driven;
     const replay = driven.replay;
     if (replay) {
@@ -248,7 +314,7 @@ export class SimulationDriver {
       tick,
       ...(driven.definition.tick ? { tickLength: driven.definition.tick } : {}),
     });
-    return this.host.call(driven.pkg, input, driven.run.seed, tick);
+    return this.host.call(driven.pkg, input, driven.run.seed, tick, driven.project);
   }
 
   private fail(driven: Driven, failure: CodeFailure): void {

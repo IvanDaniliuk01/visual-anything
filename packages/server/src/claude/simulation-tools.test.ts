@@ -89,7 +89,7 @@ describe('run_simulation', () => {
       parameters: { arrivals: 50 },
     });
     const stop = run.stop as { kind: string; value: string; tick: number; why: string };
-    expect(stop).toMatchObject({ kind: 'limit', value: 'queue', limit: 'max', bound: 5000 });
+    expect(stop).toMatchObject({ kind: 'limit', value: 'queue', limit: 'max', limitValue: 5000 });
     expect(stop.why).toMatch(/queue went above its highest, 5000/);
     expect(run.ticks).toBe(stop.tick);
     const sampled = run.sampled as { tick: number }[];

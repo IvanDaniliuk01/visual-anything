@@ -311,7 +311,8 @@ export class SimulationStore {
   /** Run from here: drops the ticks after the one shown, and plays on from it. */
   fromHere(element: Id): void {
     const shown = this.runs.get(element);
-    if (!shown || shown.ticks.length === 0) return;
+    // A run the model changed under goes on from nowhere: Reset plays it from the model as it is.
+    if (!shown || shown.ticks.length === 0 || shown.stop?.kind === 'changed') return;
     shown.ticks = shown.ticks.slice(0, shown.shown + 1);
     delete shown.stop;
     shown.playing = true;

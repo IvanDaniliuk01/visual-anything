@@ -28,7 +28,7 @@ export type SimulationStop =
       tick: number;
       value: string;
       limit: LimitKind;
-      bound?: number;
+      limitValue?: number;
       got: SimulatedValue;
     }
   /** The code failed at `tick`, which is not kept; or its state was too large to keep. */
@@ -164,7 +164,7 @@ export class SimulationRun {
         value,
         limit,
         got,
-        ...(checked.bound === undefined ? {} : { bound: checked.bound }),
+        ...(checked.limitValue === undefined ? {} : { limitValue: checked.limitValue }),
       });
     }
     if (checked.kind === 'dropped') {

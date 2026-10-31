@@ -40,7 +40,7 @@ export type CheckedTick =
       value: string;
       limit: LimitKind;
       /** The limit it went past, for `min` and `max`. */
-      bound?: number;
+      limitValue?: number;
       got: SimulatedValue;
     }
   | { kind: 'dropped'; reason: string };
@@ -169,8 +169,19 @@ function dropped(reason: string): CheckedTick {
   return { kind: 'dropped', reason };
 }
 
-function limit(value: string, kind: LimitKind, got: SimulatedValue, bound?: number): CheckedTick {
-  return { kind: 'limit', value, limit: kind, got, ...(bound === undefined ? {} : { bound }) };
+function limit(
+  value: string,
+  kind: LimitKind,
+  got: SimulatedValue,
+  limitValue?: number,
+): CheckedTick {
+  return {
+    kind: 'limit',
+    value,
+    limit: kind,
+    got,
+    ...(limitValue === undefined ? {} : { limitValue }),
+  };
 }
 
 /** A plain object: one that derives from Object or from nothing, without a `__proto__` key. */

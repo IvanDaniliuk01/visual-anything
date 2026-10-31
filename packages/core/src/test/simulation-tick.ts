@@ -10,7 +10,7 @@ import { tickRandom } from '../simulation/random';
 import type { SimulationRun } from '../simulation/run';
 
 /** What one tick of the stand-in answers: arrivals in, workers' work out, the queue between. */
-export function queueStep(
+export function queueTick(
   parameters: RunParameters,
   state: JsonValue | undefined,
   tick: number,
@@ -31,7 +31,7 @@ export function queueStep(
 const MARKABLE = new Set(['q1']);
 
 /** What tick `tick` of a run answers, checked, from the state the tick before answered. */
-export function stepOf(
+export function checkedTickOf(
   definition: SimulationDefinition,
   run: SimulationRun,
   tick: number,
@@ -39,7 +39,7 @@ export function stepOf(
 ) {
   return checkSimulateAnswer(
     definition,
-    queueStep(run.parameters, state, tick, tickRandom(run.seed, tick)),
+    queueTick(run.parameters, state, tick, tickRandom(run.seed, tick)),
     MARKABLE,
   );
 }
@@ -49,7 +49,7 @@ export function play(definition: SimulationDefinition, run: SimulationRun, until
   const resume = run.resumePoint();
   let state = resume.state;
   for (let tick = resume.tick; tick < run.next; tick++) {
-    const checked = stepOf(definition, run, tick, state);
+    const checked = checkedTickOf(definition, run, tick, state);
     if (checked.kind !== 'tick')
       throw new Error(`Tick ${tick} answered otherwise when worked again.`);
     run.restore(tick, checked.state, checked.stateSize);
@@ -57,7 +57,7 @@ export function play(definition: SimulationDefinition, run: SimulationRun, until
   }
   while (!run.stop && run.length < until) {
     const tick = run.next;
-    const checked = stepOf(definition, run, tick, run.stateForNext());
+    const checked = checkedTickOf(definition, run, tick, run.stateForNext());
     run.record(tick, checked);
   }
 }

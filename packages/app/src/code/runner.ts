@@ -254,9 +254,13 @@ export class CodeRunner {
         if (run.state !== 'running' || !run.hooks.includes('simulate')) {
           return { ok: false, reason: 'no-code' };
         }
-        return { ok: true, hash: running.request.hash };
+        return {
+          ok: true,
+          hash: running.request.hash,
+          readsModel: running.request.granted.includes('model:read'),
+        };
       },
-      call: (pkg, input, seed, tick): SimulateOutcome => {
+      call: (pkg, input, seed, tick, project): SimulateOutcome => {
         const running = this.running.get(pkg);
         const sandbox = this.sandbox;
         this.simulating = { pkg, element: { id: input.element.id, name: input.element.name } };
@@ -270,7 +274,8 @@ export class CodeRunner {
           input,
           seed,
           tick,
-          reads && this.project ? modelReaderOf(this.project) : undefined,
+          // The project the run started from: a run reads its model once (ADR 0085).
+          reads ? readerOf(project) : undefined,
         );
         return outcome.ok
           ? { ok: true, answer: outcome.answer }
@@ -747,6 +752,18 @@ function sameGrant(a: RunPackage, b: RunPackage): boolean {
 }
 
 /** A token for each model a project held: a hook with `model:read` is called again when it changes. */
+/** A reader of each project a run started from, made once for all its ticks. */
+const readers = new WeakMap<ProjectSnapshot, ModelReader>();
+
+function readerOf(project: ProjectSnapshot): ModelReader {
+  let reader = readers.get(project);
+  if (!reader) {
+    reader = modelReaderOf(project);
+    readers.set(project, reader);
+  }
+  return reader;
+}
+
 const modelTokens = new WeakMap<object, number>();
 let lastModelToken = 0;
 
