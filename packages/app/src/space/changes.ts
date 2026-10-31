@@ -17,5 +17,8 @@ export function changeOf(before: SpaceShown, after: SpaceShown): SpaceChange | u
   if (before.explode !== after.explode) change.explode = after.explode ?? 0;
   if (before.names !== after.names) change.names = after.names ?? false;
   if (before.lines !== after.lines) change.lines = after.lines ?? [];
+  if (before.theme !== after.theme) change.theme = after.theme ?? 'light';
+  if (before.pixelRatio !== after.pixelRatio) change.pixelRatio = after.pixelRatio ?? 1;
+  if (before.handles !== after.handles) change.handles = after.handles ?? null;
   return Object.keys(change).length === 0 ? undefined : change;
 }

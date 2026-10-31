@@ -34,10 +34,11 @@
  * there plus one, or 0 where none is. Each reader checks a message strictly and answers it, or why it
  * cannot be read, as the core's readers do.
  */
-import { MAX_SPACE_DISTANCE, SOLID_CAPS, isId } from '@visual-anything/core';
+import { MAX_SPACE_DISTANCE, SOLID_CAPS, isId, type ThemeName } from '@visual-anything/core';
 import type {
   Color,
   Id,
+  Rotation,
   SolidCamera,
   SpaceBounds,
   SpaceCamera,
@@ -165,6 +166,13 @@ export interface SpaceDrawnEntry {
   part?: { of: Id; index: number };
   /** Drawn as a marker at its origin: posed, with neither a solid nor anything in it. */
   marker?: boolean;
+  /**
+   * The collapsed container of the open view it is drawn as: pointed at, picked and marked as that
+   * container, whose state it takes (ADR 0076).
+   */
+  as?: Id;
+  /** Its shape's fill on the canvas, which its marker is drawn in unless an overlay fills it. */
+  fill?: Color;
 }
 
 /** How one element in a space looks, from the canvas's emphasis and marks (`space/states.ts`). */
@@ -201,6 +209,27 @@ export interface SpaceLine {
   markers?: number[];
 }
 
+/** The least and the most device pixels a space's frames draw for each pixel of the page. */
+export const SPACE_PIXEL_RATIOS = { least: 0.5, most: 4 } as const;
+
+/** An axis of the handles. */
+export type SpaceAxis = 'x' | 'y' | 'z';
+
+/**
+ * The handles that move or rotate posed elements (ADR 0076), which the worker draws over a space and
+ * the page hit-tests and drives (`solids/worker/space/handles.ts` works out where they are for both).
+ */
+export interface SpaceHandles {
+  /** Arrows along three axes to move, or rings around them to rotate. */
+  mode: 'move' | 'rotate';
+  /** Where they stand, in the coordinates of the element the panel shows. */
+  at: SpacePoint;
+  /** How their axes are turned from those coordinates' own; not turned when absent. */
+  rotation?: Rotation;
+  /** The axis pointed at or dragged, drawn stronger. */
+  active?: SpaceAxis;
+}
+
 /** What a space shows, as `space/show` carries it and `space/update` changes it. */
 export interface SpaceShown {
   /** The frames' size, in pixels. */
@@ -215,12 +244,25 @@ export interface SpaceShown {
   /** Whether Names is on. */
   names?: boolean;
   lines?: readonly SpaceLine[];
+  /** The theme its marks, names, lines and ground are drawn in; light when absent. */
+  theme?: ThemeName;
+  /**
+   * Device pixels for each pixel of the page, from {@link SPACE_PIXEL_RATIOS}: what sizes markers,
+   * marks, lines and names, which keep their size on the screen; 1 when absent.
+   */
+  pixelRatio?: number;
+  /** The handles drawn over it, which the page drives; none when absent. */
+  handles?: SpaceHandles;
 }
 
-/** A change of what a space shows: what it gives replaces what was; `null` takes a camera or a cut away. */
-export type SpaceChange = Partial<Omit<SpaceShown, 'camera' | 'cut'>> & {
+/**
+ * A change of what a space shows: what it gives replaces what was; `null` takes a camera, a cut or
+ * the handles away.
+ */
+export type SpaceChange = Partial<Omit<SpaceShown, 'camera' | 'cut' | 'handles'>> & {
   camera?: SpaceCamera | null;
   cut?: SpaceCut | null;
+  handles?: SpaceHandles | null;
 };
 
 /** Starts drawing a space, by its number, which its frames carry. */
@@ -392,12 +434,17 @@ export interface SpaceFramedReply {
   camera: SpaceCamera;
 }
 
-/** What lies under a pixel of a space: an element, by id, or none, and the point there. */
+/**
+ * What lies under a pixel of a space: an element, by id, or none, and the point there; or a relation
+ * drawn as a line, by id, with `element` null.
+ */
 export interface SpacePickedReply {
   type: 'space/picked';
   space: number;
   id: number;
   element: Id | null;
+  /** The relation whose line lies under the pixel, which is drawn over the solids. */
+  relation?: Id;
   /** The point under the pixel, in the coordinates of the element the panel shows; absent on nothing. */
   point?: SpacePoint;
 }
@@ -703,7 +750,7 @@ function entryOf(value: unknown): SpaceDrawnEntry {
   const entry = recordOf(value, 'An entry of a space');
   onlyKeys(
     entry,
-    ['element', 'name', 'matrix', 'solid', 'bounds', 'part', 'marker'],
+    ['element', 'name', 'matrix', 'solid', 'bounds', 'part', 'marker', 'as', 'fill'],
     'An entry of a space',
   );
   const { name } = entry;
@@ -731,6 +778,51 @@ function entryOf(value: unknown): SpaceDrawnEntry {
     }
     read.marker = true;
   }
+  if (entry.as !== undefined) read.as = idOf(entry.as, 'The container an entry is drawn as');
+  if (entry.fill !== undefined) read.fill = colorOf(entry.fill);
+  return read;
+}
+
+function colorOf(value: unknown): Color {
+  if (typeof value !== 'string' || !COLOR.test(value)) refuse('A fill is a color, #RRGGBB.');
+  return value;
+}
+
+/** A rotation: a quaternion of finite numbers, within a millionth of unit length. */
+function rotationOf(value: unknown): Rotation {
+  const rotation = recordOf(value, 'A rotation');
+  onlyKeys(rotation, ['x', 'y', 'z', 'w'], 'A rotation');
+  const read = {
+    x: finiteWithin(rotation.x, -1, 1, 'A rotation’s x'),
+    y: finiteWithin(rotation.y, -1, 1, 'A rotation’s y'),
+    z: finiteWithin(rotation.z, -1, 1, 'A rotation’s z'),
+    w: finiteWithin(rotation.w, -1, 1, 'A rotation’s w'),
+  };
+  if (Math.abs(Math.hypot(read.x, read.y, read.z, read.w) - 1) > 1e-6) {
+    refuse('A rotation is a quaternion of unit length.');
+  }
+  return read;
+}
+
+const AXES: readonly string[] = ['x', 'y', 'z'];
+
+function handlesOf(value: unknown): SpaceHandles {
+  const handles = recordOf(value, 'Handles');
+  onlyKeys(handles, ['mode', 'at', 'rotation', 'active'], 'Handles');
+  if (handles.mode !== 'move' && handles.mode !== 'rotate') {
+    refuse('Handles move or rotate: "move" or "rotate".');
+  }
+  const read: SpaceHandles = {
+    mode: handles.mode,
+    at: spacePointOf(handles.at, 'Where handles stand'),
+  };
+  if (handles.rotation !== undefined) read.rotation = rotationOf(handles.rotation);
+  if (handles.active !== undefined) {
+    if (typeof handles.active !== 'string' || !AXES.includes(handles.active)) {
+      refuse('The axis of the handles pointed at is x, y or z.');
+    }
+    read.active = handles.active as SpaceAxis;
+  }
   return read;
 }
 
@@ -743,12 +835,7 @@ function stateOf(value: unknown): SpaceStateEntry {
   for (const key of STATE_FLAGS) {
     if (state[key] !== undefined && flag(state[key], `Whether it is ${key}`)) read[key] = true;
   }
-  if (state.fill !== undefined) {
-    if (typeof state.fill !== 'string' || !COLOR.test(state.fill)) {
-      refuse('A fill is a color, #RRGGBB.');
-    }
-    read.fill = state.fill;
-  }
+  if (state.fill !== undefined) read.fill = colorOf(state.fill);
   if (state.opacity !== undefined) read.opacity = finiteWithin(state.opacity, 0, 1, 'An opacity');
   return read;
 }
@@ -783,9 +870,15 @@ const SHOWN_KEYS = [
   'explode',
   'names',
   'lines',
+  'theme',
+  'pixelRatio',
+  'handles',
 ] as const;
 
-/** The parts of what a space shows that a message gives, each read; `nulls` lets a camera and a cut go. */
+/**
+ * The parts of what a space shows that a message gives, each read; `nulls` lets a camera, a cut and
+ * the handles go.
+ */
 function shownPartsOf(message: Record<string, unknown>, nulls: boolean): SpaceChange {
   const read: SpaceChange = {};
   if (message.size !== undefined) read.size = sizeOf(message.size, false);
@@ -813,6 +906,23 @@ function shownPartsOf(message: Record<string, unknown>, nulls: boolean): SpaceCh
   if (message.names !== undefined) read.names = flag(message.names, 'Whether names show');
   if (message.lines !== undefined) {
     read.lines = listOf(message.lines, MAX_SPACE_LINES, 'A space’s lines').map(lineOf);
+  }
+  if (message.theme !== undefined) {
+    if (message.theme !== 'light' && message.theme !== 'dark') {
+      refuse('A space’s theme is "light" or "dark".');
+    }
+    read.theme = message.theme;
+  }
+  if (message.pixelRatio !== undefined) {
+    read.pixelRatio = finiteWithin(
+      message.pixelRatio,
+      SPACE_PIXEL_RATIOS.least,
+      SPACE_PIXEL_RATIOS.most,
+      'A space’s pixel ratio',
+    );
+  }
+  if (message.handles !== undefined) {
+    read.handles = nulls && message.handles === null ? null : handlesOf(message.handles);
   }
   return read;
 }
@@ -1172,12 +1282,18 @@ export function readSolidWorkerReply(value: unknown): Read<SolidWorkerReply> {
           camera: spaceCameraOf(message.camera),
         };
       case 'space/picked':
-        onlyKeys(message, ['type', 'space', 'id', 'element', 'point'], 'space/picked');
+        onlyKeys(message, ['type', 'space', 'id', 'element', 'relation', 'point'], 'space/picked');
+        if (message.relation !== undefined && message.element !== null) {
+          refuse('A pick answers an element or a relation, not both.');
+        }
         return {
           type: 'space/picked',
           space: counter(message.space, 'A space'),
           id: counter(message.id, 'A pick’s id'),
           element: message.element === null ? null : idOf(message.element, 'The element picked'),
+          ...(message.relation === undefined
+            ? {}
+            : { relation: idOf(message.relation, 'The relation picked') }),
           ...(message.point === undefined
             ? {}
             : { point: spacePointOf(message.point, 'The point picked') }),

@@ -1015,13 +1015,14 @@ Its tasks run in this order:
   - The selection and hover shared with the canvas by element id.
   - A stand-in worker that draws boxes, for tests.
   - Done 2026-10-31, by a builder (ADR 0076's clarification of that date): the `space/*` messages with `SpaceGpu` beside `SolidGpu`, whose first drawing draws each solid at its place lit as studio; `SolidClient.showSpace` and its `SpaceDrawing`; `spaceStates` from the canvas's emphasis by shape key; `HoverStore` by element id, written by the canvas; `SpacePanelStore` and `useSpacePanel()` for each view, the shell's fourth column, Physical space in the toolbar and Alt+Shift+P; the stand-in worker draws spaces as boxes. Nothing of it has been seen on a GPU yet.
-- [ ] **Drawing a space** (`app/src/solids/worker/space/`):
+- [x] **Drawing a space** (`app/src/solids/worker/space/`):
   - solids at their places, repeated ones as instances; anchored parts in their solids; markers; faint containers;
   - the states: faint, hidden, highlighted, selected and hovered, overlays' fill and opacity, collapsed containers drawn as one;
   - names facing the screen, the ground grid and its scale, and lines for relations with their markers;
   - the cutting plane with its cut filled, and the exploded view;
   - drawing only when something changes, and the farthest solids as boxes while the camera moves past the triangles' mark;
   - picking on the solids' bounding volume hierarchies.
+  - Done 2026-10-31, by a builder, tested on three.js objects without a renderer; nothing of it has been seen on a GPU yet (ADR 0076's clarification of that date): each piece of a solid an `InstancedMesh` for each look over the solid's own geometry; marks drawn from a pass of their bits as the canvas draws its parts'; the cut capped by back faces drawn flat; lines, names, the scale and the handles on a 2D canvas over the picture; picks answering a relation's line too. Entries gain `as` and `fill`, what a space shows `theme`, `pixelRatio` and `handles`, and a pick `relation`.
 - [ ] **The panel's interaction and its list** (`app/src/space/`):
   - moving its camera around, panning and zooming it, Fit, framing, and touch;
   - selecting and hovering, linked to the canvas, the outline, the element list and the inspector;

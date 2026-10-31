@@ -21,7 +21,7 @@ import {
   type ProjectSnapshot,
   type ViewSpace,
 } from '@visual-anything/core';
-import type { Id, ViewFile } from '@visual-anything/schema';
+import type { Color, Id, ViewFile } from '@visual-anything/schema';
 import {
   useEffect,
   useId,
@@ -41,10 +41,12 @@ import { useAttributeLookup } from '../live-values/context';
 import type { SolidClient, SolidProblem, SpaceDrawing } from '../solids/solid-client';
 import {
   LARGEST_SOLID_PICTURE,
+  SPACE_PIXEL_RATIOS,
   type PixelSize,
   type SpaceFrameReply,
   type SpaceShown,
 } from '../solids/protocol';
+import { usePreferences } from '../theme/usePreferences';
 import { useSpacePanelState } from './context';
 import { changeOf } from './changes';
 import { drawsNothing, spaceEntriesOf } from './entries';
@@ -155,10 +157,21 @@ function SpaceFrames({ client, project, view, scene, selection, space, shown }: 
   const canvas = useRef<HTMLCanvasElement>(null);
   const size = useFrameSize(box, client.limits?.largestPicture ?? LARGEST_SOLID_PICTURE);
   const index = modelIndexOf(project);
-  const entries = useMemo(
-    () => spaceEntriesOf(space, (element) => index.element(element)?.name ?? element),
-    [space, index],
-  );
+  const theme = usePreferences().theme;
+  const entries = useMemo(() => {
+    // A marker is drawn in its shape's fill, in the theme the canvas draws it in.
+    const fills = new Map<Id, Color>();
+    for (const shape of scene.shapes) {
+      if (fills.has(shape.element)) continue;
+      fills.set(shape.element, theme === 'dark' && shape.dark ? shape.dark.fill : shape.fill);
+    }
+    return spaceEntriesOf(
+      space,
+      (element) => index.element(element)?.name ?? element,
+      (element) => fills.get(element),
+    );
+  }, [space, index, scene, theme]);
+  const pixelRatio = usePixelRatio();
   const emphasis = useEmphasis();
   const hovered = useHover()?.element;
   const lookup = useAttributeLookup();
@@ -186,8 +199,10 @@ function SpaceFrames({ client, project, view, scene, selection, space, shown }: 
       ...(shown.cut ? { cut: shown.cut } : {}),
       ...(shown.explode === undefined ? {} : { explode: shown.explode }),
       ...(shown.names === undefined ? {} : { names: shown.names }),
+      theme,
+      pixelRatio,
     }),
-    [size, entries, states, shown.camera, shown.cut, shown.explode, shown.names],
+    [size, entries, states, shown.camera, shown.cut, shown.explode, shown.names, theme, pixelRatio],
   );
   const [problem, setProblem] = useState<SolidProblem>();
   const drawing = useRef<SpaceDrawing | undefined>(undefined);
@@ -270,6 +285,12 @@ function overlayOf(
       ...(look.opacity === undefined ? {} : { opacity: look.opacity }),
     };
   };
+}
+
+/** The screen's pixel ratio, as the worker takes it, which sizes what keeps its size on the screen. */
+function usePixelRatio(): number {
+  const ratio = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
+  return Math.min(SPACE_PIXEL_RATIOS.most, Math.max(SPACE_PIXEL_RATIOS.least, ratio));
 }
 
 /**

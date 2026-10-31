@@ -75,6 +75,33 @@ describe('what the app sends the worker for a space', () => {
       { type: 'space/update', space: 1, camera: null, cut: null },
       { type: 'space/update', space: 1, size: { width: 1, height: 1 }, entries: [], states: [] },
       { type: 'space/update', space: 1, explode: 0, names: false, lines: [] },
+      {
+        type: 'space/show',
+        space: 3,
+        size: SIZE,
+        entries: [
+          {
+            element: 'heart',
+            name: 'Heart',
+            matrix: IDENTITY,
+            solid: HASH,
+            as: 'chest',
+            fill: '#AA3300',
+          },
+          { element: 'pin', name: 'Pin', matrix: MOVED, marker: true, fill: '#0055FF' },
+        ],
+        states: [],
+        theme: 'dark',
+        pixelRatio: 2,
+        handles: {
+          mode: 'rotate',
+          at: { x: 1, y: 0, z: 0 },
+          rotation: { x: 0, y: Math.SQRT1_2, z: 0, w: Math.SQRT1_2 },
+          active: 'y',
+        },
+      },
+      { type: 'space/update', space: 1, handles: { mode: 'move', at: { x: 0, y: 0, z: 0 } } },
+      { type: 'space/update', space: 1, handles: null, theme: 'light', pixelRatio: 0.5 },
       { type: 'space/framing', space: 1, id: 7 },
       { type: 'space/framing', space: 1, id: 8, elements: ['arm', 'wrist'] },
       { type: 'space/pick', space: 1, id: 9, x: 12.5, y: 0 },
@@ -175,6 +202,38 @@ describe('what the app sends the worker for a space', () => {
         'A pixel picked lies within the frames of its space.',
       ],
       [{ type: 'space/end', space: 1, id: 1 }, 'space/end holds no "id".'],
+      [
+        show({ entries: [{ ...ENTRIES[0], as: 'not an id' }] }),
+        'The container an entry is drawn as is an id.',
+      ],
+      [show({ entries: [{ ...ENTRIES[2], fill: 'blue' }] }), 'A fill is a color, #RRGGBB.'],
+      [show({ theme: 'sepia' }), 'A space’s theme is "light" or "dark".'],
+      [show({ pixelRatio: 8 }), 'A space’s pixel ratio is a number from 0.5 to 4.'],
+      [show({ handles: null }), 'Handles is an object.'],
+      [
+        show({ handles: { mode: 'scale', at: { x: 0, y: 0, z: 0 } } }),
+        'Handles move or rotate: "move" or "rotate".',
+      ],
+      [
+        show({ handles: { mode: 'move', at: { x: 0, y: 0, z: 0 }, active: 'w' } }),
+        'The axis of the handles pointed at is x, y or z.',
+      ],
+      [
+        show({
+          handles: { mode: 'move', at: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 2 } },
+        }),
+        'A rotation’s w is a number from -1 to 1.',
+      ],
+      [
+        show({
+          handles: {
+            mode: 'move',
+            at: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0.5, w: 0.5 },
+          },
+        }),
+        'A rotation is a quaternion of unit length.',
+      ],
     ];
     for (const [message, why] of cases) {
       expect(reason(readSolidWorkerRequest(message)), JSON.stringify(message)).toBe(why);
@@ -197,6 +256,14 @@ describe('what the worker sends the app for a space', () => {
       { type: 'space/framed', space: 1, id: 7, camera: CAMERA },
       { type: 'space/picked', space: 1, id: 9, element: 'arm', point: { x: 0.1, y: 0.2, z: 0 } },
       { type: 'space/picked', space: 1, id: 9, element: null },
+      {
+        type: 'space/picked',
+        space: 1,
+        id: 9,
+        element: null,
+        relation: 'r1',
+        point: { x: 0.5, y: 0, z: 0 },
+      },
       {
         type: 'space/gesture-ended',
         space: 1,
@@ -234,6 +301,10 @@ describe('what the worker sends the app for a space', () => {
       [
         { type: 'space/picked', space: 1, id: 1, element: 'not an id' },
         'The element picked is an id.',
+      ],
+      [
+        { type: 'space/picked', space: 1, id: 1, element: 'arm', relation: 'r1' },
+        'A pick answers an element or a relation, not both.',
       ],
       [
         { type: 'space/gesture-ended', space: 1, gesture: 'scale', moved: [] },

@@ -127,9 +127,13 @@ export interface SpaceListeners {
   onProblem?(problem: SolidProblem): void;
 }
 
-/** What lies under a pixel of a space: an element, by id, or none, and the point there. */
+/**
+ * What lies under a pixel of a space: an element, by id, or none, and the point there; or a relation
+ * whose line is drawn there, with `element` null.
+ */
 export interface SpacePick {
   element: Id | null;
+  relation?: Id;
   /** In the coordinates of the element the panel shows; absent where nothing is. */
   point?: SpacePoint;
 }
@@ -454,7 +458,11 @@ class Client implements SolidClient {
       pick: (x, y) =>
         this.askSpace(state, (id) => ({ type: 'space/pick', space, id, x, y })).then((reply) =>
           reply?.type === 'space/picked'
-            ? { element: reply.element, ...(reply.point ? { point: reply.point } : {}) }
+            ? {
+                element: reply.element,
+                ...(reply.relation ? { relation: reply.relation } : {}),
+                ...(reply.point ? { point: reply.point } : {}),
+              }
             : undefined,
         ),
       end: () => {
@@ -888,12 +896,14 @@ class Client implements SolidClient {
 
 /** What a space shows once a change is made to it. */
 function changedShown(shown: SpaceShown, change: SpaceChange): SpaceShown {
-  const { camera, cut, ...rest } = change;
+  const { camera, cut, handles, ...rest } = change;
   const next: SpaceShown = { ...shown, ...rest };
   if (camera === null) delete next.camera;
   else if (camera !== undefined) next.camera = camera;
   if (cut === null) delete next.cut;
   else if (cut !== undefined) next.cut = cut;
+  if (handles === null) delete next.handles;
+  else if (handles !== undefined) next.handles = handles;
   return next;
 }
 

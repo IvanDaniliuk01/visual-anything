@@ -12,34 +12,44 @@
  *   Pieces of no part write 0 and still hide what lies behind them.
  * - **A lost context** is followed: three.js gets it back and uploads again what it draws next, the
  *   room's light is made again, and the host is told both times.
- * - **A space** (ADR 0076), for now drawn at its first and simplest: each entry's solid at its
- *   matrix, lit as studio, relative to the camera's target, one solid after another into one depth
- *   buffer, so that a solid drawn in several places needs no copy. States, markers, names, the cut,
- *   the exploded view, lines, instancing, the budget and picking are "Drawing a space"'s, under
- *   `space/`; until then, a pick finds nothing.
+ * - **A space** (ADR 0076) is drawn from its scene (`space/scene.ts`), placed relative to its
+ *   camera's target, in three passes and a fourth on a 2D canvas: the bits of what is marked, into a
+ *   render target without smoothing; the solids, markers and ground, lit as studio, the cut and
+ *   explosion as the scene has them; the marks along the edges of what is marked
+ *   (`space/marks.ts`); then relation lines, names, the ground's scale and the handles, facing the
+ *   screen (`space/overlay.ts`). Picks are answered from the layout the frame was drawn from.
  */
+import type { Color } from '@visual-anything/schema';
 import {
+  BufferAttribute,
+  BufferGeometry,
   DirectionalLight,
-  Matrix4,
+  Mesh,
   NearestFilter,
   NeutralToneMapping,
   NoBlending,
+  NormalBlending,
+  OrthographicCamera,
   PMREMGenerator,
   Scene,
   ShaderMaterial,
   SRGBColorSpace,
   UnsignedByteType,
   Vector2,
+  Vector3,
   WebGLRenderer,
   WebGLRenderTarget,
   type Side,
   type Texture,
 } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { rgbOf } from '../../canvas/solids/states';
 import { SOLID_BUCKETS, type SolidPartBuffer, type SolidView } from '../protocol';
 import type { BuiltSolid } from './build';
 import type { DrawnPicture, SolidGpu, SpaceGpu, SpaceToDraw } from './host';
-import { relativeMatrix, spaceKeyLight, spaceThreeCamera } from './space/stage';
+import { SpaceDrawings } from './space/drawings';
+import { MARKS_FRAGMENT, MARKS_VERTEX, markColorsOf } from './space/marks';
+import { overlayFont, overlayOf, paintOverlay } from './space/overlay';
 import { keyLightPosition, partBufferFrom, partBytes, stageView } from './stage';
 
 /** The key light's strength, beside the room's light. */
@@ -130,11 +140,66 @@ export function createThreeGpu(canvas: OffscreenCanvas): SolidGpu & SpaceGpu {
     return material;
   };
 
+  // Spaces: their scenes, the bits of what is marked, the marks' pass and the 2D canvas over them.
+  const drawings = new SpaceDrawings();
+  const bitsTarget = new WebGLRenderTarget(1, 1, {
+    type: UnsignedByteType,
+    minFilter: NearestFilter,
+    magFilter: NearestFilter,
+    generateMipmaps: false,
+    depthBuffer: true,
+    samples: 0,
+  });
+  const marksMaterial = new ShaderMaterial({
+    uniforms: {
+      bitsPass: { value: bitsTarget.texture },
+      size: { value: new Vector2(1, 1) },
+      selected: { value: new Vector3() },
+      selectedCasing: { value: new Vector3() },
+      highlight: { value: new Vector3() },
+      highlightCasing: { value: new Vector3() },
+      scale: { value: 1 },
+    },
+    vertexShader: MARKS_VERTEX,
+    fragmentShader: MARKS_FRAGMENT,
+    transparent: true,
+    blending: NormalBlending,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const fullFrame = new BufferGeometry();
+  fullFrame.setAttribute(
+    'position',
+    new BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3),
+  );
+  const marksScene = new Scene();
+  const marksQuad = new Mesh(fullFrame, marksMaterial);
+  marksQuad.frustumCulled = false;
+  marksScene.add(marksQuad);
+  const marksCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  let overlay: OffscreenCanvas | undefined;
+  const overlayContext = (width: number, height: number) => {
+    overlay ??= new OffscreenCanvas(width, height);
+    if (overlay.width !== width) overlay.width = width;
+    if (overlay.height !== height) overlay.height = height;
+    const context = overlay.getContext('2d');
+    if (!context) throw new Error('The worker has no 2D canvas to write names on.');
+    return context;
+  };
+  /** A color as three numbers from 0 to 1, as written: the marks' pass writes them unconverted. */
+  const rgb = (color: Color) => {
+    const [r, g, b] = rgbOf(color);
+    return new Vector3(r / 255, g / 255, b / 255);
+  };
+
   const listeners: ((state: 'lost' | 'restored') => void)[] = [];
   let lost = false;
   canvas.addEventListener('webglcontextlost', (event) => {
     event.preventDefault();
     lost = true;
+    // The spaces' scenes are made again from what the host still holds once it is back.
+    drawings.clear();
     for (const listener of listeners) listener('lost');
   });
   canvas.addEventListener('webglcontextrestored', () => {
@@ -176,6 +241,7 @@ export function createThreeGpu(canvas: OffscreenCanvas): SolidGpu & SpaceGpu {
     },
     forget(solid) {
       scene.remove(solid.root);
+      drawings.forget(solid);
     },
     draw(solid, view): DrawnPicture {
       if (lost || gl.isContextLost()) throw new Error('The context is lost.');
@@ -215,53 +281,85 @@ export function createThreeGpu(canvas: OffscreenCanvas): SolidGpu & SpaceGpu {
     drawSpace(space: SpaceToDraw): ImageBitmap {
       if (lost || gl.isContextLost()) throw new Error('The context is lost.');
       const { width, height } = space.size;
-      const camera = spaceThreeCamera(space.camera, width / height);
-      scene.environment = roomLight();
-      key.visible = true;
-      key.position.copy(spaceKeyLight(camera));
-      key.target.position.set(0, 0, 0);
-      key.updateMatrixWorld();
-      key.target.updateMatrixWorld();
-      renderer.setRenderTarget(null);
+      const drawn = drawings.sceneOf(space);
+      const camera = drawn.place(space.camera, space.size, space.pixelRatio, space.cut);
+      const clipping = renderer.localClippingEnabled;
+      renderer.localClippingEnabled = space.cut !== undefined;
       renderer.setSize(width, height, false);
-      renderer.clear();
-      renderer.autoClear = false;
       try {
-        for (const entry of space.entries) {
-          const solid = entry.solid === undefined ? undefined : space.solids.get(entry.solid);
-          if (solid) drawPlaced(solid, relativeMatrix(entry.matrix, space.camera.target));
+        // The bits of what is marked, for the marks' pass.
+        if (drawn.marked) {
+          bitsTarget.setSize(width, height);
+          drawn.scene.environment = null;
+          drawn.key.visible = false;
+          renderer.setRenderTarget(bitsTarget);
+          renderer.clear();
+          drawn.withBits(() => renderer.render(drawn.scene, camera));
+        }
+        // The solids, markers and ground.
+        renderer.setRenderTarget(null);
+        drawn.scene.environment = roomLight();
+        drawn.key.visible = true;
+        renderer.clear();
+        renderer.render(drawn.scene, camera);
+        // The marks, over them.
+        if (drawn.marked) {
+          const colors = markColorsOf(space.theme);
+          const uniforms = marksMaterial.uniforms as Record<string, { value: unknown }>;
+          (uniforms.size?.value as Vector2).set(width, height);
+          (uniforms.selected as { value: Vector3 }).value = rgb(colors.selected);
+          (uniforms.selectedCasing as { value: Vector3 }).value = rgb(colors.selectedCasing);
+          (uniforms.highlight as { value: Vector3 }).value = rgb(colors.highlight);
+          (uniforms.highlightCasing as { value: Vector3 }).value = rgb(colors.highlightCasing);
+          (uniforms.scale as { value: number }).value = space.pixelRatio;
+          renderer.autoClear = false;
+          try {
+            renderer.render(marksScene, marksCamera);
+          } finally {
+            renderer.autoClear = true;
+          }
         }
       } finally {
-        renderer.autoClear = true;
+        renderer.setRenderTarget(null);
+        renderer.localClippingEnabled = clipping;
       }
       if (gl.isContextLost()) throw new Error('The context was lost while drawing.');
-      return canvas.transferToImageBitmap();
+      const picture = canvas.transferToImageBitmap();
 
-      /** Draws one solid at its place, into what is drawn so far, and puts it back at its origin. */
-      function drawPlaced(solid: BuiltSolid, matrix: Matrix4): void {
-        for (const piece of solid.pieces) {
-          piece.mesh.material = piece.studio;
-          piece.mesh.visible = true;
-        }
-        const { root } = solid;
-        const automatic = root.matrixAutoUpdate;
-        root.matrixAutoUpdate = false;
-        root.matrix.copy(matrix);
-        root.updateMatrixWorld(true);
-        scene.add(root);
-        try {
-          renderer.render(scene, camera);
-        } finally {
-          scene.remove(root);
-          root.matrixAutoUpdate = automatic;
-          root.updateMatrix();
-          root.updateMatrixWorld(true);
-        }
+      // What faces the screen, over the picture.
+      let context: OffscreenCanvasRenderingContext2D;
+      try {
+        context = overlayContext(width, height);
+      } catch (error) {
+        picture.close();
+        throw error;
       }
+      const marks = overlayOf({
+        layout: drawn.layout,
+        camera: space.camera,
+        size: space.size,
+        pixelRatio: space.pixelRatio,
+        theme: space.theme,
+        names: space.names,
+        lines: space.lines,
+        cut: space.cut,
+        handles: space.handles,
+        measure: (text, size) => {
+          context.font = overlayFont(size);
+          return context.measureText(text).width;
+        },
+      });
+      context.clearRect(0, 0, width, height);
+      context.drawImage(picture, 0, 0);
+      picture.close();
+      paintOverlay(context, marks);
+      return (overlay as OffscreenCanvas).transferToImageBitmap();
     },
-    pickSpace() {
-      // Picking on the solids' bounding volume hierarchies is "Drawing a space"'s.
-      return { element: null };
+    pickSpace(space: SpaceToDraw, x: number, y: number) {
+      return drawings.pick(space, x, y);
+    },
+    endSpace(space: number) {
+      drawings.end(space);
     },
   };
 }

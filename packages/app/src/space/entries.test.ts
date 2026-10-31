@@ -50,6 +50,43 @@ describe('the entries a space hands the worker', () => {
     expect(entries.at(-1)?.marker).toBeUndefined();
   });
 
+  it('says what a collapsed container draws its contents as, and the fill markers are drawn in', () => {
+    const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    const space = {
+      entries: new Map([
+        ['hall', { element: 'hall', how: 'posed' as const, in: 'world', matrix: IDENTITY }],
+        [
+          'lamp',
+          {
+            element: 'lamp',
+            how: 'posed' as const,
+            in: 'world',
+            matrix: IDENTITY,
+            drawnAs: 'hall',
+          },
+        ],
+      ]),
+      faint: new Map(),
+    };
+    const fills: Record<string, string> = { lamp: '#FFCC00', hall: 'red' };
+    const entries = spaceEntriesOf(
+      space,
+      (id) => id,
+      (id) => fills[id],
+    );
+    expect(entries).toEqual([
+      { element: 'hall', name: 'hall', matrix: IDENTITY, marker: true },
+      {
+        element: 'lamp',
+        name: 'lamp',
+        matrix: IDENTITY,
+        marker: true,
+        as: 'hall',
+        fill: '#FFCC00',
+      },
+    ]);
+  });
+
   it('shortens a name past what the worker takes', () => {
     const project = workcell();
     const entries = spaceEntriesOf(spaceOf(project), () => 'x'.repeat(500));
