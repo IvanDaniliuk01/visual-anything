@@ -180,6 +180,8 @@ interface Showing {
   boxed: ReadonlySet<Id>;
   /** The exploded view's moves its last frame sent, as text; none before its first frame. */
   shifted?: string;
+  /** The exploded view's moves, worked out again only when its entries, factor or solids change. */
+  shifts?: { entries: readonly SpaceDrawnEntry[]; key: string; list: SpaceShift[]; text: string };
 }
 
 /** The solid worker, apart from its GPU and its scope. */
@@ -848,8 +850,7 @@ export class SolidWorkerHost {
       return;
     }
     showing.serial += 1;
-    const shifts = shiftsOf(toDraw);
-    const shifted = JSON.stringify(shifts);
+    const { list: shifts, text: shifted } = shiftsFor(showing, toDraw);
     const changed = shifted !== showing.shifted;
     showing.shifted = shifted;
     this.send(
@@ -884,6 +885,17 @@ export class SolidWorkerHost {
 
 /** The messages of the physical-space panel's drawings. */
 type SpaceRequest = Extract<SolidWorkerRequest, { type: `space/${string}` }>;
+
+/** A space's exploded moves, kept while its entries, factor and solids loaded stay the same. */
+function shiftsFor(showing: Showing, space: SpaceToDraw): NonNullable<Showing['shifts']> {
+  const key = `${space.explode}|${[...space.solids.keys()].sort().join(',')}`;
+  const kept = showing.shifts;
+  if (kept && kept.entries === space.entries && kept.key === key) return kept;
+  const list = shiftsOf(space);
+  const made = { entries: space.entries, key, list, text: JSON.stringify(list) };
+  showing.shifts = made;
+  return made;
+}
 
 /** How far the exploded view moves each entry of a space it moves, in the entries' order. */
 function shiftsOf(space: SpaceToDraw): SpaceShift[] {
