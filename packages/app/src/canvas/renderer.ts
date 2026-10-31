@@ -894,12 +894,6 @@ export class CanvasRenderer {
     );
   }
 
-  /** Whether the canvas draws a shape's solid's picture now, at least as large as `pixels` on screen. */
-  solidShownAt(key: string): { rect: Rect } | undefined {
-    const placed = this.solidLayer.placedBuffer(key);
-    return placed ? { rect: placed.rect } : undefined;
-  }
-
   /** Gives the solid layer what the canvas marks on parts: the selection, the hover and highlights. */
   private markSolidParts(): void {
     const lit = this.emphasized.highlighted.shapes;
