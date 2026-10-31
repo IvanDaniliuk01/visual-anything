@@ -22,6 +22,7 @@
 import {
   compileFace,
   faceDrawingText,
+  faceIgnoresHeight,
   layOutFace,
   type CleanedImage,
   type CompiledFace,
@@ -94,7 +95,24 @@ export function resetFaceCounts(): void {
   counts.laidOut = 0;
 }
 
-/** A face laid out with these options, kept: laid out again only for another size or variant. */
+const ignoringHeight = new WeakMap<CompiledFace, boolean>();
+
+/** Whether a compiled face lays out alike at any height (`faceIgnoresHeight`), asked once each. */
+function ignoresHeight(compiled: CompiledFace): boolean {
+  let known = ignoringHeight.get(compiled);
+  if (known === undefined) {
+    known = faceIgnoresHeight(compiled);
+    ignoringHeight.set(compiled, known);
+  }
+  return known;
+}
+
+/**
+ * A face laid out with these options, kept: laid out again only for another size or variant. A face
+ * that lays out alike at any height is kept once for every height, as long as it could be laid out:
+ * a table's face, laid out for the height of its header, is the header drawn (ADR 0083's
+ * clarification, A4).
+ */
 export function faceDrawingOf(face: ShapeFace, options: FaceLayoutOptions): FaceDrawing {
   counts.asked += 1;
   let kept = drawings.get(face);
@@ -102,15 +120,18 @@ export function faceDrawingOf(face: ShapeFace, options: FaceLayoutOptions): Face
     kept = new Map();
     drawings.set(face, kept);
   }
-  const key = `${options.width} ${options.height ?? ''} ${options.variant ?? ''} ${
-    options.collapsed ? 1 : 0
-  }`;
+  const rest = `${options.variant ?? ''} ${options.collapsed ? 1 : 0}`;
+  const anyHeight = ignoresHeight(face.compiled) ? `${options.width} * ${rest}` : undefined;
+  const shared = anyHeight === undefined ? undefined : kept.get(anyHeight);
+  if (shared) return shared;
+  const key = `${options.width} ${options.height ?? ''} ${rest}`;
   let drawing = kept.get(key);
   if (!drawing) {
     counts.laidOut += 1;
     drawing = layOutFace(face.compiled, face.input, options);
+    const shares = anyHeight !== undefined && drawing.fallback === undefined;
     if (kept.size >= KEPT_PER_FACE) kept.delete(kept.keys().next().value as string);
-    kept.set(key, drawing);
+    kept.set(shares ? anyHeight : key, drawing);
   }
   return drawing;
 }

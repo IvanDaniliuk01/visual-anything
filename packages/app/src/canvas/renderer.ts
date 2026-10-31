@@ -95,14 +95,27 @@ import type { FaceShow } from './faces';
 import { THEMES, type CanvasTheme } from '../theme/themes';
 import { DIMMED_ALPHA } from './colors';
 import { drawnPieces } from './lineDraw';
-import { lengthOf, midpointOf, pointAlong, type RouteEnd } from './route';
+import { midpointOf, type RouteEnd } from './route';
 import { drawRouteOverlay, type RouteOverlay } from './routing/overlay';
 import { drawShapeEditOverlay, type ShapeEditOverlay } from './shapeEditMarks';
 import { rerouted } from './routing/scene-routes';
 import { routeWithSides } from './rowRoutes';
 import { dragEnds } from './rowShapes';
 import { holdsRows, levelWithRows } from './rowsDraw';
-import { drawnBoundsOf, nameTagOf } from './nameTags';
+import { drawnBoundsOf } from './nameTags';
+import {
+  LitLines,
+  MarkerDiscs,
+  startOnScreen,
+  sameItems,
+  sameLitLine,
+  sameLitLines,
+  sameLitShapes,
+  traceDrawingLines,
+  traceLitLines,
+  traceLitShapes,
+  traceTrails,
+} from './emphasisMarks';
 import { nameBandOf } from './shape-images';
 import {
   relationLinesOf,
@@ -507,8 +520,20 @@ export class CanvasRenderer {
   /** The marks of the selection, of the shape under the pointer and of the gesture under way. */
   private readonly marks = new Container({ isRenderGroup: true });
   private readonly hoverMark = new Graphics();
-  /** What the emphasis highlights, under the hover mark, and its markers, above the selection's marks. */
-  private readonly emphasisMarks = new Graphics();
+  /**
+   * What the emphasis highlights, under the hover mark: its shapes and notes, then its lines and
+   * arrows, each drawn again only when what it draws changed (`emphasisMarks.ts`). Its markers go
+   * above the selection's marks.
+   */
+  private readonly emphasisShapeMarks = new Graphics();
+  private readonly litLines = new LitLines();
+  /** What the highlights were drawn for last: the same lists at the same scale in the same color are kept. */
+  private litDrawn:
+    | { shapes: Lit['shapes']; notes: Lit['notes']; scale: number; color: CanvasTheme['highlight'] }
+    | undefined;
+  private linesLitDrawn:
+    | { lines: Lit['lines']; arrows: Lit['arrows']; scale: number; color: CanvasTheme['highlight'] }
+    | undefined;
   /**
    * What the emphasis highlights that arrives, fading in by its opacity (ADR 0077), and since when:
    * drawn in a group of its own, so that its fade changes one value a frame, not its drawing.
@@ -522,7 +547,9 @@ export class CanvasRenderer {
    */
   private readonly lineDrawMarks = new Graphics();
   private arrivingDraw: { since: number; duration: number } | undefined;
+  /** The markers' trails, drawn again as they move, and their discs, which only move. */
   private readonly markerMarks = new Graphics();
+  private readonly markerDiscs = new MarkerDiscs();
   /** Told once the canvas has drawn its next frame, as a capture waits for after a cut (ADR 0077). */
   private readonly frameListeners = new Set<() => void>();
   /** The selection's marks: those of relations and arrows, and boxes in chunks drawn a few a frame. */
@@ -732,7 +759,8 @@ export class CanvasRenderer {
     this.selectionMarks.addChild(this.lineMarks);
     this.arriving.addChild(this.arrivingMarks);
     this.marks.addChild(
-      this.emphasisMarks,
+      this.emphasisShapeMarks,
+      this.litLines.container,
       this.arriving,
       this.lineDrawMarks,
       this.hoverMark,
@@ -740,6 +768,7 @@ export class CanvasRenderer {
       this.movingMarks,
       this.namesBeside.container,
       this.markerMarks,
+      this.markerDiscs.container,
       this.gestureMarks,
       this.routeMarks,
       this.shapeEditMarks,
@@ -856,7 +885,10 @@ export class CanvasRenderer {
     if (!scene) return this.emphasized;
     const was = this.emphasizedFor;
     if (was?.scene === scene && was.emphasis === this.emphasis) return this.emphasized;
-    this.emphasized = keptEmphasized(this.emphasized, emphasize(scene, this.emphasis));
+    this.emphasized = keptEmphasized(
+      this.emphasized,
+      emphasize(scene, this.emphasis, this.indexed?.indexOfKey),
+    );
     this.emphasizedFor = { scene, emphasis: this.emphasis };
     // What a filter hides shows no comparison mark either.
     this.comparison.setHidden(this.emphasized.hidden);
@@ -3592,7 +3624,10 @@ export class CanvasRenderer {
   /**
    * Marks what the emphasis highlights, under the selection's marks: each shape with a halo, a ring
    * and corner marks around it, each line wider in the highlight color over a halo, with a dot at
-   * each end. The corner marks and the dots tell a highlight apart without its color.
+   * each end. The corner marks and the dots tell a highlight apart without its color. Shapes and
+   * lines are drawn apart, each again only when what it draws, the scale or the color changed, so
+   * that a tick that changes which lines are lit, or only the fill of the shapes lit, leaves the
+   * other alone (`docs/designs/benchmark-12.md`).
    */
   private drawHighlights(): void {
     this.markSolidParts();
@@ -3605,20 +3640,52 @@ export class CanvasRenderer {
       arriving = { ...arriving, lines: [] };
     }
     if (countLit(this.emphasized.arriving) === 0) {
-      this.drawLit(this.emphasisMarks, highlighted);
+      this.drawLit(highlighted);
       return;
     }
     const without = <T>(list: readonly T[], left: readonly T[]) => {
       const out = new Set(left);
       return list.filter((item) => !out.has(item));
     };
-    this.drawLit(this.emphasisMarks, {
+    this.drawLit({
       shapes: without(highlighted.shapes, arriving.shapes),
       lines: without(highlighted.lines, this.emphasized.arriving.lines),
       notes: without(highlighted.notes, arriving.notes),
       arrows: without(highlighted.arrows, arriving.arrows),
     });
-    this.drawLit(this.arrivingMarks, arriving);
+    if (countLit(arriving) === 0) return;
+    const { scale } = this.camera;
+    const { highlight } = this.painter.theme;
+    startOnScreen(this.arrivingMarks, scale);
+    traceLitShapes(this.arrivingMarks, arriving, scale, highlight);
+    traceLitLines(this.arrivingMarks, arriving, scale, highlight);
+  }
+
+  /** Marks what is lit and not arriving: its shapes, and its lines, each drawn again only when changed. */
+  private drawLit(lit: Lit): void {
+    const { scale } = this.camera;
+    const color = this.painter.theme.highlight;
+    const shapes = this.litDrawn;
+    if (
+      shapes?.shapes !== lit.shapes ||
+      shapes.notes !== lit.notes ||
+      shapes.scale !== scale ||
+      shapes.color !== color
+    ) {
+      startOnScreen(this.emphasisShapeMarks, scale);
+      traceLitShapes(this.emphasisShapeMarks, lit, scale, color);
+      this.litDrawn = { shapes: lit.shapes, notes: lit.notes, scale, color };
+    }
+    const lines = this.linesLitDrawn;
+    if (
+      lines?.lines !== lit.lines ||
+      lines.arrows !== lit.arrows ||
+      lines.scale !== scale ||
+      lines.color !== color
+    ) {
+      this.litLines.show(lit, scale, color);
+      this.linesLitDrawn = { lines: lit.lines, arrows: lit.arrows, scale, color };
+    }
   }
 
   /**
@@ -3689,102 +3756,33 @@ export class CanvasRenderer {
     if (!drawing) return;
     const part = Math.max(0, (performance.now() - drawing.since) / drawing.duration);
     const { scale } = this.camera;
-    const { highlight } = this.painter.theme;
-    const halo = { color: highlight, alpha: 0.28, join: 'round', cap: 'round' } as const;
-    const ends: Point[] = [];
-    for (const line of this.emphasized.arriving.lines) {
+    const drawn = this.emphasized.arriving.lines.map((line) => {
       const directed = line.arrowhead !== undefined;
       const pieces = drawnPieces(line.route, part, directed);
-      for (const piece of pieces) {
-        traceRoute(marks, piece);
-        marks.stroke({ ...halo, width: line.width + 12 / scale });
-        traceRoute(marks, piece);
-        marks.stroke({
-          color: highlight,
-          width: line.width + 2 / scale,
-          join: 'round',
-          cap: 'round',
-        });
-      }
+      const ends: Point[] = [];
       const start = line.route[0];
       if (start && pieces.length > 0) ends.push(start);
       const end = line.route.at(-1);
       if (end && (part >= 1 || (!directed && pieces.length > 0))) ends.push(end);
-    }
-    for (const end of ends) marks.circle(end.x, end.y, 4 / scale);
-    if (ends.length > 0) marks.fill(highlight);
-  }
-
-  /** Marks these in `marks`, as `drawHighlights` says. */
-  private drawLit(marks: Graphics, lit: Lit): void {
-    marks.clear();
-    const { lines, notes, arrows } = lit;
-    // An anchored part of a solid is marked by the solid layer, along its edges (ADR 0075).
-    const shapes = lit.shapes.some(isAnchoredSolidPart)
-      ? lit.shapes.filter((shape) => !isAnchoredSolidPart(shape))
-      : lit.shapes;
-    if (countLit(lit) === 0) return;
-    const { scale } = this.camera;
-    const { highlight } = this.painter.theme;
-    const halo = { color: highlight, alpha: 0.28, join: 'round', cap: 'round' } as const;
-    // The halo and the ring go along a shape's own outline (ADR 0066), the corners around its box;
-    // a shape's name tag is part of it, inside the ring and the corners (ADR 0066's clarifications).
-    const rects = [...shapes.map(drawnBoundsOf), ...notes.map((note) => note.rect)];
-    const ringed: MarkTarget[] = [
-      ...shapes.map((shape): MarkTarget => {
-        const tag = nameTagOf(shape);
-        if (!shape.outline && !tag) return shape.rect;
-        return {
-          rect: shape.rect,
-          ...(shape.outline ? { outline: shape.outline } : {}),
-          ...(tag ? { tag } : {}),
-        };
-      }),
-      ...notes.map((note) => note.rect),
-    ];
-    for (const target of ringed) traceMark(marks, target, 5 / scale);
-    if (rects.length > 0) marks.stroke({ ...halo, width: 10 / scale });
-    for (const target of ringed) traceMark(marks, target, 5 / scale);
-    if (rects.length > 0) marks.stroke({ color: highlight, width: 2.5 / scale });
-    for (const rect of rects) traceCorners(marks, grow(rect, 11 / scale), 14 / scale);
-    if (rects.length > 0) marks.stroke({ color: highlight, width: 3 / scale, cap: 'square' });
-
-    const routes = [
-      ...lines.map((line) => ({ route: line.route, width: line.width })),
-      ...arrows.map((arrow) => ({ route: [arrow.from, arrow.to], width: 2 })),
-    ];
-    for (const { route, width } of routes) {
-      traceRoute(marks, route);
-      marks.stroke({ ...halo, width: width + 12 / scale });
-      traceRoute(marks, route);
-      marks.stroke({ color: highlight, width: width + 2 / scale, join: 'round', cap: 'round' });
-    }
-    for (const { route } of routes) {
-      for (const end of [route[0], route.at(-1)]) {
-        if (end) marks.circle(end.x, end.y, 4 / scale);
-      }
-    }
-    if (routes.length > 0) marks.fill(highlight);
+      return { line, pieces, ends };
+    });
+    startOnScreen(marks, scale);
+    traceDrawingLines(marks, drawn, scale, this.painter.theme.highlight);
   }
 
   /**
    * Draws the markers travelling along relations: discs ringed in the canvas color, above the
    * selection, each after the short trail it leaves behind it while it moves, which fades away from
-   * it and shows which way it goes (ADR 0077).
+   * it and shows which way it goes (ADR 0077). The discs only move; the trails are traced again.
    */
   private drawMarkers(): void {
     const marks = this.markerMarks;
-    marks.clear();
     const { markers } = this.emphasized;
-    if (markers.length === 0) return;
     const { scale } = this.camera;
-    const { highlight, background } = this.painter.theme;
-    for (const marker of markers) traceTrail(marks, marker, scale, highlight);
-    for (const { line, along } of markers) {
-      const at = pointAlong(line.route, along);
-      marks.circle(at.x, at.y, MARKER_RADIUS / scale);
-    }
-    marks.fill(highlight).stroke({ color: background, width: 2.5 / scale });
+    const { theme } = this.painter;
+    startOnScreen(marks, scale);
+    traceTrails(marks, markers, scale, theme.highlight);
+    this.markerDiscs.show(markers, scale, theme);
   }
 
   /**
@@ -5195,25 +5193,32 @@ function keptEmphasized(before: Emphasized, after: Emphasized): Emphasized {
       ? was
       : { shapes, relations, free };
   };
-  const sameList = <T>(a: readonly T[], b: readonly T[]) =>
-    a.length === b.length && a.every((item, at) => item === b[at]);
+  // What is highlighted is kept list by list while it draws the same marks, by key and geometry:
+  // a scene whose shapes changed only their fill, as a simulation's tick changes them, keeps them.
   const lit = after.highlighted;
   const wasLit = before.highlighted;
+  const shapes = sameLitShapes(lit.shapes, wasLit.shapes) ? wasLit.shapes : lit.shapes;
+  const lines = sameLitLines(lit.lines, wasLit.lines) ? wasLit.lines : lit.lines;
+  const notes = sameItems(lit.notes, wasLit.notes) ? wasLit.notes : lit.notes;
+  const arrows = sameItems(lit.arrows, wasLit.arrows) ? wasLit.arrows : lit.arrows;
   const highlighted =
-    sameList(lit.shapes, wasLit.shapes) &&
-    sameList(lit.lines, wasLit.lines) &&
-    sameList(lit.notes, wasLit.notes) &&
-    sameList(lit.arrows, wasLit.arrows)
+    shapes === wasLit.shapes &&
+    lines === wasLit.lines &&
+    notes === wasLit.notes &&
+    arrows === wasLit.arrows
       ? wasLit
-      : lit;
+      : { shapes, lines, notes, arrows };
   const markers =
     after.markers.length === before.markers.length &&
-    after.markers.every(
-      (marker, at) =>
-        marker.line === before.markers[at]?.line &&
-        marker.along === before.markers[at]?.along &&
-        marker.from === before.markers[at]?.from,
-    )
+    after.markers.every((marker, at) => {
+      const was = before.markers[at];
+      return (
+        was !== undefined &&
+        sameLitLine(marker.line, was.line) &&
+        marker.along === was.along &&
+        marker.from === was.from
+      );
+    })
       ? before.markers
       : after.markers;
   const coming = after.arriving;
@@ -5221,10 +5226,10 @@ function keptEmphasized(before: Emphasized, after: Emphasized): Emphasized {
   const arriving =
     after.arrivingFor === before.arrivingFor &&
     after.arrivingDraw === before.arrivingDraw &&
-    sameList(coming.shapes, wasComing.shapes) &&
-    sameList(coming.lines, wasComing.lines) &&
-    sameList(coming.notes, wasComing.notes) &&
-    sameList(coming.arrows, wasComing.arrows)
+    sameItems(coming.shapes, wasComing.shapes) &&
+    sameItems(coming.lines, wasComing.lines) &&
+    sameItems(coming.notes, wasComing.notes) &&
+    sameItems(coming.arrows, wasComing.arrows)
       ? wasComing
       : coming;
   return {
@@ -5310,70 +5315,9 @@ function movedPoint(point: Point, delta: Point): Point {
   return { x: point.x + delta.x, y: point.y + delta.y };
 }
 
-/** Traces an L at each corner of a rectangle, its arms `arm` long, or shorter on a small one. */
-function traceCorners(graphics: Graphics, rect: Rect, arm: number): void {
-  const { x, y, width, height } = rect;
-  const across = Math.min(arm, width / 3);
-  const down = Math.min(arm, height / 3);
-  const right = x + width;
-  const bottom = y + height;
-  graphics
-    .moveTo(x, y + down)
-    .lineTo(x, y)
-    .lineTo(x + across, y)
-    .moveTo(right - across, y)
-    .lineTo(right, y)
-    .lineTo(right, y + down)
-    .moveTo(right, bottom - down)
-    .lineTo(right, bottom)
-    .lineTo(right - across, bottom)
-    .moveTo(x + across, bottom)
-    .lineTo(x, bottom)
-    .lineTo(x, bottom - down);
-}
-
 /** How many things are marked. */
 function countLit(lit: Lit): number {
   return lit.shapes.length + lit.lines.length + lit.notes.length + lit.arrows.length;
-}
-
-/** A travelling marker's radius, in pixels on screen. */
-const MARKER_RADIUS = 7;
-/** The longest a marker's trail runs behind it, in pixels on screen, and in how many pieces it fades. */
-const TRAIL_LENGTH = 56;
-const TRAIL_PIECES = 6;
-
-/**
- * Traces a marker's trail along its line, from where it was a moment before to the marker, in
- * pieces that fade and narrow away from it; nothing for a marker that stands still.
- */
-function traceTrail(
-  graphics: Graphics,
-  marker: { line: RelationLine; along: number; from?: number },
-  scale: number,
-  color: CanvasTheme['highlight'],
-): void {
-  const { line, along, from } = marker;
-  if (from === undefined || from === along) return;
-  const length = lengthOf(line.route);
-  if (!(length > 0)) return;
-  // Never longer on screen than a short trail, however far the marker went since.
-  const most = TRAIL_LENGTH / scale / length;
-  const start = along > from ? Math.max(from, along - most) : Math.min(from, along + most);
-  for (let piece = 0; piece < TRAIL_PIECES; piece++) {
-    const a = pointAlong(line.route, start + ((along - start) * piece) / TRAIL_PIECES);
-    const b = pointAlong(line.route, start + ((along - start) * (piece + 1)) / TRAIL_PIECES);
-    const near = (piece + 1) / TRAIL_PIECES;
-    graphics
-      .moveTo(a.x, a.y)
-      .lineTo(b.x, b.y)
-      .stroke({
-        color,
-        alpha: 0.55 * near * near,
-        width: (MARKER_RADIUS * 2 * (0.35 + 0.65 * near)) / scale,
-        cap: 'round',
-      });
-  }
 }
 
 function traceRoute(graphics: Graphics, route: readonly Point[]): void {

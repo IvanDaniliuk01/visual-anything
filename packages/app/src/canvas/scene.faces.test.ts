@@ -7,7 +7,15 @@ import { layOutFace, type ProjectSnapshot } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
 import { CARD_FACE, COLUMN_FACE, SYSTEM_FACE, TABLE_FACE, withFaces } from '../test/faces';
 import { VIEW, tablesProject, usersAndOrders } from '../test/tables';
-import { faceContentHeight, faceHeader, faceRect, shapeFaceDrawing } from './faces';
+import {
+  faceContentHeight,
+  faceCounts,
+  faceHeader,
+  faceOptionsOf,
+  faceRect,
+  resetFaceCounts,
+  shapeFaceDrawing,
+} from './faces';
 import { ROWS_HEADER, ROW_HEIGHT, headerMiddle, measureRows } from './rows';
 import { buildScene, buildSceneAfresh, type ElementShape, type Scene } from './scene';
 
@@ -63,6 +71,25 @@ describe('faces in the scene (ADR 0083)', () => {
     // Its own relations attach beside its header, whatever its height.
     expect(headerMiddle(users.rect, users.header)).toBe(users.rect.y + header / 2);
     expect(faceRect(users).height).toBe(header);
+  });
+
+  it('lays a table’s face of size content out once for its header and the header drawn (A4)', () => {
+    const content = { ...TABLE_FACE, size: 'content' as const };
+    resetFaceCounts();
+    const project = withFaces(usersAndOrders(), { ...TABLES, 'data-modeling.table': content });
+    const users = shapeOf(buildSceneAfresh(project, VIEW), 'users');
+    const before = faceCounts();
+    const drawing = shapeFaceDrawing(users);
+    expect(faceCounts().asked).toBe(before.asked + 1);
+    expect(faceCounts().laidOut).toBe(before.laidOut);
+    // The same drawing as laid out at the header's height, by the core.
+    const face = users.face as NonNullable<ElementShape['face']>;
+    expect(drawing).toEqual(layOutFace(face.compiled, face.input, faceOptionsOf(users)));
+    // One of size shape fills the height it is given: laid out again for the header drawn.
+    const shaped = shapeOf(buildSceneAfresh(withFaces(usersAndOrders(), TABLES), VIEW), 'users');
+    const laid = faceCounts().laidOut;
+    shapeFaceDrawing(shaped);
+    expect(faceCounts().laidOut).toBe(laid + 1);
   });
 
   it('keeps the canvas’s header when a face is lower than it, and carries no header then', () => {

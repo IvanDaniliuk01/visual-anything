@@ -618,6 +618,38 @@ function freshBands(scene: Scene): number[] {
   return bands;
 }
 
+describe('a scene built after a layout', () => {
+  /** The project with every stored position moved by its own step, as a layout moves them. */
+  function movedEverywhere(project: ProjectSnapshot, seed: number): ProjectSnapshot {
+    return {
+      ...project,
+      views: project.views.map((view) => ({
+        ...view,
+        positions: view.positions.map((position, at) => ({
+          ...position,
+          x: position.x + ((at * 37 + seed) % 11) * 20 - 100,
+          y: position.y + ((at * 53 + seed) % 7) * 20 - 60,
+        })),
+      })),
+    };
+  }
+
+  for (const [name, project] of [
+    ['boxes', syntheticProject({ elements: 300 })],
+    ['tables', syntheticProject({ elements: 300, tables: true })],
+  ] as const) {
+    it(`equals one built from nothing when every shape of ${name} moved at once`, () => {
+      const view = project.views[0]?.id as string;
+      buildScene(project, view);
+      for (const seed of [1, 2, 3]) {
+        const moved = movedEverywhere(project, seed);
+        const scene = buildScene(moved, view);
+        expect(scene).toEqual(buildSceneAfresh(moved, view));
+      }
+    });
+  }
+});
+
 describe('a scene built after an edit', () => {
   it('equals one built from nothing, after any sequence of edits', () => {
     fc.assert(

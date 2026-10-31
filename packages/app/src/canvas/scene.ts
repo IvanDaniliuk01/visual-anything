@@ -2129,11 +2129,23 @@ function replaceShapes(
     }
   }
   const { positions, changed } = positionsAfter(base.view, view, model.world.id);
+  // A shape whose stored position only moved, as layout moves every shape, keeps its size and what
+  // it draws: it is moved with what it holds, not measured again, and only what holds it is (A4).
+  const shifted = new Set<Placement>();
   if (changed.length > 0) {
+    const storedBefore = positionsOf(base.view, model.world.id);
     for (const key of changed) {
       const [element, container] = key.split('\u0000') as [Id, Id | undefined];
+      const only = onlyMoved(storedBefore.get(key), positions.get(key));
       for (const placement of index.byElement.get(element) ?? []) {
-        if (placement.container === container) mark(placement);
+        if (placement.container !== container) continue;
+        if (!only) {
+          mark(placement);
+          continue;
+        }
+        shifted.add(placement);
+        const holder = index.holder.get(placement);
+        if (holder) mark(holder);
       }
     }
   }
@@ -2157,11 +2169,14 @@ function replaceShapes(
     if (mode === undefined && !dirty.has(placement)) {
       const shape = old[at] as ElementShape;
       const stored = shape.positioned !== 'placed';
+      const moved = shifted.has(placement)
+        ? positions.get(positionKey(placement.element, placement.container))
+        : undefined;
       return {
         placement,
         width: shape.rect.width,
         height: shape.rect.height,
-        offset: stored ? shape.offset : undefined,
+        offset: moved ? { x: moved.x, y: moved.y } : stored ? shape.offset : undefined,
         stored,
       };
     }
@@ -2305,7 +2320,9 @@ function positionsAfter(
       if (was === now) continue;
       const key = keyOf(now);
       changed.push(key);
-      const wasKey = keyOf(was);
+      // A position moved where it was keeps its key: as every one layout moves.
+      const wasKey =
+        was.element === now.element && was.container === now.container ? key : keyOf(was);
       if (wasKey !== key) changed.push(wasKey);
       if (wasKey !== key || baseMap.get(key) !== was) inPlace = false;
     }
@@ -2324,6 +2341,20 @@ function positionsAfter(
   for (const [key, position] of positions) if (baseMap.get(key) !== position) changed.push(key);
   for (const key of baseMap.keys()) if (!positions.has(key)) changed.push(key);
   return { positions, changed };
+}
+
+/**
+ * Whether a stored position only moved: stored before and after, pinned or not as it was, with the
+ * same stored size.
+ */
+function onlyMoved(was: ShapePosition | undefined, now: ShapePosition | undefined): boolean {
+  return (
+    was !== undefined &&
+    now !== undefined &&
+    (was.pinned ?? false) === (now.pinned ?? false) &&
+    was.width === now.width &&
+    was.height === now.height
+  );
 }
 
 /** The lines a detail wraps to, when not the 3 most shapes take (ADR 0082). */

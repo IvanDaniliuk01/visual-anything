@@ -15,6 +15,7 @@ import { loadSample } from '../test/sample';
 import type { TextFactory } from './draw';
 import { hitAt, indexScene, type IndexedScene } from './hit';
 import { DIMMED_ALPHA } from './colors';
+import { MARK_UNIT, type LitLines, type MarkerDiscs } from './emphasisMarks';
 import { CanvasRenderer, emphasize } from './renderer';
 import { pointAlong } from './route';
 import { buildScene, shapeKeyOf, shownBy, standsFor, type RelationLine, type Scene } from './scene';
@@ -41,8 +42,10 @@ interface Inside {
   tiles: Map<string, TileView>;
   tileOfShape: Map<string, TileView>;
   tilesOfLine: Map<string, Set<TileView>>;
-  emphasisMarks: Graphics;
+  emphasisShapeMarks: Graphics;
+  litLines: LitLines;
   markerMarks: Graphics;
+  markerDiscs: MarkerDiscs;
 }
 
 const counting: TextFactory = (options) => {
@@ -386,37 +389,101 @@ describe('CanvasRenderer emphasis (I2)', () => {
     renderer.show(indexed);
     const line = scene.relations[0];
     renderer.setEmphasis({ highlighted: new Set(['patient', line?.relation as string]) });
-    const marks = inside(renderer).emphasisMarks.context.instructions;
-    const strokes = marks.filter((each) => each.action === 'stroke');
-    const fills = marks.filter((each) => each.action === 'fill');
+    const shapeMarks = inside(renderer).emphasisShapeMarks.context.instructions;
+    const lineMarks =
+      inside(renderer).litLines.graphicsOf(line?.relation as string)?.context.instructions ?? [];
     // Halo, ring and corner marks for the shape; halo and line for the relation; dots at its ends.
-    expect(strokes.length).toBeGreaterThanOrEqual(5);
-    expect(fills.length).toBe(1);
+    expect(shapeMarks.filter((each) => each.action === 'stroke')).toHaveLength(3);
+    expect(lineMarks.filter((each) => each.action === 'stroke')).toHaveLength(2);
+    expect(lineMarks.filter((each) => each.action === 'fill')).toHaveLength(1);
     renderer.setEmphasis({});
-    expect(inside(renderer).emphasisMarks.context.instructions).toHaveLength(0);
+    expect(inside(renderer).emphasisShapeMarks.context.instructions).toHaveLength(0);
+    expect(inside(renderer).litLines.shownLines).toHaveLength(0);
   });
 
-  it('draws markers along their relations, alone when only they move', async () => {
+  it('strokes its marks on screen, so that far out a round cap takes no more segments', async () => {
+    const renderer = await started();
+    renderer.show(indexed);
+    const line = scene.relations[0];
+    if (!line) throw new Error('The sample draws no relation.');
+    renderer.setCamera({ x: 0, y: 0, scale: 0.05 });
+    renderer.setEmphasis({
+      highlighted: new Set(['patient', line.relation]),
+      markers: [{ relation: line.relation, progress: 0.5, trail: 0.2 }],
+    });
+    const { emphasisShapeMarks, litLines, markerMarks } = inside(renderer);
+    const emphasisLineMarks = litLines.graphicsOf(line.relation) as Graphics;
+    const widths = (graphics: Graphics) =>
+      graphics.context.instructions
+        .filter((each) => each.action === 'stroke')
+        .map((each) => (each.data as { style: { width: number } }).style.width);
+    // A 10-pixel halo, a 2.5-pixel ring and 3-pixel corners, whatever the zoom, in the marks' unit.
+    const inPixels = (graphics: Graphics) => widths(graphics).map((width) => width * MARK_UNIT);
+    expect(inPixels(emphasisShapeMarks)).toEqual([10, 2.5, 3]);
+    expect(inPixels(emphasisLineMarks)[0]).toBeCloseTo(line.width * 0.05 + 12);
+    expect(Math.max(...inPixels(markerMarks))).toBeCloseTo(14);
+    for (const graphics of [emphasisShapeMarks, emphasisLineMarks, markerMarks]) {
+      expect(graphics.scale.x).toBeCloseTo(MARK_UNIT / 0.05);
+    }
+    // Where the camera shows them: around the shape, 5 pixels out, back in the world's units.
+    const bounds = emphasisShapeMarks.getLocalBounds();
+    const patient = indexed.byKey.get(shapeKeyOf(['patient']));
+    const left = bounds.x * emphasisShapeMarks.scale.x;
+    expect(left).toBeLessThan(patient?.rect.x as number);
+    expect(left).toBeGreaterThan((patient?.rect.x as number) - 30 / 0.05);
+  });
+
+  it('keeps its highlights when the scene changes only the fill of what it highlights', async () => {
+    const renderer = await started();
+    renderer.show(indexed);
+    const line = scene.relations[0];
+    if (!line) throw new Error('The sample draws no relation.');
+    renderer.setEmphasis({ highlighted: new Set(['patient', line.relation]) });
+    const { emphasisShapeMarks, litLines } = inside(renderer);
+    const emphasisLineMarks = litLines.graphicsOf(line.relation) as Graphics;
+    const shapesCleared = vi.spyOn(emphasisShapeMarks, 'clear');
+    const linesCleared = vi.spyOn(emphasisLineMarks, 'clear');
+    const refilled = indexScene({
+      ...scene,
+      shapes: scene.shapes.map((shape) => ({ ...shape, fill: '#123456' })),
+      relations: scene.relations.map((each) => ({ ...each, route: [...each.route] })),
+    });
+    renderer.show(refilled);
+    expect(shapesCleared).not.toHaveBeenCalled();
+    expect(linesCleared).not.toHaveBeenCalled();
+    // A shape that moves is marked where it is now.
+    const moved = indexScene({
+      ...scene,
+      shapes: scene.shapes.map((shape) => ({
+        ...shape,
+        rect: { ...shape.rect, x: shape.rect.x + 40 },
+      })),
+    });
+    renderer.show(moved);
+    expect(shapesCleared).toHaveBeenCalled();
+  });
+
+  it('draws markers along their relations, alone when only they move, moving their discs', async () => {
     const renderer = await started();
     renderer.show(indexed);
     const line = scene.relations[0];
     if (!line) throw new Error('The sample draws no relation.');
     const tiles = new Map(inside(renderer).tiles);
     renderer.setEmphasis({ markers: [{ relation: line.relation, progress: 0.25 }] });
-    const circle = inside(renderer).markerMarks.context.instructions.find(
-      (each) => each.action === 'fill',
-    );
-    expect(circle).toBeDefined();
+    const { markerDiscs } = inside(renderer);
     const at = pointAlong(line.route, 0.25);
-    const shape = (
-      circle as {
-        data: { path: { shapePath: { shapePrimitives: { shape: { x: number; y: number } }[] } } };
-      }
-    ).data.path.shapePath.shapePrimitives[0]?.shape;
-    expect(shape?.x).toBeCloseTo(at.x);
-    expect(shape?.y).toBeCloseTo(at.y);
+    expect(markerDiscs.points).toHaveLength(1);
+    expect(markerDiscs.points[0]?.x).toBeCloseTo(at.x);
+    expect(markerDiscs.points[0]?.y).toBeCloseTo(at.y);
+    const disc = (markerDiscs.container.children[0] as Graphics).context;
     renderer.setEmphasis({ markers: [{ relation: line.relation, progress: 0.75 }] });
     expect(new Map(inside(renderer).tiles)).toEqual(tiles);
+    const later = pointAlong(line.route, 0.75);
+    expect(markerDiscs.points[0]?.x).toBeCloseTo(later.x);
+    // The same disc, moved: nothing of it drawn again.
+    expect((markerDiscs.container.children[0] as Graphics).context).toBe(disc);
+    renderer.setEmphasis({});
+    expect(markerDiscs.points).toHaveLength(0);
   });
 });
 

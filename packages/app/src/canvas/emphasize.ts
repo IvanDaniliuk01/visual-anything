@@ -95,8 +95,16 @@ export const NOTHING_EMPHASIZED: Emphasized = {
  * - A marker on a relation that an aggregated relation stands for travels along that line, the way
  *   the relation runs, and so does its trail.
  * - What arrives is what it highlights that its `arriving` names, a line by any relation it stands for.
+ *
+ * Given each shape's index in the scene by its key, as an indexed scene holds it, it finds the few
+ * shapes and lines a small highlight lights by their keys rather than by going through every one,
+ * in the scene's order all the same (A4, `docs/designs/benchmark-12.md`).
  */
-export function emphasize(scene: Scene, emphasis: Emphasis): Emphasized {
+export function emphasize(
+  scene: Scene,
+  emphasis: Emphasis,
+  indexOfKey?: ReadonlyMap<string, number>,
+): Emphasized {
   const {
     hidden = NONE,
     dimmed = NONE,
@@ -158,12 +166,14 @@ export function emphasize(scene: Scene, emphasis: Emphasis): Emphasized {
   }
   const hiddenFree = freeOf(hidden);
 
+  const litLine = (line: RelationLine) =>
+    some(highlighted, line) && !hiddenLines.has(line.relation);
   const litLines =
     highlighted.size === 0
       ? []
-      : scene.relations.filter(
-          (line) => some(highlighted, line) && !hiddenLines.has(line.relation),
-        );
+      : few(highlighted, scene.relations.length)
+        ? litByKey(scene.relations, highlighted, litLine)
+        : scene.relations.filter(litLine);
   // The ends of an aggregated relation lit for what it stands for show that relation's ends.
   const litEnds = new Set<string>();
   for (const line of litLines) {
@@ -171,15 +181,15 @@ export function emphasize(scene: Scene, emphasis: Emphasis): Emphasized {
     for (const end of [line.ends.from, line.ends.to])
       if (end.kind === 'shape') litEnds.add(end.key);
   }
+  const litShape = (key: string) =>
+    (highlighted.has(key) || litEnds.has(key)) && !hiddenShapes.has(key);
   const lit = {
     shapes:
       highlighted.size === 0
         ? []
-        : shapes.filter(
-            (shape) =>
-              (highlighted.has(shape.key) || litEnds.has(shape.key)) &&
-              !hiddenShapes.has(shape.key),
-          ),
+        : indexOfKey && few(highlighted, shapes.length, litEnds.size)
+          ? shapesByKey(shapes, indexOfKey, [highlighted, litEnds], litShape)
+          : shapes.filter((shape) => litShape(shape.key)),
     lines: litLines,
     notes: scene.notes.filter((note) => highlighted.has(note.id) && !hiddenFree.has(note.id)),
     arrows: scene.arrows.filter((arrow) => highlighted.has(arrow.id) && !hiddenFree.has(arrow.id)),
@@ -285,6 +295,61 @@ export function withDashes(
 /** The scene's lines a list of lines was made from by `withDashes`, or the list itself. */
 export function linesDrawnFrom(lines: readonly RelationLine[]): readonly RelationLine[] {
   return dashedSources.get(lines) ?? lines;
+}
+
+/** Whether a highlight of these keys, and `more`, is few beside the `all` it would go through. */
+function few(keys: ReadonlySet<string>, all: number, more = 0): boolean {
+  return (keys.size + more) * 8 < all;
+}
+
+/** The shapes with these keys that `lit` keeps, in the scene's order. */
+function shapesByKey(
+  shapes: readonly ElementShape[],
+  indexOfKey: ReadonlyMap<string, number>,
+  sets: readonly ReadonlySet<string>[],
+  lit: (key: string) => boolean,
+): ElementShape[] {
+  const found = new Set<number>();
+  for (const keys of sets) {
+    for (const key of keys) {
+      const at = indexOfKey.get(key);
+      if (at !== undefined && shapes[at]?.key === key && lit(key)) found.add(at);
+    }
+  }
+  return [...found].sort((a, b) => a - b).map((at) => shapes[at] as ElementShape);
+}
+
+/**
+ * Each line's index in its scene, under its own key and under every relation it stands for: the
+ * lines a key may light.
+ */
+const linesStandingFor = new WeakMap<readonly RelationLine[], Map<string, number[]>>();
+
+/** The lines that a key of `keys` may light and `lit` keeps, in the scene's order. */
+function litByKey(
+  lines: readonly RelationLine[],
+  keys: ReadonlySet<string>,
+  lit: (line: RelationLine) => boolean,
+): RelationLine[] {
+  let standing = linesStandingFor.get(lines);
+  if (!standing) {
+    standing = new Map();
+    const add = (key: string, at: number) => {
+      const known = standing?.get(key);
+      if (known) known.push(at);
+      else standing?.set(key, [at]);
+    };
+    lines.forEach((line, at) => {
+      add(line.relation, at);
+      if (line.aggregate) for (const id of standsFor(line)) add(id, at);
+    });
+    linesStandingFor.set(lines, standing);
+  }
+  const found = new Set<number>();
+  for (const key of keys) {
+    for (const at of standing.get(key) ?? []) if (lit(lines[at] as RelationLine)) found.add(at);
+  }
+  return [...found].sort((a, b) => a - b).map((at) => lines[at] as RelationLine);
 }
 
 const lineMaps = new WeakMap<readonly RelationLine[], Map<string, RelationLine>>();

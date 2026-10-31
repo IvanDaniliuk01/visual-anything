@@ -10,7 +10,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { sha256 } from '../code/hash';
 import { compileFace, type ResolvedFace } from './compile';
-import { layOutFace, type FaceDrawing } from './layout';
+import { faceIgnoresHeight, layOutFace, type FaceDrawing } from './layout';
 import { ADR_FACE, face, input } from './test-faces';
 
 const EPSILON = 1e-6;
@@ -240,6 +240,33 @@ describe('faces, whatever they hold', () => {
       ),
       { numRuns: 300 },
     );
+  });
+
+  it('lay out alike at any height when they say they ignore it, as a table’s header does (A4)', () => {
+    let ignoring = 0;
+    fc.assert(
+      fc.property(
+        faceArbitrary,
+        inputArbitrary,
+        fc.integer({ min: 0, max: 400 }),
+        fc.integer({ min: 0, max: 300 }),
+        fc.boolean(),
+        (resolved, data, width, height, collapsed) => {
+          const compiled = compileFace(resolved);
+          if (!faceIgnoresHeight(compiled)) return;
+          ignoring += 1;
+          const options = { width, ...(collapsed ? { collapsed } : {}) };
+          const free = layOutFace(compiled, data, options);
+          const given = layOutFace(compiled, data, { ...options, height });
+          // One too large to lay out is drawn as its name instead, at the height given.
+          expect(given.fallback === undefined).toBe(free.fallback === undefined);
+          if (free.fallback === undefined) expect(given).toEqual(free);
+        },
+      ),
+      { numRuns: 300 },
+    );
+    expect(ignoring).toBeGreaterThan(20);
+    expect(faceIgnoresHeight(compileFace(ADR_FACE))).toBe(ADR_FACE.size === 'content');
   });
 
   it('lay out the same, run after run, as data only', () => {

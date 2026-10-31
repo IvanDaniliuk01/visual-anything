@@ -67,3 +67,11 @@ ELK is a large dependency and layout results arrive asynchronously, so the canva
   - every expansion opens in place.
 
   Read ADR 0080's Consequences for exactly which clarifications it replaces.
+
+<!-- Decided by Claude on 2026-10-31 under the user's standing delegation of design decisions, while building A4's "The main thread". -->
+
+- 2026-10-31 (A4, the main thread; `docs/designs/benchmark-5.md`, "After A4"): **the work around ELK, and the main thread after a layout.**
+  - **The routes carried** after a pass (`carriedRoutes`) check each segment against the shapes near it, from a spatial index, not against every shape of the view, and `segmentThrough` makes nothing for each call: on the view of tables the worker's work beside ELK fell from about 4.9 s to 0.2 s, so the whole layout, ELK's 10 to 13 s with it, keeps within the 20 s on the machine this was built on (i9-14900HX). The quality measures, which use the same test, give the same numbers in a twentieth of the time.
+  - **The scene after a layout** moves a shape whose stored position only moved, its size and pinning as they were, with what it holds, rather than measuring it again: only what holds it is measured again (`replaceShapes`; `scene.incremental.test.ts` holds it equal to a scene built from nothing). A table's rows, its face and its texts are no longer worked out again because the table moved.
+  - **Still over 50 ms, recorded and not held:** on the 10,000 boxes the scene after the layout (lines routed again between every shape that moved) and the canvas's tiles drawn again after it, about 85 and 190 ms in the browser in the same task; the core's applying the command (about 95 ms, the core's own); and on the view of tables, the scene after it when it first runs (about 60 ms, 20 to 45 ms built again). Splitting these over frames, or moving the scene's routing to the routing worker, is a larger change than this task's.
+  - **Measured in Node with `tsx`,** whose kept function names cost a property definition for each closure made: the numbers benchmark-5 recorded around ELK were partly that, which the browser's build does not pay.

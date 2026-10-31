@@ -251,6 +251,25 @@ export function layOutFace(
   }
 }
 
+/**
+ * Whether a face is laid out alike at any height its shape gives it: a face of size `content`
+ * whose own height, least height and most height are none or in pixels takes its content's height
+ * whatever the height given, and lays out the same boxes and runs in it. So a table's face is laid
+ * out once for the height of its header and for the header drawn (ADR 0083's clarification, A4).
+ * One that cannot be laid out, as one past its caps, is drawn as its name at the height given: a
+ * drawing with a `fallback` is not alike at another height.
+ */
+export function faceIgnoresHeight(compiled: CompiledFace): boolean {
+  if (compiled.size !== 'content') return false;
+  if (compiled.problems.some((each) => each.severity === 'error')) return false;
+  const root = computeStyle(
+    INITIAL_STYLE,
+    cascade(compiled.rules, { name: 'face', classes: [] }, []),
+  );
+  const fixed = (length: Length | undefined) => length === undefined || 'px' in length;
+  return fixed(root.height) && fixed(root.minHeight) && fixed(root.maxHeight);
+}
+
 const missingMarkup: FaceProblem = {
   code: 'invalid-face',
   severity: 'error',
