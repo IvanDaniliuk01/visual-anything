@@ -1,7 +1,7 @@
 {
   "id": "structure",
   "name": "Structure",
-  "description": "The arm drawn as its solid: each link, joint, the gripper and the wrist camera drawn as its part, with the motor that drives each joint and the encoder that reads it. Select the arm and press T to turn it.",
+  "description": "The arm drawn as its solid: each link, joint and the gripper drawn as its part, with the motor that drives each joint, the encoder that reads it, and the wrist camera mounted on link 6. Select the arm and press T to turn it.",
   "perspective": {
     "name": "Structure"
   },
@@ -85,6 +85,12 @@
       "container": "arm",
       "x": 224,
       "y": 832
+    },
+    {
+      "element": "wrist-camera",
+      "container": "arm",
+      "x": 424,
+      "y": 392
     }
   ],
   "freeShapes": [],
@@ -112,7 +118,12 @@
       }
     ],
     "leftOut": [
-      "workpiece"
+      "workpiece",
+      "workcell",
+      "table",
+      "bin-a",
+      "bin-b",
+      "workcell-camera"
     ]
   },
   "relationTypesLeftOut": [

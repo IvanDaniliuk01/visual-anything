@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "name": "Pick-and-place arm",
-  "description": "A sample of the Physical AI and robotics package: a six-axis arm drawn as a solid you can turn, its links and joints anchored to its parts, the motors and encoders at its joints, the learned policy and the controller that move it, and the software they run in.",
+  "description": "A sample of the Physical AI and robotics package: a six-axis arm drawn as a solid you can turn, its links and joints anchored to its parts, the motors and encoders at its joints, the learned policy and the controller that move it, and the software they run in; and its workcell, with a table and two bins, where physical space shows each where it is.",
   "packages": [
     "physical-ai",
     "robot-arm"

@@ -1043,7 +1043,8 @@ Its tasks run in this order:
 - [x] **Claude's tools** (`server/src/claude/space-tools.ts`): `get_space`, `set_pose` and `clear_pose`, the guidance `space`, and `space` in the tour tools' view states; descriptions with examples.
   - Done 2026-10-31, by a builder (ADR 0076's clarification of that date): `show_space` sends the guidance `space`, which opens, roots, moves, frames and closes the panel, and the app keeps its request for the panel to take up; `get_space` reads the whole model when no view is named; `set_pose` without `at` keeps an element's place; `space` in `get_view_address`, `open_app` and the tour tools' view states; taking several poses away is labelled "Take <n> elements out of physical space".
 - [ ] **The read-only page's panel:** linked as in the app, with touch, when the page holds solids or poses.
-- [ ] **A sample:** `examples/robot-arm` gains a workcell, with a table, two bins and a camera posed in it, the wrist camera posed on its link, and a tour that plays "Pick a part" with the panel open.
+- [x] **A sample:** `examples/robot-arm` gains a workcell, with a table, two bins and a camera posed in it, the wrist camera posed on its link, and a tour that plays "Pick a part" with the panel open.
+  - Done 2026-10-31, by a builder (ADR 0076's clarification of that date): the wrist camera posed in link 6 where the solid draws its camera, no longer anchored to it; the sample's package gains Workcell, Table and Bin and the nesting relation types "is in" and "is mounted on"; a view `workcell`; the tour `pick-a-part`, whose three steps open the panel, the last playing the scenario over the control loop.
 - [ ] **The benchmark:** `?space`, in work and frames modes, with the phases of the "Done when" above:
   - moving the panel's camera around, at the whole space and close in;
   - a selection and a change of focus made on the canvas;

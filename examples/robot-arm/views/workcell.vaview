@@ -1,0 +1,63 @@
+{
+  "id": "workcell",
+  "name": "Workcell",
+  "description": "Where the arm works: its table, the bin it picks from, the bin it places in, and the camera above them. Open Physical space to see each where it is.",
+  "perspective": {
+    "name": "Workcell"
+  },
+  "nestingRelationTypes": [
+    "robot-arm.is-in"
+  ],
+  "positions": [
+    {
+      "element": "workcell",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "arm",
+      "container": "workcell",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "workcell-camera",
+      "container": "workcell",
+      "x": 416,
+      "y": 48
+    },
+    {
+      "element": "table",
+      "container": "workcell",
+      "x": 416,
+      "y": 144
+    },
+    {
+      "element": "bin-a",
+      "container": "workcell",
+      "x": 416,
+      "y": 224
+    },
+    {
+      "element": "workpiece",
+      "container": "bin-a",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "bin-b",
+      "container": "workcell",
+      "x": 416,
+      "y": 392
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "include": [
+      {
+        "kind": "relation-type",
+        "relationType": "robot-arm.is-in"
+      }
+    ]
+  }
+}

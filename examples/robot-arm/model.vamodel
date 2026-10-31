@@ -9,7 +9,7 @@
       "id": "arm",
       "component": "physical-ai.robot",
       "name": "Six-axis arm",
-      "description": "Picks parts from a tray and places them on a conveyor. It is drawn as its solid, which you can turn.",
+      "description": "Picks each part from bin A and places it in bin B. It is drawn as its solid, which you can turn.",
       "attributes": {
         "degreesOfFreedom": 6,
         "model": "six-axis arm"
@@ -18,6 +18,14 @@
         "solid": {
           "solid": "robot-arm.six-axis-arm",
           "placement": "parts"
+        }
+      },
+      "pose": {
+        "in": "workcell",
+        "at": {
+          "x": 0,
+          "y": 0.75,
+          "z": -0.25
         }
       }
     },
@@ -254,15 +262,23 @@
       "id": "wrist-camera",
       "component": "physical-ai.camera",
       "name": "Wrist camera",
-      "description": "Looks past the gripper at what it is about to pick.",
+      "description": "Mounted on link 6, the tool flange, just above the gripper: looks past it at what it is about to pick.",
       "attributes": {
         "frame": "camera_link",
         "rate": 30
       },
-      "appearance": {
-        "part": {
-          "part": "camera",
-          "solid": "robot-arm.six-axis-arm"
+      "pose": {
+        "in": "link-6",
+        "at": {
+          "x": -0.0283,
+          "y": 0.0417,
+          "z": -0.005
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0.9659258,
+          "z": 0.258819,
+          "w": 0
         }
       }
     },
@@ -402,10 +418,100 @@
       }
     },
     {
+      "id": "workcell",
+      "component": "robot-arm.workcell",
+      "name": "Workcell",
+      "description": "The fenced cell the arm works in, 2 m by 1.6 m: its table, the bin it picks from, the bin it places in, and the camera above them.",
+      "pose": {
+        "at": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    },
+    {
+      "id": "table",
+      "component": "robot-arm.table",
+      "name": "Table",
+      "description": "A steel table, 1.2 m wide and 0.8 m deep; the arm is bolted to the back of its top.",
+      "attributes": {
+        "height": 0.75
+      },
+      "pose": {
+        "in": "workcell",
+        "at": {
+          "x": 0,
+          "y": 0.75,
+          "z": 0
+        }
+      }
+    },
+    {
+      "id": "bin-a",
+      "component": "robot-arm.bin",
+      "name": "Bin A",
+      "description": "On the table, front left: the parts come in here, to be picked.",
+      "pose": {
+        "in": "workcell",
+        "at": {
+          "x": -0.3,
+          "y": 0.75,
+          "z": 0.2
+        }
+      }
+    },
+    {
+      "id": "bin-b",
+      "component": "robot-arm.bin",
+      "name": "Bin B",
+      "description": "On the table, front right: the arm places each part it picks here.",
+      "pose": {
+        "in": "workcell",
+        "at": {
+          "x": 0.3,
+          "y": 0.75,
+          "z": 0.2
+        }
+      }
+    },
+    {
+      "id": "workcell-camera",
+      "component": "physical-ai.camera",
+      "name": "Workcell camera",
+      "description": "Hangs 2.1 m above the floor, over the bins, looking straight down: it finds the bins wherever they stand.",
+      "attributes": {
+        "frame": "workcell_camera",
+        "rate": 15
+      },
+      "pose": {
+        "in": "workcell",
+        "at": {
+          "x": 0,
+          "y": 2.1,
+          "z": 0.2
+        },
+        "rotation": {
+          "x": -0.7071068,
+          "y": 0,
+          "z": 0,
+          "w": 0.7071068
+        }
+      }
+    },
+    {
       "id": "workpiece",
       "component": "essence",
       "name": "Workpiece",
-      "description": "The part to pick, on its tray."
+      "description": "The part to pick, in bin A.",
+      "pose": {
+        "in": "bin-a",
+        "at": {
+          "x": 0,
+          "y": 0.04,
+          "z": 0
+        }
+      }
     },
     {
       "id": "robot-computer",
@@ -735,7 +841,7 @@
     },
     {
       "id": "camera-on-link-6",
-      "relationType": "physical-ai.is-attached-to",
+      "relationType": "robot-arm.is-mounted-on",
       "from": "wrist-camera",
       "to": "link-6",
       "attributes": {
@@ -957,6 +1063,42 @@
       "relationType": "physical-ai.runs-on",
       "from": "controller-node",
       "to": "robot-computer"
+    },
+    {
+      "id": "arm-in-workcell",
+      "relationType": "robot-arm.is-in",
+      "from": "arm",
+      "to": "workcell"
+    },
+    {
+      "id": "table-in-workcell",
+      "relationType": "robot-arm.is-in",
+      "from": "table",
+      "to": "workcell"
+    },
+    {
+      "id": "bin-a-in-workcell",
+      "relationType": "robot-arm.is-in",
+      "from": "bin-a",
+      "to": "workcell"
+    },
+    {
+      "id": "bin-b-in-workcell",
+      "relationType": "robot-arm.is-in",
+      "from": "bin-b",
+      "to": "workcell"
+    },
+    {
+      "id": "workcell-camera-in-workcell",
+      "relationType": "robot-arm.is-in",
+      "from": "workcell-camera",
+      "to": "workcell"
+    },
+    {
+      "id": "workpiece-in-bin-a",
+      "relationType": "robot-arm.is-in",
+      "from": "workpiece",
+      "to": "bin-a"
     }
   ]
 }
