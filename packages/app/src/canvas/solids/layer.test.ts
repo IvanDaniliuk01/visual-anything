@@ -188,6 +188,24 @@ describe('the solid layer', () => {
     expect(layer.drawn).toBe(0);
   });
 
+  it('does nothing once destroyed, as when a camera’s glide calls it after the canvas went', async () => {
+    const { layer, images, scene } = setUp();
+    layer.setScene(scene, NONE, NONE);
+    await frames(layer, images);
+    layer.destroy();
+    expect(() => {
+      layer.setScale(2);
+      layer.setMarks({ selected: new Set(['base']), hovered: undefined, highlighted: new Set() });
+      layer.setTheme('dark', { selected: '#60A5FA', highlight: '#FB923C' });
+      layer.setScene(buildScene(withSolids(), 'robot'), NONE, NONE);
+      layer.setTurning({ key: 'arm', frame: undefined });
+      layer.reset();
+      expect(layer.frame(VIEW)).toBe(false);
+      layer.destroy();
+    }).not.toThrow();
+    expect(layer.drawn).toBe(0);
+  });
+
   it('turns a part buffer into the bytes of a texture, its numbers in red and green', () => {
     const bytes = partBufferBytes({ width: 2, height: 1, data: Uint16Array.from([0, 4097]) });
     expect([...bytes]).toEqual([0, 0, 0, 255, 1, 16, 0, 255]);
