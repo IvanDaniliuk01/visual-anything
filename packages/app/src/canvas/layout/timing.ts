@@ -6,7 +6,7 @@
  * and measures the result (`measureScene`, ADR 0080's "Layout quality"). A short check, not a
  * benchmark:
  *
- *   pnpm exec tsx packages/app/src/canvas/layout/timing.ts [elements] [view|new] [boxes|tables]
+ *   pnpm exec tsx packages/app/src/canvas/layout/timing.ts [elements] [view|new] [boxes|tables] [no-measures]
  *
  * `view` lays out the whole view, as Layout does; `new` lays out a view whose shapes have no position,
  * as automatic layout does when such a view opens. `boxes` is the benchmark's project
@@ -28,6 +28,8 @@ const args = (globalThis as { process?: { argv: string[] } }).process?.argv ?? [
 const elements = Number(args[2] ?? 10_000);
 const mode = args[3] === 'new' ? 'new' : 'view';
 const kind = args[4] === 'tables' ? 'tables' : 'boxes';
+// The measures take more than 20 minutes on `boxes`' 9,600 lines: `no-measures` leaves them out.
+const measures = args[5] !== 'no-measures';
 
 const synthetic = kind === 'tables' ? syntheticTables(elements) : syntheticProject({ elements });
 const project: ProjectSnapshot =
@@ -102,10 +104,12 @@ const routed = timed('main thread: the routes applied', () =>
 const drawn = timed('channel pass: input, pass and routes applied', () =>
   channelledScene(routed, after),
 );
-const quality = timed('the measures', () => measureScene(drawn));
-console.log(
-  `  ${quality.lines} lines: ${quality.crossings} crossings (${quality.crossingsPerLine} a line), ${quality.sharedSegments} shared segments, ${quality.linesThroughShapes} through shapes (+${quality.linesOverCoveringShapes} over covering ones), ${quality.bendsPerLine} bends a line, ${quality.overlappingSiblings} overlapping siblings, rows at middle ${quality.rowEndsAtMiddle}/${quality.rowEnds}, fill ${quality.fill}, aspect ${quality.aspect}`,
-);
+if (measures) {
+  const quality = timed('the measures', () => measureScene(drawn));
+  console.log(
+    `  ${quality.lines} lines: ${quality.crossings} crossings (${quality.crossingsPerLine} a line), ${quality.sharedSegments} shared segments, ${quality.linesThroughShapes} through shapes (+${quality.linesOverCoveringShapes} over covering ones), ${quality.bendsPerLine} bends a line, ${quality.overlappingSiblings} overlapping siblings, rows at middle ${quality.rowEndsAtMiddle}/${quality.rowEnds}, fill ${quality.fill}, aspect ${quality.aspect}`,
+  );
+}
 
 function labelOf(command: Command): string {
   return command.type === 'batch' ? command.label : command.type;

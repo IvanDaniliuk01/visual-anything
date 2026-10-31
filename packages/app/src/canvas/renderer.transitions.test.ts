@@ -9,6 +9,7 @@ import { loadSample } from '../test/sample';
 import type { TextFactory } from './draw';
 import { indexScene } from './hit';
 import { CanvasRenderer } from './renderer';
+import type { LitLines } from './emphasisMarks';
 import { buildScene } from './scene';
 
 vi.mock('pixi.js', async (importOriginal) => {
@@ -18,7 +19,8 @@ vi.mock('pixi.js', async (importOriginal) => {
 });
 
 interface Inside {
-  emphasisMarks: Graphics;
+  emphasisShapeMarks: Graphics;
+  litLines: LitLines;
   arrivingMarks: Graphics;
   /** The group the arriving marks are drawn in, which fades by its opacity. */
   arriving: Container;
@@ -34,6 +36,15 @@ const counting: TextFactory = (options) => {
 
 function inside(renderer: CanvasRenderer): Inside {
   return renderer as unknown as Inside;
+}
+
+/** How many instructions draw what is highlighted and not arriving. */
+function litCount(renderer: CanvasRenderer): number {
+  const { emphasisShapeMarks, litLines } = inside(renderer);
+  return litLines.shownLines.reduce(
+    (count, each) => count + each.context.instructions.length,
+    emphasisShapeMarks.context.instructions.length,
+  );
 }
 
 async function started(): Promise<{ renderer: CanvasRenderer; host: HTMLElement }> {
@@ -84,17 +95,19 @@ describe('marks that arrive', () => {
       highlighted: new Set(['patient', line.relation]),
       arriving: { keys: new Set([line.relation]), duration: 200 },
     });
-    const { emphasisMarks, arrivingMarks } = inside(renderer);
-    expect(emphasisMarks.context.instructions.length).toBeGreaterThan(0);
+    const { emphasisShapeMarks, arrivingMarks } = inside(renderer);
+    expect(litCount(renderer)).toBeGreaterThan(0);
     expect(arrivingMarks.context.instructions.length).toBeGreaterThan(0);
     expect(inside(renderer).arriving.alpha).toBe(0);
     expect(inside(renderer).arriving.isRenderGroup).toBe(true);
-    expect(emphasisMarks.alpha).toBe(1);
+    expect(emphasisShapeMarks.alpha).toBe(1);
+    // Drawn in pixels at the camera's scale, and never resized while they fade in.
+    const size = arrivingMarks.scale.x;
     time += 100;
     renderer.renderNow();
     expect(inside(renderer).arriving.alpha).toBeCloseTo(0.5);
     expect(inside(renderer).arriving.scale.x).toBe(1);
-    expect(arrivingMarks.scale.x).toBe(1);
+    expect(arrivingMarks.scale.x).toBe(size);
     time += 150;
     renderer.renderNow();
     expect(inside(renderer).arriving.alpha).toBe(1);
@@ -125,14 +138,14 @@ describe('marks that arrive', () => {
     renderer.show(indexed);
     const lit = new Set(['patient', line.relation]);
     renderer.setEmphasis({ highlighted: lit });
-    const settled = inside(renderer).emphasisMarks.context.instructions.length;
+    const settled = litCount(renderer);
     renderer.setEmphasis({
       highlighted: lit,
       arriving: { keys: new Set([line.relation]), duration: 200 },
     });
-    expect(inside(renderer).emphasisMarks.context.instructions.length).toBeLessThan(settled);
+    expect(litCount(renderer)).toBeLessThan(settled);
     renderer.setEmphasis({ highlighted: lit });
-    expect(inside(renderer).emphasisMarks.context.instructions.length).toBe(settled);
+    expect(litCount(renderer)).toBe(settled);
     expect(inside(renderer).arrivingMarks.context.instructions).toHaveLength(0);
     expect(inside(renderer).arriving.alpha).toBe(1);
   });
@@ -153,7 +166,7 @@ describe('the travelling marker', () => {
     const still = strokes(renderer);
     renderer.setEmphasis({ markers: [{ relation: line.relation, progress: 0.6, trail: 0.3 }] });
     const moving = strokes(renderer);
-    // The disc's ring, as before, after the trail's pieces, each fainter the farther behind.
+    // The trail's pieces, each fainter the farther behind; the disc is drawn apart (`MarkerDiscs`).
     expect(moving.length).toBeGreaterThan(still.length);
     const trail = moving.slice(0, moving.length - still.length);
     expect(trail.length).toBeGreaterThan(1);

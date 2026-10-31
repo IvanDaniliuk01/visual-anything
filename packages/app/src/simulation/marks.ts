@@ -8,7 +8,10 @@
  * speed, then stand at their `to` end. Under reduced motion they stand still at their ends.
  *
  * It sets the `simulation` source of the emphasis store itself, frame by frame while a marker
- * travels, so that nothing of React renders for it.
+ * travels, so that nothing of React renders for it; and at most once a frame (A4,
+ * `docs/designs/benchmark-12.md`): while a frame of its own is coming, a change of the store waits
+ * for it. That frame is asked for after the store's own, so that it comes after the store's frame
+ * has moved the runs on and shows the tick that frame brought.
  */
 import {
   modelIndexOf,
@@ -44,10 +47,7 @@ export function markedKeys(
   scene: Scene,
   marks: readonly Id[],
 ): MarkedKeys {
-  const index = modelIndexOf(project);
-  const shown = shownShapes(project, view, scene);
-  const nesting = new Set(nestingTypesInView(project, view));
-  const scoped = showsPart(view) ? shownByScope(project, view) : undefined;
+  const { index, shown, nesting, scoped } = lookupOf(project, view, scene);
   const highlighted = new Set<string>();
   const lines: Id[] = [];
   for (const id of marks) {
@@ -61,6 +61,33 @@ export function markedKeys(
     if (index.element(id) !== undefined) for (const key of shown(id)) highlighted.add(key);
   }
   return { highlighted, lines };
+}
+
+/** What finding a tick's keys reads of a view drawn, worked out once for every run's marks. */
+interface Lookup {
+  project: ProjectSnapshot;
+  view: ViewFile;
+  index: ReturnType<typeof modelIndexOf>;
+  shown: ReturnType<typeof shownShapes>;
+  nesting: ReadonlySet<Id>;
+  scoped: ReturnType<typeof shownByScope> | undefined;
+}
+
+const lookups = new WeakMap<Scene, Lookup>();
+
+function lookupOf(project: ProjectSnapshot, view: ViewFile, scene: Scene): Lookup {
+  const kept = lookups.get(scene);
+  if (kept?.project === project && kept.view === view) return kept;
+  const lookup: Lookup = {
+    project,
+    view,
+    index: modelIndexOf(project),
+    shown: shownShapes(project, view, scene),
+    nesting: new Set(nestingTypesInView(project, view)),
+    scoped: showsPart(view) ? shownByScope(project, view) : undefined,
+  };
+  lookups.set(scene, lookup);
+  return lookup;
 }
 
 /** How long a marker travels at a speed: a tick's time, at most `MARKER_TRAVEL_MAX`. */
@@ -95,6 +122,9 @@ export class SimulationMarks {
   private context: MarksContext | undefined;
   private readonly tracks = new Map<Id, Track>();
   private handle: number | undefined;
+  /** Whether its next frame is to be asked for once the store's frame has asked for the store's. */
+  private asking = false;
+  private disposed = false;
   private highlighted: ReadonlySet<string> | undefined;
   private highlightedFrom: readonly MarkedKeys[] = [];
   /** What was set last, and whether its markers stood at their ends. */
@@ -106,8 +136,10 @@ export class SimulationMarks {
     private readonly emphasis: Pick<EmphasisStore, 'set'>,
     private readonly frames: Frames,
     private readonly clock: () => number = () => performance.now(),
+    /** Runs a function once what runs now, the store's frame among it, is done. */
+    private readonly defer: (run: () => void) => void = (run) => queueMicrotask(run),
   ) {
-    this.unhear = store.subscribe(() => this.update());
+    this.unhear = store.subscribe(() => this.changed());
   }
 
   /** What the marks are drawn over now; none while no view is drawn. */
@@ -117,13 +149,20 @@ export class SimulationMarks {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.unhear();
     if (this.handle !== undefined) this.frames.cancel(this.handle);
     this.handle = undefined;
     this.emphasis.set(SIMULATION_SOURCE, undefined);
   }
 
-  private update(): void {
+  /** The store changed: shown now, or by the frame of its own already coming. */
+  private changed(): void {
+    if (this.handle !== undefined || this.asking) return;
+    this.update(true);
+  }
+
+  private update(fromStore = false): void {
     const now = this.clock();
     const all = this.store.marks();
     for (const element of [...this.tracks.keys()]) {
@@ -170,12 +209,29 @@ export class SimulationMarks {
     const emphasis: Emphasis = { highlighted, ...(markers.length > 0 ? { markers } : {}) };
     this.last = { highlighted, lines, settled: !travelling };
     this.emphasis.set(SIMULATION_SOURCE, emphasis);
-    if (travelling && this.handle === undefined) {
+    if (travelling) this.askFrame(fromStore);
+  }
+
+  /**
+   * Asks for a frame of its own, to set the marks again in: after what runs now when the store's
+   * change brought it here, so that the store's frame asks for its next frame first.
+   */
+  private askFrame(later: boolean): void {
+    if (this.handle !== undefined || this.asking) return;
+    const ask = () => {
+      this.asking = false;
+      if (this.disposed || this.handle !== undefined) return;
       this.handle = this.frames.request(() => {
         this.handle = undefined;
         this.update();
       });
+    };
+    if (!later) {
+      ask();
+      return;
     }
+    this.asking = true;
+    this.defer(ask);
   }
 
   private keysOf(track: Track, context: MarksContext): MarkedKeys {
