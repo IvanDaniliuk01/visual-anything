@@ -309,18 +309,36 @@ function forNearbyPairs(segments: readonly Segment[], each: (a: Segment, b: Segm
   }
 }
 
-const orientation = (a: Point, b: Point, c: Point) =>
-  (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-
 /** Whether two segments cross each other at a point inside both. */
 function crossProperly(p: Point, q: Point, r: Point, s: Point): boolean {
-  const d1 = orientation(r, s, p);
-  const d2 = orientation(r, s, q);
-  const d3 = orientation(p, q, r);
-  const d4 = orientation(p, q, s);
-  const apart = (one: number, two: number) =>
-    (one > 1e-9 && two < -1e-9) || (one < -1e-9 && two > 1e-9);
-  return apart(d1, d2) && apart(d3, d4);
+  return crossesAt(p.x, p.y, q.x, q.y, r.x, r.y, s.x, s.y);
+}
+
+/**
+ * Whether the segments p-q and r-s cross at a point inside both, from their coordinates: what
+ * crossProperly says, with nothing made for each call, as routes are checked against every shape.
+ */
+function crossesAt(
+  px: number,
+  py: number,
+  qx: number,
+  qy: number,
+  rx: number,
+  ry: number,
+  sx: number,
+  sy: number,
+): boolean {
+  const d1 = (sx - rx) * (py - ry) - (sy - ry) * (px - rx);
+  const d2 = (sx - rx) * (qy - ry) - (sy - ry) * (qx - rx);
+  if (!apart(d1, d2)) return false;
+  const d3 = (qx - px) * (ry - py) - (qy - py) * (rx - px);
+  const d4 = (qx - px) * (sy - py) - (qy - py) * (sx - px);
+  return apart(d3, d4);
+}
+
+/** Whether two orientations lie on either side of a line, beyond rounding. */
+function apart(one: number, two: number): boolean {
+  return (one > 1e-9 && two < -1e-9) || (one < -1e-9 && two > 1e-9);
 }
 
 /** How far two horizontal, or two vertical, segments on the same line run together; 0 otherwise. */
@@ -346,24 +364,22 @@ function overlapOf(a0: number, a1: number, b0: number, b1: number): number {
 
 /** Whether a segment runs through a rectangle, 2 units in from its sides. */
 export function segmentThrough(p: Point, q: Point, rect: Rect): boolean {
-  const inner = { x: rect.x + 2, y: rect.y + 2, width: rect.width - 4, height: rect.height - 4 };
-  if (inner.width <= 0 || inner.height <= 0) return false;
-  const inside = (point: Point) =>
-    point.x > inner.x &&
-    point.x < inner.x + inner.width &&
-    point.y > inner.y &&
-    point.y < inner.y + inner.height;
-  if (inside(p) || inside(q)) return true;
-  const corners: Point[] = [
-    { x: inner.x, y: inner.y },
-    { x: inner.x + inner.width, y: inner.y },
-    { x: inner.x + inner.width, y: inner.y + inner.height },
-    { x: inner.x, y: inner.y + inner.height },
-  ];
-  for (let at = 0; at < 4; at++) {
-    if (crossProperly(p, q, corners[at] as Point, corners[(at + 1) % 4] as Point)) return true;
-  }
-  return false;
+  const left = rect.x + 2;
+  const top = rect.y + 2;
+  const width = rect.width - 4;
+  const height = rect.height - 4;
+  if (width <= 0 || height <= 0) return false;
+  const right = left + width;
+  const bottom = top + height;
+  if (p.x > left && p.x < right && p.y > top && p.y < bottom) return true;
+  if (q.x > left && q.x < right && q.y > top && q.y < bottom) return true;
+  // Its four sides, from the top left corner round.
+  return (
+    crossesAt(p.x, p.y, q.x, q.y, left, top, right, top) ||
+    crossesAt(p.x, p.y, q.x, q.y, right, top, right, bottom) ||
+    crossesAt(p.x, p.y, q.x, q.y, right, bottom, left, bottom) ||
+    crossesAt(p.x, p.y, q.x, q.y, left, bottom, left, top)
+  );
 }
 
 /** Whether two rectangles cover each other by more than a unit each way. */

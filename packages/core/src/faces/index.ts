@@ -47,7 +47,7 @@ export type {
   FaceRegion,
   FaceRun,
 } from './layout';
-export { faceDrawingText, layOutFace } from './layout';
+export { faceDrawingText, faceIgnoresHeight, layOutFace } from './layout';
 export type { FacePalette } from './palette';
 export { facePalette, readableOn, resolveFaceColor } from './palette';
 export { faceContrastProblems } from './contrast';

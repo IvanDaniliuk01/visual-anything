@@ -119,6 +119,34 @@ Nothing here is in the benchmark's own code, which does what the shell does. The
 2. **The highlights are rebuilt when nothing they show moved.** Every tick changes the 100 simulating shapes' fill, so the scene's shapes are new objects. The renderer's emphasis keeps its highlights only while the shapes are the same objects (`keptEmphasized`), so it draws them again for the new scene as well as for the new marks. Comparing highlights by key would leave the halos alone when only a fill changed.
 3. **`SimulationMarks` sets the emphasis twice a frame at a finite speed:** once when the store's tick changes, and again from its own frame while markers travel. Each time the renderer draws the markers again. Updating once a frame, from its own frame callback scheduled when the store changes, would halve that.
 
+## After A4
+
+Date: 2026-10-31. Measured by a builder, on the branch that builds A4's "The main thread", in the same way as above: the same machine (i9-14900HX, RTX 4060 Laptop, not the reference laptop), Chrome 156 headless with a profile of its own on a spare debugging port and the same switches, a window of 1600 by 900 pixels, `pnpm bench`'s build served on 127.0.0.1:47721 since 47707 was not to be used, no test run, benchmark or other builder's work meanwhile. "Before" is the run above. ADR 0085's clarification of this date says what changed: the marks are stroked on screen in units of 16 pixels, highlights are kept by what they draw and lit lines by their keys, markers' discs only move, the marks are set once a frame, and a small highlight is found by key.
+
+Times in milliseconds: average / 95th percentile / worst, before → after.
+
+| Phase | Work mode | Frames mode |
+| --- | --- | --- |
+| 100 runs open, paused: pan, whole view | 7.4 / 19.3 / 112 → 7.0 / 15.4 / 89.4 | 5.7 / 12.8 / 54.2 → 5.3 / 12.0 / 41.0 |
+| 100 runs at 60 ticks a second: still, whole view | 123 / 151 / 296 → 10.1 / 15.9 / 19.8 | 64.9 / 71.2 / 200 → 9.7 / 16.6 / 16.8 |
+| 100 runs at 60 ticks a second: pan, whole view | 126 / 152 / 325 → 11.5 / 15.8 / 53.2 | 67.2 / 75.0 / 204 → 12.3 / 17.1 / 20.9 |
+| 100 runs at 60 ticks a second: pan, names shown | 46.7 / 61.1 / 314 → 11.0 / 17.0 / 22.0 | 40.5 / 50.3 / 158 → 10.5 / 16.7 / 25.0 |
+| 100 runs as fast as they go: still, whole view | 49.5 / 71.6 / 84.3 → 4.1 / 10.5 / 22.1 | 51.8 / 58.3 / 313 → 4.6 / 8.2 / 9.4 |
+| 100 runs as fast as they go: pan, whole view | 53.4 / 74.0 / 265 → 6.7 / 9.8 / 11.6 | 54.7 / 62.6 / 300 → 4.8 / 8.4 / 20.8 |
+| 100 runs as fast as they go: pan, names shown | 12.5 / 28.6 / 77.3 → 5.6 / 14.7 / 26.7 | 7.0 / 16.7 / 66.9 → 5.2 / 11.6 / 46.3 |
+| 16 runs in one code worker at 60 ticks a second: still, whole view | 29.2 / 43.5 / 59.6 → 5.6 / 6.9 / 34.5 | 26.8 / 33.4 / 49.7 → 4.4 / 4.4 / 24.9 |
+| 16 runs in one code worker as fast as they go: still, whole view | 4.3 / 13.2 / 20.9 → 3.9 / 12.1 / 21.0 | 4.7 / 8.2 / 15.4 → 4.9 / 8.3 / 100.3 |
+
+| A tick, from the store receiving it to the canvas drawing it (median / p95 / worst) | Work mode | Frames mode |
+| --- | --- | --- |
+| At 60 ticks a second | 232 / 309 / 465 → 23 / 34 / 88 | 124 / 141 / 288 → 21 / 29 / 41 |
+| As fast as it goes | 50.9 / 73.5 / 272 → 10 / 20 / 46 | 92.4 / 108 / 382 → 10 / 15 / 26 |
+
+- **Against the marks** (work: 10 / 13 / 33.3; frames: 18.1 / 25 / 33.3; a tick within 33.3 ms at the 95th percentile): in frames mode every phase with the runs playing now meets the target but by its worst frame in two (46 ms panning where names show as fast as they go, and one frame of 100 ms with 16 runs as fast as they go, which the other runs did not show); and a tick shows within two frames at the 95th percentile at both speeds (29 and 15 ms). In work mode the phases at 60 ticks a second miss by up to 1.5 ms on average and 3 to 4 ms at the 95th percentile (10.1 to 11.5 and 15.8 to 17.0); panning where names show as fast as they go misses by 1.7 ms at the 95th percentile, 16 runs at 60 by one frame of 34.5 ms, the paused pan at the 95th percentile and by its first frames, as without marks, and the tick at 60 by 0.7 ms at the 95th percentile.
+- **What the marks still cost:** the same build without them (`&marks=none`, work mode) gave 4.1 / 5.5 / 10.1 at 60 ticks a second, still, and 7.5 / 10.2 / 18.2 panning; with them, about 6 ms more a frame at 60 ticks a second. A profile of the unminified build puts most of what is left in the wait for the GPU, which work mode counts, and in the lines each tick lights for the first time; the trails and the discs are small beside it.
+- **Ticks a second:** at 60 every run reached 59 at the median, 100 in seven workers and 16 in one (55.6 to 58.8); as fast as it goes about 235 at the median with 100 runs (217 without marks), so drawing the marks no longer slows the runs.
+- **The page's own work** in a frame while the 100 runs played: 1.7 ms at the median and 3.8 ms at the 95th percentile, from 6.3 and 10.2.
+
 ## Questions for the main session
 
 - **100 runs at once is more than the app plays.** ADR 0085 and `SIMULATION_LIMITS.runsAtOnce` let a tab play at most 16 runs, and the worker's driver refuses a 17th, while M12's "Done when" asks the benchmark for 100 elements simulating at once. The benchmark shares the 100 runs among 7 code workers, each within the limit, which the app never does. Either the "Done when" means 16, or the limit should rise, which the numbers above allow on the worker's side: 16 runs in one worker go as fast as 100 in seven, and at 60 ticks a second each worker had time to spare.

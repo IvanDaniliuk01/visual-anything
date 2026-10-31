@@ -33,6 +33,7 @@ import {
 import { withCommunities } from './communities';
 import { ELK_SIDES, partPort, pointOnBorder, pointToward } from './ports';
 import { segmentThrough } from './quality';
+import { SpatialIndex, rectBetween } from '../spatial';
 import {
   ELK_TIME_LIMIT,
   ELK_WORK_BUDGET,
@@ -937,12 +938,15 @@ function carriedRoutes(
     boxes.set(at, box);
     return box;
   };
-  const blocks: { at: number; rect: Rect }[] = [];
+  // The shapes a route may not run through, by where they lie: a segment is checked against those
+  // near it only, not against every shape of the view (A4).
+  const blocks = new SpatialIndex<{ at: number; rect: Rect }>();
   shapes.forEach((shape, at) => {
     if (shape.rowAt !== undefined || shape.partAt !== undefined) return;
     if (tree.childrenOf(at).length > 0 && shape.headerAt === undefined) return;
     const box = boxOf(at);
-    blocks.push({ at, rect: { ...box, x: box.x + (shape.tagLeft ?? 0) } });
+    const rect = { ...box, x: box.x + (shape.tagLeft ?? 0) };
+    blocks.insert({ at, rect }, rect);
   });
   const obstacles = input.obstacles;
   const routes: LaidOutRoute[] = [];
@@ -973,7 +977,8 @@ function carriedRoutes(
     for (let next = 1; next < points.length; next++) {
       const a = points[next - 1] as Point;
       const b = points[next] as Point;
-      if (blocks.some((block) => !ends.has(block.at) && segmentThrough(a, b, block.rect))) return;
+      const near = blocks.query(rectBetween(a, b));
+      if (near.some((block) => !ends.has(block.at) && segmentThrough(a, b, block.rect))) return;
       if (obstacles.some((rect) => segmentThrough(a, b, rect))) return;
     }
     routes.push({ relation: relation.relation, points });
