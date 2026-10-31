@@ -95,6 +95,8 @@ function cellClass(shown: ShownCell): string {
         : 'element-list-cell element-list-live';
     case 'computed':
       return 'element-list-cell element-list-computed';
+    case 'simulated':
+      return 'element-list-cell element-list-simulated';
     default:
       return 'element-list-cell';
   }
@@ -108,6 +110,11 @@ function cellTitle(
 ): string | undefined {
   const { from } = shown;
   if (from === undefined) return undefined;
+  if (shown.origin === 'simulated' && 'package' in from) {
+    return t('Simulated by the code of “{name}”, and never saved.', {
+      name: packageName(from.package),
+    });
+  }
   if (shown.origin === 'computed' && 'package' in from) {
     return t('Computed by the code of “{name}”, and never saved.', {
       name: packageName(from.package),

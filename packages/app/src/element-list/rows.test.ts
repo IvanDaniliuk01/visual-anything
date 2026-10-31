@@ -229,6 +229,18 @@ describe('values from outside the model (ADR 0057)', () => {
     });
   });
 
+  it('shows a simulated value over the rest, marked ∿ with its package (ADR 0085)', () => {
+    const size = byKey.get('attribute sizeGb')!;
+    const simulating = new AttributeLookup(
+      liveAt(20_000, [['appointments-db', 'sizeGb', 30]]),
+      computed,
+      new Map([['appointments-db', new Map([['sizeGb', { value: 44, package: 'clinic' }]])]]),
+    );
+    expect(
+      shownCell(t, project, element('appointments-db'), size, definitions, simulating),
+    ).toEqual({ value: 44, text: '∿ 44', origin: 'simulated', from: { package: 'clinic' } });
+  });
+
   it('gives a column of its own to an attribute only a live value or package code gives', () => {
     expect(extraNamesOf(listed, lookup)).toEqual(['queue', 'sizeGb']);
     expect(columns.map(columnKey)).toContain('attribute queue');

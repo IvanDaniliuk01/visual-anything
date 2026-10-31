@@ -13,6 +13,7 @@
 import type { ViewState } from '@visual-anything/core';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useReducedMotion } from '../scenarios/motion';
+import { shownRun } from '../simulation/context';
 import { AddressFollower, addressOf, fragmentOf, readAddress, type AddressWindow } from './address';
 import { UNREADABLE, ViewStateApplier, fill, type ApplyContext, type GoTo } from './applier';
 import { cameraOf, viewStateOf } from './state';
@@ -97,6 +98,9 @@ export function useViewState(input: ViewStateInput): ViewStateLink {
   // The physical-space panel opening, closing and moving changes the view state too (ADR 0076).
   const space = input.space;
   useEffect(() => space?.subscribe(() => follower.changed()), [follower, space]);
+  // And so do the tab's simulation runs, as they open, close and move (ADR 0085).
+  const simulations = input.simulations;
+  useEffect(() => simulations?.subscribe(() => follower.changed()), [follower, simulations]);
 
   return useMemo<ViewStateLink>(
     () => ({
@@ -130,7 +134,16 @@ function composed(now: ApplyContext): ReturnType<typeof viewStateOf> | undefined
         ? undefined
         : { id: playing.scenario, step: playing.step, choices: playing.choices },
     space: now.space?.state(now.viewId),
+    simulation: simulationShown(now),
   });
+}
+
+/** What the view state carries of the simulation shown, if any (ADR 0085). */
+function simulationShown(now: ApplyContext) {
+  const store = now.simulations;
+  if (!store) return undefined;
+  const run = shownRun(store, now.selection);
+  return run === undefined ? undefined : store.saved(run.element);
 }
 
 const noSubscription = () => () => undefined;

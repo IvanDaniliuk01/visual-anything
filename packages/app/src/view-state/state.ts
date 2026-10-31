@@ -20,6 +20,7 @@ import {
   type ViewCamera,
   type ViewFilters,
   type ViewFocus,
+  type ViewSimulation,
   type ViewState,
   type ViewSpace,
   type ViewTimeRange,
@@ -77,6 +78,8 @@ export interface AppViewState {
   scenario?: { id: Id; step: number; choices?: DecisionChoices } | undefined;
   /** The view's physical-space panel while it is open (ADR 0076); absent while it is closed. */
   space?: ViewSpace | undefined;
+  /** The simulation shown, at its tick shown (ADR 0085); absent while none is open. */
+  simulation?: ViewSimulation | undefined;
 }
 
 /**
@@ -84,7 +87,7 @@ export interface AppViewState {
  * larger than an address holds. Filters keep only the conditions that apply.
  */
 export function viewStateOf(input: AppViewState): { state: ViewState; selectionLeftOut: boolean } {
-  const { project, viewId, camera, selection, filters, focus, scenario, space } = input;
+  const { project, viewId, camera, selection, filters, focus, scenario, space, simulation } = input;
   const selected = [...selection.elements, ...selection.relations, ...selection.freeShapes];
   const selectionLeftOut = selected.length > MAX_VIEW_STATE_IDS;
   const state: ViewState = { view: viewId };
@@ -103,12 +106,17 @@ export function viewStateOf(input: AppViewState): { state: ViewState; selectionL
     if (choices) state.choices = choices;
   }
   if (space) state.space = space;
+  if (simulation) state.simulation = simulation;
   // Whatever the core would refuse is left out rather than written, part by part.
   const checked = checkViewState(state);
   if (checked.ok) return { state: checked.state, selectionLeftOut };
-  // Else the camera and the panel, each kept when the core takes it.
+  // Else the camera, the panel and the simulation, each kept when the core takes it.
   const plain: ViewState = { view: viewId };
-  for (const part of [camera ? { camera } : {}, space ? { space } : {}]) {
+  for (const part of [
+    camera ? { camera } : {},
+    space ? { space } : {},
+    simulation ? { simulation } : {},
+  ]) {
     const tried = checkViewState({ ...plain, ...part });
     if (tried.ok) Object.assign(plain, tried.state);
   }

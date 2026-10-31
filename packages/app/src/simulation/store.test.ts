@@ -286,9 +286,31 @@ describe('SimulationStore', () => {
     const { worker, store, simulation } = setUp();
     store.open('api', simulation);
     worker.work();
+    // Read before it closes, as the canvas reads them, they are not kept after.
+    expect(store.simulated().size).toBe(1);
+    expect(store.marks().size).toBe(1);
     store.close('api');
     expect(store.get('api')).toBeUndefined();
     expect(worker.driver.elements()).toEqual([]);
     expect(store.simulated().size).toBe(0);
+    expect(store.marks().size).toBe(0);
+  });
+
+  it('keeps the values of a run whose tick shown stayed, while another moves', () => {
+    // The client has no read of the database to mark.
+    const { worker, store, simulation } = setUp((input, random) => ({
+      ...(queue(input, random) as object),
+      marks: [],
+    }));
+    store.open('api', simulation);
+    store.open('client', simulation);
+    worker.work();
+    const before = store.simulated();
+    store.forward('client');
+    worker.work();
+    const after = store.simulated();
+    expect(after).not.toBe(before);
+    expect(after.get('api')).toBe(before.get('api'));
+    expect(after.get('client')).not.toBe(before.get('client'));
   });
 });

@@ -83,7 +83,7 @@ export function markersOf(
  * container, the shape of the outermost collapsed container it sits in, which the canvas draws. Shape
  * keys name the elements from World down to the shape, joined by `/`.
  */
-function shownShapes(
+export function shownShapes(
   project: ProjectSnapshot,
   view: ViewFile,
   scene: Scene,

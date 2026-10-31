@@ -9,14 +9,21 @@
  * The physical-space panel (ADR 0076) opens with the view state's `space` as focus does, before the
  * canvas's camera moves, since opening it narrows the canvas; a view state without one closes it. A
  * tour's step moves the panel's camera as a tour does (`space/travel.ts`), and an address puts it there.
+ * Its simulation (ADR 0085) opens with the scenario, paused at its tick, and closes the tab's other
+ * runs; a view state without one closes them all.
  *
  * It lives outside React's state, like the scenario session: the shell tells it how things are after
  * each render that matters (`sync`), and it does the next step it can.
  */
 import {
+  SIMULATION_LIMITS,
+  definitionsIn,
   knownChoices,
+  modelIndexOf,
+  simulationOf,
   viewStateProblems,
   type ProjectSnapshot,
+  type ViewSimulation,
   type ViewSpace,
   type ViewState,
 } from '@visual-anything/core';
@@ -33,6 +40,7 @@ import type { NoticeLevel } from '../live/connection';
 import { NO_CHOICES } from '../scenarios/choosing';
 import { FOLLOW_MARGIN } from '../scenarios/follow';
 import type { ScenarioSession } from '../scenarios/session';
+import type { SimulationStore } from '../simulation/store';
 import type { SpacePanelStore } from '../space/store';
 import { sameSpaceCamera } from '../space/travel';
 import type { CanvasCamera, GlideOptions } from './canvas';
@@ -108,6 +116,8 @@ export interface ApplyContext {
   canvas: CanvasCamera | undefined;
   /** The tab's physical-space panel (ADR 0076); absent where there is none, as in the read-only page. */
   space?: SpacePanelStore | undefined;
+  /** The tab's simulation runs (ADR 0085); absent where there are none, as in the read-only page. */
+  simulations?: SimulationStore | undefined;
   /** Whether the system asks for reduced motion: then nothing glides. */
   reduced: boolean;
   /** Says something in a notice; absent outside a live session. */
@@ -233,6 +243,7 @@ export class ViewStateApplier {
       context.explore.setFocus({ on: false });
     }
     playScenario(context.scenarios, project, state);
+    applySimulation(context, state.simulation);
     const [first] = state.select ?? [];
     const key =
       first === undefined
@@ -352,6 +363,46 @@ function applySpace(
   store.moves.move(viewId, camera, {
     reducedMotion: context.reduced || (travel.cutsSpace?.() ?? false),
   });
+}
+
+/**
+ * Opens the view state's simulation at its tick, with its parameters and seed, paused, and closes
+ * every other run, so that the tab shows the one simulation it carries; a view state without one
+ * closes them all (ADR 0085). One its project refuses opens nothing, as `viewStateProblems` said;
+ * one already shown as it says is left playing as it plays.
+ */
+function applySimulation(context: ApplyContext, simulation: ViewSimulation | undefined): void {
+  const store = context.simulations;
+  if (!store) return;
+  for (const run of store.list()) {
+    if (run.element !== simulation?.element) store.close(run.element);
+  }
+  if (!simulation) return;
+  const element = modelIndexOf(context.project).element(simulation.element);
+  const simulated = element && simulationOf(definitionsIn(context.project), element.component);
+  if (!simulated) return;
+  const { element: id, ...chosen } = simulation;
+  const open = store.get(id);
+  if (
+    open?.simulation.definition === simulated.definition &&
+    sameSaved(store.saved(id), simulation)
+  ) {
+    return;
+  }
+  store.open(id, simulated, chosen);
+}
+
+/** Whether two simulations a view state carries say the same. */
+function sameSaved(a: ViewSimulation | undefined, b: ViewSimulation): boolean {
+  if (a === undefined) return false;
+  const params = (each: ViewSimulation) =>
+    JSON.stringify(Object.entries(each.parameters ?? {}).sort(([x], [y]) => (x < y ? -1 : 1)));
+  return (
+    a.element === b.element &&
+    (a.seed ?? SIMULATION_LIMITS.defaultSeed) === (b.seed ?? SIMULATION_LIMITS.defaultSeed) &&
+    (a.tick ?? 0) === (b.tick ?? 0) &&
+    params(a) === params(b)
+  );
 }
 
 /** The element a panel's state shows: World when it names none. */
