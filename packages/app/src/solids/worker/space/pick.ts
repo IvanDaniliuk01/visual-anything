@@ -98,7 +98,7 @@ export function pickInSpace(input: PickInput, x: number, y: number): SpacePicked
   for (const laid of layout.solids) {
     if (laid.boxed) {
       if (!laid.look) continue;
-      const placed = relativeMatrix(laid.entry.matrix, target);
+      const placed = relativeMatrix(laid.matrix.elements, target);
       local.copy(ray).applyMatrix4(inverse.copy(placed).invert());
       const box = new Box3(
         new Vector3(laid.own.min.x, laid.own.min.y, laid.own.min.z),

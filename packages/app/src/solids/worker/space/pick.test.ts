@@ -87,6 +87,36 @@ describe('picking in a space', () => {
     expect(exploded.point?.y).toBeCloseTo(2.1, 3);
   });
 
+  it('meets what is posed in an exploded part where the part moves it, drawn or boxed', () => {
+    // A camera on the arm's gripper, and a second arm on it to the side: at a factor of 2 the gripper
+    // moves up 1 m, and the tool's own parts move away from its base as well.
+    const entries: SpaceDrawnEntry[] = [
+      armEntry('arm'),
+      { element: 'hand', name: 'Hand', matrix: at(0, 1, 0), part: { of: 'arm', index: 2 } },
+      { element: 'camera', name: 'Camera', matrix: at(1, 0.6, 0), marker: true, in: 'hand' },
+      { ...armEntry('tool', at(-3, 0.6, 0)), in: 'hand' },
+    ];
+    const camera = spaceToDraw(arm, [], {
+      camera: { target: { x: -1, y: 1.5, z: 0 }, azimuth: 0, elevation: 0, distance: 9 },
+    }).camera;
+    const still = spaceToDraw(arm, entries, { camera });
+    const exploded = spaceToDraw(arm, entries, { camera, explode: 2 });
+    const [x, y] = pixelOf(camera, { x: 1, y: 1.6, z: 0 });
+    expect(pick(exploded, x, y - 10)).toEqual({ element: 'camera', point: { x: 1, y: 1.6, z: 0 } });
+    expect(pick(still, x, y - 10).element).toBeNull();
+    // The tool's base, 0.2 m tall, stands from 1.6 m: met on its front.
+    const [toolX, toolY] = pixelOf(camera, { x: -3, y: 1.7, z: 0.5 });
+    const tool = pick(exploded, toolX, toolY);
+    expect(tool.element).toBe('tool');
+    expect(tool.point?.y).toBeCloseTo(1.7, 3);
+    expect(tool.point?.z).toBeCloseTo(0.5, 3);
+    // Drawn as its box, from 1.6 m to 2.8 m, and from 0.6 m to 1.8 m unexploded.
+    const boxed = new Set(['tool']);
+    const [boxX, boxY] = pixelOf(camera, { x: -3, y: 2.5, z: 0.5 });
+    expect(pick({ ...exploded, boxed }, boxX, boxY).element).toBe('tool');
+    expect(pick({ ...still, boxed }, boxX, boxY).element).toBeNull();
+  });
+
   it('meets what a cut keeps, inside the solid where the cut opens it', () => {
     const cut = pick(
       spaceToDraw(arm, [armEntry('arm')], { cut: { axis: 'z', at: 0, keep: 'below' } }),

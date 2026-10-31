@@ -10,7 +10,8 @@
  *   marked part, as on the canvas; hiding, faintness, a fill and an opacity come from the nearest.
  * - **A collapsed container** is drawn as one: what is drawn as it (`as`) answers a pick as it.
  * - **The exploded view** moves each named part away from the middle of the part or solid holding it,
- *   by the factor given, and each part moves with what holds it.
+ *   by the factor given, and each part moves with what holds it. What is posed in an entry moves as
+ *   that entry does, at any depth ({@link explosionShifts}), and is drawn, named and picked there.
  * - **Markers** are drawn at their entries' origins, in their overlay's fill, or their shape's.
  * - **Points**, where names are written: an anchored part's middle, moved as its part is; else the
  *   middle of its solid's bounds; else its origin.
@@ -19,7 +20,7 @@
  * draws them less the camera's target (`scene.ts`).
  */
 import type { Color, Id, SpaceBounds, SpacePoint } from '@visual-anything/schema';
-import { Matrix4, Vector3 } from 'three';
+import { Matrix3, Matrix4, Vector3 } from 'three';
 import { DIMMED_ALPHA } from '../../../canvas/colors';
 import { boundsPlaced } from '../../../space/camera';
 import type { SpaceDrawnEntry, SpaceElementState } from '../../protocol';
@@ -62,7 +63,7 @@ export interface LaidPiece {
 export interface LaidSolid {
   readonly entry: SpaceDrawnEntry;
   readonly solid: BuiltSolid;
-  /** Its entry's matrix. */
+  /** Its entry's matrix, as the exploded view moves it. */
   readonly matrix: Matrix4;
   /** Its own look, which its box takes while it is drawn as one; none when it is hidden. */
   readonly look: SpaceLook | undefined;
@@ -72,7 +73,7 @@ export interface LaidSolid {
   readonly parts: readonly (SpaceLook | undefined)[];
   /** Drawn as its box while the camera moves past the triangles' mark. */
   readonly boxed: boolean;
-  /** Its bounds, along the panel's axes. */
+  /** Its bounds, along the panel's axes, where the exploded view moves it. */
   readonly bounds: SpaceBounds;
   /** Its bounds in its own coordinates. */
   readonly own: SpaceBounds;
@@ -188,6 +189,54 @@ export function explosionOf(solid: BuiltSolid, factor: number): readonly Vector3
   return offsets;
 }
 
+/**
+ * How far the exploded view moves each entry, in the coordinates of the element the panel shows: an
+ * anchored part as its holder moves plus its part's offset, turned by its holder's matrix; a posed
+ * entry as what it is posed in moves, at any depth. Only the entries that move are named; at a factor
+ * of 0, none.
+ */
+export function explosionShifts(
+  entries: readonly SpaceDrawnEntry[],
+  solids: ReadonlyMap<string, BuiltSolid>,
+  factor: number,
+): ReadonlyMap<Id, Vector3> {
+  const shifts = new Map<Id, Vector3>();
+  if (!(factor > 0)) return shifts;
+  const byElement = new Map(entries.map((entry) => [entry.element, entry]));
+  const known = new Map<Id, Vector3 | undefined>();
+  const visiting = new Set<Id>();
+  const shiftOf = (entry: SpaceDrawnEntry): Vector3 | undefined => {
+    if (known.has(entry.element)) return known.get(entry.element);
+    // What is posed in a loop moves with nothing: the model never makes one.
+    if (visiting.has(entry.element)) return undefined;
+    visiting.add(entry.element);
+    let shift: Vector3 | undefined;
+    if (entry.part) {
+      const holder = byElement.get(entry.part.of);
+      const held = holder?.solid === undefined ? undefined : solids.get(holder.solid);
+      const offset = held ? explosionOf(held, factor)[entry.part.index] : undefined;
+      const outer = holder ? shiftOf(holder) : undefined;
+      if (holder && offset && offset.lengthSq() > 0) {
+        shift = offset
+          .clone()
+          .applyMatrix3(new Matrix3().setFromMatrix4(new Matrix4().fromArray(holder.matrix)));
+        if (outer) shift.add(outer);
+      } else shift = outer;
+    } else if (entry.in !== undefined) {
+      const holder = byElement.get(entry.in);
+      shift = holder ? shiftOf(holder) : undefined;
+    }
+    visiting.delete(entry.element);
+    known.set(entry.element, shift);
+    return shift;
+  };
+  for (const entry of entries) {
+    const shift = shiftOf(entry);
+    if (shift && shift.lengthSq() > 0) shifts.set(entry.element, shift);
+  }
+  return shifts;
+}
+
 // Pieces at rest ----------------------------------------------------------------------------------
 
 const rests = new WeakMap<BuiltSolid, Matrix4[]>();
@@ -239,6 +288,19 @@ export function layOut(space: LaidOutSpace): SpaceLayout {
   }
   const solidOf = (entry: SpaceDrawnEntry | undefined) =>
     entry?.solid === undefined ? undefined : solids.get(entry.solid);
+  // Each entry's matrix as the exploded view moves it.
+  const shifts = explosionShifts(space.entries, solids, space.explode);
+  const placedOf = (entry: SpaceDrawnEntry): Matrix4 => {
+    const placed = new Matrix4().fromArray(entry.matrix);
+    const shift = shifts.get(entry.element);
+    if (shift) {
+      // An entry's matrix is affine, so moving it adds to its translation.
+      placed.elements[12] = (placed.elements[12] ?? 0) + shift.x;
+      placed.elements[13] = (placed.elements[13] ?? 0) + shift.y;
+      placed.elements[14] = (placed.elements[14] ?? 0) + shift.z;
+    }
+    return placed;
+  };
 
   const laidSolids: LaidSolid[] = [];
   const markers: LaidMarker[] = [];
@@ -248,12 +310,16 @@ export function layOut(space: LaidOutSpace): SpaceLayout {
   for (const entry of space.entries) {
     const look = lookFor(entry);
     const solid = solidOf(entry);
-    if (solid) laidSolids.push(laySolid(entry, solid, look, partsOf.get(entry.element), space));
+    if (solid) {
+      laidSolids.push(
+        laySolid(entry, placedOf(entry), solid, look, partsOf.get(entry.element), space),
+      );
+    }
     if (entry.marker && look) {
       const color = look.fill ?? entry.fill;
       markers.push({
         entry,
-        at: originOf(entry.matrix),
+        at: originOf(placedOf(entry).elements),
         look,
         ...(color === undefined ? {} : { color }),
       });
@@ -281,7 +347,7 @@ export function layOut(space: LaidOutSpace): SpaceLayout {
     const solid = solidOf(entry);
     if (solid) {
       const bounds = entry.bounds ?? solid.description.bounds;
-      return toPoint(middleOf(bounds).applyMatrix4(new Matrix4().fromArray(entry.matrix)));
+      return toPoint(middleOf(bounds).applyMatrix4(placedOf(entry)));
     }
     if (entry.part) {
       const holder = byElement.get(entry.part.of);
@@ -290,21 +356,21 @@ export function layOut(space: LaidOutSpace): SpaceLayout {
         const middle = middleOf(held.partBounds(entry.part.index));
         const moved = explosionOf(held, space.explode)[entry.part.index];
         if (moved) middle.add(moved);
-        return toPoint(middle.applyMatrix4(new Matrix4().fromArray(holder.matrix)));
+        return toPoint(middle.applyMatrix4(placedOf(holder)));
       }
     }
-    return originOf(entry.matrix);
+    return originOf(placedOf(entry).elements);
   }
 }
 
 function laySolid(
   entry: SpaceDrawnEntry,
+  matrix: Matrix4,
   solid: BuiltSolid,
   look: SpaceLook | undefined,
   anchored: ReadonlyMap<number, SpaceDrawnEntry> | undefined,
   space: Pick<SpaceToDraw, 'states' | 'explode' | 'boxed'>,
 ): LaidSolid {
-  const matrix = new Matrix4().fromArray(entry.matrix);
   const own = entry.bounds ?? solid.description.bounds;
   const offsets = explosionOf(solid, space.explode);
   const rest = piecesAtRest(solid);
@@ -342,7 +408,7 @@ function laySolid(
     pieces,
     parts: partLooks,
     boxed: space.boxed.has(entry.element),
-    bounds: boundsPlaced(entry.matrix, own),
+    bounds: boundsPlaced(matrix.elements, own),
     own,
   };
 }

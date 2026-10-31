@@ -4,6 +4,8 @@
  * with its name, its matrix, and what draws it:
  * - its solid, by its file's hash, with the solid's bounds;
  * - for an anchored part, the element whose solid holds it and its part's index there;
+ * - for a posed element, what it is posed in when that is drawn too, which the exploded view moves it
+ *   with;
  * - a marker, for an element posed with no solid that nothing in the space is posed or anchored in:
  *   a container without a solid is drawn as what is in it; it is drawn in its shape's fill, which
  *   `fillOf` gives;
@@ -23,6 +25,7 @@ export function spaceEntriesOf(
   nameOf: (element: Id) => string,
   fillOf?: (element: Id) => Color | undefined,
 ): SpaceDrawnEntry[] {
+  const drawnHere = (element: Id) => space.entries.has(element) || space.faint.has(element);
   const holders = new Set<Id>();
   for (const entry of [...space.entries.values(), ...space.faint.values()]) {
     if (entry.in !== undefined) holders.add(entry.in);
@@ -41,6 +44,9 @@ export function spaceEntriesOf(
         : {}),
       ...(entry.part && entry.in !== undefined
         ? { part: { of: entry.in, index: entry.part.index } }
+        : {}),
+      ...(entry.how === 'posed' && entry.in !== undefined && drawnHere(entry.in)
+        ? { in: entry.in }
         : {}),
       ...(marker ? { marker: true } : {}),
       ...(entry.drawnAs !== undefined ? { as: entry.drawnAs } : {}),

@@ -164,6 +164,11 @@ export interface SpaceDrawnEntry {
   bounds?: SpaceBounds;
   /** For an anchored part: the element whose drawn solid holds it, and its part's index there. */
   part?: { of: Id; index: number };
+  /**
+   * For a posed element: the entry it is posed in, when that is drawn, so that the exploded view
+   * moves it with what it is posed in. An anchored part has none: its `part` says what holds it.
+   */
+  in?: Id;
   /** Drawn as a marker at its origin: posed, with neither a solid nor anything in it. */
   marker?: boolean;
   /**
@@ -750,7 +755,7 @@ function entryOf(value: unknown): SpaceDrawnEntry {
   const entry = recordOf(value, 'An entry of a space');
   onlyKeys(
     entry,
-    ['element', 'name', 'matrix', 'solid', 'bounds', 'part', 'marker', 'as', 'fill'],
+    ['element', 'name', 'matrix', 'solid', 'bounds', 'part', 'in', 'marker', 'as', 'fill'],
     'An entry of a space',
   );
   const { name } = entry;
@@ -771,6 +776,10 @@ function entryOf(value: unknown): SpaceDrawnEntry {
     const part = recordOf(entry.part, 'An entry’s part');
     onlyKeys(part, ['of', 'index'], 'An entry’s part');
     read.part = { of: idOf(part.of, 'What holds a part'), index: partIndex(part.index, 'A part') };
+  }
+  if (entry.in !== undefined) {
+    read.in = idOf(entry.in, 'What an entry is posed in');
+    if (read.part !== undefined) refuse('An anchored part is posed in nothing.');
   }
   if (entry.marker !== undefined && flag(entry.marker, 'Whether an entry is a marker')) {
     if (read.solid !== undefined || read.part !== undefined) {
