@@ -1060,6 +1060,54 @@ Its tasks run in this order:
   - a step played with its relations drawn in space: the panel 16.7 ms between frames shown (18 ms at the 95th percentile, one frame of 36 ms), the canvas 60 frames per second, its work 17 ms at the 95th percentile;
   - the canvas with the panel at rest: as before, its single slow frames panning with names shown aside.
 
+**M12 · Simulate (case 4).** Planned for the fifth wave, after M10, on 2026-10-31, from research done with the user's medical-audit model in mind, reading only its shape: an audit moving through its states, and a rule engine under load (ADR 0085, which builds on ADR 0054). Its two seams go first and in order, in the main session: the schema and the core, then the app's. After them, the worker and the inspector run in parallel, Claude's tools and the sample follow them, and the benchmark is measured once the rest is merged. Done when:
+
+- a programmable component of your own simulates a behavior from parameters you change, within its limits, and stops cleanly when it exceeds them:
+  - its package declares the simulation;
+  - its code's `simulate` hook works out each tick in the code worker, only once approved;
+  - parameters out of their range are refused;
+  - a run stops at the tick that ends it, reaches its ticks, goes past a limit or fails, says why, and keeps the ticks before it;
+- runs repeat: the same code, parameters, seed and model give the same ticks, and the core's property tests pass:
+  - a tick worked out again from a kept state equals the first time;
+  - no run holds a tick past its stop;
+  - a run never keeps more than its budget;
+- the inspector's Simulation section has:
+  - the parameters' controls and the seed;
+  - Play, Pause, Back a tick, Forward a tick, Run from here, Reset and the speed;
+  - the values with their limits, and a chart of each number on which a click goes to a tick;
+  - changing a parameter plays the run again up to the tick shown;
+- a simulated value named like an attribute shows on the canvas in its place, marked `∿`, in shapes' detail, badges, overlays and filters; a tick's marks highlight shapes and send travelling markers along relations, in the canvas and in the physical-space panel;
+- runs, parameters and seeds are never saved; a view state, its address and a tour step can carry one simulation at one tick;
+- the keyboard and a screen reader reach the section and announce a run's stops; the text is in English and Spanish;
+- Claude reads a simulation with `get_simulation`, runs it with `run_simulation` after the person's approval, and shows it in the app with the guidance `show_simulation`;
+- a sample project holds a work queue under load that goes past its limit when arrivals outgrow its workers, and a case moving through its states along the model's relations, with a tour, in English and Spanish;
+- the simulation benchmark (`?simulate`) is measured and recorded (not held): 100 elements simulating at once on the 10,000-element view, with an overlay reading their values. The marks are:
+  - the canvas keeps its 60 frames per second target;
+  - a tick shows within two frames of its answer;
+  - the number of ticks a second each run reaches is recorded.
+
+- [ ] **Seam 1, in the main session: the schema and the core**, test-first with property tests (ADR 0085).
+  - **Schema:** `Component.simulation` (`SimulationDefinition`, `ParameterDefinition`, `SimulatedValueDefinition`, `TickLength`) and `SavedViewState.simulation`; the schemas regenerated.
+  - **The core, `core/src/simulation/`:**
+    - `simulationOf`, with inheritance;
+    - `checkParameters`;
+    - `checkSimulateAnswer`;
+    - `tickRandom(seed, tick)`;
+    - the run's record (`SimulationRun`): ticks, stops, going back, running from here, within `SIMULATION_LIMITS`;
+    - `simulate` among the hooks, and the input it gets.
+  - **View states and protocol:** `simulation` in view states and addresses (`sim=`); the guidance `simulation` in protocol 8.
+- [ ] **Seam 2, in the main session: the app's seam.** The worker's simulation messages, the tab's `SimulationStore` with its interface, simulated values in the attribute lookup, and a stand-in that answers ticks from a function, for tests.
+- [ ] **The worker:** `simulate` in the sandbox with the seeded generator in place of `Math.random`, runs played in the runner's slices, the stops and the states kept, and failures counted as ADR 0054 counts them.
+- [ ] **The inspector and the canvas:**
+  - the Simulation section with its controls and charts;
+  - simulated values read on the canvas with `∿`;
+  - a tick's marks on the canvas and in the panel;
+  - view states and addresses with `simulation`;
+  - announcements, keys and the text in English and Spanish.
+- [ ] **Claude's tools** (`server/src/claude/simulation-tools.ts`): `get_simulation`, `run_simulation` and `show_simulation`, with descriptions and examples.
+- [ ] **The sample:** `examples/simulate`, with a package of a work queue and a case through its states, its code, a view, and a tour that shows the queue going past its limit, in English and Spanish.
+- [ ] **The benchmark:** `?simulate`, in work and frames modes, with the marks of the "Done when" above, recorded in `docs/designs/benchmark-12.md`.
+
 **Track A · Look and feel**, beside the milestones: A1 right after M2 and before M3's app tasks; A2's core before M3's commands for collapse, expand and filters, and A2 tagged before M4's write tools are fixed; A3 after M3's canvas tasks; A4 before M4's UI tasks. Its commits start with `A<n>:`, and each stage is tagged `a<n>` when its Done when holds.
 
 **A1 · Themes.** Done when the app and the canvas follow the system's light or dark setting, and the Theme control in the header (also shown while connecting and on failure screens) switches between Match the system, Light and Dark; an explicit choice survives restarting Visual Anything and is in place on the first frame; the contrast tests pass for every pair in both themes; and on the benchmark a theme switch keeps every frame within 33 ms and 95% within 16.7 ms, shows on the canvas and the panels together in one frame, never shows a tile drawn in the other theme, and every M2 phase meets the 60 frames per second target in both themes.
@@ -1131,7 +1179,7 @@ The order below follows the two benchmarks of what Visual Anything needs to repr
 | 4 | **M13 · Anatomy.** (Dropped by the user on 2026-10-30: not built unless they ask again.) A built-in anatomy package and import from open anatomical ontologies, with their licenses respected, built on M8 to M10. |
 | beside | **Track L, stage L2.** (Dropped by the user on 2026-10-30: not built unless they ask again.) More languages, Portuguese first; the core's messages and history labels name built-in definitions by id, so that their names read in the language chosen too. |
 | 5 | **M11d · Tours that explain** (ADR 0084), planned above. Planned on 2026-10-30, after M3e. Tours explain better with a few more moves, each within the frame budget and cut under reduced motion: shapes a step's view shares with the step before glide to their new places instead of cross-fading; a relation a reveal brings in draws from its start to its end, so its direction reads; a caption can point at what it marks with a leader line; and a step can send a pulse along a chain of relations, such as a reference from a column to the key it names, to show what follows what. The tour tools also take `escapeText` for captions, reveals and speaker notes (ADR 0082's clarification after part B). |
-| 5 | **M12 · Simulate (case 4)**, as above, after the 3D milestones, with its research done with the user's medical-audit model in mind (an audit moving through its states, a rule engine under load). |
+| 5 | **M12 · Simulate (case 4)**, planned above (ADR 0085), after the 3D milestones, with its research done with the user's medical-audit model in mind (an audit moving through its states, a rule engine under load). |
 | 5 | **A4 · Polish**, as planned beside the milestones, after M12, so that it polishes every feature built by then. It also takes up the main-thread steps over 50 ms that `docs/designs/benchmark-5.md` lists, and, decided with the user on 2026-10-31, how well automatic layout reads on the user's real data model (laid out from a local copy that never enters the repository) instead of the layout's own time at 10,000 elements, which the user does not mind. |
 | 6 | **P5 · Healthcare** and **P6 · Finance.** Planned on 2026-10-30 for the open-source release: built-in packages, each with a sample project, a tour and a scenario. Healthcare: patients, encounters, providers, payers, claims, authorizations, audits and their findings, care plans and records, never real data. Finance: accounts, ledgers, journal entries, transactions, payments, invoices, instruments, portfolios, risks and controls. Each follows ADR 0051, in English and Spanish. |
 | 6 | **R1 · Open source.** Planned on 2026-10-30: after A4, a review of what is left, then the repository goes public under the MIT license. Done when: every world the project names has a sample that opens with no warning and a tour (data science, physical AI, data modeling, systems architecture, processes, machine learning, healthcare, finance); `LICENSE` holds the MIT text and every package says MIT; `THIRD-PARTY-NOTICES.md` and ADR 0047 cover every dependency and picture shipped, the app's bundles included (pixi.js, React, elkjs, three and three-mesh-bvh, which `pnpm package`'s notice does not list yet), the release notes say that a shape's text block now sits in its middle by default (ADR 0082); the history and the files hold no secret, no personal data and nothing of the user's own models; the README shows each world with a picture; CLAUDE.md no longer says private. Making the repository public waits for the user's explicit go-ahead at that moment. |

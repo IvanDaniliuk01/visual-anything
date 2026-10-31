@@ -360,6 +360,30 @@ _Avoid_: toast
 **Simulate**:
 To compute a behavior from parameters the user changes: learning rate and loss curve, replicas and latency.
 
+**Simulation**:
+What a programmable component declares it can simulate: its parameters, its simulated values with their limits, how long a tick stands for and how many ticks a run plays; its package's code works out each tick (ADR 0085).
+_Avoid_: model (the model is the project's), scenario (a scenario is a concrete example kept in a file)
+
+**Simulation run**:
+One element's simulation played in a tab from a set of parameters and a seed, tick by tick, until it stops; never saved, and the same code, parameters, seed and model always give the same ticks.
+_Avoid_: scenario, playback (playback is a scenario's), execution
+
+**Tick**:
+One moment of a simulation run, numbered from 0, standing for the simulation's declared length of time.
+_Avoid_: step (a step is a scenario's), frame, iteration
+
+**Parameter**:
+A value a simulation run starts from that the person, a view state or Claude chooses within its declared range, such as arrivals per second; kept by the tab, never in the model.
+_Avoid_: setting, input, attribute (an attribute is the model's)
+
+**Simulated value**:
+A value a tick answers, such as a queue's length; one named like an attribute of its element is read in its place while the run is shown, marked `∿`.
+_Avoid_: output, result, computed value (computed values come from the `attributes` hook)
+
+**Simulation limit**:
+The lowest or highest a simulated number may reach; past it the run stops cleanly at that tick and says which value went past which limit.
+_Avoid_: bound, threshold, relation type limit
+
 **Edit**:
 To change the model or the canvas: create, move, put inside or take out of a container, connect, change the stacking order, delete.
 

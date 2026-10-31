@@ -37,6 +37,7 @@ Every milestone runs the same five steps:
 | Track P · Visual packages | M6c, M8b | The licence list and reserved ids (ADR 0079) | One package at a time, in ADR 0079's order |
 | M9 · Physical space inside components | M8b | Its two seams (ADR 0075) | One task at a time |
 | M10 · A linked physical-space panel | M9 | Its two seams (ADR 0076) | One task at a time |
+| M12 · Simulate | M10 | Its two seams, the schema and the core, then the app's (ADR 0085) | The worker and the inspector, two builders on disjoint areas; then Claude's tools and the sample; the benchmark last |
 
 Since 2026-10-26 the user asked for no more parallel waves: the machine runs everything locally and the usage limits are near. Once the agents running then are merged, work goes one task at a time, in the main session or with a single builder.
 
