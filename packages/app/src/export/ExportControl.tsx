@@ -36,6 +36,8 @@ import {
 } from './image';
 import { ViewerMissing, fetchViewerAssets, makePage, pageFileName, sizeText } from './page-export';
 import type { ImageMaker, ImageSource } from './source';
+import { solidPainterOf } from './solid-pictures';
+import { useSolidClient } from '../canvas/solids/useSolidClient';
 
 /** What exporting the read-only page needs of the shell, besides the project. */
 export interface PageSource {
@@ -87,6 +89,10 @@ export function ExportControl({
 }: ExportControlProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  // The solid worker draws solids' pictures for the SVG and the PDF, as for the canvas (ADR 0075).
+  const solidClient = useSolidClient();
+  const solids = useMemo(() => solidClient && solidPainterOf(solidClient), [solidClient]);
+  const drawnWith = drawn && { ...drawn, ...(solids ? { solids } : {}) };
   const opener = useRef<HTMLButtonElement>(null);
   const available = viewName !== undefined;
 
@@ -118,17 +124,17 @@ export function ExportControl({
           save={save}
           {...(project && page ? { page: { ...page, project } } : {})}
           files={
-            drawn && project
-              ? files.map((format) => ({ format, context: { project, ...drawn } }))
+            drawnWith && project
+              ? files.map((format) => ({ format, context: { project, ...drawnWith } }))
               : []
           }
-          {...(drawn && project && comparison
+          {...(drawnWith && project && comparison
             ? {
                 comparison: {
                   title: comparison.title,
                   files: comparison.files.map((format) => ({
                     format,
-                    context: { project, ...drawn },
+                    context: { project, ...drawnWith },
                   })),
                 },
               }

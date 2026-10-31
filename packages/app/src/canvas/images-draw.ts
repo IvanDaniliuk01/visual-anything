@@ -50,7 +50,7 @@ import type { ElementShape } from './scene';
 import { IMAGE_SCALES, type ShapeImage } from './shape-images';
 import { meets } from './spatial';
 import { shapeColors } from './theme/paint';
-import type { SolidClient } from '../solids/client';
+import type { SolidClient } from '../solids/solid-client';
 import { solidBucketFor } from '../solids/protocol';
 import { SolidPictures } from './solids/pictures';
 import type { ShapeSolid } from './shape-solids';

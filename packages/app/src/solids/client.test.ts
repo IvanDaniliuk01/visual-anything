@@ -388,3 +388,48 @@ describe('turning and picking', () => {
     expect(keptKey('k', 512)).toBe('k@512');
   });
 });
+
+describe('drawing pictures at once, as an export does', () => {
+  it('keeps them asked for, before the canvas’s, whatever the canvas asks meanwhile', async () => {
+    const { client, worker } = setUp({ manual: true });
+    client.ask([ask('screen', 0)]);
+    const drawn = client.draw([ask('export', 50, { pixels: 900, parts: true })]);
+    // The canvas asks for something else, which replaces what it wanted, but not what is drawn.
+    client.ask([ask('other', 0)]);
+    for (let round = 0; round < 5; round++) {
+      await settle();
+      worker().flush();
+    }
+    const [picture] = await drawn;
+    expect(picture).toMatchObject({ key: 'export', bucket: 1024 });
+    expect(picture?.partBuffer).toBeDefined();
+    expect(
+      worker()
+        .ofType('draw')
+        .map((draw) => draw.key)[0],
+    ).toBe('export@1024');
+    // Kept for the session, as any other picture.
+    expect(client.picture('export', 900)).toMatchObject({ exact: true });
+    // Asked again, it resolves at once, drawn once.
+    const [again] = await client.draw([ask('export', 0, { pixels: 900, parts: true })]);
+    expect(again).toBe(picture);
+    expect(
+      worker()
+        .ofType('draw')
+        .filter((draw) => draw.key === 'export@1024'),
+    ).toHaveLength(1);
+  });
+
+  it('resolves with none once a file is refused, or the client is gone', async () => {
+    const refused = setUp({ refuse: new Set([ARM_HASH]) });
+    expect(await refused.client.draw([ask('arm', 0)])).toEqual([undefined]);
+    // Its problem is known now: asked again, it resolves at once.
+    expect(await refused.client.draw([ask('arm', 0)])).toEqual([undefined]);
+
+    const disposed = setUp({ manual: true });
+    const waiting = disposed.client.draw([ask('arm', 0)]);
+    disposed.client.dispose();
+    expect(await waiting).toEqual([undefined]);
+    expect(await disposed.client.draw([ask('arm', 0)])).toEqual([undefined]);
+  });
+});

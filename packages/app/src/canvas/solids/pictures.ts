@@ -20,7 +20,7 @@ import {
   type SolidClient,
   type SolidPicture,
   type SolidPictureAsk,
-} from '../../solids/client';
+} from '../../solids/solid-client';
 import { solidPictureKey, type ShapeSolid } from '../shape-solids';
 
 /** How a frame sees the canvas, as far as pictures go. */

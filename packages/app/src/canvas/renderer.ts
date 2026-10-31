@@ -125,7 +125,7 @@ import {
   type RoutePiece,
 } from './tiles';
 import { PARTS_PICTURES, PartLayer } from './partsDraw';
-import type { SolidClient } from '../solids/client';
+import type { SolidClient } from '../solids/solid-client';
 import type { SolidFrameReply } from '../solids/protocol';
 import { SOLID_LAYER, SolidLayer } from './solids/layer';
 import { pointedPart } from './solids/pointing';
