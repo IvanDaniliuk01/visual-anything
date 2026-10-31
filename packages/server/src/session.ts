@@ -1021,6 +1021,25 @@ export class Session implements LiveSession {
     for (const client of [...this.#clients, ...this.#claudes]) this.#send(client, shown);
   }
 
+  /**
+   * Shows every app and Claude the proposal rebased on the project now, after the person's action, an
+   * undo, a redo or a reload; or, when that left it with no change, closes it as `dropped`, since
+   * nothing is left to review (ADR 0073's clarification of 2026-10-29).
+   */
+  #showRebased(): void {
+    if (this.#proposal.open === undefined) return;
+    let empty;
+    try {
+      empty = this.#proposal.changeKeys().length === 0;
+    } catch (error) {
+      this.#err(`Could not show Claude’s proposal: ${reasonOf(error)}`);
+      this.#dropProposal();
+      return;
+    }
+    if (empty) this.#dropProposal();
+    else this.#showProposal();
+  }
+
   /** Shows an app, or Claude, that connects the proposal that waits. */
   #greetWithProposal(client: SessionClient): void {
     if (this.#proposal.open === undefined) return;
@@ -1662,7 +1681,7 @@ export class Session implements LiveSession {
         origin?.client === client ? { ...message, requestId: origin.requestId } : message,
       );
     }
-    this.#showProposal();
+    this.#showRebased();
     return { ok: true, recorded: true, ...change, history };
   }
 
@@ -1972,7 +1991,7 @@ export class Session implements LiveSession {
     };
     this.#broadcast(announcement);
     for (const client of this.#claudes) this.#send(client, announcement);
-    this.#showProposal();
+    this.#showRebased();
     this.#pruneLive();
 
     this.#listHistory();

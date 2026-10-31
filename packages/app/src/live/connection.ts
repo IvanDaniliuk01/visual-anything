@@ -29,6 +29,8 @@ import {
   type Problem,
   type ProjectChangedMessage,
   type ProjectSnapshot,
+  type ProposalClosedMessage,
+  type ProposalShownMessage,
   type ServerMessage,
   type Comparison,
   type VersionRef,
@@ -117,6 +119,36 @@ export interface LiveState {
    * yet (ADR 0051); absent otherwise, and once a project is open.
    */
   readonly start?: StartOffer | undefined;
+  /**
+   * Claude's proposal that waits (ADR 0073), as the program showed it last; absent while none waits.
+   */
+  readonly proposal?: WaitingProposal | undefined;
+  /** How the last proposal closed, since this tab connected; absent before one has. */
+  readonly proposalEnded?: ProposalEnded | undefined;
+}
+
+/**
+ * Claude's proposal as the program showed it (ADR 0073), on the project as this tab knew it then: the
+ * review draws it as the comparison of that project with the proposed one.
+ */
+export interface WaitingProposal {
+  readonly shown: ProposalShownMessage['proposal'];
+  /** The project now, as this tab knew it when the proposal was shown. */
+  readonly base: ProjectSnapshot;
+  /** The proposed project: the base with the proposal's operations. */
+  readonly proposed: ProjectSnapshot;
+}
+
+/** How a proposal closed, and whether this tab decided it. */
+export interface ProposalEnded {
+  readonly proposal: Id;
+  readonly how: ProposalClosedMessage['how'];
+  /** For an accepted proposal, the keys of the changes accepted. */
+  readonly accepted?: readonly string[];
+  /** How many changes it held when it was last shown. */
+  readonly total: number;
+  /** Whether this tab decided it. */
+  readonly here: boolean;
 }
 
 /** The start screen's offer: the folder a new project goes in, and the samples it can start from. */
@@ -213,7 +245,7 @@ export const MAX_NOTICES = 5;
 export type OtherProjectResult =
   { ok: true; name: string } | { ok: false; problems: RequestProblem[] };
 
-type RequestKind = 'command' | 'undo' | 'redo' | 'start';
+type RequestKind = 'command' | 'undo' | 'redo' | 'start' | 'proposal';
 
 type Waiting =
   | { kind: RequestKind; resolve: (result: CommandResult) => void }
@@ -258,6 +290,33 @@ function sentences(problems: readonly { message: string }[]): string {
 }
 
 /**
+ * What a tab says when Claude's proposal closes (ADR 0073), in the English the notices translate.
+ */
+function endedNotice(ended: ProposalEnded, afterChange: boolean): string {
+  switch (ended.how) {
+    case 'accepted': {
+      if (!ended.here) return 'Claude’s proposal was accepted in another tab.';
+      const accepted = ended.accepted?.length ?? 0;
+      if (accepted >= ended.total) return 'Accepted Claude’s changes.';
+      return fill('Accepted {accepted} of Claude’s {total} changes.', {
+        accepted,
+        total: ended.total,
+      });
+    }
+    case 'refused':
+      return ended.here
+        ? 'Refused Claude’s proposal: nothing of it was applied.'
+        : 'Claude’s proposal was refused in another tab.';
+    case 'withdrawn':
+      return 'Claude withdrew its proposal: nothing of it was applied.';
+    case 'dropped':
+      return afterChange
+        ? 'Claude’s proposal closed by itself: what changed left nothing in it to review.'
+        : 'Claude’s proposal was dropped: nothing of it was applied.';
+  }
+}
+
+/**
  * One tab's live session. It connects when asked and does not reconnect by itself, except once when a
  * change does not fit this tab's copy of the project: then it reconnects to get a fresh copy. The
  * methods are bound, so they can be handed around as they are.
@@ -283,6 +342,8 @@ export class LiveConnection {
   private joinAsked = false;
   /** Whether a connection is wanted now: between `connect` and `disconnect`. */
   private wanted = false;
+  /** Whether the last message the program sent changed the project now, for a proposal that closes. */
+  private changedLast = false;
   /** What takes Claude's pictures: the canvas, while it is mounted (ADR 0081). */
   private capturer: TakeCapture | undefined;
   /**
@@ -578,6 +639,28 @@ export class LiveConnection {
     });
   }
 
+  /**
+   * Accepts some of the changes of Claude's proposal, by their keys, or all of them (ADR 0073), as the
+   * revision the person was shown holds them: resolves once the program has applied them and closed
+   * the proposal, or with why it would not, such as a revision that is no longer the one shown.
+   */
+  readonly acceptProposal = (
+    proposal: Id,
+    revision: number,
+    changes: readonly string[] | 'all',
+  ): Promise<CommandResult> =>
+    this.request('proposal', (requestId) => ({
+      type: 'proposal/accept',
+      requestId,
+      proposal,
+      revision,
+      changes: changes === 'all' ? 'all' : [...changes],
+    }));
+
+  /** Refuses Claude's proposal whole: resolves once the program has closed it, or with why not. */
+  readonly refuseProposal = (proposal: Id): Promise<CommandResult> =>
+    this.request('proposal', (requestId) => ({ type: 'proposal/refuse', requestId, proposal }));
+
   /** Shows a notice. The same message at the same level is shown once, as the newest. */
   readonly notify = (level: NoticeLevel, message: string): void => {
     this.noticeCount += 1;
@@ -750,6 +833,8 @@ export class LiveConnection {
       this.fail('unreadable', error.message);
       return;
     }
+    const changedBefore = this.changedLast;
+    this.changedLast = message.type === 'project/changed' || message.type === 'project/reloaded';
     switch (message.type) {
       case 'project/opened':
         if (message.token !== undefined && this.options.onToken !== undefined) {
@@ -762,6 +847,8 @@ export class LiveConnection {
           project: message.project,
           history: message.history,
           start: undefined,
+          // The program shows the proposal that waits, if any, right after the project.
+          proposal: undefined,
         });
         this.started();
         break;
@@ -850,6 +937,12 @@ export class LiveConnection {
           answered.resolve({ ok: false, problems: message.problems });
         break;
       }
+      case 'proposal/shown':
+        this.proposalShown(message);
+        break;
+      case 'proposal/closed':
+        this.proposalClosed(message, changedBefore);
+        break;
       case 'capture/request':
         void this.answerCapture(message);
         break;
@@ -882,7 +975,8 @@ export class LiveConnection {
       taken.kind === 'live-set' ||
       taken.kind === 'drawing' ||
       taken.kind === 'versions' ||
-      taken.kind === 'compare'
+      taken.kind === 'compare' ||
+      taken.kind === 'proposal'
         ? undefined
         : taken;
     let next: ProjectSnapshot;
@@ -900,6 +994,46 @@ export class LiveConnection {
     if (answered === undefined) return;
     if (message.warnings.length > 0) this.notify('warning', sentences(message.warnings));
     answered.resolve(done(message));
+  }
+
+  /** Keeps the proposal shown, on the project as this tab knows it now. */
+  private proposalShown(message: ProposalShownMessage): void {
+    const base = this.state.project;
+    if (base === undefined) {
+      this.fail('unreadable', 'Visual Anything sent a proposal before the project.');
+      return;
+    }
+    let proposed: ProjectSnapshot;
+    try {
+      proposed = applyOperations(base, message.proposal.operations).state;
+    } catch (error) {
+      if (error instanceof OperationError) this.drifted(error);
+      else this.fail('unreadable', error instanceof Error ? error.message : String(error));
+      return;
+    }
+    this.update({ proposal: { shown: message.proposal, base, proposed } });
+  }
+
+  /**
+   * The proposal closed: the request that decided it is answered, and every tab says how it ended.
+   */
+  private proposalClosed(message: ProposalClosedMessage, afterChange: boolean): void {
+    const waiting = this.state.proposal;
+    const same = waiting?.shown.id === message.proposal;
+    const total = same ? waiting.shown.changes.length : 0;
+    const taken = message.requestId === undefined ? undefined : this.take(message.requestId);
+    const here = taken?.kind === 'proposal';
+    const ended: ProposalEnded = {
+      proposal: message.proposal,
+      how: message.how,
+      ...(message.accepted === undefined ? {} : { accepted: message.accepted }),
+      total,
+      here,
+    };
+    this.update({ proposalEnded: ended, ...(same ? { proposal: undefined } : {}) });
+    const said = endedNotice(ended, afterChange);
+    if (said !== undefined) this.notify('info', said);
+    if (here) taken.resolve({ ok: true, created: [], warnings: [] });
   }
 
   /** A change did not fit this tab's copy of the project: get a fresh copy, once. */

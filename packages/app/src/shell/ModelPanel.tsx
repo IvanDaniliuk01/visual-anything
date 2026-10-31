@@ -5,6 +5,7 @@ import { useShownComparison } from '../canvas/comparison/mode';
 import { ChangesTab } from '../versions/changes/ChangesTab';
 import { useListedChanges } from '../versions/changes/useListedChanges';
 import { useOpenedChanges } from '../versions/changes/store';
+import { useConflictsShown } from '../versions/conflicts/store';
 import { CommentsTab } from '../comments/CommentsTab';
 import { CommentsContext, useWhenCommentsShown, type CommentsStore } from '../comments/store';
 import { HistoryPanel } from '../history/HistoryPanel';
@@ -61,10 +62,18 @@ export function ModelPanel({
 }: ModelPanelProps) {
   const t = useT();
   const [chosenTab, setTab] = useState<Tab>('outline');
-  // The Changes tab is there while something is open in it, and comes forward when it opens.
-  const listed = useListedChanges();
+  // The Changes tab is there while something is open in it, or the project's files hold conflicts
+  // (ADR 0072), and comes forward when one opens or the conflicts appear.
+  const opened = useListedChanges();
+  const conflicts = useConflictsShown(project);
+  const listed = opened !== undefined || conflicts;
   const tabs = listed ? TABS : TABS.filter((each) => each.tab !== 'changes');
   const tab = chosenTab === 'changes' && !listed ? 'outline' : chosenTab;
+  const [hadConflicts, setHadConflicts] = useState(false);
+  if (hadConflicts !== conflicts) {
+    setHadConflicts(conflicts);
+    if (conflicts) setTab('changes');
+  }
   const { forward } = useOpenedChanges();
   const comparison = useShownComparison()?.serial;
   const [cameForward, setCameForward] = useState({ forward, comparison });

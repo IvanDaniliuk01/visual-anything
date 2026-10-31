@@ -11,6 +11,7 @@ import type { ListedAction } from '@visual-anything/core';
 import { useContext, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useT, type Translator } from '../i18n';
 import { LiveContext, type Live } from '../live/context';
+import { ReviewSetting } from '../proposals/ReviewSetting';
 import { SparklesIcon } from '../shell/icons';
 import './history.css';
 import { actionTime, useToday } from './time';
@@ -88,6 +89,7 @@ function HistoryList({ live, active }: { live: Live; active: boolean }) {
 
   return (
     <div className="history-panel">
+      <ReviewSetting />
       {shown.length === 0 ? (
         <p className="panel-empty">
           {t(

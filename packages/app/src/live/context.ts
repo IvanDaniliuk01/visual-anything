@@ -110,6 +110,17 @@ export interface Live extends LiveState {
    * now (ADR 0070); absent where there is no live session to ask.
    */
   compareVersion?: (version: VersionRef, view?: Id) => Promise<ComparedResult>;
+  /**
+   * Accepts some of the changes of Claude's proposal, by their keys, or all of them, as the revision
+   * shown holds them (ADR 0073); absent where there is no live session to ask.
+   */
+  acceptProposal?: (
+    proposal: Id,
+    revision: number,
+    changes: readonly string[] | 'all',
+  ) => Promise<CommandResult>;
+  /** Refuses Claude's proposal whole; absent where there is no live session to ask. */
+  refuseProposal?: (proposal: Id) => Promise<CommandResult>;
 }
 
 /**

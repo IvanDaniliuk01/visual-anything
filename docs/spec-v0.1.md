@@ -672,7 +672,7 @@ The first three tasks are the seams, built in the main session in this order. Th
     - with no program running, and nothing written to the repository;
   - a test on a temporary repository with two commits of a sample;
   - [ ] a CI job that compares a pull request's `examples/` with its base branch, and keeps the folder as an artifact (CI job left for R1: no CI work until then).
-- [ ] **Reviewing proposals in the app** (`app/src/proposals/`, the history panel):
+- [x] **Reviewing proposals in the app** (`app/src/proposals/`, the history panel; ADR 0073's clarification of 2026-10-30):
   - the toggle of Review Claude's changes;
   - the notice that Claude proposes changes, and the review drawn as a comparison;
   - the changes with their ticks, what each needs, and those the person changed too;
@@ -680,7 +680,7 @@ The first three tasks are the seams, built in the main session in this order. Th
   - a proposal that the person's actions leave with no change closes by itself as `dropped`, on the server, with a notice in the app (ADR 0073's clarification of 2026-10-29);
   - every acceptance names the revision shown, and a stale one shows the proposal again;
   - English and Spanish.
-- [ ] **Conflicts in the app, and for Claude** (`app/src/versions/conflicts/`, `server/src/claude/conflict-tools.ts`). Claude's half is built (ADR 0072's clarification of 2026-10-30); the app's half, the conflicts in the Changes tab, is not yet:
+- [x] **Conflicts in the app, and for Claude** (`app/src/versions/conflicts/`, `server/src/claude/conflict-tools.ts`; ADR 0072's clarifications of 2026-10-30):
   - the conflicts of every file in the Changes tab whenever the project holds any, each drawn as a comparison between what is kept and the other choice;
   - Keep and Take the other, one at a time or for a whole file;
   - the note that the file can now be added with git;

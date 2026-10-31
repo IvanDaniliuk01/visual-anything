@@ -69,7 +69,7 @@ const EVERY_STATUS: ReadonlySet<ChangeStatus> = new Set(STATUSES);
 export function ChangesList({ changes, openViewId, selection, onShow }: ChangesListProps) {
   const t = useT();
   const heading = useId();
-  const { older, newer, comparison, ticks, actions } = changes;
+  const { older, newer, comparison, ticks, actions, noteOf } = changes;
   const [filters, setFilters] = useState<Filters>({ statuses: EVERY_STATUS, openViewOnly: false });
   const [closed, setClosed] = useState<ReadonlySet<ChangeKind>>(new Set());
   const [chosen, setChosen] = useState<string>();
@@ -174,7 +174,13 @@ export function ChangesList({ changes, openViewId, selection, onShow }: ChangesL
         count: row.item.changes.length,
       });
     }
-    const sentence = changeSentence(t, row.item.change, names);
+    const note = noteOf?.(row.item.change);
+    const sentence = [
+      changeSentence(t, row.item.change, names),
+      note === undefined ? '' : `${note}.`,
+    ]
+      .filter((each) => each !== '')
+      .join(' ');
     if (!ticks) return sentence;
     return `${sentence} ${ticks.ticked.has(row.item.key) ? t('Ticked.') : t('Not ticked.')}`;
   };
@@ -200,12 +206,14 @@ export function ChangesList({ changes, openViewId, selection, onShow }: ChangesL
     }
     const { change } = item;
     const differs = differencesText(t, change, names);
+    const note = noteOf?.(change);
     return (
       <span className="changes-row">
         {ticks && <TickBox checked={ticks.ticked.has(item.key)} onToggle={() => tick(row)} />}
         <StatusBadge status={change.status} />
         <span className="changes-row-title">{changeTitle(t, change, names)}</span>
         {differs !== '' && <span className="changes-row-differs">{differs}</span>}
+        {note !== undefined && <span className="changes-row-note">{note}</span>}
       </span>
     );
   };
@@ -216,6 +224,7 @@ export function ChangesList({ changes, openViewId, selection, onShow }: ChangesL
       <h3 id={heading} className="changes-title">
         {changes.title}
       </h3>
+      {changes.controls}
       <ul className="changes-counts" aria-label={t('Changes by state')}>
         {STATUSES.map((status) => (
           <li key={status}>
