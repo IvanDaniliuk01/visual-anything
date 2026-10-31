@@ -21,12 +21,29 @@
  *   must be loaded again before they are drawn;
  * - `context-lost` and `context-restored`: its one WebGL context lost, and got back.
  *
+ * The physical-space panel (ADR 0076) draws through the same worker, by the number of its drawing:
+ * - from the app, `space/show` starts drawing a space: its entries (`SpaceDrawnEntry`), their states,
+ *   its camera, its cut, its exploded view, names and relation lines; `space/update` changes any of
+ *   them; `space/framing` asks for the camera that frames some of its elements, or all; `space/pick`
+ *   asks what lies under a pixel; `space/end` stops it;
+ * - from the worker, `space/frame` whenever something it shows changed, `space/framed`,
+ *   `space/picked`, and `space/gesture-ended` once a gesture on its handles ended; a refusal names the
+ *   drawing by `space`, or a framing and a pick by `id`.
+ *
  * A part buffer holds, for each pixel of its picture, the index of the innermost named part drawn
  * there plus one, or 0 where none is. Each reader checks a message strictly and answers it, or why it
  * cannot be read, as the core's readers do.
  */
-import { SOLID_CAPS } from '@visual-anything/core';
-import type { SolidCamera, SpacePoint } from '@visual-anything/schema';
+import { MAX_SPACE_DISTANCE, SOLID_CAPS, isId } from '@visual-anything/core';
+import type {
+  Color,
+  Id,
+  SolidCamera,
+  SpaceBounds,
+  SpaceCamera,
+  SpaceCut,
+  SpacePoint,
+} from '@visual-anything/schema';
 import {
   LARGEST_SOLID_PICTURE,
   SOLID_BUCKETS,
@@ -113,6 +130,132 @@ export interface SolidPickRequest extends Omit<SolidView, 'parts' | 'lighting'> 
   y: number;
 }
 
+// The physical-space panel's drawing (ADR 0076) -----------------------------------------------------
+
+/** The most entries, states and elements framed a space's messages carry. */
+export const MAX_SPACE_ENTRIES = 65_536;
+/** The most relation lines a space draws. */
+export const MAX_SPACE_LINES = 4096;
+/** The most markers travelling along one line. */
+export const MAX_SPACE_LINE_MARKERS = 64;
+/** The longest name an entry carries; the app shortens longer ones. */
+export const MAX_SPACE_NAME = 200;
+/** The farthest a matrix's number goes either way: past it, a place is not drawn. */
+export const MAX_SPACE_MATRIX = 1e9;
+
+/**
+ * One element as a space draws it, worked out by the app from the core's `spaceOf` (`space/entries.ts`):
+ * where it is, and what draws it there.
+ */
+export interface SpaceDrawnEntry {
+  /** The element, by id: what states name and picking answers. */
+  element: Id;
+  /** Its name, as the panel writes it facing the screen; at most {@link MAX_SPACE_NAME} characters. */
+  name: string;
+  /**
+   * Its origin and axes in the coordinates of the element the panel shows, in meters: 16 numbers,
+   * column by column, as the core's `spaceMath` writes them.
+   */
+  matrix: readonly number[];
+  /** The solid drawn at its matrix, by its file's hash. */
+  solid?: string;
+  /** That solid's bounds in its own coordinates, which framing reads before its file is loaded. */
+  bounds?: SpaceBounds;
+  /** For an anchored part: the element whose drawn solid holds it, and its part's index there. */
+  part?: { of: Id; index: number };
+  /** Drawn as a marker at its origin: posed, with neither a solid nor anything in it. */
+  marker?: boolean;
+}
+
+/** How one element in a space looks, from the canvas's emphasis and marks (`space/states.ts`). */
+export interface SpaceElementState {
+  /** Not drawn, as a filter or isolation hides it. */
+  hidden?: boolean;
+  /** Drawn faintly, outside a focus, or as a container the view does not show. */
+  faint?: boolean;
+  /** Marked by playback, guidance or a tour. */
+  highlighted?: boolean;
+  selected?: boolean;
+  hovered?: boolean;
+  /** An overlay's fill. */
+  fill?: Color;
+  /** An overlay's opacity, below 1. */
+  opacity?: number;
+}
+
+/** One element's state, by its id; an element a message names no state for looks plain. */
+export interface SpaceStateEntry extends SpaceElementState {
+  element: Id;
+}
+
+/** A relation drawn in space as a straight line between its ends' points (`pointInSpace`). */
+export interface SpaceLine {
+  relation: Id;
+  from: SpacePoint;
+  to: SpacePoint;
+  highlighted?: boolean;
+  selected?: boolean;
+  hovered?: boolean;
+  faint?: boolean;
+  /** Markers travelling along it, each a fraction of the way from `from`, 0, to `to`, 1. */
+  markers?: number[];
+}
+
+/** What a space shows, as `space/show` carries it and `space/update` changes it. */
+export interface SpaceShown {
+  /** The frames' size, in pixels. */
+  size: PixelSize;
+  entries: readonly SpaceDrawnEntry[];
+  states: readonly SpaceStateEntry[];
+  /** Where it looks from; absent, the worker frames everything it draws, again as that changes. */
+  camera?: SpaceCamera;
+  cut?: SpaceCut;
+  /** How far parts move away from the middle of what holds them, from 0 to 2; 0 when absent. */
+  explode?: number;
+  /** Whether Names is on. */
+  names?: boolean;
+  lines?: readonly SpaceLine[];
+}
+
+/** A change of what a space shows: what it gives replaces what was; `null` takes a camera or a cut away. */
+export type SpaceChange = Partial<Omit<SpaceShown, 'camera' | 'cut'>> & {
+  camera?: SpaceCamera | null;
+  cut?: SpaceCut | null;
+};
+
+/** Starts drawing a space, by its number, which its frames carry. */
+export interface SpaceShowRequest extends SpaceShown {
+  type: 'space/show';
+  space: number;
+}
+
+export interface SpaceUpdateRequest extends SpaceChange {
+  type: 'space/update';
+  space: number;
+}
+
+/** Asks for the camera that frames these elements of a space, or all it draws when none are named. */
+export interface SpaceFramingRequest {
+  type: 'space/framing';
+  space: number;
+  id: number;
+  elements?: Id[];
+}
+
+/** What lies under the pixel (x, y) of a space's frames, from their top left. */
+export interface SpacePickRequest {
+  type: 'space/pick';
+  space: number;
+  id: number;
+  x: number;
+  y: number;
+}
+
+export interface SpaceEndRequest {
+  type: 'space/end';
+  space: number;
+}
+
 export type SolidWorkerRequest =
   | SolidLoadRequest
   | SolidReleaseRequest
@@ -121,7 +264,12 @@ export type SolidWorkerRequest =
   | SolidTurnCameraRequest
   | SolidTurnPlayRequest
   | SolidTurnEndRequest
-  | SolidPickRequest;
+  | SolidPickRequest
+  | SpaceShowRequest
+  | SpaceUpdateRequest
+  | SpaceFramingRequest
+  | SpacePickRequest
+  | SpaceEndRequest;
 
 // From the worker ---------------------------------------------------------------------------------
 
@@ -203,9 +351,13 @@ export const SOLID_WORKER_CODES: readonly SolidWorkerCode[] = [
 
 export interface SolidRefusedReply {
   type: 'refused';
-  /** The request refused: a load, a draw or a pick by its id, or a turning by its number. */
+  /**
+   * The request refused: a load, a draw, a pick or a space's framing or pick by its id, a turning by
+   * its number, or a space's drawing by its number.
+   */
   id?: number;
   turn?: number;
+  space?: number;
   code: SolidWorkerCode;
   message: string;
 }
@@ -219,6 +371,54 @@ export interface SolidContextReply {
   type: 'context-lost' | 'context-restored';
 }
 
+/** A frame of a space, drawn once something it shows changed. */
+export interface SpaceFrameReply {
+  type: 'space/frame';
+  space: number;
+  /** Counts up from 1 within its drawing, so that a late frame is told from a newer one. */
+  serial: number;
+  /** The camera it was drawn from: the one asked for, or the one that frames everything. */
+  camera: SpaceCamera;
+  bitmap: ImageBitmap;
+  width: number;
+  height: number;
+}
+
+/** The camera that frames what a `space/framing` named, from the camera's own direction. */
+export interface SpaceFramedReply {
+  type: 'space/framed';
+  space: number;
+  id: number;
+  camera: SpaceCamera;
+}
+
+/** What lies under a pixel of a space: an element, by id, or none, and the point there. */
+export interface SpacePickedReply {
+  type: 'space/picked';
+  space: number;
+  id: number;
+  element: Id | null;
+  /** The point under the pixel, in the coordinates of the element the panel shows; absent on nothing. */
+  point?: SpacePoint;
+}
+
+/** One element where a gesture left it: its origin and axes, as an entry's matrix. */
+export interface SpaceMoved {
+  element: Id;
+  matrix: readonly number[];
+}
+
+/**
+ * A gesture on a space's handles that ended (ADR 0076): where it left each element it moved or
+ * turned, from which the app sends one `set-poses`. The interaction task says what starts one.
+ */
+export interface SpaceGestureEndedReply {
+  type: 'space/gesture-ended';
+  space: number;
+  gesture: 'move' | 'rotate';
+  moved: SpaceMoved[];
+}
+
 export type SolidWorkerReply =
   | SolidReadyReply
   | SolidLoadedReply
@@ -227,7 +427,11 @@ export type SolidWorkerReply =
   | SolidPickedReply
   | SolidRefusedReply
   | SolidLetGoReply
-  | SolidContextReply;
+  | SolidContextReply
+  | SpaceFrameReply
+  | SpaceFramedReply
+  | SpacePickedReply
+  | SpaceGestureEndedReply;
 
 // Readers -----------------------------------------------------------------------------------------
 
@@ -402,6 +606,228 @@ function isArrayBuffer(value: unknown): value is ArrayBuffer {
   );
 }
 
+// A space's fields --------------------------------------------------------------------------------
+
+const COLOR = /^#[0-9a-fA-F]{6}$/;
+
+function idOf(value: unknown, what: string): Id {
+  if (!isId(value)) refuse(`${what} is an id.`);
+  return value;
+}
+
+function listOf(value: unknown, most: number, what: string): unknown[] {
+  if (!Array.isArray(value) || value.length > most) {
+    refuse(`${what} is a list of at most ${most}.`);
+  }
+  return value as unknown[];
+}
+
+function flag(value: unknown, what: string): boolean {
+  if (typeof value !== 'boolean') refuse(`${what} is true or false.`);
+  return value;
+}
+
+function finiteWithin(value: unknown, low: number, high: number, what: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < low || value > high) {
+    refuse(`${what} is a number from ${low} to ${high}.`);
+  }
+  return value;
+}
+
+/** A point in a space, in meters, within the farthest a view state's camera looks. */
+function spacePointOf(value: unknown, what: string): SpacePoint {
+  const point = recordOf(value, what);
+  onlyKeys(point, ['x', 'y', 'z'], what);
+  const axis = (number: unknown) =>
+    finiteWithin(number, -MAX_SPACE_DISTANCE, MAX_SPACE_DISTANCE, `${what}'s coordinate`);
+  return { x: axis(point.x), y: axis(point.y), z: axis(point.z) };
+}
+
+/** A matrix: 16 finite numbers, column by column, none past {@link MAX_SPACE_MATRIX} either way. */
+function matrixOf(value: unknown): number[] {
+  if (!Array.isArray(value) || value.length !== 16) refuse('A matrix is 16 numbers.');
+  return value.map((number) =>
+    finiteWithin(number, -MAX_SPACE_MATRIX, MAX_SPACE_MATRIX, 'A matrix’s number'),
+  );
+}
+
+/** The camera of the physical-space panel, as a view state's `space.camera` gives it. */
+function spaceCameraOf(value: unknown): SpaceCamera {
+  const camera = recordOf(value, 'A space’s camera');
+  onlyKeys(camera, ['target', 'azimuth', 'elevation', 'distance'], 'A space’s camera');
+  const distance = finiteWithin(camera.distance, 0, MAX_SPACE_DISTANCE, 'A space’s distance');
+  if (distance === 0) refuse('A space’s camera looks from more than 0 m.');
+  return {
+    target: spacePointOf(camera.target, 'A space’s target'),
+    azimuth: finiteWithin(camera.azimuth, -180, 180, 'A space’s azimuth'),
+    elevation: finiteWithin(camera.elevation, -89, 89, 'A space’s elevation'),
+    distance,
+  };
+}
+
+/** Reads the camera of the physical-space panel, as the worker takes and answers it. */
+export function readSpaceCamera(value: unknown): Read<SpaceCamera> {
+  return reading(() => spaceCameraOf(value));
+}
+
+function spaceCutOf(value: unknown): SpaceCut {
+  const cut = recordOf(value, 'A cut');
+  onlyKeys(cut, ['axis', 'at', 'keep'], 'A cut');
+  if (cut.axis !== 'x' && cut.axis !== 'y' && cut.axis !== 'z')
+    refuse('A cut’s axis is x, y or z.');
+  if (cut.keep !== 'below' && cut.keep !== 'above') refuse('A cut keeps "below" or "above".');
+  return {
+    axis: cut.axis,
+    at: finiteWithin(
+      cut.at,
+      -MAX_SPACE_DISTANCE,
+      MAX_SPACE_DISTANCE,
+      'Where a cut crosses its axis',
+    ),
+    keep: cut.keep,
+  };
+}
+
+function boundsOf(value: unknown): SpaceBounds {
+  const bounds = recordOf(value, 'Bounds');
+  onlyKeys(bounds, ['min', 'max'], 'Bounds');
+  const min = spacePointOf(bounds.min, 'A bounds’ least corner');
+  const max = spacePointOf(bounds.max, 'A bounds’ greatest corner');
+  if (min.x > max.x || min.y > max.y || min.z > max.z) {
+    refuse('Bounds’ least corner is nowhere past their greatest.');
+  }
+  return { min, max };
+}
+
+function entryOf(value: unknown): SpaceDrawnEntry {
+  const entry = recordOf(value, 'An entry of a space');
+  onlyKeys(
+    entry,
+    ['element', 'name', 'matrix', 'solid', 'bounds', 'part', 'marker'],
+    'An entry of a space',
+  );
+  const { name } = entry;
+  if (typeof name !== 'string' || name.length > MAX_SPACE_NAME) {
+    refuse(`An entry’s name is text of at most ${MAX_SPACE_NAME} characters.`);
+  }
+  const read: SpaceDrawnEntry = {
+    element: idOf(entry.element, 'An entry’s element'),
+    name,
+    matrix: matrixOf(entry.matrix),
+  };
+  if (entry.solid !== undefined) read.solid = hashOf(entry.solid);
+  if (entry.bounds !== undefined) {
+    if (read.solid === undefined) refuse('Only an entry that draws a solid has its bounds.');
+    read.bounds = boundsOf(entry.bounds);
+  }
+  if (entry.part !== undefined) {
+    const part = recordOf(entry.part, 'An entry’s part');
+    onlyKeys(part, ['of', 'index'], 'An entry’s part');
+    read.part = { of: idOf(part.of, 'What holds a part'), index: partIndex(part.index, 'A part') };
+  }
+  if (entry.marker !== undefined && flag(entry.marker, 'Whether an entry is a marker')) {
+    if (read.solid !== undefined || read.part !== undefined) {
+      refuse('An entry drawn as a marker draws no solid and is no part.');
+    }
+    read.marker = true;
+  }
+  return read;
+}
+
+const STATE_FLAGS = ['hidden', 'faint', 'highlighted', 'selected', 'hovered'] as const;
+
+function stateOf(value: unknown): SpaceStateEntry {
+  const state = recordOf(value, 'A state');
+  onlyKeys(state, ['element', ...STATE_FLAGS, 'fill', 'opacity'], 'A state');
+  const read: SpaceStateEntry = { element: idOf(state.element, 'A state’s element') };
+  for (const key of STATE_FLAGS) {
+    if (state[key] !== undefined && flag(state[key], `Whether it is ${key}`)) read[key] = true;
+  }
+  if (state.fill !== undefined) {
+    if (typeof state.fill !== 'string' || !COLOR.test(state.fill)) {
+      refuse('A fill is a color, #RRGGBB.');
+    }
+    read.fill = state.fill;
+  }
+  if (state.opacity !== undefined) read.opacity = finiteWithin(state.opacity, 0, 1, 'An opacity');
+  return read;
+}
+
+const LINE_FLAGS = ['highlighted', 'selected', 'hovered', 'faint'] as const;
+
+function lineOf(value: unknown): SpaceLine {
+  const line = recordOf(value, 'A line');
+  onlyKeys(line, ['relation', 'from', 'to', ...LINE_FLAGS, 'markers'], 'A line');
+  const read: SpaceLine = {
+    relation: idOf(line.relation, 'A line’s relation'),
+    from: spacePointOf(line.from, 'Where a line starts'),
+    to: spacePointOf(line.to, 'Where a line ends'),
+  };
+  for (const key of LINE_FLAGS) {
+    if (line[key] !== undefined && flag(line[key], `Whether a line is ${key}`)) read[key] = true;
+  }
+  if (line.markers !== undefined) {
+    read.markers = listOf(line.markers, MAX_SPACE_LINE_MARKERS, 'A line’s markers').map((each) =>
+      finiteWithin(each, 0, 1, 'A marker'),
+    );
+  }
+  return read;
+}
+
+const SHOWN_KEYS = [
+  'size',
+  'entries',
+  'states',
+  'camera',
+  'cut',
+  'explode',
+  'names',
+  'lines',
+] as const;
+
+/** The parts of what a space shows that a message gives, each read; `nulls` lets a camera and a cut go. */
+function shownPartsOf(message: Record<string, unknown>, nulls: boolean): SpaceChange {
+  const read: SpaceChange = {};
+  if (message.size !== undefined) read.size = sizeOf(message.size, false);
+  if (message.entries !== undefined) {
+    const entries = listOf(message.entries, MAX_SPACE_ENTRIES, 'A space’s entries').map(entryOf);
+    const seen = new Set<Id>();
+    for (const entry of entries) {
+      if (seen.has(entry.element)) refuse('A space draws each element once.');
+      seen.add(entry.element);
+    }
+    read.entries = entries;
+  }
+  if (message.states !== undefined) {
+    read.states = listOf(message.states, MAX_SPACE_ENTRIES, 'A space’s states').map(stateOf);
+  }
+  if (message.camera !== undefined) {
+    read.camera = nulls && message.camera === null ? null : spaceCameraOf(message.camera);
+  }
+  if (message.cut !== undefined) {
+    read.cut = nulls && message.cut === null ? null : spaceCutOf(message.cut);
+  }
+  if (message.explode !== undefined) {
+    read.explode = finiteWithin(message.explode, 0, 2, 'An explosion');
+  }
+  if (message.names !== undefined) read.names = flag(message.names, 'Whether names show');
+  if (message.lines !== undefined) {
+    read.lines = listOf(message.lines, MAX_SPACE_LINES, 'A space’s lines').map(lineOf);
+  }
+  return read;
+}
+
+function shownOf(message: Record<string, unknown>): SpaceShown {
+  if (message.size === undefined || message.entries === undefined || message.states === undefined) {
+    refuse('Showing a space gives its size, its entries and their states.');
+  }
+  return shownPartsOf(message, false) as SpaceShown;
+}
+
+function changeOf(message: Record<string, unknown>): SpaceChange {
+  return shownPartsOf(message, true);
+}
+
 /** Reads a message from the app, as the solid worker takes it. */
 export function readSolidWorkerRequest(value: unknown): Read<SolidWorkerRequest> {
   return reading((): SolidWorkerRequest => {
@@ -500,6 +926,59 @@ export function readSolidWorkerRequest(value: unknown): Read<SolidWorkerRequest>
           ...(only === undefined ? {} : { only }),
         };
       }
+      case 'space/show':
+        onlyKeys(message, ['type', 'space', ...SHOWN_KEYS], 'space/show');
+        return {
+          type: 'space/show',
+          space: counter(message.space, 'A space'),
+          ...shownOf(message),
+        };
+      case 'space/update':
+        onlyKeys(message, ['type', 'space', ...SHOWN_KEYS], 'space/update');
+        return {
+          type: 'space/update',
+          space: counter(message.space, 'A space'),
+          ...changeOf(message),
+        };
+      case 'space/framing': {
+        onlyKeys(message, ['type', 'space', 'id', 'elements'], 'space/framing');
+        return {
+          type: 'space/framing',
+          space: counter(message.space, 'A space'),
+          id: counter(message.id, 'A framing’s id'),
+          ...(message.elements === undefined
+            ? {}
+            : {
+                elements: listOf(message.elements, MAX_SPACE_ENTRIES, 'The elements framed').map(
+                  (each) => idOf(each, 'An element framed'),
+                ),
+              }),
+        };
+      }
+      case 'space/pick': {
+        onlyKeys(message, ['type', 'space', 'id', 'x', 'y'], 'space/pick');
+        const coordinate = (number: unknown) => {
+          if (
+            typeof number !== 'number' ||
+            !Number.isFinite(number) ||
+            number < 0 ||
+            number > LARGEST_SOLID_PICTURE
+          ) {
+            refuse('A pixel picked lies within the frames of its space.');
+          }
+          return number;
+        };
+        return {
+          type: 'space/pick',
+          space: counter(message.space, 'A space'),
+          id: counter(message.id, 'A pick’s id'),
+          x: coordinate(message.x),
+          y: coordinate(message.y),
+        };
+      }
+      case 'space/end':
+        onlyKeys(message, ['type', 'space'], 'space/end');
+        return { type: 'space/end', space: counter(message.space, 'A space') };
       default:
         return refuse(`The solid worker takes no message ${JSON.stringify(message.type)}.`);
     }
@@ -643,7 +1122,7 @@ export function readSolidWorkerReply(value: unknown): Read<SolidWorkerReply> {
         };
       }
       case 'refused': {
-        onlyKeys(message, ['type', 'id', 'turn', 'code', 'message'], 'refused');
+        onlyKeys(message, ['type', 'id', 'turn', 'space', 'code', 'message'], 'refused');
         const { code, message: text } = message;
         if (!SOLID_WORKER_CODES.includes(code as SolidWorkerCode)) {
           refuse(`A refusal's code is one of ${SOLID_WORKER_CODES.join(', ')}.`);
@@ -655,6 +1134,7 @@ export function readSolidWorkerReply(value: unknown): Read<SolidWorkerReply> {
           type: 'refused',
           ...(message.id === undefined ? {} : { id: counter(message.id, 'A request’s id') }),
           ...(message.turn === undefined ? {} : { turn: counter(message.turn, 'A turning') }),
+          ...(message.space === undefined ? {} : { space: counter(message.space, 'A space') }),
           code: code as SolidWorkerCode,
           message: text,
         };
@@ -670,6 +1150,60 @@ export function readSolidWorkerReply(value: unknown): Read<SolidWorkerReply> {
       case 'context-restored':
         onlyKeys(message, ['type'], message.type);
         return { type: message.type };
+      case 'space/frame':
+        onlyKeys(
+          message,
+          ['type', 'space', 'serial', 'camera', 'bitmap', 'width', 'height'],
+          'space/frame',
+        );
+        return {
+          type: 'space/frame',
+          space: counter(message.space, 'A space'),
+          serial: counter(message.serial, 'A frame’s serial'),
+          camera: spaceCameraOf(message.camera),
+          ...(pictureOf(message) as { bitmap: ImageBitmap; width: number; height: number }),
+        };
+      case 'space/framed':
+        onlyKeys(message, ['type', 'space', 'id', 'camera'], 'space/framed');
+        return {
+          type: 'space/framed',
+          space: counter(message.space, 'A space'),
+          id: counter(message.id, 'A framing’s id'),
+          camera: spaceCameraOf(message.camera),
+        };
+      case 'space/picked':
+        onlyKeys(message, ['type', 'space', 'id', 'element', 'point'], 'space/picked');
+        return {
+          type: 'space/picked',
+          space: counter(message.space, 'A space'),
+          id: counter(message.id, 'A pick’s id'),
+          element: message.element === null ? null : idOf(message.element, 'The element picked'),
+          ...(message.point === undefined
+            ? {}
+            : { point: spacePointOf(message.point, 'The point picked') }),
+        };
+      case 'space/gesture-ended': {
+        onlyKeys(message, ['type', 'space', 'gesture', 'moved'], 'space/gesture-ended');
+        const { gesture, moved } = message;
+        if (gesture !== 'move' && gesture !== 'rotate') {
+          refuse('A gesture is "move" or "rotate".');
+        }
+        const list = listOf(moved, MAX_SPACE_ENTRIES, 'What a gesture moved');
+        if (list.length === 0) refuse('A gesture that ended moved something.');
+        return {
+          type: 'space/gesture-ended',
+          space: counter(message.space, 'A space'),
+          gesture,
+          moved: list.map((each) => {
+            const one = recordOf(each, 'What a gesture moved');
+            onlyKeys(one, ['element', 'matrix'], 'What a gesture moved');
+            return {
+              element: idOf(one.element, 'An element moved'),
+              matrix: matrixOf(one.matrix),
+            };
+          }),
+        };
+      }
       default:
         return refuse(`The solid worker sends no message ${JSON.stringify(message.type)}.`);
     }

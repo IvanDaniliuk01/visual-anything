@@ -11,6 +11,7 @@ import {
   type SolidPicture,
   type SolidTurning,
   type SolidWorkerPort,
+  type SpaceDrawing,
 } from '../solids/solid-client';
 import { SOLID_WORKER_START, readPartRuns, type PageSolidPicture, type PageSolids } from './solids';
 
@@ -48,6 +49,17 @@ const STILL: SolidTurning = {
   frame: undefined,
   camera: () => {},
   play: () => {},
+  end: () => {},
+};
+
+/** A page of pictures draws no physical space (ADR 0076): its drawing says so, and does nothing. */
+const NO_SPACE: SpaceDrawing = {
+  space: 0,
+  frame: undefined,
+  problem: { code: 'unavailable', message: 'A page of pictures draws no physical space.' },
+  update: () => {},
+  fit: () => Promise.resolve(undefined),
+  pick: () => Promise.resolve(undefined),
   end: () => {},
 };
 
@@ -121,6 +133,10 @@ export function picturesClient(
     turn: () => STILL,
     pick: () => Promise.resolve(undefined),
     release: () => {},
+    showSpace: (_shown, listeners) => {
+      if (NO_SPACE.problem) listeners?.onProblem?.(NO_SPACE.problem);
+      return NO_SPACE;
+    },
     dispose: () => {
       disposed = true;
       for (const picture of kept.values()) picture.bitmap.close();

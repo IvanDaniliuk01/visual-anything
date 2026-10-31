@@ -4,6 +4,11 @@
  * and draws a solid as a box for each of its named parts, a square around the part's point placed by
  * the core's camera maths, inner parts over the parts holding them, with the part buffer to match.
  * Tests can hold its answers back, lose and restore its context, and make it let go of solids.
+ *
+ * It draws the physical-space panel's spaces (ADR 0076) as boxes too: one for each entry not hidden,
+ * around its origin as the panel's camera projects it, the nearer over the farther, framed whole while
+ * no camera is given, a frame for each change; a pick answers the entry whose box is under the pixel.
+ * A test can end a gesture on a space's handles with `endGesture`.
  */
 import {
   fitSolidCamera,
@@ -11,7 +16,8 @@ import {
   readSolid,
   type SolidDescription,
 } from '@visual-anything/core';
-import type { SpacePoint } from '@visual-anything/schema';
+import type { Id, SpaceCamera, SpacePoint } from '@visual-anything/schema';
+import { boundsOfPoint, boundsPlaced, frameSpace, spaceProjection } from '../space/camera';
 import type { SolidWorkerPort } from './client';
 import {
   LARGEST_SOLID_PICTURE,
@@ -22,6 +28,9 @@ import {
   type SolidView,
   type SolidWorkerReply,
   type SolidWorkerRequest,
+  type SpaceDrawnEntry,
+  type SpaceMoved,
+  type SpaceShown,
 } from './protocol';
 
 /** A picture the stand-in made: its pixels, as RGBA, where the page would hold an `ImageBitmap`. */
@@ -65,6 +74,8 @@ export class StandInSolidWorker implements SolidWorkerPort {
     number,
     { view: SolidView; serial: number; playing: boolean }
   >();
+  /** The spaces it draws, by their numbers. */
+  readonly spaces = new Map<number, StandInSpace>();
   private lost = false;
 
   constructor(private readonly options: StandInOptions = {}) {
@@ -133,6 +144,12 @@ export class StandInSolidWorker implements SolidWorkerPort {
   restoreContext(): void {
     this.lost = false;
     this.reply({ type: 'context-restored' });
+    for (const space of this.spaces.keys()) this.spaceFrame(space);
+  }
+
+  /** Ends a gesture on a space's handles, as the worker would once the pointer is let go. */
+  endGesture(space: number, gesture: 'move' | 'rotate', moved: SpaceMoved[]): void {
+    this.reply({ type: 'space/gesture-ended', space, gesture, moved });
   }
 
   /** Lets go of solids, as it would to keep within its memory. */
@@ -170,6 +187,11 @@ export class StandInSolidWorker implements SolidWorkerPort {
           parts: read.description.parts.length,
           animations: read.description.animations.length,
         });
+        for (const [number, space] of this.spaces) {
+          if (space.shown.entries.some((entry) => entry.solid === request.hash)) {
+            this.spaceFrame(number);
+          }
+        }
         return;
       }
       case 'release':
@@ -242,7 +264,118 @@ export class StandInSolidWorker implements SolidWorkerPort {
         this.reply({ type: 'picked', id: request.id, part, ...(point ? { point } : {}) });
         return;
       }
+      case 'space/show': {
+        const { entries, states, size, camera, cut, explode, names, lines } = request;
+        const shown: SpaceShown = {
+          entries,
+          states,
+          size,
+          ...(camera ? { camera } : {}),
+          ...(cut ? { cut } : {}),
+          ...(explode === undefined ? {} : { explode }),
+          ...(names === undefined ? {} : { names }),
+          ...(lines ? { lines } : {}),
+        };
+        this.spaces.set(request.space, { shown, serial: 0 });
+        this.spaceFrame(request.space);
+        return;
+      }
+      case 'space/update': {
+        const known = this.spaces.get(request.space);
+        if (!known) return;
+        const { camera, cut, size, entries, states, explode, names, lines } = request;
+        const shown: SpaceShown = {
+          ...known.shown,
+          ...(size ? { size } : {}),
+          ...(entries ? { entries } : {}),
+          ...(states ? { states } : {}),
+          ...(explode === undefined ? {} : { explode }),
+          ...(names === undefined ? {} : { names }),
+          ...(lines ? { lines } : {}),
+        };
+        if (camera === null) delete shown.camera;
+        else if (camera !== undefined) shown.camera = camera;
+        if (cut === null) delete shown.cut;
+        else if (cut !== undefined) shown.cut = cut;
+        known.shown = shown;
+        this.spaceFrame(request.space);
+        return;
+      }
+      case 'space/framing': {
+        const known = this.spaces.get(request.space);
+        if (!known) {
+          this.reply({ type: 'refused', id: request.id, code: 'failed', message: 'No space.' });
+          return;
+        }
+        const named = request.elements && new Set(request.elements);
+        const entries = known.shown.entries.filter((entry) => !named || named.has(entry.element));
+        this.reply({
+          type: 'space/framed',
+          space: request.space,
+          id: request.id,
+          camera: this.framed(known.shown, entries),
+        });
+        return;
+      }
+      case 'space/pick': {
+        const known = this.spaces.get(request.space);
+        if (!known) {
+          this.reply({ type: 'refused', id: request.id, code: 'failed', message: 'No space.' });
+          return;
+        }
+        const drawn = drawSpaceBoxes(known.shown, this.cameraOf(known.shown));
+        const { width, height } = known.shown.size;
+        const x = Math.min(width - 1, Math.floor(request.x));
+        const y = Math.min(height - 1, Math.floor(request.y));
+        const at = drawn.entries[y * width + x] ?? 0;
+        const entry = at === 0 ? undefined : known.shown.entries[at - 1];
+        this.reply({
+          type: 'space/picked',
+          space: request.space,
+          id: request.id,
+          element: entry?.element ?? null,
+          ...(entry ? { point: originOf(entry) } : {}),
+        });
+        return;
+      }
+      case 'space/end':
+        this.spaces.delete(request.space);
+        return;
     }
+  }
+
+  /** The camera a space is drawn from: the one given, or the one that frames it whole. */
+  private cameraOf(shown: SpaceShown): SpaceCamera {
+    return shown.camera ?? this.framed(shown, shown.entries);
+  }
+
+  /** The camera that frames these entries: their solids' bounds where given, else their origins. */
+  private framed(shown: SpaceShown, entries: readonly SpaceDrawnEntry[]): SpaceCamera {
+    const boxes = entries.map((entry) =>
+      entry.bounds ? boundsPlaced(entry.matrix, entry.bounds) : boundsOfPoint(originOf(entry)),
+    );
+    return frameSpace(boxes, shown.size.width / shown.size.height, shown.camera);
+  }
+
+  private spaceFrame(number: number): void {
+    const space = this.spaces.get(number);
+    if (!space) return;
+    if (this.lost) {
+      this.reply({ type: 'refused', space: number, code: 'context-lost', message: 'Lost.' });
+      return;
+    }
+    const camera = this.cameraOf(space.shown);
+    const drawn = drawSpaceBoxes(space.shown, camera);
+    space.serial += 1;
+    this.reply({
+      type: 'space/frame',
+      space: number,
+      serial: space.serial,
+      camera,
+      bitmap: drawn.bitmap as unknown as ImageBitmap,
+      width: space.shown.size.width,
+      height: space.shown.size.height,
+    });
   }
 
   private frame(turn: number): void {
@@ -289,6 +422,66 @@ export class StandInSolidWorker implements SolidWorkerPort {
     if (this.terminated) return;
     for (const listener of this.listeners.get('message') ?? []) listener({ data: reply });
   }
+}
+
+/** A space the stand-in draws: what it was last told it shows, and its frames' count. */
+export interface StandInSpace {
+  shown: SpaceShown;
+  serial: number;
+}
+
+/** Where an entry's origin is, in the coordinates of the element the panel shows. */
+function originOf(entry: SpaceDrawnEntry): SpacePoint {
+  const m = entry.matrix;
+  return { x: m[12] ?? 0, y: m[13] ?? 0, z: m[14] ?? 0 };
+}
+
+/**
+ * Draws a space as a box for each entry not hidden, around its origin as the camera projects it, the
+ * nearer over the farther, with which entry each pixel shows: its index in the entries plus one, or
+ * 0 for none.
+ */
+export function drawSpaceBoxes(
+  shown: SpaceShown,
+  camera: SpaceCamera,
+): { bitmap: StandInBitmap; entries: Uint32Array } {
+  const { width, height } = shown.size;
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  const entries = new Uint32Array(width * height);
+  const hidden = new Set<Id>(
+    shown.states.filter((state) => state.hidden === true).map((state) => state.element),
+  );
+  const project = spaceProjection(camera, width / height);
+  const side = standInBoxSide(width, height);
+  const placed = shown.entries
+    .map((entry, index) => ({ entry, index, at: project(originOf(entry)) }))
+    .filter(({ entry, at }) => !hidden.has(entry.element) && at.depth > 0)
+    // The farthest first, so that the nearer lie over them.
+    .sort((a, b) => b.at.depth - a.at.depth);
+  for (const { index, at } of placed) {
+    const left = Math.max(0, Math.round(at.x * width - side / 2));
+    const top = Math.max(0, Math.round(at.y * height - side / 2));
+    const right = Math.min(width, left + side);
+    const bottom = Math.min(height, top + side);
+    const [r, g, b] = COLORS[index % COLORS.length] as readonly [number, number, number];
+    for (let y = top; y < bottom; y++) {
+      for (let x = left; x < right; x++) {
+        const pixel = y * width + x;
+        entries[pixel] = index + 1;
+        pixels.set([r, g, b, 255], pixel * 4);
+      }
+    }
+  }
+  const bitmap: StandInBitmap = {
+    width,
+    height,
+    pixels,
+    closed: false,
+    close() {
+      this.closed = true;
+    },
+  };
+  return { bitmap, entries };
 }
 
 /** The side of each part's box, in pixels, for a picture of this size. */
