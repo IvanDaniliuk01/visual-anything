@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCondition, parseSlot, parseTemplate } from './slots';
+import { parseCondition, parseSlot, parseSlots } from './slots';
 import { cascade, computeStyle, INITIAL_STYLE, readStyle, type Matched } from './style';
 
 function rules(text: string) {
@@ -147,9 +147,7 @@ describe('the style subset', () => {
 
 describe('slots and conditions', () => {
   it('reads slots in text', () => {
-    const read = parseTemplate(
-      '{{name}} — {{attr "Fecha de alta" ?? "—"}} {{descripcion | plain}}',
-    );
+    const read = parseSlots('{{name}} — {{attr "Fecha de alta" ?? "—"}} {{descripcion | plain}}');
     expect(read).toEqual({
       ok: true,
       value: [
@@ -163,7 +161,7 @@ describe('slots and conditions', () => {
   });
 
   it('refuses slots it cannot read', () => {
-    expect(parseTemplate('a {{name')).toMatchObject({ ok: false, offset: 2 });
+    expect(parseSlots('a {{name')).toMatchObject({ ok: false, offset: 2 });
     expect(parseSlot('name | upper')).toMatchObject({ ok: false });
     expect(parseSlot('name ?? —')).toMatchObject({ ok: false });
     expect(parseSlot('plain')).toMatchObject({ ok: false });

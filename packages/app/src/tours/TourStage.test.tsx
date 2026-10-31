@@ -505,6 +505,66 @@ describe('TourStage’s reveals, scenario card and controls', () => {
         /Pointing at “.+”\. A pulse follows the chain: “Booking agent” .+ “Appointments API”; “Appointments API” .+ “Appointments DB”\./,
       );
     });
+
+    it('names a note by its first words, an arrow as an arrow, and a relation without a name by its type', () => {
+      const project: ProjectSnapshot = {
+        ...sample,
+        model: {
+          ...sample.model,
+          relations: sample.model.relations.map((each) =>
+            each.id === 'agent-to-api' ? { ...each, name: undefined } : each,
+          ),
+        },
+        views: sample.views.map((each) =>
+          each.id === 'system-overview'
+            ? {
+                ...each,
+                freeShapes: [
+                  ...each.freeShapes,
+                  {
+                    kind: 'note',
+                    id: 'why',
+                    x: 0,
+                    y: 0,
+                    width: 100,
+                    height: 40,
+                    text: 'Every **booking** goes through the API before it reaches the database.',
+                  },
+                  { kind: 'arrow', id: 'there', from: { x: 0, y: 0 }, to: { x: 50, y: 50 } },
+                ],
+              }
+            : each,
+        ),
+      };
+      const pointing = (pointTo: string, extra: Partial<TourFile['steps'][number]> = {}) => {
+        const explaining: TourFile = {
+          ...tour,
+          steps: [
+            {
+              id: 'explains',
+              viewState: { view: 'system-overview' },
+              caption: { title: 'Who books', pointTo },
+              marks: [pointTo],
+              ...extra,
+            },
+          ],
+        };
+        const { unmount } = stage(
+          { tour: explaining, said: { kind: 'step', step: 0, reveal: 0, count: 1 } },
+          project,
+        );
+        const said = status().textContent;
+        unmount();
+        return said;
+      };
+      expect(pointing('why')).toContain(
+        'Pointing at the note “Every booking goes through the API…”.',
+      );
+      expect(pointing('there')).toContain('Pointing at an arrow.');
+      expect(pointing('agent-to-api', { pulse: { relations: ['agent-to-api'] } })).toMatch(
+        /Pointing at “communicates with”\. A pulse follows the chain: “Booking agent” communicates with “Appointments API”\./,
+      );
+    });
   });
 
   describe('a caption’s leader line (ADR 0084)', () => {

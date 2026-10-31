@@ -21,12 +21,12 @@ import {
   INLINE_TAGS,
   type CompiledFace,
   type CompiledMarkup,
-  type TemplateNode,
+  type FaceNode,
 } from './compile';
 import { capped, hasValue, plainRun, valueText, type FaceInput, type FaceValue } from './input';
 import { FACE_CAPS } from './limits';
 import type { FaceProblem } from './problems';
-import type { Condition, Reference, TextTemplate } from './slots';
+import type { Condition, Reference, SlotText } from './slots';
 import {
   cascade,
   computeStyle,
@@ -283,7 +283,7 @@ function fallbackDrawing(
 
 class Layout {
   private boxes = 0;
-  /** Nodes of the template filled, and pieces of text added: bounds on filling, before any layout. */
+  /** Nodes of the face filled, and pieces of text added: bounds on filling, before any layout. */
   private steps = 0;
   private texts = 0;
   private readonly absolutes: Box[] = [];
@@ -332,10 +332,10 @@ class Layout {
     };
   }
 
-  // ——— Filling the template —————————————————————————————————————————————————————————————————————
+  // ——— Filling the face —————————————————————————————————————————————————————————————————————————
 
   private fill(
-    nodes: readonly TemplateNode[],
+    nodes: readonly FaceNode[],
     target: Box,
     scope: Scope,
     ancestors: readonly Matched[],
@@ -349,7 +349,7 @@ class Layout {
       switch (node.kind) {
         case 'text': {
           const style = inline?.style ?? target.style;
-          this.addRuns(target, this.write(node.template, local), style, inline);
+          this.addRuns(target, this.write(node.text, local), style, inline);
           break;
         }
         case 'choice': {
@@ -373,7 +373,7 @@ class Layout {
   }
 
   private each(
-    node: Extract<TemplateNode, { kind: 'each' }>,
+    node: Extract<FaceNode, { kind: 'each' }>,
     target: Box,
     scope: Scope,
     ancestors: readonly Matched[],
@@ -405,7 +405,7 @@ class Layout {
   }
 
   private element(
-    node: Extract<TemplateNode, { kind: 'element' }>,
+    node: Extract<FaceNode, { kind: 'element' }>,
     target: Box,
     scope: Scope,
     ancestors: readonly Matched[],
@@ -619,10 +619,10 @@ class Layout {
     }
   }
 
-  /** What a template writes, as runs: slots write text, with emphasis where it is taken. */
-  private write(template: TextTemplate, scope: Scope): EmphasisRun[] {
+  /** What a text with slots writes, as runs: slots write text, with emphasis where it is taken. */
+  private write(slots: SlotText, scope: Scope): EmphasisRun[] {
     const runs: EmphasisRun[] = [];
-    for (const part of template) {
+    for (const part of slots) {
       if (typeof part === 'string') {
         runs.push(plainRun(part));
         continue;
@@ -650,9 +650,9 @@ class Layout {
   }
 
   /** A class with its slots filled, their values reduced to `[a-z0-9-]`. */
-  private className(template: TextTemplate, scope: Scope): string {
+  private className(slots: SlotText, scope: Scope): string {
     let name = '';
-    for (const part of template) {
+    for (const part of slots) {
       if (typeof part === 'string') name += part;
       else
         name += reduced(

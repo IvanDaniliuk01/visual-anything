@@ -11,6 +11,7 @@
  * control, so that the read-only page (ADR 0041) can play tours with it too.
  */
 import {
+  definitionsIn,
   modelIndexOf,
   plainText,
   tourStepProblems,
@@ -533,7 +534,7 @@ function announce(t: Translator, project: ProjectSnapshot, tour: TourFile, said:
       shown.text === undefined ? undefined : plainText(shown.text),
       shown.marks.length > 0 ? describeMarks(t, project, shown.marks) : '',
       pointTo !== undefined && shown.marks.includes(pointTo)
-        ? pointingAt(t, project, pointTo)
+        ? pointingAt(t, project, step.viewState.view, pointTo)
         : undefined,
     ]
       .filter((part) => part !== undefined && part !== '')
@@ -557,7 +558,7 @@ function announce(t: Translator, project: ProjectSnapshot, tour: TourFile, said:
       .map((each) => (each.text === undefined ? undefined : plainText(each.text))),
     marks.length > 0 ? describeMarks(t, project, marks) : '',
     step.caption.pointTo !== undefined && marks.includes(step.caption.pointTo)
-      ? pointingAt(t, project, step.caption.pointTo)
+      ? pointingAt(t, project, step.viewState.view, step.caption.pointTo)
       : undefined,
     pulseOf(t, project, step),
   ]
@@ -565,11 +566,41 @@ function announce(t: Translator, project: ProjectSnapshot, tour: TourFile, said:
     .join(' ');
 }
 
-/** "Pointing at “X”.", for a caption that points at one of its step's marks (ADR 0084). */
-function pointingAt(t: Translator, project: ProjectSnapshot, id: string): string {
+/**
+ * "Pointing at “X”.", for a caption that points at one of its step's marks (ADR 0084): an element or
+ * a relation by its name, a relation without one by its type's; a note by its first words, and an
+ * arrow as an arrow, never by their ids.
+ */
+function pointingAt(t: Translator, project: ProjectSnapshot, view: string, id: string): string {
   const index = modelIndexOf(project);
-  const name = index.element(id)?.name ?? index.relation(id)?.name ?? id;
-  return t('Pointing at “{name}”.', { name });
+  const element = index.element(id);
+  if (element) return t('Pointing at “{name}”.', { name: element.name });
+  if (index.relation(id)) return t('Pointing at “{name}”.', { name: relationName(t, project, id) });
+  const free = project.views
+    .find((each) => each.id === view)
+    ?.freeShapes.find((each) => each.id === id);
+  if (free?.kind === 'note') {
+    return t('Pointing at the note “{text}”.', { text: firstWords(plainText(free.text)) });
+  }
+  if (free?.kind === 'arrow') return t('Pointing at an arrow.');
+  return t('Pointing at “{name}”.', { name: id });
+}
+
+/** A relation's name, or its type's when it has none. */
+function relationName(t: Translator, project: ProjectSnapshot, id: string): string {
+  const relation = modelIndexOf(project).relation(id);
+  if (!relation) return id;
+  if (relation.name !== undefined && relation.name !== '') return relation.name;
+  const type = relation.relationType;
+  return t.definition(type, definitionsIn(project).relationType(type)?.name ?? type);
+}
+
+/** The words a note is announced by: its first six, then "…" when it says more. */
+const NOTE_WORDS = 6;
+
+function firstWords(text: string): string {
+  const words = text.split(/\s+/).filter((each) => each !== '');
+  return words.length > NOTE_WORDS ? `${words.slice(0, NOTE_WORDS).join(' ')}…` : words.join(' ');
 }
 
 /** The chain a step's pulse runs along, its relations' names in order (ADR 0084). */
@@ -587,7 +618,7 @@ function pulseOf(
     const relation = index.relation(id);
     const from = relation && (index.element(relation.from)?.name ?? relation.from);
     const to = relation && (index.element(relation.to)?.name ?? relation.to);
-    const name = relation?.name ?? id;
+    const name = relationName(t, project, id);
     return from && to ? `“${from}” ${name} “${to}”` : `“${name}”`;
   });
   return t('A pulse follows the chain: {names}.', { names: names.join('; ') });

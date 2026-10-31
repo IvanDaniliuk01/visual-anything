@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ROBOTO } from '../canvas/robotoFonts';
 import type { ElementShape, Scene } from '../canvas/scene';
 import {
   GlideLayer,
@@ -108,6 +109,10 @@ describe('drawGlideFrame', () => {
       'stroke()',
       'fillText("Case",175,80)',
     ]);
+    // In the canvas's own Roboto, as F2 registered it, with the system's fonts after it.
+    expect(context.font).toBe(
+      `12px "${ROBOTO}", system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`,
+    );
   });
 
   it('cuts a name too long for its shape, and writes none in a shape too small', () => {

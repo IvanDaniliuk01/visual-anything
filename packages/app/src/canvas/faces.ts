@@ -285,7 +285,7 @@ function markupShown(
   return compiled.markup;
 }
 
-type TemplateNode = CompiledMarkup['nodes'][number];
+type FaceNode = CompiledMarkup['nodes'][number];
 
 const namesWritten = new WeakMap<CompiledMarkup, boolean>();
 
@@ -299,10 +299,10 @@ function markupWritesName(markup: CompiledMarkup): boolean {
   return known;
 }
 
-function writesName(node: TemplateNode): boolean {
+function writesName(node: FaceNode): boolean {
   switch (node.kind) {
     case 'text':
-      return node.template.some((part) => typeof part !== 'string' && part.ref.kind === 'name');
+      return node.text.some((part) => typeof part !== 'string' && part.ref.kind === 'name');
     case 'element':
     case 'each':
       return node.children.some(writesName);
@@ -363,7 +363,7 @@ export function faceImageRefs(compiled: CompiledFace): readonly string[] {
   let refs = imageRefs.get(compiled);
   if (!refs) {
     const found = new Set<string>();
-    const visit = (node: TemplateNode): void => {
+    const visit = (node: FaceNode): void => {
       if (node.kind === 'text') return;
       if (node.kind === 'choice') {
         for (const branch of node.branches) visit(branch.node);

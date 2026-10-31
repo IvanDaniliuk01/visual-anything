@@ -31,7 +31,7 @@ export interface Slot {
 }
 
 /** Text with slots in it: literal parts and slots, in order. */
-export type TextTemplate = readonly (string | Slot)[];
+export type SlotText = readonly (string | Slot)[];
 
 export type Comparison = '=' | '!=' | '<' | '<=' | '>' | '>=' | 'in';
 
@@ -60,7 +60,7 @@ export const RESERVED_NAMES: ReadonlySet<string> = new Set([
 const BARE = /^[^\s"'{}|?=!<>()]+/u;
 
 /** Reads text that may hold slots. A "{{" never closed is refused; a lone "}}" is text. */
-export function parseTemplate(text: string): Parsed<TextTemplate> {
+export function parseSlots(text: string): Parsed<SlotText> {
   const parts: (string | Slot)[] = [];
   let at = 0;
   let literal = '';
@@ -83,14 +83,14 @@ export function parseTemplate(text: string): Parsed<TextTemplate> {
   return { ok: true, value: parts };
 }
 
-/** Whether a template holds any slot. */
-export function hasSlots(template: TextTemplate): boolean {
-  return template.some((part) => typeof part !== 'string');
+/** Whether a text holds any slot. */
+export function hasSlots(text: SlotText): boolean {
+  return text.some((part) => typeof part !== 'string');
 }
 
-/** The literal text of a template without slots. */
-export function literalOf(template: TextTemplate): string {
-  return template.map((part) => (typeof part === 'string' ? part : '')).join('');
+/** The literal text of a text with slots, without them. */
+export function literalOf(text: SlotText): string {
+  return text.map((part) => (typeof part === 'string' ? part : '')).join('');
 }
 
 class Tokens {

@@ -6,10 +6,10 @@
  */
 import { contrastRatio, MINIMUM_MARK_CONTRAST, MINIMUM_TEXT_CONTRAST } from '../colors';
 import type { ThemeName } from '../preferences';
-import type { CompiledFace, CompiledMarkup, TemplateNode } from './compile';
+import type { CompiledFace, CompiledMarkup, FaceNode } from './compile';
 import { resolveFaceColor, type FacePalette } from './palette';
 import type { FaceProblem } from './problems';
-import type { TextTemplate } from './slots';
+import type { SlotText } from './slots';
 import {
   cascade,
   computeStyle,
@@ -89,7 +89,7 @@ export function faceContrastProblems(
   };
 
   const visit = (
-    nodes: readonly TemplateNode[],
+    nodes: readonly FaceNode[],
     parent: FaceStyle,
     back: FaceColor,
     ancestors: readonly Matched[],
@@ -99,7 +99,7 @@ export function faceContrastProblems(
       if (steps > MAX_STEPS) return;
       switch (node.kind) {
         case 'text':
-          if (node.template.some((part) => typeof part !== 'string' || part.trim() !== '')) {
+          if (node.text.some((part) => typeof part !== 'string' || part.trim() !== '')) {
             if (!step()) return;
             check(parent, back, markup, node.at);
           }
@@ -149,12 +149,12 @@ export function faceContrastProblems(
 }
 
 /** The sets of classes an element is checked with: its literal ones, and each a slot could add. */
-function classChoices(templates: readonly TextTemplate[], known: ReadonlySet<string>): string[][] {
+function classChoices(classes: readonly SlotText[], known: ReadonlySet<string>): string[][] {
   const literal: string[] = [];
   const patterns: (readonly string[])[] = [];
-  for (const template of templates) {
-    if (template.every((part) => typeof part === 'string')) literal.push(template.join(''));
-    else patterns.push(classPattern(template));
+  for (const each of classes) {
+    if (each.every((part) => typeof part === 'string')) literal.push(each.join(''));
+    else patterns.push(classPattern(each));
   }
   const choices = [literal];
   for (const name of known) {
@@ -167,13 +167,13 @@ function classChoices(templates: readonly TextTemplate[], known: ReadonlySet<str
 }
 
 /**
- * A class template as the literal texts between its slots, in order: slots side by side count as
- * one, and the first and last texts are empty when the template starts or ends with a slot.
+ * A class with slots as the literal texts between its slots, in order: slots side by side count as
+ * one, and the first and last texts are empty when the class starts or ends with a slot.
  */
-export function classPattern(template: TextTemplate): readonly string[] {
+export function classPattern(text: SlotText): readonly string[] {
   const literals = [''];
   let slotted = false;
-  for (const part of template) {
+  for (const part of text) {
     if (typeof part === 'string') {
       literals[literals.length - 1] += part;
       slotted = false;
@@ -188,7 +188,7 @@ export function classPattern(template: TextTemplate): readonly string[] {
 const SLOT_CHARACTER = /^[a-z0-9-]$/;
 
 /**
- * Whether a class name is one a template's slots could write, in time linear in the name: the first
+ * Whether a class name is one a class's slots could write, in time linear in the name: the first
  * text as its start, the last as its end, the ones between found in order at their first place, and
  * what the slots write made of `[a-z0-9-]` only. The first place is the best one: a later place would
  * only give the slot before it more characters to hold.

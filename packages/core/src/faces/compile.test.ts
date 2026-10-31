@@ -107,6 +107,95 @@ describe('compiling a face', () => {
     ).toMatchObject({ code: 'face-too-large' });
   });
 
+  it('says where each cap is passed, at a line and a column', () => {
+    const lines = Array.from({ length: 201 }, () => '<b>x</b>');
+    expect(compileFace(face(lines)).problems).toEqual([
+      expect.objectContaining({
+        code: 'face-too-large',
+        part: { kind: 'markup' },
+        line: 201,
+        column: 1,
+      }),
+    ]);
+    // The lines are counted across the variants, after the face's own markup.
+    const split = compileFace(
+      face(lines.slice(0, 150), '', { variants: [{ id: 'far', markup: lines.slice(0, 60) }] }),
+    );
+    expect(split.problems[0]).toMatchObject({
+      code: 'face-too-large',
+      part: { kind: 'variant', id: 'far' },
+      line: 51,
+      column: 1,
+    });
+    const variants = Array.from({ length: 9 }, (_, at) => ({ id: `v${at}`, markup: ['<b/>'] }));
+    expect(compileFace(face('<b/>', '', { variants })).problems[0]).toMatchObject({
+      code: 'face-too-large',
+      part: { kind: 'variant', id: 'v8' },
+      line: 1,
+      column: 1,
+    });
+    // 16 lines of 1,000 characters and the 16 line feeds after them are 16,016 bytes: the 16,385th
+    // byte is the 369th character of the 17th line.
+    const wide = Array.from({ length: 20 }, () => 'x'.repeat(1_000));
+    expect(compileFace(face(wide)).problems).toEqual([
+      expect.objectContaining({ code: 'face-too-large', line: 17, column: 369 }),
+    ]);
+    expect(compileFace(face('<b/>', wide)).problems).toEqual([
+      expect.objectContaining({
+        code: 'face-too-large',
+        part: { kind: 'style' },
+        line: 17,
+        column: 369,
+      }),
+    ]);
+    // A character of several bytes passes the cap where it starts.
+    const accents = ['é'.repeat(8_193)];
+    expect(compileFace(face(accents)).problems).toEqual([
+      expect.objectContaining({ code: 'face-too-large', line: 1, column: 8_193 }),
+    ]);
+    expect(compileFace(face(`<b>${'x'.repeat(2_001)}</b>`)).problems[0]).toMatchObject({
+      code: 'invalid-face',
+      line: 1,
+      column: 2_001,
+    });
+    expect(compileFace(face(['<b/>', '<i>a\nb</i>'])).problems[0]).toMatchObject({
+      code: 'invalid-face',
+      line: 2,
+      column: 5,
+    });
+    expect(
+      compileFace(
+        face('<b/>', '', {
+          variants: [
+            { id: 'far', markup: ['<b/>'] },
+            { id: 'far', markup: ['<i/>'] },
+          ],
+        }),
+      ).problems[0],
+    ).toMatchObject({ part: { kind: 'variant', id: 'far' }, line: 1, column: 1 });
+  });
+
+  it('stops at its caps, and never reads a face past them', () => {
+    // Thousands of lines at the longest a line may be, each of which the reader would refuse.
+    const hostile = Array.from({ length: 5_000 }, () => `<script>${'x'.repeat(1_983)}</script>`);
+    const started = Date.now();
+    const compiled = compileFace(
+      face(hostile, hostile, { variants: [{ id: 'v', markup: hostile }] }),
+    );
+    const took = Date.now() - started;
+    expect(compiled.ok).toBe(false);
+    expect(compiled.problems.map((each) => each.code)).toEqual([
+      'face-too-large',
+      'face-too-large',
+      'face-too-large',
+    ]);
+    expect(compiled.problems.every((each) => each.reason.includes('at most'))).toBe(true);
+    expect(compiled.markup).toBeUndefined();
+    expect(compiled.rules).toEqual([]);
+    expect(compiled.hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(took).toBeLessThan(50);
+  });
+
   it('reports style it drops as warnings, and compiles still', () => {
     const compiled = compileFace(
       face('<p style="color: red; padding: 4px">x</p>', 'p { transform: none; }'),

@@ -712,7 +712,7 @@ function StepExplains({
         {refused && (
           <p className="tour-field-hint" role="status">
             {t(
-              'The selected relations do not join into a chain: each must share an end with the next.',
+              'The selected relations do not join into a chain: the marker must run each from where the one before left it.',
             )}
           </p>
         )}

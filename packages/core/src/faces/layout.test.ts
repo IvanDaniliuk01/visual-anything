@@ -52,6 +52,49 @@ describe('laying a face out', () => {
     expect(drawing.cut).toBe(false);
   });
 
+  it('gives a line whose condition does not hold no height, padding and gap included', () => {
+    const header = 'header { display: flex; height: 32px; }';
+    const rule = 'p { padding: 4px 12px 6px; font-size: 11px; }';
+    const without = draw(
+      ['<header><b>{{name}}</b></header>', '<rows/>'],
+      [header],
+      {},
+      {
+        rowsHeight: 48,
+      },
+    );
+    const hidden = draw(
+      ['<header><b>{{name}}</b></header>', '<p if="note">{{note}}</p>', '<rows/>'],
+      [header, rule],
+      {},
+      { rowsHeight: 48 },
+    );
+    expect(hidden.regions[0]!.y).toBe(32);
+    expect(hidden.regions[0]!.y).toBe(without.regions[0]!.y);
+    expect(hidden.height).toBe(without.height);
+    // Nor does it take a gap of its own between what it stands between.
+    const gapped = (markup: string[]) =>
+      draw(
+        markup,
+        [header, rule, 'face { display: flex; flex-direction: column; row-gap: 8px; }'],
+        {},
+        {
+          rowsHeight: 48,
+        },
+      );
+    expect(
+      gapped(['<header><b>{{name}}</b></header>', '<p if="note">{{note}}</p>', '<rows/>'])
+        .regions[0]!.y,
+    ).toBe(gapped(['<header><b>{{name}}</b></header>', '<rows/>']).regions[0]!.y);
+    const shown = draw(
+      ['<header><b>{{name}}</b></header>', '<p if="note">{{note}}</p>', '<rows/>'],
+      [header, rule],
+      { note: 'Every order.' },
+      { rowsHeight: 48 },
+    );
+    expect(shown.regions[0]!.y).toBeGreaterThan(32);
+  });
+
   it('leaves out what a condition hides, and writes a fallback for a missing value', () => {
     const drawing = layOutFace(compileFace(ADR_FACE), input({}), { width: 240 });
     expect(faceDrawingText(drawing)).toBe('orders');

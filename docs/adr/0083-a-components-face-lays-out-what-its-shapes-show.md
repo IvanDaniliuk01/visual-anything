@@ -429,3 +429,20 @@ The layout is block, flex and a simple grid: a small engine, not a browser's.
   - **One shared segment on the fixture's unpinned overview with faces** is recorded and accepted. ADR 0080 wants none; the faces' taller headers narrow one corridor.
   - **A table's face is laid out twice,** for its header and for its tile, in different cache entries. Sharing them goes to A4, with the layout's time at 10,000 elements.
   - **The frames at 10,000 faced shapes are not measured in a browser yet.** They are recorded when the bench is next run there, and they are not a blocker.
+
+<!-- Decided by Claude on 2026-10-30 under the user's standing delegation of design decisions, while fixing the findings of M3e's spec review. -->
+
+- 2026-10-30 (M3e, after its spec review): **caps stop reading, every refusal has a place, Table's face, and the word "template".**
+  - **A face past its caps is not read.** `compileFace` checks the caps first: the lines by their number, the bytes only until the 16 KiB are passed, the variants by their count. A face past one is refused with its `face-too-large` problems alone: its markup and style are not read, nor its text joined for the cache or hashed (its hash is that of its size and its problems). So a hostile face of thousands of 2,000-character lines costs what counting them costs.
+  - **Every refusal of a face's text has a line and a column.**
+    - The line cap is at the first line past it, the 201st, counted through the markup and then the variants in order, in the part that holds it.
+    - The byte caps are at the character that holds the first byte past 16 KiB, or just past the end of the line whose line feed it is.
+    - The variant cap is at the ninth variant's line 1, column 1, and so is a second variant of the same id.
+    - An over-long line is at its column 2,001, and a line break inside a line at its own column.
+    - Only what is about the face as a whole, in none of its texts, keeps line and column 0: a `collapsed` variant the face lacks, a fill past its caps found while laying it out, and contrast checked only in part. The hostile-faces property now requires a line of 1 or more and a column within it for every problem of a face's markup, and a second property holds the same for faces past every cap, generated.
+  - **Table's face keeps a 32-unit header, without the description.** This supersedes the line of the Consequences that says Table's face "shows the description under the name": it writes its name and its schema, as F4 built it.
+    - A face reads the element's attributes, not its description, so the line would need a slot of its own.
+    - Every table with a description would grow taller, and the SQL recipe writes each `COMMENT ON` as a description, so the user's model would be laid out again.
+    - The description stays where it is read today: the hover card, the inspector and the outline.
+    - A line whose condition does not hold takes no height and no gap (`layout.test.ts`), so a later face that adds one under the header leaves tables without it as they are.
+  - **No "template" in the core's names,** since CONTEXT.md avoids it for a face. Its compiled markup is made of `FaceNode`s: `FaceElement`, `FaceText`, `FaceEach` and `FaceChoice`. A text that may hold slots is a `SlotText`, a class one of `ClassSlots`, and `parseSlots` reads them. A text node's `template` is its `text`.
