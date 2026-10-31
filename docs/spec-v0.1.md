@@ -542,7 +542,8 @@ Eight milestones in build order, each ending in something you can use, and Track
     - the Tours panel's check builds its scenes off the main thread or when idle, reusing the canvas's scene for the open view;
     - the steps' index gives the focus back to the stage after a jump, and is a modal dialog that holds the focus while open;
     - the person edits a decision's question, labels, default and `ends`, and removes one decision, in the app, as Claude can;
-  - M11b (2026-10-28): `recompare` reads the newer version incrementally, rather than its items again each action, to follow an action within 5 ms at 10,000 elements (about 24 ms now); comparing afresh takes about 110 ms against 100 ms (ADR 0070's clarification);
+  - M11b (2026-10-28): `recompare` reads the newer version incrementally, rather than its items again each action, to follow an action within 5 ms at 10,000 elements (about 24 ms then, 44 to 126 ms on the loaded laptop of `benchmark-8.md`); comparing afresh takes about 110 ms against 100 ms (ADR 0070's clarification), about 200 ms in `benchmark-8.md`;
+  - M11b's benchmarks (2026-10-30, `benchmark-8.md`): `rebaseProposal` merges only the items an action's operations name, rather than each file it reached whole, to slow an action by at most 20 ms at 10,000 elements (about 150 to 180 ms after a rename now), as ADR 0073 says; and the proposal shown again after an action, about 0.5 s now, compares only what the action reached;
   - `scene.incremental.test.ts` once found an incremental scene in the view beyond boxes that differed from one built from nothing, in about one run in 400, and lost the counterexample; it is hunted with more runs and its seed kept (2026-10-26).
 
 **M11b · Versions.** Planned for the third wave, beside M8b. The core's comparison, merge and proposals go first, in the main session, since everything else builds on them. Then two rounds of tasks run in parallel. Done when:
@@ -691,12 +692,12 @@ The first three tasks are the seams, built in the main session in this order. Th
   - `compare_versions`, with counts and changes, at most 200 per call with an offset, for one view if asked;
   - `show_comparison`, which sends the guidance;
   - tool descriptions with examples.
-- [ ] **Benchmarks** (the core's benchmarks, `app/src/bench`):
-  - comparing, and following a comparison, at 10,000 elements and at the reading benchmark's size;
-  - the comparison drawn at 10,000 elements;
-  - an action while a proposal is open at 10,000 elements, which its rebase slows by at most 20 ms;
-  - merging a 10,000-element model file;
-  - reading the benchmark project's version from git.
+- [x] **Benchmarks** (the core's benchmarks, `app/src/bench`). Recorded on 2026-10-30 in Node on the loaded reference laptop (`bench/versions.ts`, `bench/versions-timing.ts`, `server/scripts/versions-timing.ts`, `docs/designs/benchmark-8.md`), with 100 changes spread over the benchmark's view; by the user's decision of 2026-10-27 the missed marks do not hold the milestone back:
+  - comparing, and following a comparison, at 10,000 elements and at the reading benchmark's size: comparing takes about 200 ms at 10,000 elements against 100 ms and about 1.6 s at 100,000 elements and 200,640 relations against 1.5 s; `recompare` after a rename or a move takes 44 to 126 ms against 5 ms, and 0.7 to 1.1 s at 100,000;
+  - the comparison drawn at 10,000 elements: its scene takes about 270 to 350 ms for the comparison drawing, most of it the older version's scene, and 50 to 60 ms for after; the marks' layer takes 8 to 12 ms for its first frame and 7 to 11 ms for each frame of 800 marks at the median. PixiJS's drawing of them on the GPU waits for the next browser run;
+  - an action while a proposal is open at 10,000 elements, which its rebase slows by at most 20 ms: the rebase takes about 150 to 180 ms after a rename and 90 to 100 ms after a move, since it merges each file the action reached whole; showing the proposal again takes 450 to 570 ms more;
+  - merging a 10,000-element model file: about 180 to 200 ms in the core, within 500 ms, and 380 to 600 ms in the whole driver;
+  - reading the benchmark project's version from git, in a temporary repository with two commits: about 0.5 s to read it after a listing, and about 0.6 s to list from nothing.
 
 **M11c · Tours that move, and scenarios that decide.** Planned beside the third wave's benchmarks, from the research on tours and on conditional processes. Its two seams, in the schema and the core, go first in the main session; then its tasks run in parallel. Done when:
 
