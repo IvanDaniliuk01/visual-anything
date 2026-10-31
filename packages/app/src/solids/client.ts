@@ -33,6 +33,7 @@ import {
   type SolidWorkerRequest,
 } from './protocol';
 import { solidPictureSerial } from '../canvas/image-serials';
+import { solidPictureKey, type ShapeSolid } from '../canvas/shape-solids';
 
 /** What the client needs of a worker: the solid worker, or a stand-in for it in tests. */
 export interface SolidWorkerPort {
@@ -83,6 +84,33 @@ export interface SolidPictureAsk extends Omit<SolidView, 'size'> {
   aspect: number;
   /** How far its middle is from the middle of the screen: the nearest are asked for first. */
   distance: number;
+}
+
+/**
+ * What the solid client is asked for to draw a shape's solid: its picture by its key, at `pixels`
+ * device pixels on its longer side, `distance` from the middle of the screen. None for a shape that
+ * draws its placeholder whatever comes.
+ */
+export function solidAskFor(
+  shape: { solid?: ShapeSolid },
+  pixels: number,
+  distance: number,
+): SolidPictureAsk | undefined {
+  const { solid } = shape;
+  const key = solidPictureKey(shape);
+  if (!solid || key === undefined) return undefined;
+  return {
+    key,
+    solid: solid.hash,
+    pixels,
+    aspect: solid.rect.width / solid.rect.height,
+    distance,
+    camera: solid.camera,
+    lighting: solid.lighting,
+    hidden: solid.hidden ?? [],
+    parts: solid.placement === 'parts',
+    ...(solid.only === undefined ? {} : { only: solid.only }),
+  };
 }
 
 /** A picture kept for the session. */
@@ -426,7 +454,7 @@ class Client implements SolidClient {
     const buffer =
       bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
         ? (bytes.buffer as ArrayBuffer)
-        : (bytes.slice().buffer);
+        : bytes.slice().buffer;
     if (!this.ensure() || !this.post({ type: 'load', id, hash, bytes: buffer }, [buffer])) {
       this.loading.delete(hash);
     }

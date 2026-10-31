@@ -3043,6 +3043,11 @@ export class CanvasRenderer {
       if (end.kind === 'shape') {
         const shape = indexed.byKey.get(end.key);
         if (!shape) return undefined;
+        // An anchored part of a solid ends its lines at its point (ADR 0075).
+        const point = shape.part?.point;
+        if (point) {
+          return { point: hidden.shapes.has(end.key) ? movedPoint(point, delta) : point };
+        }
         const rect = shape.plate ?? shape.rect;
         return { rect: hidden.shapes.has(end.key) ? moved(rect, delta) : rect };
       }

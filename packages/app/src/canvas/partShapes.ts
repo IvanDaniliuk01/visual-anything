@@ -28,16 +28,46 @@ import type { Point, Rect } from './geometry';
 import { partSource, type OutlineSource } from './outlines';
 import type { ImageLook } from './shape-images';
 
-/** How a shape is drawn as a named part. */
-export interface ShapePart {
+/** How a shape is drawn as a named part: of an SVG image (ADR 0067), or of a solid (ADR 0075). */
+export type ShapePart = ImageShapePart | SolidShapePart;
+
+/** How a shape is drawn as a named part of an image (ADR 0067). */
+export interface ImageShapePart {
   /** The image whose part it is drawn as. */
   image: Id;
+  solid?: undefined;
   /** The part's id in that image. */
   part: string;
   /** The part's main color, which it is filled in far out and until its picture is ready. */
   color: Color;
   /** Whether it is anchored in a drawing with parts, rather than drawn on its own. */
   inDrawing: boolean;
+  index?: undefined;
+  point?: undefined;
+}
+
+/**
+ * How a shape is drawn as a named part of a solid (ADR 0075). Anchored in a drawing with parts, it is
+ * drawn in its drawing's picture, as that part, and has no position of its own: its shape's rectangle
+ * is the dot of `SOLID_PART_DOT` units around its point. Drawn on its own, it is its solid's picture
+ * with only that part shown (`ShapeSolid.only`).
+ */
+export interface SolidShapePart {
+  /** The solid whose part it is drawn as. */
+  solid: Id;
+  image?: undefined;
+  /** The part's name, which is its id in the solid. */
+  part: string;
+  /** Its index in the solid's parts, in depth-first order, as part buffers name it. */
+  index: number;
+  /** Its element's fill, which stands for it where its picture does not show. */
+  color: Color;
+  inDrawing: boolean;
+  /**
+   * For an anchored part: where relations end and its name is written, the projection of its
+   * `point` by its drawing's camera (`placeSolidPoint`), in canvas units.
+   */
+  point?: Point;
 }
 
 /** Where a drawing with parts draws its picture, and how many canvas units a unit of the image takes. */
@@ -67,7 +97,7 @@ export interface Anchor {
 
 /** What an anchored part's box holds besides its look: its anchor, and what it does not draw. */
 export interface Anchored {
-  anchor: Anchor;
+  anchor: Anchor | { solid: Id };
   /** The elements it holds, which it does not draw, each once; the outline lists them. */
   undrawn: readonly Id[];
 }
@@ -130,7 +160,12 @@ export function anchorsIn(
   const { rect, scale } = picture;
   return contents.map((content) => {
     const reference = partOf(content);
-    if (!reference || (reference.image !== undefined && reference.image !== image.id)) {
+    // A part that names a solid is a solid's part, never an image's (ADR 0075).
+    if (
+      !reference ||
+      reference.solid !== undefined ||
+      (reference.image !== undefined && reference.image !== image.id)
+    ) {
       return undefined;
     }
     if (taken.has(reference.part)) return undefined;
@@ -149,7 +184,7 @@ export function anchorsIn(
 }
 
 /** What an anchored part holds and does not draw, each once, in order. */
-export function anchoredOf(anchor: Anchor, placement: Placement): Anchored {
+export function anchoredOf(anchor: Anchored['anchor'], placement: Placement): Anchored {
   const undrawn: Id[] = [];
   const seen = new Set<Id>();
   for (const content of placement.contents) {
@@ -193,20 +228,29 @@ export function partImageOf(image: Id): CleanedImage | undefined {
 }
 
 /** The shape fields of an anchored part. */
-export function anchoredPart(anchor: Anchor): ShapePart {
+export function anchoredPart(anchor: Anchor): ImageShapePart {
   return { image: anchor.image, part: anchor.part.id, color: anchor.part.color, inDrawing: true };
 }
 
 /** Whether two shapes are drawn as the same part, or both as none. */
 export function samePart(a: ShapePart | undefined, b: ShapePart | undefined): boolean {
   if (a === b) return true;
+  if (a === undefined || b === undefined) return false;
+  if (a.solid !== undefined || b.solid !== undefined) {
+    return (
+      a.solid !== undefined &&
+      b.solid !== undefined &&
+      a.solid === b.solid &&
+      a.part === b.part &&
+      a.index === b.index &&
+      a.color === b.color &&
+      a.inDrawing === b.inDrawing &&
+      a.point?.x === b.point?.x &&
+      a.point?.y === b.point?.y
+    );
+  }
   return (
-    a !== undefined &&
-    b !== undefined &&
-    a.image === b.image &&
-    a.part === b.part &&
-    a.color === b.color &&
-    a.inDrawing === b.inDrawing
+    a.image === b.image && a.part === b.part && a.color === b.color && a.inDrawing === b.inDrawing
   );
 }
 

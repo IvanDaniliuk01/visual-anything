@@ -1423,6 +1423,8 @@ function ownPartPicture(
   shape: ElementShape,
   part: ShapePart,
 ): { image: PictureSource; rect: Rect } | undefined {
+  // A solid's part is no image's (ADR 0075): the exports' task draws solids' pictures.
+  if (part.image === undefined) return undefined;
   const whole = writer.reading.shown(part.image);
   const named = whole && namedPart(whole, part.part);
   const own = whole && partPicture(whole, part.part);
@@ -2091,7 +2093,7 @@ function attributionOf(
     if (defined) used.add(defined.package);
     if (shape.image) used.add(shape.image.id.split('.')[0] ?? '');
     // A part on its own draws its picture's part (ADR 0067).
-    if (shape.part) used.add(shape.part.image.split('.')[0] ?? '');
+    if (shape.part?.image !== undefined) used.add(shape.part.image.split('.')[0] ?? '');
   }
   for (const line of scene.relations) {
     const type = line.aggregate

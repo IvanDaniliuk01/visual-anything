@@ -159,6 +159,8 @@ export interface DrawnShape {
   outline?: ShapeOutline;
   /** A shape drawn by its picture is held by the picture's plate and its name band. */
   image?: { placement: string; box: Rect; band?: Rect };
+  /** A solid shown in place of an image takes its place (ADR 0075). */
+  solid?: { placement: string; box: Rect; band?: Rect };
 }
 
 /**
@@ -174,7 +176,7 @@ export function shapeHolds(shape: DrawnShape, point: Point, margin = 0): boolean
     const local = { x: point.x - rect.x - outline.x, y: point.y - rect.y - outline.y };
     return outlineHolds(outline.fitted, local, margin);
   }
-  const image = shape.image;
+  const image = shape.image ?? shape.solid;
   if (image?.placement === 'drawing') {
     return (
       holdsPoint('rectangle', image.box, point) ||

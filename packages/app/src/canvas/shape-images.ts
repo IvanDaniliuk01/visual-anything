@@ -198,28 +198,54 @@ export function placeImage(
   hasDetail = false,
 ): PlacedImage | undefined {
   if (!look) return undefined;
-  const { width, height } = look.image;
-  const base = {
-    id: look.id,
-    image: look.image,
-    serial: look.serial,
-    ...(look.tint === undefined ? {} : { tint: look.tint }),
+  const placed = placePicture(look.image, look.placement, holder, hasDetail);
+  if (!placed) return undefined;
+  const { plate, ...where } = placed;
+  return {
+    image: {
+      id: look.id,
+      image: look.image,
+      serial: look.serial,
+      ...where,
+      ...(look.tint === undefined ? {} : { tint: look.tint }),
+    },
+    ...(plate ? { plate } : {}),
   };
+}
+
+/** Where a picture goes on a shape, as an image's or a solid's (ADR 0075): its rectangles, and plate. */
+export interface PicturePlace {
+  placement: ShapeImage['placement'];
+  rect: Rect;
+  box: Rect;
+  band?: Rect;
+  plate?: Rect;
+}
+
+/**
+ * Places a picture of this width and height on a shape, as its appearance's `placement` asks and as
+ * the shape lets it: the rules at the top of this file, which an image's picture and a solid's both
+ * follow. None for a shape with its own outline that has no room for its icon.
+ */
+export function placePicture(
+  size: { width: number; height: number },
+  placement: 'icon' | 'drawing' | 'parts',
+  holder: ImageHolder,
+  hasDetail = false,
+): PicturePlace | undefined {
+  const { width, height } = size;
   if (holder.row) {
     // A row shows its picture as an icon at its left, whatever the placement asks.
     const box = rowImageRect(holder.rect);
-    return { image: { ...base, placement: 'icon', rect: fitted(width, height, box), box } };
+    return { placement: 'icon', rect: fitted(width, height, box), box };
   }
   if (holder.picture && holder.collapsed === undefined && !holder.rows) {
     // A drawing with parts draws its picture where the scene placed it.
     const box = holder.picture;
-    return { image: { ...base, placement: 'parts', rect: box, box } };
+    return { placement: 'parts', rect: box, box };
   }
   if (holder.outline && !holder.rows) {
-    const image = outlinedIcon({ ...holder, outline: holder.outline }, width, height);
-    return (
-      image && { image: { ...base, placement: image.placement, rect: image.rect, box: image.box } }
-    );
+    return outlinedIcon({ ...holder, outline: holder.outline }, width, height);
   }
   if (holder.holdsContents || holder.collapsed !== undefined || holder.rows) {
     const body = bodyOf(holder);
@@ -229,17 +255,16 @@ export function placeImage(
       width: HEADER_ICON.side,
       height: HEADER_ICON.side,
     };
-    return { image: { ...base, placement: 'header', rect: fitted(width, height, box), box } };
+    return { placement: 'header', rect: fitted(width, height, box), box };
   }
-  if (look.placement === 'drawing') {
+  if (placement === 'drawing') {
     const drawing = drawingOf(width, height, holder.rect, hasDetail ? BAND.detail : BAND.name);
-    if (drawing)
-      return { image: { ...base, placement: 'drawing', ...drawing.image }, plate: drawing.plate };
+    if (drawing) return { placement: 'drawing', ...drawing.image, plate: drawing.plate };
   }
   const area = labelAreaOf(holder.kind, holder.rect);
   const side = Math.min(32, Math.max(16, area.height - 20));
   const box = { x: area.x + 8, y: area.y + (area.height - side) / 2, width: side, height: side };
-  return { image: { ...base, placement: 'icon', rect: fitted(width, height, box), box } };
+  return { placement: 'icon', rect: fitted(width, height, box), box };
 }
 
 /** The least side of an icon in a label area, below which a shape with its own outline shows none. */
@@ -433,15 +458,50 @@ export function placedAgain(
   return placed ? { image: placed.image, ...(placed.plate ? { plate: placed.plate } : {}) } : {};
 }
 
-/** Everything about a shape's image that its drawing shows, for its tile's signature. */
-export function imageSignature(shape: { image?: ShapeImage }): string {
-  const { image } = shape;
-  if (!image) return '';
-  const { rect, band } = image;
+/** Where a picture lies on a shape, an image's or a solid's: what drawing it asks of the shape. */
+export interface PlacedPicture {
+  placement: ShapeImage['placement'];
+  rect: Rect;
+  box: Rect;
+  band?: Rect;
+}
+
+/** A shape as these read it: its image, or the solid it shows in its place (ADR 0075). */
+export interface Pictured {
+  image?: PlacedPicture;
+  solid?: PlacedPicture;
+}
+
+/**
+ * The picture a shape shows, whose placement its drawing follows: its image's, or the solid's that
+ * an appearance shows in its place (ADR 0075). A solid takes the room an image would, its placeholder
+ * there until its picture comes.
+ */
+export function pictureOn(shape: Pictured): PlacedPicture | undefined {
+  return shape.image ?? shape.solid;
+}
+
+/** Whether a shape shows a picture, an image's or a solid's, which takes room beside its name. */
+export function showsPicture(shape: Pictured): boolean {
+  return shape.image !== undefined || shape.solid !== undefined;
+}
+
+/**
+ * Everything about a shape's image, or about where its solid's picture goes, that its drawing shows,
+ * for its tile's signature.
+ */
+export function imageSignature(shape: {
+  image?: ShapeImage;
+  solid?: PlacedPicture & { hash: string };
+}): string {
+  const { image, solid } = shape;
+  const shown = image ?? solid;
+  if (!shown) return '';
+  const { rect, band } = shown;
   return [
-    image.serial,
-    image.placement,
-    image.tint ?? '',
+    image ? image.serial : `solid ${solid?.hash ?? ''}`,
+    shown.placement,
+    image?.tint ?? '',
     rect.x,
     rect.y,
     rect.width,
@@ -453,33 +513,35 @@ export function imageSignature(shape: { image?: ShapeImage }): string {
 // What the drawing step asks -----------------------------------------------------------------------
 
 /** The block a shape is drawn as far out: a drawing's plate, or its rectangle. */
-export function blockRectOf(shape: { rect: Rect; image?: ShapeImage }): Rect {
-  return shape.image?.placement === 'drawing' ? shape.image.box : shape.rect;
+export function blockRectOf(shape: { rect: Rect } & Pictured): Rect {
+  const picture = pictureOn(shape);
+  return picture?.placement === 'drawing' ? picture.box : shape.rect;
 }
 
 /**
  * Where a shape's own outline is drawn: its rectangle, or, for a drawing, just inside its plate, where
  * it shows until the picture, on its plate, covers it.
  */
-export function bodyRectOf(shape: { rect: Rect; image?: ShapeImage }): Rect {
-  return shape.image?.placement === 'drawing'
-    ? grow(shape.image.box, -PLACEHOLDER_INSET)
-    : shape.rect;
+export function bodyRectOf(shape: { rect: Rect } & Pictured): Rect {
+  const picture = pictureOn(shape);
+  return picture?.placement === 'drawing' ? grow(picture.box, -PLACEHOLDER_INSET) : shape.rect;
 }
 
 /** The part of a label area left for text beside an icon: right of it (`besideIcon`). */
-export function besideImage(shape: { rect: Rect; image?: ShapeImage }, area: Rect): Rect {
-  return besideIcon(shape, area);
+export function besideImage(shape: { rect: Rect } & Pictured, area: Rect): Rect {
+  const picture = pictureOn(shape);
+  return besideIcon(picture ? { image: picture } : {}, area);
 }
 
 /** How far right a container's header text moves for the icon in its header. */
-export function headerShift(shape: { image?: ShapeImage }): number {
-  return shape.image?.placement === 'header' ? HEADER_TEXT_SHIFT : 0;
+export function headerShift(shape: Pictured): number {
+  return pictureOn(shape)?.placement === 'header' ? HEADER_TEXT_SHIFT : 0;
 }
 
 /** Where a drawing writes its name and detail; none for a shape that is not drawn by its picture. */
-export function nameBandOf(shape: { image?: ShapeImage }): Rect | undefined {
-  return shape.image?.placement === 'drawing' ? shape.image.band : undefined;
+export function nameBandOf(shape: Pictured): Rect | undefined {
+  const picture = pictureOn(shape);
+  return picture?.placement === 'drawing' ? picture.band : undefined;
 }
 
 /** How tall a drawing's name and detail may be in its band. */
@@ -492,10 +554,10 @@ export function bandRooms(band: Rect): { name: number; detail: number } {
  * by its outline.
  */
 export function holdsDrawn(
-  shape: { kind: ShapeKind; rect: Rect; image?: ShapeImage },
+  shape: { kind: ShapeKind; rect: Rect } & Pictured,
   point: Point,
 ): boolean {
-  const image = shape.image;
+  const image = pictureOn(shape);
   if (image?.placement !== 'drawing') return holdsPoint(shape.kind, shape.rect, point);
   return (
     holdsPoint('rectangle', image.box, point) ||

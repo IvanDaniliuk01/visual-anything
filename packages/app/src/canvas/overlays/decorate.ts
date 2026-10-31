@@ -57,7 +57,8 @@ import { arrowheadAt, bodyOf, type Point, type Rect } from '../geometry';
 import { outlineIn } from '../outlines';
 import type { ShapeFace } from '../faces';
 import type { ElementShape, RelationLine } from '../scene';
-import { imageLookOf, placeImage, sameShapeImage } from '../shape-images';
+import { imageLookOf, placeImage, sameShapeImage, showsPicture } from '../shape-images';
+import { placeSolid, sameShapeSolid, solidLookOf } from '../shape-solids';
 import { runsWithPart } from '../../text/detail';
 
 /** The rectangle layout gave a shape: the one an overlay of size leaves it, or its own. */
@@ -314,7 +315,8 @@ function sameDecoration(a: ElementShape, b: ElementShape): boolean {
     sameRect(a.extent, b.extent) &&
     sameOptionalRect(a.laidOut, b.laidOut) &&
     sameOptionalRect(a.plate, b.plate) &&
-    sameShapeImage(a.image, b.image)
+    sameShapeImage(a.image, b.image) &&
+    sameShapeSolid(a.solid, b.solid)
   );
 }
 
@@ -656,7 +658,7 @@ function badge(shape: ElementShape, text: string): void {
   if (shape.detailRuns) shape.detailRuns = runsWithPart(shape.detailRuns, text);
   const fitted = shape.fitted;
   if (!fitted) return;
-  const icon = shape.image !== undefined;
+  const icon = showsPicture(shape);
   if (shape.row !== undefined) {
     shape.fitted = fitRow(shape.name, shape.detail, shape.rect.width, { icon });
     return;
@@ -713,7 +715,28 @@ function resize(
     next.outline = outlineIn(shape.outline.source, body.width, body.height);
   }
   delete next.image;
+  delete next.solid;
   delete next.plate;
+  // A solid is placed again on the size it takes, as an image is (ADR 0075).
+  if (shape.solid && element) {
+    const placed = placeSolid(
+      solidLookOf(element, appearanceOf(element, definitions), definitions),
+      {
+        kind: shape.kind,
+        rect: scaled,
+        holdsContents: false,
+        ...(shape.collapsed === undefined ? {} : { collapsed: true }),
+        rows: false,
+        ...(next.outline ? { outline: next.outline } : {}),
+      },
+      (next.detail ?? '') !== '',
+    );
+    if (placed)
+      next.solid = shape.solid.hidden
+        ? { ...placed.solid, hidden: shape.solid.hidden }
+        : placed.solid;
+    if (placed?.plate) next.plate = placed.plate;
+  }
   if (shape.image && element) {
     const placed = placeImage(
       imageLookOf(element, definitions),

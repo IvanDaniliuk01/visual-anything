@@ -12,7 +12,7 @@ import { bodyOf } from './geometry';
 import { nameTagOf, outlinedDetailOf } from './nameTags';
 import { writesNameBelow } from './outlined';
 import type { ElementShape } from './scene';
-import { besideImage } from './shape-images';
+import { besideImage, pictureOn, showsPicture } from './shape-images';
 import { canvasMeasure } from './textBlock';
 
 /** How long the pointer rests on a shape, or the keys stay on it, before its card shows. */
@@ -37,7 +37,7 @@ export function cutOnCanvas(shape: ElementShape, measure: Measure = canvasMeasur
   if (shape.collapsed !== undefined && !shape.outline) {
     // Its name on one line, and its detail wrapped to its lines (ADR 0082).
     const body = bodyOf(shape);
-    const wrap = collapsedHeaderWrap(shape.rect.width, shape.image !== undefined);
+    const wrap = collapsedHeaderWrap(shape.rect.width, showsPicture(shape));
     return (
       measure(shape.name, 'bold', 14) > body.width - 2 * TEXT_INSET ||
       headerLines(shape, body.height, wrap, measure).detailCut
@@ -57,7 +57,7 @@ export function cutOnCanvas(shape: ElementShape, measure: Measure = canvasMeasur
     if (!placed) return false;
     return placed.block.nameCut || placed.block.detailCut;
   }
-  if (shape.image?.placement === 'drawing') {
+  if (pictureOn(shape)?.placement === 'drawing') {
     return oneLine(shape.rect.width - TEXT_INSET);
   }
   const area = besideImage(shape, labelArea(shape));

@@ -572,7 +572,8 @@ export function pictureOf(shape: ElementShape): ShapeImage | undefined {
  */
 export function ownPictureOf(shape: ElementShape): ShapeImage | undefined {
   const { part } = shape;
-  if (!part || part.inDrawing) return shape.image;
+  // A solid's part drawn on its own is its solid's picture of that part (ADR 0075), never an image's.
+  if (!part || part.inDrawing || part.image === undefined) return shape.image;
   const image = partImageOf(part.image);
   const known = ownPictures.get(shape);
   if (known && known.of === image) return known.picture ?? shape.image;

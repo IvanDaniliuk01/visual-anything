@@ -181,7 +181,7 @@ export function rowFieldsOf(parts: Measured, width: number, holdsContents: boole
   const { rows, look, element, detail } = parts;
   if (!rows) return { kind: look.appearance.shape };
   // A picture takes room before the name: at a row's left, in a header after its inset.
-  const icon = look.image !== undefined;
+  const icon = look.image !== undefined || look.solid !== undefined;
   if (rows.kind === 'row') {
     return {
       kind: 'rectangle',

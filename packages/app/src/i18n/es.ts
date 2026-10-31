@@ -5369,6 +5369,49 @@ export const messages: Catalog = {
     'Una acción del historial dice si está deshecha.',
   'The message has no valid request id.': 'El mensaje no tiene un id de pedido válido.',
   'The answer has no valid request id.': 'La respuesta no tiene un id de pedido válido.',
+  // Solids over the live connection (ADR 0075).
+  'The request has no valid id.': 'El pedido no tiene un id válido.',
+  'A solid file is asked for by its SHA-256, in lowercase hexadecimal.':
+    'Un archivo de sólido se pide por su SHA-256, en hexadecimal en minúscula.',
+  'solid/get holds only its id and a hash.': 'solid/get tiene solo su id y un resumen.',
+  'solid/piece holds nothing else.': 'solid/piece no tiene nada más.',
+  'solid/prepare holds only its id, the file name, a piece and options.':
+    'solid/prepare tiene solo su id, el nombre del archivo, un trozo y opciones.',
+  'A piece is its index, the count of pieces and its data.':
+    'Un trozo es su índice, la cantidad de trozos y sus datos.',
+  'A piece holds nothing else.': 'Un trozo no tiene nada más.',
+  'A file comes in 1 to {n} pieces.': 'Un archivo llega en 1 a {n} trozos.',
+  "A piece's index is within its count.": 'El índice de un trozo está dentro de su cantidad.',
+  'A piece is base64 of at most {n} bytes.': 'Un trozo es base64 de como máximo {n} bytes.',
+  'A piece names its file by its hash.': 'Un trozo nombra su archivo por su resumen.',
+  "A file's name is its own name, without a folder.":
+    'El nombre de un archivo es su propio nombre, sin carpeta.',
+  'Options come with the first piece only.': 'Las opciones llegan solo con el primer trozo.',
+  'Options are units, up and simplify.': 'Las opciones son units, up y simplify.',
+  'Units are m, cm, mm or in.': 'Las unidades son m, cm, mm o in.',
+  'Up is y or z.': 'El eje hacia arriba es y o z.',
+  'Simplify is true or false.': 'Simplificar es true o false.',
+  'A refusal says its code and why.': 'Un rechazo dice su código y por qué.',
+  'A prepared file names itself by its hash.': 'Un archivo preparado se nombra por su resumen.',
+  "A prepared file's size is within the cap.":
+    'El tamaño de un archivo preparado está dentro del límite.',
+  'A prepared file says its bounds and counts.':
+    'Un archivo preparado dice sus límites y sus cantidades.',
+  'A prepared file lists its parts.': 'Un archivo preparado lista sus partes.',
+  'A prepared file lists its animations.': 'Un archivo preparado lista sus animaciones.',
+  'A prepared file says what cleaning did, line by line.':
+    'Un archivo preparado dice lo que hizo la limpieza, línea por línea.',
+  "A file's copyright is offered as text of at most 500 characters.":
+    'El copyright de un archivo se ofrece como texto de como máximo 500 caracteres.',
+  'The project has no solid file "solids/{hash}.glb".':
+    'El proyecto no tiene el archivo de sólido "solids/{hash}.glb".',
+  'The solid file "solids/{hash}.glb" cannot be read: {why}':
+    'No se puede leer el archivo de sólido "solids/{hash}.glb": {why}',
+  'The bytes of the solid file "solids/{hash}.glb" are not the ones its name says.':
+    'Los bytes del archivo de sólido "solids/{hash}.glb" no son los que dice su nombre.',
+  'This program cannot import solids yet.': 'Este programa todavía no puede importar sólidos.',
+  'Visual Anything sent pieces of a solid’s file that do not fit together.':
+    'Visual Anything envió trozos del archivo de un sólido que no encajan entre sí.',
   // Versions and proposals (ADR 0071, ADR 0073).
   'A version is the project as opened, or a commit the program listed, by its id.':
     'Una versión es el proyecto tal como se abrió, o un commit que el programa listó, por su id.',

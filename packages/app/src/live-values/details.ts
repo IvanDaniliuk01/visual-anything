@@ -27,6 +27,7 @@ import type { DetailPart, EmphasisRun } from '@visual-anything/core';
 import { detailRunsOf } from '../text/detail';
 import type { Element, Id, Relation } from '@visual-anything/schema';
 import { fitHeader, fitRow } from '../canvas/fit';
+import { showsPicture } from '../canvas/shape-images';
 import type { ShapeFace } from '../canvas/faces';
 import { sceneWithValues, type ElementShape, type Scene, type SceneValues } from '../canvas/scene';
 import type { Translator } from '../i18n';
@@ -265,7 +266,7 @@ function shapeWith(
     drawn = {
       ...drawnRuns,
       detail,
-      fitted: fitRow(shape.name, detail, shape.rect.width, { icon: shape.image !== undefined }),
+      fitted: fitRow(shape.name, detail, shape.rect.width, { icon: showsPicture(shape) }),
     };
   } else if (shape.rowCount !== undefined) {
     // A collapsed header also says what it holds, which only the scene knows: it keeps its detail.
@@ -275,7 +276,7 @@ function shapeWith(
       detail,
       fitted: fitHeader(shape.name, detail, shape.rect.width, {
         toggle: shape.holdsContents,
-        icon: shape.image !== undefined,
+        icon: showsPicture(shape),
       }),
     };
   } else {
