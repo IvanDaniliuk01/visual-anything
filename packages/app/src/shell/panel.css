@@ -170,3 +170,11 @@
 .outline-arrow {
   color: var(--text-muted);
 }
+
+/* The mark of a shape whose element is in physical space (ADR 0076), after its name. */
+.outline-space {
+  display: inline-flex;
+  margin-inline-start: 4px;
+  color: var(--text-muted);
+  vertical-align: -1px;
+}

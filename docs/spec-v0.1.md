@@ -1033,10 +1033,11 @@ Its tasks run in this order:
   - view addresses and Copy address with `space`;
   - tour steps that open the panel, the stage showing it beside the canvas, and its eased and capped moves (ADR 0058);
   - guidance that opens the panel, chooses its root, moves its camera and frames elements, and `open_app` and `get_view_address` with `space`.
-- [ ] **The inspector, the canvas and the outline:**
+- [x] **The inspector, the canvas and the outline:**
   - the inspector's Pose section: where an element is, in which container, its rotation in degrees, lengths in mm, cm, m or km, and Pose in World where it was;
   - Show in physical space in the shape menu, and the outline's mark for what is in physical space;
   - English and Spanish, and the catalog test's avoided words extended with the new terms' avoid lists.
+  - Done 2026-10-31, by a builder (ADR 0076's clarification of that date): the Pose section with Posed in, three lengths and three angles, Place in physical space, Take out of physical space and Pose in World where it was, each one `update-element`; lengths in `shell/inspector/lengths.ts`; Show in physical space, which leaves a framing request in `SpacePanelStore` for the panel's interaction task to take up; the outline's mark under World and under what the panel shows; an image's placement in Spanish becomes "Colocación".
 - [x] **Claude's tools** (`server/src/claude/space-tools.ts`): `get_space`, `set_pose` and `clear_pose`, the guidance `space`, and `space` in the tour tools' view states; descriptions with examples.
   - Done 2026-10-31, by a builder (ADR 0076's clarification of that date): `show_space` sends the guidance `space`, which opens, roots, moves, frames and closes the panel, and the app keeps its request for the panel to take up; `get_space` reads the whole model when no view is named; `set_pose` without `at` keeps an element's place; `space` in `get_view_address`, `open_app` and the tour tools' view states; taking several poses away is labelled "Take <n> elements out of physical space".
 - [ ] **The read-only page's panel:** linked as in the app, with touch, when the page holds solids or poses.

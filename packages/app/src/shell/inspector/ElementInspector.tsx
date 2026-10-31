@@ -21,6 +21,7 @@ import { SelectControl, TextControl } from './controls';
 import { describedAs } from './detail';
 import { End, FirstOnes, Lineage, SelectButton, Title } from './parts';
 import { PartsSection } from './PartsSection';
+import { PoseSection } from './PoseSection';
 import { SolidSection } from './SolidSection';
 import { RowsSection } from './RowsSection';
 import { perform } from './send';
@@ -112,6 +113,7 @@ export function ElementInspector({
       <RowsSection element={element} />
       <PartsSection element={element} onSelect={onSelect} />
       <SolidSection element={element} onSelect={onSelect} />
+      <PoseSection element={element} />
       <DestinationsSection item={element} definitions={component.attributes} />
       <AttributesSection
         of="element"

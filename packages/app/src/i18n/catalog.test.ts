@@ -436,6 +436,13 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   { word: /\brecursos?\b/i },
   { word: /\bvistas? en vivo\b/i },
   { word: /\b[oó]rbitas?\b|\borbitar\b/i },
+  // M10: poses and the physical-space panel (ADR 0076). A pose is "ubicación", never a
+  // "localización", and the panel is never a "escena" nor a "viewport" ("modo 3D", "vista 3D" and
+  // "panel 3D" are "3D" above). A glTF file's scenes, which cleaning a solid reports on, are its own;
+  // "transformación" is not avoided, since Data science's transforms are "transformaciones".
+  { word: /\blocalizaci[oó]n(es)?\b/i },
+  { word: /\bescenas?\b/i, unless: /\bglTF\b/ },
+  { word: /\bviewports?\b|\bventanas? gr[aá]ficas?\b/i },
 ];
 
 /** Texts given to t() that Spanish writes the same: values and punctuation only. */
@@ -448,6 +455,10 @@ const SAME_IN_SPANISH: ReadonlySet<string> = new Set([
   'Enter',
   'F2',
   'Tab',
+  // The axes of physical space, which the Pose section labels its fields with (ADR 0076).
+  'X',
+  'Y',
+  'Z',
 ]);
 
 /**

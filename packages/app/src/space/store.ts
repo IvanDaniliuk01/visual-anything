@@ -61,8 +61,21 @@ export interface SpacePanelSnapshot {
 /** Works out what the panel shows when it opens with nothing chosen, for a view (`root.ts`). */
 export type SpaceChooser = (viewId: Id) => ViewSpace;
 
+/**
+ * A request to frame elements in a view's panel, as Show in physical space makes for an element in
+ * physical space under World: the panel takes it up once, frames them, and drops it with `framed`.
+ * No elements frames everything the panel draws.
+ */
+export interface SpaceFraming {
+  readonly elements: readonly Id[];
+  /** A number above zero, new for each request, so that the same elements asked again are framed again. */
+  readonly serial: number;
+}
+
 export class SpacePanelStore {
   private readonly byView = new Map<Id, ViewSpace>();
+  private readonly framings = new Map<Id, SpaceFraming>();
+  private framingSerial = 0;
   private readonly listeners = new Set<() => void>();
   private readonly frames: SpacePanelFrames;
   private readonly windowWidth: () => number;
@@ -72,7 +85,7 @@ export class SpacePanelStore {
   private openView: Id | undefined;
   private canvas: CanvasCamera | undefined;
   private pending: number | undefined;
-  private frame: number | undefined;
+  private pendingFrame: number | undefined;
 
   constructor(options: SpacePanelStoreOptions = {}) {
     this.frames = options.frames ?? {
@@ -101,9 +114,10 @@ export class SpacePanelStore {
     this.set(viewId, space ?? this.chooser?.(viewId) ?? {});
   }
 
-  /** Closes the panel of a view; what it showed is forgotten. */
+  /** Closes the panel of a view; what it showed, and a framing it had not taken up, are forgotten. */
   close(viewId: Id): void {
     if (!this.byView.has(viewId)) return;
+    this.framings.delete(viewId);
     this.resizing(() => this.byView.delete(viewId));
   }
 
@@ -117,6 +131,30 @@ export class SpacePanelStore {
   toggle(viewId: Id): void {
     if (this.byView.has(viewId)) this.close(viewId);
     else this.open(viewId);
+  }
+
+  /**
+   * Asks the open panel of a view to frame `elements`, or everything it draws when none are given;
+   * the panel takes the request up with `framing` and drops it with `framed`. A newer request
+   * replaces one not taken up yet. A view whose panel is closed keeps none.
+   */
+  frame(viewId: Id, elements: readonly Id[] = []): void {
+    if (!this.byView.has(viewId)) return;
+    this.framingSerial += 1;
+    this.framings.set(viewId, { elements: [...elements], serial: this.framingSerial });
+    for (const listener of [...this.listeners]) listener();
+  }
+
+  /** The framing the panel of a view was asked for and has not done yet. */
+  framing(viewId: Id): SpaceFraming | undefined {
+    return this.framings.get(viewId);
+  }
+
+  /** Drops a framing once the panel did it; a newer one asked meanwhile stays. */
+  framed(viewId: Id, serial: number): void {
+    if (this.framings.get(viewId)?.serial !== serial) return;
+    this.framings.delete(viewId);
+    for (const listener of [...this.listeners]) listener();
   }
 
   /** Gives the store what picks the panel's element when it opens with nothing chosen. */
@@ -145,8 +183,8 @@ export class SpacePanelStore {
   /** Shows a width while the edge is dragged, at the next frame. */
   preview(width: number): void {
     this.pending = width;
-    this.frame ??= this.frames.request(() => {
-      this.frame = undefined;
+    this.pendingFrame ??= this.frames.request(() => {
+      this.pendingFrame = undefined;
       const pending = this.pending;
       this.pending = undefined;
       if (pending !== undefined) this.changeWidth(pending);
@@ -230,8 +268,8 @@ export class SpacePanelStore {
   }
 
   private dropPending(): void {
-    if (this.frame !== undefined) this.frames.cancel(this.frame);
-    this.frame = undefined;
+    if (this.pendingFrame !== undefined) this.frames.cancel(this.pendingFrame);
+    this.pendingFrame = undefined;
     this.pending = undefined;
   }
 }
