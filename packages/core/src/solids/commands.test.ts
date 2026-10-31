@@ -230,6 +230,35 @@ describe('update-solid and remove-solid', () => {
   });
 });
 
+describe('a component’s solid, trait by trait', () => {
+  it('gives a component a solid and takes it out again, each one undoable action', () => {
+    const before = run(imageProject(), {
+      type: 'define-solid',
+      package: 'clinic',
+      solid: definition(),
+    }).state;
+    const shown = run(before, {
+      type: 'set-component-appearance',
+      component: 'clinic.calendar',
+      appearanceTraits: {
+        solid: {
+          solid: 'clinic.arm-k3f9q2',
+          placement: 'drawing',
+          camera: { azimuth: 10, elevation: 5 },
+        },
+      },
+    });
+    expect(solidUsers(shown.state, 'clinic.arm-k3f9q2')).toEqual(['clinic.calendar']);
+    undoes(before, shown);
+    const taken = run(shown.state, {
+      type: 'set-component-appearance',
+      component: 'clinic.calendar',
+      appearanceTraits: { solid: null },
+    });
+    expect(solidUsers(taken.state, 'clinic.arm-k3f9q2')).toEqual([]);
+  });
+});
+
 describe('checkSolids', () => {
   it('warns of a solid or a part no package defines, and of a part a solid lacks', () => {
     const state = run(imageProject(), {

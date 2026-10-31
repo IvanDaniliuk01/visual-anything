@@ -6,6 +6,7 @@ import type { ConflictFile } from '../operations';
 import type {
   Appearance,
   AppearanceImage,
+  AppearanceSolid,
   Arrow,
   AttributeDefinition,
   Attributes,
@@ -203,6 +204,8 @@ export interface AppearanceChanges {
   connectionPoints?: ConnectionPoint[] | null;
   /** The image its shapes show; `none` shows none, whatever is inherited (ADR 0027). */
   image?: AppearanceImage | 'none' | null;
+  /** The solid its shapes show; `none` shows none, whatever is inherited (ADR 0075). */
+  solid?: AppearanceSolid | 'none' | null;
   /** Its shapes' own outline (ADR 0066); `none` takes an inherited one away. */
   geometry?: FreeGeometry | 'none' | null;
   /** The named part its shapes are drawn as (ADR 0067); `none` takes an inherited one away. */
