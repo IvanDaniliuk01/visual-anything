@@ -387,3 +387,63 @@ export const SpaceIcon = icon(
     <path d="M12 22V12" />
   </>,
 );
+
+/** Lucide's "scissors": the physical-space panel's cut (ADR 0076). */
+export const CutIcon = icon(
+  'Cut',
+  <>
+    <circle cx="6" cy="6" r="3" />
+    <path d="M8.12 8.12 12 12" />
+    <path d="M20 4 8.12 15.88" />
+    <circle cx="6" cy="18" r="3" />
+    <path d="M14.8 14.8 20 20" />
+  </>,
+);
+
+/** Lucide's "expand": the physical-space panel's exploded view (ADR 0076). */
+export const ExplodeIcon = icon(
+  'Explode',
+  <>
+    <path d="m15 15 6 6" />
+    <path d="m15 9 6-6" />
+    <path d="M21 16v5h-5" />
+    <path d="M21 8V3h-5" />
+    <path d="M3 16v5h5" />
+    <path d="m3 21 6-6" />
+    <path d="M3 8V3h5" />
+    <path d="M9 9 3 3" />
+  </>,
+);
+
+/** Lucide's "tag": names written in the physical-space panel (ADR 0076). */
+export const NamesIcon = icon(
+  'Names',
+  <>
+    <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+    <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+  </>,
+);
+
+/** Lucide's "waypoints": the relations of the selection, drawn in the physical-space panel. */
+export const RelationsIcon = icon(
+  'Relations',
+  <>
+    <circle cx="12" cy="4.5" r="2.5" />
+    <path d="m10.2 6.3-3.9 3.9" />
+    <circle cx="4.5" cy="12" r="2.5" />
+    <path d="M7 12h10" />
+    <circle cx="19.5" cy="12" r="2.5" />
+    <path d="m13.8 17.7 3.9-3.9" />
+    <circle cx="12" cy="19.5" r="2.5" />
+  </>,
+);
+
+/** Lucide's "globe": World, which the physical-space panel goes back to (ADR 0076). */
+export const WorldIcon = icon(
+  'World',
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+    <path d="M2 12h20" />
+  </>,
+);

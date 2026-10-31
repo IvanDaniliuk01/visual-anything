@@ -81,7 +81,10 @@ export class SpacePanelStore {
   private readonly framings = new Map<Id, SpaceFraming>();
   private framingSerial = 0;
   private readonly listeners = new Set<() => void>();
-  private readonly frames: SpacePanelFrames;
+  /** The frames moves wait for, which the panel's exploded view eases on too. */
+  readonly frames: SpacePanelFrames;
+  /** The time in milliseconds that moves are timed by. */
+  readonly now: () => number;
   private readonly windowWidth: () => number;
   private chooser: SpaceChooser | undefined;
   private current: SpacePanelSnapshot = { width: DEFAULT_SPACE_PANEL_WIDTH, version: 0 };
@@ -102,7 +105,8 @@ export class SpacePanelStore {
       cancel: (handle) => cancelAnimationFrame(handle),
     };
     this.windowWidth = options.windowWidth ?? (() => window.innerWidth);
-    this.moves = new SpaceCameraMoves(this, this.frames, options.now ?? (() => performance.now()));
+    this.now = options.now ?? (() => performance.now());
+    this.moves = new SpaceCameraMoves(this, this.frames, this.now);
   }
 
   readonly subscribe = (listener: () => void): (() => void) => {

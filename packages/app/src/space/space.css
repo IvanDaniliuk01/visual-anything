@@ -149,7 +149,85 @@
 
 .space-panel-tool[aria-pressed='true'] {
   border-color: var(--accent);
+  background: var(--accent-soft);
   color: var(--accent);
+}
+
+.space-panel-tool:has(.icon) {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.space-panel-tool:active:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
+/* Show World, in the bar while the panel shows an element. */
+.space-panel-world {
+  flex: none;
+}
+
+/* The ways of reading, under the tools: the cut, the exploded view, Names and Relations of the selection. */
+.space-panel-reading {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-size: var(--text-sm);
+}
+
+.space-panel-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text);
+}
+
+.space-panel-field > .icon {
+  color: var(--text-muted);
+}
+
+.space-panel-choice {
+  height: var(--control-sm);
+  padding: 0 var(--space-1);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.space-panel-choice:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.space-panel-slider {
+  width: 6rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.space-panel-slider:disabled,
+.space-panel-choice:disabled {
+  cursor: not-allowed;
+}
+
+.space-panel-value {
+  min-width: 3.5rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+:is(.space-panel-tool, .space-panel-choice, .space-panel-slider, .space-panel-close):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 /* The frames take the pointer and the fingers whole: dragging turns, pans and pinches the camera. */

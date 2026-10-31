@@ -1464,6 +1464,35 @@ export const ui: Catalog = {
   ', drawn as {container}, which is collapsed': ', dibujado como {container}, que está contraído',
   '{count} elements selected, {inSpace} of them in this physical space.':
     '{count} elementos seleccionados, {inSpace} de ellos en este espacio físico.',
+  // M10: the panel's ways of reading and Show World (ADR 0076). The cut is "corte" and the exploded
+  // view "explosión", as the core's messages of a view state's panel say them.
+  'Ways of reading': 'Formas de leer',
+  Cut: 'Corte',
+  Off: 'Ninguno',
+  'Across {axis}': 'Cruza {axis}',
+  'Where the cut crosses {axis}': 'Dónde el corte cruza {axis}',
+  'What the cut keeps': 'Qué conserva el corte',
+  'Keep below': 'Conservar lo de abajo',
+  'Keep above': 'Conservar lo de arriba',
+  Explode: 'Explosión',
+  'Not exploded': 'Sin explosión',
+  'Exploded by {factor}': 'Explosión de {factor}',
+  Names: 'Nombres',
+  'Relations of the selection': 'Relaciones de la selección',
+  'Write the names of the parts nearest the camera':
+    'Escribir los nombres de las partes más cercanas a la cámara',
+  'Draw the relations of the selection': 'Dibujar las relaciones de la selección',
+  'Not cut.': 'Sin corte.',
+  'Cut across {axis}, keeping what is below.': 'Corte que cruza {axis}, conservando lo de abajo.',
+  'Cut across {axis}, keeping what is above.': 'Corte que cruza {axis}, conservando lo de arriba.',
+  'Keeping what is below the cut.': 'Se conserva lo que está debajo del corte.',
+  'Keeping what is above the cut.': 'Se conserva lo que está encima del corte.',
+  'Names on.': 'Nombres activados.',
+  'Names off.': 'Nombres desactivados.',
+  'Relations of the selection on.': 'Relaciones de la selección activadas.',
+  'Relations of the selection off.': 'Relaciones de la selección desactivadas.',
+  'Show World': 'Mostrar Mundo',
+  'Shows World.': 'Muestra Mundo.',
   // M10: the inspector's Pose section, Show in physical space in the shape's menu, and the outline's
   // mark (ADR 0076). A pose is "ubicación" and posing "ubicar"; an image's or a solid's placement is
   // "colocación", so that the two never read alike.
