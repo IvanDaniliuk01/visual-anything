@@ -3,7 +3,7 @@
  * adds to the current step, and Enter records the selected relation from the keyboard.
  */
 import { executeCommand, type ProjectSnapshot } from '@visual-anything/core';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useEffect, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SendCommand } from '../canvas/CanvasArea';
@@ -133,11 +133,14 @@ describe('Recording on the canvas', () => {
     click(host, middleOf('patient-to-whatsapp'));
     await answers();
 
-    const steps = program.project.scenarios[0]!.steps;
-    expect(steps.slice(5).map((step) => step.relations)).toEqual([
-      ['api-reads-db', 'api-to-reminders'],
-      ['patient-to-whatsapp'],
-    ]);
+    // On a loaded machine the last click's command may land after the microtasks above.
+    await waitFor(() => {
+      const steps = program.project.scenarios[0]!.steps;
+      expect(steps.slice(5).map((step) => step.relations)).toEqual([
+        ['api-reads-db', 'api-to-reminders'],
+        ['patient-to-whatsapp'],
+      ]);
+    });
     expect(program.onCommand).toHaveBeenCalledTimes(3);
   });
 
