@@ -29,6 +29,12 @@ import { z } from 'zod';
 import { READ, WRITE, act, fail, id, ok, tool } from './kit';
 import type { Tool, ToolHints } from './tools';
 
+/** The hooks run_package_code runs, one call each. */
+const RUN_HOOKS = HOOK_NAMES.filter((each) => each !== 'simulate') as [
+  Exclude<HookName, 'simulate'>,
+  ...Exclude<HookName, 'simulate'>[],
+];
+
 /** Running a hook changes nothing, but runs code: it is not a read. */
 const RUN: ToolHints = {
   readOnlyHint: false,
@@ -146,7 +152,8 @@ Example: { "package": "gauges", "element": "oven", "hook": "draw", "view": "kitc
   input: {
     package: id(),
     element: id(),
-    hook: z.enum(HOOK_NAMES as [HookName, ...HookName[]]),
+    // simulate is run_simulation's: it works a run out tick by tick, not one call.
+    hook: z.enum(RUN_HOOKS),
     view: id().optional().describe('For draw: the view it is drawn in; the first view by default.'),
     scale: z.number().positive().max(64).optional().describe('For draw: the zoom; 1 by default.'),
   },
