@@ -89,6 +89,8 @@ describe('decodeServerMessage', () => {
       type: 'guidance',
       guidance: { kind: 'turn', target: 'api', camera: { azimuth: 45, elevation: 15 } },
     },
+    { type: 'guidance', guidance: { kind: 'space', root: 'api', frame: ['api'] } },
+    { type: 'guidance', guidance: { kind: 'space', close: true } },
     {
       type: 'project/changed',
       operations: [{ op: 'set-project', project: project.project }],
@@ -539,6 +541,53 @@ describe('readGuidance for turning a solid', () => {
       'a view that is not an id',
       { kind: 'turn', target: 'arm', camera: { azimuth: 0, elevation: 0 }, view: '' },
     ],
+  ])('refuses %s', (_case, value) => {
+    expect(() => readGuidance(value)).toThrow(ProtocolError);
+  });
+});
+
+describe('readGuidance for the physical-space panel', () => {
+  const camera = { target: { x: 0, y: 1.2, z: -0.5 }, azimuth: 30, elevation: 20, distance: 4 };
+
+  it('opens the panel on an element, at a camera or framing elements, in a view or the open one', () => {
+    expect(readGuidance({ kind: 'space' })).toEqual({ kind: 'space' });
+    expect(
+      readGuidance({ kind: 'space', root: 'arm', camera, view: 'structure', targets: ['ignored'] }),
+    ).toEqual({ kind: 'space', root: 'arm', camera, view: 'structure' });
+    expect(readGuidance({ kind: 'space', frame: ['wrist', 'gripper'] })).toEqual({
+      kind: 'space',
+      frame: ['wrist', 'gripper'],
+    });
+    // A negative zero is read as 0, as a view state's camera is.
+    expect(
+      readGuidance({ kind: 'space', camera: { ...camera, target: { x: -0, y: 0, z: 0 } } }),
+    ).toEqual({ kind: 'space', camera: { ...camera, target: { x: 0, y: 0, z: 0 } } });
+  });
+
+  it('closes the panel', () => {
+    expect(readGuidance({ kind: 'space', close: true })).toEqual({ kind: 'space', close: true });
+  });
+
+  it.each([
+    ['a root that is not an id', { kind: 'space', root: '' }],
+    ['a camera of another form', { kind: 'space', camera: { azimuth: 0, elevation: 0 } }],
+    ['an elevation of 90', { kind: 'space', camera: { ...camera, elevation: 90 } }],
+    ['a distance of 0', { kind: 'space', camera: { ...camera, distance: 0 } }],
+    ['a target too far', { kind: 'space', camera: { ...camera, target: { x: 2e8, y: 0, z: 0 } } }],
+    ['framing nothing', { kind: 'space', frame: [] }],
+    ['framing what is not an id', { kind: 'space', frame: [1] }],
+    [
+      'framing too much',
+      {
+        kind: 'space',
+        frame: Array.from({ length: MAX_GUIDANCE_TARGETS + 1 }, (_, at) => `e${at}`),
+      },
+    ],
+    ['a camera and a frame', { kind: 'space', camera, frame: ['arm'] }],
+    ['closing with false', { kind: 'space', close: false }],
+    ['closing on an element', { kind: 'space', close: true, root: 'arm' }],
+    ['closing in a view', { kind: 'space', close: true, view: 'structure' }],
+    ['a view that is not an id', { kind: 'space', view: '' }],
   ])('refuses %s', (_case, value) => {
     expect(() => readGuidance(value)).toThrow(ProtocolError);
   });

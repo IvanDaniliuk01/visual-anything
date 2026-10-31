@@ -5,7 +5,7 @@
  * resulting operations to every open app. It also sends Claude's guidance, which marks and moves the
  * open view without changing the model.
  */
-import type { DecisionChoices, Id, SolidCamera } from '@visual-anything/schema';
+import type { DecisionChoices, Id, SolidCamera, SpaceCamera } from '@visual-anything/schema';
 import type { Command } from './commands';
 import {
   readDrawingMade,
@@ -79,6 +79,7 @@ import {
   type SolidRefusedMessage,
 } from './solids/messages';
 import { readSolidCamera } from './solids/camera';
+import { readSpaceCamera } from './space/camera';
 
 /**
  * The version of the live protocol; the app and the local program must agree on it, so that one from
@@ -108,7 +109,8 @@ import { readSolidCamera } from './solids/camera';
  *    `solid/get` from an app, answered with `solid/prepared`, `solid/piece` or `solid/refused`;
  *    `solid-files/list` and `solid-files/remove`, for the files in `solids/` that no package
  *    names, answered with `solid-files/listed` or `solid/refused`; and the guidance `turn`, which
- *    turns a shape's solid to a camera.
+ *    turns a shape's solid to a camera. And the guidance `space` (M10, ADR 0076), which opens,
+ *    roots, moves and closes the physical-space panel.
  */
 export const PROTOCOL_VERSION = 7;
 
@@ -344,7 +346,27 @@ export type Guidance =
    * there as the person drags, until the person ends it with Escape or by selecting something else.
    * Turning records nothing; only Use this view stores a camera.
    */
-  | { kind: 'turn'; target: Id; camera: SolidCamera; view?: Id };
+  | { kind: 'turn'; target: Id; camera: SolidCamera; view?: Id }
+  /**
+   * Opens the physical-space panel beside the canvas (ADR 0076), in the open view or in `view`, or
+   * keeps it open, as the person's Physical space does: on `root`, the element it shows (World by
+   * its id), or on what it shows already, or chooses as opening does; then moves its camera to
+   * `camera`, in that element's coordinates, or frames the elements of `frame`, never both. With
+   * `close`, it closes the panel, and carries nothing else. Nothing is recorded: the person moves,
+   * roots and closes the panel at will.
+   */
+  | {
+      kind: 'space';
+      root?: Id;
+      camera?: SpaceCamera;
+      frame?: Id[];
+      view?: Id;
+      close?: true;
+    };
+
+/** Why the camera of guidance for the physical-space panel cannot be read. */
+const SPACE_GUIDANCE_CAMERA =
+  'The camera of the physical-space panel is a target, a point in meters, with an azimuth, an elevation and a distance.';
 
 /** Why turning guidance's camera cannot be read. */
 const TURN_CAMERA =
@@ -526,6 +548,53 @@ export function readGuidance(value: unknown): Guidance {
         throw new ProtocolError(TURN_CAMERA);
       });
       return { kind: 'turn', target: value.target, camera, ...view() };
+    }
+    case 'space': {
+      if (value.close !== undefined) {
+        if (value.close !== true) {
+          throw new ProtocolError('Guidance closes the physical-space panel with close: true.');
+        }
+        const more = ['root', 'camera', 'frame', 'view'].filter((key) => value[key] !== undefined);
+        if (more.length > 0) {
+          throw new ProtocolError(
+            'Guidance that closes the physical-space panel carries nothing else.',
+          );
+        }
+        return { kind: 'space', close: true };
+      }
+      const { root, frame } = value;
+      if (root !== undefined && !isId(root)) {
+        throw new ProtocolError('The physical-space panel shows an element named by its id.');
+      }
+      let camera: SpaceCamera | undefined;
+      if (value.camera !== undefined) {
+        const read = readSpaceCamera(value.camera, SPACE_GUIDANCE_CAMERA);
+        if (!read.ok) throw new ProtocolError(read.message);
+        camera = read.camera;
+      }
+      if (
+        frame !== undefined &&
+        (!Array.isArray(frame) ||
+          frame.length === 0 ||
+          frame.length > MAX_GUIDANCE_TARGETS ||
+          !frame.every(isId))
+      ) {
+        throw new ProtocolError(
+          `The physical-space panel frames one to ${MAX_GUIDANCE_TARGETS} elements, by id.`,
+        );
+      }
+      if (camera !== undefined && frame !== undefined) {
+        throw new ProtocolError(
+          'The physical-space panel moves to a camera or frames elements, not both.',
+        );
+      }
+      return {
+        kind: 'space',
+        ...(root === undefined ? {} : { root }),
+        ...(camera === undefined ? {} : { camera }),
+        ...(frame === undefined ? {} : { frame: [...frame] }),
+        ...view(),
+      };
     }
     default:
       throw new ProtocolError(`Unknown kind of guidance: ${JSON.stringify(value.kind)}.`);

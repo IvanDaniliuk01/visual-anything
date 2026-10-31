@@ -6,7 +6,7 @@
  * message replaces what it concerns, and the person can dismiss all of it.
  */
 import type { Guidance, LayoutPass, LayoutResult, VersionRef } from '@visual-anything/core';
-import type { Id, SolidCamera } from '@visual-anything/schema';
+import type { Id, SolidCamera, SpaceCamera } from '@visual-anything/schema';
 
 /** Claude's marks: the targets highlighted, or focused on with everything else dimmed. */
 export interface GuidanceMarks {
@@ -113,6 +113,20 @@ export interface GuidedTurnRequest {
   request: number;
 }
 
+/**
+ * A request for the physical-space panel, once (ADR 0076): to open it, or keep it open, in the view
+ * or the open one, on the element it shows when `root` names one, then to move its camera or frame
+ * some elements; or, with `close`, to close it. Nothing is recorded. The panel takes it up.
+ */
+export interface GuidedSpaceRequest {
+  root?: Id;
+  camera?: SpaceCamera;
+  frame?: readonly Id[];
+  view?: Id;
+  close?: true;
+  request: number;
+}
+
 /** Everything Claude's guidance shows now, and what it asks of the tab. */
 export interface GuidanceState {
   marks?: GuidanceMarks;
@@ -126,6 +140,7 @@ export interface GuidanceState {
   tour?: GuidedTourRequest;
   comparison?: GuidedComparisonRequest;
   turn?: GuidedTurnRequest;
+  space?: GuidedSpaceRequest;
 }
 
 /** No guidance at all. */
@@ -233,6 +248,17 @@ export function applyGuidance(
         request,
       };
       return { ...state, turn };
+    }
+    case 'space': {
+      const space: GuidedSpaceRequest = {
+        ...(guidance.close === true ? { close: true as const } : {}),
+        ...(guidance.root === undefined ? {} : { root: guidance.root }),
+        ...(guidance.camera === undefined ? {} : { camera: guidance.camera }),
+        ...(guidance.frame === undefined ? {} : { frame: guidance.frame }),
+        ...viewOf(guidance),
+        request,
+      };
+      return { ...state, space };
     }
   }
 }

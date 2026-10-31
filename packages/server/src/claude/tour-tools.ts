@@ -75,7 +75,7 @@ const viewState = () =>
   z
     .object({ view: id().describe('The view the step shows.'), ...STATE_PARTS })
     .describe(
-      'Where the step takes the canvas, and how it reads there: a view, and if you like where the canvas looks, a selection, filters, focus, and a scenario open at a step. Left out, the canvas shows the selection, or else the whole view.',
+      'Where the step takes the canvas, and how it reads there: a view, and if you like where the canvas looks, a selection, filters, focus, a scenario open at a step, and the physical-space panel open beside the canvas (space). Left out, the canvas shows the selection, or else the whole view.',
     );
 
 const caption = () => ({
@@ -323,6 +323,7 @@ Example, playing an alternative of a decision: { "tour": "how-booking-works", "v
 Example, building one picture up: { "tour": "how-booking-works", "viewState": { "view": "system-overview", "camera": { "x": 400, "y": 300, "zoom": 1 } }, "title": "Who takes part", "text": "First, the patient.", "marks": ["patient"], "reveal": [{ "marks": ["booking-agent", "patient-to-agent"], "text": "The agent answers on WhatsApp." }, { "marks": ["appointments-api"], "text": "It books through the API." }], "dimRest": true, "place": "top-right", "advance": 9000 }
 Example, pointing at the reference that ties two tables and pulsing along the chain: { "tour": "audit-model", "viewState": { "view": "audit-tables" }, "title": "A finding belongs to a case", "text": "Each finding names its case, and each case its subject.", "marks": ["finding", "case", "finding-case"], "pointTo": "finding-case", "pulse": { "relations": ["finding-case", "case-subject"], "repeat": 2 } }
 Example, a fresh start that always cuts: { "tour": "audit-model", "viewState": { "view": "billing" }, "title": "Billing, apart", "transition": "cut" }
+Example, with the physical-space panel beside the canvas: { "tour": "pick-a-part", "viewState": { "view": "workcell", "select": ["wrist-camera"], "space": { "root": "robot-arm", "camera": { "target": { "x": 0, "y": 0.8, "z": 0 }, "azimuth": 45, "elevation": 20, "distance": 2.5 } } }, "title": "The wrist camera", "text": "It looks down at the bin from the wrist." }
 Example, a caption quoting outside text as written: { "tour": "audit-model", "viewState": { "view": "audit-tables" }, "title": "The remark", "text": "From the DDL: *_id columns are keys", "escapeText": true }`,
   input: {
     tour: tourId(),

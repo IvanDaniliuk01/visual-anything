@@ -5961,6 +5961,19 @@ export const messages: Catalog = {
   'Turning names the shape to turn by id.': 'Para girar se nombra por su id la forma que se gira.',
   'Turning gives a camera: an azimuth from -180 to 180, an elevation from -89 to 89, and if it likes a zoom from 0.25 to 16, a target and a projection.':
     'Para girar se da una cámara: un azimut de -180 a 180, una elevación de -89 a 89 y, si se quiere, un zoom de 0.25 a 16, un punto de giro y una proyección.',
+  // M10: the guidance that opens, moves and closes the physical-space panel (ADR 0076).
+  'Guidance closes the physical-space panel with close: true.':
+    'Una guía cierra el panel de espacio físico con close: true.',
+  'Guidance that closes the physical-space panel carries nothing else.':
+    'Una guía que cierra el panel de espacio físico no lleva nada más.',
+  'The physical-space panel shows an element named by its id.':
+    'El panel de espacio físico muestra un elemento nombrado por su id.',
+  'The camera of the physical-space panel is a target, a point in meters, with an azimuth, an elevation and a distance.':
+    'La cámara del panel de espacio físico es un punto al que mira, en metros, con un acimut, una elevación y una distancia.',
+  'The physical-space panel frames one to {n} elements, by id.':
+    'El panel de espacio físico encuadra de uno a {n} elementos, por su id.',
+  'The physical-space panel moves to a camera or frames elements, not both.':
+    'El panel de espacio físico va a una cámara o encuadra elementos, no las dos cosas.',
   'The message has no command.': 'El mensaje no tiene ningún comando.',
   'The action to undo up to is named by its id.':
     'La acción hasta la que deshacer se nombra por su id.',
@@ -6109,6 +6122,7 @@ export const messages: Catalog = {
   'Pose "{name}"': 'Ubicar "{name}"',
   'Pose {n} elements': 'Ubicar {n} elementos',
   'Take "{name}" out of physical space': 'Sacar "{name}" del espacio físico',
+  'Take {n} elements out of physical space': 'Sacar {n} elementos del espacio físico',
   'No elements were given to pose.': 'No se indicó ningún elemento para ubicar.',
   'World is where physical space is measured from; it has no pose.':
     'Mundo es desde donde se mide el espacio físico; no tiene ubicación.',

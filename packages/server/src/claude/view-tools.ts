@@ -19,7 +19,8 @@ import {
 } from '@visual-anything/core';
 import { z } from 'zod';
 import type { Program } from './bridge';
-import { READ, fail, id, ok, tool } from './kit';
+import { READ, fail, id, ok, tool, withoutUndefined } from './kit';
+import { SPACE_HELP, SPACE_PART } from './space-tools';
 import type { Tool } from './tools';
 
 /** The tests a condition can make, as the app's filters offer them. */
@@ -94,18 +95,19 @@ export const STATE_PARTS = {
     .describe(
       'The alternative chosen at each decision of the scenario, by the decision’s id, as read_scenario gives them: { "<decision id>": "<alternative id>" }. A decision left out plays its default.',
     ),
+  space: SPACE_PART.optional(),
 };
 
 /** A view state's parts, as the tools take them. */
 export type StateArgs = z.infer<z.ZodObject<typeof STATE_PARTS>> & { view: string };
 
 /** What `get_view_address` and `open_app` say a view state holds, after the view. */
-export const STATE_HELP = `camera is the point of the view at the middle of the canvas, in canvas units, and the zoom (1 is 100%). select names elements, relations and free shapes of the view. filters.range is the app's time range on one date, time or number attribute, which hides what falls outside it. focus starts from the selection unless from names where it starts. step names a step of the scenario by its id or its number from 1; the scenario must play over the view. choices opens the scenario in the alternatives it names at its decisions, so that an address can open "step 6, in the alternative No"; the step must be one they play.`;
+export const STATE_HELP = `camera is the point of the view at the middle of the canvas, in canvas units, and the zoom (1 is 100%). select names elements, relations and free shapes of the view. filters.range is the app's time range on one date, time or number attribute, which hides what falls outside it. focus starts from the selection unless from names where it starts. step names a step of the scenario by its id or its number from 1; the scenario must play over the view. choices opens the scenario in the alternatives it names at its decisions, so that an address can open "step 6, in the alternative No"; the step must be one they play. ${SPACE_HELP}`;
 
 const getViewAddress = tool({
   name: 'get_view_address',
   title: 'Give the address of a view state',
-  description: `Answers the view address of a view state: a view of the project, and, if you give them, where the canvas looks, what is selected, the filters, focus mode, and the scenario and step played. It is the same address the app keeps in its address bar and copies with Copy address, on the address this run of Visual Anything serves the app at (http://127.0.0.1:<port>/#view=…). It holds ids, so it survives renames, and no secret. It changes nothing and needs no app open.
+  description: `Answers the view address of a view state: a view of the project, and, if you give them, where the canvas looks, what is selected, the filters, focus mode, the scenario and step played, and the physical-space panel. It is the same address the app keeps in its address bar and copies with Copy address, on the address this run of Visual Anything serves the app at (http://127.0.0.1:<port>/#view=…). It holds ids, so it survives renames, and no secret. It changes nothing and needs no app open.
 
 The person opens it in the browser where they have the project open: pasted into that tab's address bar, or in a new tab of the same browser, which joins the session of the tab that has the project open. With no tab open, it opens nothing: call open_app with the same view state to open the browser there. The port lasts while this run does; the part from # on, also answered as fragment, lasts as long as the ids do.
 
@@ -113,7 +115,8 @@ ${STATE_HELP}
 
 Example: { "view": "system-overview", "select": ["appointments-api"] }
 Example: { "view": "system-overview", "filters": { "components": ["systems.person"] }, "focus": { "degrees": 2, "direction": "outgoing", "from": ["booking-agent"] }, "scenario": "patient-books-appointment", "step": 3 }
-Example: { "view": "system-overview", "scenario": "patient-books-appointment", "step": "join-waiting-list", "choices": { "free-slot": "week-full" } }`,
+Example: { "view": "system-overview", "scenario": "patient-books-appointment", "step": "join-waiting-list", "choices": { "free-slot": "week-full" } }
+Example, with the physical-space panel open on the arm: { "view": "workcell", "select": ["wrist-camera"], "space": { "root": "robot-arm", "camera": { "target": { "x": 0, "y": 0.8, "z": 0 }, "azimuth": 45, "elevation": 20, "distance": 2.5 } } }`,
   input: { view: id().describe('The view the address opens.'), ...STATE_PARTS },
   hints: READ,
   run: async (args, program) => {
@@ -127,12 +130,13 @@ Example: { "view": "system-overview", "scenario": "patient-books-appointment", "
 export const openApp = tool({
   name: 'open_app',
   title: 'Open the app',
-  description: `Opens Visual Anything on the project in a new tab of the person's browser, on the computer it runs on, at an address that works once, which you are never told. Give a view, and if you like where the canvas looks, a selection, filters, focus and a scenario step, as get_view_address takes them, and the tab opens the project there. Guidance shows only while the app is open. Use it when a guidance tool says no app is open, when the person asks to see the project, or to show them a view state in a tab of its own.
+  description: `Opens Visual Anything on the project in a new tab of the person's browser, on the computer it runs on, at an address that works once, which you are never told. Give a view, and if you like where the canvas looks, a selection, filters, focus, a scenario step and the physical-space panel, as get_view_address takes them, and the tab opens the project there. Guidance shows only while the app is open. Use it when a guidance tool says no app is open, when the person asks to see the project, or to show them a view state in a tab of its own.
 
 ${STATE_HELP}
 
 Example: {}
-Example: { "view": "system-overview", "select": ["appointments-api"] }`,
+Example: { "view": "system-overview", "select": ["appointments-api"] }
+Example, with the physical-space panel open under World: { "view": "workcell", "space": {} }`,
   input: {
     view: id()
       .optional()
@@ -213,6 +217,7 @@ export function askedState(
   }
   if (args.scenario !== undefined) asked.scenario = args.scenario;
   if (step !== undefined) asked.step = step;
+  if (args.space) asked.space = withoutUndefined(args.space);
   if (args.choices && Object.keys(args.choices).length > 0) {
     if (args.scenario === undefined) {
       return { ok: false, message: 'Choices need their scenario: give scenario too.' };
