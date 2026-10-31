@@ -517,3 +517,7 @@ The canvas keeps ADR 0014's budget with solids in it, because the page's thread 
   - **Removing the files no package names** checks that `solids/`'s real path is still `<project>/solids` right before each file it removes, not only once before the first.
   - **A read-only page holds no solids when it could read none of their files,** so it holds no solid worker for nothing and its policy stays `worker-src 'none'`. That holds for the command line's page and for the app's Export dialog alike. Since M10 a page whose elements have poses holds the worker for its physical-space panel even with no solid files (ADR 0076, its clarification "M10, the read-only page's panel"); a page of pictures still holds none.
   - **`.gitattributes`** marks `*.glb` binary, so that Git never diffs, merges or changes the line endings of a solid's file.
+
+<!-- Decided by Claude on 2026-10-31 under the user's standing delegation of design decisions, after M10's spec review found CLAUDE.md's wording ahead of this ADR. -->
+
+- **Restoring a solid's file is not changing it.** A file in `solids/` whose bytes no longer match the hash in its name, because a sync, a backup tool or a hand outside the program wrote over it, may be put back from a kept copy with the same bytes, such as the one in git. Afterwards it holds again the bytes its name names, so the file is unchanged in the sense above. The program itself never writes over a solid's file. A file that fails its hash is refused when read, as before, until it is restored.

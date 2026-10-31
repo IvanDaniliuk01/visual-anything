@@ -265,6 +265,10 @@ _Avoid_: position (a shape's, in a view), placement (how a shape shows an image 
 A panel beside the canvas that shows the elements of the open view that are in physical space, where they really are: their solids, posed or as the named parts of their containers' solids, under World or one element. It shares the selection, focus, filters, overlays, scenario playback and guidance with the canvas, edits only poses, and view states carry where it looks (ADR 0076).
 _Avoid_: 3D view, 3D mode, 3D panel, viewport, scene
 
+**Exploded view**:
+A way the physical-space panel reads, which moves each named part away from the middle of the part or solid holding it, by a factor from 0 to 2; it moves nothing in the model and is not an arrangement (ADR 0076).
+_Avoid_: expand, explode (alone, as a verb for containers: a collapsed container expands in place)
+
 ### Interactions
 
 **Interaction**:

@@ -83,6 +83,21 @@ describe('physical space after random commands', () => {
     );
   });
 
+  it('never draws an element both as itself and faintly, in any view', () => {
+    fc.assert(
+      fc.property(sequences, fc.nat(), (wishes, at) => {
+        const state = after(wishes);
+        const roots = [state.model.world.id, ...state.model.elements.map((each) => each.id)];
+        const root = roots[at % roots.length] as Id;
+        for (const view of state.views) {
+          const space = spaceOf(state, view, root);
+          for (const id of space.faint.keys()) expect(space.entries.has(id)).toBe(false);
+        }
+      }),
+      { numRuns: 60 },
+    );
+  });
+
   it('never stores a pose that is not one, and poses never form a cycle', () => {
     fc.assert(
       fc.property(sequences, (wishes) => {
