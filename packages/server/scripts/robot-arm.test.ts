@@ -117,7 +117,9 @@ describe('the robot arm sample', () => {
     const anchored = anchoredElements(project);
     const parts = project.model.elements.flatMap((element) => {
       const part = element.appearance?.part;
-      return part ? [{ element: element.id, part: part.part, solid: part.solid }] : [];
+      return part && part !== 'none'
+        ? [{ element: element.id, part: part.part, solid: part.solid }]
+        : [];
     });
     expect(parts.map((each) => each.part).sort()).toEqual([...PARTS].sort());
     for (const each of parts) expect(each.solid, each.element).toBe(ROBOT_ARM_SOLID);
