@@ -18,14 +18,18 @@
  *   through a {@link SpaceGpu} once a frame, and only when something they show changed: what the app
  *   said, a solid they draw loaded, or the context came back. A space whose camera the app has not
  *   given is framed whole, again each time what it shows changes. Framing is worked out here, from
- *   the entries' bounds, their solids' and their parts', without the GPU.
+ *   the entries' bounds, their solids' and their parts', without the GPU. While the app moves a
+ *   space's camera and what it draws passes 2,000,000 triangles, the farthest solids are drawn as
+ *   their boxes (`space/lod.ts`); once the camera has rested for 200 ms, the whole is drawn again.
  */
+import type { ThemeName } from '@visual-anything/core';
 import type { Id, SpaceBounds, SpaceCamera, SpaceCut, SpacePoint } from '@visual-anything/schema';
 import { boundsOfPoint, boundsPlaced, frameSpace } from '../../space/camera';
 import {
   LARGEST_SOLID_PICTURE,
   readSolidWorkerRequest,
   type PixelSize,
+  type SpaceHandles,
   type SolidDrawRequest,
   type SolidLoadRequest,
   type SolidPartBuffer,
@@ -44,6 +48,8 @@ import {
 import { loopedTime, poseAt } from './animation';
 import { buildSolid, type BuiltSolid, type Digest, type ImageDecoder } from './build';
 import { SolidMemory } from './memory';
+import { trianglesOf } from './space/layout';
+import { SPACE_REST_MS, SPACE_TRIANGLE_BUDGET, boxedFrom } from './space/lod';
 import { pickAt } from './stage';
 
 /** A picture the GPU drew, with its part buffer when one was asked for. */
@@ -86,11 +92,24 @@ export interface SpaceToDraw {
   readonly lines: readonly SpaceLine[];
   /** The solids its entries draw that are loaded, by hash; one still loading is left out. */
   readonly solids: ReadonlyMap<string, BuiltSolid>;
+  /**
+   * The elements whose solids are drawn as their boxes, the farthest from the camera, while it moves
+   * past the triangles' mark ({@link SPACE_TRIANGLE_BUDGET}); none at rest.
+   */
+  readonly boxed: ReadonlySet<Id>;
+  readonly theme: ThemeName;
+  /** Device pixels for each pixel of the page. */
+  readonly pixelRatio: number;
+  readonly handles: SpaceHandles | undefined;
 }
 
-/** What lies under a pixel of a space: an element, by id, or none, and the point there. */
+/**
+ * What lies under a pixel of a space: an element, by id, or none, and the point there; or a relation
+ * drawn as a line, with `element` null.
+ */
 export interface SpacePicked {
   element: Id | null;
+  relation?: Id;
   point?: SpacePoint;
 }
 
@@ -103,6 +122,8 @@ export interface SpaceGpu {
   drawSpace(space: SpaceToDraw): ImageBitmap;
   /** What a space's frame shows under the pixel (x, y), from its top left. */
   pickSpace(space: SpaceToDraw, x: number, y: number): SpacePicked;
+  /** Lets go of what it keeps for a space that ended. */
+  endSpace?(space: number): void;
 }
 
 /** What the host takes. */
@@ -121,6 +142,8 @@ export interface SolidWorkerHostOptions {
   now(): number;
   /** The estimated GPU memory to keep solids within; 768 MiB unless smaller. */
   memoryBytes?: number;
+  /** The most triangles a space draws while its camera moves; 2,000,000 unless smaller, as in tests. */
+  triangleBudget?: number;
 }
 
 /** The longest message a refusal carries, as the app's reader takes it. */
@@ -147,6 +170,10 @@ interface Showing {
   camera: SpaceCamera;
   serial: number;
   dirty: boolean;
+  /** When the app last moved its camera, in milliseconds. */
+  movedAt: number | undefined;
+  /** The solids its last frame drew as their boxes, drawn whole once its camera rests. */
+  boxed: ReadonlySet<Id>;
 }
 
 /** The solid worker, apart from its GPU and its scope. */
@@ -431,14 +458,27 @@ export class SolidWorkerHost {
       this.frame(gpu, turn, turning);
     }
     const { space } = this.options;
+    let waiting = false;
     if (space) {
+      const now = this.options.now();
       for (const [number, showing] of [...this.spaces]) {
-        if (!showing.dirty) continue;
-        showing.dirty = false;
-        this.spaceFrame(gpu, space, number, showing);
+        // Once its camera rests, a space drawn with boxes is drawn whole.
+        if (showing.boxed.size > 0 && !this.moving(showing, now)) showing.dirty = true;
+        if (showing.dirty) {
+          showing.dirty = false;
+          this.spaceFrame(gpu, space, number, showing, now);
+        }
+        waiting ||= showing.boxed.size > 0;
       }
     }
-    if ([...this.turnings.values()].some((turning) => turning.playing)) this.scheduleFrames();
+    if (waiting || [...this.turnings.values()].some((turning) => turning.playing)) {
+      this.scheduleFrames();
+    }
+  }
+
+  /** Whether a space's camera moved within the last {@link SPACE_REST_MS}. */
+  private moving(showing: Showing, now: number): boolean {
+    return showing.movedAt !== undefined && now - showing.movedAt < SPACE_REST_MS;
   }
 
   private frame(gpu: SolidGpu, turn: number, turning: Turning): void {
@@ -562,6 +602,7 @@ export class SolidWorkerHost {
     }
     if (request.type === 'space/show') {
       const { states, entries, size, camera, cut, explode, names, lines } = request;
+      const { theme, pixelRatio, handles } = request;
       const shown: Omit<SpaceShown, 'states'> = {
         size,
         entries,
@@ -570,15 +611,20 @@ export class SolidWorkerHost {
         ...(explode === undefined ? {} : { explode }),
         ...(names === undefined ? {} : { names }),
         ...(lines ? { lines } : {}),
+        ...(theme ? { theme } : {}),
+        ...(pixelRatio === undefined ? {} : { pixelRatio }),
+        ...(handles ? { handles } : {}),
       };
       const byElement = statesOf(states);
       // Shown again under the same number, it starts over.
       this.spaces.set(request.space, {
         shown,
         states: byElement,
-        camera: camera ?? this.framed(shown, byElement),
+        camera: shown.camera ?? this.framed(shown, byElement),
         serial: 0,
         dirty: true,
+        movedAt: undefined,
+        boxed: new Set(),
       });
       this.scheduleFrames();
       return;
@@ -625,17 +671,24 @@ export class SolidWorkerHost {
       }
       case 'space/end':
         this.spaces.delete(request.space);
+        space.endSpace?.(request.space);
         return;
     }
   }
 
   private updateSpace(showing: Showing, change: SpaceChange): void {
-    const { camera, cut, states, ...rest } = change;
+    const { camera, cut, handles, states, ...rest } = change;
     const shown: Omit<SpaceShown, 'states'> = { ...showing.shown, ...rest };
     if (camera === null) delete shown.camera;
-    else if (camera !== undefined) shown.camera = camera;
+    else if (camera !== undefined) {
+      shown.camera = camera;
+      // A camera the app moves draws its frames within the budget until it rests.
+      showing.movedAt = this.options.now();
+    }
     if (cut === null) delete shown.cut;
     else if (cut !== undefined) shown.cut = cut;
+    if (handles === null) delete shown.handles;
+    else if (handles !== undefined) shown.handles = handles;
     showing.shown = shown;
     if (states !== undefined) showing.states = statesOf(states);
     this.changedSpace(showing, true);
@@ -690,13 +743,22 @@ export class SolidWorkerHost {
     });
   }
 
-  private toDraw(number: number, showing: Showing): SpaceToDraw {
+  private toDraw(
+    number: number,
+    showing: Showing,
+    boxed: ReadonlySet<Id> = showing.boxed,
+  ): SpaceToDraw {
     const solids = new Map<string, BuiltSolid>();
     for (const entry of showing.shown.entries) {
       const solid = entry.solid === undefined ? undefined : this.loaded.get(entry.solid);
       if (solid) solids.set(solid.hash, solid);
     }
+    const { theme, pixelRatio, handles } = showing.shown;
     return {
+      boxed,
+      theme: theme ?? 'light',
+      pixelRatio: pixelRatio ?? 1,
+      handles,
       space: number,
       size: showing.shown.size,
       camera: showing.camera,
@@ -710,7 +772,32 @@ export class SolidWorkerHost {
     };
   }
 
-  private spaceFrame(gpu: SolidGpu, space: SpaceGpu, number: number, showing: Showing): void {
+  /**
+   * The solids of a space drawn as their boxes now: the farthest past the triangles' mark while its
+   * camera moves, and none at rest.
+   */
+  private boxedNow(showing: Showing, now: number): Set<Id> {
+    if (!this.moving(showing, now)) return new Set();
+    const solids = [];
+    for (const entry of showing.shown.entries) {
+      const solid = entry.solid === undefined ? undefined : this.loaded.get(entry.solid);
+      if (!solid || showing.states.get(entry.element)?.hidden) continue;
+      solids.push({
+        element: entry.element,
+        triangles: trianglesOf(solid),
+        bounds: boundsPlaced(entry.matrix, entry.bounds ?? solid.description.bounds),
+      });
+    }
+    return boxedFrom(solids, showing.camera, this.options.triangleBudget ?? SPACE_TRIANGLE_BUDGET);
+  }
+
+  private spaceFrame(
+    gpu: SolidGpu,
+    space: SpaceGpu,
+    number: number,
+    showing: Showing,
+    now: number,
+  ): void {
     const { width, height } = showing.shown.size;
     if (width > gpu.largestPicture || height > gpu.largestPicture) {
       this.refuse(
@@ -720,7 +807,9 @@ export class SolidWorkerHost {
       );
       return;
     }
-    const toDraw = this.toDraw(number, showing);
+    const boxed = this.boxedNow(showing, now);
+    showing.boxed = boxed;
+    const toDraw = this.toDraw(number, showing, boxed);
     for (const solid of toDraw.solids.values()) this.drawing(solid);
     let bitmap: ImageBitmap;
     try {

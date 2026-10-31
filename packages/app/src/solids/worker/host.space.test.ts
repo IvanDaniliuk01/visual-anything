@@ -35,6 +35,7 @@ class FakeGpu implements SolidGpu, SpaceGpu {
   lost = false;
   throws = false;
   readonly spaces: SpaceToDraw[] = [];
+  readonly ended: number[] = [];
   picked: SpacePicked = { element: null };
   private listener: ((state: 'lost' | 'restored') => void) | undefined;
 
@@ -58,6 +59,10 @@ class FakeGpu implements SolidGpu, SpaceGpu {
     return this.picked;
   }
 
+  endSpace(space: number): void {
+    this.ended.push(space);
+  }
+
   lose(): void {
     this.lost = true;
     this.listener?.('lost');
@@ -69,8 +74,9 @@ class FakeGpu implements SolidGpu, SpaceGpu {
   }
 }
 
-function setUp(options: { gpu?: boolean; space?: boolean } = {}) {
+function setUp(options: { gpu?: boolean; space?: boolean; triangleBudget?: number } = {}) {
   const gpu = new FakeGpu();
+  const clock = { now: 0 };
   const replies: SolidWorkerReply[] = [];
   const transfers: Transferable[][] = [];
   const frames: (() => void)[] = [];
@@ -85,7 +91,8 @@ function setUp(options: { gpu?: boolean; space?: boolean } = {}) {
     ...(options.space === false ? {} : { space: gpu }),
     decodeImage: () => Promise.resolve(undefined),
     schedule: (callback) => frames.push(callback),
-    now: () => 0,
+    now: () => clock.now,
+    ...(options.triangleBudget === undefined ? {} : { triangleBudget: options.triangleBudget }),
   });
   host.start();
   const send = (request: SolidWorkerRequest) => host.receive(request);
@@ -94,7 +101,7 @@ function setUp(options: { gpu?: boolean; space?: boolean } = {}) {
   };
   const ofType = <T extends SolidWorkerReply['type']>(type: T) =>
     replies.filter((reply): reply is Extract<SolidWorkerReply, { type: T }> => reply.type === type);
-  return { host, gpu, replies, transfers, frames, send, tick, ofType };
+  return { host, gpu, replies, transfers, frames, send, tick, ofType, clock };
 }
 
 const SIZE = { width: 400, height: 200 };
@@ -241,7 +248,7 @@ describe('a space in the solid worker', () => {
     ]);
   });
 
-  it('stops drawing a space that ended', async () => {
+  it('stops drawing a space that ended, and lets its GPU let go of it', async () => {
     const { host, gpu, send, tick } = setUp();
     await send(show());
     expect(host.spacesShown).toEqual([1]);
@@ -249,6 +256,60 @@ describe('a space in the solid worker', () => {
     tick();
     expect(host.spacesShown).toEqual([]);
     expect(gpu.spaces).toHaveLength(0);
+    expect(gpu.ended).toEqual([1]);
+  });
+
+  it('hands the GPU the theme, the pixel ratio and the handles, which an update takes away', async () => {
+    const { gpu, send, tick } = setUp();
+    await send(show(undefined, { camera: CAMERA }));
+    tick();
+    expect(gpu.spaces[0]).toMatchObject({ theme: 'light', pixelRatio: 1, handles: undefined });
+    const handles = { mode: 'move' as const, at: { x: 4, y: 0, z: 0 }, active: 'x' as const };
+    await send({ type: 'space/update', space: 1, theme: 'dark', pixelRatio: 2, handles });
+    tick();
+    expect(gpu.spaces[1]).toMatchObject({ theme: 'dark', pixelRatio: 2, handles });
+    await send({ type: 'space/update', space: 1, handles: null });
+    tick();
+    expect(gpu.spaces[2]?.handles).toBeUndefined();
+    expect(gpu.spaces[2]?.theme).toBe('dark');
+  });
+
+  it('draws the farthest solids as boxes while the camera moves past the mark, and whole at rest', async () => {
+    // The arm takes 36 triangles: with a budget of 50, two arms take one box.
+    const { gpu, send, tick, clock, frames } = setUp({ triangleBudget: 50 });
+    await send({ type: 'load', id: 1, hash: ARM_HASH, bytes: ARM.slice().buffer });
+    const far = { ...ARM_ENTRY, element: 'far', matrix: at(0, 0, -30) };
+    await send(show([ARM_ENTRY, far], { camera: CAMERA }));
+    tick();
+    // Shown, its camera has not moved: everything is drawn whole.
+    expect(gpu.spaces[0]?.boxed).toEqual(new Set());
+    clock.now = 1000;
+    await send({ type: 'space/update', space: 1, camera: { ...CAMERA, azimuth: 10 } });
+    tick();
+    expect(gpu.spaces[1]?.boxed).toEqual(new Set(['far']));
+    // Until it rests, nothing is drawn again, and the worker keeps looking.
+    clock.now = 1100;
+    tick();
+    expect(gpu.spaces).toHaveLength(2);
+    expect(frames.length).toBe(1);
+    clock.now = 1250;
+    tick();
+    expect(gpu.spaces).toHaveLength(3);
+    expect(gpu.spaces[2]?.boxed).toEqual(new Set());
+    // At rest, it stops looking.
+    tick();
+    expect(frames.length).toBe(0);
+    expect(gpu.spaces).toHaveLength(3);
+  });
+
+  it('draws everything whole while the camera moves within the mark', async () => {
+    const { gpu, send, tick, clock } = setUp();
+    await send({ type: 'load', id: 1, hash: ARM_HASH, bytes: ARM.slice().buffer });
+    await send(show([ARM_ENTRY], { camera: CAMERA }));
+    clock.now = 10;
+    await send({ type: 'space/update', space: 1, camera: { ...CAMERA, distance: 9 } });
+    tick();
+    expect(gpu.spaces.at(-1)?.boxed).toEqual(new Set());
   });
 
   it('draws nothing while its context is lost, and again once it is back', async () => {
