@@ -137,7 +137,7 @@ ${UNITS} An element is in physical space when it is posed in an element in physi
 Then set_pose poses elements, clear_pose takes poses away, and show_space shows the panel to the person.
 
 Example: { "view": "workcell" }
-Example: { "view": "workcell", "root": "robot-arm" }
+Example: { "view": "workcell", "root": "arm" }
 Example: { "root": "world", "offset": 500, "limit": 500 }`,
   input: {
     view: id()
@@ -291,7 +291,7 @@ const showSpace = tool({
 ${UNITS} The camera's azimuth is degrees around +Y, 0 looking from +Z toward −Z and 90 from +X; its elevation is degrees above the horizon. ${ONE_TAB}
 
 Example: { "root": "world", "frame": ["robot-arm", "bin-a"] }
-Example: { "view": "workcell", "root": "robot-arm", "camera": { "target": { "x": 0, "y": 0.8, "z": 0 }, "azimuth": 45, "elevation": 20, "distance": 2.5 } }
+Example: { "view": "workcell", "root": "arm", "camera": { "target": { "x": 0, "y": 0.8, "z": 0 }, "azimuth": 45, "elevation": 20, "distance": 2.5 } }
 Example: { "close": true }`,
   input: {
     root: id()

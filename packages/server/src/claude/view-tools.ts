@@ -116,7 +116,7 @@ ${STATE_HELP}
 Example: { "view": "system-overview", "select": ["appointments-api"] }
 Example: { "view": "system-overview", "filters": { "components": ["systems.person"] }, "focus": { "degrees": 2, "direction": "outgoing", "from": ["booking-agent"] }, "scenario": "patient-books-appointment", "step": 3 }
 Example: { "view": "system-overview", "scenario": "patient-books-appointment", "step": "join-waiting-list", "choices": { "free-slot": "week-full" } }
-Example, with the physical-space panel open on the arm: { "view": "workcell", "select": ["wrist-camera"], "space": { "root": "robot-arm", "camera": { "target": { "x": 0, "y": 0.8, "z": 0 }, "azimuth": 45, "elevation": 20, "distance": 2.5 } } }`,
+Example, with the physical-space panel open on the arm: { "view": "workcell", "select": ["wrist-camera"], "space": { "root": "arm", "camera": { "target": { "x": 0, "y": 0.8, "z": 0 }, "azimuth": 45, "elevation": 20, "distance": 2.5 } } }`,
   input: { view: id().describe('The view the address opens.'), ...STATE_PARTS },
   hints: READ,
   run: async (args, program) => {
