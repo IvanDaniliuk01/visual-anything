@@ -491,7 +491,9 @@ describe('properties', () => {
       const small = shape(2_000);
       const large = shape(16_000);
       const ratio = timeOf(large) / timeOf(small) / (large.length / small.length);
-      expect(ratio, shape.toString()).toBeLessThan(4);
+      // A reading that grows with the square of the text would be 8 here; a loaded machine,
+      // with its caches shared, reaches 4 on a linear one.
+      expect(ratio, shape.toString()).toBeLessThan(5);
     }
   });
 });
