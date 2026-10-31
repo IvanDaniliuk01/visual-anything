@@ -1,0 +1,43 @@
+{
+  "id": "load",
+  "name": "Load",
+  "description": "Requests for an audit, the queue they wait in, and the auditors.",
+  "perspective": {
+    "name": "Load",
+    "description": "How the queue holds up as requests come faster."
+  },
+  "nestingRelationTypes": [
+    "systems.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "requests",
+      "x": 40,
+      "y": 80,
+      "pinned": true
+    },
+    {
+      "element": "audit-queue",
+      "x": 320,
+      "y": 80,
+      "pinned": true
+    },
+    {
+      "element": "auditors",
+      "x": 600,
+      "y": 80,
+      "pinned": true
+    }
+  ],
+  "freeShapes": [
+    {
+      "kind": "note",
+      "id": "about-load",
+      "x": 40,
+      "y": 240,
+      "width": 640,
+      "height": 96,
+      "text": "The Flow package holds code. Approve it, then select the Audit queue and play its simulation in the inspector: raise the arrivals past what the workers take, and the queue grows until it goes past what it can hold."
+    }
+  ]
+}

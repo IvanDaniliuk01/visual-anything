@@ -8,6 +8,7 @@ import { ESSENCE_ID, RELATES_TO_ID, SCHEMA_VERSION } from '@visual-anything/sche
 import { RESERVED_PACKAGE_IDS, builtinPackage } from './builtin';
 import { appearanceOf, isBuiltInDefinition, type Definitions } from './definitions';
 import { codeWarnings } from './code/check';
+import { simulationWarnings } from './simulation/check';
 import { destinationWarnings } from './destination-checks';
 import { duplicateExternalIdWarnings } from './external-ids';
 import { faceWarnings } from './faces/project-check';
@@ -55,6 +56,8 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
   warnings.push(...geometryFindings(state).warnings);
   // Package code that cannot run (ADR 0054).
   warnings.push(...codeWarnings(state));
+  // Simulations that cannot be one never run (ADR 0085).
+  warnings.push(...simulationWarnings(state));
   // Conflicts a merge left in files, which the person resolves (ADR 0072).
   warnings.push(...conflictWarnings(state));
   for (const file of state.packages) {

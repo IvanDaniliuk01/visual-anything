@@ -5,6 +5,7 @@
  */
 export type { CheckedTick, LimitKind, SimulatedTick, SimulatedValue } from './answer';
 export { checkSimulateAnswer } from './answer';
+export { simulationWarnings } from './check';
 export type { ComponentSimulation } from './definition';
 export { parameterValueProblem, simulationOf, simulationProblems, ticksOf } from './definition';
 export type { SimulateContext, SimulateInput } from './input';

@@ -98,6 +98,8 @@ export type ProblemCode =
   | 'code-off'
   | 'code-answer-dropped'
   | 'code-check'
+  // Simulations (ADR 0085): what a component declares it simulates that cannot be one.
+  | 'invalid-simulation'
   // Overlays (ADR 0055): one a view does not have, and a value outside what an overlay allows.
   | 'unknown-overlay'
   | 'invalid-overlay'

@@ -1,0 +1,96 @@
+{
+  "id": "how-load-builds-up",
+  "name": "How load builds up",
+  "description": "A queue that keeps up, one that falls behind, and an audit that goes back and forth.",
+  "steps": [
+    {
+      "id": "keeping-up",
+      "viewState": {
+        "view": "load",
+        "select": [
+          "audit-queue"
+        ],
+        "simulation": {
+          "element": "audit-queue",
+          "tick": 60
+        }
+      },
+      "caption": {
+        "title": "A queue that keeps up",
+        "text": "Thirty requests a second, four auditors who take a tenth of a second each: they can take forty a second, so the queue stays short."
+      },
+      "marks": [
+        "audit-queue"
+      ]
+    },
+    {
+      "id": "falling-behind",
+      "viewState": {
+        "view": "load",
+        "select": [
+          "audit-queue"
+        ],
+        "simulation": {
+          "element": "audit-queue",
+          "parameters": {
+            "arrivals": 50
+          },
+          "tick": 300
+        }
+      },
+      "caption": {
+        "title": "Falling behind",
+        "text": "Fifty a second is ten more than the auditors take. The queue grows by about ten a second, and every new request waits longer."
+      },
+      "marks": [
+        "audit-queue"
+      ]
+    },
+    {
+      "id": "past-its-limit",
+      "viewState": {
+        "view": "load",
+        "select": [
+          "audit-queue"
+        ],
+        "simulation": {
+          "element": "audit-queue",
+          "parameters": {
+            "arrivals": 50
+          },
+          "tick": 599
+        }
+      },
+      "caption": {
+        "title": "Past what it can hold",
+        "text": "The queue holds 5,000 requests at most. The run stops at the second it goes past them, and keeps every second before it to go back to."
+      },
+      "marks": [
+        "audit-queue"
+      ]
+    },
+    {
+      "id": "an-audit-back-and-forth",
+      "viewState": {
+        "view": "audit",
+        "select": [
+          "an-audit"
+        ],
+        "simulation": {
+          "element": "an-audit",
+          "parameters": {
+            "strictness": 0.6
+          },
+          "tick": 30
+        }
+      },
+      "caption": {
+        "title": "An audit that goes back and forth",
+        "text": "With a strict review, an audit goes back for changes more often. Play it day by day: the marker follows the way it takes."
+      },
+      "marks": [
+        "an-audit"
+      ]
+    }
+  ]
+}

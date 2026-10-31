@@ -1,0 +1,68 @@
+{
+  "id": "audit",
+  "name": "An audit",
+  "description": "The states an audit moves through, and the ways between them.",
+  "perspective": {
+    "name": "States",
+    "description": "Where an audit can be, and where it can go next."
+  },
+  "nestingRelationTypes": [
+    "systems.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "an-audit",
+      "x": 40,
+      "y": 40,
+      "width": 944,
+      "height": 352,
+      "pinned": true
+    },
+    {
+      "element": "draft",
+      "container": "an-audit",
+      "x": 32,
+      "y": 72,
+      "pinned": true
+    },
+    {
+      "element": "in-review",
+      "container": "an-audit",
+      "x": 256,
+      "y": 72,
+      "pinned": true
+    },
+    {
+      "element": "changes-asked",
+      "container": "an-audit",
+      "x": 256,
+      "y": 232,
+      "pinned": true
+    },
+    {
+      "element": "approved",
+      "container": "an-audit",
+      "x": 480,
+      "y": 72,
+      "pinned": true
+    },
+    {
+      "element": "closed",
+      "container": "an-audit",
+      "x": 704,
+      "y": 72,
+      "pinned": true
+    }
+  ],
+  "freeShapes": [
+    {
+      "kind": "note",
+      "id": "about-audit",
+      "x": 40,
+      "y": 432,
+      "width": 640,
+      "height": 96,
+      "text": "Select An audit and play its simulation: each day it stays where it is or takes one way out. With a strict review it goes back for changes again and again; past four times the run stops."
+    }
+  ]
+}

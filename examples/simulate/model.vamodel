@@ -1,0 +1,134 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "World"
+  },
+  "elements": [
+    {
+      "id": "requests",
+      "component": "systems.service",
+      "name": "Audit requests",
+      "description": "Where requests for an audit come from."
+    },
+    {
+      "id": "audit-queue",
+      "component": "flow.queue",
+      "name": "Audit queue",
+      "description": "Requests wait here until an auditor takes one."
+    },
+    {
+      "id": "auditors",
+      "component": "systems.person",
+      "name": "Auditors",
+      "description": "The people who take requests from the queue."
+    },
+    {
+      "id": "an-audit",
+      "component": "flow.case",
+      "name": "An audit",
+      "description": "One audit, from its draft to its close."
+    },
+    {
+      "id": "draft",
+      "component": "flow.state",
+      "name": "Draft"
+    },
+    {
+      "id": "in-review",
+      "component": "flow.state",
+      "name": "In review"
+    },
+    {
+      "id": "changes-asked",
+      "component": "flow.state",
+      "name": "Changes asked"
+    },
+    {
+      "id": "approved",
+      "component": "flow.state",
+      "name": "Approved"
+    },
+    {
+      "id": "closed",
+      "component": "flow.state",
+      "name": "Closed"
+    }
+  ],
+  "relations": [
+    {
+      "id": "requests-to-queue",
+      "relationType": "systems.communicates-with",
+      "from": "requests",
+      "to": "audit-queue",
+      "name": "sends"
+    },
+    {
+      "id": "queue-to-auditors",
+      "relationType": "systems.communicates-with",
+      "from": "audit-queue",
+      "to": "auditors",
+      "name": "hands to"
+    },
+    {
+      "id": "draft-in-audit",
+      "relationType": "systems.is-part-of",
+      "from": "draft",
+      "to": "an-audit"
+    },
+    {
+      "id": "in-review-in-audit",
+      "relationType": "systems.is-part-of",
+      "from": "in-review",
+      "to": "an-audit"
+    },
+    {
+      "id": "changes-asked-in-audit",
+      "relationType": "systems.is-part-of",
+      "from": "changes-asked",
+      "to": "an-audit"
+    },
+    {
+      "id": "approved-in-audit",
+      "relationType": "systems.is-part-of",
+      "from": "approved",
+      "to": "an-audit"
+    },
+    {
+      "id": "closed-in-audit",
+      "relationType": "systems.is-part-of",
+      "from": "closed",
+      "to": "an-audit"
+    },
+    {
+      "id": "draft-to-in-review",
+      "relationType": "flow.moves-to",
+      "from": "draft",
+      "to": "in-review"
+    },
+    {
+      "id": "in-review-to-changes-asked",
+      "relationType": "flow.moves-to",
+      "from": "in-review",
+      "to": "changes-asked"
+    },
+    {
+      "id": "in-review-to-approved",
+      "relationType": "flow.moves-to",
+      "from": "in-review",
+      "to": "approved"
+    },
+    {
+      "id": "changes-asked-to-in-review",
+      "relationType": "flow.moves-to",
+      "from": "changes-asked",
+      "to": "in-review"
+    },
+    {
+      "id": "approved-to-closed",
+      "relationType": "flow.moves-to",
+      "from": "approved",
+      "to": "closed"
+    }
+  ]
+}

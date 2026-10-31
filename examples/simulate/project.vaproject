@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "name": "Simulations",
+  "description": "A sample project whose package simulates (M12): a work queue under load that goes past what it can hold, and an audit moving through its states.",
+  "packages": [
+    "systems",
+    "flow"
+  ]
+}

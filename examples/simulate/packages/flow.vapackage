@@ -1,0 +1,359 @@
+{
+  "id": "flow",
+  "name": "Flow",
+  "description": "A work queue and a case moving through its states, each simulated by package code.",
+  "components": [
+    {
+      "id": "flow.queue",
+      "name": "Work queue",
+      "derivesFrom": "systems.service",
+      "description": "Items arrive, workers take them, and what they cannot take waits.",
+      "attributes": [
+        {
+          "name": "queue",
+          "type": "number",
+          "description": "Items waiting.",
+          "unit": "items"
+        },
+        {
+          "name": "wait",
+          "type": "number",
+          "description": "How long a new item waits.",
+          "unit": "s"
+        }
+      ],
+      "appearance": {
+        "detail": {
+          "attributes": [
+            "queue",
+            "wait"
+          ]
+        }
+      },
+      "simulation": {
+        "parameters": [
+          {
+            "name": "arrivals",
+            "type": "number",
+            "default": 30,
+            "min": 0,
+            "max": 200,
+            "step": 1,
+            "unit": "items/s",
+            "description": "How many items arrive in a second, on average."
+          },
+          {
+            "name": "workers",
+            "type": "number",
+            "default": 4,
+            "min": 1,
+            "max": 64,
+            "step": 1,
+            "description": "How many workers take items."
+          },
+          {
+            "name": "cost",
+            "type": "number",
+            "default": 100,
+            "min": 10,
+            "max": 2000,
+            "step": 10,
+            "unit": "ms",
+            "description": "How long one worker takes over one item."
+          },
+          {
+            "name": "bursts",
+            "type": "boolean",
+            "default": false,
+            "description": "Three times the arrivals for the first ten seconds of every minute."
+          }
+        ],
+        "values": [
+          {
+            "name": "queue",
+            "type": "number",
+            "min": 0,
+            "max": 5000,
+            "unit": "items",
+            "description": "Items waiting; past 5,000 the queue cannot hold them."
+          },
+          {
+            "name": "wait",
+            "type": "number",
+            "min": 0,
+            "unit": "s",
+            "description": "How long a new item waits."
+          },
+          {
+            "name": "utilization",
+            "type": "number",
+            "min": 0,
+            "max": 1,
+            "description": "The share of the workers’ time taken."
+          },
+          {
+            "name": "phase",
+            "type": "string",
+            "choices": [
+              "calm",
+              "busy",
+              "saturated"
+            ]
+          }
+        ],
+        "tick": {
+          "length": 1,
+          "unit": "s"
+        },
+        "ticks": 600,
+        "description": "Arrivals drawn by chance each second, served by the workers at their cost."
+      }
+    },
+    {
+      "id": "flow.case",
+      "name": "Case",
+      "derivesFrom": "systems.box",
+      "description": "Something that moves through the states it holds, one day at a time.",
+      "attributes": [
+        {
+          "name": "state",
+          "type": "string",
+          "description": "The state it is in.",
+          "choices": [
+            "Draft",
+            "In review",
+            "Changes asked",
+            "Approved",
+            "Closed"
+          ]
+        },
+        {
+          "name": "reviews",
+          "type": "number",
+          "description": "How many times it went back for changes."
+        }
+      ],
+      "appearance": {
+        "detail": {
+          "attributes": [
+            "state",
+            "reviews"
+          ]
+        }
+      },
+      "simulation": {
+        "parameters": [
+          {
+            "name": "reviewers",
+            "type": "number",
+            "default": 2,
+            "min": 1,
+            "max": 8,
+            "step": 1,
+            "description": "How many reviewers share the reviews: more take a case out of review sooner."
+          },
+          {
+            "name": "strictness",
+            "type": "number",
+            "default": 0.3,
+            "min": 0,
+            "max": 1,
+            "step": 0.05,
+            "description": "The chance that a review asks for changes rather than approving."
+          }
+        ],
+        "values": [
+          {
+            "name": "state",
+            "type": "string",
+            "choices": [
+              "Draft",
+              "In review",
+              "Changes asked",
+              "Approved",
+              "Closed"
+            ],
+            "description": "The state it is in."
+          },
+          {
+            "name": "days",
+            "type": "number",
+            "min": 0,
+            "unit": "days",
+            "description": "Days in that state."
+          },
+          {
+            "name": "reviews",
+            "type": "number",
+            "min": 0,
+            "max": 4,
+            "description": "Times it went back for changes; past 4 the audit stops."
+          }
+        ],
+        "tick": {
+          "length": 1,
+          "unit": "day"
+        },
+        "ticks": 120,
+        "description": "Each day a case stays in its state or takes one way out of it, by chance."
+      }
+    },
+    {
+      "id": "flow.state",
+      "name": "State",
+      "derivesFrom": "systems.box",
+      "description": "One state a case can be in."
+    }
+  ],
+  "relationTypes": [
+    {
+      "id": "flow.moves-to",
+      "name": "moves to",
+      "derivesFrom": "relates-to",
+      "description": "A way out of a state, with its chance among the others.",
+      "direction": "directed",
+      "attributes": [
+        {
+          "name": "chance",
+          "type": "number",
+          "default": 1,
+          "description": "Its weight among the ways out."
+        }
+      ]
+    }
+  ],
+  "code": [
+    "/**",
+    " * Package code for flows (ADR 0085): a work queue under load, and a case moving through the states",
+    " * it holds. `simulate` works out one tick from the tick before: it gets the run's parameters, the",
+    " * state the tick before answered and `context.random()`, seeded from the run's seed and the tick, so",
+    " * the same seed always gives the same run. It answers values, a state for the next tick, what to mark",
+    " * on the canvas, and `done` once the behavior ends by itself.",
+    " */",
+    "",
+    "/** A count of arrivals in one tick, around `mean` (Poisson, by Knuth's method under 30). */",
+    "function arrivalsAround(mean, random) {",
+    "  if (mean <= 0) return 0;",
+    "  if (mean > 30) {",
+    "    // A normal approximation for larger means, by Box and Muller.",
+    "    const u = Math.max(random(), 1e-12);",
+    "    const v = random();",
+    "    const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);",
+    "    return Math.max(0, Math.round(mean + z * Math.sqrt(mean)));",
+    "  }",
+    "  const limit = Math.exp(-mean);",
+    "  let count = 0;",
+    "  let product = random();",
+    "  while (product > limit) {",
+    "    count += 1;",
+    "    product *= random();",
+    "  }",
+    "  return count;",
+    "}",
+    "",
+    "/** A work queue: items arrive, workers take them, and what they cannot take waits. */",
+    "function queueTick(element, context) {",
+    "  const { parameters, state, tick } = context;",
+    "  const queue = state ? state.queue : 0;",
+    "  // Bursts: ten seconds of three times the arrivals at the start of every minute.",
+    "  const burst = parameters.bursts && tick % 60 < 10 ? 3 : 1;",
+    "  const arrived = arrivalsAround(parameters.arrivals * burst, context.random);",
+    "  const capacity = (parameters.workers * 1000) / parameters.cost;",
+    "  const waiting = queue + arrived;",
+    "  const served = Math.min(waiting, Math.floor(capacity + context.random()));",
+    "  const left = waiting - served;",
+    "  const utilization = capacity > 0 ? Math.min(1, served / capacity) : 1;",
+    "  const phase = left === 0 ? 'calm' : left < capacity * 5 ? 'busy' : 'saturated';",
+    "  const incoming = context.relations.filter((each) => each.to === element.id).map((each) => each.id);",
+    "  const outgoing = context.relations.filter((each) => each.from === element.id).map((each) => each.id);",
+    "  return {",
+    "    values: {",
+    "      queue: left,",
+    "      wait: capacity > 0 ? Math.round((left / capacity) * 10) / 10 : left,",
+    "      utilization: Math.round(utilization * 100) / 100,",
+    "      phase,",
+    "    },",
+    "    state: { queue: left },",
+    "    marks: [...(arrived > 0 ? incoming : []), ...(served > 0 ? outgoing : [])],",
+    "  };",
+    "}",
+    "",
+    "/** The states a case holds, by id, and the ways out of each, with their chances. */",
+    "function statesOf(element, context) {",
+    "  const states = new Map();",
+    "  for (const each of context.contents) {",
+    "    if (each.component === 'flow.state') states.set(each.id, { id: each.id, name: each.name, ways: [] });",
+    "  }",
+    "  for (const state of states.values()) {",
+    "    for (const id of context.model.relationsOn(state.id)) {",
+    "      const relation = context.model.relation(id);",
+    "      if (!relation || relation.relationType !== 'flow.moves-to') continue;",
+    "      if (relation.from !== state.id || !states.has(relation.to)) continue;",
+    "      const chance = typeof relation.attributes.chance === 'number' ? relation.attributes.chance : 1;",
+    "      state.ways.push({ relation: relation.id, to: relation.to, chance });",
+    "    }",
+    "  }",
+    "  return states;",
+    "}",
+    "",
+    "/** A case: each day it stays where it is, or takes one way out of its state, by chance. */",
+    "function caseTick(element, context) {",
+    "  const { parameters, state } = context;",
+    "  const states = statesOf(element, context);",
+    "  const first = [...states.values()].find((each) => each.name === 'Draft') ?? [...states.values()][0];",
+    "  if (!first) return { values: {}, done: 'The case holds no states.' };",
+    "  const at = state ? states.get(state.at) ?? first : first;",
+    "  const days = state ? state.days + 1 : 0;",
+    "  const reviews = state ? state.reviews : 0;",
+    "  const marks = [at.id];",
+    "  let next = at;",
+    "  let way;",
+    "  if (state) {",
+    "    // Reviewers take a case out of review sooner; strictness sends more back for changes.",
+    "    let leave = 0.35;",
+    "    if (at.name === 'In review') leave = Math.min(0.95, 0.12 * parameters.reviewers);",
+    "    if (context.random() < leave && at.ways.length > 0) {",
+    "      const weights = at.ways.map((each) => {",
+    "        const target = states.get(each.to);",
+    "        if (at.name !== 'In review' || !target) return each.chance;",
+    "        return target.name === 'Changes asked' ? parameters.strictness : 1 - parameters.strictness;",
+    "      });",
+    "      const total = weights.reduce((sum, each) => sum + each, 0);",
+    "      let pick = context.random() * total;",
+    "      for (let i = 0; i < at.ways.length; i++) {",
+    "        pick -= weights[i];",
+    "        if (pick <= 0) {",
+    "          way = at.ways[i];",
+    "          break;",
+    "        }",
+    "      }",
+    "      way = way ?? at.ways[at.ways.length - 1];",
+    "      next = states.get(way.to);",
+    "      marks.push(way.relation, next.id);",
+    "    }",
+    "  }",
+    "  const moved = next !== at;",
+    "  const nextReviews = reviews + (moved && next.name === 'Changes asked' ? 1 : 0);",
+    "  return {",
+    "    values: {",
+    "      state: next.name,",
+    "      days: moved ? 0 : days,",
+    "      reviews: nextReviews,",
+    "    },",
+    "    state: { at: next.id, days: moved ? 0 : days, reviews: nextReviews },",
+    "    marks,",
+    "    done: next.ways.length === 0 ? `The case reached ${next.name}.` : false,",
+    "  };",
+    "}",
+    "",
+    "/** One tick of the element's simulation, by what it is created from. */",
+    "export function simulate(element, context) {",
+    "  const lineage = context.component.lineage;",
+    "  if (lineage.includes('flow.case')) return caseTick(element, context);",
+    "  return queueTick(element, context);",
+    "}"
+  ],
+  "capabilities": [
+    "model:read"
+  ]
+}
