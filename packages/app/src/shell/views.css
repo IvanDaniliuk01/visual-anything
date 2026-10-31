@@ -6,15 +6,15 @@
 .view-row-line {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: var(--space-30);
 }
 
 .view-open {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 0.15rem 0.3rem;
+  padding: var(--space-15) var(--space-30);
   border: 0;
-  border-radius: 0.3rem;
+  border-radius: var(--radius-sm);
   background: none;
   color: inherit;
   font: inherit;
@@ -23,24 +23,38 @@
   cursor: pointer;
 }
 
-.view-open:hover {
+.view-open:hover:not(:disabled) {
   background: var(--accent-soft);
+}
+
+.view-open:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.view-open:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 .view-action {
   flex: none;
-  padding: 0.15rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 0.3rem;
+  padding: var(--space-15) var(--space-50);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   cursor: pointer;
 }
 
 .view-action:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+.view-action:active:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface-pressed);
 }
 
 .view-action:disabled {
@@ -55,37 +69,37 @@
 
 .view-list + .view-action,
 .view-new {
-  margin-top: 0.5rem;
+  margin-top: var(--space-50);
 }
 
 .view-open:focus-visible,
 .view-action:focus-visible,
 .view-settings :is(input, textarea):focus-visible,
 .view-new input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: var(--stroke-thick) solid var(--accent);
+  outline-offset: var(--stroke-thin);
 }
 
 .view-settings,
 .view-new {
   display: grid;
-  gap: 0.5rem;
-  margin: 0.35rem 0 0.6rem 0.3rem;
-  padding: 0.6rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
+  gap: var(--space-50);
+  margin: var(--space-35) 0 var(--space-60) var(--space-30);
+  padding: var(--space-60) var(--space-70);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 
 .view-control {
   display: grid;
-  gap: 0.15rem;
+  gap: var(--space-15);
 }
 
 .view-control label,
 .view-nesting legend {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 
 .view-settings input:is([type='text'], :not([type])),
@@ -93,9 +107,9 @@
 .view-new input {
   width: 100%;
   min-width: 0;
-  padding: 0.25rem 0.4rem;
-  border: 1px solid var(--control-border);
-  border-radius: 0.3rem;
+  padding: var(--space-25) var(--space-40);
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   font: inherit;
@@ -108,7 +122,7 @@
 }
 
 .view-nesting-types {
-  margin: 0.2rem 0 0;
+  margin: var(--space-20) 0 0;
   padding: 0;
   list-style: none;
 }
@@ -116,29 +130,40 @@
 .view-nesting-types li {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: var(--space-35);
 }
 
 .view-note {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 
 .view-problem {
   color: var(--problem);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 
 .view-confirm {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-40);
 }
 
 .view-confirm p {
   flex-basis: 100%;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
+}
+
+.view-settings :is(input, textarea):is(:hover, :active):not(:disabled),
+.view-new input:is(:hover, :active):not(:disabled) {
+  border-color: var(--text-muted);
+}
+
+.view-settings :is(input, textarea):disabled,
+.view-new input:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 .view-action.view-delete {
@@ -146,11 +171,16 @@
   color: var(--problem);
 }
 
+.view-action.view-delete:is(:hover, :active):not(:disabled) {
+  border-color: var(--problem);
+  background: var(--problem-soft);
+}
+
 .view-new-title {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .view-new-actions {
   display: flex;
-  gap: 0.4rem;
+  gap: var(--space-40);
 }

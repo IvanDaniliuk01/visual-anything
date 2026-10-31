@@ -16,7 +16,7 @@
   min-height: 0;
   margin: 0;
   overflow: auto;
-  padding: 0 0 var(--space-5);
+  padding: 0 0 var(--space-150);
   list-style: none;
 }
 
@@ -25,10 +25,10 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--border);
-  border-left: 3px solid transparent;
+  gap: var(--space-50);
+  padding: var(--space-50) var(--space-100) var(--space-50) var(--space-75);
+  border-bottom: var(--stroke-thin) solid var(--border);
+  border-left: var(--stroke-mark) solid transparent;
 }
 
 .history-item[data-author='claude'] {
@@ -37,9 +37,9 @@
 
 .history-item-text {
   display: flex;
-  flex: 1 1 12rem;
+  flex: 1 1 var(--size-1200);
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-25);
   min-width: 0;
 }
 
@@ -52,7 +52,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1) var(--space-2);
+  gap: var(--space-25) var(--space-50);
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
@@ -60,11 +60,11 @@
 .history-item-author {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-25);
 }
 
 .history-item-claude {
-  padding: 0 var(--space-2);
+  padding: 0 var(--space-50);
   border-radius: var(--radius-full);
   background: var(--accent-soft);
   color: var(--accent);
@@ -77,8 +77,8 @@
 }
 
 .history-item-undone {
-  padding: 0 var(--space-2);
-  border: 1px solid var(--control-border);
+  padding: 0 var(--space-50);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-full);
 }
 
@@ -86,8 +86,8 @@
   flex: none;
   margin-left: auto;
   min-height: var(--control-sm);
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--control-border);
+  padding: var(--space-25) var(--space-50);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);

@@ -215,7 +215,7 @@ export function ViewerCanvas({
         </p>
       ) : (
         scene.bounds === undefined && (
-          <p className="canvas-message">{t('This view has no shapes.')}</p>
+          <p className="canvas-message">{t('This view has no shapes. Choose another view.')}</p>
         )
       )}
     </div>

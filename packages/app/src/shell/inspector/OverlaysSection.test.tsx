@@ -129,7 +129,7 @@ describe('OverlaysSection', () => {
     const { section, sent } = renderSection([]);
     expect(
       within(section).getByText(
-        'No overlay changes how this view’s shapes look by their attributes.',
+        'No overlay changes how this view’s shapes look by their attributes. Add one with Add an overlay.',
       ),
     ).toBeTruthy();
     fireEvent.click(within(section).getByRole('button', { name: 'Add an overlay' }));

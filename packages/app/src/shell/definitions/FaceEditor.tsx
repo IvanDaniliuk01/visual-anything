@@ -610,7 +610,7 @@ function FacePreview({
         <p className="panel-empty">
           {errors
             ? t('The preview shows once the face has no errors.')
-            : t('No markup to preview.')}
+            : t('No markup to preview. Write the face’s markup above to see it here.')}
         </p>
       ) : (
         <FaceCanvas

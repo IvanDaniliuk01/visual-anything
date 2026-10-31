@@ -238,6 +238,6 @@ describe('ViewList', () => {
 
   it('says so when the project has no views', () => {
     setup({ project: { ...sample, views: [] }, openViewId: 'system-overview' });
-    expect(screen.getByText('This project has no views yet.')).toBeInTheDocument();
+    expect(screen.getByText(/^This project has no views yet\./)).toBeInTheDocument();
   });
 });

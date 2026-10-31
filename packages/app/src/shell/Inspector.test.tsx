@@ -271,7 +271,7 @@ describe('Inspector', () => {
   describe('with nothing selected', () => {
     it('details the open view', () => {
       const { inspector } = renderInspector();
-      expect(within(inspector).getByText('Nothing is selected.')).toBeInTheDocument();
+      expect(within(inspector).getByText(/^Nothing is selected\./)).toBeInTheDocument();
       expect(within(inspector).getByRole('heading', { name: 'View' })).toBeInTheDocument();
       expect(detail(inspector, 'Name')).toBe('System overview');
       expect(detail(inspector, 'Perspective')).toContain('Data flow');
@@ -287,7 +287,7 @@ describe('Inspector', () => {
       expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue(
         'Understands the request, offers free slots and books the one the patient picks.',
       );
-      expect(screen.queryByText('Nothing is selected.')).not.toBeInTheDocument();
+      expect(screen.queryByText(/^Nothing is selected\./)).not.toBeInTheDocument();
     });
 
     it('renames it on Enter, as one command, and shows the new name', async () => {

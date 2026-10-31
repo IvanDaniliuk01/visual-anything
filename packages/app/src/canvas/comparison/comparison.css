@@ -5,14 +5,14 @@
 
 .comparison-bar {
   position: absolute;
-  top: 0.6rem;
-  right: 0.6rem;
+  top: var(--space-60);
+  right: var(--space-60);
   z-index: var(--z-toolbar);
   display: grid;
-  gap: 0.35rem;
-  max-width: min(36rem, calc(100% - 1.2rem));
-  padding: 0.5rem 0.7rem;
-  border: 1px solid var(--border);
+  gap: var(--space-35);
+  max-width: min(var(--size-3600), calc(100% - var(--size-120)));
+  padding: var(--space-50) var(--space-70);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
   box-shadow: var(--shadow-1);
@@ -36,12 +36,12 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-40);
 }
 
 .comparison-drawings {
   display: inline-flex;
-  border: 1px solid var(--control-border);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-sm);
 }
 
@@ -57,22 +57,35 @@
   font-weight: var(--weight-strong);
 }
 
+.comparison-drawing:hover:not(:disabled, [aria-checked='true']) {
+  background: var(--surface-hover);
+}
+
+.comparison-drawing:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.comparison-drawing:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
 .comparison-faint {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-25);
 }
 
 .comparison-legend {
   right: auto;
-  left: 0.6rem;
+  left: var(--space-60);
   align-items: flex-start;
 }
 
 .comparison-legend .canvas-legend-entries > li {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-40);
 }
 
 .comparison-not-drawn {
@@ -82,10 +95,10 @@
 /* Each mark's line pattern, as the canvas draws it: removed dashed, changed double. */
 .comparison-pattern {
   flex: none;
-  width: 1.4rem;
-  height: 0.8rem;
-  border: 2px solid var(--text);
-  border-radius: 2px;
+  width: var(--size-140);
+  height: var(--size-80);
+  border: var(--stroke-thick) solid var(--text);
+  border-radius: var(--radius-xs);
 }
 
 .comparison-pattern-added {
@@ -98,7 +111,7 @@
 }
 
 .comparison-pattern-changed {
-  border-width: 4px;
+  border-width: var(--stroke-bar);
   border-style: double;
   border-color: var(--change-changed);
 }

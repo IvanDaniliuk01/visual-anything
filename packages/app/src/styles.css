@@ -39,9 +39,9 @@ dd {
 
 .visually-hidden {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
+  width: var(--size-hidden);
+  height: var(--size-hidden);
+  margin: calc(-1 * var(--size-hidden));
   padding: 0;
   overflow: hidden;
   clip-path: inset(50%);
@@ -54,8 +54,8 @@ dd {
  * focus ring, and the muted look of what cannot be used now.
  */
 :where(button, select, input, textarea, summary, [role='menuitem'], [tabindex]):focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thick);
 }
 
 :where(button, select, input, textarea):disabled,
@@ -77,10 +77,10 @@ dd {
  */
 
 .shell {
-  --panel-strip: calc(var(--control-sm) + 2 * var(--space-2));
-  --model-panel-column: var(--model-panel-width, 18rem);
+  --panel-strip: calc(var(--control-sm) + 2 * var(--space-50));
+  --model-panel-column: var(--model-panel-width, var(--size-1800));
   --space-panel-column: 0px;
-  --inspector-column: var(--inspector-width, 20rem);
+  --inspector-column: var(--inspector-width, var(--size-2000));
   display: grid;
   grid-template:
     'header header header header' auto
@@ -97,19 +97,19 @@ dd {
   /* One row at every width (A4), as shell/header.css says. */
   flex-wrap: nowrap;
   align-items: center;
-  gap: var(--space-1) var(--space-6);
-  padding: 0.45rem var(--space-4);
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-25) var(--space-200);
+  padding: var(--space-45) var(--space-100);
+  border-bottom: var(--stroke-thin) solid var(--border);
   background: var(--surface);
 }
 
 .shell-product {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  font-size: 1.05rem;
+  gap: var(--space-50);
+  font-size: var(--text-md);
   font-weight: var(--weight-heading);
-  letter-spacing: 0.01em;
+  letter-spacing: var(--tracking-title);
 }
 
 .shell-mark {
@@ -120,12 +120,12 @@ dd {
 .shell-context {
   display: flex;
   flex-wrap: nowrap;
-  gap: var(--space-1) var(--space-5);
+  gap: var(--space-25) var(--space-150);
 }
 
 .shell-context > div {
   display: flex;
-  gap: 0.4rem;
+  gap: var(--space-40);
   align-items: baseline;
 }
 
@@ -133,7 +133,7 @@ dd {
   color: var(--text-muted);
   font-size: var(--text-xs);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-caps);
 }
 
 .shell-context dd {
@@ -145,15 +145,15 @@ dd {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: var(--space-2) var(--space-4);
+  gap: var(--space-50) var(--space-100);
   min-width: 0;
   margin-left: auto;
 }
 
 .shell-notice {
   grid-area: notice;
-  padding: var(--space-2) var(--space-4);
-  border-bottom: 1px solid var(--border);
+  padding: var(--space-50) var(--space-100);
+  border-bottom: var(--stroke-thin) solid var(--border);
   background: var(--warning-soft);
   color: var(--warning);
 }
@@ -163,9 +163,9 @@ dd {
 .theme-control {
   display: inline-flex;
   flex: none;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--control-border);
+  gap: var(--space-15);
+  padding: var(--space-15);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface);
 }
@@ -193,14 +193,14 @@ dd {
 /* Pressed in: a darker background, the text color, and a boundary that reaches 3:1. */
 .theme-option:has(:checked) {
   background: var(--surface-pressed);
-  box-shadow: inset 0 0 0 1px var(--control-border);
+  box-shadow: inset 0 0 0 var(--stroke-thin) var(--control-border);
   color: var(--text);
 }
 
 /* The radio is hidden, so a ring drawn on it would be clipped: the option draws it. */
 .theme-option:has(:focus-visible) {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thin);
 }
 
 /* The Language control: its icon, then a select of the languages, beside the Theme control. */
@@ -209,7 +209,7 @@ dd {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-25);
   color: var(--text-muted);
 }
 
@@ -221,8 +221,8 @@ dd {
 
 .language-control select {
   min-height: var(--control-sm);
-  padding: 0.2rem 0.4rem;
-  border: 1px solid var(--control-border);
+  padding: var(--space-20) var(--space-40);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
@@ -231,8 +231,12 @@ dd {
   cursor: pointer;
 }
 
-.language-control select:hover {
+.language-control select:hover:not(:disabled) {
   background: var(--surface-hover);
+}
+
+.language-control select:active:not(:disabled) {
+  background: var(--surface-pressed);
 }
 
 /* Panels */
@@ -242,26 +246,26 @@ dd {
   position: relative;
   min-height: 0;
   overflow: auto;
-  padding: 0.9rem var(--space-4) var(--space-5);
+  padding: var(--space-90) var(--space-100) var(--space-150);
   background: var(--panel);
 }
 
 .panel h2 {
-  font-size: 0.95rem;
+  font-size: var(--text-sm);
   font-weight: var(--weight-heading);
 }
 
 .panel h3 {
-  margin-bottom: 0.4rem;
+  margin-bottom: var(--space-40);
   color: var(--text-muted);
   font-size: var(--text-xs);
   font-weight: var(--weight-heading);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--tracking-caps);
 }
 
 .panel-section {
-  margin-top: 1.1rem;
+  margin-top: var(--space-110);
 }
 
 .panel-empty {
@@ -270,16 +274,16 @@ dd {
 
 .model-panel {
   grid-area: model;
-  border-right: 1px solid var(--border);
+  border-right: var(--stroke-thin) solid var(--border);
 }
 
 .inspector {
   grid-area: inspector;
-  border-left: 1px solid var(--border);
+  border-left: var(--stroke-thin) solid var(--border);
 }
 
 .inspector-selection {
-  margin-top: 0.6rem;
+  margin-top: var(--space-60);
   color: var(--text-muted);
 }
 
@@ -292,14 +296,14 @@ dd {
 }
 
 .containment .containment {
-  margin: 0.15rem 0 0.15rem 0.45rem;
-  padding-left: var(--space-3);
-  border-left: 1px solid var(--border);
+  margin: var(--space-15) 0 var(--space-15) var(--space-45);
+  padding-left: var(--space-75);
+  border-left: var(--stroke-thin) solid var(--border);
 }
 
 .containment li,
 .item-list li {
-  padding: 0.15rem 0;
+  padding: var(--space-15) 0;
 }
 
 .item-name {
@@ -307,7 +311,7 @@ dd {
 }
 
 .item-detail {
-  margin-left: 0.4rem;
+  margin-left: var(--space-40);
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
@@ -317,8 +321,8 @@ dd {
 }
 
 .item-badge {
-  margin-left: 0.4rem;
-  padding: 0 0.35rem;
+  margin-left: var(--space-40);
+  padding: 0 var(--space-35);
   border-radius: var(--radius-lg);
   background: var(--accent-soft);
   color: var(--accent);
@@ -330,7 +334,7 @@ dd {
 
 .details {
   display: grid;
-  gap: 0.55rem;
+  gap: var(--space-55);
 }
 
 .detail dt {
@@ -369,10 +373,10 @@ dd {
   position: absolute;
   top: 50%;
   left: 50%;
-  max-width: min(28rem, calc(100% - var(--space-6)));
+  max-width: min(var(--size-2800), calc(100% - var(--space-200)));
   transform: translate(-50%, -50%);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--border);
+  padding: var(--space-75) var(--space-100);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
   box-shadow: var(--shadow-2);
@@ -399,28 +403,28 @@ dd {
 .status-main {
   display: grid;
   place-items: center;
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-200) var(--space-100);
 }
 
 .status-card {
   position: relative;
   display: grid;
-  gap: 0.6rem;
-  max-width: 34rem;
+  gap: var(--space-60);
+  max-width: var(--size-3400);
   overflow: hidden;
-  padding: 1.4rem 1.6rem;
-  border: 1px solid var(--border);
+  padding: var(--space-140) var(--space-160);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
   box-shadow: var(--shadow-1);
 }
 
 .status-card h2 {
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
 }
 
 .status-problem {
-  border-top: 4px solid var(--problem);
+  border-top: var(--stroke-bar) solid var(--problem);
 }
 
 /* While connecting: a bar along the card's top that moves, and stays still under reduced motion. */
@@ -429,7 +433,7 @@ dd {
   top: 0;
   left: 0;
   width: 100%;
-  height: 3px;
+  height: var(--stroke-mark);
   background: var(--accent);
   content: '';
   opacity: 0.6;
@@ -461,7 +465,7 @@ dd {
 }
 
 .status-detail {
-  padding: 0.4rem 0.6rem;
+  padding: var(--space-40) var(--space-60);
   border-radius: var(--radius-sm);
   background: var(--problem-soft);
   color: var(--problem);
@@ -472,13 +476,13 @@ dd {
 /* The canvas toolbar floats over the top of the canvas; only its controls take the pointer. */
 .canvas-toolbar {
   position: absolute;
-  top: 0.6rem;
-  left: 0.6rem;
-  right: 0.6rem;
+  top: var(--space-60);
+  left: var(--space-60);
+  right: var(--space-60);
   z-index: var(--z-toolbar);
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-40);
   pointer-events: none;
 }
 
@@ -496,10 +500,10 @@ dd {
 .canvas-toolbar-zoom {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: var(--space-35);
   min-height: var(--control-sm);
-  padding: 0.3rem 0.65rem;
-  border: 1px solid var(--control-border);
+  padding: var(--space-30) var(--space-65);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
   color: var(--text);
@@ -518,7 +522,8 @@ dd {
   background: var(--surface-hover);
 }
 
-.canvas-toolbar button:active:not(:disabled, [aria-disabled='true']) {
+.canvas-toolbar button:active:not(:disabled, [aria-disabled='true']),
+.canvas-toolbar select:active:not(:disabled) {
   background: var(--surface-pressed);
 }
 
@@ -531,15 +536,15 @@ dd {
 /* The zoom readout: digits of one width, so that its size stays put while zooming. */
 .canvas-toolbar-zoom {
   justify-content: center;
-  min-width: calc(4ch + 1.3rem + 2px);
+  min-width: calc(4ch + var(--size-130) + 2 * var(--stroke-thin));
   border-color: var(--border);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .canvas-host:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: calc(-1 * var(--stroke-thick));
 }
 
 /* Menus on the canvas: the relation menu, the shape menu and the container chooser. */
@@ -548,31 +553,31 @@ dd {
   z-index: var(--z-menu);
   display: flex;
   flex-direction: column;
-  min-width: 13rem;
-  max-height: 22rem;
+  min-width: var(--size-1300);
+  max-height: var(--size-2200);
   overflow: auto;
-  padding: 0.35rem;
-  border: 1px solid var(--border);
+  padding: var(--space-35);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
   box-shadow: var(--shadow-2);
 }
 
 .canvas-menu-title {
-  margin: 0.2rem 0.4rem 0.4rem;
+  margin: var(--space-20) var(--space-40) var(--space-40);
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
 
 .canvas-menu button {
   min-height: var(--control-sm);
-  padding: 0.35rem var(--space-2);
+  padding: var(--space-35) var(--space-50);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
   color: var(--text);
   font: inherit;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   text-align: left;
   cursor: pointer;
 }
@@ -587,8 +592,8 @@ dd {
 
 /* The focused item gets a ring inside it, not only a background, which would be too faint to see. */
 .canvas-menu button:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: calc(-1 * var(--stroke-thick));
   background: var(--surface-hover);
 }
 
@@ -598,8 +603,8 @@ dd {
 }
 
 .canvas-menu .canvas-menu-cancel {
-  margin-top: 0.2rem;
-  border-top: 1px solid var(--border);
+  margin-top: var(--space-20);
+  border-top: var(--stroke-thin) solid var(--border);
   border-radius: 0;
   color: var(--text-muted);
 }
@@ -615,28 +620,28 @@ dd {
 }
 
 .dialog {
-  width: min(32rem, calc(100vw - var(--space-6)));
-  max-height: calc(100vh - 4rem);
+  width: min(var(--size-3200), calc(100vw - var(--space-200)));
+  max-height: calc(100vh - var(--size-400));
   overflow: auto;
-  padding: 1.2rem 1.4rem;
-  border: 1px solid var(--border);
+  padding: var(--space-120) var(--space-140);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
   box-shadow: var(--shadow-3);
 }
 
 .dialog h2 {
-  margin: 0 0 0.8rem;
-  font-size: 1.1rem;
+  margin: 0 0 var(--space-80);
+  font-size: var(--text-lg);
 }
 
 .dialog p {
-  margin: var(--space-2) 0;
+  margin: var(--space-50) 0;
 }
 
 .dialog ul {
-  margin: 0.3rem 0 0.6rem;
-  padding-left: 1.2rem;
+  margin: var(--space-30) 0 var(--space-60);
+  padding-left: var(--space-120);
 }
 
 .dialog-note {
@@ -647,14 +652,14 @@ dd {
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
-  gap: var(--space-2);
-  margin-top: var(--space-4);
+  gap: var(--space-50);
+  margin-top: var(--space-100);
 }
 
 .dialog-actions button {
   min-height: var(--control-md);
-  padding: 0.4rem 0.9rem;
-  border: 1px solid var(--control-border);
+  padding: var(--space-40) var(--space-90);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
   color: var(--text);
@@ -687,8 +692,8 @@ dd {
   position: absolute;
   z-index: var(--z-editor);
   box-sizing: border-box;
-  padding: 0.2rem 0.4rem;
-  border: 2px solid var(--focus-ring);
+  padding: var(--space-20) var(--space-40);
+  border: var(--stroke-thick) solid var(--focus-ring);
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
   color: var(--text);
@@ -707,19 +712,19 @@ textarea.inline-editor {
 
 .shell-history {
   display: flex;
-  gap: 0.4rem;
+  gap: var(--space-40);
   min-width: 0;
 }
 
 .history-button {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-40);
   min-width: 0;
-  max-width: 20rem;
+  max-width: var(--size-2000);
   min-height: var(--control-sm);
-  padding: 0.2rem 0.6rem;
-  border: 1px solid var(--control-border);
+  padding: var(--space-20) var(--space-60);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
@@ -754,7 +759,7 @@ textarea.inline-editor {
 }
 
 .history-author {
-  padding: 0 0.35rem;
+  padding: 0 var(--space-35);
   border-radius: var(--radius-lg);
   background: var(--accent-soft);
   color: var(--accent);
@@ -764,21 +769,21 @@ textarea.inline-editor {
 
 .history-button:focus-visible,
 .notice-dismiss:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thick);
 }
 
 /* Notices, stacked in the bottom right corner with the newest nearest it, above any dialog. */
 
 .notices {
   position: fixed;
-  right: var(--space-4);
-  bottom: var(--space-4);
+  right: var(--space-100);
+  bottom: var(--space-100);
   z-index: var(--z-notices);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  width: min(24rem, calc(100vw - var(--space-6)));
+  gap: var(--space-50);
+  width: min(var(--size-2400), calc(100vw - var(--space-200)));
   /* Only the notices themselves take the pointer, not the gaps between them. */
   pointer-events: none;
 }
@@ -786,10 +791,10 @@ textarea.inline-editor {
 .notice {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
-  padding: 0.55rem 0.45rem 0.55rem 0.8rem;
-  border: 1px solid var(--border);
-  border-left-width: 4px;
+  gap: var(--space-50);
+  padding: var(--space-55) var(--space-45) var(--space-55) var(--space-80);
+  border: var(--stroke-thin) solid var(--border);
+  border-left-width: var(--stroke-bar);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
   box-shadow: var(--shadow-2);
@@ -816,7 +821,7 @@ textarea.inline-editor {
   /* A long notice, such as the warnings of a project as it opens, scrolls within a third of the window. */
   max-height: 33vh;
   overflow-y: auto;
-  padding-top: 0.15rem;
+  padding-top: var(--space-15);
   overflow-wrap: anywhere;
 }
 
@@ -840,18 +845,22 @@ textarea.inline-editor {
   background: transparent;
   color: var(--text-muted);
   font: inherit;
-  font-size: 1.15rem;
-  line-height: 1;
+  font-size: var(--text-lg);
+  line-height: var(--line-none);
   cursor: pointer;
 }
 
-.notice-dismiss:hover {
+.notice-dismiss:hover:not(:disabled) {
   background: var(--surface-hover);
   color: var(--text);
 }
 
-.notice-dismiss:active {
+.notice-dismiss:active:not(:disabled) {
   background: var(--surface-pressed);
+}
+
+.notice-dismiss:disabled {
+  cursor: not-allowed;
 }
 
 /* With forced colors, the system's colors draw focus, and what is pressed in gets an outline. */
@@ -864,12 +873,12 @@ textarea.inline-editor {
   }
 
   .theme-option:has(:checked) {
-    outline: 1px solid ButtonText;
-    outline-offset: -3px;
+    outline: var(--stroke-thin) solid ButtonText;
+    outline-offset: calc(-1 * var(--stroke-mark));
   }
 
   .theme-option:has(:checked:focus-visible) {
-    outline: 2px solid Highlight;
-    outline-offset: 1px;
+    outline: var(--stroke-thick) solid Highlight;
+    outline-offset: var(--stroke-thin);
   }
 }

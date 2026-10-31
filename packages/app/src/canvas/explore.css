@@ -7,17 +7,17 @@
 /* The toolbar wraps on a narrow canvas, and the strip takes a line of its own at its end. */
 .canvas-toolbar {
   flex-wrap: wrap;
-  row-gap: 0.4rem;
+  row-gap: var(--space-40);
 }
 
 .canvas-toolbar-explore {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-40);
 }
 
 .canvas-toolbar-perspective select {
-  max-width: 16rem;
+  max-width: var(--size-1600);
 }
 
 .canvas-toolbar button[aria-pressed='true'] {
@@ -33,48 +33,48 @@
 /* The filters' panel, under its button. */
 .explore-panel {
   position: absolute;
-  top: calc(100% + 0.3rem);
+  top: calc(100% + var(--space-30));
   left: 0;
-  z-index: 3;
-  width: 22rem;
-  max-width: calc(100vw - 2rem);
-  max-height: 28rem;
+  z-index: var(--z-menu);
+  width: var(--size-2200);
+  max-width: calc(100vw - var(--size-200));
+  max-height: var(--size-2800);
   overflow: auto;
-  padding: 0.6rem 0.75rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
+  padding: var(--space-60) var(--space-75) var(--space-75);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--text);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   box-shadow: var(--shadow-2);
 }
 
 .explore-panel-note {
-  margin: 0.2rem 0;
+  margin: var(--space-20) 0;
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 
 .explore-panel-group {
-  margin: 0.6rem 0 0;
+  margin: var(--space-60) 0 0;
   padding: 0;
   border: 0;
 }
 
 .explore-panel-group legend {
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--space-25);
   padding: 0;
   color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-heading);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--tracking-caps);
 }
 
 .explore-panel-all {
   display: flex;
-  gap: 0.3rem;
-  margin-bottom: 0.2rem;
+  gap: var(--space-30);
+  margin-bottom: var(--space-20);
 }
 
 .explore-choices,
@@ -87,8 +87,8 @@
 .explore-choices label {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.15rem 0;
+  gap: var(--space-40);
+  padding: var(--space-15) 0;
   cursor: pointer;
 }
 
@@ -102,30 +102,43 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.3rem;
-  margin-bottom: 0.4rem;
+  gap: var(--space-30);
+  margin-bottom: var(--space-40);
 }
 
 .explore-condition input {
   min-width: 0;
-  flex: 1 1 6rem;
+  flex: 1 1 var(--size-600);
 }
 
 .explore-panel input:not([type='checkbox']),
 .explore-panel select,
 .explore-strip select {
-  padding: 0.2rem 0.35rem;
-  border: 1px solid var(--control-border);
-  border-radius: 0.3rem;
+  padding: var(--space-20) var(--space-35);
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   font: inherit;
 }
 
+.explore-panel input:not([type='checkbox']):is(:hover, :active):not(:disabled),
+.explore-panel select:is(:hover, :active):not(:disabled),
+.explore-strip select:is(:hover, :active):not(:disabled) {
+  border-color: var(--text-muted);
+}
+
+.explore-panel input:not([type='checkbox']):disabled,
+.explore-panel select:disabled,
+.explore-strip select:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
 .explore-panel button {
-  padding: 0.2rem 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: 0.3rem;
+  padding: var(--space-20) var(--space-55);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   font: inherit;
@@ -136,6 +149,11 @@
   border-color: var(--accent);
 }
 
+.explore-panel button:active:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface-pressed);
+}
+
 .explore-panel button:disabled {
   color: var(--text-muted);
   cursor: not-allowed;
@@ -144,15 +162,15 @@
 .explore-panel :is(button, input, select):focus-visible,
 .explore-strip :is(button, input, select):focus-visible,
 .canvas-toolbar-explore :is(button, select):focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: var(--stroke-thick) solid var(--accent);
+  outline-offset: var(--stroke-thin);
 }
 
 .explore-panel-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.4rem;
-  margin-top: 0.75rem;
+  gap: var(--space-40);
+  margin-top: var(--space-75);
 }
 
 /*
@@ -163,7 +181,7 @@
   display: flex;
   flex-basis: 100%;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: var(--space-40);
   pointer-events: none;
 }
 
@@ -171,13 +189,13 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.25rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
+  gap: var(--space-40);
+  padding: var(--space-25) var(--space-50);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   box-shadow: var(--shadow-1);
   pointer-events: auto;
 }
@@ -189,6 +207,6 @@
 .explore-strip-part .explore-isolate {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-25);
   color: var(--text);
 }

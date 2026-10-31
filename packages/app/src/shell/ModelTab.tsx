@@ -107,7 +107,9 @@ export function ModelTab({ active, project, definitions, openViewId }: ModelTabP
             }}
           />
         ) : (
-          <p className="panel-empty">{t('World holds no elements yet.')}</p>
+          <p className="panel-empty">
+            {t('World holds no elements yet. Add one with Add an element, on the canvas.')}
+          </p>
         )}
       </section>
 
@@ -142,7 +144,11 @@ export function ModelTab({ active, project, definitions, openViewId }: ModelTabP
             })}
           </ul>
         ) : (
-          <p className="panel-empty">{t('This project has no scenarios yet.')}</p>
+          <p className="panel-empty">
+            {t(
+              'This project has no scenarios yet. Make one with New scenario, then click relations on the canvas in the order they happen.',
+            )}
+          </p>
         )}
       </section>
     </div>

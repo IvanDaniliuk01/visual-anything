@@ -4,6 +4,6 @@
 }
 
 .canvas-toolbar-align > .canvas-menu {
-  top: calc(100% + var(--space-1));
+  top: calc(100% + var(--space-25));
   left: 0;
 }

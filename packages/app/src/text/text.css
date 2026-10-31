@@ -16,66 +16,66 @@
 .emphasis-text blockquote,
 .emphasis-text pre,
 .emphasis-text .emphasis-table {
-  margin: var(--space-1) 0;
+  margin: var(--space-25) 0;
 }
 
 .emphasis-text ul,
 .emphasis-text ol {
-  padding-inline-start: var(--space-5);
+  padding-inline-start: var(--space-150);
 }
 
 .emphasis-text .emphasis-heading {
-  margin: var(--space-2) 0 var(--space-1);
+  margin: var(--space-50) 0 var(--space-25);
   font-weight: var(--weight-heading);
   line-height: var(--line-normal);
 }
 
 .emphasis-text .emphasis-heading-1 {
-  font-size: 1.3em;
+  font-size: var(--em-heading-1);
 }
 
 .emphasis-text .emphasis-heading-2 {
-  font-size: 1.15em;
+  font-size: var(--em-heading-2);
 }
 
 .emphasis-text .emphasis-heading-3 {
-  font-size: 1em;
+  font-size: inherit;
 }
 
 .emphasis-text li.emphasis-task {
   list-style: none;
-  margin-inline-start: calc(-1 * var(--space-4));
+  margin-inline-start: calc(-1 * var(--space-100));
 }
 
 .emphasis-text li.emphasis-task > input {
-  margin: 0 var(--space-1) 0 0;
+  margin: 0 var(--space-25) 0 0;
   vertical-align: middle;
 }
 
 .emphasis-text blockquote {
   margin-inline: 0;
-  padding-inline-start: var(--space-2);
-  border-left: 3px solid var(--border);
+  padding-inline-start: var(--space-50);
+  border-left: var(--stroke-mark) solid var(--border);
   color: var(--text-muted);
 }
 
 .emphasis-text hr {
   border: none;
-  border-top: 1px solid var(--border);
+  border-top: var(--stroke-thin) solid var(--border);
 }
 
 .emphasis-text code,
 .emphasis-preview code {
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-  font-size: 0.92em;
-  padding: 0 0.2em;
+  font-size: var(--em-code);
+  padding: 0 var(--em-code-padding);
   border-radius: var(--radius-sm);
   background: var(--emphasis-code);
 }
 
 .emphasis-text pre {
   overflow-x: auto;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-25) var(--space-50);
   border-radius: var(--radius-sm);
   background: var(--emphasis-code);
 }
@@ -101,8 +101,8 @@
 
 .emphasis-text th,
 .emphasis-text td {
-  padding: 0 var(--space-1);
-  border: 1px solid var(--border);
+  padding: 0 var(--space-25);
+  border: var(--stroke-thin) solid var(--border);
   text-align: start;
 }
 
@@ -120,8 +120,8 @@
 
 /* The drawn text under a field that edits its source. */
 .emphasis-preview {
-  margin-top: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  border-left: 2px solid var(--border);
+  margin-top: var(--space-25);
+  padding: var(--space-25) var(--space-50);
+  border-left: var(--stroke-thick) solid var(--border);
   font-size: var(--text-sm);
 }

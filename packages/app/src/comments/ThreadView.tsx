@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { useEditor } from '../editor/EditorContext';
 import { actionTime, useToday } from '../history/time';
 import { useT } from '../i18n';
+import { BackIcon } from '../shell/icons';
 import { aboutText, authorText } from './about';
 import { CommentText } from './CommentText';
 import { Composer } from './Composer';
@@ -40,7 +41,8 @@ export function ThreadView({ thread, me }: ThreadViewProps) {
   return (
     <section className="comment-thread" aria-label={t('Thread: {about}', { about })}>
       <button type="button" className="comment-back" onClick={() => store.openThread(undefined)}>
-        {t('← All threads')}
+        <BackIcon size={14} />
+        {t('All threads')}
       </button>
       <h3 className="comment-thread-title">
         {detached ? (

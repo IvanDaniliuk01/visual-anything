@@ -79,15 +79,15 @@
 @media (max-width: 1100px) {
   .shell-header :is(.copy-address > span, .compare-label, .export-label, .history-verb) {
     position: absolute;
-    width: 1px;
-    height: 1px;
+    width: var(--size-hidden);
+    height: var(--size-hidden);
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
   }
 
   .shell-header .language-control select {
-    max-width: 10rem;
+    max-width: var(--size-1000);
     text-overflow: ellipsis;
   }
 }

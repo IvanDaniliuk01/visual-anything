@@ -13,8 +13,8 @@
 .scope-list {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  margin: 0.25rem 0 0.5rem;
+  gap: var(--space-25);
+  margin: var(--space-25) 0 var(--space-50);
   padding: 0;
   list-style: none;
 }
@@ -22,7 +22,7 @@
 .scope-list li {
   display: flex;
   align-items: baseline;
-  gap: 0.4rem;
+  gap: var(--space-40);
 }
 
 .scope-list .scope-what {
@@ -37,28 +37,28 @@
 }
 
 .scope-heading {
-  margin: 0.6rem 0 0.15rem;
+  margin: var(--space-60) 0 var(--space-15);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .scope-summary {
-  margin: 0.25rem 0;
+  margin: var(--space-25) 0;
 }
 
 .scope-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0.25rem 0 0.5rem;
+  gap: var(--space-40);
+  margin: var(--space-25) 0 var(--space-50);
 }
 
 .scope-form {
   display: grid;
-  gap: 0.35rem;
-  margin: 0.4rem 0;
-  padding: 0.5rem;
-  border: 1px solid var(--border);
+  gap: var(--space-35);
+  margin: var(--space-40) 0;
+  padding: var(--space-50);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-md);
 }
 
@@ -70,5 +70,5 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-40);
 }

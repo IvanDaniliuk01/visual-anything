@@ -1,14 +1,14 @@
 /* Package code (ADR 0054): the approval dialog, and what the inspector says of computed values. */
 .code-approval {
-  width: min(44rem, calc(100vw - var(--space-6)));
+  width: min(var(--size-4400), calc(100vw - var(--space-200)));
 }
 
 .code-approval-text {
-  max-height: 18rem;
+  max-height: var(--size-1800);
   overflow: auto;
-  margin: var(--space-2) 0;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+  margin: var(--space-50) 0;
+  padding: var(--space-50) var(--space-75);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--panel);
   color: var(--text);
@@ -18,19 +18,19 @@
 }
 
 .code-approval-text:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thick);
 }
 
 .code-approval-capabilities {
-  margin: var(--space-3) 0 0;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+  margin: var(--space-75) 0 0;
+  padding: var(--space-50) var(--space-75);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-md);
 }
 
 .code-approval-capabilities legend {
-  padding: 0 var(--space-1);
+  padding: 0 var(--space-25);
   font-weight: var(--weight-strong);
 }
 
@@ -41,7 +41,7 @@
 
 /* A value package code computed: shown as stored ones are, with its mark. */
 .code-values {
-  margin: var(--space-1) 0;
+  margin: var(--space-25) 0;
   padding: 0;
   list-style: none;
 }
@@ -49,9 +49,9 @@
 .code-values li {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-50);
   align-items: baseline;
-  padding: var(--space-1) 0;
+  padding: var(--space-25) 0;
 }
 
 .code-value-name {
@@ -63,8 +63,8 @@
 }
 
 .code-mark {
-  padding: 0 var(--space-1);
-  border: 1px solid var(--accent);
+  padding: 0 var(--space-25);
+  border: var(--stroke-thin) solid var(--accent);
   border-radius: var(--radius-sm);
   color: var(--accent);
   font-size: var(--text-xs);

@@ -18,20 +18,20 @@
   display: flex;
   flex: none;
   flex-wrap: wrap;
-  gap: 0 0.25rem;
-  padding: 0.55rem 0.75rem 0;
-  border-bottom: 1px solid var(--border);
+  gap: 0 var(--space-25);
+  padding: var(--space-55) var(--space-75) 0;
+  border-bottom: var(--stroke-thin) solid var(--border);
 }
 
 .panel-tab {
-  margin-bottom: -1px;
-  padding: 0.35rem 0.7rem;
+  margin-bottom: calc(-1 * var(--stroke-thin));
+  padding: var(--space-35) var(--space-70);
   border: 0;
-  border-bottom: 2px solid transparent;
+  border-bottom: var(--stroke-thick) solid transparent;
   background: none;
   color: var(--text-muted);
   font: inherit;
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   cursor: pointer;
 }
 
@@ -43,6 +43,12 @@
   background: var(--surface-pressed);
 }
 
+.panel-tab:disabled,
+.panel-tab[aria-disabled='true'] {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
 .panel-tab[aria-selected='true'] {
   border-bottom-color: var(--accent);
   color: var(--accent);
@@ -50,8 +56,8 @@
 
 .panel-tab:focus-visible {
   border-radius: var(--radius-sm);
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: calc(-1 * var(--stroke-thick));
 }
 
 .panel-tab-content {
@@ -59,7 +65,7 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
-  padding-top: 0.4rem;
+  padding-top: var(--space-40);
 }
 
 .panel-tab-content[hidden] {
@@ -67,7 +73,7 @@
 }
 
 .panel-tab-content > .panel-empty {
-  padding: 0.4rem 1rem;
+  padding: var(--space-40) var(--space-100);
 }
 
 /* The Model tab: World's tree takes the room the views and scenarios leave it. */
@@ -78,23 +84,23 @@
   flex-direction: column;
   min-height: 0;
   overflow: auto;
-  padding: 0 1rem 1.5rem;
+  padding: 0 var(--space-100) var(--space-150);
 }
 
 .model-tab > .panel-section:first-child {
-  margin-top: 0.5rem;
+  margin-top: var(--space-50);
 }
 
 .model-world {
   display: flex;
   flex: 0 1 auto;
   flex-direction: column;
-  min-height: 8rem;
+  min-height: var(--size-800);
 }
 
 .model-world > .tree-viewport {
   flex: 0 1 auto;
-  margin: 0 -1rem;
+  margin: 0 calc(-1 * var(--space-100));
 }
 
 /* Trees: the viewport scrolls, and only the rows in it are drawn, each at its place. */
@@ -121,8 +127,8 @@
   left: 0;
   display: flex;
   align-items: center;
-  gap: 0.15rem;
-  padding-right: 0.75rem;
+  gap: var(--space-15);
+  padding-right: var(--space-75);
   white-space: nowrap;
   cursor: default;
 }
@@ -134,7 +140,7 @@
 .tree-row[aria-selected='true'] {
   background: var(--accent-soft);
   /* The background alone is too faint to see: a bar in the accent marks the row, at 3:1 or more. */
-  box-shadow: inset 3px 0 0 var(--accent);
+  box-shadow: inset var(--stroke-mark) 0 0 var(--accent);
 }
 
 .tree-row:focus {
@@ -142,28 +148,20 @@
 }
 
 .tree-row:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: calc(-1 * var(--stroke-thick));
 }
 
 .tree-toggle {
+  display: inline-grid;
   flex: none;
-  width: 1rem;
+  place-items: center;
+  width: var(--size-100);
   color: var(--text-muted);
-  font-size: var(--text-xs);
-  text-align: center;
 }
 
 .tree-row[aria-expanded] > .tree-toggle {
   cursor: pointer;
-}
-
-.tree-row[aria-expanded='true'] > .tree-toggle::before {
-  content: '▾';
-}
-
-.tree-row[aria-expanded='false'] > .tree-toggle::before {
-  content: '▸';
 }
 
 .tree-row-text {
@@ -179,7 +177,7 @@
 /* The mark of a shape whose element is in physical space (ADR 0076), after its name. */
 .outline-space {
   display: inline-flex;
-  margin-inline-start: 4px;
+  margin-inline-start: var(--space-30);
   color: var(--text-muted);
-  vertical-align: -1px;
+  vertical-align: calc(-1 * var(--stroke-thin));
 }

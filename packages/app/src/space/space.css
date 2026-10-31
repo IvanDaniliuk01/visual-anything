@@ -7,7 +7,7 @@
  */
 
 .shell[data-space-panel] {
-  --space-panel-column: var(--space-panel-width, 30rem);
+  --space-panel-column: var(--space-panel-width, var(--size-3000));
 }
 
 .space-panel {
@@ -16,23 +16,23 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  border-left: 1px solid var(--border);
+  border-left: var(--stroke-thin) solid var(--border);
   background: var(--canvas);
 }
 
 .space-panel-edge {
   grid-area: space;
   justify-self: start;
-  margin-inline-start: calc(-1 * var(--space-1));
+  margin-inline-start: calc(-1 * var(--space-25));
 }
 
 .space-panel-bar {
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-50);
+  padding: var(--space-25) var(--space-50) var(--space-25) var(--space-75);
+  border-bottom: var(--stroke-thin) solid var(--border);
   background: var(--surface);
 }
 
@@ -59,17 +59,27 @@
   width: var(--control-sm);
   height: var(--control-sm);
   margin-inline-start: auto;
-  border: 1px solid transparent;
+  border: var(--stroke-thin) solid transparent;
   border-radius: var(--radius-md);
   background: none;
   color: var(--text-muted);
   cursor: pointer;
 }
 
-.space-panel-close:hover {
+.space-panel-close:hover:not(:disabled) {
   border-color: var(--control-border);
   background: var(--surface-hover);
   color: var(--text);
+}
+
+.space-panel-close:active:not(:disabled) {
+  border-color: var(--control-border);
+  background: var(--surface-pressed);
+  color: var(--text);
+}
+
+.space-panel-close:disabled {
+  cursor: not-allowed;
 }
 
 .space-panel-frames {
@@ -87,9 +97,9 @@
 
 /* What the panel says instead of a drawing: a card in its middle, as the canvas says its own. */
 .space-panel-message {
-  margin: auto var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--border);
+  margin: auto var(--space-100);
+  padding: var(--space-75) var(--space-100);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
   color: var(--text-muted);
@@ -116,9 +126,9 @@
   flex: none;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-25);
+  padding: var(--space-25) var(--space-50);
+  border-bottom: var(--stroke-thin) solid var(--border);
   background: var(--surface);
 }
 
@@ -128,8 +138,8 @@
 
 .space-panel-tool {
   height: var(--control-sm);
-  padding: 0 var(--space-2);
-  border: 1px solid var(--control-border);
+  padding: 0 var(--space-50);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
@@ -156,7 +166,7 @@
 .space-panel-tool:has(.icon) {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-25);
 }
 
 .space-panel-tool:active:not(:disabled) {
@@ -175,9 +185,9 @@
   flex: none;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1) var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-25) var(--space-50);
+  padding: var(--space-25) var(--space-50);
+  border-bottom: var(--stroke-thin) solid var(--border);
   background: var(--surface);
   font-size: var(--text-sm);
 }
@@ -185,7 +195,7 @@
 .space-panel-field {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-25);
   color: var(--text);
 }
 
@@ -195,8 +205,8 @@
 
 .space-panel-choice {
   height: var(--control-sm);
-  padding: 0 var(--space-1);
-  border: 1px solid var(--control-border);
+  padding: 0 var(--space-25);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
@@ -208,8 +218,12 @@
   background: var(--surface-hover);
 }
 
+.space-panel-choice:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
 .space-panel-slider {
-  width: 6rem;
+  width: var(--size-600);
   accent-color: var(--accent);
   cursor: pointer;
 }
@@ -220,14 +234,14 @@
 }
 
 .space-panel-value {
-  min-width: 3.5rem;
+  min-width: var(--size-350);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
 :is(.space-panel-tool, .space-panel-choice, .space-panel-slider, .space-panel-close):focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thin);
 }
 
 /* The frames take the pointer and the fingers whole: dragging turns, pans and pinches the camera. */
@@ -237,8 +251,8 @@
 }
 
 .space-panel-canvas:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline: var(--stroke-thick) solid var(--accent);
+  outline-offset: calc(-1 * var(--stroke-thick));
 }
 
 /* The list of what the panel shows, under its frames. */
@@ -246,14 +260,14 @@
   display: flex;
   flex: none;
   flex-direction: column;
-  height: clamp(6rem, 30%, 16rem);
-  border-top: 1px solid var(--border);
+  height: clamp(var(--size-600), 30%, var(--size-1600));
+  border-top: var(--stroke-thin) solid var(--border);
   background: var(--surface);
 }
 
 .space-panel-list-title {
   margin: 0;
-  padding: var(--space-1) var(--space-3);
+  padding: var(--space-25) var(--space-75);
   color: var(--text-muted);
   font-size: var(--text-sm);
   font-weight: var(--weight-heading);
@@ -267,7 +281,7 @@
 }
 
 .space-panel-list-how {
-  margin-inline-start: var(--space-2);
+  margin-inline-start: var(--space-50);
   color: var(--text-muted);
   font-size: var(--text-sm);
 }

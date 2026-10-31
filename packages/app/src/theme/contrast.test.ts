@@ -32,6 +32,7 @@ const TEXTS: readonly Token[] = ['text', 'textMuted', 'accent', 'problem', 'warn
 /** Pairs that are not text on a background above, each with the selectors that use it. */
 const PAIRS: readonly { color: Token; on: Token; minimum: number; where: string }[] = [
   { color: 'onAccent', on: 'accentFill', minimum: TEXT, where: 'a primary action' },
+  { color: 'onAccent', on: 'accentFillHover', minimum: TEXT, where: '.dialog-confirm:hover' },
   { color: 'onProblem', on: 'problemFill', minimum: TEXT, where: '.dialog-actions .danger' },
   { color: 'onProblem', on: 'problemFillHover', minimum: TEXT, where: '.danger:hover' },
   // Control boundaries: every control, on whatever it sits on or shows while used.

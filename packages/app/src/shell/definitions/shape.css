@@ -6,14 +6,14 @@
 .geometry-editor,
 .part-control {
   display: grid;
-  gap: 0.4rem;
+  gap: var(--space-40);
   min-width: 0;
 }
 
 .geometry-preview {
   justify-self: start;
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
 }
 
@@ -21,7 +21,7 @@
 .geometry-copy,
 .geometry-label {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--space-25);
   min-width: 0;
 }
 
@@ -32,7 +32,7 @@
 
 .geometry-path-data {
   width: 100%;
-  min-height: 3.5rem;
+  min-height: var(--size-350);
   resize: vertical;
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-size: var(--text-xs);
@@ -44,7 +44,7 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.25rem 0.4rem;
+  gap: var(--space-25) var(--space-40);
 }
 
 .geometry-box input {
@@ -62,5 +62,5 @@
 .definition-check {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: var(--space-35);
 }

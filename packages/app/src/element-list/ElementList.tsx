@@ -33,7 +33,7 @@ import { useT, type Translator } from '../i18n';
 import { LiveContext } from '../live/context';
 import { useAttributeLookup } from '../live-values/context';
 import { senderWords } from '../live-values/words';
-import { DismissIcon } from '../shell/icons';
+import { ArrowDownIcon, ArrowUpIcon, DismissIcon } from '../shell/icons';
 import { byPackage } from '../shell/inspector/describe';
 import { perform } from '../shell/inspector/send';
 import { cellsText, parseCells, pasteCommand, readCell } from './edit';
@@ -515,7 +515,9 @@ export function ElementList({ onClose }: { onClose: () => void }) {
         {t('Nothing is listed here. Choose another component, or add elements on the canvas.')}
       </p>
     ) : rows.length === 0 ? (
-      <p className="panel-empty">{t('No element matches “{filter}”.', { filter })}</p>
+      <p className="panel-empty">
+        {t('No element matches “{filter}”. Change the filter, or clear it.', { filter })}
+      </p>
     ) : null;
 
   return (
@@ -641,6 +643,12 @@ export function ElementList({ onClose }: { onClose: () => void }) {
                       {columnLabel(t, column)}
                       {column.kind === 'id' && (
                         <span className="element-list-scheme">{t('identifier')}</span>
+                      )}
+                      {sorted === 'ascending' && (
+                        <ArrowUpIcon size={12} className="element-list-sorted" />
+                      )}
+                      {sorted === 'descending' && (
+                        <ArrowDownIcon size={12} className="element-list-sorted" />
                       )}
                     </button>
                   </div>

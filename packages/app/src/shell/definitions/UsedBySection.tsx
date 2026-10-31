@@ -46,7 +46,17 @@ export function UsedBySection({ kind, id }: UsedBySectionProps) {
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
       <h4 id={headingId}>{t('Used by')}</h4>
-      {nothing && <p className="panel-empty">{t('Nothing uses it yet.')}</p>}
+      {nothing && (
+        <p className="panel-empty">
+          {kind === 'component'
+            ? t(
+                'Nothing uses it yet. Add an element made from it with Add an element, on the canvas.',
+              )
+            : t(
+                'Nothing uses it yet. Relate two shapes on the canvas, and choose it for the relation.',
+              )}
+        </p>
+      )}
       {users.elements.includes(world) && (
         <p className="inspector-notes">{t('World is created from it.')}</p>
       )}

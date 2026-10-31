@@ -505,7 +505,9 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                       </ImageSourceContext>
                                     ) : (
                                       <p className="canvas-message">
-                                        {t('There is no view to draw.')}
+                                        {t(
+                                          'There is no view to draw. Make one with New view…, under Views in the Model tab.',
+                                        )}
                                       </p>
                                     )}
                                     <CommentPins store={comments} canvas={canvas} />

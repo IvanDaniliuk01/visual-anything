@@ -301,7 +301,11 @@ function Badges({ id, badges, readOnly, control, update }: BadgesProps) {
   return (
     <>
       {badges.length === 0 ? (
-        <p className="panel-empty">{t('No badges.')}</p>
+        <p className="panel-empty">
+          {readOnly
+            ? t('No badges. A component derived from it can add some.')
+            : t('No badges yet. Add one below: its text, and when it is written.')}
+        </p>
       ) : (
         <ul className="definition-list">
           {badges.map((badge, at) => (

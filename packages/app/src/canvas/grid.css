@@ -5,19 +5,19 @@
 
 .canvas-toolbar-grid {
   display: flex;
-  gap: 0.2rem;
+  gap: var(--space-20);
 }
 
 .canvas-toolbar-grid button {
   display: inline-grid;
   place-items: center;
-  padding: 0.3rem 0.45rem;
+  padding: var(--space-30) var(--space-45);
 }
 
 .canvas-toolbar-grid svg {
   display: block;
-  width: 16px;
-  height: 16px;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 /* Snapping waits for the grid: while it cannot take effect, its toggle does not look pressed. */
@@ -46,24 +46,24 @@
 }
 
 .canvas-ruler-pointer-across {
-  width: 1px;
+  width: var(--stroke-thin);
   height: var(--ruler-size);
 }
 
 .canvas-ruler-pointer-down {
   width: var(--ruler-size);
-  height: 1px;
+  height: var(--stroke-thin);
 }
 
 /* The rulers cover the canvas's top and left sides: what floats over the canvas moves in by them. */
 .canvas-frame[data-rulers] .canvas-toolbar {
-  top: calc(0.6rem + var(--ruler-size));
-  left: calc(0.6rem + var(--ruler-size));
+  top: calc(var(--space-60) + var(--ruler-size));
+  left: calc(var(--space-60) + var(--ruler-size));
 }
 
 .canvas-frame[data-rulers] .canvas-keys {
-  left: calc(0.6rem + var(--ruler-size));
-  max-width: calc(100% - 1.2rem - var(--ruler-size));
+  left: calc(var(--space-60) + var(--ruler-size));
+  max-width: calc(100% - var(--size-120) - var(--ruler-size));
 }
 
 .canvas-frame[data-rulers] .canvas-message {

@@ -7,7 +7,7 @@ import { IS_APPLE } from '../live/platform';
 import { historyShortcut, isTextEntry, type HistoryAction } from '../live/shortcuts';
 import { ThemeControl } from '../theme/ThemeControl';
 import { usePreferencesLink } from '../theme/usePreferences';
-import { RedoIcon, UndoIcon } from './icons';
+import { ProductMark, RedoIcon, UndoIcon } from './icons';
 import './header.css';
 
 /** The product's name, as the header and the tab's title write it. */
@@ -67,26 +67,6 @@ export function Header({ projectName, viewName, actions }: HeaderProps) {
         <ThemeControl />
       </div>
     </header>
-  );
-}
-
-/** The product's mark: two overlapping rounded squares, in the accent color. */
-function ProductMark() {
-  return (
-    <svg
-      className="shell-mark"
-      aria-hidden="true"
-      focusable="false"
-      width="20"
-      height="20"
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-    >
-      <rect x="1.5" y="1.5" width="11" height="11" rx="2.5" />
-      <rect x="7.5" y="7.5" width="11" height="11" rx="2.5" fill="currentColor" fillOpacity="0.3" />
-    </svg>
   );
 }
 

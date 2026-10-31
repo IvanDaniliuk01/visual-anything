@@ -266,7 +266,7 @@ export function FindBar({ project, definitions, viewId, goTo }: FindBarProps) {
       : index === undefined
         ? t('Getting ready to find…')
         : result.total === 0
-          ? t('Nothing found')
+          ? t('Nothing found. Try fewer or other words.')
           : result.total > MOST_FOUND
             ? t('{shown} of {count} found', { shown: MOST_FOUND, count: result.total })
             : t({ one: '{count} found', other: '{count} found' }, { count: result.total });

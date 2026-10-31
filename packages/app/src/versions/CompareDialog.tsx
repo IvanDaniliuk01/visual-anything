@@ -193,7 +193,11 @@ export function CompareDialog({ list, onListed, asking, onChoose, onClose }: Com
           ))}
         </ul>
         {options.length === 0 && listing.state !== 'listing' && (
-          <p className="dialog-note">{t('No version holds “{text}”.', { text: typed })}</p>
+          <p className="dialog-note">
+            {t('No version holds “{text}”. Type other words, or clear the box to list them all.', {
+              text: typed,
+            })}
+          </p>
         )}
         {more > 0 && (
           <p className="dialog-note">

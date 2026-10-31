@@ -80,7 +80,7 @@
   top: 0;
   right: 0;
   left: 0;
-  height: var(--space-1);
+  height: var(--space-25);
   background: var(--border);
 }
 
@@ -105,15 +105,15 @@
 
 .tour-card {
   position: absolute;
-  bottom: calc(var(--control-md) + var(--space-6));
+  bottom: calc(var(--control-md) + var(--space-200));
   left: 50%;
-  width: min(40rem, calc(100% - var(--space-6)));
+  width: min(var(--size-4000), calc(100% - var(--space-200)));
   max-height: 45%;
   overflow: auto;
   transform: translateX(-50%);
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--border);
-  border-left: var(--space-1) solid var(--accent);
+  padding: var(--space-100) var(--space-150);
+  border: var(--stroke-thin) solid var(--border);
+  border-left: var(--space-25) solid var(--accent);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
   color: var(--text);
@@ -150,7 +150,7 @@
 
 .tour-leader line {
   stroke: var(--accent);
-  stroke-width: 1.5px;
+  stroke-width: var(--stroke-medium);
 }
 
 .tour-leader circle {
@@ -158,7 +158,7 @@
 }
 
 .tour-card-off {
-  margin: var(--space-2) 0 0;
+  margin: var(--space-50) 0 0;
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
@@ -169,7 +169,7 @@
  * corner it is 25rem wide, as `useTourPlayback` reckons with.
  */
 .tour-card:is([data-place='top'], [data-place='top-left'], [data-place='top-right']) {
-  top: calc(var(--space-1) + var(--space-4));
+  top: calc(var(--space-25) + var(--space-100));
   bottom: auto;
 }
 
@@ -181,7 +181,7 @@
   [data-place='bottom-left'],
   [data-place='bottom-right']
 ) {
-  width: min(25rem, calc(50% - var(--space-6)));
+  width: min(var(--size-2500), calc(50% - var(--space-200)));
   transform: none;
 }
 
@@ -193,11 +193,11 @@
 }
 
 .tour-card:is([data-place='left'], [data-place='top-left'], [data-place='bottom-left']) {
-  left: var(--space-4);
+  left: var(--space-100);
 }
 
 .tour-card:is([data-place='right'], [data-place='top-right'], [data-place='bottom-right']) {
-  right: var(--space-4);
+  right: var(--space-100);
   left: auto;
 }
 
@@ -219,10 +219,10 @@
 /* The card of a scenario the step plays: which, the step it is on, and pausing it (ADR 0077). */
 .tour-scenario {
   display: grid;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
+  gap: var(--space-50);
+  margin-top: var(--space-75);
+  padding-top: var(--space-75);
+  border-top: var(--stroke-thin) solid var(--border);
   font-size: var(--text-sm);
 }
 
@@ -237,7 +237,7 @@
 
 .tour-scenario-step {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-25);
   overflow-wrap: anywhere;
 }
 
@@ -249,20 +249,20 @@
 .tour-scenario-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-50);
 }
 
 /* The steps' index, over the controls (ADR 0077). */
 .tour-index {
   position: absolute;
-  bottom: calc(var(--control-md) + var(--space-6));
+  bottom: calc(var(--control-md) + var(--space-200));
   left: 50%;
-  width: min(28rem, calc(100% - var(--space-6)));
+  width: min(var(--size-2800), calc(100% - var(--space-200)));
   max-height: 60%;
   overflow: auto;
   transform: translateX(-50%);
-  padding: var(--space-2);
-  border: 1px solid var(--border);
+  padding: var(--space-50);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
   color: var(--text);
@@ -271,7 +271,7 @@
 
 .tour-index ol {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-25);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -279,12 +279,12 @@
 
 .tour-index button {
   display: flex;
-  gap: var(--space-2);
+  gap: var(--space-50);
   align-items: center;
   width: 100%;
   min-height: var(--control-md);
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid transparent;
+  padding: var(--space-25) var(--space-50);
+  border: var(--stroke-thin) solid transparent;
   border-radius: var(--radius-md);
   background: transparent;
   color: var(--text);
@@ -293,8 +293,17 @@
   cursor: pointer;
 }
 
-.tour-index button:hover {
+.tour-index button:hover:not(:disabled) {
   background: var(--surface-hover);
+}
+
+.tour-index button:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.tour-index button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 .tour-index button[aria-current='step'] {
@@ -309,12 +318,12 @@
 }
 
 .tour-stage :is(.tour-index, .tour-scenario) button:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thin);
 }
 
 .tour-card-title {
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-50);
   font-size: var(--text-xl);
   font-weight: var(--weight-heading);
   line-height: var(--line-tight);
@@ -328,18 +337,18 @@
 
 .tour-card-text :is(p, ul, ol),
 .tour-notes-text :is(p, ul, ol) {
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-50);
   white-space: pre-line;
 }
 
 .tour-card-text :is(ul, ol),
 .tour-notes-text :is(ul, ol) {
-  padding-left: var(--space-5);
+  padding-left: var(--space-150);
 }
 
 .tour-card-flag {
-  margin: var(--space-2) 0 0;
-  padding: var(--space-2) var(--space-3);
+  margin: var(--space-50) 0 0;
+  padding: var(--space-50) var(--space-75);
   border-radius: var(--radius-md);
   background: var(--warning-soft);
   color: var(--warning);
@@ -348,14 +357,14 @@
 
 .tour-controls {
   position: absolute;
-  bottom: var(--space-4);
+  bottom: var(--space-100);
   left: 50%;
   display: flex;
-  gap: var(--space-2);
+  gap: var(--space-50);
   align-items: center;
   transform: translateX(-50%);
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border);
+  padding: var(--space-25) var(--space-50);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-full);
   background: var(--surface-raised);
   box-shadow: var(--shadow-2);
@@ -363,13 +372,13 @@
 
 .tour-controls button {
   display: inline-flex;
-  gap: var(--space-1);
+  gap: var(--space-25);
   align-items: center;
   justify-content: center;
   min-width: var(--control-md);
   min-height: var(--control-md);
-  padding: 0 var(--space-2);
-  border: 1px solid transparent;
+  padding: 0 var(--space-50);
+  border: var(--stroke-thin) solid transparent;
   border-radius: var(--radius-full);
   background: transparent;
   color: var(--text);
@@ -391,8 +400,8 @@
 }
 
 .tour-controls button:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thin);
 }
 
 .tour-controls button:disabled {
@@ -401,7 +410,7 @@
 }
 
 .tour-position {
-  min-width: 6rem;
+  min-width: var(--size-600);
   color: var(--text-muted);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
@@ -411,7 +420,7 @@
 /* The speaker notes window, and what shows when the browser did not open it. */
 .tour-notes-window {
   min-height: 100vh;
-  padding: var(--space-5) var(--space-6);
+  padding: var(--space-150) var(--space-200);
   background: var(--surface);
   color: var(--text);
   line-height: var(--line-normal);
@@ -424,7 +433,7 @@
 }
 
 .tour-notes-title {
-  margin: var(--space-2) 0 var(--space-4);
+  margin: var(--space-50) 0 var(--space-100);
   font-size: var(--text-xl);
 }
 
@@ -434,13 +443,13 @@
 
 .tour-notes-blocked {
   position: absolute;
-  top: var(--space-4);
+  top: var(--space-100);
   left: 50%;
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-75);
   align-items: center;
   transform: translateX(-50%);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-50) var(--space-75);
   border-radius: var(--radius-md);
   background: var(--warning-soft);
   color: var(--warning);
@@ -451,14 +460,14 @@
 
 .tours-panel {
   display: grid;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4) var(--space-5);
+  gap: var(--space-75);
+  padding: var(--space-75) var(--space-100) var(--space-150);
 }
 
 .tour-list,
 .tour-steps {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-50);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -466,17 +475,17 @@
 
 .tour-list-item {
   display: flex;
-  gap: var(--space-2);
+  gap: var(--space-50);
   align-items: stretch;
 }
 
 .tour-open {
   display: grid;
   flex: 1;
-  gap: var(--space-1);
+  gap: var(--space-25);
   min-width: 0;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+  padding: var(--space-50) var(--space-75);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
@@ -485,8 +494,17 @@
   cursor: pointer;
 }
 
-.tour-open:hover {
+.tour-open:hover:not(:disabled) {
   background: var(--surface-hover);
+}
+
+.tour-open:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.tour-open:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 .tour-open-name {
@@ -504,12 +522,12 @@
 
 .tour-button {
   display: inline-flex;
-  gap: var(--space-1);
+  gap: var(--space-25);
   align-items: center;
   justify-content: center;
   min-height: var(--control-sm);
-  padding: 0 var(--space-2);
-  border: 1px solid var(--control-border);
+  padding: 0 var(--space-50);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
@@ -542,8 +560,8 @@
 }
 
 .tours-panel :is(button, input, textarea, summary):focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thin);
 }
 
 .tour-play {
@@ -557,7 +575,7 @@
 .tour-confirm {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-50);
   align-items: center;
 }
 
@@ -567,9 +585,9 @@
 
 .tour-step {
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border: 1px solid var(--border);
+  gap: var(--space-50);
+  padding: var(--space-75);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
 }
@@ -580,7 +598,7 @@
 
 .tour-step-head {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-25);
 }
 
 .tour-step-number {
@@ -588,7 +606,7 @@
 }
 
 .tour-step-problems {
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-50) var(--space-75);
   border-radius: var(--radius-sm);
   background: var(--warning-soft);
   color: var(--warning);
@@ -600,7 +618,7 @@
 }
 
 .tour-step-problems ul {
-  padding-left: var(--space-4);
+  padding-left: var(--space-100);
 }
 
 /* What the tour's check says of a step (ADR 0077): its warnings, and where it cuts into another view. */
@@ -612,9 +630,9 @@
 
 .tour-step-checks {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-25);
   margin: 0;
-  padding-left: var(--space-4);
+  padding-left: var(--space-100);
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
@@ -625,7 +643,7 @@
 
 .tour-field {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-25);
 }
 
 .tour-field label {
@@ -637,12 +655,23 @@
 .tour-step-marks select {
   width: 100%;
   min-height: var(--control-sm);
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--control-border);
+  padding: var(--space-25) var(--space-50);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   font: inherit;
+}
+
+.tour-field :is(input, textarea, select):is(:hover, :active):not(:disabled),
+.tour-step-marks select:is(:hover, :active):not(:disabled) {
+  border-color: var(--text-muted);
+}
+
+.tour-field :is(input, textarea, select):disabled,
+.tour-step-marks select:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 .tour-field textarea {
@@ -656,12 +685,12 @@
 /* What a step adds to explain (ADR 0084): the mark its caption points at, cutting, its pulse. */
 .tour-step-explains {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-50);
 }
 
 .tour-step-check {
   display: flex;
-  gap: var(--space-2);
+  gap: var(--space-50);
   align-items: center;
   font-size: var(--text-sm);
 }
@@ -682,15 +711,15 @@
 /* How tours and scenarios move: the Motion and Fades preferences (ADR 0077). */
 .tour-motion {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-50);
   margin: 0;
-  padding: var(--space-2) var(--space-3) var(--space-3);
-  border: 1px solid var(--border);
+  padding: var(--space-50) var(--space-75) var(--space-75);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-md);
 }
 
 .tour-motion legend {
-  padding: 0 var(--space-1);
+  padding: 0 var(--space-25);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
 }
@@ -698,7 +727,7 @@
 .tour-motion-choices {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2) var(--space-3);
+  gap: var(--space-50) var(--space-75);
   align-items: center;
 }
 
@@ -709,11 +738,11 @@
 
 .tour-motion-choice {
   display: inline-flex;
-  gap: var(--space-1);
+  gap: var(--space-25);
   align-items: center;
 }
 
 .tour-motion input:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thin);
 }

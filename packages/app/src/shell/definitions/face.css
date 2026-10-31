@@ -7,7 +7,7 @@
 .face-text,
 .face-preview {
   display: grid;
-  gap: 0.4rem;
+  gap: var(--space-40);
   min-width: 0;
 }
 
@@ -17,7 +17,7 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.25rem 0.4rem;
+  gap: var(--space-25) var(--space-40);
 }
 
 .face-field select,
@@ -41,8 +41,8 @@
 .face-text-body {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
@@ -50,15 +50,15 @@
 .face-text-area {
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-size: var(--text-xs);
-  line-height: 1.5;
-  padding: 0.25rem;
+  line-height: var(--line-relaxed);
+  padding: var(--space-25);
 }
 
 .face-text-lines {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  min-width: 2.2em;
+  min-width: var(--em-gutter);
   overflow: hidden;
   color: var(--text-muted);
   background: var(--surface);
@@ -67,7 +67,7 @@
 
 .face-text-area {
   width: 100%;
-  min-height: 4.5em;
+  min-height: 3lh;
   resize: vertical;
   border: 0;
   border-radius: 0;
@@ -75,12 +75,17 @@
   overflow: auto;
 }
 
+/* The box around it is the border; under the pointer, a line inside marks the text area. */
+.face-text-area:is(:hover, :active):not(:disabled) {
+  box-shadow: inset 0 0 0 var(--stroke-thin) var(--text-muted);
+}
+
 .face-problems ul {
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 0.2rem;
+  gap: var(--space-20);
 }
 
 .face-problems-head {
@@ -100,6 +105,21 @@
   text-decoration: underline dotted;
 }
 
+.face-problem:hover:not(:disabled) {
+  text-decoration-style: solid;
+}
+
+.face-problem:active:not(:disabled) {
+  background: var(--surface-pressed);
+  text-decoration-style: solid;
+}
+
+.face-problem:disabled {
+  color: var(--text-muted);
+  text-decoration: none;
+  cursor: not-allowed;
+}
+
 .face-problems .is-error {
   color: var(--problem);
 }
@@ -110,7 +130,7 @@
 
 .face-preview-canvas {
   justify-self: start;
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
 }

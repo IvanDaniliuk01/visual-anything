@@ -6,8 +6,12 @@ import {
   type ReactNode,
   type UIEvent,
 } from 'react';
+import { ChevronDownIcon, ChevronRightIcon } from './icons';
 import { rowStartingWith, type ShownRows, type TreeRow } from './tree';
 import './panel.css';
+
+/** How large the chevron of a branch is, in pixels: the size of the row's small text. */
+const TOGGLE_SIZE = 12;
 
 /** How tall every row is, in pixels; a row's place follows from its position alone. */
 export const ROW_HEIGHT = 28;
@@ -268,7 +272,7 @@ export function VirtualTree<T>({
                 })
               }
             >
-              {/* The triangle is drawn by the stylesheet, from aria-expanded. */}
+              {/* The row says whether it is open with aria-expanded; the chevron only shows it. */}
               <span
                 className="tree-toggle"
                 aria-hidden="true"
@@ -277,7 +281,14 @@ export function VirtualTree<T>({
                   event.stopPropagation();
                   onOpen(row, !row.open);
                 }}
-              />
+              >
+                {row.opens &&
+                  (row.open ? (
+                    <ChevronDownIcon size={TOGGLE_SIZE} />
+                  ) : (
+                    <ChevronRightIcon size={TOGGLE_SIZE} />
+                  ))}
+              </span>
               <span className="tree-row-text">{renderRow(row)}</span>
             </div>
           );

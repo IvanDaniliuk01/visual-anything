@@ -36,7 +36,7 @@
 .panel-edge {
   position: relative;
   z-index: var(--z-toolbar);
-  width: var(--space-2);
+  width: var(--space-50);
   background-image: linear-gradient(var(--accent), var(--accent));
   background-repeat: no-repeat;
   background-position: center;
@@ -48,19 +48,19 @@
 .panel-edge:hover,
 .panel-edge:focus-visible,
 .shell[data-panel-resizing] .panel-edge {
-  background-size: var(--space-1) 100%;
+  background-size: var(--space-25) 100%;
 }
 
 .panel-edge-model {
   grid-area: model;
   justify-self: end;
-  margin-inline-end: calc(-1 * var(--space-1));
+  margin-inline-end: calc(-1 * var(--space-25));
 }
 
 .panel-edge-inspector {
   grid-area: inspector;
   justify-self: start;
-  margin-inline-start: calc(-1 * var(--space-1));
+  margin-inline-start: calc(-1 * var(--space-25));
 }
 
 /* The buttons that collapse a panel, at the bottom of its inner edge, and open it from its strip. */
@@ -71,27 +71,31 @@
   place-items: center;
   width: var(--control-sm);
   height: var(--control-sm);
-  border: 1px solid var(--control-border);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text-muted);
   cursor: pointer;
 }
 
-.panel-toggle:hover {
+.panel-toggle:hover:not(:disabled) {
   background: var(--surface-hover);
   color: var(--text);
 }
 
-.panel-toggle:active {
+.panel-toggle:active:not(:disabled) {
   background: var(--surface-pressed);
+}
+
+.panel-toggle:disabled {
+  cursor: not-allowed;
 }
 
 .panel-collapse {
   position: relative;
   z-index: var(--z-toolbar);
   align-self: end;
-  margin: var(--space-2);
+  margin: var(--space-50);
   box-shadow: var(--shadow-1);
 }
 
@@ -112,16 +116,16 @@
   flex-direction: column;
   align-items: center;
   min-height: 0;
-  padding: var(--space-2) 0;
+  padding: var(--space-50) 0;
   background: var(--panel);
 }
 
 .panel-strip-model {
   grid-area: model;
-  border-right: 1px solid var(--border);
+  border-right: var(--stroke-thin) solid var(--border);
 }
 
 .panel-strip-inspector {
   grid-area: inspector;
-  border-left: 1px solid var(--border);
+  border-left: var(--stroke-thin) solid var(--border);
 }

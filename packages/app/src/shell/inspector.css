@@ -12,51 +12,51 @@
 }
 
 .inspector .inspector-title {
-  margin: 0.7rem 0 0.2rem;
+  margin: var(--space-70) 0 var(--space-20);
   color: var(--text);
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: var(--text-md);
+  font-weight: var(--weight-heading);
   text-transform: none;
   letter-spacing: normal;
   overflow-wrap: anywhere;
 }
 
 .inspector-title-detail {
-  margin-left: 0.15rem;
+  margin-left: var(--space-15);
   color: var(--text-muted);
   font-size: var(--text-xs);
-  font-weight: 400;
+  font-weight: var(--weight-normal);
 }
 
 .inspector-title:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thick);
 }
 
 .inspector-section {
-  margin-top: 1.1rem;
+  margin-top: var(--space-110);
 }
 
 .inspector h4 {
-  margin: 0 0 0.4rem;
+  margin: 0 0 var(--space-40);
   color: var(--text-muted);
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: var(--weight-heading);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--tracking-caps);
 }
 
 .inspector h4:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thick);
 }
 
 /* Controls */
 
 .inspector-control {
   display: grid;
-  gap: 0.2rem;
-  margin-top: 0.6rem;
+  gap: var(--space-20);
+  margin-top: var(--space-60);
 }
 
 .inspector-control label,
@@ -70,9 +70,9 @@
 .inspector select {
   width: 100%;
   min-width: 0;
-  padding: 0.3rem 0.45rem;
-  border: 1px solid var(--control-border);
-  border-radius: 0.3rem;
+  padding: var(--space-30) var(--space-45);
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   font: inherit;
@@ -82,14 +82,18 @@
   resize: vertical;
 }
 
+.inspector :is(input, textarea, select):is(:hover, :active):not(:disabled) {
+  border-color: var(--text-muted);
+}
+
 .inspector-attribute textarea {
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-size: var(--text-xs);
 }
 
 .inspector :is(input, textarea, select, button):focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thin);
 }
 
 .inspector :is(input, textarea, select):disabled {
@@ -109,7 +113,7 @@
 }
 
 .inspector-notes {
-  margin-top: 0.25rem;
+  margin-top: var(--space-25);
   color: var(--text-muted);
   font-size: var(--text-xs);
   overflow-wrap: anywhere;
@@ -117,30 +121,30 @@
 
 .inspector-warning,
 .inspector-warnings {
-  margin-top: 0.4rem;
-  padding: 0.35rem 0.55rem;
-  border-left: 3px solid var(--warning);
-  border-radius: 0.3rem;
+  margin-top: var(--space-40);
+  padding: var(--space-35) var(--space-55);
+  border-left: var(--stroke-mark) solid var(--warning);
+  border-radius: var(--radius-sm);
   background: var(--warning-soft);
   color: var(--warning);
   font-size: var(--text-xs);
 }
 
 .inspector-warnings {
-  padding-left: 1.4rem;
+  padding-left: var(--space-140);
 }
 
 .inspector-warnings li + li {
-  margin-top: 0.25rem;
+  margin-top: var(--space-25);
 }
 
 /* Buttons: those that change the project, and those that select what is listed */
 
 .inspector-action {
-  margin-top: 0.35rem;
-  padding: 0.2rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 0.35rem;
+  margin-top: var(--space-35);
+  padding: var(--space-20) var(--space-60);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
   font: inherit;
@@ -159,13 +163,13 @@
 
 .inspector-selectables {
   display: grid;
-  gap: 0.15rem;
+  gap: var(--space-15);
   padding: 0;
   list-style: none;
 }
 
 .inspector-selectable {
-  padding: 0.1rem 0;
+  padding: var(--space-10) 0;
   border: 0;
   background: none;
   color: var(--accent);
@@ -176,15 +180,28 @@
 
 .inspector-selectable-name {
   text-decoration: underline;
-  text-underline-offset: 0.15em;
+  text-underline-offset: var(--em-underline);
 }
 
-.inspector-selectable:hover .inspector-selectable-name {
-  text-decoration-thickness: 2px;
+.inspector-selectable:hover:not(:disabled) .inspector-selectable-name {
+  text-decoration-thickness: var(--stroke-thick);
+}
+
+.inspector-selectable:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.inspector-selectable:active:not(:disabled) {
+  color: var(--text);
+}
+
+.inspector-selectable:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 .inspector-selectable-detail {
-  margin-left: 0.15rem;
+  margin-left: var(--space-15);
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
@@ -193,14 +210,14 @@
 
 .inspector-memberships {
   display: grid;
-  gap: 0.6rem;
+  gap: var(--space-60);
   padding: 0;
   list-style: none;
 }
 
 .inspector-membership + .inspector-membership {
-  padding-top: 0.6rem;
-  border-top: 1px solid var(--border);
+  padding-top: var(--space-60);
+  border-top: var(--stroke-thin) solid var(--border);
 }
 
 /* Where it sits, then its buttons; in a narrow panel the buttons go below. */
@@ -208,23 +225,23 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0 0.4rem;
+  gap: 0 var(--space-40);
   overflow-wrap: anywhere;
 }
 
 .inspector-membership-place span {
-  flex: 1 1 8rem;
+  flex: 1 1 var(--size-800);
 }
 
 .inspector-stacking-place {
-  margin-top: 0.35rem;
+  margin-top: var(--space-35);
   font-size: var(--text-xs);
 }
 
 .inspector-stacking {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 0.3rem;
+  gap: 0 var(--space-30);
 }
 
 /* A move that would change nothing stays focusable, and says why when pressed. */
@@ -242,8 +259,8 @@
 .inspector-lineage {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
-  margin-top: 0.4rem;
+  gap: var(--space-30);
+  margin-top: var(--space-40);
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
@@ -257,7 +274,7 @@
 }
 
 .inspector-lineage li + li::before {
-  margin: 0 0.3rem;
+  margin: 0 var(--space-30);
   color: var(--text-muted);
   content: '›';
   content: '›' / '';
@@ -266,12 +283,12 @@
 /* Particularities */
 
 .inspector-mark {
-  padding: 0 0.4rem;
-  border-radius: 0.6rem;
+  padding: 0 var(--space-40);
+  border-radius: var(--radius-lg);
   background: var(--accent-soft);
   color: var(--accent);
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   white-space: nowrap;
 }
 
@@ -279,7 +296,7 @@
 
 .inspector-attributes {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--space-75);
   padding: 0;
   list-style: none;
 }
@@ -288,12 +305,12 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.2rem 0.45rem;
-  margin-bottom: 0.2rem;
+  gap: var(--space-20) var(--space-45);
+  margin-bottom: var(--space-20);
 }
 
 .inspector-attribute-head label {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   overflow-wrap: anywhere;
 }
 
@@ -304,39 +321,39 @@
 }
 
 .inspector-new-attribute {
-  margin-top: 0.9rem;
-  padding-top: 0.6rem;
-  border-top: 1px solid var(--border);
+  margin-top: var(--space-90);
+  padding-top: var(--space-60);
+  border-top: var(--stroke-thin) solid var(--border);
 }
 
 .inspector-new-attribute-title {
   color: var(--text-muted);
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .inspector-new-attribute-controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
-  gap: 0 0.5rem;
+  gap: 0 var(--space-50);
 }
 
 .inspector-new-attribute-controls .inspector-control {
-  margin-top: 0.4rem;
+  margin-top: var(--space-40);
 }
 
 .inspector-new-attribute-controls .inspector-action {
   grid-column: 1 / -1;
   justify-self: start;
-  margin-top: 0.5rem;
+  margin-top: var(--space-50);
 }
 
 /* Appearance */
 
 .inspector-appearance {
   display: grid;
-  gap: 0.45rem;
+  gap: var(--space-45);
   padding: 0;
   list-style: none;
 }
@@ -346,15 +363,15 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.3rem 0.5rem;
+  gap: var(--space-30) var(--space-50);
 }
 
 .inspector-trait label {
-  flex: 0 0 3.4rem;
+  flex: 0 0 var(--size-340);
 }
 
 .inspector-trait-control {
-  flex: 1 1 7rem;
+  flex: 1 1 var(--size-700);
   min-width: 0;
 }
 
@@ -362,17 +379,21 @@
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.45rem;
+  gap: var(--space-45);
 }
 
 .inspector input[type='color'] {
-  width: 2.4rem;
-  height: 1.7rem;
-  padding: 0.1rem;
-  border: 1px solid var(--control-border);
-  border-radius: 0.3rem;
+  width: var(--size-240);
+  height: var(--size-170);
+  padding: var(--space-10);
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   cursor: pointer;
+}
+
+.inspector input[type='color']:is(:hover, :active):not(:disabled) {
+  border-color: var(--accent);
 }
 
 .inspector input[type='color']:disabled {
@@ -380,7 +401,7 @@
 }
 
 .inspector-color-code {
-  width: 6.5rem;
+  width: var(--size-650);
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-size: var(--text-xs);
 }
@@ -392,10 +413,10 @@
 /* A note's text, which is edited on the canvas */
 
 .inspector-note-text {
-  margin-top: 0.4rem;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 0.3rem;
+  margin-top: var(--space-40);
+  padding: var(--space-50) var(--space-70);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -407,20 +428,20 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0 0.4rem;
-  margin-top: 0.6rem;
-  padding-top: 0.6rem;
-  border-top: 1px solid var(--border);
+  gap: 0 var(--space-40);
+  margin-top: var(--space-60);
+  padding-top: var(--space-60);
+  border-top: var(--stroke-thin) solid var(--border);
 }
 
 .inspector-collapse span {
-  flex: 1 1 8rem;
+  flex: 1 1 var(--size-800);
 }
 
 /* What its shapes write under its name */
 
 .inspector-detail {
-  margin-top: 0.5rem;
+  margin-top: var(--space-50);
 }
 
 /* Colors: the swatch, "Mixed" over it, the swatches of recent and project colors, and hints */
@@ -436,11 +457,11 @@
   inset: 0;
   display: grid;
   place-items: center;
-  border: 1px solid var(--control-border);
-  border-radius: 0.3rem;
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text-muted);
-  font-size: 0.65rem;
+  font-size: var(--text-xs);
   pointer-events: none;
 }
 
@@ -448,20 +469,24 @@
   display: flex;
   flex-basis: 100%;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: var(--space-25);
 }
 
 .inspector-swatch {
-  width: 1.3rem;
-  height: 1.3rem;
+  width: var(--size-130);
+  height: var(--size-130);
   padding: 0;
-  border: 1px solid var(--control-border);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
 .inspector-swatch:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+.inspector-swatch:active:not(:disabled) {
+  border-color: var(--text);
 }
 
 .inspector-swatch:disabled {
@@ -472,8 +497,8 @@
 .inspector-scope {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.2rem 0.9rem;
-  margin: 0 0 0.6rem;
+  gap: var(--space-20) var(--space-90);
+  margin: 0 0 var(--space-60);
   padding: 0;
   border: 0;
   font-size: var(--text-xs);
@@ -481,7 +506,7 @@
 
 .inspector-scope legend {
   float: left;
-  margin-right: 0.3rem;
+  margin-right: var(--space-30);
   padding: 0;
   color: var(--text-muted);
 }
@@ -489,21 +514,21 @@
 .inspector-scope label {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-25);
   cursor: pointer;
 }
 
 /* A color that is hard to see on a canvas: pointed out in words, never refused. */
 .inspector-hint {
-  margin-top: 0.4rem;
-  padding: 0.3rem 0.55rem;
-  border-left: 3px solid var(--warning);
-  border-radius: 0.3rem;
+  margin-top: var(--space-40);
+  padding: var(--space-30) var(--space-55);
+  border-left: var(--stroke-mark) solid var(--warning);
+  border-radius: var(--radius-sm);
   background: var(--warning-soft);
   color: var(--warning);
   font-size: var(--text-xs);
 }
 
 .inspector-hint p + p {
-  margin-top: 0.2rem;
+  margin-top: var(--space-20);
 }

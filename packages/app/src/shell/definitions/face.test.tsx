@@ -86,7 +86,7 @@ describe('the Face section', () => {
     const { section, send } = await editCalendar();
     expect(within(section).getByText('None: its shapes show their name and detail.')).toBeTruthy();
     expect(markupOf(section)).toHaveValue('');
-    expect(within(section).getByText('No markup to preview.')).toBeTruthy();
+    expect(within(section).getByText(/^No markup to preview\./)).toBeTruthy();
     await settle(() =>
       fireEvent.click(
         within(section).getByRole('button', {

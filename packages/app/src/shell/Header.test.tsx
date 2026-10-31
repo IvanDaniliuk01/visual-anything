@@ -322,7 +322,7 @@ describe('the Theme control', () => {
   it('draws the focus ring on the option, since the radio itself is hidden', () => {
     const css = readSource('styles.css');
     expect(css).toMatch(
-      /\.theme-option:has\(:focus-visible\)\s*\{[^}]*outline: 2px solid var\(--focus-ring\)/,
+      /\.theme-option:has\(:focus-visible\)\s*\{[^}]*outline: var\(--stroke-thick\) solid var\(--focus-ring\)/,
     );
     renderHeader(null);
     expect(themeRadio('Light')).toHaveClass('visually-hidden');

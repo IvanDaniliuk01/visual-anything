@@ -16,6 +16,7 @@ import { useEmphasisSource } from '../editor/emphasis';
 import { useT } from '../i18n';
 import { LiveContext } from '../live/context';
 import { useMotion } from '../scenarios/motion';
+import { DismissIcon } from '../shell/icons';
 import type { ScenarioSession } from '../scenarios/session';
 import { useSimulations } from '../simulation/context';
 import { useSpacePanel } from '../space/context';
@@ -121,7 +122,7 @@ export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
               title={t('Dismiss Claude’s guidance')}
               onClick={live.clearGuidance}
             >
-              ×
+              <DismissIcon />
             </button>
           )}
         </aside>

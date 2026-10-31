@@ -68,7 +68,11 @@ export function Inspector({ view, scene, definitions, id, hidden }: InspectorPro
       <DefinitionInspector>
         {inspected.kind === 'nothing' && (
           <>
-            <p className="inspector-selection">{t('Nothing is selected.')}</p>
+            <p className="inspector-selection">
+              {t(
+                'Nothing is selected. Select a shape on the canvas, or an item of the outline, to see it here.',
+              )}
+            </p>
             <ViewDetails view={view} scene={scene} definitions={definitions} />
             {view && <OverlaysSection view={view} />}
           </>
@@ -131,7 +135,11 @@ export function Inspector({ view, scene, definitions, id, hidden }: InspectorPro
 function ViewDetails({ view, scene, definitions }: InspectorProps) {
   const t = useT();
   const viewHeading = useId();
-  if (!view || !scene) return <p className="panel-empty">{t('No view is open.')}</p>;
+  if (!view || !scene) {
+    return (
+      <p className="panel-empty">{t('No view is open. Open one from Views, in the Model tab.')}</p>
+    );
+  }
   const nestingNames = view.nestingRelationTypes.map((relationType) =>
     t.definition(relationType, relationTypeOrRelatesTo(definitions, relationType).name),
   );
