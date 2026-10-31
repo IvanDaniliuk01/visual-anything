@@ -55,7 +55,10 @@ export interface StartOptions {
   /** The person's preferences, which the start screen's controls change too. */
   preferences?: PreferencesStore;
   /** Writes the new project's files; `writeNewProject` by default. */
-  write?: (folder: string, files: ReadonlyMap<string, string>) => Promise<NewProjectResult>;
+  write?: (
+    folder: string,
+    files: ReadonlyMap<string, string | Uint8Array>,
+  ) => Promise<NewProjectResult>;
 }
 
 /** The project nobody has started yet, which no app ever sees: what `snapshot` gives until then. */

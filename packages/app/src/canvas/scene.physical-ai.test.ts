@@ -1,27 +1,41 @@
 /**
- * The physical-ai sample, "Pick-and-place arm" (ADR 0079, Track P1), as the canvas's scene draws it:
- * its arm is a drawing with parts, each of its links, joints and its gripper is drawn as the part it
- * names, the relations that drive and sense a joint attach to that part's outline, and every shape
- * with an outline of its own writes its name whole inside itself (ADR 0066).
+ * The physical-ai sample, "Pick-and-place arm" (ADR 0079, Track P1), as the canvas's scene draws it
+ * since M9 (ADR 0075): its arm is a drawing with parts that shows the arm's solid, each of its links,
+ * joints, its gripper and its wrist camera is drawn as the solid's part it names, the relations that
+ * drive and sense a joint end at that part's point, and the kinematic chain and the control loop draw
+ * each part on its own as the solid's picture of that part alone.
  */
 import {
-  anchoredElements,
   builtinPackage,
   checkProject,
   cleanedImage,
   fitOutline,
-  namedPart,
+  fitSolidCamera,
   outlineLabelArea,
   partsOf,
+  placeSolidPoint,
 } from '@visual-anything/core';
+import type { SolidDefinition } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
-import { labelAreaOn, nameLinesInside, partNameLines, writesNameInside } from './outlined';
-import { shapeHolds } from './outlines';
+import { partNameLines } from './outlined';
 import { buildScene, type ElementShape, type Scene } from './scene';
+import { solidPartIndex, solidPartPoint } from './shape-solids';
 
 const project = loadSample('robot-arm');
-const ARM_IMAGE = 'physical-ai.six-axis-arm';
+const ARM_SOLID = 'robot-arm.six-axis-arm';
+const definition = project.packages
+  .flatMap((file) => file.solids ?? [])
+  .find((solid) => solid.id === ARM_SOLID) as SolidDefinition;
+
+/** The arm's named parts, each an element of the same name but the camera. */
+const PARTS = [
+  'base',
+  ...[1, 2, 3, 4, 5, 6].flatMap((n) => [`joint-${n}`, `link-${n}`]),
+  'gripper',
+  'camera',
+];
+const elementOf = (part: string) => (part === 'camera' ? 'wrist-camera' : part);
 
 function shapeOf(scene: Scene, key: string): ElementShape {
   const found = scene.shapes.find((shape) => shape.key === key);
@@ -30,113 +44,130 @@ function shapeOf(scene: Scene, key: string): ElementShape {
 }
 
 describe('the physical-ai sample', () => {
-  it('opens with nothing to warn about, using only the physical-ai package', () => {
+  it('opens with nothing to warn about, using the physical-ai package and its own, for its solid', () => {
     expect(checkProject(project)).toEqual({ errors: [], warnings: [] });
-    expect(project.project.packages).toEqual(['physical-ai']);
+    expect(project.project.packages).toEqual(['physical-ai', 'robot-arm']);
+    expect(definition.parts.map((part) => part.name)).toEqual(PARTS);
     expect(project.views.map((view) => view.id).sort()).toEqual([
-      'arm',
+      'control-loop',
       'kinematic-chain',
       'software',
+      'structure',
     ]);
   });
 
-  it('names only parts its arm’s picture has, every one of them once', () => {
-    const image = builtinPackage('physical-ai')?.images?.find((each) => each.id === ARM_IMAGE);
-    const cleaned = image && cleanedImage(image);
-    if (!cleaned) throw new Error('The arm’s picture is clean.');
-    const anchored = anchoredElements(project);
-    for (const { element, part, images } of anchored) {
-      expect(images, element.id).toEqual([ARM_IMAGE]);
-      expect(namedPart(cleaned, part.part), `${element.id} ${part.part}`).toBeDefined();
-    }
-    expect(anchored.map((each) => each.part.part).sort()).toEqual(
-      ['base', 'gripper', ...[1, 2, 3, 4, 5, 6].flatMap((n) => [`joint-${n}`, `link-${n}`])].sort(),
-    );
-  });
-
-  it('draws the arm with its parts, each anchored part in its part’s place', () => {
-    const scene = buildScene(project, 'arm');
+  it('draws the arm as its solid with its parts, each anchored part at its part’s point', () => {
+    const scene = buildScene(project, 'structure');
     const arm = shapeOf(scene, 'arm');
-    expect(arm.image).toMatchObject({ placement: 'parts' });
-    expect(arm.picture?.scale).toBe(1);
-    for (const each of anchoredElements(project)) {
-      const shape = shapeOf(scene, `arm/${each.element.id}`);
-      expect(shape.part, each.element.id).toMatchObject({
-        image: ARM_IMAGE,
-        part: each.part.part,
-        inDrawing: true,
-      });
-      expect(shape.outline, each.element.id).toBeDefined();
-    }
-    // The motor, the encoder and the camera sit below the picture, clear of it.
+    expect(arm.solid).toMatchObject({ id: ARM_SOLID, placement: 'parts', hash: definition.hash });
+    expect(arm.solid?.placeholder).toBeUndefined();
     const picture = arm.picture?.rect;
     if (!picture) throw new Error('The arm draws its picture.');
-    for (const key of ['arm/shoulder-motor', 'arm/shoulder-encoder', 'arm/wrist-camera']) {
-      const shape = shapeOf(scene, key);
-      expect(shape.part, key).toBeUndefined();
-      expect(shape.rect.y, key).toBeGreaterThanOrEqual(picture.y + picture.height);
+    const camera = fitSolidCamera(
+      definition.bounds,
+      definition.camera,
+      picture.width / picture.height,
+    );
+    const points = new Set<string>();
+    for (const part of PARTS) {
+      const shape = shapeOf(scene, `arm/${elementOf(part)}`);
+      expect(shape.part, part).toMatchObject({ solid: ARM_SOLID, part, inDrawing: true });
+      const index = solidPartIndex(definition, part) as number;
+      const at = placeSolidPoint(camera, solidPartPoint(definition, index)!, picture);
+      const point = shape.part?.point;
+      expect(point?.x, part).toBeCloseTo(at.x, 6);
+      expect(point?.y, part).toBeCloseTo(at.y, 6);
+      // Every point lies on the picture, and no two parts share one.
+      expect(point!.x).toBeGreaterThan(picture.x);
+      expect(point!.x).toBeLessThan(picture.x + picture.width);
+      expect(point!.y).toBeGreaterThan(picture.y);
+      expect(point!.y).toBeLessThan(picture.y + picture.height);
+      points.add(`${point?.x} ${point?.y}`);
     }
-  });
-
-  it('attaches "drives" and "senses" to the outline of joint 2 itself', () => {
-    const scene = buildScene(project, 'arm');
-    const joint = shapeOf(scene, 'arm/joint-2');
-    for (const relation of ['motor-drives-joint-2', 'encoder-senses-joint-2']) {
-      const line = scene.relations.find((each) => each.relation === relation);
-      expect(line?.ends?.to, relation).toEqual({ kind: 'shape', key: 'arm/joint-2' });
-      expect(line && shapeHolds(joint, line.to, 1.5), relation).toBe(true);
+    expect(points.size).toBe(PARTS.length);
+    // The motors and the encoders sit below the picture, clear of it.
+    for (const n of [1, 2, 3, 4, 5, 6]) {
+      for (const key of [`arm/motor-${n}`, `arm/encoder-${n}`]) {
+        const shape = shapeOf(scene, key);
+        expect(shape.part, key).toBeUndefined();
+        expect(shape.rect.y, key).toBeGreaterThanOrEqual(picture.y + picture.height);
+      }
     }
-  });
-
-  it('writes the name of every part of the arm whole inside it, and stores no place for one', () => {
-    const scene = buildScene(project, 'arm');
-    const parts = scene.shapes.filter((shape) => shape.part?.inDrawing === true);
-    expect(parts.length).toBe(14);
-    for (const shape of parts) {
-      const outline = shape.outline!;
-      const lines = partNameLines(shape.name, labelAreaOn({ rect: shape.rect, outline }));
-      expect(lines, shape.element).toBeDefined();
-    }
-    const anchored = new Set(parts.map((shape) => shape.element));
-    const view = project.views.find((each) => each.id === 'arm');
+    // An anchored part has no place of its own in the view.
+    const view = project.views.find((each) => each.id === 'structure');
+    const anchored = new Set(PARTS.map(elementOf));
     expect(view?.positions.filter((each) => anchored.has(each.element))).toEqual([]);
   });
 
-  it('draws the kinematic chain apart from the drawing, each name whole inside its shape', () => {
-    const scene = buildScene(project, 'kinematic-chain');
-    const link = shapeOf(scene, 'link-2');
-    expect(link.part).toBeUndefined();
-    expect(link.outline).toBeDefined();
-    expect(shapeOf(scene, 'joint-2').kind).toBe('ellipse');
-    expect(scene.relations.length).toBe(14);
-    const outlined = scene.shapes.filter((shape) => shape.outline);
-    expect(outlined.map((shape) => shape.element).sort()).toEqual(
-      ['base', ...[1, 2, 3, 4, 5, 6].map((n) => `link-${n}`)].sort(),
-    );
-    for (const shape of outlined) {
-      expect(nameLinesInside({ ...shape, outline: shape.outline! }), shape.element).toBeDefined();
-      expect(writesNameInside(shape), shape.element).toBe(true);
+  it('ends "drives" and "senses" at the point of the joint each moves or reads', () => {
+    const scene = buildScene(project, 'structure');
+    for (const n of [1, 2, 3, 4, 5, 6]) {
+      const joint = shapeOf(scene, `arm/joint-${n}`).part?.point;
+      for (const relation of [`motor-${n}-drives-joint-${n}`, `encoder-${n}-senses-joint-${n}`]) {
+        const line = scene.relations.find((each) => each.relation === relation);
+        expect(line?.ends?.to, relation).toEqual({ kind: 'shape', key: `arm/joint-${n}` });
+        expect(line?.to, relation).toEqual(joint);
+      }
     }
   });
 
-  it('plays a command from the policy through the controller and the motor to joint 2, and back', () => {
+  it('draws the kinematic chain apart from the drawing, each part on its own as the solid’s part alone', () => {
+    const scene = buildScene(project, 'kinematic-chain');
+    expect(scene.relations.length).toBe(14);
+    for (const part of PARTS) {
+      const shape = shapeOf(scene, elementOf(part));
+      expect(shape.part, part).toMatchObject({ solid: ARM_SOLID, part, inDrawing: false });
+      expect(shape.solid, part).toMatchObject({
+        id: ARM_SOLID,
+        only: solidPartIndex(definition, part),
+      });
+    }
+  });
+
+  it('draws the control loop from the camera through the policy, the controller, the motors, the joints and the encoders', () => {
+    const scene = buildScene(project, 'control-loop');
+    const shown = new Set(scene.shapes.map((shape) => shape.element));
+    for (const element of [
+      'workpiece',
+      'wrist-camera',
+      'grasp-policy',
+      'joint-controller',
+      'gripper',
+      ...[1, 2, 3, 4, 5, 6].flatMap((n) => [`motor-${n}`, `joint-${n}`, `encoder-${n}`]),
+    ]) {
+      expect(shown.has(element), element).toBe(true);
+    }
+    expect(shown.has('arm')).toBe(false);
+    expect(shown.has('link-2')).toBe(false);
+    expect(shapeOf(scene, 'joint-2').solid).toMatchObject({
+      only: solidPartIndex(definition, 'joint-2'),
+    });
+  });
+
+  it('plays "Pick a part": the camera sees the part, the policy decides, the arm moves and reads back, and the gripper closes', () => {
     const [scenario] = project.scenarios;
     const relations = new Map(project.model.relations.map((each) => [each.id, each]));
-    const played = (scenario?.steps ?? []).flatMap((step) =>
+    const played = (scenario?.steps ?? []).map((step) =>
       step.relations.map((id) => {
         const relation = relations.get(id);
         return `${relation?.from} ${relation?.relationType.slice('physical-ai.'.length)} ${relation?.to}`;
       }),
     );
+    const each = (make: (n: number) => string, joints: number[]) => joints.map(make);
     expect(played).toEqual([
-      'wrist-camera senses workpiece',
-      'grasp-policy commands joint-controller',
-      'joint-controller commands shoulder-motor',
-      'shoulder-motor drives joint-2',
-      'shoulder-encoder senses joint-2',
-      'grasp-policy commands gripper',
+      ['wrist-camera senses workpiece'],
+      ['grasp-policy commands joint-controller'],
+      each((n) => `joint-controller commands motor-${n}`, [1, 2, 3]),
+      each((n) => `motor-${n} drives joint-${n}`, [1, 2, 3]),
+      each((n) => `encoder-${n} senses joint-${n}`, [1, 2, 3]),
+      [
+        ...each((n) => `joint-controller commands motor-${n}`, [4, 5, 6]),
+        ...each((n) => `motor-${n} drives joint-${n}`, [4, 5, 6]),
+      ],
+      ['grasp-policy commands gripper'],
     ]);
-    expect(scenario?.view).toBe('arm');
+    expect(scenario?.name).toBe('Pick a part');
+    expect(scenario?.view).toBe('control-loop');
   });
 });
 

@@ -9,14 +9,14 @@
       "id": "arm",
       "component": "physical-ai.robot",
       "name": "Six-axis arm",
-      "description": "Picks parts from a tray and places them on a conveyor.",
+      "description": "Picks parts from a tray and places them on a conveyor. It is drawn as its solid, which you can turn.",
       "attributes": {
         "degreesOfFreedom": 6,
         "model": "six-axis arm"
       },
       "appearance": {
-        "image": {
-          "image": "physical-ai.six-axis-arm",
+        "solid": {
+          "solid": "robot-arm.six-axis-arm",
           "placement": "parts"
         }
       }
@@ -31,7 +31,8 @@
       },
       "appearance": {
         "part": {
-          "part": "base"
+          "part": "base",
+          "solid": "robot-arm.six-axis-arm"
         }
       }
     },
@@ -48,7 +49,8 @@
       },
       "appearance": {
         "part": {
-          "part": "joint-1"
+          "part": "joint-1",
+          "solid": "robot-arm.six-axis-arm"
         }
       }
     },
@@ -63,7 +65,8 @@
       },
       "appearance": {
         "part": {
-          "part": "link-1"
+          "part": "link-1",
+          "solid": "robot-arm.six-axis-arm"
         }
       }
     },
@@ -80,7 +83,8 @@
       },
       "appearance": {
         "part": {
-          "part": "joint-2"
+          "part": "joint-2",
+          "solid": "robot-arm.six-axis-arm"
         }
       }
     },
@@ -95,7 +99,8 @@
       },
       "appearance": {
         "part": {
-          "part": "link-2"
+          "part": "link-2",
+          "solid": "robot-arm.six-axis-arm"
         }
       }
     },
@@ -112,7 +117,8 @@
       },
       "appearance": {
         "part": {
-          "part": "joint-3"
+          "part": "joint-3",
+          "solid": "robot-arm.six-axis-arm"
         }
       }
     },
@@ -127,7 +133,8 @@
       },
       "appearance": {
         "part": {
-          "part": "link-3"
+          "part": "link-3",
+          "solid": "robot-arm.six-axis-arm"
         }
       }
     },
@@ -144,7 +151,8 @@
       },
       "appearance": {
         "part": {
-          "part": "joint-4"
+          "part": "joint-4",
+          "solid": "robot-arm.six-axis-arm"
         }
       }
     },
@@ -159,7 +167,8 @@
       },
       "appearance": {
         "part": {
-          "part": "link-4"
+          "part": "link-4",
+          "solid": "robot-arm.six-axis-arm"
         }
       }
     },
@@ -176,7 +185,8 @@
       },
       "appearance": {
         "part": {
-          "part": "joint-5"
+          "part": "joint-5",
+          "solid": "robot-arm.six-axis-arm"
         }
       }
     },
@@ -191,7 +201,8 @@
       },
       "appearance": {
         "part": {
-          "part": "link-5"
+          "part": "link-5",
+          "solid": "robot-arm.six-axis-arm"
         }
       }
     },
@@ -206,7 +217,8 @@
       },
       "appearance": {
         "part": {
-          "part": "joint-6"
+          "part": "joint-6",
+          "solid": "robot-arm.six-axis-arm"
         }
       }
     },
@@ -221,7 +233,8 @@
       },
       "appearance": {
         "part": {
-          "part": "link-6"
+          "part": "link-6",
+          "solid": "robot-arm.six-axis-arm"
         }
       }
     },
@@ -232,27 +245,9 @@
       "description": "Two parallel jaws that close on the part.",
       "appearance": {
         "part": {
-          "part": "gripper"
+          "part": "gripper",
+          "solid": "robot-arm.six-axis-arm"
         }
-      }
-    },
-    {
-      "id": "shoulder-motor",
-      "component": "physical-ai.motor",
-      "name": "Shoulder motor",
-      "description": "Turns joint 2 through its gearbox.",
-      "attributes": {
-        "torque": 150
-      }
-    },
-    {
-      "id": "shoulder-encoder",
-      "component": "physical-ai.encoder",
-      "name": "Shoulder encoder",
-      "description": "Reads the angle of joint 2.",
-      "attributes": {
-        "frame": "joint_2",
-        "rate": 1000
       }
     },
     {
@@ -263,6 +258,126 @@
       "attributes": {
         "frame": "camera_link",
         "rate": 30
+      },
+      "appearance": {
+        "part": {
+          "part": "camera",
+          "solid": "robot-arm.six-axis-arm"
+        }
+      }
+    },
+    {
+      "id": "motor-1",
+      "component": "physical-ai.motor",
+      "name": "Motor 1",
+      "description": "Turns the whole arm about its base, through its gearbox: it drives joint 1.",
+      "attributes": {
+        "torque": 300
+      }
+    },
+    {
+      "id": "motor-2",
+      "component": "physical-ai.motor",
+      "name": "Motor 2",
+      "description": "Lifts the upper arm at the shoulder, through its gearbox: it drives joint 2.",
+      "attributes": {
+        "torque": 150
+      }
+    },
+    {
+      "id": "motor-3",
+      "component": "physical-ai.motor",
+      "name": "Motor 3",
+      "description": "Bends the forearm at the elbow, through its gearbox: it drives joint 3.",
+      "attributes": {
+        "torque": 80
+      }
+    },
+    {
+      "id": "motor-4",
+      "component": "physical-ai.motor",
+      "name": "Motor 4",
+      "description": "Rolls the forearm, through its gearbox: it drives joint 4.",
+      "attributes": {
+        "torque": 25
+      }
+    },
+    {
+      "id": "motor-5",
+      "component": "physical-ai.motor",
+      "name": "Motor 5",
+      "description": "Bends the wrist, through its gearbox: it drives joint 5.",
+      "attributes": {
+        "torque": 25
+      }
+    },
+    {
+      "id": "motor-6",
+      "component": "physical-ai.motor",
+      "name": "Motor 6",
+      "description": "Turns the tool, through its gearbox: it drives joint 6.",
+      "attributes": {
+        "torque": 10
+      }
+    },
+    {
+      "id": "encoder-1",
+      "component": "physical-ai.encoder",
+      "name": "Encoder 1",
+      "description": "Reads the angle of joint 1.",
+      "attributes": {
+        "frame": "joint_1",
+        "rate": 1000
+      }
+    },
+    {
+      "id": "encoder-2",
+      "component": "physical-ai.encoder",
+      "name": "Encoder 2",
+      "description": "Reads the angle of joint 2.",
+      "attributes": {
+        "frame": "joint_2",
+        "rate": 1000
+      }
+    },
+    {
+      "id": "encoder-3",
+      "component": "physical-ai.encoder",
+      "name": "Encoder 3",
+      "description": "Reads the angle of joint 3.",
+      "attributes": {
+        "frame": "joint_3",
+        "rate": 1000
+      }
+    },
+    {
+      "id": "encoder-4",
+      "component": "physical-ai.encoder",
+      "name": "Encoder 4",
+      "description": "Reads the angle of joint 4.",
+      "attributes": {
+        "frame": "joint_4",
+        "rate": 1000
+      }
+    },
+    {
+      "id": "encoder-5",
+      "component": "physical-ai.encoder",
+      "name": "Encoder 5",
+      "description": "Reads the angle of joint 5.",
+      "attributes": {
+        "frame": "joint_5",
+        "rate": 1000
+      }
+    },
+    {
+      "id": "encoder-6",
+      "component": "physical-ai.encoder",
+      "name": "Encoder 6",
+      "description": "Reads the angle of joint 6.",
+      "attributes": {
+        "frame": "joint_6",
+        "rate": 1000
       }
     },
     {
@@ -442,21 +557,81 @@
       "to": "arm"
     },
     {
-      "id": "shoulder-motor-in-arm",
-      "relationType": "physical-ai.is-part-of",
-      "from": "shoulder-motor",
-      "to": "arm"
-    },
-    {
-      "id": "shoulder-encoder-in-arm",
-      "relationType": "physical-ai.is-part-of",
-      "from": "shoulder-encoder",
-      "to": "arm"
-    },
-    {
       "id": "wrist-camera-in-arm",
       "relationType": "physical-ai.is-part-of",
       "from": "wrist-camera",
+      "to": "arm"
+    },
+    {
+      "id": "motor-1-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "motor-1",
+      "to": "arm"
+    },
+    {
+      "id": "motor-2-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "motor-2",
+      "to": "arm"
+    },
+    {
+      "id": "motor-3-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "motor-3",
+      "to": "arm"
+    },
+    {
+      "id": "motor-4-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "motor-4",
+      "to": "arm"
+    },
+    {
+      "id": "motor-5-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "motor-5",
+      "to": "arm"
+    },
+    {
+      "id": "motor-6-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "motor-6",
+      "to": "arm"
+    },
+    {
+      "id": "encoder-1-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "encoder-1",
+      "to": "arm"
+    },
+    {
+      "id": "encoder-2-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "encoder-2",
+      "to": "arm"
+    },
+    {
+      "id": "encoder-3-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "encoder-3",
+      "to": "arm"
+    },
+    {
+      "id": "encoder-4-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "encoder-4",
+      "to": "arm"
+    },
+    {
+      "id": "encoder-5-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "encoder-5",
+      "to": "arm"
+    },
+    {
+      "id": "encoder-6-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "encoder-6",
       "to": "arm"
     },
     {
@@ -585,23 +760,138 @@
       "name": "Joint targets"
     },
     {
-      "id": "controller-commands-motor",
+      "id": "controller-commands-motor-1",
       "relationType": "physical-ai.commands",
       "from": "joint-controller",
-      "to": "shoulder-motor",
+      "to": "motor-1",
       "name": "Torque"
     },
     {
-      "id": "motor-drives-joint-2",
+      "id": "controller-commands-motor-2",
+      "relationType": "physical-ai.commands",
+      "from": "joint-controller",
+      "to": "motor-2",
+      "name": "Torque"
+    },
+    {
+      "id": "controller-commands-motor-3",
+      "relationType": "physical-ai.commands",
+      "from": "joint-controller",
+      "to": "motor-3",
+      "name": "Torque"
+    },
+    {
+      "id": "controller-commands-motor-4",
+      "relationType": "physical-ai.commands",
+      "from": "joint-controller",
+      "to": "motor-4",
+      "name": "Torque"
+    },
+    {
+      "id": "controller-commands-motor-5",
+      "relationType": "physical-ai.commands",
+      "from": "joint-controller",
+      "to": "motor-5",
+      "name": "Torque"
+    },
+    {
+      "id": "controller-commands-motor-6",
+      "relationType": "physical-ai.commands",
+      "from": "joint-controller",
+      "to": "motor-6",
+      "name": "Torque"
+    },
+    {
+      "id": "motor-1-drives-joint-1",
       "relationType": "physical-ai.drives",
-      "from": "shoulder-motor",
+      "from": "motor-1",
+      "to": "joint-1"
+    },
+    {
+      "id": "motor-2-drives-joint-2",
+      "relationType": "physical-ai.drives",
+      "from": "motor-2",
       "to": "joint-2"
     },
     {
-      "id": "encoder-senses-joint-2",
+      "id": "motor-3-drives-joint-3",
+      "relationType": "physical-ai.drives",
+      "from": "motor-3",
+      "to": "joint-3"
+    },
+    {
+      "id": "motor-4-drives-joint-4",
+      "relationType": "physical-ai.drives",
+      "from": "motor-4",
+      "to": "joint-4"
+    },
+    {
+      "id": "motor-5-drives-joint-5",
+      "relationType": "physical-ai.drives",
+      "from": "motor-5",
+      "to": "joint-5"
+    },
+    {
+      "id": "motor-6-drives-joint-6",
+      "relationType": "physical-ai.drives",
+      "from": "motor-6",
+      "to": "joint-6"
+    },
+    {
+      "id": "encoder-1-senses-joint-1",
       "relationType": "physical-ai.senses",
-      "from": "shoulder-encoder",
+      "from": "encoder-1",
+      "to": "joint-1",
+      "name": "Angle",
+      "attributes": {
+        "quantity": "angle"
+      }
+    },
+    {
+      "id": "encoder-2-senses-joint-2",
+      "relationType": "physical-ai.senses",
+      "from": "encoder-2",
       "to": "joint-2",
+      "name": "Angle",
+      "attributes": {
+        "quantity": "angle"
+      }
+    },
+    {
+      "id": "encoder-3-senses-joint-3",
+      "relationType": "physical-ai.senses",
+      "from": "encoder-3",
+      "to": "joint-3",
+      "name": "Angle",
+      "attributes": {
+        "quantity": "angle"
+      }
+    },
+    {
+      "id": "encoder-4-senses-joint-4",
+      "relationType": "physical-ai.senses",
+      "from": "encoder-4",
+      "to": "joint-4",
+      "name": "Angle",
+      "attributes": {
+        "quantity": "angle"
+      }
+    },
+    {
+      "id": "encoder-5-senses-joint-5",
+      "relationType": "physical-ai.senses",
+      "from": "encoder-5",
+      "to": "joint-5",
+      "name": "Angle",
+      "attributes": {
+        "quantity": "angle"
+      }
+    },
+    {
+      "id": "encoder-6-senses-joint-6",
+      "relationType": "physical-ai.senses",
+      "from": "encoder-6",
+      "to": "joint-6",
       "name": "Angle",
       "attributes": {
         "quantity": "angle"

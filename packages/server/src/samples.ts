@@ -30,8 +30,19 @@ export interface Sample {
   name: string;
   /** The packages it uses. */
   packages: Id[];
-  /** Every project file of it, by its path in the project folder, as its text. */
-  files: ReadonlyMap<string, string>;
+  /**
+   * Every project file of it, by its path in the project folder, as its text, and each of its solids'
+   * files (ADR 0075) as its bytes.
+   */
+  files: ReadonlyMap<string, string | Uint8Array>;
+}
+
+/**
+ * Whether a sample's path is a solid's file, `solids/<hash>.glb`, which the embedded samples hold in
+ * base64 and a new project gets as its bytes.
+ */
+export function isSampleSolidFile(path: string): boolean {
+  return /^solids\/[0-9a-f]{64}\.glb$/.test(path);
 }
 
 /** The sample projects the local program holds, in the order they are offered. */
@@ -46,7 +57,12 @@ export function samples(): Sample[] {
         id,
         name: project.name ?? id,
         packages: project.packages ?? [],
-        files: new Map(Object.entries(each)),
+        files: new Map(
+          Object.entries(each).map(([path, text]) => [
+            path,
+            isSampleSolidFile(path) ? new Uint8Array(Buffer.from(text, 'base64')) : text,
+          ]),
+        ),
       },
     ];
   });
@@ -124,12 +140,12 @@ export type NewProjectResult = { ok: true; folder: string } | { ok: false; messa
 
 /**
  * Writes a new project's files into a folder that does not exist yet, or that holds nothing but dot
- * entries, each atomically as a regular file inside it. A write that fails takes back the files it
- * wrote, so that the folder is left as it was found.
+ * entries, each atomically as a regular file inside it: a text in UTF-8, bytes as they are. A write
+ * that fails takes back the files it wrote, so that the folder is left as it was found.
  */
 export async function writeNewProject(
   folder: string,
-  files: ReadonlyMap<string, string>,
+  files: ReadonlyMap<string, string | Uint8Array>,
 ): Promise<NewProjectResult> {
   const shown = toForwardSlashes(folder);
   let state: FolderState;
@@ -148,9 +164,10 @@ export async function writeNewProject(
   try {
     await mkdir(folder, { recursive: true });
     const real = await realpath(folder);
-    for (const [path, text] of files) {
+    for (const [path, contents] of files) {
       const target = join(real, ...path.split('/'));
-      await writeFileAtomic(target, Buffer.from(text, 'utf8'), { regularOnly: true, inside: real });
+      const bytes = typeof contents === 'string' ? Buffer.from(contents, 'utf8') : contents;
+      await writeFileAtomic(target, bytes, { regularOnly: true, inside: real });
       written.push(target);
     }
     return { ok: true, folder: real };

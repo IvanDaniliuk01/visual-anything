@@ -1,0 +1,123 @@
+{
+  "id": "structure",
+  "name": "Structure",
+  "description": "The arm drawn as its solid: each link, joint, the gripper and the wrist camera drawn as its part, with the motor that drives each joint and the encoder that reads it. Select the arm and press T to turn it.",
+  "perspective": {
+    "name": "Structure"
+  },
+  "nestingRelationTypes": [
+    "physical-ai.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "arm",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "motor-1",
+      "container": "arm",
+      "x": 24,
+      "y": 392
+    },
+    {
+      "element": "motor-2",
+      "container": "arm",
+      "x": 24,
+      "y": 480
+    },
+    {
+      "element": "motor-3",
+      "container": "arm",
+      "x": 24,
+      "y": 568
+    },
+    {
+      "element": "motor-4",
+      "container": "arm",
+      "x": 24,
+      "y": 656
+    },
+    {
+      "element": "motor-5",
+      "container": "arm",
+      "x": 24,
+      "y": 744
+    },
+    {
+      "element": "motor-6",
+      "container": "arm",
+      "x": 24,
+      "y": 832
+    },
+    {
+      "element": "encoder-1",
+      "container": "arm",
+      "x": 224,
+      "y": 392
+    },
+    {
+      "element": "encoder-2",
+      "container": "arm",
+      "x": 224,
+      "y": 480
+    },
+    {
+      "element": "encoder-3",
+      "container": "arm",
+      "x": 224,
+      "y": 568
+    },
+    {
+      "element": "encoder-4",
+      "container": "arm",
+      "x": 224,
+      "y": 656
+    },
+    {
+      "element": "encoder-5",
+      "container": "arm",
+      "x": 224,
+      "y": 744
+    },
+    {
+      "element": "encoder-6",
+      "container": "arm",
+      "x": 224,
+      "y": 832
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "exclude": [
+      {
+        "kind": "component",
+        "component": "physical-ai.node"
+      },
+      {
+        "kind": "component",
+        "component": "physical-ai.topic"
+      },
+      {
+        "kind": "component",
+        "component": "physical-ai.compute-unit"
+      },
+      {
+        "kind": "component",
+        "component": "physical-ai.controller"
+      },
+      {
+        "kind": "component",
+        "component": "physical-ai.policy"
+      }
+    ],
+    "leftOut": [
+      "workpiece"
+    ]
+  },
+  "relationTypesLeftOut": [
+    {
+      "relationType": "physical-ai.is-attached-to"
+    }
+  ]
+}

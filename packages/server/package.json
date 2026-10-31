@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc",
-    "samples": "tsx scripts/samples.ts"
+    "samples": "tsx scripts/samples.ts",
+    "robot-arm": "tsx scripts/robot-arm.ts"
   },
   "dependencies": {
     "@gltf-transform/core": "4.5.1",

@@ -1,0 +1,85 @@
+{
+  "id": "pick-a-part",
+  "name": "Pick a part",
+  "description": "The arm picks a part from its tray: the camera sees it, the policy picks joint targets, the controller and the motors move the arm to it, the encoders read each joint back, and the gripper closes on it.",
+  "view": "control-loop",
+  "steps": [
+    {
+      "id": "see",
+      "description": "The wrist camera sees the part on its tray, 30 times a second.",
+      "relations": [
+        "camera-sees-workpiece"
+      ],
+      "dataOut": {
+        "frames": 30
+      }
+    },
+    {
+      "id": "decide",
+      "description": "From the camera’s images, the policy picks the next joint targets, 10 times a second.",
+      "relations": [
+        "policy-commands-controller"
+      ],
+      "dataOut": {
+        "joint1": 35,
+        "joint2": 42,
+        "joint3": 32
+      }
+    },
+    {
+      "id": "reach",
+      "description": "The joint controller turns each joint’s error into a torque for its motor, 1,000 times a second.",
+      "relations": [
+        "controller-commands-motor-1",
+        "controller-commands-motor-2",
+        "controller-commands-motor-3"
+      ],
+      "dataIn": {
+        "error": 35
+      },
+      "dataOut": {
+        "torque": 42.5
+      }
+    },
+    {
+      "id": "move",
+      "description": "Motors 1 to 3 turn the arm toward the part and lower it over the tray.",
+      "relations": [
+        "motor-1-drives-joint-1",
+        "motor-2-drives-joint-2",
+        "motor-3-drives-joint-3"
+      ]
+    },
+    {
+      "id": "read-back",
+      "description": "The encoders read the joints’ new angles back to the controller, closing the loop.",
+      "relations": [
+        "encoder-1-senses-joint-1",
+        "encoder-2-senses-joint-2",
+        "encoder-3-senses-joint-3"
+      ],
+      "dataOut": {
+        "angle": 34.8
+      }
+    },
+    {
+      "id": "orient",
+      "description": "Motors 4 to 6 roll the forearm, bend the wrist and turn the gripper to face the part.",
+      "relations": [
+        "controller-commands-motor-4",
+        "controller-commands-motor-5",
+        "controller-commands-motor-6",
+        "motor-4-drives-joint-4",
+        "motor-5-drives-joint-5",
+        "motor-6-drives-joint-6"
+      ]
+    },
+    {
+      "id": "grasp",
+      "description": "Over the part, the policy closes the gripper on it.",
+      "relations": [
+        "policy-commands-gripper"
+      ]
+    }
+  ]
+}

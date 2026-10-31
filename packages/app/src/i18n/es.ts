@@ -161,8 +161,8 @@ export const ui: Catalog = {
     'Los datos que un negocio de suscripciones convierte en un modelo de bajas, y los paneles de indicadores que alimenta, con un escenario de la ejecución nocturna.',
   // P1 W63: the physical-ai sample.
   'Physical AI: a pick-and-place arm': 'IA física: un brazo que toma y coloca piezas',
-  'A six-axis arm drawn with its parts, its kinematic chain and its software, with a scenario of a command that goes from a learned policy to a joint and is read back.':
-    'Un brazo de seis ejes dibujado con sus partes, su cadena cinemática y su software, con un escenario de un comando que va de una política aprendida a una articulación y se vuelve a leer.',
+  'A six-axis arm drawn as a solid that turns, its links and joints anchored to its parts, with its motors and encoders, its control loop and its software, and a scenario in which it picks a part.':
+    'Un brazo de seis ejes dibujado como un sólido que gira, con sus eslabones y articulaciones anclados a sus partes, sus motores y codificadores, su lazo de control y su software, y un escenario en el que toma una pieza.',
   // P1 W64: the sample of Processes and state machines.
   'Processes and state machines: an online order':
     'Procesos y máquinas de estados: un pedido en línea',
