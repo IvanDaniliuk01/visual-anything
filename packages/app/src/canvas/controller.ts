@@ -550,7 +550,11 @@ export class CanvasController {
       for (const solid of file.solids ?? []) definitions.set(solid.id, solid);
     }
     this.solidDefinitions = definitions;
-    this.renderer.setSolids(this.solids, (id) => this.solidDefinitions.get(id)?.parts);
+    this.renderer.setSolids(
+      this.solids,
+      (id) => this.solidDefinitions.get(id)?.parts,
+      (id) => this.solidDefinitions.get(id),
+    );
   }
 
   /** The shape turned now (ADR 0075), by its key and element, and the camera it is seen from. */

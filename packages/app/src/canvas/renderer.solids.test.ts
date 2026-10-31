@@ -3,10 +3,12 @@
  * shapes, a drawing with parts that shows a solid is pointed at through its part buffer once its
  * picture arrives, and at its drawing before, and turning shows its frames in the layer.
  */
-import { solidHash } from '@visual-anything/core';
+import { fitSolidCamera, placeSolidPoint, solidHash } from '@visual-anything/core';
+import type { SolidCamera } from '@visual-anything/schema';
 import { Container, Texture } from 'pixi.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSolidClient, type SolidFileResult } from '../solids/client';
+import type { SolidFrameReply } from '../solids/protocol';
 import { StandInSolidWorker } from '../solids/stand-in';
 import { FakeApplication, FakeResizeObserver } from '../test/FakeApplication';
 import { ARM_FILE, armDefinition, withSolids } from '../test/solids';
@@ -15,6 +17,7 @@ import { indexScene } from './hit';
 import type { ImagePlatform } from './images';
 import { CanvasRenderer } from './renderer';
 import { buildScene } from './scene';
+import { solidPartPoint } from './shape-solids';
 import type { SolidLayer } from './solids/layer';
 
 vi.mock('pixi.js', async (importOriginal) => {
@@ -133,5 +136,76 @@ describe('the renderer and solids', () => {
     expect(look.solidLayer.drawn).toBe(2);
     renderer.setTurning(undefined);
     expect(look.solidLayer.drawn).toBe(1);
+  });
+
+  it('routes the relations on a turning drawing’s parts again each frame, to their points as the frame’s camera sees them', async () => {
+    const { renderer, client } = await started();
+    const definition = armDefinition();
+    renderer.setSolids(
+      client,
+      (id) => (id === definition.id ? definition.parts : undefined),
+      (id) => (id === definition.id ? definition : undefined),
+    );
+    const look = renderer as unknown as Inside & {
+      hiddenNow(): { relations: ReadonlySet<string> };
+    };
+    const indexed = indexScene(buildScene(withSolids(), 'robot'));
+    renderer.show(indexed);
+    renderer.setCamera({ x: 0, y: 0, scale: 1 });
+    const arm = indexed.byKey.get('arm');
+    const picture = arm?.picture?.rect;
+    if (!arm?.solid || !picture) throw new Error('No arm.');
+    const frame = (camera: SolidCamera): SolidFrameReply => ({
+      type: 'frame',
+      turn: 1,
+      serial: 1,
+      camera,
+      bitmap: { close: () => undefined } as unknown as ImageBitmap,
+      width: 10,
+      height: 10,
+    });
+    const pointAt = (camera: SolidCamera, part: string) => {
+      const fitted = fitSolidCamera(definition.bounds, camera, picture.width / picture.height);
+      const index = definition.parts.findIndex((each) => each.name === part);
+      return placeSolidPoint(fitted, solidPartPoint(definition, index)!, picture);
+    };
+
+    // Turning from the camera the drawing is drawn from moves nothing: its lines stay in their tiles.
+    renderer.setTurning({ key: 'arm', frame: frame(arm.solid.camera) });
+    expect(renderer.turningRoutes).toEqual([]);
+    expect(look.hiddenNow().relations.size).toBe(0);
+
+    // Turned, the lines on its parts leave their tiles and end at the parts' points as now seen.
+    const turned: SolidCamera = { azimuth: 120, elevation: -10 };
+    renderer.setTurning({ key: 'arm', frame: frame(turned) });
+    const routes = new Map(renderer.turningRoutes.map((line) => [line.relation, line]));
+    // The line `inner` draws from inside the link, aggregated to it, follows it too.
+    const aggregate = [...routes.keys()].find((id) => id.startsWith('aggregated'));
+    expect([...routes.keys()].sort()).toEqual([aggregate, 'drives', 'holds']);
+    expect([...look.hiddenNow().relations].sort()).toEqual([aggregate, 'drives', 'holds']);
+    const close = (a: { x: number; y: number } | undefined, b: { x: number; y: number }) => {
+      expect(a?.x).toBeCloseTo(b.x, 6);
+      expect(a?.y).toBeCloseTo(b.y, 6);
+    };
+    close(routes.get('drives')?.route.at(-1), pointAt(turned, 'gripper'));
+    close(routes.get('holds')?.route[0], pointAt(turned, 'link'));
+    close(routes.get(aggregate ?? '')?.route[0], pointAt(turned, 'link'));
+    close(routes.get('holds')?.route.at(-1), pointAt(turned, 'base'));
+    // The line from the motor in World still starts where it did.
+    const before = indexed.scene.relations.find((line) => line.relation === 'drives');
+    expect(routes.get('drives')?.route[0]).toEqual(before?.route[0]);
+
+    // The next frame routes them again.
+    const again: SolidCamera = { azimuth: -45, elevation: 30 };
+    renderer.setTurning({ key: 'arm', frame: frame(again) });
+    close(
+      renderer.turningRoutes.find((line) => line.relation === 'drives')?.route.at(-1),
+      pointAt(again, 'gripper'),
+    );
+
+    // Ending turning gives the lines back to their tiles, where the scene routes them.
+    renderer.setTurning(undefined);
+    expect(renderer.turningRoutes).toEqual([]);
+    expect(look.hiddenNow().relations.size).toBe(0);
   });
 });

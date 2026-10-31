@@ -28,8 +28,19 @@ import {
   type GraphicsContext,
   type Texture,
 } from 'pixi.js';
-import type { Legend, ThemeName } from '@visual-anything/core';
-import type { Id, LevelOfDetail, SolidPart } from '@visual-anything/schema';
+import {
+  fitSolidCamera,
+  placeSolidPoint,
+  type Legend,
+  type ThemeName,
+} from '@visual-anything/core';
+import type {
+  Id,
+  LevelOfDetail,
+  SolidCamera,
+  SolidDefinition,
+  SolidPart,
+} from '@visual-anything/schema';
 import { levelDetail, namesFromOf, type TileDetail } from './levels';
 import type { Emphasis } from '../editor/emphasis';
 import {
@@ -128,6 +139,7 @@ import { PARTS_PICTURES, PartLayer } from './partsDraw';
 import type { SolidClient } from '../solids/client';
 import type { SolidFrameReply } from '../solids/protocol';
 import { SOLID_LAYER, SolidLayer } from './solids/layer';
+import { sameCamera, solidPartPoint } from './shape-solids';
 import { pointedPart } from './solids/pointing';
 import { isAnchoredSolidPart } from './solidMark';
 import { ARROW_PAINT, LINE_PAINT, NOTE_PAINT, SHAPE_PAINT, sameListButPaint } from './theme/paint';
@@ -473,6 +485,19 @@ export class CanvasRenderer {
   private readonly freeShapes = new Container();
   private readonly rerouted = new Container({ isRenderGroup: true });
   private readonly reroutedLines = new Graphics();
+  /**
+   * The relations that end on a turning drawing's parts (ADR 0075), routed again each frame to their
+   * points as the frame's camera sees them, as a drag routes lines; and what that takes out of the
+   * tiles, while the camera differs from the one the drawing is drawn from.
+   */
+  private readonly turned = new Container({ isRenderGroup: true });
+  private readonly turnedLines = new Graphics();
+  private turnHiding: Hidden | undefined;
+  private turningShown: { key: string; frame: SolidFrameReply | undefined } | undefined;
+  private turnedRoutes: readonly RelationLine[] = [];
+  private turnedLeft: { of: Hidden; turning: Hidden; union: Hidden } | undefined;
+  /** The solids the project's packages define, by id, for where a turning drawing's parts show. */
+  private solidDefinitionOf: (solid: Id) => SolidDefinition | undefined = () => undefined;
   private readonly dragged = new Container({ isRenderGroup: true });
   /** The marks of the selection, of the shape under the pointer and of the gesture under way. */
   private readonly marks = new Container({ isRenderGroup: true });
@@ -694,6 +719,7 @@ export class CanvasRenderer {
     this.tintMarks();
     this.elementShapes.addChild(this.overflowBand);
     this.rerouted.addChild(this.reroutedLines);
+    this.turned.addChild(this.turnedLines);
     this.selectionMarks.addChild(this.lineMarks);
     this.arriving.addChild(this.arrivingMarks);
     this.marks.addChild(
@@ -718,6 +744,7 @@ export class CanvasRenderer {
       this.freeShapes,
       this.comparison.container,
       this.rerouted,
+      this.turned,
       this.dragged,
       this.marks,
     );
@@ -746,6 +773,8 @@ export class CanvasRenderer {
       this.followCodeDrawings();
       // Fitted first, so that the first plan knows what is near the screen.
       if (!this.fitted) this.fitFirst();
+      // The lines a turning routes again follow the scene too (ADR 0075).
+      if (this.turningShown) this.followTurning(this.turningShown);
       this.rebuild();
       this.drawSelection();
       this.drawHover();
@@ -827,7 +856,7 @@ export class CanvasRenderer {
 
   /** What leaves the tiles: what a drag carries, and what the emphasis hides. */
   private hiddenNow(): Hidden {
-    const drag = this.hidden;
+    const drag = this.withTurning(this.hidden);
     const emphasis = this.emphasized.hidden;
     if (emphasis === NOTHING_HIDDEN) return drag;
     if (drag === NOTHING_HIDDEN) return emphasis;
@@ -839,6 +868,22 @@ export class CanvasRenderer {
       free: unite(drag.free, emphasis.free),
     };
     this.left = { drag, emphasis, union };
+    return union;
+  }
+
+  /** What a drag or a route edit takes out of the tiles, and the lines a turning routes again. */
+  private withTurning(hidden: Hidden): Hidden {
+    const turning = this.turnHiding;
+    if (!turning) return hidden;
+    if (hidden === NOTHING_HIDDEN) return turning;
+    const left = this.turnedLeft;
+    if (left?.of === hidden && left.turning === turning) return left.union;
+    const union: Hidden = {
+      shapes: hidden.shapes,
+      relations: unite(hidden.relations, turning.relations),
+      free: hidden.free,
+    };
+    this.turnedLeft = { of: hidden, turning, union };
     return union;
   }
 
@@ -866,7 +911,9 @@ export class CanvasRenderer {
   setSolids(
     client: SolidClient | undefined,
     partsOf: (solid: Id) => readonly SolidPart[] | undefined = () => undefined,
+    definitionOf: (solid: Id) => SolidDefinition | undefined = () => undefined,
   ): void {
+    this.solidDefinitionOf = definitionOf;
     this.pictures.setSolids(client);
     this.solidLayer.setParts(partsOf);
     if (this.indexed) this.pictures.show(this.indexed.scene.shapes);
@@ -875,8 +922,77 @@ export class CanvasRenderer {
 
   /** Shows the shape being turned with its newest frame (ADR 0075), or nothing once turning ends. */
   setTurning(turning: { key: string; frame: SolidFrameReply | undefined } | undefined): void {
+    if (this.status === 'destroyed') return;
     this.solidLayer.setTurning(turning);
+    this.turningShown = turning;
+    this.followTurning(turning);
     this.requestRender();
+  }
+
+  /** The relations on the turning drawing's parts as they are routed now, for the tests. */
+  get turningRoutes(): readonly RelationLine[] {
+    return this.turnedRoutes;
+  }
+
+  /**
+   * Routes again the relations that end on the parts of the drawing being turned (ADR 0075), to
+   * where the newest frame's camera shows their points, through the drag's way of routing lines
+   * again (`routeAgain`). While that camera is the one the drawing is drawn from, they stay in their
+   * tiles; once it differs, they leave them, and come back once turning ends.
+   */
+  private followTurning(
+    turning: { key: string; frame: SolidFrameReply | undefined } | undefined,
+  ): void {
+    const indexed = this.indexed;
+    const drawing = turning && indexed?.byKey.get(turning.key);
+    const solid = drawing?.solid;
+    const camera = turning?.frame?.camera;
+    const definition = solid && this.solidDefinitionOf(solid.id);
+    const moved =
+      indexed && drawing && solid && camera && definition && !sameCamera(camera, solid.camera)
+        ? turnedPartPoints(indexed, drawing, definition, camera)
+        : undefined;
+    const lines =
+      indexed && moved && moved.size > 0
+        ? indexed.scene.relations.filter((line) => endsOn(line, moved))
+        : [];
+    if (lines.length === 0) {
+      this.turnedLines.clear();
+      this.turnedRoutes = [];
+      this.setTurnHiding(undefined);
+      return;
+    }
+    const relations = new Set(lines.map((line) => line.relation));
+    const was = this.turnHiding?.relations;
+    if (!was || was.size !== relations.size || [...relations].some((id) => !was.has(id))) {
+      this.setTurnHiding({
+        shapes: NOTHING_HIDDEN.shapes,
+        relations,
+        free: NOTHING_HIDDEN.free,
+      });
+    }
+    this.turnedRoutes = this.routeAgain(indexed as IndexedScene, lines, {
+      moved: NOTHING_HIDDEN.shapes,
+      delta: { x: 0, y: 0 },
+      rigid: NO_RELATIONS,
+      rerouted: relations,
+      pointOf: (key) => moved?.get(key),
+    });
+    this.turnedLines.clear();
+    if (this.camera.scale < COARSE_BELOW)
+      this.painter.relationLines(this.turnedLines, this.turnedRoutes);
+    else this.painter.relationRoutes(this.turnedLines, this.turnedRoutes);
+  }
+
+  /** Takes the turning's lines out of the tiles, or gives them back, and draws the tiles again. */
+  private setTurnHiding(hiding: Hidden | undefined): void {
+    if (hiding === this.turnHiding) return;
+    this.turnHiding = hiding;
+    try {
+      if (this.indexed && this.status === 'ready') this.rebuild();
+    } catch (error) {
+      this.callbacks.onFailure(error);
+    }
   }
 
   /**
@@ -3124,6 +3240,34 @@ export class CanvasRenderer {
     const { delta } = drag;
     drag.routedAt = delta;
     const hidden = this.hidden;
+    const lines = this.routeAgain(indexed, drag.routed, {
+      moved: hidden.shapes,
+      delta,
+      rigid: drag.rigid,
+      rerouted: hidden.relations,
+    });
+    if (this.camera.scale < COARSE_BELOW) this.painter.relationLines(this.reroutedLines, lines);
+    else this.painter.relationRoutes(this.reroutedLines, lines);
+  }
+
+  /**
+   * Routes lines again whose ends moved: by a drag's `delta` for the shapes `moved` names, and to
+   * `pointOf` for the anchored parts of a turning drawing (ADR 0075). A line that ends on a relation
+   * ends at that relation's middle: moved with the drag when `rigid` names it, as routed again here
+   * when `rerouted` does, or where it is otherwise.
+   */
+  private routeAgain(
+    indexed: IndexedScene,
+    lines: readonly RelationLine[],
+    how: {
+      moved: ReadonlySet<string>;
+      delta: Point;
+      rigid: ReadonlySet<Id>;
+      rerouted: ReadonlySet<Id>;
+      pointOf?: (key: string) => Point | undefined;
+    },
+  ): RelationLine[] {
+    const { moved: carried, delta, rigid, pointOf } = how;
     const byId = linesById(indexed.scene.relations);
     const routed = new Map<Id, RelationLine>();
     const resolving = new Set<Id>();
@@ -3133,18 +3277,18 @@ export class CanvasRenderer {
       if (end.kind === 'shape') {
         const shape = indexed.byKey.get(end.key);
         if (!shape) return undefined;
-        // An anchored part of a solid ends its lines at its point (ADR 0075).
-        const point = shape.part?.point;
+        // An anchored part of a solid ends its lines at its point (ADR 0075), where a turning shows it.
+        const point = pointOf?.(end.key) ?? shape.part?.point;
         if (point) {
-          return { point: hidden.shapes.has(end.key) ? movedPoint(point, delta) : point };
+          return { point: carried.has(end.key) ? movedPoint(point, delta) : point };
         }
         const rect = shape.plate ?? shape.rect;
-        return { rect: hidden.shapes.has(end.key) ? moved(rect, delta) : rect };
+        return { rect: carried.has(end.key) ? moved(rect, delta) : rect };
       }
       const other = byId.get(end.relation);
       if (!other) return undefined;
-      if (drag.rigid.has(end.relation)) return { point: movedPoint(other.middle, delta) };
-      if (!hidden.relations.has(end.relation)) return { point: other.middle };
+      if (rigid.has(end.relation)) return { point: movedPoint(other.middle, delta) };
+      if (!how.rerouted.has(end.relation)) return { point: other.middle };
       return { point: lineFor(other).middle };
     };
     const lineFor = (line: RelationLine): RelationLine => {
@@ -3165,7 +3309,7 @@ export class CanvasRenderer {
           (key) => indexed.byKey.get(key),
           (key) => {
             const shape = indexed.byKey.get(key);
-            return shape && (hidden.shapes.has(key) ? moved(shape.rect, delta) : shape.rect);
+            return shape && (carried.has(key) ? moved(shape.rect, delta) : shape.rect);
           },
         );
         // Routed by hand, through its bend points, or to connection points, where it is so.
@@ -3188,9 +3332,7 @@ export class CanvasRenderer {
       routed.set(line.relation, next);
       return next;
     };
-    const lines = drag.routed.map(lineFor);
-    if (this.camera.scale < COARSE_BELOW) this.painter.relationLines(this.reroutedLines, lines);
-    else this.painter.relationRoutes(this.reroutedLines, lines);
+    return lines.map(lineFor);
   }
 
   private clearDrag(): void {
@@ -5184,4 +5326,48 @@ function freeShapesById(
     byArrows.set(arrows, byId);
   }
   return byId;
+}
+
+/** No relation at all. */
+const NO_RELATIONS: ReadonlySet<Id> = new Set();
+
+/**
+ * Where a turning drawing's anchored parts show now, by their shapes' keys: each part's point,
+ * projected by the frame's camera onto the drawing's picture, as the scene projects it by the stored
+ * camera (ADR 0075).
+ */
+function turnedPartPoints(
+  indexed: IndexedScene,
+  drawing: ElementShape,
+  definition: SolidDefinition,
+  camera: SolidCamera,
+): Map<string, Point> {
+  const points = new Map<string, Point>();
+  const rect = drawing.picture?.rect ?? drawing.solid?.rect;
+  if (!rect) return points;
+  let fitted: ReturnType<typeof fitSolidCamera> | undefined;
+  for (const shape of indexed.scene.shapes) {
+    const part = shape.part;
+    if (shape.containerShape !== drawing.key || part?.inDrawing !== true) continue;
+    if (part.solid === undefined || part.point === undefined) continue;
+    const point = solidPartPoint(definition, part.index);
+    fitted ??= fitSolidCamera(definition.bounds, camera, rect.width / rect.height);
+    points.set(
+      shape.key,
+      point
+        ? placeSolidPoint(fitted, point, rect)
+        : { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 },
+    );
+  }
+  return points;
+}
+
+/** Whether a line ends on one of these shapes, by their keys. */
+function endsOn(line: RelationLine, keys: ReadonlyMap<string, unknown>): boolean {
+  const ends = line.ends;
+  if (!ends) return false;
+  return (
+    (ends.from.kind === 'shape' && keys.has(ends.from.key)) ||
+    (ends.to.kind === 'shape' && keys.has(ends.to.key))
+  );
 }
