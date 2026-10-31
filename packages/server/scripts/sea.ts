@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { build, type Metafile } from 'esbuild';
 import { bundleDrawingWorker } from '../src/drawings/bundle';
 import { DRAWING_WORKER_ASSET, DRAWING_WORKER_FILE } from '../src/drawings/make';
+import { bundleSolidWorker } from '../src/solids/bundle';
+import { SOLID_WORKER_ASSET, SOLID_WORKER_FILE } from '../src/solids/cleaner';
 import { APP_ASSET_PREFIX, NOTICES_ASSET } from '../src/executable';
 import { bundledPackages, noticeText, packageFolders } from './notices';
 
@@ -103,9 +105,30 @@ export async function writeNotices(
   return text;
 }
 
-/** The executable's assets besides the app: the drawing's worker and the notice. */
-export function programAssets(worker: string, notices: string): Record<string, string> {
-  return { [DRAWING_WORKER_ASSET]: worker, [NOTICES_ASSET]: notices };
+/**
+ * The solid cleaner's worker (ADR 0075), with the glTF reader and meshoptimizer, bundled beside the
+ * server's bundle, where the bundle run by Node.js finds it; the executable holds it as the asset
+ * {@link SOLID_WORKER_ASSET}.
+ */
+export async function bundleSolidWorkerBeside(
+  serverBundle: string,
+): Promise<{ file: string; metafile: Metafile }> {
+  const file = join(dirname(serverBundle), SOLID_WORKER_FILE);
+  const { metafile } = await bundleSolidWorker(file);
+  return { file, metafile };
+}
+
+/** The executable's assets besides the app: the drawing's worker, the solid cleaner's and the notice. */
+export function programAssets(
+  worker: string,
+  solidWorker: string,
+  notices: string,
+): Record<string, string> {
+  return {
+    [DRAWING_WORKER_ASSET]: worker,
+    [SOLID_WORKER_ASSET]: solidWorker,
+    [NOTICES_ASSET]: notices,
+  };
 }
 
 /**
