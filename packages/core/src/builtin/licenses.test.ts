@@ -1,4 +1,4 @@
-import type { PackageFile } from '@visual-anything/schema';
+import type { PackageFile, SolidDefinition } from '@visual-anything/schema';
 import packageSchema from '@visual-anything/schema/schemas/package.schema.json' with { type: 'json' };
 import { describe, expect, it } from 'vitest';
 import {
@@ -97,6 +97,45 @@ describe('the license test: what ships with Visual Anything', () => {
     expect(shippingProblems({ ...file, license: undefined, images: undefined })).toEqual([
       'The package "icons" has no license.',
       'The package "icons" says nothing about whom to credit: it needs an attribution.',
+    ]);
+  });
+
+  it('asks every solid for a source, a license that lets it ship and a description (ADR 0075)', () => {
+    const solid: SolidDefinition = {
+      id: 'arms.arm',
+      name: 'Arm',
+      hash: 'a'.repeat(64),
+      bytes: 1000,
+      bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } },
+      counts: { triangles: 12, vertices: 8, nodes: 1, textures: 0 },
+      parts: [],
+      camera: { azimuth: 30, elevation: 20 },
+    };
+    const file: PackageFile = {
+      id: 'arms',
+      name: 'Arms',
+      license: 'CC0-1.0',
+      attribution: 'Visual Anything contributors',
+      components: [],
+      relationTypes: [],
+      solids: [
+        solid,
+        { ...solid, id: 'arms.b', source: 'Some set', license: 'CC-BY-NC-4.0', description: ' ' },
+        {
+          ...solid,
+          id: 'arms.c',
+          source: 'Drawn for us',
+          license: 'CC0-1.0',
+          description: 'A box.',
+        },
+      ],
+    };
+    expect(shippingProblems(file)).toEqual([
+      'The solid "arms.arm" says nothing about where it comes from: it needs a source.',
+      'The solid "arms.arm" has no license.',
+      'The solid "arms.arm" has no description, which is its text alternative.',
+      'The solid "arms.b" is under CC-BY-NC-4.0, which is not a license that lets it ship.',
+      'The solid "arms.b" has no description, which is its text alternative.',
     ]);
   });
 });

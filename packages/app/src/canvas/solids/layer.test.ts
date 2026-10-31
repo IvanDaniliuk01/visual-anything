@@ -159,16 +159,20 @@ describe('the solid layer', () => {
     await frames(layer, images);
     const before = layer.placedBuffer('arm')?.buffer;
     expect(before).toBeDefined();
+    const arm = shapeOf(scene, 'arm');
+    expect(layer.pictureShown('arm')).toBe(solidPictureKey(arm));
     // The gripper hidden: its part, and none it holds, is asked for drawn without.
     layer.setScene(scene, NONE, NONE, new Set(['arm/gripper']));
     images.solids?.begin();
     layer.frame(VIEW);
     // Until it arrives, the old picture shows.
     expect(layer.placedBuffer('arm')?.buffer).toBe(before);
+    expect(layer.pictureShown('arm')).toBe(solidPictureKey(arm));
     await frames(layer, images);
     const draws = workers[0]?.ofType('draw') ?? [];
     expect(draws.at(-1)?.hidden).toEqual([4]);
-    const arm = shapeOf(scene, 'arm');
+    expect(layer.pictureShown('arm')).toBe(solidPictureKey(withHiddenParts(arm, [4])));
+    expect(layer.pictureShown('motor')).toBeUndefined();
     expect(draws.at(-1)?.key).toBe(`${solidPictureKey(withHiddenParts(arm, [4]))}@512`);
     expect(layer.placedBuffer('arm')?.buffer).not.toBe(before);
   });
@@ -185,6 +189,24 @@ describe('the solid layer', () => {
   it('leaves out a drawing a drag or the emphasis hides', () => {
     const { layer, scene } = setUp();
     layer.setScene(scene, new Set(['arm']), NONE);
+    expect(layer.drawn).toBe(0);
+  });
+
+  it('does nothing once destroyed, as when a camera’s glide calls it after the canvas went', async () => {
+    const { layer, images, scene } = setUp();
+    layer.setScene(scene, NONE, NONE);
+    await frames(layer, images);
+    layer.destroy();
+    expect(() => {
+      layer.setScale(2);
+      layer.setMarks({ selected: new Set(['base']), hovered: undefined, highlighted: new Set() });
+      layer.setTheme('dark', { selected: '#60A5FA', highlight: '#FB923C' });
+      layer.setScene(buildScene(withSolids(), 'robot'), NONE, NONE);
+      layer.setTurning({ key: 'arm', frame: undefined });
+      layer.reset();
+      expect(layer.frame(VIEW)).toBe(false);
+      layer.destroy();
+    }).not.toThrow();
     expect(layer.drawn).toBe(0);
   });
 

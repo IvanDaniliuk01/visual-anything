@@ -56,7 +56,7 @@ export function isShippableLicense(license: string | undefined): license is Ship
 /**
  * What keeps a package from shipping with Visual Anything, in words; empty when nothing does. The
  * package needs a license that lets it ship and an attribution, and each of its images a source and
- * a license that lets it ship.
+ * a license that lets it ship, and each of its solids a source, such a license and a description.
  */
 export function shippingProblems(file: PackageFile): string[] {
   const problems: string[] = [];
@@ -79,6 +79,18 @@ export function shippingProblems(file: PackageFile): string[] {
       );
     }
     licensed(`The image "${image.id}"`, image.license);
+  }
+  // A solid's description is its text alternative, which every solid that ships has (ADR 0075).
+  for (const solid of file.solids ?? []) {
+    if ((solid.source ?? '').trim() === '') {
+      problems.push(
+        `The solid "${solid.id}" says nothing about where it comes from: it needs a source.`,
+      );
+    }
+    licensed(`The solid "${solid.id}"`, solid.license);
+    if ((solid.description ?? '').trim() === '') {
+      problems.push(`The solid "${solid.id}" has no description, which is its text alternative.`);
+    }
   }
   return problems;
 }

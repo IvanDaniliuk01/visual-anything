@@ -24,7 +24,7 @@ const SAMPLE_TEXTS: Readonly<Record<string, { title: string; description: string
   'robot-arm': {
     title: 'Physical AI: a pick-and-place arm',
     description:
-      'A six-axis arm drawn with its parts, its kinematic chain and its software, with a scenario of a command that goes from a learned policy to a joint and is read back.',
+      'A six-axis arm drawn as a solid that turns, its links and joints anchored to its parts, with its motors and encoders, its control loop and its software, and a scenario in which it picks a part.',
   },
   'order-process': {
     title: 'Processes and state machines: an online order',

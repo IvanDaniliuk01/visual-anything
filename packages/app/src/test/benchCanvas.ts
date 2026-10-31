@@ -7,20 +7,27 @@
 import type { Command, ProjectSnapshot } from '@visual-anything/core';
 import type { BeyondBench } from '../bench/beyond';
 import { measureFrames, type BenchMode } from '../bench/frames';
-import { CanvasController } from '../canvas/controller';
+import { CanvasController, type ControllerOptions } from '../canvas/controller';
 import { centerOf } from '../canvas/geometry';
 import { indexScene, type IndexedScene } from '../canvas/hit';
 import { buildScene } from '../canvas/scene';
+import type { SolidClient } from '../solids/client';
 import { FakeApplication } from './FakeApplication';
 
 const settle = (milliseconds: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
-/** A canvas showing `start`'s view, and the commands its gestures sent. */
+/**
+ * A canvas showing `start`'s view, and the commands its gestures sent; with `solids`, it draws
+ * solids through that client (ADR 0075), its pictures made on `images` and its text by `text` when given.
+ */
 export async function benchCanvas(
   start: ProjectSnapshot,
   view: string,
   mode: BenchMode,
+  solids?: SolidClient,
+  images?: ControllerOptions['images'],
+  text?: ControllerOptions['text'],
 ): Promise<{ bench: BeyondBench; sent: Command[] }> {
   const host = document.createElement('div');
   host.tabIndex = 0;
@@ -44,7 +51,12 @@ export async function benchCanvas(
       // jsdom draws no text: the labels the frames write fail, as the canvas reports.
       failure: () => undefined,
     },
-    { firstFit: 'whole' },
+    {
+      firstFit: 'whole',
+      ...(solids ? { solids } : {}),
+      ...(images ? { images } : {}),
+      ...(text ? { text } : {}),
+    },
   );
   (FakeApplication.created.at(-1) as FakeApplication).finishInit();
   await Promise.resolve();

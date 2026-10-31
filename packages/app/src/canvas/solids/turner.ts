@@ -110,27 +110,39 @@ export class SolidTurner {
     return this.turning?.playing === true;
   }
 
-  /** Starts turning a shape's solid; another turning ends first. Says whether it started. */
-  start(shape: ElementShape): boolean {
-    if (this.turning?.key === shape.key) return true;
+  /**
+   * Starts turning a shape's solid; another turning ends first. Says whether it started. It starts
+   * from `camera` when given, as Claude's `turn` guidance asks, or else from the camera the shape is
+   * drawn from, which 0 goes back to either way; asked again for the shape turning already, it turns
+   * to that camera.
+   */
+  start(shape: ElementShape, camera?: SolidCamera): boolean {
+    const turned = this.turning;
+    if (turned?.key === shape.key) {
+      if (camera && !sameTurnCamera(camera, turned.camera)) {
+        this.setCamera(camera);
+        this.host.announce(turnAnnouncement(turned.name, turned.camera));
+      }
+      return true;
+    }
     this.end(false);
     const client = this.host.client();
     const solid = shape.solid;
     if (!client || !solid || !this.canTurn(shape)) return false;
-    const camera = solid.camera;
+    const from = camera ?? solid.camera;
     const turning: Turning = {
       key: shape.key,
       element: shape.element,
       name: shape.name,
       solid: solid.id,
-      start: camera,
-      camera,
+      start: solid.camera,
+      camera: from,
       playing: false,
       session: client.turn(
         {
           solid: solid.hash,
           size: this.frameSize(solid.rect),
-          camera,
+          camera: from,
           lighting: solid.lighting,
           hidden: solid.hidden ?? [],
           parts: solid.placement === 'parts',
@@ -144,7 +156,7 @@ export class SolidTurner {
     this.turning = turning;
     this.host.show({ key: shape.key, frame: undefined });
     this.host.announce(
-      `${turnAnnouncement(shape.name, camera)}. ${t(
+      `${turnAnnouncement(shape.name, from)}. ${t(
         'Drag or use the arrow keys to turn it, + and − to zoom, 0 to go back, and Escape to stop.',
       )}`,
     );

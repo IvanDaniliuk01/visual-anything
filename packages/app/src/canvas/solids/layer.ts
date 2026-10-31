@@ -92,7 +92,7 @@ interface Entry {
   /** Whether it is the shape being turned, rather than a drawing with parts. */
   turned: boolean;
   /** What it shows now: a texture, its part buffer and where on the canvas. */
-  shown?: { texture: Texture; key?: string; buffer: SolidPartBuffer | undefined };
+  shown?: { texture: Texture; key?: string; picture?: string; buffer: SolidPartBuffer | undefined };
   mesh?: Mesh<MeshGeometry, Shader>;
   uniforms?: UniformGroup;
   partsTexture?: { buffer: SolidPartBuffer | undefined; texture: Texture };
@@ -124,6 +124,8 @@ export class SolidLayer {
   private turning: SolidTurningShown | undefined;
   private turningTexture: { texture: Texture; bitmap: ImageBitmap } | undefined;
   private hiddenParts: ReadonlySet<string> = new Set();
+  /** Set once destroyed: every call after it does nothing, as a camera's glide may make one. */
+  private destroyed = false;
 
   constructor(
     private readonly pictures: () => SolidPictures<Texture, unknown> | undefined,
@@ -139,6 +141,7 @@ export class SolidLayer {
 
   /** Says where the named parts of each solid are found, by the solid's id. */
   setParts(partsOf: (solid: Id) => readonly SolidPart[] | undefined): void {
+    if (this.destroyed) return;
     this.partsOf = partsOf;
     this.from = { ...this.from, parts: partsOf };
     this.build();
@@ -155,6 +158,7 @@ export class SolidLayer {
     dimmed: ReadonlySet<string>,
     hiddenParts: ReadonlySet<string> = hidden,
   ): void {
+    if (this.destroyed) return;
     const from = this.from;
     if (
       from.scene === scene &&
@@ -172,9 +176,10 @@ export class SolidLayer {
   /** Marks the selection, the hovered shape and what the emphasis highlights on parts. */
   setMarks(marks: SolidMarks): void {
     if (
-      marks.selected === this.marks.selected &&
-      marks.hovered === this.marks.hovered &&
-      marks.highlighted === this.marks.highlighted
+      this.destroyed ||
+      (marks.selected === this.marks.selected &&
+        marks.hovered === this.marks.hovered &&
+        marks.highlighted === this.marks.highlighted)
     ) {
       return;
     }
@@ -186,7 +191,9 @@ export class SolidLayer {
 
   /** Draws in a theme's fills and marks from now on, in the frame the switch shows. */
   setTheme(theme: ThemeName, colors: SolidLayerColors): void {
-    if (theme === this.theme && colors.selected === this.colors.selected) return;
+    if (this.destroyed || (theme === this.theme && colors.selected === this.colors.selected)) {
+      return;
+    }
     this.theme = theme;
     this.colors = colors;
     for (const entry of this.entries) this.paint(entry);
@@ -194,13 +201,14 @@ export class SolidLayer {
   }
 
   setScale(scale: number): void {
-    if (scale === this.scale) return;
+    if (this.destroyed || scale === this.scale) return;
     this.scale = scale;
     this.drawRings();
   }
 
   /** Shows the shape being turned with its newest frame, or none once turning ends. */
   setTurning(turning: SolidTurningShown | undefined): void {
+    if (this.destroyed) return;
     const before = this.turning;
     this.turning = turning;
     if (before?.key !== turning?.key) this.build();
@@ -218,6 +226,15 @@ export class SolidLayer {
     return { buffer, rect: entry.solid.rect };
   }
 
+  /**
+   * The picture a drawing with parts shows now, by the key it is kept by (`solidPictureKey`): the
+   * benchmark waits for the one drawn without the parts a filter hides. None for a shape it does not
+   * draw, or while its picture has not arrived.
+   */
+  pictureShown(key: string): string | undefined {
+    return this.byKey.get(key)?.shown?.picture;
+  }
+
   /** The named parts of the solid a shape draws, and its anchored parts by index, for pointing. */
   partsAt(
     key: string,
@@ -231,6 +248,7 @@ export class SolidLayer {
    * shows it, and the newest turning frame. Says whether it waits for a picture.
    */
   frame(view: SolidLayerView): boolean {
+    if (this.destroyed) return false;
     const pictures = this.pictures();
     const side = Math.max(view.shown.width, view.shown.height);
     const reach = {
@@ -286,6 +304,7 @@ export class SolidLayer {
         entry.shown = {
           texture: made.texture,
           key: made.key,
+          picture: made.picture.key,
           buffer: made.picture.partBuffer,
         };
         this.paint(entry);
@@ -302,11 +321,14 @@ export class SolidLayer {
 
   /** Lets go of what it drew, as when the store let every texture go. */
   reset(): void {
+    if (this.destroyed) return;
     for (const entry of this.entries) delete entry.shown;
     this.build();
   }
 
   destroy(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
     this.pictures()?.store.release(SOLID_LAYER);
     for (const entry of this.entries) this.dispose(entry);
     this.turningTexture?.texture.destroy(true);

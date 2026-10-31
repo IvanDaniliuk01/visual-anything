@@ -90,6 +90,7 @@ import { EXPAND_CAMERA_MS, cameraToShow, collapseCommand, showInPlace } from './
 import { laidOutBounds } from './layout/laidOut';
 import { useLayout } from './layout/useLayout';
 import { useReducedMotion } from '../scenarios/motion';
+import { useGuidedTurn } from './solids/guidedTurn';
 import { useSolidClient } from './solids/useSolidClient';
 import type { CanvasTurning } from './solids/turningContext';
 import { pinnedInTheWay } from './layout/pinnedInTheWay';
@@ -627,6 +628,10 @@ export function CanvasArea({
   useEffect(() => {
     if (indexed) controllerRef.current?.update(project, view.id, indexed, editable);
   }, [project, view.id, indexed, editable]);
+
+  // Claude's turn guidance turns a shape's solid, as Turn does, once the canvas shows its view and
+  // the scene the controller was just given (ADR 0075).
+  useGuidedTurn(live?.guidance?.turn, project, view.id, indexed, () => controllerRef.current);
 
   // Once the row just added is drawn, the camera brings it into sight on its container's copy.
   useEffect(() => {

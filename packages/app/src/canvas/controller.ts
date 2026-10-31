@@ -26,7 +26,7 @@ import {
   type ProjectSnapshot,
   type ThemeName,
 } from '@visual-anything/core';
-import type { Id, PackageFile, SolidDefinition } from '@visual-anything/schema';
+import type { Id, PackageFile, SolidCamera, SolidDefinition } from '@visual-anything/schema';
 import type { CanvasTheme } from '../theme/themes';
 import {
   EMPTY_SELECTION,
@@ -85,7 +85,13 @@ import {
   type RelationStop,
   type Start,
 } from './navigation';
-import { CanvasRenderer, type DragFrame, type GridOptions, type Overlay } from './renderer';
+import {
+  CanvasRenderer,
+  type DragFrame,
+  type GridOptions,
+  type Overlay,
+  type RendererOptions,
+} from './renderer';
 import { RouteEditor } from './routing/editor';
 import { sameSlot } from './rowDrop';
 import { rowMoveFor, rowTargetFor } from './rowKeys';
@@ -200,6 +206,10 @@ export interface ControllerOptions {
   solids?: SolidClient;
   /** Whether the person asks for reduced motion, under which no solid's animation is offered. */
   reducedMotion?: () => boolean;
+  /** How pictures are decoded and made textures; the browser's by default, as tests replace it. */
+  images?: RendererOptions['images'];
+  /** How text is made; PixiJS's by default, as tests in jsdom, which draws none, replace it. */
+  text?: RendererOptions['text'];
 }
 
 type Gesture =
@@ -420,6 +430,8 @@ export class CanvasController {
         ...(options.theme ? { theme: options.theme } : {}),
         ...(options.firstFit ? { firstFit: options.firstFit } : {}),
         ...(options.solids ? { solids: options.solids } : {}),
+        ...(options.images ? { images: options.images } : {}),
+        ...(options.text ? { text: options.text } : {}),
       },
     );
     this.solids = options.solids;
@@ -550,7 +562,11 @@ export class CanvasController {
       for (const solid of file.solids ?? []) definitions.set(solid.id, solid);
     }
     this.solidDefinitions = definitions;
-    this.renderer.setSolids(this.solids, (id) => this.solidDefinitions.get(id)?.parts);
+    this.renderer.setSolids(
+      this.solids,
+      (id) => this.solidDefinitions.get(id)?.parts,
+      (id) => this.solidDefinitions.get(id),
+    );
   }
 
   /** The shape turned now (ADR 0075), by its key and element, and the camera it is seen from. */
@@ -563,8 +579,11 @@ export class CanvasController {
     return this.turner.canTurn(this.indexed?.byKey.get(key));
   }
 
-  /** Turns a shape's solid live (ADR 0075), as its menu and T do; says whether it started. */
-  turn(key: string): boolean {
+  /**
+   * Turns a shape's solid live (ADR 0075), as its menu and T do, from `camera` when given, as Claude's
+   * `turn` guidance asks; says whether it started.
+   */
+  turn(key: string, camera?: SolidCamera): boolean {
     const shape = this.indexed?.byKey.get(key);
     if (!shape) return false;
     this.host.focus({ preventScroll: true });
@@ -572,7 +591,7 @@ export class CanvasController {
       this.current = shape.key;
       this.select(selectionOf([{ kind: 'element', id: shape.element }]));
     }
-    const started = this.turner.start(shape);
+    const started = this.turner.start(shape, camera);
     this.refreshMarks();
     return started;
   }

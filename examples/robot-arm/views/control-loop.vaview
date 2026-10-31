@@ -1,0 +1,162 @@
+{
+  "id": "control-loop",
+  "name": "Control loop",
+  "description": "The loop that moves the arm: the wrist camera sees the part, the grasp policy picks joint targets, the joint controller turns them into torques for the motors, the motors turn the joints, and the encoders read each joint back.",
+  "perspective": {
+    "name": "Control"
+  },
+  "nestingRelationTypes": [],
+  "positions": [
+    {
+      "element": "workpiece",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "wrist-camera",
+      "x": 0,
+      "y": 160
+    },
+    {
+      "element": "grasp-policy",
+      "x": 256,
+      "y": 160
+    },
+    {
+      "element": "gripper",
+      "x": 256,
+      "y": 0
+    },
+    {
+      "element": "joint-controller",
+      "x": 512,
+      "y": 160
+    },
+    {
+      "element": "motor-1",
+      "x": 768,
+      "y": 0
+    },
+    {
+      "element": "motor-2",
+      "x": 768,
+      "y": 112
+    },
+    {
+      "element": "motor-3",
+      "x": 768,
+      "y": 224
+    },
+    {
+      "element": "motor-4",
+      "x": 768,
+      "y": 336
+    },
+    {
+      "element": "motor-5",
+      "x": 768,
+      "y": 448
+    },
+    {
+      "element": "motor-6",
+      "x": 768,
+      "y": 560
+    },
+    {
+      "element": "joint-1",
+      "x": 1024,
+      "y": 0
+    },
+    {
+      "element": "joint-2",
+      "x": 1024,
+      "y": 112
+    },
+    {
+      "element": "joint-3",
+      "x": 1024,
+      "y": 224
+    },
+    {
+      "element": "joint-4",
+      "x": 1024,
+      "y": 336
+    },
+    {
+      "element": "joint-5",
+      "x": 1024,
+      "y": 448
+    },
+    {
+      "element": "joint-6",
+      "x": 1024,
+      "y": 560
+    },
+    {
+      "element": "encoder-1",
+      "x": 1280,
+      "y": 0
+    },
+    {
+      "element": "encoder-2",
+      "x": 1280,
+      "y": 112
+    },
+    {
+      "element": "encoder-3",
+      "x": 1280,
+      "y": 224
+    },
+    {
+      "element": "encoder-4",
+      "x": 1280,
+      "y": 336
+    },
+    {
+      "element": "encoder-5",
+      "x": 1280,
+      "y": 448
+    },
+    {
+      "element": "encoder-6",
+      "x": 1280,
+      "y": 560
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "include": [
+      {
+        "kind": "component",
+        "component": "physical-ai.camera"
+      },
+      {
+        "kind": "component",
+        "component": "physical-ai.policy"
+      },
+      {
+        "kind": "component",
+        "component": "physical-ai.controller"
+      },
+      {
+        "kind": "component",
+        "component": "physical-ai.motor"
+      },
+      {
+        "kind": "component",
+        "component": "physical-ai.joint"
+      },
+      {
+        "kind": "component",
+        "component": "physical-ai.encoder"
+      },
+      {
+        "kind": "component",
+        "component": "physical-ai.gripper"
+      }
+    ],
+    "added": [
+      "workpiece"
+    ]
+  }
+}

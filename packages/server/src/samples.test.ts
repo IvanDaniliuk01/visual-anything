@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { anchoredElements, findPart, imagesIn } from '@visual-anything/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadProject } from './project';
+import { solidFileWarnings } from './solids/files';
 import {
   SAMPLE_IDS,
   emptyProjectFiles,
@@ -38,7 +39,7 @@ describe('the sample projects the program holds', () => {
       { id: 'c4-architecture', packages: ['c4'] },
       { id: 'data-science-pipeline', packages: ['data-science'] },
       { id: 'churn-classifier', packages: ['data-science', 'machine-learning'] },
-      { id: 'robot-arm', packages: ['physical-ai'] },
+      { id: 'robot-arm', packages: ['physical-ai', 'robot-arm'] },
       { id: 'order-process', packages: ['process'] },
     ]);
     expect(SAMPLE_IDS).toEqual([
@@ -52,7 +53,7 @@ describe('the sample projects the program holds', () => {
   });
 
   it.each(SAMPLE_IDS)(
-    '%s opens with nothing to warn about, with views, a scenario that plays, and no file of its own packages',
+    '%s opens with nothing to warn about, with views, a scenario that plays, and no file of its own packages but its solids’',
     async (id) => {
       const sample = sampleOf(id);
       if (sample === undefined) throw new Error(`No sample ${id}.`);
@@ -61,6 +62,8 @@ describe('the sample projects the program holds', () => {
       const loaded = await loadProject(join(root, id));
       if (!loaded.ok) throw new Error(JSON.stringify(loaded.errors));
       expect(loaded.warnings).toEqual([]);
+      // A solid's file is there, as its bytes, as a session checks it on opening (ADR 0075).
+      expect(solidFileWarnings(loaded.project, join(root, id))).toEqual([]);
       expect(loaded.project.views.length).toBeGreaterThanOrEqual(2);
       const [scenario] = loaded.project.scenarios;
       const relations = new Set(loaded.project.model.relations.map((each) => each.id));
@@ -68,7 +71,18 @@ describe('the sample projects the program holds', () => {
       for (const step of scenario?.steps ?? []) {
         for (const relation of step.relations) expect(relations.has(relation)).toBe(true);
       }
-      expect(loaded.files.packages.size).toBe(0);
+      // The robot arm's own package holds only its solid, which no built-in package can name the file
+      // of (M9, ADR 0075's clarification of 2026-10-31).
+      const own = [...loaded.files.packages.keys()];
+      if (id === 'robot-arm') {
+        expect(own).toEqual(['robot-arm']);
+        const arm = loaded.project.packages.find((file) => file.id === 'robot-arm');
+        expect(arm?.components).toEqual([]);
+        expect(arm?.relationTypes).toEqual([]);
+        expect(arm?.solids?.map((each) => each.id)).toEqual(['robot-arm.six-axis-arm']);
+      } else {
+        expect(own).toEqual([]);
+      }
     },
   );
 

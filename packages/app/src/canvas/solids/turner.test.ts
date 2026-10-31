@@ -115,6 +115,26 @@ describe('turning a solid on the canvas', () => {
     expect(announced.at(-1)).toBe('Stopped turning pictured.');
   });
 
+  it('starts from a camera it is given, as Claude’s turn guidance asks, 0 going back to its own', async () => {
+    const { turner, workers, announced, shapeOf } = setUp();
+    const asked = { azimuth: -90, elevation: 10, zoom: 2 };
+    expect(turner.start(shapeOf('arm'), asked)).toBe(true);
+    await settle();
+    const [start] = workers[0]?.ofType('turn/start') ?? [];
+    expect(start?.camera).toEqual(asked);
+    expect(turner.turned?.camera).toEqual(asked);
+    expect(announced[0]).toMatch(/^Arm, seen from the right\. Drag or use the arrow keys/);
+    // Asked again while it turns, it turns there without starting again.
+    expect(turner.start(shapeOf('arm'), { azimuth: 0, elevation: 0 })).toBe(true);
+    await settle();
+    expect(workers[0]?.ofType('turn/start')).toHaveLength(1);
+    expect(workers[0]?.ofType('turn/camera').at(-1)?.camera).toEqual({ azimuth: 0, elevation: 0 });
+    expect(announced.at(-1)).toBe('Arm, seen from the front');
+    // 0 goes back to the camera the shape is drawn from, which is stored.
+    expect(turner.key(key('0'))).toBe(true);
+    expect(turner.turned?.camera).toEqual({ azimuth: 30, elevation: 20 });
+  });
+
   it('turns by the keys, announcing each view, and leaves other keys to the canvas', async () => {
     const { turner, workers, announced, shapeOf } = setUp();
     turner.start(shapeOf('arm'));

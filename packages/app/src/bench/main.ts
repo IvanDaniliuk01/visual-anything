@@ -26,6 +26,9 @@
  * `?faces` gives every component the view draws a face (`faces.ts`, ADR 0083), every table and
  * column with `?tables`: it times the scene's first build and a move's build with them, and pans and
  * zooms where faces show, counting how often the face layout cache already held a tile's drawing.
+ * `?solids` measures a project with solids instead (`solids.ts`, M9): 10,000 elements of which 200
+ * show solids, from 20 distinct solids it makes itself, 4 at the caps, through the solid worker, in
+ * the phases of M9's "Done when"; pointing over parts, the focus, a filter, turning and a cold run.
  * `?geometry` measures the beyond-boxes project instead (`geometry.ts`, M8b): free geometry,
  * drawings with parts and relations on outlines, through the phases of `beyond.ts` alone. `?curves`
  * makes the view curve every automatic route that no appearance gives a style (ADR 0069), with
@@ -85,6 +88,9 @@ import { measureFrames, type FrameSteps } from './frames';
 import { measureGlide, type GlideBench } from './glide';
 import { measureResizes, selectAt } from './gestures';
 import { syntheticGeometry, withCurves } from './geometry';
+import { measureSolids, solidsBenchKeys, type SolidsBench } from './solids';
+import { syntheticSolids } from './solidsProject';
+import { createSolidClient } from '../solids/client';
 import {
   LARGE_TABLE,
   LARGE_TABLE_COLUMNS,
@@ -158,9 +164,35 @@ const status = document.getElementById('status') as HTMLElement;
 const started = performance.now();
 // `?tables` measures a view of tables instead (ADR 0023): see `syntheticTables`.
 const tables = search.has('tables');
-const synthetic = geometry
-  ? syntheticGeometry({ elements: size })
-  : syntheticProject({ elements: size, overlap, tables, images });
+// `?solids` measures a project with solids instead (`solids.ts`, M9): its files, which it makes
+// itself, reach the canvas only once its cold run starts.
+const solidsMade = search.has('solids') ? syntheticSolids({ elements: size }) : undefined;
+let releaseSolidFiles: () => void = () => undefined;
+const solidFilesHeld = new Promise<void>((resolve) => {
+  releaseSolidFiles = resolve;
+});
+const solidClient = solidsMade
+  ? createSolidClient({
+      files: {
+        get: async (hash) => {
+          await solidFilesHeld;
+          const bytes = solidsMade.files.get(hash);
+          return bytes
+            ? { ok: true, bytes: bytes.slice() }
+            : {
+                ok: false,
+                code: 'solid-file-missing',
+                message: 'The benchmark made no such file.',
+              };
+        },
+      },
+    })
+  : undefined;
+const synthetic = solidsMade
+  ? solidsMade.project
+  : geometry
+    ? syntheticGeometry({ elements: size })
+    : syntheticProject({ elements: size, overlap, tables, images });
 let project: ProjectSnapshot = curves ? withCurves(synthetic) : synthetic;
 const VIEW = project.views[0]?.id ?? 'everything';
 // What the recolor phase recolors: every Service, or in a view of tables every Column.
@@ -187,7 +219,11 @@ const controller = new CanvasController(
     },
     themeShown: (theme) => document.documentElement.setAttribute('data-theme', theme),
   },
-  { theme: THEMES[startTheme].canvas, firstFit: 'whole' },
+  {
+    theme: THEMES[startTheme].canvas,
+    firstFit: 'whole',
+    ...(solidClient ? { solids: solidClient } : {}),
+  },
 );
 controller.update(project, VIEW, indexed, false);
 if (gridOn) controller.setGrid({ grid: true, snapToGrid: true, rulers: true });
@@ -202,6 +238,11 @@ async function run(): Promise<void> {
   await settle(2500);
   while (!controller.renderer.canvas) await settle(100);
   status.textContent = `Measuring ${mode === 'work' ? 'the work of each frame' : 'frames'} with ${size.toLocaleString()} elements and ${scene.relations.length.toLocaleString()} relations…`;
+  if (solidsMade) {
+    const solids = await measureSolids(solidsBench());
+    report(solids.phases, solids.timed, solids.latency, solids.notes);
+    return;
+  }
   if (geometry) {
     const beyond = await measureBeyondBoxes(beyondBench());
     report(beyond.phases, beyond.timed, beyond.latency, beyond.notes);
@@ -755,10 +796,20 @@ function measure(
   const measuring = {
     renderer: controller.renderer,
     mode,
-    pictures: images || geometry,
+    pictures: images || geometry || solidsMade !== undefined,
     nextTask,
   };
   return measureFrames(measuring, name, count, step, steps);
+}
+
+/** What the solids phases need of the benchmark (`solids.ts`). */
+function solidsBench(): SolidsBench {
+  return {
+    ...beyondBench(),
+    client: solidClient as NonNullable<typeof solidClient>,
+    releaseFiles: releaseSolidFiles,
+    ...solidsBenchKeys(indexed, solidsMade?.drawings ?? []),
+  };
 }
 
 /** What the beyond-boxes phases need of the benchmark (`beyond.ts`). */

@@ -1,0 +1,170 @@
+{
+  "id": "robot-arm",
+  "name": "Pick-and-place arm",
+  "description": "The sample’s own package: the arm’s solid, which its links, joints, gripper and camera are anchored to.",
+  "version": "1.0.0",
+  "license": "CC0-1.0",
+  "attribution": "Visual Anything contributors",
+  "components": [],
+  "relationTypes": [],
+  "solids": [
+    {
+      "id": "robot-arm.six-axis-arm",
+      "name": "Six-axis arm",
+      "description": "A six-axis arm on a round base, in orange with dark joints: its upper arm upright, its forearm reaching forward to a two-jawed gripper with a camera above it, seen from the front right, a little above.",
+      "source": "Made for Visual Anything by packages/server/scripts/robot-arm-solid.ts",
+      "license": "CC0-1.0",
+      "hash": "84f2027b51c8c42749b73d7155da8670bbd7f1a98fa0339c08eea0f4ec111e6b",
+      "bytes": 41424,
+      "bounds": {
+        "min": {
+          "x": -0.1295,
+          "y": 0,
+          "z": -0.1295
+        },
+        "max": {
+          "x": 0.1295,
+          "y": 0.78,
+          "z": 0.64
+        }
+      },
+      "counts": {
+        "triangles": 1191,
+        "vertices": 1299,
+        "nodes": 22,
+        "textures": 0
+      },
+      "parts": [
+        {
+          "name": "base",
+          "point": {
+            "x": 0.0996,
+            "y": 0.04,
+            "z": 0.0836
+          }
+        },
+        {
+          "name": "joint-1",
+          "point": {
+            "x": 0.0689,
+            "y": 0.105,
+            "z": 0.0578
+          }
+        },
+        {
+          "name": "link-1",
+          "point": {
+            "x": 0.0536,
+            "y": 0.215,
+            "z": 0.045
+          }
+        },
+        {
+          "name": "joint-2",
+          "point": {
+            "x": 0,
+            "y": 0.306,
+            "z": 0.046
+          }
+        },
+        {
+          "name": "link-2",
+          "point": {
+            "x": 0,
+            "y": 0.485,
+            "z": 0.04
+          }
+        },
+        {
+          "name": "joint-3",
+          "point": {
+            "x": 0,
+            "y": 0.7489,
+            "z": 0.0389
+          }
+        },
+        {
+          "name": "link-3",
+          "point": {
+            "x": 0,
+            "y": 0.745,
+            "z": 0.135
+          }
+        },
+        {
+          "name": "joint-4",
+          "point": {
+            "x": 0.0318,
+            "y": 0.7418,
+            "z": 0.245
+          }
+        },
+        {
+          "name": "link-4",
+          "point": {
+            "x": 0.0247,
+            "y": 0.7347,
+            "z": 0.34
+          }
+        },
+        {
+          "name": "joint-5",
+          "point": {
+            "x": 0,
+            "y": 0.7383,
+            "z": 0.4683
+          }
+        },
+        {
+          "name": "link-5",
+          "point": {
+            "x": 0,
+            "y": 0.71,
+            "z": 0.475
+          }
+        },
+        {
+          "name": "joint-6",
+          "point": {
+            "x": 0.0226,
+            "y": 0.7326,
+            "z": 0.53
+          }
+        },
+        {
+          "name": "link-6",
+          "point": {
+            "x": 0.0283,
+            "y": 0.7383,
+            "z": 0.55
+          }
+        },
+        {
+          "name": "gripper",
+          "point": {
+            "x": 0,
+            "y": 0.71,
+            "z": 0.58
+          }
+        },
+        {
+          "name": "camera",
+          "point": {
+            "x": 0,
+            "y": 0.78,
+            "z": 0.545
+          }
+        }
+      ],
+      "camera": {
+        "azimuth": 50,
+        "elevation": 20
+      },
+      "animations": [
+        {
+          "duration": 6
+        }
+      ]
+    }
+  ]
+}
