@@ -15,6 +15,7 @@ import { EditorContext, type Editor } from '../editor/EditorContext';
 import { HoverContext, HoverStore } from '../editor/hover';
 import { EMPTY_SELECTION, selectionOf, type Selection } from '../editor/selection';
 import { createSolidClient, type SolidClient } from '../solids/client';
+import type { SpaceShift } from '../solids/protocol';
 import { StandInSolidWorker } from '../solids/stand-in';
 import { handleShapes } from '../solids/worker/space/handles';
 import { workcell } from '../test/space';
@@ -29,7 +30,9 @@ const HEIGHT = 300;
 /** Looking from the front, level, at the origin. */
 const FRONT: SpaceCamera = { target: { x: 0, y: 0, z: 0 }, azimuth: 0, elevation: 0, distance: 5 };
 
-function setUp(options: { relationPick?: boolean; project?: ProjectSnapshot } = {}) {
+function setUp(
+  options: { relationPick?: boolean; project?: ProjectSnapshot; shifts?: SpaceShift[] } = {},
+) {
   const project = options.project ?? workcell();
   const view = project.views[0] as NonNullable<ProjectSnapshot['views'][number]>;
   const scene = buildScene(project, VIEW);
@@ -49,6 +52,17 @@ function setUp(options: { relationPick?: boolean; project?: ProjectSnapshot } = 
       return worker;
     },
   });
+  // Frames that say how far the exploded view moves entries, as the real worker's do.
+  const shifting: SolidClient = options.shifts
+    ? {
+        ...base,
+        showSpace: (shown, listeners) =>
+          base.showSpace(shown, {
+            ...listeners,
+            onFrame: (frame) => listeners?.onFrame?.({ ...frame, shifts: options.shifts }),
+          }),
+      }
+    : base;
   // A pick that answers a relation's line, as the real worker's does over a line.
   const client: SolidClient = options.relationPick
     ? {
@@ -72,7 +86,7 @@ function setUp(options: { relationPick?: boolean; project?: ProjectSnapshot } = 
           };
         },
       }
-    : base;
+    : shifting;
   const sent: Command[] = [];
   const send = vi.fn((command: Command) => {
     sent.push(command);
@@ -293,6 +307,40 @@ describe('the handles', () => {
     const moved = pose?.pose?.at.x ?? 0;
     expect(moved).toBeGreaterThan(0);
     expect(Math.round(moved * 100) / 100).toBe(moved);
+  });
+
+  it('stand where the exploded view draws what they hold, and move it as the poses do', async () => {
+    const shifts = [{ element: 'camera', by: { x: 0, y: 0.5, z: 0 } }];
+    const { frames, worker, sent } = await opened({ shifts });
+    fireEvent.click(screen.getByRole('button', { name: 'Select the camera' }));
+    await settle();
+    const handles = worker()?.ofType('space/update').at(-1)?.handles;
+    expect(handles).toEqual({ mode: 'move', at: { x: 0, y: 1.3, z: 0 } });
+    // Grabbed where they are drawn, they move the camera along the arrow from where its pose is.
+    const x = handleShapes(handles!, FRONT, { width: WIDTH, height: HEIGHT }).find(
+      (shape) => shape.axis === 'x',
+    );
+    const [from, to] = x?.points ?? [];
+    const grab = { clientX: (from!.x + to!.x) / 2, clientY: (from!.y + to!.y) / 2 };
+    fireEvent.pointerDown(frames, { button: 0, ...grab, pointerId: 1 });
+    fireEvent.pointerMove(frames, {
+      clientX: grab.clientX + 37,
+      clientY: grab.clientY,
+      pointerId: 1,
+    });
+    await settle();
+    expect(worker()?.ofType('space/update').at(-1)?.handles?.at.y).toBeCloseTo(1.3, 9);
+    fireEvent.pointerUp(frames, {
+      button: 0,
+      clientX: grab.clientX + 37,
+      clientY: grab.clientY,
+      pointerId: 1,
+    });
+    await settle();
+    const [command] = sent;
+    const pose = command?.type === 'set-poses' ? command.poses[0] : undefined;
+    expect(pose?.pose?.at.y).toBe(0.8);
+    expect(pose?.pose?.at.x).toBeGreaterThan(0);
   });
 
   it('let a gesture go with Escape, and choose rotating with R', async () => {

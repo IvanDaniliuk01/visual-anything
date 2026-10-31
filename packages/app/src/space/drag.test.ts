@@ -3,7 +3,7 @@
  * The handles that move and rotate posed elements (ADR 0076): what they hold, a drag along an arrow
  * and around a ring, snapped to 1 cm and 15° unless Alt is held, what moves with what they hold, and
  * the poses one `set-poses` sends, which the core takes and which put the elements where they were
- * dragged.
+ * dragged; and, while the exploded view is on, the handles where it draws what they hold.
  */
 import { executeCommand, rotationFromDegrees, spaceMath, spaceOf } from '@visual-anything/core';
 import type { SpaceCamera } from '@visual-anything/schema';
@@ -18,6 +18,9 @@ import {
   HandleGesture,
   movedMatrices,
   posesMoved,
+  shiftedHandles,
+  shiftOfHandles,
+  shiftsFrom,
   snap,
 } from './drag';
 import { spaceEntriesOf } from './entries';
@@ -157,5 +160,62 @@ describe('what a gesture moves, and the poses it sends', () => {
     // A full turn turns nothing.
     const [whole] = posesMoved(space, ['arm'], gesture.matrixOf(360), poseOf);
     expect(whole?.pose).toEqual({ at: { x: 2, y: 0, z: 0 } });
+  });
+});
+
+describe('the handles in the exploded view', () => {
+  it('stand where the worker draws what they hold: moved by the mean of its moves', () => {
+    const shifts = new Map([
+      ['camera', { x: 0, y: 0.2, z: 0 }],
+      ['arm', { x: 0.4, y: 0, z: 0 }],
+    ]);
+    expect(shiftOfHandles(['camera'], shifts)).toEqual({ x: 0, y: 0.2, z: 0 });
+    // The handles stand at the middle of the two, which moves half as far as each.
+    expect(shiftOfHandles(['camera', 'table'], shifts)).toEqual({ x: 0, y: 0.1, z: 0 });
+    expect(shiftOfHandles(['table'], shifts)).toEqual({ x: 0, y: 0, z: 0 });
+    expect(shiftOfHandles(['camera'], undefined)).toEqual({ x: 0, y: 0, z: 0 });
+    const handles = handlesOf({ elements: ['camera'], at: { x: 0, y: 0.8, z: 0 } }, 'move', 'y');
+    expect(shiftedHandles(handles, { x: 0, y: 0.2, z: 0 })).toEqual({
+      mode: 'move',
+      at: { x: 0, y: 1, z: 0 },
+      active: 'y',
+    });
+    expect(shiftedHandles(handles, { x: 0, y: 0, z: 0 })).toBe(handles);
+  });
+
+  it('read a frame’s moves by element, kept as they were while they are the same', () => {
+    const list = [{ element: 'camera', by: { x: 0, y: 0.2, z: 0 } }];
+    const first = shiftsFrom(list, undefined);
+    expect(first?.get('camera')).toEqual({ x: 0, y: 0.2, z: 0 });
+    expect(shiftsFrom([{ element: 'camera', by: { x: 0, y: 0.2, z: 0 } }], first)).toBe(first);
+    expect(shiftsFrom([{ element: 'camera', by: { x: 0, y: 0.3, z: 0 } }], first)).not.toBe(first);
+    expect(shiftsFrom([], first)).toBeUndefined();
+  });
+
+  it('turn what they hold about where its pose puts it, so the pose sent keeps it where it is drawn', () => {
+    const { space, poseOf } = setUp();
+    const shift = { x: 0, y: 0.5, z: 0 };
+    const drawn = shiftedHandles(
+      handlesOf({ elements: ['arm'], at: { x: 2, y: 0, z: 0 } }, 'rotate'),
+      shift,
+    );
+    const gesture = new HandleGesture(drawn, 'z', FRONT, SIZE, { x: 0, y: 0 }, shift);
+    // Turned about its own place, the arm stays where it stands, as without the explosion.
+    const [turned] = posesMoved(space, ['arm'], gesture.matrixOf(90), poseOf);
+    expect(turned?.pose.at).toEqual({ x: 2, y: 0, z: 0 });
+    expect(turned?.pose.rotation?.z).toBeCloseTo(Math.SQRT1_2, 9);
+    // A move along an arrow is the same however far the explosion moved the handles.
+    const moving = new HandleGesture(
+      shiftedHandles(handlesOf({ elements: ['arm'], at: { x: 2, y: 0, z: 0 } }, 'move'), shift),
+      'x',
+      FRONT,
+      SIZE,
+      pixelOf(FRONT, { x: 2, y: 0.5, z: 0 }),
+      shift,
+    );
+    const by = moving.moveTo(pixelOf(FRONT, { x: 2.3, y: 0.5, z: 0 }), true);
+    expect(by).toBeCloseTo(0.3, 9);
+    const [moved] = posesMoved(space, ['arm'], moving.matrixOf(by), poseOf);
+    expect(moved?.pose.at.x).toBeCloseTo(2.3, 9);
   });
 });

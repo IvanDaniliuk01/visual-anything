@@ -12,6 +12,8 @@
  * - **The exploded view** moves each named part away from the middle of the part or solid holding it,
  *   by the factor given, and each part moves with what holds it. What is posed in an entry moves as
  *   that entry does, at any depth ({@link explosionShifts}), and is drawn, named and picked there.
+ *   Relation lines move their ends with what they end on ({@link explodedLines}), so that their
+ *   travelling markers follow; framing frames what the exploded view draws ({@link explodedBoundsOf}).
  * - **Markers** are drawn at their entries' origins, in their overlay's fill, or their shape's.
  * - **Points**, where names are written: an anchored part's middle, moved as its part is; else the
  *   middle of its solid's bounds; else its origin.
@@ -23,7 +25,7 @@ import type { Color, Id, SpaceBounds, SpacePoint } from '@visual-anything/schema
 import { Matrix3, Matrix4, Vector3 } from 'three';
 import { DIMMED_ALPHA } from '../../../canvas/colors';
 import { boundsPlaced } from '../../../space/camera';
-import type { SpaceDrawnEntry, SpaceElementState } from '../../protocol';
+import type { SpaceDrawnEntry, SpaceElementState, SpaceLine } from '../../protocol';
 import type { BuiltSolid, SolidPiece } from '../build';
 import type { SpaceToDraw } from '../host';
 
@@ -103,6 +105,8 @@ export interface SpaceLayout {
   readonly markers: readonly LaidMarker[];
   /** Each entry not hidden, by element, in the entries' order. */
   readonly drawn: ReadonlyMap<Id, DrawnEntry>;
+  /** How far the exploded view moves each entry it moves ({@link explosionShifts}). */
+  readonly shifts: ReadonlyMap<Id, Vector3>;
 }
 
 /** What {@link layOut} reads of a space. */
@@ -237,6 +241,118 @@ export function explosionShifts(
   return shifts;
 }
 
+/**
+ * Relation lines with their ends moved as the exploded view moves what they end on (`SpaceLine.ends`):
+ * an end on an entry by that entry's shift, an end at the middle of another line by the mean of that
+ * line's two ends' moves. A line whose ends move nothing is given back as it is, and so is the list
+ * when no line moves.
+ */
+export function explodedLines(
+  lines: readonly SpaceLine[],
+  shifts: ReadonlyMap<Id, Vector3>,
+): readonly SpaceLine[] {
+  if (shifts.size === 0 || !lines.some((line) => line.ends)) return lines;
+  const byRelation = new Map(lines.map((line) => [line.relation, line]));
+  const known = new Map<Id, { from?: Vector3; to?: Vector3 }>();
+  const visiting = new Set<Id>();
+  /** How far an end on `end` moves: an entry's shift, or the middle of a line drawn. */
+  const endShift = (end: Id): Vector3 | undefined => {
+    const shift = shifts.get(end);
+    if (shift) return shift;
+    const line = byRelation.get(end);
+    if (!line) return undefined;
+    const moves = movesOf(line);
+    if (!moves.from && !moves.to) return undefined;
+    return new Vector3()
+      .add(moves.from ?? new Vector3())
+      .add(moves.to ?? new Vector3())
+      .multiplyScalar(0.5);
+  };
+  const movesOf = (line: SpaceLine): { from?: Vector3; to?: Vector3 } => {
+    const kept = known.get(line.relation);
+    if (kept) return kept;
+    // A line that ends on itself, through other lines, moves with nothing there.
+    if (!line.ends || visiting.has(line.relation)) return {};
+    visiting.add(line.relation);
+    const from = endShift(line.ends.from);
+    const to = endShift(line.ends.to);
+    visiting.delete(line.relation);
+    const moves = { ...(from ? { from } : {}), ...(to ? { to } : {}) };
+    known.set(line.relation, moves);
+    return moves;
+  };
+  let changed = false;
+  const moved = lines.map((line) => {
+    const { from, to } = movesOf(line);
+    if (!from && !to) return line;
+    changed = true;
+    return {
+      ...line,
+      from: from ? movedPoint(line.from, from) : line.from,
+      to: to ? movedPoint(line.to, to) : line.to,
+    };
+  });
+  return changed ? moved : lines;
+}
+
+function movedPoint(point: SpacePoint, by: Vector3): SpacePoint {
+  return { x: point.x + by.x, y: point.y + by.y, z: point.z + by.z };
+}
+
+const explodedBounds = new WeakMap<BuiltSolid, Map<string, SpaceBounds>>();
+
+/**
+ * Bounds in a solid's own coordinates with its named parts where the exploded view moves them: of
+ * the whole solid, its bounds at rest with each part's bounds moved by its offset; of one part, the
+ * bounds of it and of each part it holds, each moved by its own offset. At a factor of 0, the bounds
+ * at rest. A part's bounds at rest hold the parts it holds where they rest, so these may be a little
+ * larger than what is drawn, never smaller.
+ */
+export function explodedBoundsOf(solid: BuiltSolid, factor: number, part?: number): SpaceBounds {
+  const parts = solid.description.parts;
+  const whole = part === undefined;
+  if (!whole && (part < 0 || part >= parts.length)) return solid.description.bounds;
+  if (!(factor > 0) || parts.length === 0) {
+    return whole ? solid.description.bounds : solid.partBounds(part);
+  }
+  let known = explodedBounds.get(solid);
+  if (!known) {
+    known = new Map();
+    explodedBounds.set(solid, known);
+  }
+  const key = `${factor}:${part ?? 'all'}`;
+  const cached = known.get(key);
+  if (cached) return cached;
+  const offsets = explosionOf(solid, factor);
+  const start = whole ? solid.description.bounds : undefined;
+  const min = {
+    x: start?.min.x ?? Infinity,
+    y: start?.min.y ?? Infinity,
+    z: start?.min.z ?? Infinity,
+  };
+  const max = {
+    x: start?.max.x ?? -Infinity,
+    y: start?.max.y ?? -Infinity,
+    z: start?.max.z ?? -Infinity,
+  };
+  // In depth-first order, what a part holds comes right after it.
+  const first = part ?? 0;
+  for (let at = first; at < parts.length; at++) {
+    if (!whole && !solid.holds(first, at)) break;
+    const bounds = solid.partBounds(at);
+    const offset = offsets[at] as Vector3;
+    min.x = Math.min(min.x, bounds.min.x + offset.x);
+    min.y = Math.min(min.y, bounds.min.y + offset.y);
+    min.z = Math.min(min.z, bounds.min.z + offset.z);
+    max.x = Math.max(max.x, bounds.max.x + offset.x);
+    max.y = Math.max(max.y, bounds.max.y + offset.y);
+    max.z = Math.max(max.z, bounds.max.z + offset.z);
+  }
+  const found = { min, max };
+  known.set(key, found);
+  return found;
+}
+
 // Pieces at rest ----------------------------------------------------------------------------------
 
 const rests = new WeakMap<BuiltSolid, Matrix4[]>();
@@ -333,7 +449,7 @@ export function layOut(space: LaidOutSpace): SpaceLayout {
       drawn.set(entry.element, { entry, look, point: pointOf(entry), marks });
     }
   }
-  return { solids: laidSolids, markers, drawn };
+  return { solids: laidSolids, markers, drawn, shifts };
 
   function partLook(entry: SpaceDrawnEntry): SpaceLook | undefined {
     const holder = entry.part && byElement.get(entry.part.of);

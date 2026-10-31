@@ -29,6 +29,9 @@
  * `?solids` measures a project with solids instead (`solids.ts`, M9): 10,000 elements of which 200
  * show solids, from 20 distinct solids it makes itself, 4 at the caps, through the solid worker, in
  * the phases of M9's "Done when"; pointing over parts, the focus, a filter, turning and a cold run.
+ * `?space` measures the physical-space panel instead (`space.ts`, M10): 10,000 elements of which 200
+ * show solids posed in World, from 20 distinct solids, 2 at the caps, with 2,000 anchored parts, the
+ * panel's frames drawn by the solid worker beside the canvas, in the phases of M10's "Done when".
  * `?geometry` measures the beyond-boxes project instead (`geometry.ts`, M8b): free geometry,
  * drawings with parts and relations on outlines, through the phases of `beyond.ts` alone. `?curves`
  * makes the view curve every automatic route that no appearance gives a style (ADR 0069), with
@@ -90,6 +93,9 @@ import { measureResizes, selectAt } from './gestures';
 import { syntheticGeometry, withCurves } from './geometry';
 import { measureSolids, solidsBenchKeys, type SolidsBench } from './solids';
 import { syntheticSolids } from './solidsProject';
+import { measureSpace, type SpaceBench } from './space';
+import { syntheticSpace } from './spaceProject';
+import { LARGEST_SOLID_PICTURE } from '../solids/protocol';
 import { createSolidClient } from '../solids/client';
 import {
   LARGE_TABLE,
@@ -188,11 +194,36 @@ const solidClient = solidsMade
       },
     })
   : undefined;
+// `?space` measures the physical-space panel instead (`space.ts`, M10), its files given at once.
+const spaceMade =
+  search.has('space') && !solidsMade ? syntheticSpace({ elements: size }) : undefined;
+const spaceClient = spaceMade
+  ? createSolidClient({
+      files: {
+        get: (hash) => {
+          const bytes = spaceMade.files.get(hash);
+          return Promise.resolve(
+            bytes
+              ? { ok: true, bytes: bytes.slice() }
+              : {
+                  ok: false,
+                  code: 'solid-file-missing',
+                  message: 'The benchmark made no such file.',
+                },
+          );
+        },
+      },
+    })
+  : undefined;
+/** The panel's canvas beside the canvas, 480 pixels wide as the panel opens, and its frames' size. */
+const spacePanel = spaceMade ? openSpacePanel() : undefined;
 const synthetic = solidsMade
   ? solidsMade.project
-  : geometry
-    ? syntheticGeometry({ elements: size })
-    : syntheticProject({ elements: size, overlap, tables, images });
+  : spaceMade
+    ? spaceMade.project
+    : geometry
+      ? syntheticGeometry({ elements: size })
+      : syntheticProject({ elements: size, overlap, tables, images });
 let project: ProjectSnapshot = curves ? withCurves(synthetic) : synthetic;
 const VIEW = project.views[0]?.id ?? 'everything';
 // What the recolor phase recolors: every Service, or in a view of tables every Column.
@@ -222,7 +253,7 @@ const controller = new CanvasController(
   {
     theme: THEMES[startTheme].canvas,
     firstFit: 'whole',
-    ...(solidClient ? { solids: solidClient } : {}),
+    ...(solidClient ? { solids: solidClient } : spaceClient ? { solids: spaceClient } : {}),
   },
 );
 controller.update(project, VIEW, indexed, false);
@@ -241,6 +272,11 @@ async function run(): Promise<void> {
   if (solidsMade) {
     const solids = await measureSolids(solidsBench());
     report(solids.phases, solids.timed, solids.latency, solids.notes);
+    return;
+  }
+  if (spaceMade) {
+    const space = await measureSpace(spaceBench());
+    report(space.phases, space.timed, space.latency, space.notes);
     return;
   }
   if (geometry) {
@@ -796,7 +832,7 @@ function measure(
   const measuring = {
     renderer: controller.renderer,
     mode,
-    pictures: images || geometry || solidsMade !== undefined,
+    pictures: images || geometry || solidsMade !== undefined || spaceMade !== undefined,
     nextTask,
   };
   return measureFrames(measuring, name, count, step, steps);
@@ -809,6 +845,50 @@ function solidsBench(): SolidsBench {
     client: solidClient as NonNullable<typeof solidClient>,
     releaseFiles: releaseSolidFiles,
     ...solidsBenchKeys(indexed, solidsMade?.drawings ?? []),
+  };
+}
+
+/** What the space phases need of the benchmark (`space.ts`). */
+function spaceBench(): SpaceBench {
+  const made = spaceMade as NonNullable<typeof spaceMade>;
+  const panel = spacePanel as NonNullable<typeof spacePanel>;
+  return {
+    ...beyondBench(),
+    client: spaceClient as NonNullable<typeof spaceClient>,
+    view: project.views[0] as NonNullable<ProjectSnapshot['views'][number]>,
+    mode,
+    size: panel.size,
+    panel: panel.canvas,
+    holders: made.holders,
+    step: made.step,
+  };
+}
+
+/**
+ * Narrows the canvas and puts the physical-space panel's canvas beside it, as the shell does when the
+ * panel opens at 480 pixels: before the canvas is made, so that it measures its narrower host.
+ */
+function openSpacePanel(): { canvas: HTMLCanvasElement; size: { width: number; height: number } } {
+  const width = 480;
+  host.style.right = `calc(22rem + ${width}px)`;
+  const canvas = document.createElement('canvas');
+  canvas.setAttribute('aria-label', 'Physical space');
+  Object.assign(canvas.style, {
+    position: 'absolute',
+    top: '0',
+    bottom: '0',
+    right: '22rem',
+    width: `${width}px`,
+    height: '100%',
+    borderLeft: '1px solid var(--border)',
+  });
+  document.body.append(canvas);
+  const ratio = window.devicePixelRatio || 1;
+  const side = (css: number) =>
+    Math.min(LARGEST_SOLID_PICTURE, Math.max(1, Math.round(css * ratio)));
+  return {
+    canvas,
+    size: { width: side(width), height: side(canvas.getBoundingClientRect().height) },
   };
 }
 
@@ -1340,7 +1420,7 @@ function report(phases: Phase[], timed: Timed[], latency: number[], themeNotes: 
       action.p50.toFixed(digits),
       action.p95.toFixed(digits),
       action.worst.toFixed(digits),
-      action.mark === undefined ? 'none yet' : `p95 ≤ ${action.mark}`,
+      action.mark === undefined ? 'none yet' : `p95 ≤ ${Number(action.mark.toFixed(2))}`,
     ]);
   }
   (document.getElementById('edits') as HTMLElement).hidden = false;

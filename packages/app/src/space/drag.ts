@@ -9,10 +9,21 @@
  * is its origin. A posed element inside another that moves with it is left to it, so nothing moves
  * twice. The handles' axes are those of the container the first element is posed in, so that moving
  * along an arrow changes one of its pose's numbers.
+ *
+ * While the exploded view is on, the worker draws what the handles hold moved away from where the
+ * poses put it, and says by how much (`SpaceFrameReply.shifts`): the handles stand there too
+ * ({@link shiftOfHandles}, {@link shiftedHandles}), and a ring turns what they hold about where the
+ * poses put it, so that the poses sent keep what is drawn where the gesture left it.
  */
 import { spaceMath, type Space } from '@visual-anything/core';
 import type { Id, Pose, Rotation, SpaceCamera, SpacePoint } from '@visual-anything/schema';
-import type { PixelSize, SpaceAxis, SpaceDrawnEntry, SpaceHandles } from '../solids/protocol';
+import type {
+  PixelSize,
+  SpaceAxis,
+  SpaceDrawnEntry,
+  SpaceHandles,
+  SpaceShift,
+} from '../solids/protocol';
 import { handleAxes } from '../solids/worker/space/handles';
 import { spaceProjection } from './camera';
 import { cameraAxes, dot, rayAt, scale, sub } from './orbit';
@@ -75,6 +86,56 @@ export function handlesOf(
   };
 }
 
+const NO_SHIFT: SpacePoint = { x: 0, y: 0, z: 0 };
+
+/**
+ * How far the exploded view moves what the handles hold, from how far the worker moves each entry:
+ * the mean of their elements' moves, since the handles stand at the mean of their origins.
+ */
+export function shiftOfHandles(
+  elements: readonly Id[],
+  shifts: ReadonlyMap<Id, SpacePoint> | undefined,
+): SpacePoint {
+  if (!shifts || shifts.size === 0 || elements.length === 0) return NO_SHIFT;
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  for (const element of elements) {
+    const shift = shifts.get(element);
+    if (!shift) continue;
+    x += shift.x;
+    y += shift.y;
+    z += shift.z;
+  }
+  const count = elements.length;
+  return x === 0 && y === 0 && z === 0 ? NO_SHIFT : { x: x / count, y: y / count, z: z / count };
+}
+
+/**
+ * The exploded view's moves a frame says, by element: `last` itself when they are the same, so that
+ * what reads them changes only when they do; none when nothing moves.
+ */
+export function shiftsFrom(
+  list: readonly SpaceShift[],
+  last: ReadonlyMap<Id, SpacePoint> | undefined,
+): ReadonlyMap<Id, SpacePoint> | undefined {
+  if (list.length === 0) return undefined;
+  const same =
+    last?.size === list.length &&
+    list.every(({ element, by }) => {
+      const kept = last.get(element);
+      return kept !== undefined && kept.x === by.x && kept.y === by.y && kept.z === by.z;
+    });
+  return same ? last : new Map(list.map(({ element, by }) => [element, by]));
+}
+
+/** The handles moved by `shift`, where the exploded view draws what they hold. */
+export function shiftedHandles(handles: SpaceHandles, shift: SpacePoint): SpaceHandles {
+  if (shift.x === 0 && shift.y === 0 && shift.z === 0) return handles;
+  const { at } = handles;
+  return { ...handles, at: { x: at.x + shift.x, y: at.y + shift.y, z: at.z + shift.z } };
+}
+
 /** A point of a frame, in its pixels from the top left. */
 export interface FramePoint {
   x: number;
@@ -84,7 +145,8 @@ export interface FramePoint {
 /**
  * A drag on one handle, from where it was pressed: it works out how far along the arrow, or how far
  * around the ring, the pointer has taken what the handles hold, and the move that is in their
- * coordinates.
+ * coordinates. `handles` are where they are drawn; `shift` is how far the exploded view moved them
+ * from where the poses put what they hold, about which a ring turns it.
  */
 export class HandleGesture {
   private turned = 0;
@@ -97,6 +159,7 @@ export class HandleGesture {
     private readonly camera: SpaceCamera,
     private readonly size: PixelSize,
     private readonly from: FramePoint,
+    private readonly shift: SpacePoint = NO_SHIFT,
   ) {
     this.last = from;
   }
@@ -126,8 +189,8 @@ export class HandleGesture {
       { x: 0, y: 0, z: 0 },
       { x: axis.x * sin, y: axis.y * sin, z: axis.z * sin, w: Math.cos(half) },
     );
-    // About the point the handles stand at.
-    const at = this.handles.at;
+    // About the point the handles stand at, where the poses put it.
+    const at = sub(this.handles.at, this.shift);
     return spaceMath.multiply(
       spaceMath.matrixOf(at),
       spaceMath.multiply(turn, spaceMath.matrixOf(scale(at, -1))),

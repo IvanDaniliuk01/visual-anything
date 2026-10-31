@@ -3,15 +3,25 @@
  * What a space draws (ADR 0076), worked out without the GPU: solids at their places, each piece in
  * the look of the nearest element standing for it with marks inherited inward, the nodes no element
  * stands for in their solid's element's state, collapsed containers answering as one, markers in
- * their fills, and the exploded view moving each part away from the middle of what holds it.
+ * their fills, and the exploded view moving each part away from the middle of what holds it, with
+ * the relation lines that end on what it moves, and framed where it draws them.
  */
 import { Vector3 } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { DIMMED_ALPHA } from '../../../canvas/colors';
-import type { SpaceDrawnEntry } from '../../protocol';
+import type { SpaceDrawnEntry, SpaceLine } from '../../protocol';
 import type { BuiltSolid } from '../build';
+import { SpaceDrawings } from './drawings';
 import { armEntry, armSolid, at, spaceToDraw } from './fixtures';
-import { SPACE_MARK, explosionOf, layOut, lookOf, trianglesOf } from './layout';
+import {
+  SPACE_MARK,
+  explodedBoundsOf,
+  explodedLines,
+  explosionOf,
+  layOut,
+  lookOf,
+  trianglesOf,
+} from './layout';
 
 let arm: BuiltSolid;
 beforeAll(async () => {
@@ -297,5 +307,106 @@ describe('the exploded view', () => {
     );
     expect(layout.markers.map((marker) => marker.at.x)).toEqual([1, 2, 3]);
     expect(layout.markers.every((marker) => marker.at.y === 0)).toBe(true);
+  });
+});
+
+describe('relation lines in the exploded view', () => {
+  const pin = (element: string, posedIn: string, x: number): SpaceDrawnEntry => ({
+    element,
+    name: element,
+    matrix: at(x, 0.6, 0),
+    marker: true,
+    in: posedIn,
+  });
+  const entries = [armEntry('arm'), WRIST, pin('camera', 'wrist', 1), pin('lamp', 'arm', -1)];
+  const line = (relation: string, from: string, to: string, ...ys: number[]): SpaceLine => ({
+    relation,
+    from: { x: from === 'lamp' ? -1 : 0, y: ys[0] ?? 0.6, z: 0 },
+    to: { x: to === 'camera' ? 1 : 0, y: ys[1] ?? 0.6, z: 0 },
+    highlighted: true,
+    markers: [0.5],
+    ends: { from, to },
+  });
+
+  it('moves each end with what it ends on, the markers along with the line', () => {
+    const layout = layOut(spaceToDraw(arm, entries, { explode: 1 }));
+    // The link moves 0.1 m up, and the camera posed in it with it; the lamp, posed in the arm, stays.
+    expect(layout.shifts.get('wrist')?.y).toBeCloseTo(0.1, 6);
+    expect(layout.shifts.get('camera')?.y).toBeCloseTo(0.1, 6);
+    expect(layout.shifts.has('lamp')).toBe(false);
+    const [moved] = explodedLines([line('r1', 'lamp', 'camera')], layout.shifts);
+    expect(moved?.from).toEqual({ x: -1, y: 0.6, z: 0 });
+    expect(moved?.to.x).toBeCloseTo(1, 6);
+    expect(moved?.to.y).toBeCloseTo(0.7, 6);
+    expect(moved?.markers).toEqual([0.5]);
+    expect(moved?.ends).toEqual({ from: 'lamp', to: 'camera' });
+  });
+
+  it('moves an end on another line by the middle of that line’s moves', () => {
+    const layout = layOut(spaceToDraw(arm, entries, { explode: 2 }));
+    const first = line('r1', 'lamp', 'camera');
+    // r2 goes from the wrist to the middle of r1.
+    const second: SpaceLine = {
+      relation: 'r2',
+      from: { x: 0, y: 0.6, z: 0 },
+      to: { x: 0, y: 0.6, z: 0 },
+      ends: { from: 'wrist', to: 'r1' },
+    };
+    const [, moved] = explodedLines([first, second], layout.shifts);
+    // At a factor of 2 the link moves 0.2 m up: r1's camera end with it, so its middle 0.1 m.
+    expect(moved?.from.y).toBeCloseTo(0.8, 6);
+    expect(moved?.to.y).toBeCloseTo(0.7, 6);
+  });
+
+  it('leaves lines as they are when nothing they end on moves, or they name no ends', () => {
+    const still = layOut(spaceToDraw(arm, entries));
+    expect(still.shifts.size).toBe(0);
+    const lines = [line('r1', 'lamp', 'camera')];
+    expect(explodedLines(lines, still.shifts)).toBe(lines);
+    const exploded = layOut(spaceToDraw(arm, entries, { explode: 1 }));
+    const bare: SpaceLine[] = [
+      { relation: 'r3', from: { x: 0, y: 0, z: 0 }, to: { x: 1, y: 0, z: 0 } },
+    ];
+    expect(explodedLines(bare, exploded.shifts)).toBe(bare);
+    // Lines that end on each other, and on nothing else that moves, move with nothing.
+    const loop: SpaceLine[] = [
+      { ...line('a', 'lamp', 'b'), ends: { from: 'lamp', to: 'b' } },
+      { ...line('b', 'lamp', 'a'), ends: { from: 'lamp', to: 'a' } },
+    ];
+    expect(explodedLines(loop, exploded.shifts)).toBe(loop);
+  });
+
+  it('draws and picks lines where the exploded view moves their ends', () => {
+    const drawings = new SpaceDrawings();
+    const lines = [line('r1', 'lamp', 'camera')];
+    const space = spaceToDraw(arm, entries, { explode: 1, lines });
+    const drawn = drawings.linesOf(space);
+    expect(drawn[0]?.to.y).toBeCloseTo(0.7, 6);
+    // Asked again for the same lines, the same moved lines.
+    expect(drawings.linesOf(space)).toBe(drawn);
+    // Straight ahead lies the exploded line, 0.69 m up there; unexploded, it is 9 cm below.
+    const camera = { target: { x: 0.8, y: 0.69, z: 0 }, azimuth: 0, elevation: 0, distance: 1 };
+    const picked = drawings.pick({ ...space, camera }, 200, 200);
+    expect(picked.relation).toBe('r1');
+    const unexploded = drawings.pick({ ...space, explode: 0, camera }, 200, 200);
+    expect(unexploded.relation).toBeUndefined();
+  });
+});
+
+describe('a solid’s bounds in the exploded view', () => {
+  it('holds its parts where they move, and is its bounds at rest at a factor of 0', () => {
+    expect(explodedBoundsOf(arm, 0)).toEqual(arm.description.bounds);
+    const bounds = explodedBoundsOf(arm, 1);
+    // The gripper, the highest part, moves 0.5 m up.
+    expect(bounds.max.y).toBeCloseTo(1.7, 6);
+    expect(bounds.min.y).toBeCloseTo(0, 6);
+    expect(bounds.min.x).toBeCloseTo(-0.5, 6);
+    expect(explodedBoundsOf(arm, 1)).toBe(bounds);
+    // The link holds the gripper: from the link's foot, moved 0.1 m, to the gripper's top, 0.5 m.
+    const link = explodedBoundsOf(arm, 1, 1);
+    expect(link.min.y).toBeCloseTo(0.3, 6);
+    expect(link.max.y).toBeCloseTo(1.7, 6);
+    expect(link.min.x).toBeCloseTo(-0.2, 6);
+    expect(explodedBoundsOf(arm, 0, 1)).toEqual(arm.partBounds(1));
   });
 });

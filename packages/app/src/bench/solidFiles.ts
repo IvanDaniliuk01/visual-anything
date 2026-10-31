@@ -163,3 +163,47 @@ export function benchSolidFiles(scale: BenchSolidScale = 'full'): BenchSolidFile
   }
   return made;
 }
+
+// The space benchmark's solids (`?space`, M10) ------------------------------------------------------
+
+/**
+ * The counts of the space benchmark's twenty solids (M10's "Done when"), two of them at the caps:
+ * - 0, at every cap at once, as the solids benchmark's 1: the solid of the holder in the middle;
+ * - 1, at the cap on triangles: one surface of 999,698 triangles;
+ * - 2 to 9, the other holders' solids: grids of 100 to 140 boxes, each a named part;
+ * - 10, a surface of 199,712 triangles;
+ * - 11 to 14, surfaces of 19,602, 12,482, 28,322 and 6,962 triangles, which most posed solids show;
+ * - 15 to 19, small solids of a few boxes.
+ */
+export const SPACE_SOLIDS = {
+  count: 20,
+  atCaps: [0, 1] as readonly number[],
+  /** The solids the holders of anchored parts show, the middle holder's first. */
+  holders: [0, 2, 3, 4, 5, 6, 7, 8, 9] as readonly number[],
+} as const;
+
+/** The space benchmark's twenty solids, in their order; `small` cuts every count down for tests. */
+export function spaceSolidFiles(scale: BenchSolidScale = 'full'): BenchSolidFile[] {
+  const full = scale === 'full';
+  const made: BenchSolidFile[] = [];
+  const add = (name: string, bytes: Uint8Array) =>
+    made.push({
+      index: made.length,
+      name,
+      atCaps: SPACE_SOLIDS.atCaps.includes(made.length),
+      bytes,
+    });
+  const one = (mesh: TestSolidMesh) =>
+    writeTestSolid({ nodes: [{ name: 'surface', mesh: 0 }], meshes: [mesh] });
+  add('Every cap at once', partsOnGrid(full ? 4_096 : 256, { vertices: full ? 244 : 24 }));
+  add('Triangles at the cap', one(surface(full ? 708 : 40)));
+  for (let at = 2; at <= 9; at++) add(`Holder ${at}`, boxes(10, 10 + ((at - 2) % 5), at));
+  add('200,000 triangles', one(surface(full ? 317 : 30)));
+  [100, 80, 120, 60].forEach((side, at) => {
+    add(`Surface ${11 + at}`, one(surface(full ? side : 6 + at)));
+  });
+  for (let at = 15; at < SPACE_SOLIDS.count; at++) {
+    add(`Small ${at}`, boxes(1 + (at % 3), 1 + (at % 4), at));
+  }
+  return made;
+}
