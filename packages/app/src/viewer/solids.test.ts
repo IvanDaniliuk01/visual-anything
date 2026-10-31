@@ -89,7 +89,9 @@ describe('what a page holds of its solids', () => {
     const stray = 'a'.repeat(64);
     const refused = readPageData(
       JSON.stringify(
-        pageDataOf(project, { solids: { form: 'files', files: { [stray]: encodeBase64(ARM_FILE) } } }),
+        pageDataOf(project, {
+          solids: { form: 'files', files: { [stray]: encodeBase64(ARM_FILE) } },
+        }),
       ),
       validateFile,
     );
@@ -103,7 +105,10 @@ describe('what a page holds of its solids', () => {
       { form: 'files', files: {}, script: 'alert(1)' },
       { form: 'pictures', pictures: [{ key: 'k', bucket: 100, width: 100, height: 100, png: '' }] },
       { form: 'pictures', pictures: [{ key: 'k', bucket: 128, width: 129, height: 1, png: '' }] },
-      { form: 'pictures', pictures: [{ key: 'k', bucket: 128, width: 128, height: 1, png: '', src: 'x' }] },
+      {
+        form: 'pictures',
+        pictures: [{ key: 'k', bucket: 128, width: 128, height: 1, png: '', src: 'x' }],
+      },
       { form: 'models' },
       'files',
     ]) {
@@ -141,10 +146,7 @@ describe('what a page holds of its solids', () => {
 
 describe('the page’s policy and scripts', () => {
   it('stays as it is for a page without solids, and for a page of their pictures only', async () => {
-    for (const solids of [
-      undefined,
-      { form: 'pictures', pictures: [] } as PageSolids,
-    ]) {
+    for (const solids of [undefined, { form: 'pictures', pictures: [] } as PageSolids]) {
       const page = await writePage({
         assets: ASSETS,
         data: pageDataOf(withSolids(), solids ? { solids } : {}),
@@ -157,9 +159,9 @@ describe('the page’s policy and scripts', () => {
       expect(page.html).not.toContain(SOLID_WORKER_ID);
       expect(page.html).not.toContain(ASSETS.solidWorker);
       expect(page.policy).toBe(
-        PAGE_POLICY_RULES.map(([directive]) => `${directive} ${policy.get(directive)?.join(' ')}`).join(
-          '; ',
-        ),
+        PAGE_POLICY_RULES.map(
+          ([directive]) => `${directive} ${policy.get(directive)?.join(' ')}`,
+        ).join('; '),
       );
     }
   });
@@ -201,9 +203,13 @@ describe('the page’s policy and scripts', () => {
   });
 
   it('refuses to hold solids’ files without a worker to draw them', async () => {
-    const { solidWorker: _worker, ...viewer } = ASSETS;
+    const viewer: ViewerAssets = { script: ASSETS.script, style: ASSETS.style };
     await expect(
-      writePage({ assets: viewer, data: pageDataOf(withSolids(), { solids: FILES }), title: 'Robot' }),
+      writePage({
+        assets: viewer,
+        data: pageDataOf(withSolids(), { solids: FILES }),
+        title: 'Robot',
+      }),
     ).rejects.toThrow(SolidWorkerMissing);
   });
 

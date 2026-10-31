@@ -13,10 +13,7 @@ export function bitmapPixels(bitmap: ImageBitmap): SolidPixels {
     typeof OffscreenCanvas === 'function'
       ? new OffscreenCanvas(width, height)
       : Object.assign(document.createElement('canvas'), { width, height });
-  const context = canvas.getContext('2d') as
-    | OffscreenCanvasRenderingContext2D
-    | CanvasRenderingContext2D
-    | null;
+  const context = canvas.getContext('2d');
   if (!context) throw new Error('The browser has no canvas to read a solid’s picture on.');
   context.drawImage(bitmap, 0, 0);
   return { width, height, pixels: context.getImageData(0, 0, width, height).data };

@@ -150,7 +150,9 @@ export async function exportView(
   // The pictures of the view's solids, drawn at the drawing's scale, for the SVG and the PDF.
   const solids =
     options.solids && (format === 'svg' || format === 'pdf')
-      ? { solids: await solidPicturesFor(project, viewId, options.solids, options.theme ?? 'light') }
+      ? {
+          solids: await solidPicturesFor(project, viewId, options.solids, options.theme ?? 'light'),
+        }
       : {};
   signal?.throwIfAborted();
   switch (format) {

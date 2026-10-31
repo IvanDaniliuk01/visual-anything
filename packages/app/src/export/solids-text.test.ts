@@ -60,10 +60,7 @@ describe('solids in Mermaid and Structurizr', () => {
     const project = withSolids();
     const plain: ProjectSnapshot = {
       ...project,
-      packages: project.packages.map((pkg) => {
-        const { solids: _solids, ...rest } = pkg;
-        return rest;
-      }),
+      packages: project.packages.map((pkg) => ({ ...pkg, solids: [] })),
     };
     expect(writeMermaid(plain, VIEW).lost.some((each) => each.includes('solid'))).toBe(false);
   });

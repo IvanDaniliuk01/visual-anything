@@ -30,7 +30,10 @@ export function solidClientOver(getSolidFile: NonNullable<GetSolidFile>): SolidC
 /** The solids' files of the live session's program, as a read-only page takes them; none outside one. */
 export function useSolidFiles(): SolidFiles | undefined {
   const getSolidFile = useContext(LiveContext)?.getSolidFile;
-  return useMemo(() => (getSolidFile ? solidFilesOver({ getSolidFile }) : undefined), [getSolidFile]);
+  return useMemo(
+    () => (getSolidFile ? solidFilesOver({ getSolidFile }) : undefined),
+    [getSolidFile],
+  );
 }
 
 /** The solid client of the live session; none outside one, where every solid draws its placeholder. */

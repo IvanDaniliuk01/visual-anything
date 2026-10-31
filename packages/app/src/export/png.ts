@@ -75,7 +75,9 @@ async function deflated(bytes: Uint8Array): Promise<Uint8Array> {
       controller.enqueue(bytes);
       controller.close();
     },
-  }).pipeThrough(new CompressionStream('deflate') as unknown as TransformStream<Uint8Array, Uint8Array>);
+  }).pipeThrough(
+    new CompressionStream('deflate') as unknown as TransformStream<Uint8Array, Uint8Array>,
+  );
   const reader = stream.getReader();
   const pieces: Uint8Array[] = [];
   let size = 0;

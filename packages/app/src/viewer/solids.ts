@@ -14,7 +14,7 @@
  * Nothing is fetched: the files and pictures are read from the page's own data. A page whose views
  * show no solid holds no `solids` at all.
  */
-import { decodeBase64, encodeBase64, solidsIn, type ProjectSnapshot } from '@visual-anything/core';
+import { encodeBase64, solidsIn, type ProjectSnapshot } from '@visual-anything/core';
 import { buildScene, type ElementShape } from '../canvas/scene';
 import { isAnchoredSolidPart } from '../canvas/solidMark';
 import {
@@ -54,7 +54,9 @@ export function shapesShowingSolids(project: ProjectSnapshot): ElementShape[] {
   return project.views.flatMap((view) =>
     buildScene(project, view.id).shapes.filter(
       (shape) =>
-        shape.solid !== undefined && shape.solid.placeholder !== true && !isAnchoredSolidPart(shape),
+        shape.solid !== undefined &&
+        shape.solid.placeholder !== true &&
+        !isAnchoredSolidPart(shape),
     ),
   );
 }
@@ -131,7 +133,8 @@ export function readPartRuns(bytes: Uint8Array): SolidPartBuffer | undefined {
   while (at < bytes.length) {
     const value = read();
     const length = read();
-    if (value === undefined || length === undefined || value > 0xffff || length < 1) return undefined;
+    if (value === undefined || length === undefined || value > 0xffff || length < 1)
+      return undefined;
     if (filled + length > data.length) return undefined;
     data.fill(value, filled, filled + length);
     filled += length;
@@ -209,7 +212,7 @@ export function readPageSolids(
         width: width as number,
         height: height as number,
         png,
-        ...(parts === undefined ? {} : { parts: parts as string }),
+        ...(parts === undefined ? {} : { parts }),
       });
     }
     return { ok: true, solids: { form: 'pictures', pictures } };
@@ -238,4 +241,3 @@ export function pagePictureBucket(shape: ElementShape, pixelsPerUnit: number): S
   const rect = shape.solid?.rect;
   return solidBucketFor(rect ? Math.max(rect.width, rect.height) * pixelsPerUnit : 0);
 }
-

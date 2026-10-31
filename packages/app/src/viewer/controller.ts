@@ -205,7 +205,8 @@ export class ViewerController {
     this.solidsFrom = project.packages;
     const definitions = new Map<Id, SolidDefinition>();
     for (const file of project.packages) {
-      for (const solid of file.solids ?? []) if (!definitions.has(solid.id)) definitions.set(solid.id, solid);
+      for (const solid of file.solids ?? [])
+        if (!definitions.has(solid.id)) definitions.set(solid.id, solid);
     }
     this.solidDefinitions = definitions;
     this.renderer.setSolids(this.solids, (id) => definitions.get(id)?.parts);

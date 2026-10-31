@@ -133,7 +133,9 @@ export async function writePage({ assets, data, title }: PageInput): Promise<Wri
   // Solids' files are drawn by the solid worker, which the page then holds (ADR 0075).
   const holdsWorker = data.solids?.form === 'files';
   if (holdsWorker && assets.solidWorker === undefined) {
-    throw new SolidWorkerMissing('The page holds solids’ files, but no solid worker came with the viewer.');
+    throw new SolidWorkerMissing(
+      'The page holds solids’ files, but no solid worker came with the viewer.',
+    );
   }
   const worker = holdsWorker ? scriptText(assets.solidWorker ?? '') : undefined;
   const [firstPaint, viewer, style, starter] = await Promise.all([
@@ -180,7 +182,8 @@ export async function writePage({ assets, data, title }: PageInput): Promise<Wri
   const bytes = encoder.encode(html).length;
   let solidBytes = 0;
   if (data.solids !== undefined) {
-    const { solids: _solids, ...without } = data;
+    const without: PageData = { ...data };
+    delete without.solids;
     solidBytes =
       encoder.encode(held).length -
       encoder.encode(dataText(without)).length +

@@ -1408,13 +1408,18 @@ export class CanvasRenderer {
     const client = this.pictures.solids?.client;
     if (!indexed || !client || client.unavailable) return undefined;
     if (!indexed.scene.shapes.some((shape) => shape.solid !== undefined)) return undefined;
-    const shots = await solidShotsOf(() => undefined, indexed.scene, solidPainterOf(client, this.solidPixels), {
-      pixelsPerUnit: plan.pixelsPerUnit,
-      theme: this.painter.name,
-      within: plan.frame,
-      hidden: this.hiddenNow().shapes,
-      statesOf: (drawing) => this.solidLayer.imageStates(drawing.key),
-    });
+    const shots = await solidShotsOf(
+      () => undefined,
+      indexed.scene,
+      solidPainterOf(client, this.solidPixels),
+      {
+        pixelsPerUnit: plan.pixelsPerUnit,
+        theme: this.painter.name,
+        within: plan.frame,
+        hidden: this.hiddenNow().shapes,
+        statesOf: (drawing) => this.solidLayer.imageStates(drawing.key),
+      },
+    );
     if (shots.pictures.size === 0 || this.indexed !== indexed) return undefined;
     return imageSolidsOf(
       indexed.scene,

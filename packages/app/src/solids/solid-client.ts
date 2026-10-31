@@ -177,7 +177,10 @@ export function keptKey(key: string, bucket: number): string {
  * for. The app's `createSolidClient` starts the solid worker by its address; the read-only page starts
  * the copy of it the page holds.
  */
-export function createSolidClientWith(files: SolidFiles, start: () => SolidWorkerPort): SolidClient {
+export function createSolidClientWith(
+  files: SolidFiles,
+  start: () => SolidWorkerPort,
+): SolidClient {
   return new Client(files, start);
 }
 

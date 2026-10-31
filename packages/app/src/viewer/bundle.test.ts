@@ -237,7 +237,9 @@ describe('The viewer’s bundle', () => {
   });
 
   it('holds neither three.js nor the solid worker, which only a page with solids’ files holds', () => {
-    expect(modules.filter((path) => /node_modules\/(three|three-mesh-bvh)\//.test(path))).toEqual([]);
+    expect(modules.filter((path) => /node_modules\/(three|three-mesh-bvh)\//.test(path))).toEqual(
+      [],
+    );
     expect(modules.filter((path) => path.includes('packages/app/src/solids/worker/'))).toEqual([]);
     expect(modules).not.toContain('packages/app/src/solids/client.ts');
     expect(script).not.toContain(THREE_MARK);

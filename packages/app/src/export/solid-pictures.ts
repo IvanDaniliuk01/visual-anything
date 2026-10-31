@@ -175,7 +175,9 @@ function meets(
   a: { x: number; y: number; width: number; height: number },
   b: { x: number; y: number; width: number; height: number },
 ): boolean {
-  return a.x <= b.x + b.width && b.x <= a.x + a.width && a.y <= b.y + b.height && b.y <= a.y + a.height;
+  return (
+    a.x <= b.x + b.width && b.x <= a.x + a.width && a.y <= b.y + b.height && b.y <= a.y + a.height
+  );
 }
 
 /**
@@ -217,7 +219,8 @@ export async function solidShotsOf(
       continue;
     }
     const states = solid.placement === 'parts' ? statesOf(shape) : undefined;
-    const asked = states && states.hidden.length > 0 ? withHiddenParts(shape, states.hidden) : shape;
+    const asked =
+      states && states.hidden.length > 0 ? withHiddenParts(shape, states.hidden) : shape;
     const pixels = Math.min(
       LARGEST_SOLID_PICTURE,
       Math.max(solid.rect.width, solid.rect.height) * options.pixelsPerUnit,

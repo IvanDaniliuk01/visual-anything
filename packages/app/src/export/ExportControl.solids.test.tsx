@@ -35,7 +35,11 @@ const maker: ImageMaker = {
 const painter: SolidPainter = {
   paint: (asks) =>
     Promise.resolve(
-      asks.map(() => ({ width: 128, height: 128, pixels: new Uint8ClampedArray(128 * 128 * 4).fill(200) })),
+      asks.map(() => ({
+        width: 128,
+        height: 128,
+        pixels: new Uint8ClampedArray(128 * 128 * 4).fill(200),
+      })),
     ),
 };
 
@@ -86,15 +90,19 @@ async function pageSaved(save: ReturnType<typeof vi.fn>): Promise<string> {
 }
 
 describe('Export → Read-only page, with solids', () => {
-  it('asks nothing of solids for a project whose views show none', async () => {
+  it('asks nothing of solids for a project whose views show none', () => {
     renderControl(loadSample());
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('radio', { name: /^Read-only page/ }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('radio', { name: /^Read-only page/ }),
+    );
     expect(screen.queryByRole('group', { name: 'Solids' })).toBeNull();
   });
 
   it('holds their files and the solid worker by default, and says what they take of the page', async () => {
     const { save, assets } = renderControl(withSolids());
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('radio', { name: /^Read-only page/ }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('radio', { name: /^Read-only page/ }),
+    );
     const group = screen.getByRole('group', { name: 'Solids' });
     const turn = within(group).getByRole('radio', { name: /^Turn them in the page/ });
     expect(turn).toBeChecked();
@@ -115,7 +123,9 @@ describe('Export → Read-only page, with solids', () => {
 
   it('holds only their pictures when asked, with neither three.js nor the worker', async () => {
     const { save } = renderControl(withSolids());
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('radio', { name: /^Read-only page/ }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('radio', { name: /^Read-only page/ }),
+    );
     fireEvent.click(screen.getByRole('radio', { name: /^Only their pictures/ }));
     await waitFor(() => expect(screen.getByText(/^Its solids take /)).toBeInTheDocument(), {
       timeout: 10_000,

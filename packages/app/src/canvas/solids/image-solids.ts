@@ -25,7 +25,11 @@ export interface ImageSolids {
 function textureOf(picture: PaintedSolid): Texture {
   return new Texture({
     source: new BufferImageSource({
-      resource: new Uint8Array(picture.pixels.buffer, picture.pixels.byteOffset, picture.pixels.length),
+      resource: new Uint8Array(
+        picture.pixels.buffer,
+        picture.pixels.byteOffset,
+        picture.pixels.length,
+      ),
       width: picture.width,
       height: picture.height,
       format: 'rgba8unorm',

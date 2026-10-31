@@ -22,7 +22,11 @@ function chunksOf(png: Uint8Array): Chunk[] {
   while (at < png.length) {
     const length = view.getUint32(at);
     const type = String.fromCharCode(...png.subarray(at + 4, at + 8));
-    chunks.push({ type, data: png.subarray(at + 8, at + 8 + length), crc: view.getUint32(at + 8 + length) });
+    chunks.push({
+      type,
+      data: png.subarray(at + 8, at + 8 + length),
+      crc: view.getUint32(at + 8 + length),
+    });
     at += 12 + length;
   }
   return chunks;
@@ -42,7 +46,9 @@ function pixelsOf(png: Uint8Array): { width: number; height: number; pixels: Uin
   const header = new DataView(chunks[0]!.data.buffer, chunks[0]!.data.byteOffset);
   const width = header.getUint32(0);
   const height = header.getUint32(4);
-  const raw = inflateSync(Buffer.concat(chunks.filter((each) => each.type === 'IDAT').map((each) => each.data)));
+  const raw = inflateSync(
+    Buffer.concat(chunks.filter((each) => each.type === 'IDAT').map((each) => each.data)),
+  );
   const stride = width * 4;
   const pixels = new Uint8Array(width * height * 4);
   for (let y = 0; y < height; y++) {

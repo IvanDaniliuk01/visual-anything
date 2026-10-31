@@ -212,7 +212,11 @@ export async function writePdf(
  * What a drawing a PDF takes must leave out: bitmaps PDF cannot hold, filters, and the traced paths of
  * solids' anchored parts, which no one points at in a PDF (ADR 0075).
  */
-export const PDF_PICTURES = { bitmaps: ['png', 'jpeg'], filters: false, tracedParts: false } as const;
+export const PDF_PICTURES = {
+  bitmaps: ['png', 'jpeg'],
+  filters: false,
+  tracedParts: false,
+} as const;
 
 /**
  * Makes a PDF of a drawing the SVG writer wrote, as it is, such as a comparison's (ADR 0070): its

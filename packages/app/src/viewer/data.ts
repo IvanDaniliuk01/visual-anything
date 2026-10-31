@@ -267,7 +267,8 @@ export function readPageData(text: string, validate: ValidateFile): PageRead {
       [...solidsIn(snapshot).solids.values()].map((each) => each.definition.hash),
     );
     for (const hash of Object.keys(solids.solids.files)) {
-      if (!defined.has(hash)) problems.push(`The page holds a solid file "${hash}" no package names.`);
+      if (!defined.has(hash))
+        problems.push(`The page holds a solid file "${hash}" no package names.`);
     }
     if (problems.length > 0) return { ok: false, problems };
   }

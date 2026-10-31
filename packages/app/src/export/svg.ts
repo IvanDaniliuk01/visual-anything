@@ -424,7 +424,13 @@ class Writer {
       this.#solidSymbols.set(picture.data, id);
       this.defsById.set(id, bitmapSymbol(id, picture));
     }
-    return empty('use', { href: `#${id}`, x: rect.x, y: rect.y, width: rect.width, height: rect.height });
+    return empty('use', {
+      href: `#${id}`,
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+    });
   }
 
   get defs(): string {
@@ -1504,7 +1510,8 @@ function outlineParts(
   outline: ShapeOutline,
   colors: { fill: Color; stroke: Color },
   face?: string,
-  ownPicture: () => string = () => (shape.image ? writer.picture(shape.image, shape.image.rect) : ''),
+  ownPicture: () => string = () =>
+    shape.image ? writer.picture(shape.image, shape.image.rect) : '',
 ): string {
   const fill = shape.part ? shape.part.color : colors.fill;
   const paint: OutlinePaint = {
@@ -1573,7 +1580,9 @@ function solidParts(writer: Writer, shape: ElementShape, stroke: Color, rect?: R
   if (lines.length === 0) return '';
   return empty('path', {
     'data-part': 'solid-placeholder',
-    d: lines.map(([from, to]) => `M${num(from.x)} ${num(from.y)}L${num(to.x)} ${num(to.y)}`).join(''),
+    d: lines
+      .map(([from, to]) => `M${num(from.x)} ${num(from.y)}L${num(to.x)} ${num(to.y)}`)
+      .join(''),
     fill: 'none',
     stroke,
     'stroke-width': SOLID_MARK_LINE,
@@ -2033,7 +2042,8 @@ function rowParts(
   shape: ElementShape,
   fill: Color,
   face?: string,
-  ownPicture: () => string = () => (shape.image ? writer.picture(shape.image, shape.image.rect) : ''),
+  ownPicture: () => string = () =>
+    shape.image ? writer.picture(shape.image, shape.image.rect) : '',
 ): string {
   const { x, y, width, height } = shape.rect;
   const left = x + ROW_INSIDE;
