@@ -1,4 +1,5 @@
 import { PANEL_KEYS } from '../shell/panels/keys';
+import { SPACE_KEYS } from '../space/keys';
 import { SHAPE_KEYS } from './shapeKeys';
 
 /**
@@ -103,8 +104,9 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
   { keys: 'Tab', does: 'Leave the canvas' },
   ...SHAPE_KEYS,
   ...ROUTE_KEYS,
-  // The side panels' keys, which work beside the canvas too.
+  // The side panels' keys, which work beside the canvas too, and the physical-space panel's.
   ...PANEL_KEYS,
+  ...SPACE_KEYS,
 ];
 
 /** What the canvas tells screen readers about its keys when it gets the focus. */

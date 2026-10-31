@@ -2,6 +2,7 @@ import { definitionsIn, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react';
 import { useT } from '../i18n';
+import { SpacePanelToggle } from '../space/SpacePanelToggle';
 import type { AlignHow } from './align';
 import type { AlignAction } from './alignActions';
 import { AlignMenu } from './AlignMenu';
@@ -72,7 +73,8 @@ export interface CanvasToolbarProps {
 const IN_WORLD = 'With nothing selected, elements are added directly in World.';
 
 /**
- * The canvas toolbar: the component palette, free shapes, the stacking order and zoom. The palette
+ * The canvas toolbar: the component palette, free shapes, the stacking order, Physical space (ADR
+ * 0076) and zoom. The palette
  * adds an element when one is picked from its open list; the arrow keys going through it while it is
  * closed only show an option, which Enter adds.
  */
@@ -165,6 +167,7 @@ export function CanvasToolbar({
           <GridToggles grid={grid} onGrid={onGrid} />
         </Overflowing>
       )}
+      <SpacePanelToggle />
       <span className="canvas-toolbar-spacer" />
       <button type="button" aria-label={t('Zoom out')} onClick={() => onZoom(1 / 1.25)}>
         −

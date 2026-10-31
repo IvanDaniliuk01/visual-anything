@@ -70,20 +70,23 @@ dd {
 }
 
 /*
- * The shell: header on top, then the model panel, the canvas area and the inspector. Each side panel
- * takes the width the person gives its edge, which the panels' store writes (shell/panels/panels.css).
+ * The shell: header on top, then the model panel, the canvas area, the physical-space panel and the
+ * inspector. Each side panel takes the width the person gives its edge, which the panels' store writes
+ * (shell/panels/panels.css); the physical-space panel's column has no width while it is closed
+ * (space/space.css).
  */
 
 .shell {
   --panel-strip: calc(var(--control-sm) + 2 * var(--space-2));
   --model-panel-column: var(--model-panel-width, 18rem);
+  --space-panel-column: 0px;
   --inspector-column: var(--inspector-width, 20rem);
   display: grid;
   grid-template:
-    'header header header' auto
-    'notice notice notice' auto
-    'model canvas inspector' minmax(0, 1fr)
-    / var(--model-panel-column) minmax(0, 1fr) var(--inspector-column);
+    'header header header header' auto
+    'notice notice notice notice' auto
+    'model canvas space inspector' minmax(0, 1fr)
+    / var(--model-panel-column) minmax(0, 1fr) var(--space-panel-column) var(--inspector-column);
   height: 100vh;
   height: 100dvh;
 }

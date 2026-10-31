@@ -39,6 +39,7 @@ import {
   type ComponentProps,
 } from 'react';
 import { useEmphasis, type Emphasis } from '../editor/emphasis';
+import { useHoverStore } from '../editor/hover';
 import { useCodeDrawings } from '../code/context';
 import { elementDestinations } from '../destinations/follow';
 import { useFollow } from '../destinations/follower';
@@ -376,6 +377,13 @@ export function CanvasArea({
   const themeShown = useEffectEvent((shown: ThemeName) => onThemeShown?.(shown));
   // The shape whose hover card shows, once the pointer or the keys rested on it (ADR 0082).
   const [hoverCard, hoverShape] = useHoverCard((key) => latest.current.indexed?.byKey.get(key));
+  // What the canvas hovers is shared by element id, as the physical-space panel marks it (ADR 0076).
+  const hovers = useHoverStore();
+  const shareHover = useEffectEvent((key: string | undefined) => {
+    const shape = key === undefined ? undefined : latest.current.indexed?.byKey.get(key);
+    hovers?.set('canvas', shape?.element);
+  });
+  useEffect(() => () => hovers?.set('canvas', undefined), [hovers]);
   // A destination's mark, Alt+Enter and the shape's menu follow it (ADR 0056).
   const follower = useFollow();
   const follow = useEffectEvent((element: Id) => {
@@ -549,7 +557,10 @@ export function CanvasArea({
         addRow: (container, below) => addRowFromCanvas(container, below),
         themeShown: (shown) => themeShown(shown),
         follow: (element) => follow(element),
-        hoverShape: (key) => hoverShape(key),
+        hoverShape: (key) => {
+          hoverShape(key);
+          shareHover(key);
+        },
         turning: (turned) => turningChanged(turned),
       },
       // The canvas starts in the theme shown now, and follows it from then on.
