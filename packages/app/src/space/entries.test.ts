@@ -22,9 +22,9 @@ describe('the entries a space hands the worker', () => {
     expect(entries.map((each) => ({ ...each, matrix: undefined }))).toEqual([
       { element: 'world', name: 'World' },
       // The table holds the camera: it is drawn as what is in it.
-      { element: 'table', name: 'Table' },
-      { element: 'arm', name: 'Arm', solid: ARM_SOLID.hash, bounds: ARM_SOLID.bounds },
-      { element: 'camera', name: 'Camera', marker: true },
+      { element: 'table', name: 'Table', in: 'world' },
+      { element: 'arm', name: 'Arm', solid: ARM_SOLID.hash, bounds: ARM_SOLID.bounds, in: 'world' },
+      { element: 'camera', name: 'Camera', marker: true, in: 'table' },
       { element: 'elbow', name: 'Elbow', part: { of: 'arm', index: 1 } },
     ]);
     expect(entries.find((each) => each.element === 'arm')?.matrix.slice(12, 15)).toEqual([2, 0, 0]);
@@ -112,6 +112,53 @@ describe('the entries a space hands the worker', () => {
     const named = spaceEntriesOf(spaceOf(project, project.views[0]), name(project));
     expect(named.filter((each) => each.element === 'table')).toHaveLength(1);
     expect(named.find((each) => each.element === 'camera')?.as).toBe('table');
+  });
+
+  it('says what a posed element is posed in when that is drawn, so that it moves with it', () => {
+    const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    const arm = {
+      element: 'arm',
+      how: 'posed' as const,
+      in: 'world',
+      matrix: IDENTITY,
+      solid: { id: 'arm-solid', definition: ARM_SOLID },
+    };
+    const wrist = {
+      element: 'wrist',
+      how: 'anchored' as const,
+      in: 'arm',
+      matrix: IDENTITY,
+      part: { solid: 'arm-solid', name: 'wrist', index: 1 },
+    };
+    const camera = { element: 'camera', how: 'posed' as const, in: 'wrist', matrix: IDENTITY };
+    const lens = { element: 'lens', how: 'posed' as const, in: 'camera', matrix: IDENTITY };
+    const lamp = { element: 'lamp', how: 'posed' as const, in: 'hall', matrix: IDENTITY };
+    const hall = { element: 'hall', how: 'posed' as const, in: 'world', matrix: IDENTITY };
+    const entries = spaceEntriesOf(
+      {
+        entries: new Map(
+          [arm, wrist, camera, lens, lamp].map((entry) => [entry.element, entry] as const),
+        ),
+        faint: new Map([['hall', hall]]),
+      },
+      (id) => id,
+    );
+    const posedIn = Object.fromEntries(entries.map((entry) => [entry.element, entry.in]));
+    expect(posedIn).toEqual({
+      // World is not drawn here, so nothing says it.
+      arm: undefined,
+      // An anchored part says what holds it by its part, not by being posed in it.
+      wrist: undefined,
+      camera: 'wrist',
+      lens: 'camera',
+      // A faint container is drawn too.
+      lamp: 'hall',
+      hall: undefined,
+    });
+    expect(entries.find((entry) => entry.element === 'wrist')?.part).toEqual({
+      of: 'arm',
+      index: 1,
+    });
   });
 
   it('shortens a name past what the worker takes', () => {
