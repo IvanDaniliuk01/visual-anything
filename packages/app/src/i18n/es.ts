@@ -5586,12 +5586,16 @@ export const messages: Catalog = {
     '{Of} tiene {size} de geometría libre, más de los {cap} que puede tener: las últimas {n} geometrías se dibujan según el tipo de sus formas.',
   'The part {of} is drawn as must be "none" or a part named by its id.':
     'La parte como la que se dibuja {of} debe ser "none" o una parte nombrada por su id.',
-  'The part {of} is drawn as holds only its id and its image.':
-    'La parte como la que se dibuja {of} tiene solo su id y su imagen.',
+  'The part {of} is drawn as holds only its id, and its image or its solid.':
+    'La parte como la que se dibuja {of} tiene solo su id, y su imagen o su sólido.',
   'The part {of} is drawn as must be named by the id it has in its picture.':
     'La parte como la que se dibuja {of} debe nombrarse por el id que tiene en su imagen.',
   'The part {of} is drawn as must name its image by its id.':
     'La parte como la que se dibuja {of} debe nombrar su imagen por su id.',
+  'The part {of} is drawn as must name its solid by its id.':
+    'La parte como la que se dibuja {of} debe nombrar su sólido por su id.',
+  'The part {of} is drawn as names its image or its solid, not both.':
+    'La parte como la que se dibuja {of} nombra su imagen o su sólido, no ambos.',
   'The route of {of} is orthogonal, straight or curved.':
     'La ruta de {of} es ortogonal, recta o curva.',
   'A view draws its automatic routes straight or curved, or orthogonal with null, not {value}.':
