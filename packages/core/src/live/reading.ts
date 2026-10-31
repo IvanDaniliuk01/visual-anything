@@ -1,14 +1,16 @@
 /**
- * How an attribute reads (ADR 0057, ADR 0063): a live value over a computed one, a computed value
- * over the stored one, and the stored one over its definition's default. Whatever reads attributes in
- * the app, the inspector, the detail, overlays and filters, reads them through this, so that each
- * shows the same value with the same mark.
+ * How an attribute reads (ADR 0057, ADR 0063, ADR 0085): a simulated value over a live one, a live
+ * value over a computed one, a computed value over the stored one, and the stored one over its
+ * definition's default. Whatever reads attributes in the app, the inspector, the detail, overlays and
+ * filters, reads them through this, so that each shows the same value with the same mark.
  */
 import type { Attributes, Id, JsonValue } from '@visual-anything/schema';
 import type { LiveValue } from './values';
 
 /** Where the value an attribute reads comes from. */
 export type AttributeOrigin =
+  /** Worked out by a simulation run shown in the tab (ADR 0085): never saved. */
+  | 'simulated'
   /** From outside, while the app is open: never saved. */
   | 'live'
   /** Computed by package code: never saved. */
@@ -25,7 +27,7 @@ export interface AttributeReading {
   origin: AttributeOrigin;
   /** For a live value: all of it, with its sender and when it arrived. */
   live?: LiveValue;
-  /** For a computed value: the package whose code computed it. */
+  /** For a computed or a simulated value: the package whose code worked it out. */
   package?: Id;
 }
 
@@ -45,6 +47,8 @@ export interface AttributeSources {
   computed?: ReadonlyMap<string, ComputedReading> | undefined;
   /** Its live values, by attribute. */
   live?: ReadonlyMap<string, LiveValue> | undefined;
+  /** The values the simulation run shown for it answered at the tick shown, by attribute. */
+  simulated?: ReadonlyMap<string, ComputedReading> | undefined;
 }
 
 /** How one attribute reads; undefined when it has no value from anywhere. */
@@ -52,6 +56,10 @@ export function readAttribute(
   sources: AttributeSources,
   name: string,
 ): AttributeReading | undefined {
+  const simulated = sources.simulated?.get(name);
+  if (simulated !== undefined) {
+    return { name, value: simulated.value, origin: 'simulated', package: simulated.package };
+  }
   const live = sources.live?.get(name);
   if (live !== undefined) return { name, value: live.value, origin: 'live', live };
   const computed = sources.computed?.get(name);

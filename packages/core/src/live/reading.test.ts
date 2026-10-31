@@ -20,6 +20,21 @@ describe('readAttribute', () => {
   ]);
   const live = new Map([['latency', LIVE]]);
 
+  it('reads a simulated value over everything else, with its package (ADR 0085)', () => {
+    const simulated = new Map([['latency', { value: 300, package: 'queues' }]]);
+    expect(readAttribute({ own, defaultOf, computed, live, simulated }, 'latency')).toEqual({
+      name: 'latency',
+      value: 300,
+      origin: 'simulated',
+      package: 'queues',
+    });
+    expect(readAttribute({ own, simulated }, 'owner')).toEqual({
+      name: 'owner',
+      value: 'Team A',
+      origin: 'stored',
+    });
+  });
+
   it('reads a live value over a computed one, a computed over the stored, the stored over a default', () => {
     expect(readAttribute({ own, defaultOf, computed, live }, 'latency')).toEqual({
       name: 'latency',

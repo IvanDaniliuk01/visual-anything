@@ -129,6 +129,37 @@ describe('AttributeLookup', () => {
     expect(lookup.overrides('api')).toBe(true);
     expect(lookup.overrides('db')).toBe(false);
   });
+
+  it('reads a simulated value over everything, in place of an attribute the element has only (ADR 0085)', () => {
+    const simulated = new Map([
+      [
+        'api',
+        new Map([
+          ['latency', { value: 400, package: 'ops' }],
+          ['queue', { value: 12, package: 'ops' }],
+        ]),
+      ],
+    ]);
+    const lookup = new AttributeLookup(
+      viewOf([live('api', 'latency', 95)]),
+      computedTier,
+      simulated,
+    );
+    expect(lookup.read(api, 'latency', definitions)).toEqual({
+      name: 'latency',
+      value: 400,
+      origin: 'simulated',
+      package: 'ops',
+    });
+    // "queue" is no attribute of the API: the simulation's section shows it, the canvas does not.
+    expect(lookup.read(api, 'queue', definitions)).toBeUndefined();
+    expect(lookup.overrides('api')).toBe(true);
+    const before = new AttributeLookup(viewOf([live('api', 'latency', 95)]), computedTier);
+    const changing: LiveView = { ...before.live, changedSince: () => new Set() };
+    expect(new AttributeLookup(changing, computedTier, simulated).changedSince(before)).toEqual(
+      new Set(['api']),
+    );
+  });
 });
 
 describe('what changed between two lookups', () => {

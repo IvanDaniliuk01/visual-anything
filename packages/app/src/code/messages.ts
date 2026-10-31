@@ -11,6 +11,7 @@ import type {
   ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Capability, Id } from '@visual-anything/schema';
+import type { SimulationReply, SimulationRequest } from '../simulation/messages';
 
 /** A package whose code the person approved, to run. */
 export interface RunPackage {
@@ -40,7 +41,9 @@ export type CodeRequest =
    * What the local program fetched for a package granted an origin (ADR 0063): the origin's answer,
    * or, when there is none, why.
    */
-  | { kind: 'fetched'; package: Id; url: string; response?: FetchedResponse; problem?: Problem };
+  | { kind: 'fetched'; package: Id; url: string; response?: FetchedResponse; problem?: Problem }
+  /** What a simulation run is to do (ADR 0085). */
+  | SimulationRequest;
 
 /** What an origin answered a fetch with, as `context.fetched` gives it to package code. */
 export interface FetchedResponse {
@@ -103,4 +106,6 @@ export type CodeReply =
   /** Everything asked for is done. */
   | { kind: 'idle' }
   /** Every address a package's code wants fetched now, and how often: the others are no longer. */
-  | { kind: 'network'; package: Id; wanted: WantedAddress[] };
+  | { kind: 'network'; package: Id; wanted: WantedAddress[] }
+  /** What a simulation run did (ADR 0085). */
+  | SimulationReply;

@@ -17,6 +17,7 @@ import type {
   RunPackage,
   WantedAddress,
 } from './messages';
+import type { SimulationReply, SimulationRequest } from '../simulation/messages';
 
 /** What the host needs of a worker. */
 export interface CodeWorkerLike {
@@ -70,6 +71,9 @@ export interface CodeHostOptions {
 /** What the host hears of the addresses each package's code wants fetched (ADR 0063). */
 export type WantedListener = (pkg: Id, wanted: readonly WantedAddress[]) => void;
 
+/** Hears what the worker says of simulation runs (ADR 0085). */
+export type SimulationListener = (reply: SimulationReply) => void;
+
 /** Starts the code worker. Vite bundles the worker from this exact expression. */
 export function startCodeWorker(): CodeWorkerLike {
   return new Worker(new URL('./code.worker.ts', import.meta.url), {
@@ -91,6 +95,7 @@ export class CodeHost {
   private answers: CodeAnswers = NO_ANSWERS;
   private readonly listeners = new Set<() => void>();
   private readonly wantedListeners = new Set<WantedListener>();
+  private readonly simulationListeners = new Set<SimulationListener>();
   private readonly watchdogMs: number;
   private readonly startingMs: number;
   private readonly setTimer: (callback: () => void, ms: number) => unknown;
@@ -163,6 +168,25 @@ export class CodeHost {
     };
   }
 
+  /**
+   * Asks the worker to start, work out, run from a tick or close a simulation run (ADR 0085). Without
+   * a worker, which runs only while some package code is approved, it is not asked, and it answers
+   * false: no code that could simulate runs.
+   */
+  simulate(request: SimulationRequest): boolean {
+    if (!this.worker) return false;
+    this.post(this.worker, request);
+    return true;
+  }
+
+  /** Calls `listener` with everything the worker says of simulation runs, and when it restarted. */
+  onSimulation(listener: SimulationListener): () => void {
+    this.simulationListeners.add(listener);
+    return () => {
+      this.simulationListeners.delete(listener);
+    };
+  }
+
   /** Hands the worker what the local program fetched for a package, or why it did not. */
   fetched(request: Extract<CodeRequest, { kind: 'fetched' }>): void {
     if (this.worker) this.post(this.worker, request);
@@ -173,6 +197,7 @@ export class CodeHost {
     this.stop();
     this.listeners.clear();
     this.wantedListeners.clear();
+    this.simulationListeners.clear();
   }
 
   private ensure(): CodeWorkerLike {
@@ -201,6 +226,12 @@ export class CodeHost {
       for (const listener of [...this.wantedListeners]) listener(reply.package, reply.wanted);
       return;
     }
+    if (reply.kind === 'simulation/ticks' || reply.kind === 'simulation/unavailable') {
+      this.arm();
+      for (const listener of [...this.simulationListeners]) listener(reply);
+      return;
+    }
+    if (reply.kind === 'simulation/restarted') return;
     if (reply.kind === 'idle') {
       this.disarm();
       this.calling = undefined;
@@ -258,6 +289,8 @@ export class CodeHost {
       }
     }
     if (this.input) this.update(this.input);
+    for (const listener of [...this.simulationListeners])
+      listener({ kind: 'simulation/restarted' });
   }
 
   private stop(): void {
