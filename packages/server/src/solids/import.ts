@@ -19,6 +19,7 @@ import {
   type Command,
   type IdGenerator,
   type ProjectSnapshot,
+  type SolidPreparedMessage,
 } from '@visual-anything/core';
 import type { SolidDefinition } from '@visual-anything/schema';
 import type { PreparedSolid } from './store';
@@ -132,14 +133,15 @@ function createPackage(
 }
 
 /** What cleaning gave and what importing does, line by line, for the command line. */
-export function describeSolidImport(prepared: PreparedSolid): string[] {
-  const { counts, bounds, parts, animations } = prepared.description;
+export function describeSolidImport(fileName: string, prepared: SolidPreparedMessage): string[] {
+  const { counts, bounds, parts } = prepared;
+  const animations = prepared.animations ?? [];
   const size = (axis: 'x' | 'y' | 'z') => round(bounds.max[axis] - bounds.min[axis]);
   const lines = [
-    `Cleaned "${prepared.fileName}": ${counted(counts.triangles, 'triangle')}, ${counted(counts.vertices, 'vertex', 'vertices')}, ${counted(counts.nodes, 'node')}, ${counted(parts.length, 'named part')} and ${counted(counts.textures, 'texture')}, ${size('x')} × ${size('y')} × ${size('z')} m.`,
+    `Cleaned "${fileName}": ${counted(counts.triangles, 'triangle')}, ${counted(counts.vertices, 'vertex', 'vertices')}, ${counted(counts.nodes, 'node')}, ${counted(parts.length, 'named part')} and ${counted(counts.textures, 'texture')}, ${size('x')} × ${size('y')} × ${size('z')} m.`,
   ];
   if (animations.length > 0) lines.push(`It has ${counted(animations.length, 'animation')}.`);
-  lines.push(`Its file is solids/${prepared.hash}.glb, ${counted(prepared.bytes.length, 'byte')}.`);
+  lines.push(`Its file is solids/${prepared.hash}.glb, ${counted(prepared.bytes, 'byte')}.`);
   if (prepared.source !== undefined) lines.push(`Its file says: ${prepared.source}`);
   if (prepared.report.length > 0) {
     lines.push('What cleaning dropped or changed:');

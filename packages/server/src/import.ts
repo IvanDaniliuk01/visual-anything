@@ -42,6 +42,8 @@ export interface ImportRequest {
   element?: Id;
   /** For a drawing: the view a new element is made in. */
   view?: Id;
+  /** For a solid (ADR 0075): the hash of the file the program prepared of it. */
+  solid?: string;
 }
 
 /** What an import would do, or why it cannot be done. */
