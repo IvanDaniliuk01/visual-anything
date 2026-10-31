@@ -1373,7 +1373,9 @@ export function CanvasArea({
         </p>
       ) : (
         scene.bounds === undefined && (
-          <p className="canvas-message">{t('This view has no shapes yet.')}</p>
+          <p className="canvas-message">
+            {t('This view has no shapes yet. Add one with Add an element, on the canvas.')}
+          </p>
         )
       )}
     </div>

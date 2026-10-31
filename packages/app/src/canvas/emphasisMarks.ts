@@ -147,7 +147,6 @@ export class LitLines {
   private shown: Graphics[] = [];
 
   constructor() {
-    this.container.label = 'lit lines';
     this.container.addChild(this.lines, this.arrows);
   }
 
@@ -304,7 +303,6 @@ export class MarkerDiscs {
   private shown = 0;
 
   constructor() {
-    this.container.label = 'marker discs';
   }
 
   /** Shows a disc at each of these markers, as large on screen at any scale. */

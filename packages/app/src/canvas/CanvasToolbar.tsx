@@ -2,6 +2,14 @@ import { definitionsIn, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react';
 import { useT } from '../i18n';
+import {
+  BringForwardIcon,
+  BringToFrontIcon,
+  SendBackwardIcon,
+  SendToBackIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
+} from '../shell/icons';
 import { SpacePanelToggle } from '../space/SpacePanelToggle';
 import type { AlignHow } from './align';
 import type { AlignAction } from './alignActions';
@@ -170,13 +178,13 @@ export function CanvasToolbar({
       <SpacePanelToggle />
       <span className="canvas-toolbar-spacer" />
       <button type="button" aria-label={t('Zoom out')} onClick={() => onZoom(1 / 1.25)}>
-        −
+        <ZoomOutIcon />
       </button>
       <output className="canvas-toolbar-zoom" aria-label={t('Zoom')}>
         {scale === undefined ? '' : `${Math.round(scale * 100)}%`}
       </output>
       <button type="button" aria-label={t('Zoom in')} onClick={() => onZoom(1.25)}>
-        +
+        <ZoomInIcon />
       </button>
       <OverflowButton group="fit" type="button" onClick={onFit}>
         {t('Fit')}
@@ -300,31 +308,15 @@ function browsesOptions(event: KeyboardEvent): boolean {
   );
 }
 
-/** The paths of each stacking button's icon, in a 16 by 16 box: chevrons up or down, to a bar at the end. */
-const ICONS: Record<StackingMove, string[]> = {
-  front: ['M3 2.5h10', 'M4 9l4-4 4 4', 'M4 13l4-4 4 4'],
-  forward: ['M4 10l4-4 4 4'],
-  backward: ['M4 6l4 4 4-4'],
-  back: ['M4 3l4 4 4-4', 'M4 7l4 4 4-4', 'M3 13.5h10'],
+/** Each stacking button's icon, from the app's set: chevrons up or down, to a bar at the end. */
+const STACKING_ICONS: Record<StackingMove, typeof BringToFrontIcon> = {
+  front: BringToFrontIcon,
+  forward: BringForwardIcon,
+  backward: SendBackwardIcon,
+  back: SendToBackIcon,
 };
 
 function StackingIcon({ move }: { move: StackingMove }) {
-  return (
-    <svg
-      aria-hidden="true"
-      focusable="false"
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {ICONS[move].map((path) => (
-        <path key={path} d={path} />
-      ))}
-    </svg>
-  );
+  const Icon = STACKING_ICONS[move];
+  return <Icon />;
 }

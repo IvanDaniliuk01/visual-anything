@@ -465,7 +465,9 @@ describe('CanvasArea', () => {
   it('says so when the view draws nothing', () => {
     const empty: Scene = { shapes: [], relations: [], notes: [], arrows: [], bounds: undefined };
     render(<Harness scene={empty} />);
-    expect(screen.getByText('This view has no shapes yet.')).toBeInTheDocument();
+    expect(
+      screen.getByText('This view has no shapes yet. Add one with Add an element, on the canvas.'),
+    ).toBeInTheDocument();
   });
 
   it('explains that the canvas could not draw the view when WebGL is unavailable', async () => {

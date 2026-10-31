@@ -22,9 +22,7 @@ const DRAWINGS: Record<string, string> = {
  * already (`BringToFrontIcon`, `BringForwardIcon`, `SendBackwardIcon`, `SendToBackIcon`, and
  * `ZoomOutIcon` and `ZoomInIcon` for its "−" and "+"); the entry goes once the toolbar takes them.
  */
-const NOT_YET_FROM_THE_SET: Record<string, string> = {
-  'canvas/CanvasToolbar.tsx': 'StackingIcon draws the stacking moves, and Zoom out shows “−”',
-};
+const NOT_YET_FROM_THE_SET: Record<string, string> = {};
 
 /**
  * Characters that stand for an icon: arrows, technical and geometric symbols, dingbats, emoji, and

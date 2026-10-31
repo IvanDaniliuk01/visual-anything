@@ -662,7 +662,6 @@ export const ui: Catalog = {
   'There is no view to outline.': 'No hay ninguna vista para mostrar en el esquema.',
   'There is no view to outline. Make one with New view…, under Views.':
     'No hay ninguna vista para mostrar en el esquema. Crear una con Nueva vista…, en Vistas.',
-  'This view has no shapes yet.': 'Esta vista todavía no tiene formas.',
   'This view has no shapes yet. Add one with Add an element, on the canvas.':
     'Esta vista todavía no tiene formas. Agregar una con Agregar un elemento, en el lienzo.',
   Outline: 'Esquema',
