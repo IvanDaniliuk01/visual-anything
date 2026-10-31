@@ -6456,6 +6456,42 @@ export const messages: Catalog = {
   'The parameter "{name}" is not one of its choices.':
     'El parámetro "{name}" no es una de sus opciones.',
   'No simulation of this element is open.': 'No hay ninguna simulación abierta de este elemento.',
+  // The simulations a package declares that cannot be one (ADR 0085).
+  'The package "{name}" declares simulations but holds no code to work them out.':
+    'El paquete "{name}" declara simulaciones pero no tiene código que las calcule.',
+  'In the simulation of "{component}" in the package "{name}": {problem}':
+    'En la simulación de "{component}" del paquete "{name}": {problem}',
+  'The parameter "{name}" is declared twice.': 'El parámetro "{name}" está declarado dos veces.',
+  'The simulated value "{name}" is declared twice.':
+    'El valor simulado "{name}" está declarado dos veces.',
+  'The parameter "{name}" has a range or a step, which only a number has.':
+    'El parámetro "{name}" tiene un rango o un paso, que solo tiene un número.',
+  'The parameter "{name}" has a unit, which only a number has.':
+    'El parámetro "{name}" tiene una unidad, que solo tiene un número.',
+  'The parameter "{name}" has choices, which only a choice has.':
+    'El parámetro "{name}" tiene opciones, que solo tiene una elección.',
+  'The parameter "{name}" is a choice without its choices.':
+    'El parámetro "{name}" es una elección sin sus opciones.',
+  'The parameter "{name}" has a lowest value above its highest.':
+    'El parámetro "{name}" tiene un mínimo por encima de su máximo.',
+  'The default of the parameter "{name}" is not a number.':
+    'El valor predeterminado del parámetro "{name}" no es un número.',
+  'The default of the parameter "{name}" is below its lowest, {min}.':
+    'El valor predeterminado del parámetro "{name}" está por debajo de su mínimo, {min}.',
+  'The default of the parameter "{name}" is above its highest, {max}.':
+    'El valor predeterminado del parámetro "{name}" está por encima de su máximo, {max}.',
+  'The default of the parameter "{name}" is not true or false.':
+    'El valor predeterminado del parámetro "{name}" no es verdadero ni falso.',
+  'The default of the parameter "{name}" is not one of its choices.':
+    'El valor predeterminado del parámetro "{name}" no es una de sus opciones.',
+  'The simulated value "{name}" has limits, which only a number has.':
+    'El valor simulado "{name}" tiene límites, que solo tiene un número.',
+  'The simulated value "{name}" has a unit, which only a number has.':
+    'El valor simulado "{name}" tiene una unidad, que solo tiene un número.',
+  'The simulated value "{name}" has choices, which only a string has.':
+    'El valor simulado "{name}" tiene opciones, que solo tiene un texto.',
+  'The simulated value "{name}" has a lowest limit above its highest.':
+    'El valor simulado "{name}" tiene un límite mínimo por encima de su máximo.',
   'No nesting relation type can hold a new element of "{component}" inside "{name}".':
     'Ningún tipo de relación que anida puede contener un nuevo elemento de "{component}" dentro de "{name}".',
   // M8b seam 1: free geometry, named parts and automatic route styles (ADR 0066, 0067, 0069).
