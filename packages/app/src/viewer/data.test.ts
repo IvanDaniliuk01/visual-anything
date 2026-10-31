@@ -15,7 +15,7 @@ import { shapeFaceDrawing } from '../canvas/faces';
 import { beyondBoxes } from '../test/beyond';
 import { FACES_VIEW, facedProject } from '../test/faces';
 import { loadSample } from '../test/sample';
-import { PAGE_FORMAT, pageDataOf, readPageData, type PageData } from './data';
+import { PAGE_FORMAT, holdsConflicts, pageDataOf, readPageData, type PageData } from './data';
 
 const sample = loadSample();
 
@@ -352,5 +352,31 @@ describe('A page of a view with faces (ADR 0083)', () => {
     const drawn = writeSvg(result.project, FACES_VIEW).text;
     expect(drawn).toBe(writeSvg(project, FACES_VIEW).text);
     expect(drawn.match(/data-part="face"/g)).toHaveLength(page.shapes.length);
+  });
+});
+
+describe('a page made in the middle of a merge', () => {
+  it('carries no conflicts, and so neither side’s other values (ADR 0041, ADR 0072)', () => {
+    const conflict = {
+      item: 'element:x',
+      path: ['name'],
+      why: 'both',
+      other: 'export default function draw() {}',
+    } as unknown as NonNullable<ProjectSnapshot['model']['conflicts']>[number];
+    const own = sample.packages.find((each) => builtinPackage(each.id) === undefined);
+    const merged: ProjectSnapshot = {
+      ...sample,
+      project: { ...sample.project, conflicts: [conflict] },
+      model: { ...sample.model, conflicts: [conflict] },
+      packages: sample.packages.map((each) =>
+        each === own ? { ...each, conflicts: [{ ...conflict, path: ['code'] }] } : each,
+      ),
+      views: sample.views.map((view) => ({ ...view, conflicts: [conflict] })),
+    };
+    expect(holdsConflicts(merged)).toBe(true);
+    expect(holdsConflicts(sample)).toBe(false);
+    const text = JSON.stringify(pageDataOf(merged));
+    expect(text).not.toContain('"conflicts"');
+    expect(text).not.toContain('export default function draw');
   });
 });

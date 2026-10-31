@@ -429,7 +429,7 @@ _Avoid_: linked package, imported package, dependency
 
 **Version**:
 The project as one commit of its repository holds it, or as the local program opened it or last read it from disk. A version is read and compared, never edited, and never written anywhere (ADR 0071).
-_Avoid_: revision, snapshot, history (the history is the actions since the project opened)
+_Avoid_: revision, snapshot, history (the history is the actions since the project opened). A proposal's `revision`, the count of its showings that an acceptance names (ADR 0073), is no version and keeps its name.
 
 **Comparison**:
 What changed between two versions of a project, worked out by id as a list of changes. It shows as a view drawn before, after, or with its changes marked, in the Changes list, and in exports. It is worked out, never stored (ADR 0070).

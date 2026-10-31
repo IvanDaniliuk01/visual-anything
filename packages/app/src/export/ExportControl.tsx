@@ -17,6 +17,7 @@ import type { Rect } from '../canvas/geometry';
 import type { Scene } from '../canvas/scene';
 import { useT, type Translator } from '../i18n';
 import { DownloadIcon } from '../shell/icons';
+import { holdsConflicts } from '../viewer/data';
 import { LARGE_PAGE, type ViewerAssets, type WrittenPage } from '../viewer/page';
 import './export.css';
 import { isStopped } from './exports';
@@ -637,6 +638,14 @@ function ExportDialog({
                 // Comments name people, and speaker notes are the presenter's (ADR 0058, ADR 0059).
                 ...(page.project.comments.length > 0
                   ? [t('Threads of comments, which name the people who wrote them.')]
+                  : []),
+                // A page shows what each file keeps, never the other side of a merge (ADR 0041).
+                ...(holdsConflicts(page.project)
+                  ? [
+                      t(
+                        'The conflicts a git merge left in the files: the page shows what each file keeps, and neither side’s other values.',
+                      ),
+                    ]
                   : []),
                 ...(page.project.tours.some((tour) => tour.steps.some((step) => step.notes))
                   ? [

@@ -71,7 +71,7 @@ export const MERGE_DRIVER_USAGE = `Usage:
   visual-anything merge-driver --uninstall [--global]
 
 Git runs the first to merge two edits of a project file by id, once your git configuration defines
-the driver; what clashes stays in the file as conflicts, which Visual Anything resolves.
+the driver; what both sides changed differently stays in the file as conflicts, which Visual Anything resolves.
 --install defines it in this repository's git configuration, or in your own with --global, and adds
 the lines that name it to the repository's .gitattributes, unless --no-attributes.
 --uninstall takes the definition out again.`;

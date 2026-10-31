@@ -75,15 +75,42 @@ export function pageDataOf(project: ProjectSnapshot, options: PageDataOptions = 
     format: PAGE_FORMAT,
     ...(options.start === undefined || options.start === '' ? {} : { start: options.start }),
     ...(options.made === undefined ? {} : { made: options.made.toISOString() }),
-    project: project.project,
-    model: project.model,
+    project: withoutConflicts(project.project),
+    model: withoutConflicts(project.model),
     packages: project.packages
       .filter((pkg) => builtinPackage(pkg.id) === undefined)
-      .map((pkg) => withCleanedImages(withoutCode(pkg))),
-    views: project.views,
-    scenarios: project.scenarios,
-    ...(project.tours.length === 0 ? {} : { tours: project.tours.map(withoutNotes) }),
+      .map((pkg) => withCleanedImages(withoutCode(withoutConflicts(pkg)))),
+    views: project.views.map(withoutConflicts),
+    scenarios: project.scenarios.map(withoutConflicts),
+    ...(project.tours.length === 0
+      ? {}
+      : { tours: project.tours.map((tour) => withoutNotes(withoutConflicts(tour))) }),
   };
+}
+
+/**
+ * A file without the conflicts a git merge left in it (ADR 0072): a page shows what each file keeps,
+ * and carries neither side's other values, which may hold package code, speaker notes or images that
+ * were never cleaned (ADR 0041's clarification of 2026-10-26).
+ */
+function withoutConflicts<T extends { conflicts?: unknown }>(file: T): T {
+  if (file.conflicts === undefined) return file;
+  const kept = { ...file };
+  delete kept.conflicts;
+  return kept;
+}
+
+/** Whether any file of a project holds conflicts a git merge left, which a page leaves out. */
+export function holdsConflicts(project: ProjectSnapshot): boolean {
+  return (
+    project.project.conflicts !== undefined ||
+    project.model.conflicts !== undefined ||
+    project.packages.some((each) => each.conflicts !== undefined) ||
+    project.views.some((each) => each.conflicts !== undefined) ||
+    project.scenarios.some((each) => each.conflicts !== undefined) ||
+    project.tours.some((each) => each.conflicts !== undefined) ||
+    project.comments.some((each) => each.conflicts !== undefined)
+  );
 }
 
 /** A tour without its speaker notes: a page is shared, and the notes are the presenter's (ADR 0058). */

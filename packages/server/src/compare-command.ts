@@ -209,7 +209,7 @@ export async function runCompare(
     return 2;
   }
   if (parsed.help) {
-    environment.err(COMPARE_USAGE);
+    environment.out(COMPARE_USAGE);
     return 0;
   }
   try {

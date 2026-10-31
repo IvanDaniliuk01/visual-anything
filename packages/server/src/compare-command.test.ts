@@ -392,7 +392,7 @@ describe('its command line', () => {
       expect(result.err.at(-1)).toBe(COMPARE_USAGE);
     }
     const help = await compare('--help');
-    expect(help).toMatchObject({ code: 0, err: [COMPARE_USAGE] });
+    expect(help).toMatchObject({ code: 0, out: [COMPARE_USAGE] });
   });
 
   it('names each view’s drawings apart, whatever the file system', () => {

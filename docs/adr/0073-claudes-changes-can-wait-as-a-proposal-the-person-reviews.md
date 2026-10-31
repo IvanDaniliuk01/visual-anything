@@ -6,7 +6,7 @@ status: accepted
 
 # Claude's changes can wait as a proposal, which the person accepts change by change
 
-Every change Claude makes today applies at once, as one undoable action labelled Claude (ADR-0029). The person can take any of them back, but only after it is in the files, and perhaps already committed or pulled by someone else. Benchmark R48 asks for a way to review Claude's changes before they apply, as DrawSQL does, since AI content is often ungrounded. This ADR settles:
+Every change Claude makes today applies at once, as one undoable action labeled Claude (ADR-0029). The person can take any of them back, but only after it is in the files, and perhaps already committed or pulled by someone else. Benchmark R48 asks for a way to review Claude's changes before they apply, as DrawSQL does, since AI content is often ungrounded. This ADR settles:
 - what Claude proposes;
 - where a proposal lives;
 - how the person reviews it and applies it;
@@ -72,7 +72,7 @@ It amends ADR-0029, ADR-0028 and ADR-0032 by the clarifications of this date.
 ## Accepting
 
 - **What it makes:** one action of Claude's in the history, whatever the person accepted, undone and redone in one step.
-- **Its label.** It is labelled with Claude's own labels: the one change's label, or the first's and how many more. When only some are accepted, it says how many of how many, such as "Create “Payments” and 4 more (3 of 5 changes)".
+- **Its label.** It is labeled with Claude's own labels: the one change's label, or the first's and how many more. When only some are accepted, it says how many of how many, such as "Create “Payments” and 4 more (3 of 5 changes)".
 - **Its author is Claude.** The change is Claude's work, even though the person chose to accept it. CLAUDE.md's rule that every command records its author holds.
 - **The core works it out,** as it works out a command, and returns what `executeCommand` returns: the project, the operations, their inverses, the label, the warnings and the ids created.
   - It takes the ticked changes from the proposed project onto the project now, through `operationsBetween` (ADR 0070).
@@ -94,7 +94,7 @@ It amends ADR-0029, ADR-0028 and ADR-0032 by the clarifications of this date.
 
 - **One open proposal per project.**
 - **At most 500 changes joined,** as many as the history keeps, and the history's weight budget, 64 Mi code units (ADR-0028), for the operations they hold. Past either, Claude's call is refused with `proposal-full`. The refusal says to ask the person to review the open proposal first.
-- **Speed.** Rebasing after an action adds at most 20 ms to that action at 10,000 elements. The program touches only the items the action's operations name.
+- **Speed.** Rebasing after an action adds at most 20 ms to that action at 10,000 elements. The program touches only the items the action's operations name. (That is the target: today it merges each file the action reached, per the clarification of 2026-10-29, and the spec's follow-ups hold the change; `docs/designs/benchmark-8.md` measures it.)
 
 ## Considered options
 

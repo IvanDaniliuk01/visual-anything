@@ -545,6 +545,8 @@ export const ui: Catalog = {
     'Contiene todo el proyecto, cada vista, cada escenario y cada recorrido, muestre lo que muestre esta vista: compartirla solo con quien pueda leerlo todo. No se conecta a ningún lado, y la guarda el navegador.',
   'Threads of comments, which name the people who wrote them.':
     'Los hilos de comentarios, que nombran a quienes los escribieron.',
+  'The conflicts a git merge left in the files: the page shows what each file keeps, and neither side’s other values.':
+    'Los conflictos que dejó un merge de git en los archivos: la página muestra lo que conserva cada archivo, y no los otros valores de ninguno de los dos lados.',
   'Speaker notes: its tours play with their captions and marks, and the notes stay with whoever presents.':
     'Las notas del orador: sus recorridos se reproducen con sus rótulos y sus marcas, y las notas quedan con quien presenta.',
   'Editing, the history and Claude’s guidance: the page only reads.':
