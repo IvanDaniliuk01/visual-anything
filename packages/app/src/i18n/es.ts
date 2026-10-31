@@ -3078,6 +3078,17 @@ export const ui: Catalog = {
   'It has no description.': 'No tiene descripción.',
   'Source: {source}.': 'Origen: {source}.',
   'License: {license}.': 'Licencia: {license}.',
+  'Turn them in the page': 'Girarlos en la página',
+  'It holds their files and what draws them, so the page is larger':
+    'Guarda sus archivos y lo que los dibuja, así que la página es más grande',
+  'Only their pictures': 'Solo sus imágenes',
+  'A smaller page: they show as drawn here, and cannot be turned':
+    'Una página más chica: se ven como se dibujan aquí, y no se pueden girar',
+  'Its solids take {size} of it.': 'Sus sólidos ocupan {size} de ella.',
+  '{count} solids could not be had, and the page draws them as their placeholders.': {
+    one: 'No se pudo obtener un sólido, y la página lo dibuja como su marcador.',
+    other: 'No se pudieron obtener {count} sólidos, y la página los dibuja como sus marcadores.',
+  },
 };
 
 /**
