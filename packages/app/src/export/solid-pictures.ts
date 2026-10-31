@@ -30,8 +30,8 @@ import {
 } from '../canvas/solids/states';
 import { shapeColors } from '../canvas/theme/paint';
 import { t, type PluralText } from '../i18n';
-import { solidAskFor, type SolidClient, type SolidPictureAsk } from '../solids/solid-client';
-import { LARGEST_SOLID_PICTURE, type SolidPartBuffer } from '../solids/protocol';
+import { solidAskFor, type SolidPictureAsk } from '../solids/ask';
+import { LARGEST_SOLID_PICTURE, type SolidPartBuffer } from '../solids/views';
 
 /** How many pixels the SVG and the PDF give a canvas unit of a solid's picture, as a PNG at 2×. */
 export const SVG_SOLID_PIXELS = 2;
@@ -55,55 +55,6 @@ export interface PaintedSolid extends SolidPixels {
 export interface SolidPainter {
   /** Draws these pictures; none for each one that cannot be drawn. */
   paint(asks: readonly SolidPictureAsk[]): Promise<(PaintedSolid | undefined)[]>;
-}
-
-/** The pixels of a picture the worker drew, which the browser holds as an `ImageBitmap`. */
-export function bitmapPixels(bitmap: ImageBitmap): SolidPixels {
-  const { width, height } = bitmap;
-  const canvas: OffscreenCanvas | HTMLCanvasElement =
-    typeof OffscreenCanvas === 'function'
-      ? new OffscreenCanvas(width, height)
-      : Object.assign(document.createElement('canvas'), { width, height });
-  const context = canvas.getContext('2d') as
-    | OffscreenCanvasRenderingContext2D
-    | CanvasRenderingContext2D
-    | null;
-  if (!context) throw new Error('The browser has no canvas to read a solid’s picture on.');
-  context.drawImage(bitmap, 0, 0);
-  return { width, height, pixels: context.getImageData(0, 0, width, height).data };
-}
-
-/**
- * The painter of the app's solid client: it waits for each picture at most `wait` milliseconds, and
- * reads its pixels with `pixelsOf`, the browser's canvas by default.
- */
-export function solidPainterOf(
-  client: SolidClient,
-  pixelsOf: (bitmap: ImageBitmap) => SolidPixels = bitmapPixels,
-  wait = SOLID_PICTURES_WAIT,
-): SolidPainter {
-  return {
-    async paint(asks) {
-      if (asks.length === 0) return [];
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const late = new Promise<undefined[]>((resolve) => {
-        timer = setTimeout(() => resolve(asks.map(() => undefined)), wait);
-      });
-      const drawn = await Promise.race([client.draw(asks), late]);
-      clearTimeout(timer);
-      return drawn.map((picture) => {
-        if (!picture) return undefined;
-        try {
-          return {
-            ...pixelsOf(picture.bitmap),
-            ...(picture.partBuffer ? { partBuffer: picture.partBuffer } : {}),
-          };
-        } catch {
-          return undefined;
-        }
-      });
-    },
-  };
 }
 
 /** What a scene's solids are drawn with in an export, by the key of the shape that shows each. */

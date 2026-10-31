@@ -52,7 +52,7 @@ import {
   type PageSolidSource,
 } from './page-export';
 import type { ImageMaker, ImageSource } from './source';
-import { solidPainterOf } from './solid-pictures';
+import { solidPainterOf } from './solid-painter';
 import { useSolidClient, useSolidFiles } from '../canvas/solids/useSolidClient';
 
 /** What exporting the read-only page needs of the shell, besides the project. */

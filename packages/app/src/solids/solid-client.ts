@@ -34,7 +34,9 @@ import {
   type SolidWorkerRequest,
 } from './protocol';
 import { solidPictureSerial } from '../canvas/image-serials';
-import { solidPictureKey, type ShapeSolid } from '../canvas/shape-solids';
+import type { SolidPictureAsk } from './ask';
+
+export { solidAskFor, type SolidPictureAsk } from './ask';
 
 /** What the client needs of a worker: the solid worker, or a stand-in for it in tests. */
 export interface SolidWorkerPort {
@@ -72,45 +74,6 @@ export function solidFilesOver(connection: {
         message: result.problems.map((each) => each.message).join(' '),
       };
     },
-  };
-}
-
-/** A picture the canvas wants. */
-export interface SolidPictureAsk extends Omit<SolidView, 'size'> {
-  /** `solidPictureKey` of the shape it is drawn on. */
-  key: string;
-  /** How many device pixels its longer side takes on the screen now, which picks its bucket. */
-  pixels: number;
-  /** Its width over its height. */
-  aspect: number;
-  /** How far its middle is from the middle of the screen: the nearest are asked for first. */
-  distance: number;
-}
-
-/**
- * What the solid client is asked for to draw a shape's solid: its picture by its key, at `pixels`
- * device pixels on its longer side, `distance` from the middle of the screen. None for a shape that
- * draws its placeholder whatever comes.
- */
-export function solidAskFor(
-  shape: { solid?: ShapeSolid },
-  pixels: number,
-  distance: number,
-): SolidPictureAsk | undefined {
-  const { solid } = shape;
-  const key = solidPictureKey(shape);
-  if (!solid || key === undefined) return undefined;
-  return {
-    key,
-    solid: solid.hash,
-    pixels,
-    aspect: solid.rect.width / solid.rect.height,
-    distance,
-    camera: solid.camera,
-    lighting: solid.lighting,
-    hidden: solid.hidden ?? [],
-    parts: solid.placement === 'parts',
-    ...(solid.only === undefined ? {} : { only: solid.only }),
   };
 }
 

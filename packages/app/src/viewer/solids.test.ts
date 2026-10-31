@@ -22,11 +22,9 @@ import {
   writePage,
   type ViewerAssets,
 } from './page';
+import { pageSolidClient, pageWorkerStart, picturesClient } from './solid-clients';
 import {
   SOLID_WORKER_START,
-  pageSolidClient,
-  pageWorkerStart,
-  picturesClient,
   readPageSolids,
   readPartRuns,
   shapesShowingSolids,

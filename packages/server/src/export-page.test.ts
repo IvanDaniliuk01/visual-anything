@@ -1,9 +1,15 @@
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { encodeBase64, solidHash } from '@visual-anything/core';
 import { validateFile } from '@visual-anything/schema/validate';
 import { PAGE_DATA_ID, readPageData } from '@visual-anything/app/src/viewer/data';
-import { LARGE_PAGE, type ViewerAssets } from '@visual-anything/app/src/viewer/page';
+import {
+  LARGE_PAGE,
+  SOLID_WORKER_ID,
+  type ViewerAssets,
+} from '@visual-anything/app/src/viewer/page';
+import { ARM_FILE, withSolids } from '@visual-anything/app/src/test/solids';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseExportCommandLine, runExport } from './export-command';
 import { NO_VIEWER, builtViewer } from './export-page';
@@ -131,5 +137,61 @@ describe('The viewer the build holds', () => {
     expect(await builtViewer(both)).toEqual({ script: 'js', style: 'css' });
     const one = memoryFiles(new Map([['viewer/viewer.js', encode('js')]]));
     expect(await builtViewer(one)).toBeUndefined();
+    // The solid worker beside the viewer, when the build holds it (ADR 0075).
+    const three = memoryFiles(
+      new Map([
+        ['viewer/viewer.js', encode('js')],
+        ['viewer/viewer.css', encode('css')],
+        ['viewer/solid-worker.js', encode('worker')],
+      ]),
+    );
+    expect(await builtViewer(three)).toEqual({ script: 'js', style: 'css', solidWorker: 'worker' });
+  });
+});
+
+describe('visual-anything export --format page, with solids', () => {
+  const WITH_WORKER: ViewerAssets = { ...VIEWER, solidWorker: 'self.onmessage = () => {};' };
+
+  async function robotFolder(withFile: boolean): Promise<void> {
+    await writeProjectFolder(join(folder, 'robot'), withSolids());
+    if (withFile) {
+      await mkdir(join(folder, 'robot', 'solids'), { recursive: true });
+      await writeFile(join(folder, 'robot', 'solids', `${solidHash(ARM_FILE)}.glb`), ARM_FILE);
+    }
+  }
+
+  it('holds the files of the solids its views show, read from the project, with the solid worker', async () => {
+    await robotFolder(true);
+    expect(await run(['robot', '--format', 'page', '--out', 'robot.html'], WITH_WORKER)).toBe(0);
+    const html = await readFile(join(folder, 'robot.html'), 'utf8');
+    const read = pageProject(html);
+    expect(read.solids).toEqual({
+      form: 'files',
+      files: { [solidHash(ARM_FILE)]: encodeBase64(ARM_FILE) },
+    });
+    expect(html).toContain(`id="${SOLID_WORKER_ID}"`);
+    expect(html).toContain('worker-src blob:');
+    expect(err.some((line) => line.startsWith('Its solids take '))).toBe(true);
+  });
+
+  it('draws a solid whose file it cannot read as its placeholder, and says so', async () => {
+    await robotFolder(false);
+    expect(await run(['robot', '--format', 'page', '--out', 'robot.html'], WITH_WORKER)).toBe(0);
+    expect(err).toContain(
+      'One solid’s file could not be read, and the page draws it as its placeholder.',
+    );
+    const read = pageProject(await readFile(join(folder, 'robot.html'), 'utf8'));
+    expect(read.solids).toEqual({ form: 'files', files: {} });
+  });
+
+  it('holds no solids without the solid worker, and says so', async () => {
+    await robotFolder(true);
+    expect(await run(['robot', '--format', 'page', '--out', 'robot.html'])).toBe(0);
+    expect(err.some((line) => line.startsWith('The page draws its solids as placeholders'))).toBe(
+      true,
+    );
+    const html = await readFile(join(folder, 'robot.html'), 'utf8');
+    expect(pageProject(html).solids).toBeUndefined();
+    expect(html).toContain("worker-src 'none'");
   });
 });

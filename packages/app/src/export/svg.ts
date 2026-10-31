@@ -131,7 +131,7 @@ import {
 } from '../canvas/shape-images';
 import { solidsIn } from '@visual-anything/core';
 import { SOLID_MARK_LINE, isAnchoredSolidPart, solidMarkLines } from '../canvas/solidMark';
-import type { SolidPartBuffer } from '../solids/protocol';
+import type { SolidPartBuffer } from '../solids/views';
 import { encodePng } from './png';
 import {
   showsSolid,

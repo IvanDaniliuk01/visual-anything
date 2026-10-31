@@ -10,7 +10,7 @@
  * the contours cover exactly its pixels, holes and all.
  */
 import type { SolidPart } from '@visual-anything/schema';
-import type { SolidPartBuffer } from '../solids/protocol';
+import type { SolidPartBuffer } from '../solids/views';
 
 /** A part's place in a part buffer: the range of values it covers, and the box of their pixels. */
 export interface TracedPart {

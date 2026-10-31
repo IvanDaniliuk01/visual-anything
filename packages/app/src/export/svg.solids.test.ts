@@ -13,7 +13,8 @@ import { createSolidClient, type SolidFileResult } from '../solids/client';
 import { StandInSolidWorker, type StandInBitmap } from '../solids/stand-in';
 import { ARM_FILE, ARM_ID, armDefinition, withSolids } from '../test/solids';
 import { exportView, solidPicturesFor } from './exports';
-import { solidPainterOf, type SolidPainter } from './solid-pictures';
+import type { SolidPainter } from './solid-pictures';
+import { solidPainterOf } from './solid-painter';
 import { partValues, tracedPathData } from './solid-trace';
 import { writeSvg } from './svg';
 

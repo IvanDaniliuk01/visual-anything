@@ -9,7 +9,7 @@ import { NOT_A_PROJECT, PAGE_DATA_ID, readPageData, type PageRead } from './data
 import { PagePreferences } from './preferences';
 import { standaloneValidate } from './validate';
 import { ViewerApp } from './Viewer';
-import { pageSolidClient, pageWorkerStart } from './solids';
+import { pageSolidClient, pageWorkerStart } from './solid-clients';
 
 const mountPoint = document.getElementById('root');
 if (!mountPoint) throw new Error('The page has no #root element.');

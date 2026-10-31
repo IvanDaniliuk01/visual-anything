@@ -10,7 +10,7 @@
  * `page` writes the whole project's read-only page (ADR 0041), which opens at the view given, or at
  * the first without one (`export-page.ts`).
  */
-import { lstat, stat } from 'node:fs/promises';
+import { lstat, realpath, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { ThemeName } from '@visual-anything/core';
@@ -24,6 +24,7 @@ import {
 import type { ViewerAssets } from '@visual-anything/app/src/viewer/page';
 import { errorCode, errorReason } from './errors';
 import { builtViewer, exportPage } from './export-page';
+import { hashOf, readSolidFile } from './solids/files';
 import { formatProjectProblem, loadProject } from './project';
 import { writeFileAtomic } from './writer';
 
@@ -207,13 +208,18 @@ export async function runExport(argv: readonly string[], env: ExportEnvironment)
       ...(view === undefined ? {} : { view }),
       viewer: await (env.viewer ?? (() => builtViewer()))(),
       ...(env.now ? { now: env.now() } : {}),
+      // Solids' files, from the project's own folder, each checked against its name (ADR 0075).
+      solidFile: async (hash) => {
+        const read = await readSolidFile(await realpath(folder), hash);
+        return read.ok && hashOf(read.bytes) === hash ? new Uint8Array(read.bytes) : undefined;
+      },
     });
     if (!page.ok) {
       env.err(page.message);
       return 1;
     }
-    // Past 25 MB it says so before the page is written (ADR 0041).
-    if (page.warning !== undefined) env.err(page.warning);
+    // Past 25 MB it says so before the page is written (ADR 0041), and what its solids take.
+    for (const line of page.warning?.split('\n') ?? []) env.err(line);
     const data = new TextEncoder().encode(page.html);
     written = { data, out: page.html, size: page.bytes };
   } else {

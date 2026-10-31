@@ -11,8 +11,8 @@
 import { encodeBase64, type ProjectSnapshot } from '@visual-anything/core';
 import { solidPictureKey } from '../canvas/shape-solids';
 import type { SolidFiles } from '../solids/solid-client';
-import { solidAskFor } from '../solids/solid-client';
-import { solidBucketFor } from '../solids/protocol';
+import { solidAskFor } from '../solids/ask';
+import { solidBucketFor } from '../solids/views';
 import { pageDataOf } from '../viewer/data';
 import { pageTitle, writePage, type ViewerAssets, type WrittenPage } from '../viewer/page';
 import {
