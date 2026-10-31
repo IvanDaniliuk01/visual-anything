@@ -302,8 +302,7 @@ export class MarkerDiscs {
   private readonly discs: Graphics[] = [];
   private shown = 0;
 
-  constructor() {
-  }
+  constructor() {}
 
   /** Shows a disc at each of these markers, as large on screen at any scale. */
   show(
