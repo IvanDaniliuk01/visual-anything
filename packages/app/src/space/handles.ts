@@ -13,8 +13,8 @@
  * the camera are not drawn.
  */
 import type { Color, SpaceCamera, SpacePoint } from '@visual-anything/schema';
-import { spaceProjection } from '../../../space/camera';
-import type { PixelSize, SpaceAxis, SpaceHandles } from '../../protocol';
+import { spaceProjection } from './camera';
+import type { PixelSize, SpaceAxis, SpaceHandles } from '../solids/protocol';
 import { heightAt } from './grid';
 
 /** An arrow's length and a ring's radius, in pixels of the page. */

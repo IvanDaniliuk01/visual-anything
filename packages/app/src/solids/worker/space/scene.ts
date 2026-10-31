@@ -51,7 +51,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { spaceProjection } from '../../../space/camera';
 import { THEMES } from '../../../theme/themes';
 import type { PixelSize } from '../../protocol';
-import { GRID_REACH, gridOf, heightAt } from './grid';
+import { GRID_REACH, gridOf, heightAt } from '../../../space/grid';
 import {
   MARKER_PIN,
   lookKey,

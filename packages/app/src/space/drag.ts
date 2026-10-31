@@ -3,7 +3,7 @@
  * the page: what they act on, where they stand, how a drag along an arrow or around a ring moves or
  * turns what they hold, snapped to 1 cm and 15° unless Alt is held, and the poses that one `set-poses`
  * sends when the gesture ends. The worker draws them from `SpaceShown.handles`, and the page hit-tests
- * them with the same `solids/worker/space/handles.ts`. Pure, with no DOM.
+ * them with the same `space/handles.ts`. Pure, with no DOM.
  *
  * Only posed elements move: an anchored part's place is its solid's, and the element the panel shows
  * is its origin. A posed element inside another that moves with it is left to it, so nothing moves
@@ -24,7 +24,7 @@ import type {
   SpaceHandles,
   SpaceShift,
 } from '../solids/protocol';
-import { handleAxes } from '../solids/worker/space/handles';
+import { handleAxes } from './handles';
 import { spaceProjection } from './camera';
 import { cameraAxes, dot, rayAt, scale, sub } from './orbit';
 

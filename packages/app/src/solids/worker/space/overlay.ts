@@ -19,8 +19,8 @@ import { casingFor } from '../../../canvas/solids/shader';
 import { spaceProjection } from '../../../space/camera';
 import { THEMES } from '../../../theme/themes';
 import type { PixelSize, SpaceHandles, SpaceLine } from '../../protocol';
-import { scaleOf } from './grid';
-import { HANDLE_COLORS, handleShapes } from './handles';
+import { scaleOf } from '../../../space/grid';
+import { HANDLE_COLORS, handleShapes } from '../../../space/handles';
 import type { SpaceLayout } from './layout';
 import { SPACE_MARK } from './layout';
 

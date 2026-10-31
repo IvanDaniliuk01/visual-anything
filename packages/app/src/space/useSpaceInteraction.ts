@@ -30,7 +30,7 @@ import { EMPTY_SELECTION, selectionOf, toggle, type Selectable } from '../editor
 import { useT } from '../i18n';
 import type { PixelSize, SpaceAxis, SpaceDrawnEntry, SpaceHandles } from '../solids/protocol';
 import type { SpacePick } from '../solids/solid-client';
-import { handleAt, handleShapes } from '../solids/worker/space/handles';
+import { handleAt, handleShapes } from './handles';
 import type { SpaceControl } from './control';
 import {
   entriesMoved,
