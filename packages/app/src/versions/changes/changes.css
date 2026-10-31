@@ -130,3 +130,13 @@
   padding-left: 1.2rem;
   overflow-wrap: anywhere;
 }
+
+/* A note beside a change, such as that the person changed it too (ADR 0073). */
+.changes-row-note {
+  flex: none;
+  padding: 0 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}

@@ -77,6 +77,8 @@ export function LiveProvider({
       makeDrawing: connection.makeDrawing,
       listVersions: connection.listVersions,
       compareVersion: connection.compareVersion,
+      acceptProposal: connection.acceptProposal,
+      refuseProposal: connection.refuseProposal,
     }),
     [state, connection],
   );

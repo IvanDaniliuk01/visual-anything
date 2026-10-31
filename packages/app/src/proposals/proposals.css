@@ -1,0 +1,110 @@
+/*
+ * Claude's proposals (ADR 0073): the header's button while one waits, the history panel's toggle of
+ * Review Claude's changes, and the decision above the proposal's changes in the Changes tab.
+ */
+
+.proposal-button,
+.proposal-buttons button,
+.review-waiting button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-sm);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.proposal-button {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.proposal-button[aria-pressed='true'] {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+.proposal-buttons button:hover:not([aria-disabled='true']),
+.review-waiting button:hover {
+  background: var(--surface-hover);
+}
+
+.proposal-buttons button[aria-disabled='true'] {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.proposal-buttons .proposal-accept:not([aria-disabled='true']) {
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+.proposal-decision {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 1rem 0.5rem;
+}
+
+.proposal-labels {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.proposal-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.proposal-note,
+.proposal-problems {
+  margin: 0;
+}
+
+.proposal-problems {
+  color: var(--problem);
+}
+
+.proposal-details p {
+  margin: var(--space-1) 0 0;
+}
+
+.review-setting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.review-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.review-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.review-waiting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+}

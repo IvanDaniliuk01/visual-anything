@@ -32,6 +32,10 @@ export interface OpenedChanges {
   ticks?: ChangeTicks;
   /** What each change offers besides showing it, such as a conflict's two values to keep. */
   actions?: (change: Change) => ReactNode;
+  /** A short note beside a change, such as that the person changed it too; none unless given. */
+  noteOf?: (change: Change) => string | undefined;
+  /** What the list offers above its counts, such as a proposal's Accept and Refuse. */
+  controls?: ReactNode;
 }
 
 /** What `openChanges` gives back. */

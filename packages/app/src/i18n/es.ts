@@ -2959,6 +2959,78 @@ export const ui: Catalog = {
   'In a view of more than 40 lines, selecting keeps the lines that touch the selection and draws the others faintly.':
     'En una vista de más de 40 líneas, seleccionar deja como están las líneas que tocan la selección y dibuja atenuadas las demás.',
   '{count} more': '{count} más',
+
+  // M11b: reviewing Claude's proposal (ADR 0073): the header, the history panel's toggle of Review
+  // Claude's changes, and the decision above the proposal's changes in the Changes tab. A tick is
+  // «marca», ticking «marcar».
+  'Claude proposes {count} changes': {
+    one: 'Claude propone {count} cambio',
+    other: 'Claude propone {count} cambios',
+  },
+  'Review Claude’s proposal': 'Revisar la propuesta de Claude',
+  'Reviewing Claude’s proposal': 'Revisando la propuesta de Claude',
+  '{proposes}: review them before they apply.': '{proposes}: revisarlos antes de que se apliquen.',
+  'Review Claude’s changes': 'Revisar los cambios de Claude',
+  'Claude’s changes wait for you to accept them, change by change.':
+    'Los cambios de Claude esperan a que se acepten, cambio por cambio.',
+  'Claude’s changes apply at once, and you can undo them.':
+    'Los cambios de Claude se aplican enseguida y se pueden deshacer.',
+  Review: 'Revisar',
+  'Claude’s proposal': 'Propuesta de Claude',
+  'Changed by you too': 'También cambiado por usted',
+  'Decide about Claude’s proposal': 'Decidir sobre la propuesta de Claude',
+  'What Claude did: {labels}': 'Lo que hizo Claude: {labels}',
+  Accept: 'Aceptar',
+  'Accept the ticked changes ({ticked} of {total})':
+    'Aceptar los cambios marcados ({ticked} de {total})',
+  Refuse: 'Rechazar',
+  'You changed this too: it starts unticked, so that your edit stays unless you take Claude’s.':
+    'Esto también se cambió aquí: empieza sin marcar, para que la edición propia se mantenga salvo que se tome la de Claude.',
+  'It needs: {changes}.': 'Necesita: {changes}.',
+  'Needed by: {changes}.': 'Lo necesitan: {changes}.',
+  '{what} ({status})': '{what} ({status})',
+  'Also ticked, since it needs them: {changes}.':
+    'También se marcó, porque los necesita: {changes}.',
+  'Also unticked, since they need it: {changes}.':
+    'También se desmarcó, porque lo necesitan: {changes}.',
+
+  // M11b: the conflicts a merge left, in the Changes tab (ADR 0072). A merge is «unión», as in the
+  // warning; ours and theirs are the two sides git merged.
+  'Conflicts from a merge': 'Conflictos de una unión',
+  '{count} conflicts': { one: '{count} conflicto', other: '{count} conflictos' },
+  'The project file': 'El archivo del proyecto',
+  'Package “{name}”': 'Paquete “{name}”',
+  'View “{name}”': 'Vista “{name}”',
+  'Thread “{name}”': 'Hilo “{name}”',
+  'The place of “{name}”': 'El lugar de “{name}”',
+  'The free shape “{id}”': 'La forma libre “{id}”',
+  'The stacking order inside “{name}”': 'El orden de apilado dentro de “{name}”',
+  'The route of “{name}”': 'La ruta de “{name}”',
+  'The step “{id}”': 'El paso “{id}”',
+  'The tour step “{id}”': 'El paso del recorrido “{id}”',
+  'The comment “{id}”': 'El comentario “{id}”',
+  'Both sides changed it, differently.': 'Los dos lados lo cambiaron, de forma distinta.',
+  'One side removed it, and the other changed it.': 'Un lado lo quitó y el otro lo cambió.',
+  'Both sides added it, differently.': 'Los dos lados lo agregaron, de forma distinta.',
+  'One side removed it, but what the other side added or changed needs it.':
+    'Un lado lo quitó, pero lo necesita lo que el otro lado agregó o cambió.',
+  'With what the other side added, it would close a containment cycle.':
+    'Con lo que agregó el otro lado, cerraría un ciclo de contención.',
+  'Both sides put this list in a different order.':
+    'Los dos lados pusieron esta lista en un orden distinto.',
+  'our side': 'nuestro lado',
+  'their side': 'el otro lado',
+  'Kept, from {side}': 'Lo que se conserva, de {side}',
+  'The other choice, from {side}': 'La otra opción, de {side}',
+  'Nothing: it is removed.': 'Nada: está quitado.',
+  'Taking it removes this.': 'Tomarla quita esto.',
+  'Keep all': 'Conservar todo',
+  'Take the other for all': 'Tomar la otra en todo',
+  'Take the other': 'Tomar la otra',
+  'The other choice cannot be taken now: {why}': 'La otra opción no se puede tomar ahora: {why}',
+  '{what}: what is kept, and the other choice': '{what}: lo que se conserva y la otra opción',
+  '{file} holds no conflict now: its file can be added with git add.':
+    '{file} ya no tiene ningún conflicto: su archivo se puede agregar con git add.',
 };
 
 /**
@@ -2971,6 +3043,24 @@ export const messages: Catalog = {
   'Could not undo: {why}': 'No se pudo deshacer: {why}',
   'Could not redo: {why}': 'No se pudo rehacer: {why}',
   'Reloaded the project: {why}': 'Se volvió a cargar el proyecto: {why}',
+  // How Claude's proposal closed, as every tab says it (ADR 0073).
+  'Claude’s proposal was accepted in another tab.':
+    'La propuesta de Claude se aceptó en otra pestaña.',
+  'Accepted Claude’s changes.': 'Se aceptaron los cambios de Claude.',
+  'Accepted {accepted} of Claude’s {total} changes.':
+    'Se aceptaron {accepted} de los {total} cambios de Claude.',
+  'Refused Claude’s proposal: nothing of it was applied.':
+    'Se rechazó la propuesta de Claude: no se aplicó nada de ella.',
+  'Claude’s proposal was refused in another tab.':
+    'La propuesta de Claude se rechazó en otra pestaña.',
+  'Claude withdrew its proposal: nothing of it was applied.':
+    'Claude retiró su propuesta: no se aplicó nada de ella.',
+  'Claude’s proposal closed by itself: what changed left nothing in it to review.':
+    'La propuesta de Claude se cerró sola: lo que cambió no dejó nada en ella para revisar.',
+  'Claude’s proposal was dropped: nothing of it was applied.':
+    'La propuesta de Claude se descartó: no se aplicó nada de ella.',
+  'Visual Anything sent a proposal before the project.':
+    'Visual Anything envió una propuesta antes que el proyecto.',
   'This tab’s copy of the project fell out of step with Visual Anything again: {why}':
     'La copia del proyecto de esta pestaña volvió a desfasarse con Visual Anything: {why}',
   'Could not change your preferences: {why}': 'No se pudieron cambiar las preferencias: {why}',
