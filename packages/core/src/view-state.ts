@@ -53,6 +53,7 @@ import {
   type GuidedFocus,
 } from './protocol';
 import { DECISION_CAPS, knownChoices, playedSteps } from './scenarios/blocks';
+import { MAX_SPACE_DISTANCE, readSpaceCamera } from './space/camera';
 import type { ProjectSnapshot } from './snapshot';
 import { definitionsIn, modelIndexOf } from './state';
 import { RANGE_ENDS, checkTimeRange, type ViewTimeRange } from './time-range';
@@ -112,7 +113,7 @@ export interface ViewState {
 export type ViewSpace = SavedSpace;
 
 /** How far from the root's origin the panel's camera may look and cut, in meters, either way. */
-export const MAX_SPACE_DISTANCE = 100_000_000;
+export { MAX_SPACE_DISTANCE };
 
 /** The parts of a view state, in the order an address writes them. */
 export const VIEW_STATE_KEYS = [
@@ -638,34 +639,9 @@ function within(value: unknown, min: number, max: number): number | undefined {
 }
 
 function checkSpaceCamera(value: unknown): NonNullable<ViewSpace['camera']> {
-  if (!isRecord(value) || Object.keys(value).length !== 4 || !isRecord(value.target)) {
-    refuse(SPACE_CAMERA_FORM);
-  }
-  const { target } = value;
-  if (Object.keys(target).length !== 3) refuse(SPACE_CAMERA_FORM);
-  const [x, y, z] = [target.x, target.y, target.z].map((each) =>
-    within(each, -MAX_SPACE_DISTANCE, MAX_SPACE_DISTANCE),
-  );
-  if (x === undefined || y === undefined || z === undefined) {
-    refuse(
-      `The physical-space panel looks at most ${MAX_SPACE_DISTANCE} m from the origin of what it shows.`,
-    );
-  }
-  const azimuth = within(value.azimuth, -180, 180);
-  if (azimuth === undefined) {
-    refuse('The azimuth of the physical-space panel is from -180 to 180 degrees.');
-  }
-  const elevation = within(value.elevation, -89, 89);
-  if (elevation === undefined) {
-    refuse('The elevation of the physical-space panel is from -89 to 89 degrees.');
-  }
-  const distance = within(value.distance, 0, MAX_SPACE_DISTANCE);
-  if (distance === undefined || distance === 0) {
-    refuse(
-      `The physical-space panel looks from more than 0 m and at most ${MAX_SPACE_DISTANCE} m.`,
-    );
-  }
-  return { target: { x, y, z }, azimuth, elevation, distance };
+  const read = readSpaceCamera(value, SPACE_CAMERA_FORM);
+  if (!read.ok) refuse(read.message);
+  return read.camera;
 }
 
 function checkSpaceCut(value: unknown): NonNullable<ViewSpace['cut']> {

@@ -185,4 +185,18 @@ describe('applyGuidance for exploring and playback', () => {
     );
     expect(state.turn).toEqual({ target: 'arm', camera: { azimuth: 0, elevation: 0 }, request: 3 });
   });
+
+  it('keeps the last request for the physical-space panel: to open, root, move or frame it, or close it', () => {
+    const camera = { target: { x: 0, y: 1, z: 0 }, azimuth: 30, elevation: 20, distance: 4 };
+    let state = applyGuidance(NO_GUIDANCE, { kind: 'focus', targets: ['a'] }, 1);
+    state = applyGuidance(state, { kind: 'space', root: 'arm', camera, view: 'v' }, 2);
+    expect(state.space).toEqual({ root: 'arm', camera, view: 'v', request: 2 });
+    // The marks stay: the panel draws them too.
+    expect(state.marks?.targets).toEqual(['a']);
+    state = applyGuidance(state, { kind: 'space', frame: ['wrist'] }, 3);
+    expect(state.space).toEqual({ frame: ['wrist'], request: 3 });
+    state = applyGuidance(state, { kind: 'space', close: true }, 4);
+    expect(state.space).toEqual({ close: true, request: 4 });
+    expect(applyGuidance(state, { kind: 'clear' }, 5)).toEqual({});
+  });
 });

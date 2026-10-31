@@ -56,6 +56,7 @@ import {
 import { IMAGE_TOOLS } from './image-tools';
 import { PART_TOOLS } from './part-tools';
 import { SOLID_TOOLS } from './solid-tools';
+import { SPACE_TOOLS } from './space-tools';
 import { PROPOSAL_TOOLS, proposalNoteOf } from './proposal-tools';
 import { VERSION_TOOLS } from './version-tools';
 import { CONFLICT_TOOLS } from './conflict-tools';
@@ -1705,6 +1706,8 @@ export const TOOLS: readonly Tool[] = [
   ...PART_TOOLS,
   // Solids: glTF files cleaned beside the project, drawn inside shapes (ADR 0075).
   ...SOLID_TOOLS,
+  // Physical space: poses, and the panel beside the canvas (ADR 0076).
+  ...SPACE_TOOLS,
   ...CODE_TOOLS,
   // Threads of comments (ADR 0059).
   ...COMMENT_TOOLS,

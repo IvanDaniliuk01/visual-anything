@@ -37,6 +37,9 @@ export function setPoses(draft: Draft, command: SetPosesCommand): string {
   if (poses.length === 1 && only !== undefined) {
     return poseLabel(draft.element(only.element).name, only.pose);
   }
+  if (poses.every((each) => each.pose === null)) {
+    return `Take ${count(poses.length, 'element')} out of physical space`;
+  }
   return `Pose ${count(poses.length, 'element')}`;
 }
 

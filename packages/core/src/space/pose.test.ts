@@ -210,6 +210,20 @@ describe('set-poses', () => {
     ).toBe('Pose "Lamp"');
   });
 
+  it('says it takes several out of physical space when it only takes poses away', () => {
+    const posed = ok(lab(), setPose('lamp', { at: { x: 5, y: 0, z: 0 } })).state;
+    const outcome = ok(posed, {
+      type: 'set-poses',
+      poses: [
+        { element: 'bench', pose: null },
+        { element: 'lamp', pose: null },
+      ],
+    });
+    expect(outcome.label).toBe('Take 2 elements out of physical space');
+    expect(poseOf(outcome.state, 'bench')).toBeUndefined();
+    expect(poseOf(outcome.state, 'lamp')).toBeUndefined();
+  });
+
   it('changes nothing for poses as they are', () => {
     const posed = ok(lab(), setPose('lamp', { at: { x: 5, y: 0, z: 0 } })).state;
     expect(

@@ -190,6 +190,27 @@ const UNREADABLE: readonly [string, () => unknown][] = [
     'turning to a camera out of range',
     guidance({ kind: 'turn', target: 'arm', camera: { azimuth: 0, elevation: 90 } }),
   ],
+  // M10: the guidance for the physical-space panel (ADR 0076).
+  ['closing the panel with false', guidance({ kind: 'space', close: false })],
+  ['closing the panel on an element', guidance({ kind: 'space', close: true, root: 'arm' })],
+  ['the panel showing no id', guidance({ kind: 'space', root: '' })],
+  ['the panel at a camera of no form', guidance({ kind: 'space', camera: { azimuth: 0 } })],
+  [
+    'the panel at a camera out of range',
+    guidance({
+      kind: 'space',
+      camera: { target: { x: 0, y: 0, z: 0 }, azimuth: 0, elevation: 90, distance: 1 },
+    }),
+  ],
+  ['the panel framing nothing', guidance({ kind: 'space', frame: [] })],
+  [
+    'the panel at a camera and framing',
+    guidance({
+      kind: 'space',
+      camera: { target: { x: 0, y: 0, z: 0 }, azimuth: 0, elevation: 0, distance: 1 },
+      frame: ['arm'],
+    }),
+  ],
   ['live values not lists', values({ values: 1 })],
   ['live value not an object', values({ values: [1] })],
   ['live value of no target', values({ values: [{ ...liveValue, target: 1 }] })],

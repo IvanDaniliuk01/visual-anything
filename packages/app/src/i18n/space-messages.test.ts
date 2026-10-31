@@ -78,6 +78,13 @@ const COMMANDS: Command[] = [
       { element: 'lamp', pose: null },
     ],
   },
+  {
+    type: 'set-poses',
+    poses: [
+      { element: 'bench', pose: null },
+      { element: 'lamp', pose: null },
+    ],
+  },
   { type: 'set-poses', poses: [] },
   { type: 'set-poses', poses: [{ element: 'world', pose: { at } }] },
   pose('here'),
@@ -148,6 +155,7 @@ describe('what the core says of poses and the physical-space panel, in Spanish',
   it('says each thing it means to', () => {
     expect(said).toContain('Pose "Hall"');
     expect(said).toContain('Pose 2 elements');
+    expect(said).toContain('Take 2 elements out of physical space');
     expect(said).toContain('Take "Hall" out of physical space');
     expect(said.filter((each) => each.startsWith('The pose of')).length).toBeGreaterThan(12);
     expect(said).toContain(
