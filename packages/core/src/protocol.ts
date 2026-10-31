@@ -60,6 +60,18 @@ import {
   type CaptureAnswerMessage,
   type CaptureRequestMessage,
 } from './capture';
+import {
+  readSolidGet,
+  readSolidPieceMessage,
+  readSolidPrepare,
+  readSolidPrepared,
+  readSolidRefused,
+  type SolidGetMessage,
+  type SolidPieceMessage,
+  type SolidPrepareMessage,
+  type SolidPreparedMessage,
+  type SolidRefusedMessage,
+} from './solids/messages';
 
 /**
  * The version of the live protocol; the app and the local program must agree on it, so that one from
@@ -85,7 +97,8 @@ import {
  *    layout guidance with an `answer`, which the app answers with `layout/done` (M3d). And a
  *    picture of a view for Claude (ADR 0081), `capture/request` and its answer `capture/answer`.
  *    And a view's `rows` and `selectionFadesLines` (ADR 0080, section 5), which an older app of 7
- *    would refuse when it opens the view file.
+ *    would refuse when it opens the view file. And solids (M9, ADR 0075): `solid/prepare` and
+ *    `solid/get` from an app, answered with `solid/prepared`, `solid/piece` or `solid/refused`.
  */
 export const PROTOCOL_VERSION = 7;
 
@@ -134,7 +147,10 @@ export type ServerMessage =
   | VersionRefusedMessage
   | ProposalShownMessage
   | ProposalClosedMessage
-  | CaptureRequestMessage;
+  | CaptureRequestMessage
+  | SolidPreparedMessage
+  | SolidPieceMessage
+  | SolidRefusedMessage;
 
 /**
  * Sent in place of `project/opened` while the local program runs on a folder that holds no project yet
@@ -694,7 +710,9 @@ export type AppMessage =
   | ProposalAcceptMessage
   | ProposalRefuseMessage
   | LayoutDoneMessage
-  | CaptureAnswerMessage;
+  | CaptureAnswerMessage
+  | SolidPrepareMessage
+  | SolidGetMessage;
 
 /** The longest name the start screen may give a new project or its first view. */
 export const MAX_START_NAME = 200;
@@ -784,6 +802,9 @@ const SERVER_TYPES = new Set<string>([
   'proposal/shown',
   'proposal/closed',
   'capture/request',
+  'solid/prepared',
+  'solid/piece',
+  'solid/refused',
 ]);
 
 /**
@@ -863,6 +884,12 @@ export function decodeServerMessage(text: string): ServerMessage {
       if (!read.ok) throw new ProtocolError(read.reason);
       return read.value;
     }
+    case 'solid/prepared':
+      return readSolidMessage(readSolidPrepared(message));
+    case 'solid/piece':
+      return readSolidMessage(readSolidPieceMessage(message));
+    case 'solid/refused':
+      return readSolidMessage(readSolidRefused(message));
   }
   return message as unknown as ServerMessage;
 }
@@ -952,9 +979,19 @@ export function decodeAppMessage(text: string): AppMessage {
       if (!read.ok) throw new ProtocolError(read.reason);
       return read.value;
     }
+    case 'solid/prepare':
+      return readSolidMessage(readSolidPrepare(message));
+    case 'solid/get':
+      return readSolidMessage(readSolidGet(message));
     default:
       throw new ProtocolError(`Unknown message type: ${JSON.stringify(message.type)}.`);
   }
+}
+
+/** A message about solids (ADR 0075), or the {@link ProtocolError} of why it cannot be read. */
+function readSolidMessage<T>(read: { ok: true; value: T } | { ok: false; reason: string }): T {
+  if (!read.ok) throw new ProtocolError(read.reason);
+  return read.value;
 }
 
 /** A message about versions or proposals, or the {@link ProtocolError} of why it cannot be read. */

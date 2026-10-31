@@ -97,6 +97,7 @@ import { capOf, describeCap, readRegularFile } from './regular-files';
 import { comparisonOfView, Versions, type VersionsOptions } from './versions/versions';
 import { watchProject, type ProjectWatcher, type WatchMode } from './watcher';
 import { removeFile, writeFileAtomic, type WriteOptions } from './writer';
+import { solidFileAnswer } from './solids/serve';
 
 /** An open app, as the session sees it: something to send messages to. */
 export interface SessionClient {
@@ -734,6 +735,24 @@ export class Session implements LiveSession {
       case 'capture/answer':
         // The picture the tab the person used last took for Claude, or why it took none (ADR 0081).
         this.#captures.answered(client, message);
+        return;
+      case 'solid/get':
+        // A solid's file for the app's solid worker, in pieces (ADR 0075). It only reads, and never
+        // waits behind the project's own work.
+        for (const answer of await solidFileAnswer(this.folder, message.requestId, message.hash)) {
+          this.#send(client, answer);
+        }
+        return;
+      case 'solid/prepare':
+        // Importing a solid comes with the cleaner (M9); its first piece is answered, the rest ignored.
+        if (message.piece.index === 0) {
+          this.#send(client, {
+            type: 'solid/refused',
+            requestId: message.requestId,
+            code: 'program-failed',
+            message: 'This program cannot import solids yet.',
+          });
+        }
         return;
     }
   }
