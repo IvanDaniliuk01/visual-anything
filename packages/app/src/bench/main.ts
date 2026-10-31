@@ -32,6 +32,9 @@
  * `?space` measures the physical-space panel instead (`space.ts`, M10): 10,000 elements of which 200
  * show solids posed in World, from 20 distinct solids, 2 at the caps, with 2,000 anchored parts, the
  * panel's frames drawn by the solid worker beside the canvas, in the phases of M10's "Done when".
+ * `?simulate` measures simulation runs instead (`simulate.ts`, M12): 100 of the 10,000 elements
+ * simulating at once, the view's overlay reading their simulated values, their ticks worked out by
+ * code workers, at 60 ticks a second and as fast as they go, with a tick's marks on the canvas.
  * `?geometry` measures the beyond-boxes project instead (`geometry.ts`, M8b): free geometry,
  * drawings with parts and relations on outlines, through the phases of `beyond.ts` alone. `?curves`
  * makes the view curve every automatic route that no appearance gives a style (ADR 0069), with
@@ -95,6 +98,9 @@ import { measureSolids, solidsBenchKeys, type SolidsBench } from './solids';
 import { syntheticSolids } from './solidsProject';
 import { measureSpace, type SpaceBench } from './space';
 import { syntheticSpace } from './spaceProject';
+import { InPageSimulation, measureSimulate, type SimulateBench } from './simulate';
+import { approvedBenchPackage, syntheticSimulations } from './simulateProject';
+import { CodeHost } from '../code/client';
 import { LARGEST_SOLID_PICTURE } from '../solids/protocol';
 import { createSolidClient } from '../solids/client';
 import {
@@ -217,13 +223,20 @@ const spaceClient = spaceMade
   : undefined;
 /** The panel's canvas beside the canvas, 480 pixels wide as the panel opens, and its frames' size. */
 const spacePanel = spaceMade ? openSpacePanel() : undefined;
+// `?simulate` measures simulation runs instead (`simulate.ts`, M12).
+const simulateMade =
+  search.has('simulate') && !solidsMade && !spaceMade
+    ? syntheticSimulations({ elements: size })
+    : undefined;
 const synthetic = solidsMade
   ? solidsMade.project
   : spaceMade
     ? spaceMade.project
-    : geometry
-      ? syntheticGeometry({ elements: size })
-      : syntheticProject({ elements: size, overlap, tables, images });
+    : simulateMade
+      ? simulateMade.project
+      : geometry
+        ? syntheticGeometry({ elements: size })
+        : syntheticProject({ elements: size, overlap, tables, images });
 let project: ProjectSnapshot = curves ? withCurves(synthetic) : synthetic;
 const VIEW = project.views[0]?.id ?? 'everything';
 // What the recolor phase recolors: every Service, or in a view of tables every Column.
@@ -277,6 +290,12 @@ async function run(): Promise<void> {
   if (spaceMade) {
     const space = await measureSpace(spaceBench());
     report(space.phases, space.timed, space.latency, space.notes);
+    return;
+  }
+  if (simulateMade) {
+    const simulated = await measureSimulate(simulateBench());
+    console.info('Visual Anything simulation benchmark', JSON.stringify(simulated.record));
+    report(simulated.phases, simulated.timed, simulated.latency, simulated.notes);
     return;
   }
   if (geometry) {
@@ -832,7 +851,13 @@ function measure(
   const measuring = {
     renderer: controller.renderer,
     mode,
-    pictures: images || geometry || solidsMade !== undefined || spaceMade !== undefined,
+    // Pictures, and the ticks of simulation runs from their workers, arrive between frames.
+    pictures:
+      images ||
+      geometry ||
+      solidsMade !== undefined ||
+      spaceMade !== undefined ||
+      simulateMade !== undefined,
     nextTask,
   };
   return measureFrames(measuring, name, count, step, steps);
@@ -889,6 +914,40 @@ function openSpacePanel(): { canvas: HTMLCanvasElement; size: { width: number; h
   return {
     canvas,
     size: { width: side(width), height: side(canvas.getBoundingClientRect().height) },
+  };
+}
+
+/**
+ * What the simulation phases need of the benchmark (`simulate.ts`): code workers, each handed the
+ * project and the benchmark's package, approved by its hash as the person would approve it; or the
+ * worker's driver in the page, where the page cannot start workers.
+ */
+function simulateBench(): SimulateBench {
+  const made = simulateMade as NonNullable<typeof simulateMade>;
+  return {
+    ...beyondBench(),
+    mode,
+    simulating: made.simulating,
+    // `&marks=still` stands the markers still, as under reduced motion; `&marks=none` draws no marks.
+    marks:
+      search.get('marks') === 'still'
+        ? 'still'
+        : search.get('marks') === 'none'
+          ? 'none'
+          : 'travel',
+    engines: (kind, count) => {
+      if (kind === 'in-page') {
+        const ports = Array.from({ length: count }, () => new InPageSimulation(project));
+        return { ports, dispose: () => ports.forEach((port) => port.dispose()) };
+      }
+      if (typeof Worker === 'undefined') return undefined;
+      const approved = approvedBenchPackage(project);
+      const hosts = Array.from({ length: count }, () => new CodeHost());
+      for (const host of hosts) {
+        host.update({ project, packages: [approved], view: VIEW, scale: 1, shown: [] });
+      }
+      return { ports: hosts, dispose: () => hosts.forEach((host) => host.dispose()) };
+    },
   };
 }
 
