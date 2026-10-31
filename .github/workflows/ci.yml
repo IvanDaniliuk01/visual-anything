@@ -2,15 +2,14 @@
 #
 # Minutes: the repository is private on GitHub's free plan, which gives about 2,000 a month, counts
 # a minute on Windows twice and one on macOS ten times, and bills each job in whole minutes.
-# - A push to any branch, develop included: Linux with Node 22 and 24, about 2 × 5 = 10 minutes.
-# - A pull request to master, or a manual run: Linux as above, plus Windows (about 10 minutes,
-#   counted 20) and macOS (about 6 minutes, counted 60): about 90 minutes.
+# - A push no longer runs it: on 2026-10-30 the user's minutes were running out, and the suite runs
+#   locally before each merge. It runs only when asked, from the Actions tab or `gh workflow run`.
+# - A pull request to master, or a manual run: Linux with Node 22 and 24 (about 2 × 5 = 10 minutes),
+#   plus Windows (about 10 minutes, counted 20) and macOS (about 6 minutes, counted 60): about 90.
 # Tags run the Executables workflow instead.
 name: CI
 
 on:
-  push:
-    branches: ['**']
   pull_request:
     branches: [master]
   workflow_dispatch:
