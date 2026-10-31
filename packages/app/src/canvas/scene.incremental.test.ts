@@ -15,6 +15,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { syntheticProject } from '../bench/synthetic';
 import { FRAME, ORGANS_ID, TRIANGLE, beyondBoxes } from '../test/beyond';
+import { ARM_ID, withSolids } from '../test/solids';
 import { CARD_FACE, COLUMN_FACE, SYSTEM_FACE, TABLE_FACE, withFaces } from '../test/faces';
 import { loadSample } from '../test/sample';
 import { withWovenRelations } from '../test/woven';
@@ -148,6 +149,9 @@ type Edit =
   | { kind: 'geometry'; element: number; which: number }
   | { kind: 'route-style'; style: number }
   | { kind: 'picture'; element: number; which: number }
+  // Solids (ADR 0075): a solid shown, placed, turned or taken away, and a solid's part.
+  | { kind: 'solid'; element: number; which: number }
+  | { kind: 'solid-part'; element: number; part: number }
   | { kind: 'undo' };
 
 const small = fc.integer({ min: -300, max: 300 });
@@ -230,6 +234,11 @@ const edit: fc.Arbitrary<Edit> = fc.oneof(
   },
   { weight: 1, arbitrary: fc.record({ kind: fc.constant('route-style'), style: pick }) },
   { weight: 1, arbitrary: fc.record({ kind: fc.constant('picture'), element: pick, which: pick }) },
+  { weight: 1, arbitrary: fc.record({ kind: fc.constant('solid'), element: pick, which: pick }) },
+  {
+    weight: 1,
+    arbitrary: fc.record({ kind: fc.constant('solid-part'), element: pick, part: pick }),
+  },
   { weight: 2, arbitrary: fc.constant({ kind: 'undo' as const }) },
 );
 
@@ -491,6 +500,37 @@ function commandOf(edit: Edit, project: ProjectSnapshot, scene: Scene): Command 
         }
       );
     }
+    case 'solid': {
+      const element = at(elements, edit.element);
+      const choices = [
+        { solid: ARM_ID, placement: 'parts' as const },
+        { solid: ARM_ID, placement: 'icon' as const },
+        { solid: ARM_ID, placement: 'drawing' as const, lighting: 'flat' as const },
+        { solid: ARM_ID, placement: 'parts' as const, camera: { azimuth: -60, elevation: 45 } },
+        'none' as const,
+      ];
+      const solid = choices[edit.which % choices.length];
+      return (
+        element && {
+          type: 'update-element',
+          id: element.id,
+          changes: { appearance: { ...element.appearance, solid } },
+        }
+      );
+    }
+    case 'solid-part': {
+      const element = at(elements, edit.element);
+      const names = ['base', 'link', 'wrist', 'tip', 'gripper', 'none-such'];
+      const name = names[edit.part % names.length] as string;
+      const part = edit.part % 4 === 3 ? { part: name, solid: ARM_ID } : { part: name };
+      return (
+        element && {
+          type: 'update-element',
+          id: element.id,
+          changes: { appearance: { ...element.appearance, part } },
+        }
+      );
+    }
     case 'undo':
       return undefined;
   }
@@ -644,6 +684,28 @@ describe('a scene built after an edit', () => {
       { numRuns: 40 },
     );
   }, 120_000);
+
+  it('equals one built from nothing in a view with solids, with drawings of their parts (ADR 0075)', () => {
+    fc.assert(
+      fc.property(fc.array(edit, { minLength: 1, maxLength: 20 }), (edits) => {
+        run(withSolids(VIEW), edits);
+      }),
+      { numRuns: 60 },
+    );
+  }, 120_000);
+
+  it('keeps a solid’s anchored parts at their points as their drawing moves and recolors', () => {
+    run(withSolids(VIEW), [
+      { kind: 'drag', shape: 0, dx: 37, dy: -11 },
+      { kind: 'recolor', element: 1, fill: 5 },
+      { kind: 'drag', shape: 0, dx: 0.1, dy: 0.2 },
+      { kind: 'resize', shape: 0, width: 500, height: 420 },
+      { kind: 'drag', shape: 0, dx: -3, dy: 7 },
+      { kind: 'undo' },
+      { kind: 'solid', element: 0, which: 3 },
+      { kind: 'drag', shape: 0, dx: 5, dy: 5 },
+    ] as Edit[]);
+  });
 
   it('places a drawing’s icon alike after a drag as when built from nothing (seed 1775277967)', () => {
     run(beyondBoxes(VIEW), [

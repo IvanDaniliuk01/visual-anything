@@ -912,7 +912,7 @@ Its tasks run in this order:
     - every part's point lies on its part's geometry and within its bounds;
     - a fitted camera's picture holds every corner of the bounds, and a point projects where the picture draws it;
     - equal bytes have one hash, and a changed byte changes it.
-- [ ] **Seam 2, in the main session: the solid worker's interface and the scene's seam** (ADR 0075).
+- [x] **Seam 2, in the main session: the solid worker's interface and the scene's seam** (ADR 0075). Done 2026-10-30, by a builder rather than the main session, since CLAUDE.md asks the main session only for the core's foundational types and commands (ADR 0075's clarification).
   - `app/src/solids/protocol.ts`: the messages between the app and the solid worker:
     - loading a file by its hash, and letting it go;
     - drawing a picture (`{ key, solid, size, camera, lighting, hidden }`), answered with an `ImageBitmap` and, for a drawing with parts, its part buffer;

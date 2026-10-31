@@ -72,6 +72,7 @@ import {
 } from './outlined';
 import { outlineAt, type PlacedOutline, type ShapeOutline } from './outlines';
 import { drawDestinationMark } from './destinationMark';
+import { drawSolidMark, isAnchoredSolidPart } from './solidMark';
 import { patternMatrix, patternTexture } from './patterns';
 import { drawnAsCurve, drawnCurve, strokeCurve } from './routing/curves';
 import { LIGHT_ROWS, drawRowsShape, rowsBlocks, writeRowsText, type RowColors } from './rowsDraw';
@@ -228,6 +229,8 @@ export function drawShapeBlocks(
     if (filled) addRect(fills, fill, inner);
   };
   for (const shape of shapes) {
+    // An anchored part of a solid is drawn by its drawing's picture (ADR 0075).
+    if (isAnchoredSolidPart(shape)) continue;
     const tag = nameTagOn(shape);
     if (shape.outline) {
       const fill = fillOf(shape);
@@ -364,6 +367,8 @@ export function drawShapeOutlines(
 ): void {
   const hairlines = new Hairlines();
   for (const shape of shapes) {
+    // An anchored part of a solid is drawn by its drawing's picture (ADR 0075).
+    if (isAnchoredSolidPart(shape)) continue;
     if (drawRowsShape(graphics, shape, rowColors)) {
       drawToggle(graphics, shape);
       drawLeavingMark(graphics, shape);
@@ -371,6 +376,8 @@ export function drawShapeOutlines(
     }
     if (shape.outline) {
       drawOutlinedBody(graphics, shape, shape.outline, hairlines);
+      // A solid's placeholder until its picture covers it (ADR 0075).
+      drawSolidMark(graphics, shape, outlineColorOf(shape));
       drawNameTag(
         graphics,
         shape,
@@ -391,6 +398,8 @@ export function drawShapeOutlines(
     }
     drawBody(graphics, shape.kind, body, colors);
     hairlines.add(colors.stroke, shape.kind, body);
+    // A solid's placeholder until its picture covers it (ADR 0075).
+    drawSolidMark(graphics, shape, colors.stroke);
     drawNameTag(graphics, shape, colors, hairlines);
     drawToggle(graphics, shape);
     drawLeavingMark(graphics, shape);
@@ -484,6 +493,8 @@ export function writeShapeLabels(
 ): Container[] {
   const texts: Container[] = [];
   for (const shape of shapes) {
+    // An anchored part of a solid writes its name only in the hover and selection marks (ADR 0075).
+    if (isAnchoredSolidPart(shape)) continue;
     const write: Write = (options, detail, room, runs) => {
       if (detail && !details) return undefined;
       const text = make(options, detail ? 'detail' : 'name', room, runs);

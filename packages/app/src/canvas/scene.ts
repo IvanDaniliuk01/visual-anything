@@ -25,6 +25,7 @@ import {
   overlaysApply,
   relationTypesLeftOutBy,
   shownByScope,
+  solidsIn,
   type EmphasisRun,
   type LeftOutTypes,
   type ProjectSnapshot,
@@ -168,6 +169,23 @@ import {
   type ImageLook,
   type ShapeImage,
 } from './shape-images';
+import {
+  drawingSolid,
+  isSolidAnchor,
+  ownSolidPart,
+  placeSolid,
+  sameShapeSolid,
+  setSolidCatalog,
+  solidAnchoredPart,
+  solidAnchorsIn,
+  solidLookOf,
+  solidPictureIn,
+  solidPlacedAgain,
+  solidPointOf,
+  type ShapeSolid,
+  type SolidAnchor,
+  type SolidLook,
+} from './shape-solids';
 
 /** Everything a view draws. */
 export interface Scene {
@@ -269,20 +287,29 @@ export interface ElementShape {
   /** The image its appearance shows, placed on it (`shape-images.ts`). */
   image?: ShapeImage;
   /**
+   * The solid its appearance shows, placed on it as an image would be, in place of any image
+   * (`shape-solids.ts`, ADR 0075): what its picture is drawn from, and where it goes. Absent on an
+   * anchored part of a solid, which its drawing's picture draws.
+   */
+  solid?: ShapeSolid;
+  /**
    * Its own outline, drawn, pointed at and attached to in place of its kind's (ADR 0066, ADR 0067):
    * its free geometry fitted to its rectangle, or the outline of the named part it is drawn as.
    * Absent: its kind's outline.
    */
   outline?: ShapeOutline;
   /**
-   * Present when it is drawn as a named part of an image (ADR 0067): anchored in its drawing with
-   * parts, where it has no position of its own and draws none of what it holds (`undrawn`), or drawn
-   * on its own with its part's outline and picture.
+   * Present when it is drawn as a named part of an image (ADR 0067) or of a solid (ADR 0075):
+   * anchored in its drawing with parts, where it has no position of its own and draws none of what it
+   * holds (`undrawn`), or drawn on its own with its part's outline and picture, or its solid's
+   * picture of that part alone. An anchored part of a solid holds its point, where relations end, and
+   * its rectangle is the dot around it.
    */
   part?: ShapePart;
   /**
    * On a drawing with parts (ADR 0067): where it draws its picture, under its header, and how many
-   * canvas units a unit of the image takes there. Its anchored parts lie over the picture.
+   * canvas units a unit of the image takes there, 1 for a solid's (ADR 0075). Its anchored parts lie
+   * over the picture.
    */
   picture?: DrawingPicture;
   /**
@@ -1074,6 +1101,7 @@ function layOut(
   const worldId = model.world.id;
   const definitions = definitionsIn(project);
   setImageCatalog(definitions, imagesIn(project));
+  setSolidCatalog(definitions, solidsIn(project));
   // Only the listed types that a package defines and that nest arrange the view, as in the core.
   const listed = nestingTypesInView(project, view);
   const nesting =
@@ -1282,11 +1310,14 @@ function drawingOrder(layout: Layout, view: ViewFile, worldId: Id): readonly num
     let sorted = stored
       ? orderByStacking(indexes, (at) => (shapes[at] as ElementShape).element, stored)
       : indexes;
-    // A drawing's anchored parts come first, in its picture's order, whatever the stacking order.
-    if (holder?.picture && holder.image) {
-      const inPicture = partOrderOf(holder.image.image);
-      const placeOf = (at: number) =>
-        inPicture.get((shapes[at] as ElementShape).part?.part ?? '') ?? 0;
+    // A drawing's anchored parts come first, in its picture's order, whatever the stacking order: an
+    // image's document order, or a solid's parts' depth-first order (ADR 0075).
+    if (holder?.picture && (holder.image || holder.solid)) {
+      const inPicture = holder.image ? partOrderOf(holder.image.image) : undefined;
+      const placeOf = (at: number) => {
+        const part = (shapes[at] as ElementShape).part;
+        return inPicture ? (inPicture.get(part?.part ?? '') ?? 0) : (part?.index ?? 0);
+      };
       const anchored = (at: number) => (shapes[at] as ElementShape).part?.inDrawing === true;
       sorted = [
         ...indexes.filter(anchored).sort((a, b) => placeOf(a) - placeOf(b)),
@@ -1315,8 +1346,10 @@ export interface Look {
   details: Map<string, string>;
   /** The runs of those details that take text emphasis, by their text (`detailRunsOf`). */
   detailRuns: Map<string, EmphasisRun[]>;
-  /** The image its shapes show, if any. */
+  /** The image its shapes show, if any; none when they show a solid, which is drawn in its place. */
   image: ImageLook | undefined;
+  /** The solid its shapes show, if any (ADR 0075). */
+  solid: SolidLook | undefined;
   /** How many destinations its element has, which its shapes mark (ADR 0056). */
   destinations: number;
   /** The named part its shapes are drawn as outside a drawing with parts, if any (ADR 0067). */
@@ -1415,8 +1448,15 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
       startedFor: new Map(),
       faces: new Map(),
       image: imageLookOf(element, definitions),
+      solid: undefined,
       destinations: destinationCount(element, definitions),
     };
+    // When an appearance shows both an image and a solid, the solid is drawn (ADR 0075).
+    const solid = solidLookOf(element, look.appearance, definitions);
+    if (solid) {
+      look.solid = solid;
+      look.image = undefined;
+    }
     const dark = darkColorsOf(element, definitions);
     if (dark.fill !== look.appearance.fill || dark.stroke !== look.appearance.stroke) {
       look.dark = dark;
@@ -1522,7 +1562,7 @@ export interface Measured {
  * How a content is measured: as a row of its container (ADR 0023), as an anchored part of its
  * drawing (ADR 0067), or as a shape of its own.
  */
-type ContentMode = 'row' | Anchor | undefined;
+type ContentMode = 'row' | Anchor | SolidAnchor | undefined;
 
 /** What measuring reads beyond each element: the geometries drawn as their kind, and each content's part. */
 interface Shaping {
@@ -1536,7 +1576,12 @@ interface Shaping {
 function shapedBy(look: Look, shaping: Shaping): Pick<Measured, 'outline' | 'part'> {
   if (look.ownPart) return { outline: look.ownPart.source, part: look.ownPart.part };
   const outline = geometryOutline(look.appearance.geometry, shaping.drawnAsKind);
-  return outline ? { outline: geometrySource(outline) } : {};
+  // A solid's part drawn on its own is its solid's picture of that part (ADR 0075).
+  const part = ownSolidPart(look.solid, look.appearance.fill);
+  return {
+    ...(outline ? { outline: geometrySource(outline) } : {}),
+    ...(part ? { part } : {}),
+  };
 }
 
 /** An anchored part's box: its part's place and size in its drawing, none of what it holds measured. */
@@ -1545,8 +1590,27 @@ function partBox(
   element: Element,
   look: Look,
   detail: string,
-  anchor: Anchor,
+  anchor: Anchor | SolidAnchor,
 ): Box {
+  if (isSolidAnchor(anchor)) {
+    // A solid's part is the dot around its point, with no outline of its own (ADR 0075).
+    return {
+      placement,
+      width: anchor.width,
+      height: anchor.height,
+      offset: anchor.offset,
+      stored: false,
+      measured: {
+        element,
+        look,
+        detail,
+        position: undefined,
+        contents: [],
+        part: solidAnchoredPart(anchor, look.appearance.fill),
+        anchored: anchoredOf({ solid: anchor.solid }, placement),
+      },
+    };
+  }
   return {
     placement,
     width: anchor.width,
@@ -1639,7 +1703,7 @@ function measured(
         ...(lines === undefined ? {} : { detailLines: lines }),
       },
       appearance.height,
-      collapsedHeaderWrap(appearance.width, look.image !== undefined),
+      collapsedHeaderWrap(appearance.width, look.image !== undefined || look.solid !== undefined),
     );
     // A face of size `content` gives the sheet its height, its collapsed variant laid out (ADR 0083).
     const sized =
@@ -1665,8 +1729,18 @@ function measured(
     };
   }
   const drawn = drawingImage(look, folding);
-  if (drawn)
-    return drawingBox(placement, element, look, detail, position, drawn, contentsOf, shaping);
+  if (drawn) {
+    const picture = pictureIn(drawn.image, appearance, position, ROOM);
+    const anchors = anchorsIn(drawn, picture, placement.contents, shaping.partOf);
+    return drawingBox(placement, element, look, detail, position, picture, anchors, contentsOf);
+  }
+  // A drawing with parts that shows a solid (ADR 0075).
+  const solid = drawingSolid(look, folding);
+  if (solid) {
+    const picture = solidPictureIn(appearance, position, ROOM);
+    const anchors = solidAnchorsIn(solid, picture, placement.contents, shaping.partOf);
+    return drawingBox(placement, element, look, detail, position, picture, anchors, contentsOf);
+  }
   const contents = contentsOf(() => undefined);
   arrangeContents(contents);
   let right: number | undefined;
@@ -1750,8 +1824,8 @@ function bodyWidth(width: number): number {
 }
 
 /**
- * A drawing with parts (ADR 0067): its picture under its header, its anchored parts over it, its
- * other contents below it, and large enough for all of them.
+ * A drawing with parts (ADR 0067, ADR 0075): its picture, an image's or a solid's, under its header,
+ * its anchored parts over it, its other contents below it, and large enough for all of them.
  */
 function drawingBox(
   placement: Placement,
@@ -1759,13 +1833,11 @@ function drawingBox(
   look: Look,
   detail: string,
   position: ShapePosition | undefined,
-  image: ImageLook,
+  picture: DrawingPicture,
+  anchors: readonly (Anchor | SolidAnchor | undefined)[],
   contentsOf: (modeOf: (at: number) => ContentMode) => Box[],
-  shaping: Shaping,
 ): Box {
   const { appearance } = look;
-  const picture = pictureIn(image.image, appearance, position, ROOM);
-  const anchors = anchorsIn(image, picture, placement.contents, shaping.partOf);
   const contents = contentsOf((at) => anchors[at]);
   const below = picture.rect.y + picture.rect.height;
   arrangeContents(
@@ -2164,7 +2236,10 @@ function replaceShapes(
       rect,
       extent: extentAround(rect, inside, current),
       ...(shape.image ? placedAgain(shape, rect, picture?.rect) : {}),
+      ...(shape.solid ? solidPlacedAgain(shape, rect, picture?.rect) : {}),
       ...(picture ? { picture } : {}),
+      // An anchored part of a solid takes its point from its dot, as `shapeFor` does.
+      ...(shape.part?.point ? { part: { ...shape.part, point: solidPointOf(rect) } } : {}),
     });
   };
   const placeAt = (
@@ -2327,8 +2402,12 @@ function shapeFor(
   const fitted = parts.outline && outlineIn(parts.outline, body.width, body.height);
   // Equal geometry read again, as after a command, keeps the outline drawn before.
   const outline = before?.outline && sameOutline(before.outline, fitted) ? before.outline : fitted;
-  const part =
-    before?.part && parts.part && samePart(before.part, parts.part) ? before.part : parts.part;
+  // An anchored part of a solid ends relations at its point, the middle of its dot (ADR 0075).
+  const own =
+    parts.part?.solid !== undefined && parts.part.inDrawing
+      ? { ...parts.part, point: solidPointOf({ x, y, width, height }) }
+      : parts.part;
+  const part = before?.part && own && samePart(before.part, own) ? before.part : own;
   const pictured: DrawingPicture | undefined = drawing && {
     rect: {
       x: x + drawing.rect.x,
@@ -2349,20 +2428,21 @@ function shapeFor(
   const holdsContents = parts.contents.length > 0;
   // An anchored part, as a row, does not draw what it holds (ADR 0067).
   const rowish = withUndrawn(rowFieldsOf(parts, width, holdsContents), anchored);
-  const placed = placeImage(
-    look.image,
-    {
-      kind: appearance.shape,
-      rect: { x, y, width, height },
-      holdsContents,
-      ...(folded === undefined ? {} : { collapsed: true }),
-      rows: appearance.contentsAsRows,
-      ...(rowish.row === undefined ? {} : { row: true }),
-      ...(picture ? { picture: picture.rect } : {}),
-      ...(outline ? { outline } : {}),
-    },
-    detail !== '',
-  );
+  const holder = {
+    kind: appearance.shape,
+    rect: { x, y, width, height },
+    holdsContents,
+    ...(folded === undefined ? {} : { collapsed: true }),
+    rows: appearance.contentsAsRows,
+    ...(rowish.row === undefined ? {} : { row: true }),
+    ...(picture ? { picture: picture.rect } : {}),
+    ...(outline ? { outline } : {}),
+  };
+  // An anchored part of a solid shows nothing of its own: its drawing's picture draws it.
+  const solidPart = part?.solid !== undefined && part.inDrawing;
+  const placed = solidPart ? undefined : placeImage(look.image, holder, detail !== '');
+  const placedSolid = solidPart ? undefined : placeSolid(look.solid, holder, detail !== '');
+  const plate = placed?.plate ?? placedSolid?.plate;
   // Its extent is its rectangle, exactly, when nothing inside it sticks out: (x + width) - x need not
   // be width again in floating point.
   const holdsOnlyItself = x1 === x && y1 === y && x2 === x + width && y2 === y + height;
@@ -2401,7 +2481,8 @@ function shapeFor(
     before.collapsed?.contents === folded &&
     before.points === points &&
     sameShapeImage(before.image, placed?.image) &&
-    sameImageRect(before.plate, placed?.plate) &&
+    sameShapeSolid(before.solid, placedSolid?.solid) &&
+    sameImageRect(before.plate, plate) &&
     sameItems(before.leaving ?? NO_IDS, leaving ?? NO_IDS) &&
     (before.destinations ?? 0) === look.destinations &&
     before.outline === outline &&
@@ -2440,13 +2521,19 @@ function shapeFor(
   if (look.dark) shape.dark = look.dark;
   if (points) shape.points = points;
   if (placed) shape.image = placed.image;
+  if (placedSolid) {
+    shape.solid =
+      before?.solid && sameShapeSolid(before.solid, placedSolid.solid)
+        ? before.solid
+        : placedSolid.solid;
+  }
   const detailRuns = look.detailRuns.get(detail);
   if (detailRuns) shape.detailRuns = detailRuns;
   const detailLines = linesOf(appearance);
   if (detailLines !== undefined) shape.detailLines = detailLines;
   const textPlacement = placementOf(appearance);
   if (textPlacement !== undefined) shape.textPlacement = textPlacement;
-  if (placed?.plate) shape.plate = placed.plate;
+  if (plate) shape.plate = plate;
   if (leaving !== undefined && leaving.length > 0) shape.leaving = leaving;
   if (look.destinations > 0) shape.destinations = look.destinations;
   if (outline) shape.outline = outline;
@@ -3056,11 +3143,21 @@ function routeEndOf(
     const shape = shapes[end.at] as ElementShape;
     // A row, or a shape that draws rows, is left beside it (ADR 0023).
     if (side) return sideEndOf(shape, shapes, keyIndexOf(shapes), side);
-    return { rect: shape.plate ?? shape.rect };
+    return routeEndOfShape(shape);
   }
   const at = plan.byKey.get(end.key);
   const line = at === undefined ? undefined : lineAt(at);
   return line && { point: line.middle };
+}
+
+/**
+ * Where a line on a shape ends: on its plate or its rectangle, or for an anchored part of a solid, at
+ * its part's point, since a picture gives it no outline to attach on (ADR 0075).
+ */
+export function routeEndOfShape(shape: ElementShape): { rect: Rect } | { point: Point } {
+  const point = shape.part?.point;
+  if (point) return { point };
+  return { rect: shape.plate ?? shape.rect };
 }
 
 function drawnEnd(end: EndRef): DrawnEnd {

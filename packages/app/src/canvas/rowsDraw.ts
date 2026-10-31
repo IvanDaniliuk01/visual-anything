@@ -31,7 +31,7 @@ import { readableTextColors } from './colors';
 import { SHEET, bodyOf, grow, toggleRect, type Rect } from './geometry';
 import { ROWS_FROM, ROWS_HEADER } from './rows';
 import type { ElementShape } from './scene';
-import { headerShift } from './shape-images';
+import { headerShift, showsPicture } from './shape-images';
 
 /**
  * The colors of a theme that rows are drawn in (ADR-0033): the body of a shape that draws rows, which
@@ -207,7 +207,7 @@ export function writeRowsText(
           text: fitted.name,
           anchor: { x: 0, y: 0.5 },
           // After the row's picture, when it shows one at its left.
-          x: x + ROW_INSET + (shape.image ? ROW_ICON : 0),
+          x: x + ROW_INSET + (showsPicture(shape) ? ROW_ICON : 0),
           y: middle,
           // In the detail's color, which a theme switch tints it to again, as it is written small.
           style: oneLine(ROW_NAME_SIZE, colors.detail),
