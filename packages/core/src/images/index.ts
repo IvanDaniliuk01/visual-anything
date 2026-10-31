@@ -39,7 +39,9 @@ export type {
   AnchorRequest,
   DrawingParts,
   PartAnchor,
+  PartsToPlan,
   PlannedPart,
+  PlannedParts,
 } from './anchoring';
 export {
   anchoringCommand,

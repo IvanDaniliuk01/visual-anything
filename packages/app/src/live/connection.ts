@@ -14,6 +14,7 @@ import {
   applyOperations,
   decodeBase64,
   decodeServerMessage,
+  encodeBase64,
   encodeMessage,
   type AppMessage,
   type CaptureAsk,
@@ -34,7 +35,10 @@ import {
   type ProposalClosedMessage,
   type ProposalShownMessage,
   type ServerMessage,
+  type SolidFilesListedMessage,
+  type SolidImportOptions,
   type SolidPieceMessage,
+  type SolidPreparedMessage,
   type Comparison,
   type VersionRef,
   type VersionsListedMessage,
@@ -259,6 +263,8 @@ type Waiting =
   | { kind: 'drawing'; resolve: (result: LiveResult<DrawingMadeMessage>) => void }
   | { kind: 'versions'; resolve: (result: LiveResult<VersionsListedMessage>) => void }
   | { kind: 'compare'; resolve: (result: ComparedResult) => void }
+  | { kind: 'solid-prepare'; resolve: (result: LiveResult<SolidPreparedMessage>) => void }
+  | { kind: 'solid-files'; resolve: (result: LiveResult<SolidFilesListedMessage>) => void }
   | SolidFileWaiting;
 
 /** A solid's file asked for (ADR 0075): its pieces as they come, until the last one. */
@@ -588,6 +594,76 @@ export class LiveConnection {
       this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
     });
   };
+
+  /**
+   * Sends a file to the local program to be cleaned as a solid (ADR 0075), in pieces of 1 MiB, with
+   * how to read it in the first: resolves with what the program then holds, its description and the
+   * report of what cleaning dropped or changed, for the import dialog's preview; or with why it holds
+   * nothing. Nothing in the project changes: `define-solid` is sent afterwards, as a command.
+   */
+  readonly prepareSolid = (
+    fileName: string,
+    bytes: Uint8Array,
+    options: SolidImportOptions = {},
+  ): Promise<LiveResult<SolidPreparedMessage>> => {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') {
+      return Promise.resolve(closedResult(NOT_CONNECTED));
+    }
+    const requestId = nextRequestId();
+    const count = Math.max(1, Math.ceil(bytes.length / SOLID_PIECE_BYTES));
+    return new Promise((resolve) => {
+      this.waiting.set(requestId, { kind: 'solid-prepare', resolve });
+      for (let index = 0; index < count && this.waiting.has(requestId); index++) {
+        const data = encodeBase64(
+          bytes.subarray(index * SOLID_PIECE_BYTES, (index + 1) * SOLID_PIECE_BYTES),
+        );
+        const text = encodeMessage({
+          type: 'solid/prepare',
+          requestId,
+          fileName,
+          piece: { index, count, data },
+          ...(index === 0 ? { options } : {}),
+        });
+        this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
+      }
+    });
+  };
+
+  /**
+   * Asks the local program for the files in `solids/` that no package names (ADR 0075): resolves with
+   * them, each with its size, or with why it could not list them.
+   */
+  readonly listSolidFiles = (): Promise<LiveResult<SolidFilesListedMessage>> =>
+    this.solidFilesRequest((requestId) => ({ type: 'solid-files/list', requestId }));
+
+  /**
+   * Removes files in `solids/` that no package names, by their hashes (ADR 0075); it cannot be undone.
+   * Resolves with the files left, those removed and those the program kept, with why.
+   */
+  readonly removeSolidFiles = (
+    hashes: readonly string[],
+  ): Promise<LiveResult<SolidFilesListedMessage>> =>
+    this.solidFilesRequest((requestId) => ({
+      type: 'solid-files/remove',
+      requestId,
+      hashes: [...hashes],
+    }));
+
+  private solidFilesRequest(
+    message: (requestId: string) => AppMessage,
+  ): Promise<LiveResult<SolidFilesListedMessage>> {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') {
+      return Promise.resolve(closedResult(NOT_CONNECTED));
+    }
+    const requestId = nextRequestId();
+    const text = encodeMessage(message(requestId));
+    return new Promise((resolve) => {
+      this.waiting.set(requestId, { kind: 'solid-files', resolve });
+      this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
+    });
+  }
 
   /**
    * Asks the local program to fetch an address for the code of an approved package granted its origin
@@ -983,7 +1059,11 @@ export class LiveConnection {
         break;
       case 'solid/refused': {
         const answered = this.take(message.requestId);
-        if (answered?.kind === 'solid') {
+        if (
+          answered?.kind === 'solid' ||
+          answered?.kind === 'solid-prepare' ||
+          answered?.kind === 'solid-files'
+        ) {
           answered.resolve({
             ok: false,
             problems: [{ code: message.code, message: message.message }],
@@ -991,9 +1071,16 @@ export class LiveConnection {
         }
         break;
       }
-      case 'solid/prepared':
-        // Importing a solid comes with the cleaner's task (M9); nothing here asks for one yet.
+      case 'solid/prepared': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'solid-prepare') answered.resolve({ ok: true, answer: message });
         break;
+      }
+      case 'solid-files/listed': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'solid-files') answered.resolve({ ok: true, answer: message });
+        break;
+      }
       case 'guidance':
         this.guidanceCount += 1;
         this.update({
@@ -1025,7 +1112,9 @@ export class LiveConnection {
       taken.kind === 'versions' ||
       taken.kind === 'compare' ||
       taken.kind === 'proposal' ||
-      taken.kind === 'solid'
+      taken.kind === 'solid' ||
+      taken.kind === 'solid-prepare' ||
+      taken.kind === 'solid-files'
         ? undefined
         : taken;
     let next: ProjectSnapshot;

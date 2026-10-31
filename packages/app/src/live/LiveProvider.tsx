@@ -80,6 +80,9 @@ export function LiveProvider({
       acceptProposal: connection.acceptProposal,
       refuseProposal: connection.refuseProposal,
       getSolidFile: connection.getSolidFile,
+      prepareSolid: connection.prepareSolid,
+      listSolidFiles: connection.listSolidFiles,
+      removeSolidFiles: connection.removeSolidFiles,
     }),
     [state, connection],
   );

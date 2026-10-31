@@ -428,6 +428,14 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   { word: /\bsugerencias?\b/i },
   { word: /\bborrador(es)?\b/i },
   { word: /\bmarcadores? de fusi[oó]n\b/i },
+  // M9: solids and turning (ADR 0075). A solid is never a "modelo 3D" nor a "recurso", physical space
+  // is never "3D" alone, and turning is never a "modo 3D", a "vista en vivo" or an "órbita". A glTF
+  // file's meshes and nodes are "mallas glTF" and "nodos glTF", and a vertex a "punto de geometría".
+  { word: /\bmodelos? 3D\b/i },
+  { word: /\b3D\b/i },
+  { word: /\brecursos?\b/i },
+  { word: /\bvistas? en vivo\b/i },
+  { word: /\b[oó]rbitas?\b|\borbitar\b/i },
 ];
 
 /** Texts given to t() that Spanish writes the same: values and punctuation only. */

@@ -288,7 +288,7 @@ export function planDrawnParts<D extends PartsToPlan<{ readonly id: string }>>(
       const content = candidates[at] as Element;
       taken.add(content.id);
       anchors += 1;
-      return { part: planned.part, anchor: { kind: 'matched', element: content } } as Planned;
+      return { part: planned.part, anchor: { kind: 'matched', element: content } };
     }
     if (create && nesting) {
       anchors += 1;
@@ -304,7 +304,7 @@ export function planDrawnParts<D extends PartsToPlan<{ readonly id: string }>>(
           component: create.component,
           ...(identifier && isExternalId(identifier.id) ? { identifier } : {}),
         },
-      } as Planned;
+      };
     }
     return planned;
   });

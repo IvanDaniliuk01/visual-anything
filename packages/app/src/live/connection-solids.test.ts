@@ -115,3 +115,81 @@ describe('a solid’s file over the live connection', () => {
     });
   });
 });
+
+describe('importing a solid over the live connection (ADR 0075)', () => {
+  it('sends the file in pieces of 1 MiB, its options in the first, and resolves with what is held', async () => {
+    const { connection, socket } = openConnection();
+    const bytes = new Uint8Array(SOLID_PIECE_BYTES + 5).fill(3);
+    const prepared = connection.prepareSolid('arm.glb', bytes, { units: 'mm', up: 'z' });
+    const pieces = socket.sent.filter((each) => each.type === 'solid/prepare');
+    expect(pieces).toHaveLength(2);
+    expect(pieces[0]).toMatchObject({
+      fileName: 'arm.glb',
+      piece: { index: 0, count: 2 },
+      options: { units: 'mm', up: 'z' },
+    });
+    expect(pieces[1]).not.toHaveProperty('options');
+    expect(pieces[1]).toMatchObject({ piece: { index: 1, count: 2 } });
+    const requestId = requestIdOf(socket);
+    const answer = {
+      type: 'solid/prepared' as const,
+      requestId,
+      hash: HASH,
+      bytes: 1024,
+      bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } },
+      counts: { triangles: 12, vertices: 8, nodes: 1, textures: 0 },
+      parts: [],
+      report: ['Dropped 1 camera.'],
+    };
+    socket.receive(encodeServerMessage(answer));
+    await expect(prepared).resolves.toEqual({ ok: true, answer });
+  });
+
+  it('resolves with why the program prepared nothing', async () => {
+    const { connection, socket } = openConnection();
+    const prepared = connection.prepareSolid('arm.glb', new Uint8Array([1]));
+    socket.receive(
+      encodeServerMessage({
+        type: 'solid/refused',
+        requestId: requestIdOf(socket),
+        code: 'solid-too-large',
+        message: 'Too many triangles.',
+      }),
+    );
+    await expect(prepared).resolves.toEqual({
+      ok: false,
+      problems: [{ code: 'solid-too-large', message: 'Too many triangles.' }],
+    });
+  });
+});
+
+describe('the files no package names, over the live connection (ADR 0075)', () => {
+  it('lists them, and removes some by their hashes', async () => {
+    const { connection, socket } = openConnection();
+    const listing = connection.listSolidFiles();
+    expect(socket.lastSent()).toEqual({ type: 'solid-files/list', requestId: requestIdOf(socket) });
+    socket.receive(
+      encodeServerMessage({
+        type: 'solid-files/listed',
+        requestId: requestIdOf(socket),
+        files: [{ hash: HASH, bytes: 12 }],
+      }),
+    );
+    await expect(listing).resolves.toMatchObject({ ok: true, answer: { files: [{ hash: HASH }] } });
+    const removing = connection.removeSolidFiles([HASH]);
+    expect(socket.lastSent()).toEqual({
+      type: 'solid-files/remove',
+      requestId: requestIdOf(socket),
+      hashes: [HASH],
+    });
+    socket.receive(
+      encodeServerMessage({
+        type: 'solid-files/listed',
+        requestId: requestIdOf(socket),
+        files: [],
+        removed: [HASH],
+      }),
+    );
+    await expect(removing).resolves.toMatchObject({ ok: true, answer: { removed: [HASH] } });
+  });
+});

@@ -3,8 +3,11 @@ import {
   componentOrEssence,
   crosswalksOf,
   planAnchoring,
+  planSolidAnchoring,
   type AnchorMatching,
-  type AnchorPlan,
+  type AnchorRequest,
+  type PartsToPlan,
+  type PlannedParts,
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import { ESSENCE_ID, type Element, type Id, type ViewFile } from '@visual-anything/schema';
@@ -39,20 +42,27 @@ const LISTED = 8;
 
 type By = AnchorMatching['by'];
 
+/** A plan of any drawing's parts, an SVG image's or a solid's, as the dialog shows it. */
+type Plan = PlannedParts & PartsToPlan<{ readonly id: string }>;
+
 /**
- * Anchor parts… (ADR 0067): matches the parts of a drawing's picture to its contents by name, by id
- * or by an external identifier in a scheme the person picks, translated through the crosswalks of the
- * project's packages, and optionally creates an element of a chosen component for each part that
- * matches nothing. It shows what it would do as the choices change, with the core's own plan, and
- * applies it as one undoable action. Modal: the focus stays inside it until it closes.
+ * Anchor parts… (ADR 0067, ADR 0075): matches the parts of a drawing's picture, or of the solid it
+ * shows, to its contents by name, by id or by an external identifier in a scheme the person picks,
+ * translated through the crosswalks of the project's packages, and optionally creates an element of a
+ * chosen component for each part that matches nothing. It shows what it would do as the choices
+ * change, with the core's own plan, and applies it as one undoable action. Modal: the focus stays
+ * inside it until it closes.
  */
 export function AnchorPartsDialog({
   drawing,
   view,
+  of = 'image',
   onClose,
 }: {
   drawing: Element;
   view: ViewFile | undefined;
+  /** Whose parts: the SVG image the drawing shows, or its solid. */
+  of?: 'image' | 'solid';
   onClose: () => void;
 }) {
   const t = useT();
@@ -78,14 +88,15 @@ export function AnchorPartsDialog({
     const matching: AnchorMatching =
       by === 'external' ? { by: 'external', scheme: scheme.trim() } : { by };
     if (matching.by === 'external' && matching.scheme === '') return undefined;
-    return planAnchoring(project, {
+    const request: AnchorRequest = {
       drawing: drawing.id,
       matching,
       ...(view === undefined ? {} : { view: view.id }),
       ...(create && component !== '' ? { create: { component } } : {}),
-    });
-  }, [project, drawing.id, view, by, scheme, create, component]);
-  const plan = planning?.ok ? planning.plan : undefined;
+    };
+    return of === 'solid' ? planSolidAnchoring(project, request) : planAnchoring(project, request);
+  }, [project, drawing.id, view, by, scheme, create, component, of]);
+  const plan: Plan | undefined = planning?.ok ? planning.plan : undefined;
   const nameOf = (id: Id) => t.definition(id, componentOrEssence(definitions, id).name);
 
   const apply = async () => {
@@ -216,7 +227,7 @@ export function AnchorPartsDialog({
 }
 
 /** What a plan would do: the parts it matches and creates, those it keeps and those left. */
-function PlanSummary({ plan }: { plan: AnchorPlan }) {
+function PlanSummary({ plan }: { plan: Plan }) {
   const t = useT();
   const matched: string[] = [];
   const created: string[] = [];
