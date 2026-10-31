@@ -121,3 +121,7 @@ Reading a project needs the local program today, so a project cannot be shared, 
   - The page's data holds each file as its kind, without its `conflicts` list. So a page made from a project in the middle of a merge shows what its files keep, and carries neither side's other values.
   - The Export dialog says so when the project holds conflicts.
   - A page shows no comparison and no proposal.
+
+<!-- Decided by Claude on 2026-10-31 under the user's standing delegation of design decisions. -->
+
+- 2026-10-31 (M9): **a page whose views show solids holds them** (ADR 0075's clarification of that date). Its data gains `solids`: their files, with the solid worker as text the page starts from a `blob:` address, its policy then saying `worker-src blob:` and `trusted-types default visual-anything-solids` and naming a third inline script by its hash; or only their pictures, its policy as it is. A page without solids holds neither, and its policy is the one above.

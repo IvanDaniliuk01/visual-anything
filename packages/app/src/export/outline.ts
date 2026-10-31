@@ -13,10 +13,20 @@ import {
   legendOf,
   legendShows,
   modelIndexOf,
+  solidsIn,
   type LegendEntry,
   type ProjectSnapshot,
+  type SolidCatalog,
 } from '@visual-anything/core';
-import type { Id, JsonValue, ScenarioFile, Step, ViewFile } from '@visual-anything/schema';
+import type {
+  Id,
+  JsonValue,
+  ScenarioFile,
+  SolidDefinition,
+  Step,
+  ViewFile,
+} from '@visual-anything/schema';
+import { isAnchoredSolidPart } from '../canvas/solidMark';
 import { nameOfEnd } from '../canvas/announce';
 import { entryAmount, entryLabel, legendSubtitle } from '../canvas/overlays/legendText';
 import { faceDetail } from '../canvas/faces';
@@ -50,6 +60,7 @@ export function writeOutline(project: ProjectSnapshot, viewId: Id): TextExport {
     scene.shapes.filter((shape) => shape.part?.inDrawing === true).map((shape) => shape.key),
   );
   const lines: string[] = [`# ${markdownInline(view.name)}`, ''];
+  const solids = solidsIn(project);
   const description = view.description?.trim();
   // Under the view's heading and before the outline's sections, its headings start at the third.
   if (description) lines.push(markdownOfEmphasis(description, { headingLevel: 3 }), '');
@@ -69,7 +80,7 @@ export function writeOutline(project: ProjectSnapshot, viewId: Id): TextExport {
     const indent = '  '.repeat(depth);
     switch (item.kind) {
       case 'shape':
-        shapes.push(`${indent}- ${shapeLine(item)}`);
+        shapes.push(`${indent}- ${shapeLine(item, solids)}`);
         break;
       case 'relation':
         shapes.push(`${indent}- ${relationLine(item)}`);
@@ -107,6 +118,7 @@ export function writeOutline(project: ProjectSnapshot, viewId: Id): TextExport {
   lines.push(`## ${t('Shapes and relations')}`, '');
   lines.push(...(shapes.length > 0 ? shapes : [t('The view draws no shape.')]), '');
   if (notes.length > 0) lines.push(`## ${t('Notes')}`, '', ...notes, '');
+  lines.push(...solidLines(scene.shapes, solids));
   lines.push(...legendLines(project, view));
 
   const scenarios = project.scenarios.filter((scenario) => scenario.view === view.id);
@@ -128,11 +140,11 @@ export function writeOutline(project: ProjectSnapshot, viewId: Id): TextExport {
  * A shape's line: its name in bold, its component, and when collapsed, how many it holds; then what
  * its face says, when it has one.
  */
-function shapeLine(item: ShapeItem): string {
+function shapeLine(item: ShapeItem, solids: SolidCatalog): string {
   const { shape } = item;
   const name = `**${markdownInline(shape.name)}**`;
   const component = markdownInline(shape.componentName);
-  const line =
+  const named =
     shape.collapsed === undefined
       ? `${name} (${component})`
       : t('{name} ({component}), collapsed, with {count} inside', {
@@ -140,8 +152,58 @@ function shapeLine(item: ShapeItem): string {
           component,
           count: shape.collapsed.contents,
         });
+  const line = `${named}${solidSaid(shape, solids)}`;
   const face = faceSaid(shape);
   return face === '' ? line : `${line}: ${markdownInline(face)}`;
+}
+
+/**
+ * What a shape says of the solid it shows (ADR 0075): its description, which is its text alternative,
+ * as the inspector and announcements give it; or, for a solid without one, its name. Empty for a
+ * shape that shows none, or that is drawn as one of a solid's parts, which its line names already.
+ */
+function solidSaid(shape: ElementShape, solids: SolidCatalog): string {
+  if (!shape.solid || isAnchoredSolidPart(shape)) return '';
+  const definition = solids.solid(shape.solid.id)?.definition;
+  if (!definition) return '';
+  const description = definition.description?.trim();
+  return description
+    ? t(', with a solid: {description}', { description: markdownInline(description) })
+    : t(', with the solid “{solid}”, which has no description', {
+        solid: markdownInline(definition.name),
+      });
+}
+
+/**
+ * The solids the view shows (ADR 0075), each once, in the order of the shapes that show them: its name,
+ * its description, and where it comes from and its license when its package records them. Nothing
+ * while the view shows none.
+ */
+function solidLines(shapes: readonly ElementShape[], solids: SolidCatalog): string[] {
+  const shown = new Map<string, SolidDefinition>();
+  for (const shape of shapes) {
+    const id = shape.solid?.id ?? shape.part?.solid;
+    if (id === undefined || shown.has(id)) continue;
+    const definition = solids.solid(id)?.definition;
+    if (definition) shown.set(id, definition);
+  }
+  if (shown.size === 0) return [];
+  const lines = [`## ${t('Solids')}`, ''];
+  for (const definition of shown.values()) {
+    const description = definition.description?.trim();
+    const about = [
+      description ? markdownInline(description) : t('It has no description.'),
+      ...(definition.source?.trim()
+        ? [t('Source: {source}.', { source: markdownInline(definition.source.trim()) })]
+        : []),
+      ...(definition.license?.trim()
+        ? [t('License: {license}.', { license: markdownInline(definition.license.trim()) })]
+        : []),
+    ];
+    lines.push(`- **${markdownInline(definition.name)}**: ${about.join(' ')}`);
+  }
+  lines.push('');
+  return lines;
 }
 
 /**

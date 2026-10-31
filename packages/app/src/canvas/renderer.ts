@@ -125,9 +125,12 @@ import {
   type RoutePiece,
 } from './tiles';
 import { PARTS_PICTURES, PartLayer } from './partsDraw';
-import type { SolidClient } from '../solids/client';
+import type { SolidClient } from '../solids/solid-client';
 import type { SolidFrameReply } from '../solids/protocol';
 import { SOLID_LAYER, SolidLayer } from './solids/layer';
+import { imageSolidsOf, type ImageSolids } from './solids/image-solids';
+import { solidShotsOf, type SolidPixels } from '../export/solid-pictures';
+import { solidPainterOf } from '../export/solid-painter';
 import { pointedPart } from './solids/pointing';
 import { isAnchoredSolidPart } from './solidMark';
 import { ARROW_PAINT, LINE_PAINT, NOTE_PAINT, SHAPE_PAINT, sameListButPaint } from './theme/paint';
@@ -422,6 +425,8 @@ export interface RendererOptions {
   theme?: CanvasTheme;
   /** Draws solids' pictures through this client (ADR 0075); without one, solids draw placeholders. */
   solids?: SolidClient;
+  /** Reads the pixels of a solid's picture, which a PNG holds; the browser's canvas by default. */
+  solidPixels?: (bitmap: ImageBitmap) => SolidPixels;
   /**
    * How the first scene shown is fitted while nothing has set the camera: as Fit fits, at a scale
    * where names draw, by default; or whole, whatever the scale, as the benchmark measures it.
@@ -536,6 +541,7 @@ export class CanvasRenderer {
   /** The tiles each relation draws something in: the pieces of its route, its arrowhead, its name. */
   private readonly tilesOfLine = new Map<string, Set<Tile>>();
   private readonly text: TextFactory;
+  private readonly solidPixels: ((bitmap: ImageBitmap) => SolidPixels) | undefined;
   /** The pictures drawn in the tiles, and the textures they are drawn with. */
   private readonly pictures: TileImages<Texture, unknown>;
   /** Draws in the theme the canvas shows; a switch draws in the next one until it shows (ADR-0033). */
@@ -669,6 +675,7 @@ export class CanvasRenderer {
     options: RendererOptions = {},
   ) {
     this.text = options.text ?? bitmapText;
+    this.solidPixels = options.solidPixels;
     this.firstFit = options.firstFit ?? 'readable';
     this.pictures = new TileImages(options.images ?? browserImagePlatform(), () =>
       this.requestRender(),
@@ -1376,12 +1383,50 @@ export class CanvasRenderer {
       bounds: indexed.scene.bounds,
     });
     if (!planned.ok) throw new ImageError(planned.problem);
-    const drawn = await this.drawImage(planned.plan, {
-      asShown: request.area === 'visible',
-      everything: request.area === 'view',
-      legendScale: request.scale,
-    });
-    return drawn.blob;
+    // Its solids drawn by the solid worker at its scale, as the canvas draws them (ADR 0075).
+    const solids = await this.solidsForImage(planned.plan);
+    try {
+      const drawn = await this.drawImage(planned.plan, {
+        asShown: request.area === 'visible',
+        everything: request.area === 'view',
+        legendScale: request.scale,
+        ...(solids ? { solids: solids.container } : {}),
+      });
+      return drawn.blob;
+    } finally {
+      solids?.destroy();
+    }
+  }
+
+  /**
+   * The pictures of the solids an image shows, drawn by the solid worker at the image's scale, with
+   * their parts' states as the emphasis and the overlays leave them and no mark (ADR 0075); none
+   * without a solid worker, where solids draw their placeholders, as on the canvas.
+   */
+  private async solidsForImage(plan: ImagePlan): Promise<ImageSolids | undefined> {
+    const indexed = this.indexed;
+    const client = this.pictures.solids?.client;
+    if (!indexed || !client || client.unavailable) return undefined;
+    if (!indexed.scene.shapes.some((shape) => shape.solid !== undefined)) return undefined;
+    const shots = await solidShotsOf(
+      () => undefined,
+      indexed.scene,
+      solidPainterOf(client, this.solidPixels),
+      {
+        pixelsPerUnit: plan.pixelsPerUnit,
+        theme: this.painter.name,
+        within: plan.frame,
+        hidden: this.hiddenNow().shapes,
+        statesOf: (drawing) => this.solidLayer.imageStates(drawing.key),
+      },
+    );
+    if (shots.pictures.size === 0 || this.indexed !== indexed) return undefined;
+    return imageSolidsOf(
+      indexed.scene,
+      shots.pictures,
+      this.painter.name,
+      this.emphasized.dimmed.shapes,
+    );
   }
 
   /**
@@ -1424,7 +1469,7 @@ export class CanvasRenderer {
   /** Draws an image as planned: the PNG export and Claude's pictures. */
   private async drawImage(
     plan: ImagePlan,
-    how: { asShown: boolean; everything: boolean; legendScale: number },
+    how: { asShown: boolean; everything: boolean; legendScale: number; solids?: Container },
   ): Promise<DrawnImage> {
     const scale = plan.drawingScale;
     // What is visible is written as the screen writes it; the whole view as the canvas would at 1:1.
@@ -1458,6 +1503,14 @@ export class CanvasRenderer {
       }
       // A container's grid is drawn among the shapes, but it is a mark too.
       change(this.gridMarks.inside, 'visible', false);
+      // The image's own solids, where the solid layer lies, above the shapes (ADR 0075).
+      const solids = how.solids;
+      if (solids) {
+        this.world.addChildAt(solids, this.world.getChildIndex(this.solidLayer.container));
+        putBack.push(() => {
+          solids.removeFromParent();
+        });
+      }
       // Every cell the image shows is planned from the scene as it is.
       if (how.everything) this.planEverything();
       else this.planWithin(plan.frame);

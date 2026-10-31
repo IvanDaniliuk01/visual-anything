@@ -29,6 +29,7 @@
  */
 import {
   definitionsIn,
+  encodeBase64,
   flattenOutline,
   imagesIn,
   legendOf,
@@ -120,11 +121,26 @@ import {
 import {
   bandRooms,
   besideImage,
+  bodyRectOf,
   headerShift,
   labelAreaOf,
   nameBandOf,
+  pictureOn,
+  showsPicture,
   type ShapeImage,
 } from '../canvas/shape-images';
+import { solidsIn } from '@visual-anything/core';
+import { SOLID_MARK_LINE, isAnchoredSolidPart, solidMarkLines } from '../canvas/solidMark';
+import type { SolidPartBuffer } from '../solids/views';
+import { encodePng } from './png';
+import {
+  showsSolid,
+  solidsAsPlaceholders,
+  solidsNotDrawn,
+  type PaintedSolid,
+} from './solid-pictures';
+import { partValues, tracedPathData, valueBoxes } from './solid-trace';
+import { anchoredByIndex } from '../canvas/solids/pointing';
 import { arrowStroke, lineStroke, noteColors, shapeColors } from '../canvas/theme/paint';
 import { THEMES, type CanvasTheme } from '../theme/themes';
 import {
@@ -168,6 +184,47 @@ export interface SvgOptions {
   filters?: boolean;
   /** What a comparison adds to the drawing (ADR 0070); `svgOfComparison` gives it. */
   comparison?: SvgComparisonParts;
+  /**
+   * Solids' pictures, by the key of the shape that shows each, as the solid worker drew them for
+   * the export (`svgSolidsOf`, ADR 0075). Without them, as from the command line and Claude's
+   * `export_view`, which have no GPU, every solid is drawn as its placeholder, and the drawing says
+   * so; a shape missing from them is its placeholder too.
+   */
+  solids?: ReadonlyMap<string, SvgSolidPicture>;
+  /**
+   * Whether each anchored part of a solid is written as a transparent path traced from its part
+   * buffer, with its ids, for a reader of the file to point at; true by default. The PDF, which no
+   * one points into, leaves them out.
+   */
+  tracedParts?: boolean;
+}
+
+/** A solid's picture as a drawing holds it: a PNG, and the part buffer it came with, if any. */
+export interface SvgSolidPicture {
+  format: 'png';
+  /** The PNG, in base64. */
+  data: string;
+  width: number;
+  height: number;
+  partBuffer?: SolidPartBuffer;
+}
+
+/** The pictures of solids an export drew, as a drawing holds them: each one written as a PNG. */
+export async function svgSolidsOf(
+  shots: ReadonlyMap<string, PaintedSolid>,
+): Promise<Map<string, SvgSolidPicture>> {
+  const written = new Map<string, SvgSolidPicture>();
+  for (const [key, shot] of shots) {
+    const png = await encodePng(shot.pixels, shot.width, shot.height);
+    written.set(key, {
+      format: 'png',
+      data: encodeBase64(png),
+      width: shot.width,
+      height: shot.height,
+      ...(shot.partBuffer ? { partBuffer: shot.partBuffer } : {}),
+    });
+  }
+  return written;
 }
 
 /**
@@ -341,12 +398,39 @@ class Writer {
   readonly #filtersDrawn: boolean;
   readonly reading: WriterReading;
 
+  readonly #solids: ReadonlyMap<string, SvgSolidPicture> | undefined;
+  /** Each solid's picture's symbol, by its PNG's data: the same picture is written once. */
+  readonly #solidSymbols = new Map<string, string>();
+
   constructor(scene: Scene, options: SvgOptions, reading: WriterReading) {
     this.theme = THEMES[options.theme ?? 'light'].canvas;
     this.#byKey = new Map(scene.shapes.map((shape) => [shape.key, shape]));
     this.#bitmaps = new Set(options.bitmaps ?? ['png', 'jpeg', 'webp']);
     this.#filtersDrawn = options.filters ?? true;
+    this.#solids = options.solids;
     this.reading = reading;
+  }
+
+  /** The picture drawn of a shape's solid for this drawing; none: it is drawn as its placeholder. */
+  solidPicture(shape: ElementShape): SvgSolidPicture | undefined {
+    return shape.solid ? this.#solids?.get(shape.key) : undefined;
+  }
+
+  /** Where a solid's picture is used: its symbol, written the first time it is needed, at `rect`. */
+  solidUse(picture: SvgSolidPicture, rect: Rect): string {
+    let id = this.#solidSymbols.get(picture.data);
+    if (id === undefined) {
+      id = `va-solid-${this.#solidSymbols.size + 1}`;
+      this.#solidSymbols.set(picture.data, id);
+      this.defsById.set(id, bitmapSymbol(id, picture));
+    }
+    return empty('use', {
+      href: `#${id}`,
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+    });
   }
 
   get defs(): string {
@@ -717,9 +801,22 @@ export function svgOfScene(
   // What changes how anchored parts look lies over every shape and under the relations, as the
   // canvas's part layer draws it (ADR 0067); a view without drawings with parts writes no such layer.
   const marked = partMarksOf(scene, NONE, NONE).flatMap((marks) => partMarksParts(writer, marks));
+  // Solids are drawn by the pictures the export drew of them, or as their placeholders (ADR 0075).
+  const solidShapes = scene.shapes.filter(showsSolid);
+  if (solidShapes.length > 0) {
+    if (!options.solids) writer.lost.add(solidsAsPlaceholders());
+    else {
+      const missing = solidShapes.filter((shape) => !writer.solidPicture(shape)).length;
+      if (missing > 0) writer.lost.add(solidsNotDrawn(missing));
+    }
+  }
+  // Over the pictures, each anchored part of a solid as a path a reader can point at.
+  const traced =
+    options.tracedParts === false ? [] : tracedSolidParts(writer, scene, project, index);
   const layers: SvgLayer[] = [
     { values: { 'data-part': 'shapes' }, parts: shapes },
     ...(marked.length > 0 ? [{ values: { 'data-part': 'parts' }, parts: marked }] : []),
+    ...(traced.length > 0 ? [{ values: { 'data-part': 'solid-parts' }, parts: traced }] : []),
     { values: { 'data-part': 'casings', fill: 'none', 'stroke-linecap': 'butt' }, parts: casings },
     { values: { 'data-part': 'relations', 'stroke-linecap': 'butt' }, parts: routes },
     { values: { 'data-part': 'relation-names' }, parts: labels },
@@ -944,6 +1041,8 @@ function isContainer(shape: ElementShape): boolean {
  */
 function shapeParts(writer: Writer, shape: ElementShape): string {
   const { outline } = shape;
+  // An anchored part of a solid is drawn by its drawing's picture, and traced over it (ADR 0075).
+  if (isAnchoredSolidPart(shape)) return '';
   if (outline && shape.part?.inDrawing === true) {
     return outlinedText(writer, shape, outline, shape.part.color);
   }
@@ -962,36 +1061,48 @@ function shapeParts(writer: Writer, shape: ElementShape): string {
     fill: shape.part ? shape.part.color : painted.fill,
     stroke: painted.stroke,
   });
-  // Its `<icon/>` draws the shape's own image, which is then drawn nowhere else as an icon.
-  const ownPicture = (image: ShapeImage) =>
-    face?.icon && (image.placement === 'icon' || image.placement === 'header')
-      ? ''
-      : writer.picture(image, image.rect);
+  // Its `<icon/>` draws the shape's own image, or its solid's picture, which is then drawn nowhere
+  // else as an icon.
+  const ownPicture = () => {
+    const placed = pictureOn(shape);
+    if (!placed) return '';
+    if (face?.icon && (placed.placement === 'icon' || placed.placement === 'header')) return '';
+    return shape.image
+      ? writer.picture(shape.image, shape.image.rect)
+      : solidParts(writer, shape, colors.stroke);
+  };
   if (isRow(shape)) return rowParts(writer, shape, colors.fill, face?.svg, ownPicture);
   if (outline) return outlineParts(writer, shape, outline, colors, face?.svg, ownPicture);
   if (drawsRows(shape)) {
     return (
       tableParts(writer, shape, colors) +
       toggleOf(shape, colors) +
-      (shape.image ? ownPicture(shape.image) : '') +
+      ownPicture() +
       (face ? face.svg : tableText(writer, shape, colors.fill))
     );
   }
   let body = '';
+  const drawing = pictureOn(shape)?.placement === 'drawing';
+  // A solid without its picture is its placeholder: its outline just inside its plate, as the canvas
+  // draws it until its picture comes (ADR 0075).
+  const placeholder = shape.solid !== undefined && !writer.solidPicture(shape);
   if (shape.collapsed !== undefined) {
     const inner = bodyOf(shape);
     if (inner !== shape.rect) {
       body += bodyMarkup(shape.kind, { ...inner, x: inner.x + SHEET, y: inner.y + SHEET }, colors);
     }
     body += bodyMarkup(shape.kind, inner, colors);
-  } else if (shape.image?.placement !== 'drawing') {
-    // A shape drawn by its picture is covered by the picture's plate, which is always ready here.
+  } else if (!drawing) {
     body += bodyMarkup(shape.kind, shape.rect, colors);
+  } else if (placeholder) {
+    body += bodyMarkup(shape.kind, bodyRectOf(shape), colors);
   }
+  // Otherwise a shape drawn by its picture is covered by the picture's plate, always ready here.
   body += toggleOf(shape, colors);
-  if (shape.image) {
-    if (shape.image.placement === 'drawing') body += plateOf(shape.image.box, colors.fill);
-    body += ownPicture(shape.image);
+  const placed = pictureOn(shape);
+  if (placed) {
+    if (drawing && !placeholder) body += plateOf(placed.box, colors.fill);
+    body += ownPicture();
   }
   // A drawing with parts that is no container writes its name in its name tag, under its box.
   if (writesNameBelow(shape)) {
@@ -1023,7 +1134,8 @@ function faceOf(
   if (!drawing || !facePaints(drawing)) return undefined;
   const at = faceRect(shape);
   const palette = facePalette(writer.theme.name, colors.fill, colors.stroke);
-  const icon = shape.image !== undefined && drawing.images.some((each) => each.kind === 'icon');
+  const icon =
+    pictureOn(shape) !== undefined && drawing.images.some((each) => each.kind === 'icon');
   return {
     svg: faceSvg(drawing, at, palette, writer.texts, (image, rect) =>
       facePicture(writer, shape, image, rect),
@@ -1037,6 +1149,14 @@ function faceOf(
  * image, `<image ref="…"/>` an image of its component's package; nothing when it has none.
  */
 function facePicture(writer: Writer, shape: ElementShape, image: FaceImage, rect: Rect): string {
+  // A solid shown by `<icon/>` is drawn there, its picture's proportions kept (ADR 0075).
+  if (image.kind === 'icon' && shape.solid) {
+    const { width, height } = shape.solid.rect;
+    const placed = facePictureRect(rect, width, height);
+    return placed
+      ? solidParts(writer, shape, shapeColors(shape, writer.theme.name).stroke, placed)
+      : '';
+  }
   // The images of its package the scene found for the face, as the canvas draws them.
   const source: PictureSource | undefined =
     image.kind === 'icon' ? shape.image : shape.face?.pictures?.[image.ref];
@@ -1390,7 +1510,8 @@ function outlineParts(
   outline: ShapeOutline,
   colors: { fill: Color; stroke: Color },
   face?: string,
-  ownPicture: (image: ShapeImage) => string = (image) => writer.picture(image, image.rect),
+  ownPicture: () => string = () =>
+    shape.image ? writer.picture(shape.image, shape.image.rect) : '',
 ): string {
   const fill = shape.part ? shape.part.color : colors.fill;
   const paint: OutlinePaint = {
@@ -1406,7 +1527,7 @@ function outlineParts(
   body += writer.outline(placed, paint) + toggleOf(shape, colors);
   const picture = shape.part ? ownPartPicture(writer, shape, shape.part) : undefined;
   if (picture) body += writer.picture(picture.image, picture.rect);
-  else if (shape.image) body += ownPicture(shape.image);
+  else body += ownPicture();
   // A name that does not fit inside the outline whole is written in its name tag, under it.
   if (writesNameBelow(shape)) {
     return body + nameTagParts(writer, shape, { fill, stroke: colors.stroke }) + (face ?? '');
@@ -1442,6 +1563,117 @@ function ownPartPicture(
       height: height * scale,
     },
   };
+}
+
+/**
+ * A shape's solid where its picture goes (ADR 0075), at its place or at `rect`: the picture the
+ * export drew of it, or else its placeholder's mark, a cube seen from a corner in lines of the
+ * shape's stroke, as the canvas draws it until its picture comes.
+ */
+function solidParts(writer: Writer, shape: ElementShape, stroke: Color, rect?: Rect): string {
+  const { solid } = shape;
+  if (!solid) return '';
+  const at = rect ?? solid.rect;
+  const picture = writer.solidPicture(shape);
+  if (picture) return writer.solidUse(picture, at);
+  const lines = solidMarkLines(at);
+  if (lines.length === 0) return '';
+  return empty('path', {
+    'data-part': 'solid-placeholder',
+    d: lines
+      .map(([from, to]) => `M${num(from.x)} ${num(from.y)}L${num(to.x)} ${num(to.y)}`)
+      .join(''),
+    fill: 'none',
+    stroke,
+    'stroke-width': SOLID_MARK_LINE,
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+  });
+}
+
+/**
+ * Each anchored part of a solid's drawing with parts, as a transparent path over its picture, traced
+ * from the picture's part buffer (ADR 0075): the pixels its part and the parts it holds are drawn on,
+ * filled by the even-odd rule with no paint that shows, carrying its element's, shape's and
+ * component's ids and its part's name, so that a reader of the file can point at it. In the solid's
+ * order, so that a part held by another lies over it. None for a drawing drawn as its placeholder.
+ */
+function tracedSolidParts(
+  writer: Writer,
+  scene: Scene,
+  project: ProjectSnapshot,
+  index: ReturnType<typeof modelIndexOf>,
+): string[] {
+  const catalog = solidsIn(project);
+  const traced: string[] = [];
+  for (const drawing of scene.shapes) {
+    const { solid } = drawing;
+    if (solid?.placement !== 'parts') continue;
+    const buffer = writer.solidPicture(drawing)?.partBuffer;
+    const parts = catalog.solid(solid.id)?.definition.parts;
+    if (!buffer || !parts) continue;
+    const anchored = [
+      ...anchoredByIndex(
+        scene.shapes.filter(
+          (shape) => isAnchoredSolidPart(shape) && shape.containerShape === drawing.key,
+        ),
+      ),
+    ].sort(([a], [b]) => a - b);
+    if (anchored.length === 0) continue;
+    const boxes = valueBoxes(buffer);
+    const { rect } = solid;
+    // Exact to a millionth: a pixel of the picture is a fraction of a unit, which rounding would move.
+    const exact = (value: number) => String(Math.round(value * 1e6) / 1e6);
+    const transform = `matrix(${[
+      rect.width / buffer.width,
+      0,
+      0,
+      rect.height / buffer.height,
+      rect.x,
+      rect.y,
+    ]
+      .map(exact)
+      .join(' ')})`;
+    for (const [at, shape] of anchored) {
+      const { from, to } = partValues(parts, at);
+      let box: { x1: number; y1: number; x2: number; y2: number } | undefined;
+      for (let value = from; value < to; value++) {
+        const each = boxes.get(value);
+        if (!each) continue;
+        box = box
+          ? {
+              x1: Math.min(box.x1, each.x1),
+              y1: Math.min(box.y1, each.y1),
+              x2: Math.max(box.x2, each.x2),
+              y2: Math.max(box.y2, each.y2),
+            }
+          : { ...each };
+      }
+      if (!box) continue;
+      const d = tracedPathData(buffer, from, to, {
+        x: box.x1,
+        y: box.y1,
+        width: box.x2 - box.x1,
+        height: box.y2 - box.y1,
+      });
+      if (d === '') continue;
+      traced.push(
+        empty('path', {
+          'data-element': shape.element,
+          'data-shape': shape.key,
+          'data-component': index.element(shape.element)?.component,
+          'data-solid': solid.id,
+          'data-solid-part': parts[at]?.name,
+          d,
+          transform,
+          fill: '#000000',
+          'fill-opacity': 0,
+          'fill-rule': 'evenodd',
+        }),
+      );
+    }
+  }
+  return traced;
 }
 
 /**
@@ -1810,7 +2042,8 @@ function rowParts(
   shape: ElementShape,
   fill: Color,
   face?: string,
-  ownPicture: (image: ShapeImage) => string = (image) => writer.picture(image, image.rect),
+  ownPicture: () => string = () =>
+    shape.image ? writer.picture(shape.image, shape.image.rect) : '',
 ): string {
   const { x, y, width, height } = shape.rect;
   const left = x + ROW_INSIDE;
@@ -1825,7 +2058,7 @@ function rowParts(
       fill: rowColorsOf(writer.theme).separator,
     });
   }
-  if (shape.image) parts += ownPicture(shape.image);
+  parts += ownPicture();
   // A row with a face draws it over its band, in place of its texts (ADR 0083).
   if (face !== undefined) return parts + face;
   const fitted = shape.fitted;
@@ -1837,7 +2070,7 @@ function rowParts(
       text: fitted.name,
       size: ROW_NAME_SIZE,
       fill: colors.detail,
-      x: x + ROW_INSET + (shape.image ? ROW_ICON : 0),
+      x: x + ROW_INSET + (showsPicture(shape) ? ROW_ICON : 0),
       align: 'start',
       y: middle,
       anchor: 'middle',
@@ -2092,6 +2325,8 @@ function attributionOf(
     const defined = component === undefined ? undefined : definitions.components.get(component);
     if (defined) used.add(defined.package);
     if (shape.image) used.add(shape.image.id.split('.')[0] ?? '');
+    // A solid's source and license are its package's to record (ADR 0075).
+    if (shape.solid) used.add(shape.solid.id.split('.')[0] ?? '');
     // A part on its own draws its picture's part (ADR 0067).
     if (shape.part?.image !== undefined) used.add(shape.part.image.split('.')[0] ?? '');
   }

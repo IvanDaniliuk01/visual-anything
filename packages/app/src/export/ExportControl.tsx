@@ -18,7 +18,13 @@ import type { Scene } from '../canvas/scene';
 import { useT, type Translator } from '../i18n';
 import { DownloadIcon } from '../shell/icons';
 import { holdsConflicts } from '../viewer/data';
-import { LARGE_PAGE, type ViewerAssets, type WrittenPage } from '../viewer/page';
+import {
+  LARGE_PAGE,
+  SolidWorkerMissing,
+  type ViewerAssets,
+  type WrittenPage,
+} from '../viewer/page';
+import { solidHashesShown } from '../viewer/solids';
 import './export.css';
 import { isStopped } from './exports';
 import { FILE_EXPORTS, type FileExport, type FileExportContext, type MadeFile } from './formats';
@@ -34,8 +40,20 @@ import {
   type ImageRequest,
   type ImageScale,
 } from './image';
-import { ViewerMissing, fetchViewerAssets, makePage, pageFileName, sizeText } from './page-export';
+import {
+  ViewerMissing,
+  fetchViewerAssets,
+  gatherPageSolids,
+  makePage,
+  pageFileName,
+  sizeText,
+  type GatheredSolids,
+  type PageSolidForm,
+  type PageSolidSource,
+} from './page-export';
 import type { ImageMaker, ImageSource } from './source';
+import { solidPainterOf } from './solid-painter';
+import { useSolidClient, useSolidFiles } from '../canvas/solids/useSolidClient';
 
 /** What exporting the read-only page needs of the shell, besides the project. */
 export interface PageSource {
@@ -43,6 +61,11 @@ export interface PageSource {
   start: () => string | undefined;
   /** The viewer's script and stylesheet; fetched from the local program by default. */
   assets?: () => Promise<ViewerAssets>;
+  /**
+   * Where the page gets the solids its views show (ADR 0075): the program's files and the solid
+   * worker, by default those of the live session; none outside one, where they draw placeholders.
+   */
+  solids?: PageSolidSource;
 }
 
 /** The read-only page's source, with the project it is made of. */
@@ -87,6 +110,16 @@ export function ExportControl({
 }: ExportControlProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  // The solid worker draws solids' pictures for the SVG and the PDF, as for the canvas (ADR 0075).
+  const solidClient = useSolidClient();
+  const solids = useMemo(() => solidClient && solidPainterOf(solidClient), [solidClient]);
+  // A read-only page holds the solids its views show: the program's files, or the worker's pictures.
+  const solidFiles = useSolidFiles();
+  const pageSolids = useMemo<PageSolidSource | undefined>(
+    () => solidFiles && { files: solidFiles, ...(solids ? { painter: solids } : {}) },
+    [solidFiles, solids],
+  );
+  const drawnWith = drawn && { ...drawn, ...(solids ? { solids } : {}) };
   const opener = useRef<HTMLButtonElement>(null);
   const available = viewName !== undefined;
 
@@ -116,19 +149,27 @@ export function ExportControl({
           viewName={viewName}
           bounds={bounds}
           save={save}
-          {...(project && page ? { page: { ...page, project } } : {})}
+          {...(project && page
+            ? {
+                page: {
+                  ...page,
+                  project,
+                  ...((page.solids ?? pageSolids) ? { solids: page.solids ?? pageSolids } : {}),
+                },
+              }
+            : {})}
           files={
-            drawn && project
-              ? files.map((format) => ({ format, context: { project, ...drawn } }))
+            drawnWith && project
+              ? files.map((format) => ({ format, context: { project, ...drawnWith } }))
               : []
           }
-          {...(drawn && project && comparison
+          {...(drawnWith && project && comparison
             ? {
                 comparison: {
                   title: comparison.title,
                   files: comparison.files.map((format) => ({
                     format,
-                    context: { project, ...drawn },
+                    context: { project, ...drawnWith },
                   })),
                 },
               }
@@ -168,6 +209,20 @@ const AREAS: readonly { area: ImageArea; name: string; hint: string }[] = [
 ];
 
 const SCALES: readonly ImageScale[] = [1, 2];
+
+/** How a page can hold the solids its views show (ADR 0075), worded for the person choosing. */
+const SOLID_FORMS: readonly { form: PageSolidForm; name: string; hint: string }[] = [
+  {
+    form: 'files',
+    name: 'Turn them in the page',
+    hint: 'It holds their files and what draws them, so the page is larger',
+  },
+  {
+    form: 'pictures',
+    name: 'Only their pictures',
+    hint: 'A smaller page: they show as drawn here, and cannot be turned',
+  },
+];
 
 type Drawing =
   { state: 'idle' } | { state: 'drawing' } | { state: 'failed'; problem: ImageProblem };
@@ -220,7 +275,9 @@ function ExportDialog({
   // one, a PDF, once it is saved.
   const [madeFiles, setMadeFiles] = useState<Record<string, Made<MadeFile>>>({});
   const [openAtNow, setOpenAtNow] = useState(true);
-  const [madePage, setMadePage] = useState<Made<WrittenPage> & { openAtNow: boolean }>();
+  const [madePage, setMadePage] = useState<
+    Made<WrittenPage> & { openAtNow: boolean; missing?: number }
+  >();
   // Every writer's file, the view's and the comparison's, found by its format's id.
   const files = useMemo(
     () => [...viewFiles, ...(comparison?.files ?? [])],
@@ -318,32 +375,55 @@ function ExportDialog({
   // The page is written once it is chosen, and again when where it opens changes; only the answer
   // to the latest request shows.
   const pageChosen = chosen.kind === 'page';
-  const requested = useRef<boolean | undefined>(undefined);
-  const writePageAt = (asked: boolean) => {
-    if (!page || requested.current === asked) return;
-    requested.current = asked;
+  const requested = useRef<string | undefined>(undefined);
+  // How the page holds the solids its views show, if they show any (ADR 0075).
+  const [solidForm, setSolidForm] = useState<PageSolidForm>('files');
+  const showsSolids = useMemo(
+    () => page !== undefined && solidHashesShown(page.project).length > 0,
+    [page],
+  );
+  const writePageAt = (asked: boolean, form: PageSolidForm = solidForm) => {
+    const request = `${asked} ${form}`;
+    if (!page || requested.current === request) return;
+    requested.current = request;
     setMadePage({ state: 'making', openAtNow: asked });
-    const assets = page.assets ?? (() => fetchViewerAssets());
-    assets()
-      .then((viewer) =>
-        makePage(page.project, viewer, {
+    const holdsWorker = showsSolids && form === 'files';
+    const assets =
+      page.assets ?? (() => fetchViewerAssets(undefined, undefined, { solidWorker: holdsWorker }));
+    const source = page.solids;
+    Promise.all([
+      assets(),
+      showsSolids && source
+        ? gatherPageSolids(page.project, form, source)
+        : Promise.resolve({ missing: 0 }),
+    ])
+      .then(async ([viewer, gathered]: [ViewerAssets, GatheredSolids]) => ({
+        written: await makePage(page.project, viewer, {
           start: asked ? page.start() : undefined,
           made: new Date(),
+          solids: gathered.solids,
         }),
-      )
+        missing: showsSolids && !source ? solidHashesShown(page.project).length : gathered.missing,
+      }))
       .then(
-        (written) => {
-          if (requested.current === asked) {
-            setMadePage({ state: 'made', value: written, bytes: written.bytes, openAtNow: asked });
+        ({ written, missing }) => {
+          if (requested.current === request) {
+            setMadePage({
+              state: 'made',
+              value: written,
+              bytes: written.bytes,
+              openAtNow: asked,
+              missing,
+            });
           }
         },
         (error: unknown) => {
-          if (requested.current !== asked) return;
+          if (requested.current !== request) return;
           setMadePage({
             state: 'failed',
             openAtNow: asked,
             why:
-              error instanceof ViewerMissing
+              error instanceof ViewerMissing || error instanceof SolidWorkerMissing
                 ? t(
                     'This copy of Visual Anything has no viewer for read-only pages, as when it runs from its sources. Run pnpm build, then start it again.',
                   )
@@ -614,9 +694,48 @@ function ExportDialog({
                 {t('This view, where the canvas looks, the selection, the filters and focus')}
               </span>
             </label>
+            {showsSolids && (
+              <fieldset className="export-choices">
+                <legend>{t('Solids')}</legend>
+                {SOLID_FORMS.map((each) => (
+                  <label key={each.form} className="export-choice">
+                    <input
+                      type="radio"
+                      name={`${titleId}-solids`}
+                      checked={solidForm === each.form}
+                      onChange={() => {
+                        setSolidForm(each.form);
+                        writePageAt(openAtNow, each.form);
+                      }}
+                    />
+                    <span className="export-choice-name">{t(each.name)}</span>{' '}
+                    <span className="export-choice-hint">{t(each.hint)}</span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
             <p className="export-status" role="status">
               {madePage?.state === 'making' ? t('Writing the page…') : ''}
             </p>
+            {pageMade && pageMade.value.solidBytes > 0 && (
+              <p className="dialog-note">
+                {t('Its solids take {size} of it.', {
+                  size: sizeText(t.language, pageMade.value.solidBytes),
+                })}
+              </p>
+            )}
+            {pageMade && (pageMade.missing ?? 0) > 0 && (
+              <p className="dialog-note">
+                {t(
+                  {
+                    one: 'One solid could not be had, and the page draws it as its placeholder.',
+                    other:
+                      '{count} solids could not be had, and the page draws them as their placeholders.',
+                  },
+                  { count: pageMade.missing ?? 0 },
+                )}
+              </p>
+            )}
             <p className="dialog-note">
               {t(
                 'It holds the whole project, every view, scenario and tour, whatever this view shows: share it only with those who may read all of it. It connects nowhere, and the browser saves it.',

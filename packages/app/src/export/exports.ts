@@ -7,14 +7,16 @@
  *   const exported = await exportView(project, 'system-overview', 'pdf', { theme: 'dark' });
  *   // { format: 'pdf', bytes, mediaType: 'application/pdf', fileName: 'My systems - System overview.pdf', size, lost }
  */
-import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
+import { solidsIn, type ProjectSnapshot, type ThemeName } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { t } from '../i18n';
 import { writeMermaid } from './mermaid';
 import { writeOutline } from './outline';
 import { writePdf } from './pdf';
 import { structurizrApplies, writeStructurizr } from './structurizr';
-import { writeSvg } from './svg';
+import { svgSolidsOf, writeSvg, type SvgSolidPicture } from './svg';
+import { SVG_SOLID_PIXELS, solidShotsOf, type SolidPainter } from './solid-pictures';
+import { buildScene } from '../canvas/scene';
 
 /** The formats a view exports to, but the PNG the canvas draws and the read-only page. */
 export const EXPORT_FORMATS = ['svg', 'pdf', 'md', 'mermaid', 'structurizr'] as const;
@@ -49,6 +51,12 @@ export interface ExportOptions {
    * others, which take a moment, before and after they are written.
    */
   signal?: AbortSignal;
+  /**
+   * What draws solids' pictures, for the SVG and the PDF: the solid worker, through the app's client
+   * (ADR 0075). Without it, as from the command line and Claude's `export_view`, which have no GPU,
+   * each solid is drawn as its placeholder, and the export says so.
+   */
+  solids?: SolidPainter;
 }
 
 /**
@@ -139,9 +147,17 @@ export async function exportView(
       lost: written.lost,
     };
   };
+  // The pictures of the view's solids, drawn at the drawing's scale, for the SVG and the PDF.
+  const solids =
+    options.solids && (format === 'svg' || format === 'pdf')
+      ? {
+          solids: await solidPicturesFor(project, viewId, options.solids, options.theme ?? 'light'),
+        }
+      : {};
+  signal?.throwIfAborted();
   switch (format) {
     case 'svg':
-      return textOf(writeSvg(project, viewId, { ...theme, outlineFile }));
+      return textOf(writeSvg(project, viewId, { ...theme, outlineFile, ...solids }));
     case 'md':
       return textOf(writeOutline(project, viewId));
     case 'mermaid':
@@ -151,6 +167,7 @@ export async function exportView(
     case 'pdf': {
       const pdf = await writePdf(project, viewId, {
         ...theme,
+        ...solids,
         outline: { text: writeOutline(project, viewId).text, file: outlineFile },
         language: t.language,
         ...(options.date === undefined ? {} : { date: options.date }),
@@ -166,6 +183,25 @@ export async function exportView(
       };
     }
   }
+}
+
+/**
+ * The pictures of a view's solids, as an SVG or a PDF holds them: drawn by `painter` at two pixels a
+ * canvas unit, with their parts' states as the view's overlays leave them (ADR 0075).
+ */
+export async function solidPicturesFor(
+  project: ProjectSnapshot,
+  viewId: Id,
+  painter: SolidPainter,
+  theme: ThemeName,
+): Promise<Map<string, SvgSolidPicture>> {
+  const scene = buildScene(project, viewId);
+  const catalog = solidsIn(project);
+  const shots = await solidShotsOf((id) => catalog.solid(id)?.definition.parts, scene, painter, {
+    pixelsPerUnit: SVG_SOLID_PIXELS,
+    theme,
+  });
+  return svgSolidsOf(shots.pictures);
 }
 
 /** Whether a format can export a view, and why not when it cannot. */

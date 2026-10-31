@@ -963,10 +963,11 @@ Its tasks run in this order:
   - the guidance `turn`;
   - descriptions with examples.
   - Done 2026-10-31, by a builder (ADR 0075's clarification of that date): the program reads the file by its path from its folder (`solid/prepare-file`); `list_solids` joins them; Anchor parts… for solids is the core's (`planSolidAnchoring`), and anchors name their solid; an action warns the `unknown-part` and `unknown-solid` it brings. The app keeps `turn` guidance's request, which the canvas task's Turn takes up.
-- [ ] **Exports and the read-only page:**
+- [x] **Exports and the read-only page:**
   - the app's PNG, SVG and PDF with solids' pictures and their parts' states, and the SVG's traced paths for anchored parts;
   - placeholders from the command line and `export_view`, each saying what it lost; the outline in Markdown listing solids with their descriptions; Mermaid and Structurizr saying they lost them;
   - the page with the solids it draws, three.js and the worker, its policy then allowing that worker, or with pictures only, from the Export dialog; the page's size said; the policy and bundle tests for both.
+  - Done 2026-10-31, by a builder, tested against the stand-in worker and fakes of the canvas; nothing of it has been seen on a GPU yet (ADR 0075's clarification of that date): the worker draws each picture at the export's scale and the page lays the parts' states over it; the page holds the worker as text it starts from a `blob:` address (`vite.solid-worker.config.ts`), and turns its solids with T, the keys, dragging and the wheel; the command line's page holds the solids' files too.
 - [ ] **A sample,** `examples/robot-arm`: an arm of six links, made for Visual Anything (CC0-1.0) by a script in the repository, whose links are anchored to its named parts, with a controller, motors, sensors and topics, a view of its structure and one of its control loop, and a scenario, "Pick a part".
 - [ ] **The benchmark:** `?solids`, with canonical files it makes itself, in work and frames modes, with the phases of the "Done when" above:
   - pan, zoom and select, at the whole view and with names shown;

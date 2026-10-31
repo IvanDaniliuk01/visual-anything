@@ -27,7 +27,7 @@ import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
 import { decodeBase64, encodeBase64 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { t, type PluralText } from '../i18n';
-import { svgPieces, writeSvg, type SvgDrawing } from './svg';
+import { svgPieces, writeSvg, type SvgDrawing, type SvgOptions } from './svg';
 import { usesEmphasisFonts } from './emphasis-svg';
 
 /** Points to a canvas unit: a CSS pixel is three quarters of a point. */
@@ -56,6 +56,8 @@ export interface PdfOptions {
   language?: string;
   /** Whether its streams are compressed; true by default, false to read them in a test. */
   compress?: boolean;
+  /** Solids' pictures, as the SVG takes them (ADR 0075); without, solids are their placeholders. */
+  solids?: SvgOptions['solids'];
   /**
    * Stops making it, between two pieces of the drawing: it then rejects with the signal's reason, an
    * `AbortError` unless the signal was given another, and does no further work.
@@ -194,6 +196,7 @@ export async function writePdf(
   const drawing = writeSvg(project, viewId, {
     ...(options.theme === undefined ? {} : { theme: options.theme }),
     ...(options.outline === undefined ? {} : { outlineFile: options.outline.file }),
+    ...(options.solids === undefined ? {} : { solids: options.solids }),
     ...PDF_PICTURES,
   });
   const view = project.views.find((each) => each.id === viewId);
@@ -205,8 +208,15 @@ export async function writePdf(
   );
 }
 
-/** What a drawing a PDF takes must leave out: bitmaps PDF cannot hold, and filters. */
-export const PDF_PICTURES = { bitmaps: ['png', 'jpeg'], filters: false } as const;
+/**
+ * What a drawing a PDF takes must leave out: bitmaps PDF cannot hold, filters, and the traced paths of
+ * solids' anchored parts, which no one points at in a PDF (ADR 0075).
+ */
+export const PDF_PICTURES = {
+  bitmaps: ['png', 'jpeg'],
+  filters: false,
+  tracedParts: false,
+} as const;
 
 /**
  * Makes a PDF of a drawing the SVG writer wrote, as it is, such as a comparison's (ADR 0070): its

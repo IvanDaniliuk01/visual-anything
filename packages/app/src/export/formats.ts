@@ -9,6 +9,7 @@ import type { ViewFile } from '@visual-anything/schema';
 import type { Scene } from '../canvas/scene';
 import type { Translator } from '../i18n';
 import { FORMAT_FILES, exportView, formatsFor, type ExportFormat } from './exports';
+import type { SolidPainter } from './solid-pictures';
 
 /** What a writer is given: the open view, as the canvas draws it, in the theme it shows. */
 export interface FileExportContext {
@@ -16,6 +17,8 @@ export interface FileExportContext {
   view: ViewFile;
   scene: Scene;
   theme: ThemeName;
+  /** What draws solids' pictures (ADR 0075): the solid worker, while the app has one. */
+  solids?: SolidPainter;
 }
 
 /** A file made of the view: what to save, under which name, and what it could not hold. */
@@ -73,9 +76,10 @@ function writer(
       const choice = choiceIn(context);
       return choice ? [choice.leavesOut] : [];
     },
-    make: async ({ project, view, theme }, signal) => {
+    make: async ({ project, view, theme, solids }, signal) => {
       const exported = await exportView(project, view.id, format, {
         theme,
+        ...(solids === undefined ? {} : { solids }),
         ...(signal === undefined ? {} : { signal }),
       });
       // A copy of the bytes, in a buffer of their own, as a Blob takes them.

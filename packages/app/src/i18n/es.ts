@@ -3185,6 +3185,36 @@ export const ui: Catalog = {
     'Ningún paquete lo nombra ahora, pero puede hacerlo una versión del proyecto, una rama o una acción deshecha. Esto no se puede deshacer: una vez quitado, el archivo ya no está en la carpeta.',
   'Its solid': 'Su sólido',
   'Which solid': 'Qué sólido',
+  // M9: solids in the exports and the read-only page (ADR 0075).
+  '{count} solids could not be drawn, and are drawn as their placeholders.': {
+    one: 'Un sólido no se pudo dibujar y se dibuja como su marcador.',
+    other: '{count} sólidos no se pudieron dibujar y se dibujan como sus marcadores.',
+  },
+  'Solids are drawn as placeholders, their outline, name and a mark: only the app draws their pictures.':
+    'Los sólidos se dibujan como marcadores, con su contorno, su nombre y una marca: solo la aplicación dibuja sus imágenes.',
+  '{count} shapes’ solids are left out: solids are drawn only in the canvas, the PNG, the SVG, the PDF and the read-only page.':
+    {
+      one: 'Se omite el sólido de una forma: los sólidos solo se dibujan en el lienzo, el PNG, el SVG, el PDF y la página de solo lectura.',
+      other:
+        'Se omiten los sólidos de {count} formas: los sólidos solo se dibujan en el lienzo, el PNG, el SVG, el PDF y la página de solo lectura.',
+    },
+  ', with a solid: {description}': ', con un sólido: {description}',
+  ', with the solid “{solid}”, which has no description':
+    ', con el sólido “{solid}”, que no tiene descripción',
+  'It has no description.': 'No tiene descripción.',
+  'Source: {source}.': 'Origen: {source}.',
+  'License: {license}.': 'Licencia: {license}.',
+  'Turn them in the page': 'Girarlos en la página',
+  'It holds their files and what draws them, so the page is larger':
+    'Guarda sus archivos y lo que los dibuja, así que la página es más grande',
+  'Only their pictures': 'Solo sus imágenes',
+  'A smaller page: they show as drawn here, and cannot be turned':
+    'Una página más chica: se ven como se dibujan aquí, y no se pueden girar',
+  'Its solids take {size} of it.': 'Sus sólidos ocupan {size} de ella.',
+  '{count} solids could not be had, and the page draws them as their placeholders.': {
+    one: 'No se pudo obtener un sólido, y la página lo dibuja como su marcador.',
+    other: 'No se pudieron obtener {count} sólidos, y la página los dibuja como sus marcadores.',
+  },
 };
 
 /**

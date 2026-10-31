@@ -17,7 +17,7 @@
 import type { Command, ProjectSnapshot } from '@visual-anything/core';
 import type { SolidCamera, SolidDefinition } from '@visual-anything/schema';
 import { t } from '../../i18n';
-import type { SolidClient, SolidTurning } from '../../solids/client';
+import type { SolidClient, SolidTurning } from '../../solids/solid-client';
 import type { SolidFrameReply } from '../../solids/protocol';
 import type { Point, Rect } from '../geometry';
 import type { ElementShape } from '../scene';
