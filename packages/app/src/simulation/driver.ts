@@ -87,7 +87,8 @@ export class SimulationDriver {
 
   /**
    * The project as it is now, and the packages' code as it runs now: a run whose element, what lies
-   * around it, or whose code changed ends, saying that the model changed.
+   * around it, or whose code changed ends, saying that the model changed; one whose code can no
+   * longer simulate also says why, as `simulation/unavailable`.
    */
   refresh(project: ProjectSnapshot): SimulationReply[] {
     this.project = project;
@@ -104,6 +105,10 @@ export class SimulationDriver {
       if (!changed) continue;
       driven.run.modelChanged();
       replies.push(...this.flush(element, driven));
+      // Code that can no longer simulate, such as code turned off after its third stop in a row,
+      // says why, as a run that cannot start would.
+      if (base && !code.ok)
+        replies.push({ kind: 'simulation/unavailable', element, reason: code.reason });
     }
     return replies;
   }
