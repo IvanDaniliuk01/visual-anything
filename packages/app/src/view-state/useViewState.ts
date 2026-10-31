@@ -94,6 +94,9 @@ export function useViewState(input: ViewStateInput): ViewStateLink {
     follower.changed();
   }, [applier, follower, viewId, scene, selection, explore, playing, canvas, cameraReady]);
   useEffect(() => canvas?.subscribe(() => follower.changed()), [follower, canvas]);
+  // The physical-space panel opening, closing and moving changes the view state too (ADR 0076).
+  const space = input.space;
+  useEffect(() => space?.subscribe(() => follower.changed()), [follower, space]);
 
   return useMemo<ViewStateLink>(
     () => ({
@@ -126,6 +129,7 @@ function composed(now: ApplyContext): ReturnType<typeof viewStateOf> | undefined
       playing.scenario === undefined
         ? undefined
         : { id: playing.scenario, step: playing.step, choices: playing.choices },
+    space: now.space?.state(now.viewId),
   });
 }
 

@@ -6,6 +6,10 @@
  * result goes the same way, keeping the filters, focus and scenario as they are, and comes into sight
  * with a glide unless the system asks for reduced motion.
  *
+ * The physical-space panel (ADR 0076) opens with the view state's `space` as focus does, before the
+ * canvas's camera moves, since opening it narrows the canvas; a view state without one closes it. A
+ * tour's step moves the panel's camera as a tour does (`space/travel.ts`), and an address puts it there.
+ *
  * It lives outside React's state, like the scenario session: the shell tells it how things are after
  * each render that matters (`sync`), and it does the next step it can.
  */
@@ -13,6 +17,7 @@ import {
   knownChoices,
   viewStateProblems,
   type ProjectSnapshot,
+  type ViewSpace,
   type ViewState,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
@@ -28,6 +33,8 @@ import type { NoticeLevel } from '../live/connection';
 import { NO_CHOICES } from '../scenarios/choosing';
 import { FOLLOW_MARGIN } from '../scenarios/follow';
 import type { ScenarioSession } from '../scenarios/session';
+import type { SpacePanelStore } from '../space/store';
+import { sameSpaceCamera } from '../space/travel';
 import type { CanvasCamera, GlideOptions } from './canvas';
 import { cameraFor, focusFrom, selectionFrom } from './state';
 
@@ -68,6 +75,11 @@ export interface Travel {
    * leaves it to the selection or the whole view.
    */
   frame?(scene: Scene): Rect | undefined;
+  /**
+   * Whether the physical-space panel's camera cuts for this step whatever its travel, as a step that
+   * always cuts does (ADR 0084); it moves as `space/travel.ts` says otherwise.
+   */
+  cutsSpace?(): boolean;
 }
 
 /** How long a tour's step's camera takes to get there, and how. */
@@ -94,6 +106,8 @@ export interface ApplyContext {
   emphasis: EmphasisStore;
   /** The canvas's camera, once the canvas is made. */
   canvas: CanvasCamera | undefined;
+  /** The tab's physical-space panel (ADR 0076); absent where there is none, as in the read-only page. */
+  space?: SpacePanelStore | undefined;
   /** Whether the system asks for reduced motion: then nothing glides. */
   reduced: boolean;
   /** Says something in a notice; absent outside a live session. */
@@ -210,6 +224,8 @@ export class ViewStateApplier {
       return;
     }
     this.#finish();
+    // Before the canvas's camera, which fits the canvas as the panel leaves it.
+    applySpace(context, goal, state.space, request.travel);
     if (state.focus) {
       const { targets, settings } = focusFrom(project, state.focus, context.selection);
       context.explore.focusOn(targets, settings);
@@ -300,6 +316,66 @@ function playScenario(
       ? { scenario: scenario.id, action: 'go-to-step', step, choices }
       : { scenario: scenario.id, action: 'open', choices },
     { quiet: true },
+  );
+}
+
+/**
+ * Opens the view's physical-space panel as a view state's `space` says, or closes it when it has
+ * none. A tour's step that keeps showing the same element moves the panel's camera as a tour does,
+ * eased or cut (`space/travel.ts`); an address, a step into another element and a step without a
+ * camera put it there at once.
+ */
+function applySpace(
+  context: ApplyContext,
+  viewId: Id,
+  space: ViewSpace | undefined,
+  travel: Travel | undefined,
+): void {
+  const store = context.space;
+  if (!store) return;
+  if (!space) {
+    store.close(viewId);
+    return;
+  }
+  const was = store.state(viewId);
+  const world = context.project.model.world.id;
+  if (was && sameSpace(was, space, world)) return;
+  const sameRoot = was !== undefined && rootOf(was, world) === rootOf(space, world);
+  const { camera, ...rest } = space;
+  if (!travel || !was || !sameRoot || camera === undefined) {
+    store.moves.stop(viewId);
+    store.set(viewId, space);
+    return;
+  }
+  // The rest changes at once; the camera moves from where it is.
+  store.set(viewId, was.camera ? { ...rest, camera: was.camera } : rest);
+  store.moves.move(viewId, camera, {
+    reducedMotion: context.reduced || (travel.cutsSpace?.() ?? false),
+  });
+}
+
+/** The element a panel's state shows: World when it names none. */
+function rootOf(space: ViewSpace, world: Id): Id {
+  return space.root ?? world;
+}
+
+/** Whether two states of the panel show the same, the same way. */
+function sameSpace(a: ViewSpace, b: ViewSpace, world: Id): boolean {
+  const sameCamera =
+    a.camera === undefined || b.camera === undefined
+      ? a.camera === b.camera
+      : sameSpaceCamera(a.camera, b.camera);
+  const sameCut =
+    a.cut === undefined || b.cut === undefined
+      ? a.cut === b.cut
+      : a.cut.axis === b.cut.axis && a.cut.at === b.cut.at && a.cut.keep === b.cut.keep;
+  return (
+    rootOf(a, world) === rootOf(b, world) &&
+    sameCamera &&
+    sameCut &&
+    (a.explode ?? 0) === (b.explode ?? 0) &&
+    (a.relations ?? false) === (b.relations ?? false) &&
+    (a.names ?? false) === (b.names ?? false)
   );
 }
 

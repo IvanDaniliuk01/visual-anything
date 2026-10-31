@@ -57,6 +57,7 @@ import { highlightOf } from './emphasis';
 import { listedSteps, type ListedAlternative, type ListedStep } from './groups';
 import { PlaybackEmphasis } from './PlaybackEmphasis';
 import { PlaybackFollow } from './PlaybackFollow';
+import { SpacePlaybackFollow } from '../space/SpacePlaybackFollow';
 import { decisionHolding } from './record-decisions';
 import './scenarios.css';
 import type { ScenarioSession, ScenarioState } from './session';
@@ -176,6 +177,7 @@ export function ScenarioPanel({
         canvas={canvas}
         held={held}
       />
+      <SpacePlaybackFollow session={session} project={project} view={view} timeline={playing} />
     </aside>
   );
 }

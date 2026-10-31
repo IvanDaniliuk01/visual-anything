@@ -7,6 +7,7 @@ import { buildScene } from '../canvas/scene';
 import { EmphasisStore } from '../editor/emphasis';
 import { EMPTY_SELECTION } from '../editor/selection';
 import { ScenarioSession } from '../scenarios/session';
+import { SpacePanelStore } from '../space/store';
 import { loadSample } from '../test/sample';
 import { ViewStateApplier, type ApplyContext, type Travel } from './applier';
 import type { CanvasCamera } from './canvas';
@@ -198,5 +199,114 @@ describe('a tour step’s move', () => {
     expect(canvas.targetOf).not.toHaveBeenCalled();
     expect(canvas.glideTo).not.toHaveBeenCalled();
     expect(canvas.setCamera).not.toHaveBeenCalled();
+  });
+});
+
+describe('the physical-space panel of a view state (ADR 0076)', () => {
+  const AT = { target: { x: 0, y: 0, z: 0 }, azimuth: 0, elevation: 20, distance: 2 };
+  const TURNED = { ...AT, azimuth: 90 };
+  const TRAVEL: Travel = { move: () => ({ duration: 0 }) };
+
+  function withPanel(reduced = false) {
+    let time = 0;
+    const frames: (() => void)[] = [];
+    const space = new SpacePanelStore({
+      frames: { request: (callback) => frames.push(callback), cancel: () => undefined },
+      windowWidth: () => 1600,
+      now: () => time,
+    });
+    const context = { ...contextOf(sample, fakeCanvas()), space, reduced };
+    const tick = (ms: number) => {
+      time += ms;
+      for (const frame of frames.splice(0)) frame();
+    };
+    const go = (request: Parameters<ViewStateApplier['goTo']>[0]) => {
+      const applier = new ViewStateApplier();
+      applier.goTo(request, context);
+      applier.sync(context);
+    };
+    return { space, tick, go };
+  }
+
+  it('opens the panel an address holds, as it holds it, and closes it when the address has none', () => {
+    const { space, go } = withPanel();
+    go({ kind: 'address', state: { view: VIEW, space: { root: 'booking-agent', camera: AT } } });
+    expect(space.state(VIEW)).toEqual({ root: 'booking-agent', camera: AT });
+    go({ kind: 'address', state: { view: VIEW } });
+    expect(space.state(VIEW)).toBeUndefined();
+  });
+
+  it('moves the panel’s camera of a tour’s step as a tour does, eased, when it shows the same', () => {
+    const { space, tick, go } = withPanel();
+    space.set(VIEW, { camera: AT });
+    go({
+      kind: 'address',
+      state: { view: VIEW, space: { camera: TURNED, names: true } },
+      travel: TRAVEL,
+    });
+    // The rest at once, the camera from where it is.
+    expect(space.state(VIEW)).toEqual({ camera: AT, names: true });
+    expect(space.moves.moving(VIEW)).toBe(true);
+    tick(150);
+    const azimuth = space.state(VIEW)?.camera?.azimuth ?? 0;
+    expect(azimuth).toBeGreaterThan(0);
+    expect(azimuth).toBeLessThan(90);
+    tick(550);
+    expect(space.state(VIEW)).toEqual({ camera: TURNED, names: true });
+  });
+
+  it('cuts into another element shown, from a closed panel, under reduced motion, and for a step that always cuts', () => {
+    const into = withPanel();
+    into.space.set(VIEW, { camera: AT });
+    into.go({
+      kind: 'address',
+      state: { view: VIEW, space: { root: 'booking-agent', camera: TURNED } },
+      travel: TRAVEL,
+    });
+    expect(into.space.state(VIEW)).toEqual({ root: 'booking-agent', camera: TURNED });
+
+    const closed = withPanel();
+    closed.go({
+      kind: 'address',
+      state: { view: VIEW, space: { camera: TURNED } },
+      travel: TRAVEL,
+    });
+    expect(closed.space.state(VIEW)).toEqual({ camera: TURNED });
+
+    const reduced = withPanel(true);
+    reduced.space.set(VIEW, { camera: AT });
+    reduced.go({
+      kind: 'address',
+      state: { view: VIEW, space: { camera: TURNED } },
+      travel: TRAVEL,
+    });
+    expect(reduced.space.state(VIEW)?.camera).toBe(TURNED);
+
+    const cutting = withPanel();
+    cutting.space.set(VIEW, { camera: AT });
+    cutting.go({
+      kind: 'address',
+      state: { view: VIEW, space: { camera: TURNED } },
+      travel: { ...TRAVEL, cutsSpace: () => true },
+    });
+    expect(cutting.space.state(VIEW)?.camera).toBe(TURNED);
+  });
+
+  it('leaves the panel as it is when the view state shows it the same way', () => {
+    const { space, go } = withPanel();
+    const shown = { root: 'booking-agent', camera: AT };
+    space.set(VIEW, shown);
+    go({
+      kind: 'address',
+      state: { view: VIEW, space: { root: 'booking-agent', camera: { ...AT } } },
+    });
+    expect(space.state(VIEW)).toBe(shown);
+  });
+
+  it('leaves the panel alone when search jumps', () => {
+    const { space, go } = withPanel();
+    space.set(VIEW, {});
+    go({ kind: 'jump', view: VIEW, target: { kind: 'element', id: 'booking-agent' } });
+    expect(space.state(VIEW)).toEqual({});
   });
 });

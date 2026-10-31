@@ -2,7 +2,8 @@
  * The physical-space panel's place in the tab (ADR 0076): for each view, whether the panel is open and,
  * while it is, what it shows and where it looks, as a view state's `space` says (`ViewSpace`); and how
  * wide the panel is. Kept in memory, as the canvas's cameras are, and never written to a file; the
- * view state and the addresses read it and set it through `state`, `open`, `set` and `close`.
+ * view state and the addresses read it and set it through `state`, `open`, `set` and `close`, and
+ * tours, guidance, framing and playback move its camera through `moves` (`moves.ts`).
  *
  * The width is written onto the shell's element as `--space-panel-width`, and `data-space-panel`
  * while the open view's panel is open, outside React, so that the column changes in the same frame
@@ -14,6 +15,7 @@ import type { ViewSpace } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { panBy } from '../canvas/camera';
 import type { CanvasCamera } from '../view-state/canvas';
+import { SpaceCameraMoves } from './moves';
 
 /** The narrowest the panel is, in CSS pixels. */
 export const MIN_SPACE_PANEL_WIDTH = 280;
@@ -50,6 +52,8 @@ export interface SpacePanelStoreOptions {
   frames?: SpacePanelFrames;
   /** The window's width in CSS pixels, of which the panel takes half at most. */
   windowWidth?: () => number;
+  /** The time in milliseconds that the camera's moves are timed by: the page's by default. */
+  now?: () => number;
 }
 
 /** What the panel's controls show: its width, and a number that changes with every change. */
@@ -86,6 +90,11 @@ export class SpacePanelStore {
   private canvas: CanvasCamera | undefined;
   private pending: number | undefined;
   private pendingFrame: number | undefined;
+  /**
+   * The moves of each view's panel's camera (`moves.ts`), eased or cut as a tour's are, which tours,
+   * guidance, framing and playback make; and where each panel last drew from.
+   */
+  readonly moves: SpaceCameraMoves;
 
   constructor(options: SpacePanelStoreOptions = {}) {
     this.frames = options.frames ?? {
@@ -93,6 +102,7 @@ export class SpacePanelStore {
       cancel: (handle) => cancelAnimationFrame(handle),
     };
     this.windowWidth = options.windowWidth ?? (() => window.innerWidth);
+    this.moves = new SpaceCameraMoves(this, this.frames, options.now ?? (() => performance.now()));
   }
 
   readonly subscribe = (listener: () => void): (() => void) => {
@@ -118,6 +128,7 @@ export class SpacePanelStore {
   close(viewId: Id): void {
     if (!this.byView.has(viewId)) return;
     this.framings.delete(viewId);
+    this.moves.forget(viewId);
     this.resizing(() => this.byView.delete(viewId));
   }
 

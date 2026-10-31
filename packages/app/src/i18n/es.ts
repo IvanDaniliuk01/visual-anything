@@ -347,8 +347,8 @@ export const ui: Catalog = {
 
   // Copy address, in the header.
   'Copy address': 'Copiar dirección',
-  'Copy an address that opens this view where it is: its camera, selection, filters, focus and scenario step':
-    'Copiar una dirección que abre esta vista tal como está: su cámara, selección, filtros, foco y paso del escenario',
+  'Copy an address that opens this view where it is: its camera, selection, filters, focus, scenario step and physical-space panel':
+    'Copiar una dirección que abre esta vista tal como está: su cámara, selección, filtros, foco, paso del escenario y panel del espacio físico',
   'Address copied.': 'Dirección copiada.',
   'Address copied, without the selection: an address holds at most {max} selected things.':
     'Dirección copiada, sin la selección: una dirección guarda como máximo {max} cosas seleccionadas.',
@@ -2343,6 +2343,7 @@ export const ui: Catalog = {
   filters: 'filtros',
   focus: 'foco',
   'a scenario': 'un escenario',
+  'physical space': 'el espacio físico',
   'Shows “{view}”': 'Muestra “{view}”',
   'Shows “{view}”: {parts}': 'Muestra “{view}”: {parts}',
   'Marks nothing.': 'No marca nada.',

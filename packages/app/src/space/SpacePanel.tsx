@@ -12,6 +12,11 @@
  *
  * Moving its camera, picking, the handles, its list and its announcements are the panel's
  * interaction's; the camera here is the one its state gives, or the one that frames everything.
+ *
+ * It also draws in space the relations along which markers travel on the canvas, the scenario step
+ * played among them, with their markers (`lines.ts`); takes up the framings it is asked for
+ * (`useFramingRequests.ts`); and keeps where each frame was drawn from, which moves of its camera
+ * start from (`moves.ts`).
  */
 import {
   definitionsIn,
@@ -38,6 +43,7 @@ import { useHover } from '../editor/hover';
 import type { Selection } from '../editor/selection';
 import { useT } from '../i18n';
 import { useAttributeLookup } from '../live-values/context';
+import { useMotion } from '../scenarios/motion';
 import type { SolidClient, SolidProblem, SpaceDrawing } from '../solids/solid-client';
 import {
   LARGEST_SOLID_PICTURE,
@@ -50,9 +56,11 @@ import { usePreferences } from '../theme/usePreferences';
 import { useSpacePanelState } from './context';
 import { changeOf } from './changes';
 import { drawsNothing, spaceEntriesOf } from './entries';
+import { spaceLinesOf } from './lines';
 import { SpacePanelEdge } from './SpacePanelEdge';
 import { shapeEmphasisOf, spaceStateList, spaceStates, type SpaceOverlayLook } from './states';
 import type { SpacePanelStore } from './store';
+import { useFramingRequests } from './useFramingRequests';
 import './space.css';
 
 interface SpacePanelProps {
@@ -123,6 +131,7 @@ function OpenSpacePanel({
         <p className="space-panel-message">{t(NOTHING_IN_SPACE)}</p>
       ) : client ? (
         <SpaceFrames
+          store={store}
           client={client}
           project={project}
           view={view}
@@ -141,6 +150,7 @@ function OpenSpacePanel({
 }
 
 interface SpaceFramesProps {
+  store: SpacePanelStore;
   client: SolidClient;
   project: ProjectSnapshot;
   view: ViewFile;
@@ -151,7 +161,16 @@ interface SpaceFramesProps {
 }
 
 /** The worker's frames of the space, and what it is sent as what the panel shows changes. */
-function SpaceFrames({ client, project, view, scene, selection, space, shown }: SpaceFramesProps) {
+function SpaceFrames({
+  store,
+  client,
+  project,
+  view,
+  scene,
+  selection,
+  space,
+  shown,
+}: SpaceFramesProps) {
   const t = useT();
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -173,6 +192,7 @@ function SpaceFrames({ client, project, view, scene, selection, space, shown }: 
   }, [space, index, scene, theme]);
   const pixelRatio = usePixelRatio();
   const emphasis = useEmphasis();
+  const { reduced } = useMotion();
   const hovered = useHover()?.element;
   const lookup = useAttributeLookup();
   const overlay = useMemo(() => overlayOf(project, view, lookup), [project, view, lookup]);
@@ -190,6 +210,12 @@ function SpaceFrames({ client, project, view, scene, selection, space, shown }: 
       ),
     [space, scene, emphasis, selection.elements, hovered, overlay],
   );
+  // The relations markers travel along on the canvas, drawn in space with their markers.
+  const markers = emphasis.markers;
+  const lines = useMemo(
+    () => (markers && markers.length > 0 ? spaceLinesOf(project, space, markers) : undefined),
+    [project, space, markers],
+  );
   const now = useMemo(
     (): SpaceShown => ({
       size,
@@ -199,24 +225,47 @@ function SpaceFrames({ client, project, view, scene, selection, space, shown }: 
       ...(shown.cut ? { cut: shown.cut } : {}),
       ...(shown.explode === undefined ? {} : { explode: shown.explode }),
       ...(shown.names === undefined ? {} : { names: shown.names }),
+      ...(lines && lines.length > 0 ? { lines } : {}),
       theme,
       pixelRatio,
     }),
-    [size, entries, states, shown.camera, shown.cut, shown.explode, shown.names, theme, pixelRatio],
+    [
+      size,
+      entries,
+      states,
+      shown.camera,
+      shown.cut,
+      shown.explode,
+      shown.names,
+      lines,
+      theme,
+      pixelRatio,
+    ],
   );
   const [problem, setProblem] = useState<SolidProblem>();
   const drawing = useRef<SpaceDrawing | undefined>(undefined);
   const sent = useRef(now);
   const latest = useRef(now);
+  // What the panel's state showed as a frame was asked for: where it was drawn from is in its coordinates.
+  const where = useRef({ viewId: view.id, root: shown.root });
   useLayoutEffect(() => {
     latest.current = now;
+    where.current = { viewId: view.id, root: shown.root };
   });
 
   // One drawing while the panel shows frames, ended when it goes.
   useEffect(() => {
     sent.current = latest.current;
     const started = client.showSpace(latest.current, {
-      onFrame: (frame) => showFrame(canvas.current, frame),
+      onFrame: (frame) => {
+        showFrame(canvas.current, frame);
+        const { viewId, root } = where.current;
+        store.moves.setDrawn(viewId, {
+          camera: frame.camera,
+          aspect: frame.width / Math.max(1, frame.height),
+          root,
+        });
+      },
       onProblem: setProblem,
     });
     drawing.current = started;
@@ -224,7 +273,7 @@ function SpaceFrames({ client, project, view, scene, selection, space, shown }: 
       started.end();
       drawing.current = undefined;
     };
-  }, [client]);
+  }, [client, store]);
 
   // What changed, and nothing else, so that the worker draws only when something does.
   useEffect(() => {
@@ -232,6 +281,9 @@ function SpaceFrames({ client, project, view, scene, selection, space, shown }: 
     sent.current = now;
     if (change) drawing.current?.update(change);
   }, [now]);
+
+  // Framings asked of the panel, once its drawing has what it shows.
+  useFramingRequests(store, view.id, drawing, reduced);
 
   return (
     <div ref={box} className="space-panel-frames">
