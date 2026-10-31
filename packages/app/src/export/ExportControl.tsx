@@ -24,7 +24,7 @@ import {
   type ViewerAssets,
   type WrittenPage,
 } from '../viewer/page';
-import { solidHashesShown } from '../viewer/solids';
+import { holdsPoses, solidHashesShown, withPoses } from '../viewer/solids';
 import './export.css';
 import { isStopped } from './exports';
 import { FILE_EXPORTS, type FileExport, type FileExportContext, type MadeFile } from './formats';
@@ -276,7 +276,12 @@ function ExportDialog({
   const [madeFiles, setMadeFiles] = useState<Record<string, Made<MadeFile>>>({});
   const [openAtNow, setOpenAtNow] = useState(true);
   const [madePage, setMadePage] = useState<
-    Made<WrittenPage> & { openAtNow: boolean; missing?: number }
+    Made<WrittenPage> & {
+      openAtNow: boolean;
+      missing?: number;
+      /** Whether it holds some solid's file or picture, rather than the worker for poses alone. */
+      solidsHeld?: boolean;
+    }
   >();
   // Every writer's file, the view's and the comparison's, found by its format's id.
   const files = useMemo(
@@ -382,12 +387,16 @@ function ExportDialog({
     () => page !== undefined && solidHashesShown(page.project).length > 0,
     [page],
   );
+  // A page whose elements have poses holds the solid worker for its physical-space panel (ADR 0076).
+  const posed = useMemo(() => page !== undefined && holdsPoses(page.project), [page]);
   const writePageAt = (asked: boolean, form: PageSolidForm = solidForm) => {
     const request = `${asked} ${form}`;
     if (!page || requested.current === request) return;
     requested.current = request;
     setMadePage({ state: 'making', openAtNow: asked });
-    const holdsWorker = showsSolids && form === 'files';
+    // Without solids, there is nothing to choose: poses are drawn by the worker, from no files.
+    const held: PageSolidForm = showsSolids ? form : 'files';
+    const holdsWorker = (showsSolids || posed) && held === 'files';
     const assets =
       page.assets ?? (() => fetchViewerAssets(undefined, undefined, { solidWorker: holdsWorker }));
     const source = page.solids;
@@ -401,12 +410,13 @@ function ExportDialog({
         written: await makePage(page.project, viewer, {
           start: asked ? page.start() : undefined,
           made: new Date(),
-          solids: gathered.solids,
+          solids: withPoses(page.project, gathered.solids, held),
         }),
         missing: showsSolids && !source ? solidHashesShown(page.project).length : gathered.missing,
+        solidsHeld: gathered.solids !== undefined,
       }))
       .then(
-        ({ written, missing }) => {
+        ({ written, missing, solidsHeld }) => {
           if (requested.current === request) {
             setMadePage({
               state: 'made',
@@ -414,6 +424,7 @@ function ExportDialog({
               bytes: written.bytes,
               openAtNow: asked,
               missing,
+              solidsHeld,
             });
           }
         },
@@ -719,9 +730,12 @@ function ExportDialog({
             </p>
             {pageMade && pageMade.value.solidBytes > 0 && (
               <p className="dialog-note">
-                {t('Its solids take {size} of it.', {
-                  size: sizeText(t.language, pageMade.value.solidBytes),
-                })}
+                {t(
+                  pageMade.solidsHeld === true
+                    ? 'Its solids take {size} of it.'
+                    : 'Its physical-space panel takes {size} of it.',
+                  { size: sizeText(t.language, pageMade.value.solidBytes) },
+                )}
               </p>
             )}
             {pageMade && (pageMade.missing ?? 0) > 0 && (

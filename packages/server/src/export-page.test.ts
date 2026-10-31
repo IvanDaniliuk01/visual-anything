@@ -10,6 +10,7 @@ import {
   type ViewerAssets,
 } from '@visual-anything/app/src/viewer/page';
 import { ARM_FILE, withSolids } from '@visual-anything/app/src/test/solids';
+import { workcell } from '@visual-anything/app/src/test/space';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseExportCommandLine, runExport } from './export-command';
 import { NO_VIEWER, builtViewer } from './export-page';
@@ -194,6 +195,38 @@ describe('visual-anything export --format page, with solids', () => {
       true,
     );
     const html = await readFile(join(folder, 'robot.html'), 'utf8');
+    expect(pageProject(html).solids).toBeUndefined();
+    expect(html).toContain("worker-src 'none'");
+  });
+});
+
+describe('visual-anything export --format page, with poses (ADR 0076)', () => {
+  const WITH_WORKER: ViewerAssets = { ...VIEWER, solidWorker: 'self.onmessage = () => {};' };
+
+  // The workcell's arm shows a solid whose file the folder does not hold.
+  it('holds the solid worker from no files for its physical-space panel', async () => {
+    await writeProjectFolder(join(folder, 'cell'), workcell());
+    expect(await run(['cell', '--format', 'page', '--out', 'cell.html'], WITH_WORKER)).toBe(0);
+    const html = await readFile(join(folder, 'cell.html'), 'utf8');
+    expect(pageProject(html).solids).toEqual({ form: 'files', files: {} });
+    expect(html).toContain(`id="${SOLID_WORKER_ID}"`);
+    expect(html).toContain('worker-src blob:');
+    expect(err.some((line) => line.startsWith('Its physical-space panel takes '))).toBe(true);
+  });
+
+  it('has no panel without the solid worker, and says so', async () => {
+    await writeProjectFolder(join(folder, 'cell'), workcell());
+    expect(await run(['cell', '--format', 'page', '--out', 'cell.html'])).toBe(0);
+    expect(err.some((line) => line.startsWith('The page has no physical-space panel'))).toBe(true);
+    const html = await readFile(join(folder, 'cell.html'), 'utf8');
+    expect(pageProject(html).solids).toBeUndefined();
+    expect(html).toContain("worker-src 'none'");
+  });
+
+  it('holds nothing when it could read no solid’s file and has no poses', async () => {
+    await writeProjectFolder(join(folder, 'cell'), workcell({ posed: false }));
+    expect(await run(['cell', '--format', 'page', '--out', 'cell.html'], WITH_WORKER)).toBe(0);
+    const html = await readFile(join(folder, 'cell.html'), 'utf8');
     expect(pageProject(html).solids).toBeUndefined();
     expect(html).toContain("worker-src 'none'");
   });

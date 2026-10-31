@@ -10,6 +10,7 @@ import { PagePreferences } from './preferences';
 import { standaloneValidate } from './validate';
 import { ViewerApp } from './Viewer';
 import { pageSolidClient, pageWorkerStart } from './solid-clients';
+import { pageHasSpace } from './solids';
 
 const mountPoint = document.getElementById('root');
 if (!mountPoint) throw new Error('The page has no #root element.');
@@ -29,9 +30,11 @@ const preferences = new PagePreferences(window);
 
 // The solids the page holds, drawn by the worker it holds or from the pictures it holds (ADR 0075).
 const solids = read.ok ? pageSolidClient(read.solids, pageWorkerStart(window)) : undefined;
+// The physical-space panel, drawn by that worker, when the page holds solids' files or poses (ADR 0076).
+const space = read.ok && solids !== undefined && pageHasSpace(read.project, read.solids);
 
 createRoot(mountPoint).render(
   <StrictMode>
-    <ViewerApp read={read} preferences={preferences} solids={solids} />
+    <ViewerApp read={read} preferences={preferences} solids={solids} space={space} />
   </StrictMode>,
 );

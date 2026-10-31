@@ -25,6 +25,7 @@ import {
   overlayLookOf,
   spaceOf,
   type ProjectSnapshot,
+  type ThemeName,
   type ViewSpace,
 } from '@visual-anything/core';
 import type { Color, Id, ViewFile } from '@visual-anything/schema';
@@ -55,7 +56,6 @@ import {
   type SpaceShown,
 } from '../solids/protocol';
 import { useReducedMotion } from '../scenarios/motion';
-import { usePreferences } from '../theme/usePreferences';
 import { useSpacePanelState } from './context';
 import { changeOf } from './changes';
 import { SpaceControl } from './control';
@@ -81,15 +81,30 @@ interface SpacePanelProps {
   selection: Selection;
   /** The live session's solid client; absent, the panel says it cannot draw. */
   client: SolidClient | undefined;
+  /** The theme the canvas draws in, which markers are drawn in too; light when absent. */
+  theme?: ThemeName | undefined;
+  /**
+   * Whether nothing can be changed here, as in the read-only page (ADR 0041): the panel then offers
+   * only what reads, without Move, Rotate, Place in physical space, Take out of physical space or the
+   * handles, and says nothing of putting something in physical space.
+   */
+  readOnly?: boolean | undefined;
 }
 
 /** How the panel's frames are moved through from the keyboard, as a screen reader hears it. */
 const SPACE_HINT =
   'Arrow keys turn the space, Shift with them pans, + and − zoom, 0 fits everything and Enter frames the selection; M and R choose whether the handles move or rotate.';
 
+/** How the panel's frames are moved through from the keyboard where nothing can be changed. */
+const SPACE_READING_HINT =
+  'Arrow keys turn the space, Shift with them pans, + and − zoom, 0 fits everything and Enter frames the selection.';
+
 /** What the panel says when the view holds nothing in physical space. */
 const NOTHING_IN_SPACE =
   'Nothing this view shows is in physical space yet. To put an element there, select it and choose Place in physical space, show a solid on it, or ask Claude to give it a pose.';
+
+/** What the panel says when the view holds nothing in physical space, where nothing can be changed. */
+const NOTHING_IN_SPACE_HERE = 'Nothing this view shows is in physical space.';
 
 /** The panel and its edge, while the open view's panel is open. */
 export function SpacePanel(props: SpacePanelProps) {
@@ -111,6 +126,8 @@ function OpenSpacePanel({
   scene,
   selection,
   client,
+  theme,
+  readOnly = false,
   shown,
 }: SpacePanelProps & { shown: ViewSpace }) {
   const t = useT();
@@ -155,10 +172,13 @@ function OpenSpacePanel({
           mode={mode}
           setMode={setMode}
           say={say}
+          readOnly={readOnly}
         />
       )}
       {empty ? (
-        <p className="space-panel-message">{t(NOTHING_IN_SPACE)}</p>
+        <p className="space-panel-message">
+          {t(readOnly ? NOTHING_IN_SPACE_HERE : NOTHING_IN_SPACE)}
+        </p>
       ) : client ? (
         <SpaceFrames
           store={store}
@@ -173,6 +193,8 @@ function OpenSpacePanel({
           selection={selection}
           space={space}
           shown={shown}
+          theme={theme ?? 'light'}
+          readOnly={readOnly}
         />
       ) : (
         <p className="space-panel-message">
@@ -210,6 +232,8 @@ interface SpaceFramesProps {
   selection: Selection;
   space: ReturnType<typeof spaceOf>;
   shown: ViewSpace;
+  theme: ThemeName;
+  readOnly: boolean;
 }
 
 /** The worker's frames of the space, and what it is sent as what the panel shows changes. */
@@ -226,6 +250,8 @@ function SpaceFrames({
   selection,
   space,
   shown,
+  theme,
+  readOnly,
 }: SpaceFramesProps) {
   const t = useT();
   const hint = useId();
@@ -233,7 +259,6 @@ function SpaceFrames({
   const canvas = useRef<HTMLCanvasElement>(null);
   const size = useFrameSize(box, client.limits?.largestPicture ?? LARGEST_SOLID_PICTURE);
   const index = modelIndexOf(project);
-  const theme = usePreferences().theme;
   const entries = useMemo(() => {
     // A marker is drawn in its shape's fill, in the theme the canvas draws it in.
     const fills = new Map<Id, Color>();
@@ -285,6 +310,7 @@ function SpaceFrames({
     mode,
     setMode,
     say,
+    readOnly,
   });
   const drawnEntries = interaction.entries;
   const handles = interaction.handles;
@@ -376,7 +402,7 @@ function SpaceFrames({
         {...interaction.props}
       />
       <p id={hint} className="visually-hidden">
-        {t(SPACE_HINT)}
+        {t(readOnly ? SPACE_READING_HINT : SPACE_HINT)}
       </p>
       {problem?.code === 'unavailable' && (
         <p className="space-panel-message">

@@ -52,7 +52,11 @@ const STILL: SolidTurning = {
   end: () => {},
 };
 
-/** A page of pictures draws no physical space (ADR 0076): its drawing says so, and does nothing. */
+/**
+ * A page of pictures holds no worker, so it has no physical-space panel (ADR 0076), and a space asked
+ * of it anyway says so and does nothing. A page that holds the worker draws spaces through it, as the
+ * app does: its client is the worker's (`pageSolidClient`).
+ */
 const NO_SPACE: SpaceDrawing = {
   space: 0,
   frame: undefined,

@@ -72,6 +72,38 @@ export function solidHashesShown(project: ProjectSnapshot): string[] {
   return [...hashes];
 }
 
+// Physical space ---------------------------------------------------------------------------------------
+
+/** Whether any element of the project has a pose (ADR 0076), even one its container no longer holds. */
+export function holdsPoses(project: ProjectSnapshot): boolean {
+  return project.model.elements.some((element) => element.pose !== undefined);
+}
+
+/**
+ * What a page holds of its solids once its poses are counted (ADR 0076). The physical-space panel is
+ * drawn by the solid worker, which draws markers for posed elements without a solid, so a page whose
+ * elements have poses holds the worker even when it holds no solid's file: as files, of which there
+ * are none. A page of pictures holds no worker, and so no panel, whatever its poses; a page with
+ * neither solids nor poses holds nothing, and keeps its policy.
+ */
+export function withPoses(
+  project: ProjectSnapshot,
+  solids: PageSolids | undefined,
+  form: PageSolids['form'] = 'files',
+): PageSolids | undefined {
+  if (solids !== undefined) return solids;
+  return form === 'files' && holdsPoses(project) ? { form: 'files', files: {} } : undefined;
+}
+
+/**
+ * Whether a page has the physical-space panel (ADR 0076): when it holds the solid worker's files and
+ * some solid's file or some pose to draw. A page of pictures, or one with neither, has none.
+ */
+export function pageHasSpace(project: ProjectSnapshot, solids: PageSolids | undefined): boolean {
+  if (solids?.form !== 'files') return false;
+  return Object.keys(solids.files).length > 0 || holdsPoses(project);
+}
+
 // The part buffer's runs -----------------------------------------------------------------------------
 
 /** Writes a number as LEB128: seven bits a byte, the lowest first, the high bit set but on the last. */

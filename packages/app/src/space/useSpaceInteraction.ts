@@ -61,6 +61,8 @@ export interface SpaceInteractionInput {
   setMode: (mode: HandleMode) => void;
   /** Says something through the panel's status. */
   say: (text: string) => void;
+  /** Whether nothing can ever be changed here, as in the read-only page: M and R choose nothing. */
+  readOnly?: boolean | undefined;
 }
 
 export interface SpaceInteraction {
@@ -102,6 +104,7 @@ interface Preview {
 
 export function useSpaceInteraction(input: SpaceInteractionInput): SpaceInteraction {
   const { control, canvas, size, pixelRatio, space, entries, mode, setMode, say } = input;
+  const readOnly = input.readOnly ?? false;
   const t = useT();
   const editor = useEditor();
   const { project, selection, send } = editor;
@@ -404,7 +407,7 @@ export function useSpaceInteraction(input: SpaceInteractionInput): SpaceInteract
       return;
     }
     const letter = event.key.toLowerCase();
-    if (plain && !event.shiftKey && (letter === 'm' || letter === 'r')) {
+    if (!readOnly && plain && !event.shiftKey && (letter === 'm' || letter === 'r')) {
       const next: HandleMode = letter === 'm' ? 'move' : 'rotate';
       setMode(next);
       say(next === 'move' ? t('The handles move.') : t('The handles rotate.'));

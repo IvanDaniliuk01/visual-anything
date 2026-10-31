@@ -144,6 +144,67 @@ describe('Export → Read-only page, with solids', () => {
   });
 });
 
+describe('Export → Read-only page, with poses (ADR 0076)', () => {
+  /** The sample, with one element posed in World and no solid. */
+  const posedSample = (): ProjectSnapshot => {
+    const sample = loadSample();
+    const [first, ...rest] = sample.model.elements;
+    if (!first) throw new Error('The sample has elements.');
+    return {
+      ...sample,
+      model: {
+        ...sample.model,
+        elements: [{ ...first, pose: { at: { x: 0, y: 0, z: 0 } } }, ...rest],
+      },
+    };
+  };
+
+  const dataOf = (html: string) =>
+    JSON.parse(
+      /<script type="application\/json" id="[^"]+">([\s\S]*?)<\/script>/.exec(html)?.[1] ?? '{}',
+    ) as { solids?: { form: string; files?: object } };
+
+  it('holds the solid worker from no files for the page’s panel, asking nothing of solids', async () => {
+    const { save } = renderControl(posedSample());
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('radio', { name: /^Read-only page/ }),
+    );
+    expect(screen.queryByRole('group', { name: 'Solids' })).toBeNull();
+    await waitFor(
+      () => expect(screen.getByText(/^Its physical-space panel takes /)).toBeInTheDocument(),
+      { timeout: 10_000 },
+    );
+    const html = await pageSaved(save);
+    expect(html).toContain(`id="${SOLID_WORKER_ID}"`);
+    expect(html).toContain('worker-src blob:');
+    expect(dataOf(html).solids).toEqual({ form: 'files', files: {} });
+  });
+
+  it('holds no worker in a page of pictures, whatever its poses', async () => {
+    const posed = withSolids();
+    const [first, ...rest] = posed.model.elements;
+    const project: ProjectSnapshot = {
+      ...posed,
+      model: {
+        ...posed.model,
+        elements: first ? [{ ...first, pose: { at: { x: 0, y: 0, z: 0 } } }, ...rest] : rest,
+      },
+    };
+    const { save } = renderControl(project);
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('radio', { name: /^Read-only page/ }),
+    );
+    fireEvent.click(screen.getByRole('radio', { name: /^Only their pictures/ }));
+    await waitFor(() => expect(screen.getByText(/^Its solids take /)).toBeInTheDocument(), {
+      timeout: 10_000,
+    });
+    const html = await pageSaved(save);
+    expect(html).not.toContain(SOLID_WORKER_ID);
+    expect(html).toContain("worker-src 'none'");
+    expect(dataOf(html).solids?.form).toBe('pictures');
+  });
+});
+
 describe('gathering the files of a page’s solids', () => {
   it('holds none when no file could be had, so the page holds no worker for nothing', async () => {
     const none: PageSolidSource = {

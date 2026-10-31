@@ -2,7 +2,8 @@
  * The physical-space panel's tools (ADR 0076), under its bar: what reads, Fit, Frame the selection
  * and Show on the canvas, and what poses, the handles' Move and Rotate, Place in physical space and
  * Take out of physical space, each of these last two one `set-poses` and so one undoable action. The
- * panel edits poses and nothing else. While the project cannot be changed, what poses is disabled.
+ * panel edits poses and nothing else. While the project cannot be changed, what poses is disabled;
+ * where nothing can ever be changed, as in the read-only page, it is not there at all.
  */
 import { modelIndexOf, type ProjectSnapshot, type Space } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
@@ -20,9 +21,19 @@ interface SpaceToolsProps {
   mode: HandleMode;
   setMode: (mode: HandleMode) => void;
   say: (text: string) => void;
+  /** Whether nothing can ever be changed here, as in the read-only page: then only what reads shows. */
+  readOnly?: boolean | undefined;
 }
 
-export function SpaceTools({ project, space, control, mode, setMode, say }: SpaceToolsProps) {
+export function SpaceTools({
+  project,
+  space,
+  control,
+  mode,
+  setMode,
+  say,
+  readOnly = false,
+}: SpaceToolsProps) {
   const t = useT();
   const editor = useEditor();
   const { selection, send, scene } = editor;
@@ -104,43 +115,47 @@ export function SpaceTools({ project, space, control, mode, setMode, say }: Spac
       >
         {t('Show on the canvas')}
       </button>
-      <span className="space-panel-tools-gap" />
-      <button
-        type="button"
-        className="space-panel-tool"
-        aria-pressed={mode === 'move'}
-        title={t('Move with the handles (M)')}
-        disabled={!moves}
-        onClick={() => setMode('move')}
-      >
-        {t('Move')}
-      </button>
-      <button
-        type="button"
-        className="space-panel-tool"
-        aria-pressed={mode === 'rotate'}
-        title={t('Rotate with the handles (R)')}
-        disabled={!moves}
-        onClick={() => setMode('rotate')}
-      >
-        {t('Rotate')}
-      </button>
-      <button
-        type="button"
-        className="space-panel-tool"
-        disabled={!editable || toPlace.length === 0}
-        onClick={() => void place()}
-      >
-        {t('Place in physical space')}
-      </button>
-      <button
-        type="button"
-        className="space-panel-tool"
-        disabled={!editable || toTakeOut.length === 0}
-        onClick={() => void takeOut()}
-      >
-        {t('Take out of physical space')}
-      </button>
+      {!readOnly && (
+        <>
+          <span className="space-panel-tools-gap" />
+          <button
+            type="button"
+            className="space-panel-tool"
+            aria-pressed={mode === 'move'}
+            title={t('Move with the handles (M)')}
+            disabled={!moves}
+            onClick={() => setMode('move')}
+          >
+            {t('Move')}
+          </button>
+          <button
+            type="button"
+            className="space-panel-tool"
+            aria-pressed={mode === 'rotate'}
+            title={t('Rotate with the handles (R)')}
+            disabled={!moves}
+            onClick={() => setMode('rotate')}
+          >
+            {t('Rotate')}
+          </button>
+          <button
+            type="button"
+            className="space-panel-tool"
+            disabled={!editable || toPlace.length === 0}
+            onClick={() => void place()}
+          >
+            {t('Place in physical space')}
+          </button>
+          <button
+            type="button"
+            className="space-panel-tool"
+            disabled={!editable || toTakeOut.length === 0}
+            onClick={() => void takeOut()}
+          >
+            {t('Take out of physical space')}
+          </button>
+        </>
+      )}
     </div>
   );
 }
