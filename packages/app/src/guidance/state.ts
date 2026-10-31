@@ -5,8 +5,14 @@
  * the project itself: a layout it asks for is run and recorded by the tab as any layout is. Each
  * message replaces what it concerns, and the person can dismiss all of it.
  */
-import type { Guidance, LayoutPass, LayoutResult, VersionRef } from '@visual-anything/core';
-import type { Id, SolidCamera, SpaceCamera } from '@visual-anything/schema';
+import type {
+  Guidance,
+  LayoutPass,
+  LayoutResult,
+  SimulationSpeed,
+  VersionRef,
+} from '@visual-anything/core';
+import type { Id, SavedSimulation, SolidCamera, SpaceCamera } from '@visual-anything/schema';
 
 /** Claude's marks: the targets highlighted, or focused on with everything else dimmed. */
 export interface GuidanceMarks {
@@ -127,6 +133,16 @@ export interface GuidedSpaceRequest {
   request: number;
 }
 
+/**
+ * A request for an element's simulation, once (ADR 0085): to open it in the inspector, in the view
+ * or the open one, with the parameters chosen, the seed and the tick, then to play it at a speed or
+ * pause it; or, with `close`, to close the simulation shown. Nothing is recorded. The tab's
+ * simulation store takes it up.
+ */
+export type GuidedSimulationRequest =
+  | (SavedSimulation & { view?: Id; play?: boolean; speed?: SimulationSpeed; request: number })
+  | { close: true; request: number };
+
 /** Everything Claude's guidance shows now, and what it asks of the tab. */
 export interface GuidanceState {
   marks?: GuidanceMarks;
@@ -141,6 +157,7 @@ export interface GuidanceState {
   comparison?: GuidedComparisonRequest;
   turn?: GuidedTurnRequest;
   space?: GuidedSpaceRequest;
+  simulation?: GuidedSimulationRequest;
 }
 
 /** No guidance at all. */
@@ -259,6 +276,21 @@ export function applyGuidance(
         request,
       };
       return { ...state, space };
+    }
+    case 'simulation': {
+      if ('close' in guidance) return { ...state, simulation: { close: true, request } };
+      const { element, parameters, seed, tick, play, speed } = guidance;
+      const simulation: GuidedSimulationRequest = {
+        element,
+        ...(parameters === undefined ? {} : { parameters }),
+        ...(seed === undefined ? {} : { seed }),
+        ...(tick === undefined ? {} : { tick }),
+        ...(play === undefined ? {} : { play }),
+        ...(speed === undefined ? {} : { speed }),
+        ...viewOf(guidance),
+        request,
+      };
+      return { ...state, simulation };
     }
   }
 }

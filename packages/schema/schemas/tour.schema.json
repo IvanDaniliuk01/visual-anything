@@ -161,6 +161,10 @@
         "space": {
           "$ref": "#/definitions/SavedSpace",
           "description": "The physical-space panel, open beside the canvas (ADR 0076); left out, it is closed."
+        },
+        "simulation": {
+          "$ref": "#/definitions/SavedSimulation",
+          "description": "One simulation shown at one tick (ADR 0085); left out, none."
         }
       },
       "required": [
@@ -518,6 +522,57 @@
       ],
       "additionalProperties": false,
       "description": "A cutting plane across one of the root's axes, keeping one side of it."
+    },
+    "SavedSimulation": {
+      "type": "object",
+      "properties": {
+        "element": {
+          "$ref": "#/definitions/Id"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ParameterValue"
+          },
+          "description": "The parameters chosen, by name; those left out keep their defaults."
+        },
+        "seed": {
+          "type": "integer",
+          "description": "The run's seed; 1 when left out.",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "tick": {
+          "type": "integer",
+          "description": "The tick shown; 0 when left out.",
+          "minimum": 0,
+          "maximum": 10000
+        }
+      },
+      "required": [
+        "element"
+      ],
+      "additionalProperties": false,
+      "description": "One simulation a view state shows (ADR 0085): the element simulating, the parameters it chose, the seed and the tick shown. Reading it changes nothing in the project."
+    },
+    "ParameterValue": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/definitions/ParameterChoice"
+        }
+      ],
+      "description": "A parameter's value: a number, a boolean, or one of its choices."
+    },
+    "ParameterChoice": {
+      "type": "string",
+      "description": "One of a choice parameter's choices.",
+      "minLength": 1
     },
     "TourCaption": {
       "type": "object",

@@ -314,6 +314,7 @@ export type {
   ViewFocus,
   ViewState,
   ViewStateCheck,
+  ViewSimulation,
   ViewSpace,
   ViewStateRead,
   ViewTimeRange,
@@ -329,6 +330,7 @@ export {
   VIEW_STATE_KEYS,
   checkViewState,
   choiceProblems,
+  copiedSimulation,
   copiedSpace,
   readViewState,
   viewStateProblems,
@@ -339,6 +341,8 @@ export {
 export { MAX_FILTER_CONDITIONS, MAX_FILTER_TEXT } from './protocol';
 // Package code (ADR 0054): the hooks' types, the checks of their answers, the hash and the approvals.
 export * from './code';
+// Simulations (M12, ADR 0085): what a component simulates, each tick checked, and a run's record.
+export * from './simulation';
 // Tours (ADR 0058), and the plain text with paragraphs and lists their captions hold.
 export * from './tours';
 export * from './versions';

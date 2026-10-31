@@ -92,6 +92,19 @@ describe('decodeServerMessage', () => {
     { type: 'guidance', guidance: { kind: 'space', root: 'api', frame: ['api'] } },
     { type: 'guidance', guidance: { kind: 'space', close: true } },
     {
+      type: 'guidance',
+      guidance: {
+        kind: 'simulation',
+        element: 'api',
+        parameters: { arrivals: 40 },
+        seed: 7,
+        tick: 12,
+        play: true,
+        speed: 20,
+      },
+    },
+    { type: 'guidance', guidance: { kind: 'simulation', close: true } },
+    {
       type: 'project/changed',
       operations: [{ op: 'set-project', project: project.project }],
       kind: 'do',
@@ -543,6 +556,64 @@ describe('readGuidance for turning a solid', () => {
     ],
   ])('refuses %s', (_case, value) => {
     expect(() => readGuidance(value)).toThrow(ProtocolError);
+  });
+});
+
+describe('readGuidance for a simulation (ADR 0085)', () => {
+  it('opens an element’s simulation with its parameters, seed and tick, and plays or pauses it', () => {
+    expect(readGuidance({ kind: 'simulation', element: 'api' })).toEqual({
+      kind: 'simulation',
+      element: 'api',
+    });
+    expect(
+      readGuidance({
+        kind: 'simulation',
+        element: 'api',
+        parameters: { workers: 2, arrivals: 40 },
+        seed: 1,
+        tick: 0,
+        play: false,
+        speed: 'max',
+        view: 'overview',
+        targets: ['ignored'],
+      }),
+    ).toEqual({
+      kind: 'simulation',
+      element: 'api',
+      parameters: { arrivals: 40, workers: 2 },
+      play: false,
+      speed: 'max',
+      view: 'overview',
+    });
+  });
+
+  it('closes the simulation shown, carrying nothing else', () => {
+    expect(readGuidance({ kind: 'simulation', close: true })).toEqual({
+      kind: 'simulation',
+      close: true,
+    });
+    expect(() => readGuidance({ kind: 'simulation', close: true, element: 'api' })).toThrow(
+      'Guidance that closes the simulation shown carries nothing else.',
+    );
+  });
+
+  it('refuses what is not a simulation, saying what', () => {
+    const refused: [Record<string, unknown>, string][] = [
+      [{ element: ' bad' }, '" bad" is not an id.'],
+      [{ element: 'api', tick: -1 }, "A simulation's tick is a whole number from 0 to 10000."],
+      [
+        { element: 'api', play: 'yes' },
+        'Guidance plays a simulation with play: true, or pauses it with false.',
+      ],
+      [{ element: 'api', speed: 7 }, 'A simulation plays at 1, 5, 20, 60, max ticks a second.'],
+      [
+        { element: 'api', parameters: { a: null } },
+        'The parameter "a" is a number, true or false, or one of its choices.',
+      ],
+    ];
+    for (const [value, message] of refused) {
+      expect(() => readGuidance({ kind: 'simulation', ...value })).toThrow(message);
+    }
   });
 });
 

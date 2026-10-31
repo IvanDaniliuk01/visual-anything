@@ -91,7 +91,7 @@ A component with `simulation` whose package code does not export `simulate`, or 
   - the generator for a tick;
   - the run's record: its ticks, its stop, going back and running from here, within its budgets.
 
-  It also gains `simulate` among the hooks, the view state's `simulation`, and guidance `simulation` in protocol 8.
+  It also gains `simulate` among the hooks, the view state's `simulation`, and guidance `simulation`, in protocol 7, since no build of 7 has shipped.
 - The app gains the worker's simulation messages, the tab's simulation store, the inspector's section, simulated values in its attribute lookup, and a tick's marks on the canvas and in the panel.
 - Claude gains `get_simulation`, `run_simulation` and `show_simulation`.
 - CONTEXT.md gains Simulation, Simulation run, Tick, Parameter, Simulated value and Simulation limit.

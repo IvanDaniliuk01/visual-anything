@@ -148,6 +148,10 @@
         },
         "appearance": {
           "$ref": "#/definitions/Appearance"
+        },
+        "simulation": {
+          "$ref": "#/definitions/SimulationDefinition",
+          "description": "What it can simulate (ADR 0085), worked out tick by tick by its package's code; inherited whole, and replaced whole by declaring another."
         }
       },
       "required": [
@@ -1044,6 +1048,198 @@
       ],
       "additionalProperties": false,
       "description": "Another markup of a face, sharing the face's style."
+    },
+    "SimulationDefinition": {
+      "type": "object",
+      "properties": {
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ParameterDefinition"
+          },
+          "minItems": 1,
+          "maxItems": 32
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SimulatedValueDefinition"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        },
+        "tick": {
+          "$ref": "#/definitions/TickLength",
+          "description": "How long one tick stands for; left out, one tick of no unit."
+        },
+        "ticks": {
+          "type": "integer",
+          "description": "How many ticks a run plays unless the person asks for more: 100 when left out.",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "parameters",
+        "values"
+      ],
+      "additionalProperties": false,
+      "description": "What a component can simulate: its parameters, its simulated values with their limits, how long a tick stands for and how many ticks a run plays. A component inherits it whole from the one it derives from, and replaces it whole by declaring its own."
+    },
+    "ParameterDefinition": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "number",
+            "boolean",
+            "choice"
+          ]
+        },
+        "default": {
+          "$ref": "#/definitions/ParameterValue",
+          "description": "The value a run starts from unless another is chosen: of its type, within its range."
+        },
+        "min": {
+          "type": "number",
+          "description": "For a number, the lowest it may be."
+        },
+        "max": {
+          "type": "number",
+          "description": "For a number, the highest it may be."
+        },
+        "step": {
+          "type": "number",
+          "description": "For a number, the step its control moves by.",
+          "exclusiveMinimum": 0
+        },
+        "unit": {
+          "type": "string",
+          "description": "For a number, the unit it is in, such as \"items/s\".",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "For a choice, the values it may take, offered in this order.",
+          "minItems": 2,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "default"
+      ],
+      "additionalProperties": false,
+      "description": "A value a simulation run starts from, which the person, a view state or Claude chooses."
+    },
+    "ParameterValue": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/definitions/ParameterChoice"
+        }
+      ],
+      "description": "A parameter's value: a number, a boolean, or one of its choices."
+    },
+    "ParameterChoice": {
+      "type": "string",
+      "description": "One of a choice parameter's choices.",
+      "minLength": 1
+    },
+    "SimulatedValueDefinition": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Its name; one named like an attribute of the element is read in its place while a run is shown.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "number",
+            "string",
+            "boolean"
+          ]
+        },
+        "min": {
+          "type": "number",
+          "description": "For a number, its lowest limit: a tick that answers less stops the run."
+        },
+        "max": {
+          "type": "number",
+          "description": "For a number, its highest limit: a tick that answers more stops the run."
+        },
+        "unit": {
+          "type": "string",
+          "description": "For a number, the unit it is in.",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "For a string, the values it may take: a tick that answers another stops the run.",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "additionalProperties": false,
+      "description": "A value each tick answers, such as a queue's length."
+    },
+    "TickLength": {
+      "type": "object",
+      "properties": {
+        "length": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16
+        }
+      },
+      "required": [
+        "length",
+        "unit"
+      ],
+      "additionalProperties": false,
+      "description": "How long one tick stands for, such as 1 s or 1 day."
     },
     "RelationType": {
       "type": "object",

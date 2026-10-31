@@ -1086,7 +1086,7 @@ Its tasks run in this order:
   - a tick shows within two frames of its answer;
   - the number of ticks a second each run reaches is recorded.
 
-- [ ] **Seam 1, in the main session: the schema and the core**, test-first with property tests (ADR 0085).
+- [x] **Seam 1, in the main session: the schema and the core**, test-first with property tests (ADR 0085).
   - **Schema:** `Component.simulation` (`SimulationDefinition`, `ParameterDefinition`, `SimulatedValueDefinition`, `TickLength`) and `SavedViewState.simulation`; the schemas regenerated.
   - **The core, `core/src/simulation/`:**
     - `simulationOf`, with inheritance;
@@ -1095,7 +1095,8 @@ Its tasks run in this order:
     - `tickRandom(seed, tick)`;
     - the run's record (`SimulationRun`): ticks, stops, going back, running from here, within `SIMULATION_LIMITS`;
     - `simulate` among the hooks, and the input it gets.
-  - **View states and protocol:** `simulation` in view states and addresses (`sim=`); the guidance `simulation` in protocol 8.
+  - **View states and protocol:** `simulation` in view states and addresses (`simulation=`); the guidance `simulation`, in protocol 7, since no build of 7 has shipped.
+  - Done 2026-10-31, in the main session: `simulate` joins `HOOK_NAMES`, with `SimulateInput` made by `simulateInputAt` from what a run reads once and `markableOf`; `checkSimulateAnswer` checks values one by one, so a number not finite stops at its limit rather than dropping the answer; `SimulationRun` is mutable, keeping ticks within `keptText` (a run past it stops as `full`) and states within `stateKeptText`, then every `stateEvery`th and the last; `fromHere` answers the resume point and `restore` takes the ticks worked out again; `TICK_RANDOM_SOURCE` is the generator the sandbox runs, tested to draw what `tickRandom` draws; `readSavedSimulation` reads a view state's and guidance's simulation alike; the app's `GuidanceState` keeps a `GuidedSimulationRequest`; parameter records set their keys as their own, so a parameter named `__proto__` is a name like any other.
 - [ ] **Seam 2, in the main session: the app's seam.** The worker's simulation messages, the tab's `SimulationStore` with its interface, simulated values in the attribute lookup, and a stand-in that answers ticks from a function, for tests.
 - [ ] **The worker:** `simulate` in the sandbox with the seeded generator in place of `Math.random`, runs played in the runner's slices, the stops and the states kept, and failures counted as ADR 0054 counts them.
 - [ ] **The inspector and the canvas:**

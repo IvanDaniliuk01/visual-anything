@@ -23,6 +23,7 @@ import { definitionsIn, modelIndexOf } from '../state';
 import {
   checkViewState,
   choiceProblems,
+  copiedSimulation,
   copiedSpace,
   spaceRootProblem,
   type ViewState,
@@ -101,6 +102,7 @@ export function viewStateOfStep(saved: SavedViewState): ViewState {
   if (saved.step !== undefined) state.step = saved.step;
   if (saved.choices !== undefined) state.choices = { ...saved.choices };
   if (saved.space !== undefined) state.space = copiedSpace(saved.space);
+  if (saved.simulation !== undefined) state.simulation = copiedSimulation(saved.simulation);
   return state;
 }
 
@@ -141,6 +143,7 @@ export function savedViewStateOf(state: ViewState): SavedViewState {
   // Written only when there are some (ADR 0078): a view state without choices plays every default.
   if (state.choices && Object.keys(state.choices).length > 0) saved.choices = { ...state.choices };
   if (state.space !== undefined) saved.space = copiedSpace(state.space);
+  if (state.simulation !== undefined) saved.simulation = copiedSimulation(state.simulation);
   return saved;
 }
 

@@ -8,9 +8,14 @@ import { problem, type Problem } from '../problems';
 import { CODE_LIMITS } from './limits';
 
 /** The hooks package code may export. */
-export type HookName = 'attributes' | 'check' | 'draw';
+export type HookName = 'attributes' | 'check' | 'draw' | 'simulate';
 
-export const HOOK_NAMES: readonly HookName[] = Object.freeze(['attributes', 'check', 'draw']);
+export const HOOK_NAMES: readonly HookName[] = Object.freeze([
+  'attributes',
+  'check',
+  'draw',
+  'simulate',
+]);
 
 /** How a call of package code, or the loading of its module, ended badly. */
 export type CodeFailure =

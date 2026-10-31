@@ -34,8 +34,18 @@
  *   explode:<factor>;relations;names`: the physical-space panel, open (ADR 0076), each clause only
  *   when it says something, in that order; `space=open` when none does. An address without it reads
  *   as before, with the panel closed.
+ * - `simulation=<element>;seed:<n>;tick:<n>;p:<name>,<value>…`: one simulation shown at one tick
+ *   (ADR 0085): the element, then the seed and the tick when they are not 1 and 0, then each
+ *   parameter chosen, by name in order, its name and its value written as JSON, both percent-encoded
+ *   once more. An address without it shows no simulation.
  */
-import type { DecisionChoices, Id, SavedSpace, ScenarioFile } from '@visual-anything/schema';
+import type {
+  DecisionChoices,
+  Id,
+  SavedSimulation,
+  SavedSpace,
+  ScenarioFile,
+} from '@visual-anything/schema';
 import { ESSENCE, RELATES_TO } from './builtin';
 import { isId } from './ids';
 import {
@@ -54,6 +64,9 @@ import {
 } from './protocol';
 import { DECISION_CAPS, knownChoices, playedSteps } from './scenarios/blocks';
 import { MAX_SPACE_DISTANCE, readSpaceCamera } from './space/camera';
+import { simulationOf } from './simulation/definition';
+import { checkParameters } from './simulation/parameters';
+import { copiedSimulation, own, readSavedSimulation } from './simulation/saved';
 import type { ProjectSnapshot } from './snapshot';
 import { definitionsIn, modelIndexOf } from './state';
 import { RANGE_ENDS, checkTimeRange, type ViewTimeRange } from './time-range';
@@ -104,7 +117,18 @@ export interface ViewState {
   choices?: DecisionChoices;
   /** The physical-space panel, open beside the canvas (ADR 0076); absent, it is closed. */
   space?: ViewSpace;
+  /** One simulation shown at one tick (ADR 0085); absent, none. */
+  simulation?: ViewSimulation;
 }
+
+/**
+ * One simulation in a view state (ADR 0085): the element, the parameters chosen, the seed and the
+ * tick. What says nothing is left out: no parameters chosen, the seed 1 and the tick 0.
+ */
+export type ViewSimulation = SavedSimulation;
+
+/** A copy of the simulation of a view state, sharing nothing with it. */
+export { copiedSimulation };
 
 /**
  * The physical-space panel in a view state (ADR 0076): its root, where it looks and how it reads.
@@ -126,6 +150,7 @@ export const VIEW_STATE_KEYS = [
   'step',
   'choices',
   'space',
+  'simulation',
 ] as const satisfies readonly (keyof ViewState)[];
 
 /** The most alternatives a view state chooses: as many as a scenario has decisions. */
@@ -206,6 +231,7 @@ function parseFragment(fragment: string): ViewState | undefined {
   const step = parts.get('step');
   const choices = parts.get('choices');
   const space = parts.get('space');
+  const simulation = parts.get('simulation');
   return checked({
     ...(view === undefined ? {} : { view }),
     ...(camera === undefined ? {} : { camera: parseCamera(camera) }),
@@ -216,6 +242,7 @@ function parseFragment(fragment: string): ViewState | undefined {
     ...(step === undefined ? {} : { step }),
     ...(choices === undefined ? {} : { choices: parseChoices(choices) }),
     ...(space === undefined ? {} : { space: parseSpace(space) }),
+    ...(simulation === undefined ? {} : { simulation: parseSimulation(simulation) }),
   });
 }
 
@@ -416,6 +443,47 @@ function parseFocus(text: string): ViewFocus {
   };
 }
 
+const SIMULATION_CLAUSES = 'A simulation holds its element, then seed, tick and p clauses';
+
+/** A simulation an address writes, as checking takes it as a value. */
+function parseSimulation(text: string): Record<string, unknown> {
+  const [element = '', ...clauses] = text.split(';');
+  const simulation: Record<string, unknown> = { element };
+  const parameters: Record<string, unknown> = {};
+  for (const clause of clauses) {
+    const at = clause.indexOf(':');
+    const name = at < 0 ? clause : clause.slice(0, at);
+    const rest = at < 0 ? '' : clause.slice(at + 1);
+    switch (name) {
+      case 'seed':
+      case 'tick': {
+        if (Object.hasOwn(simulation, name)) refuse(`The simulation holds "${name}" twice.`);
+        if (!/^\d+$/.test(rest)) refuse(`The simulation's ${name} is a whole number: ${name}:<n>.`);
+        simulation[name] = Number(rest);
+        break;
+      }
+      case 'p': {
+        const comma = rest.indexOf(',');
+        if (comma < 0) refuse('A parameter is written p:<name>,<value>.');
+        const parameter = decodeText(rest.slice(0, comma));
+        if (Object.hasOwn(parameters, parameter)) {
+          refuse(`The simulation chooses the parameter "${shortened(parameter)}" twice.`);
+        }
+        try {
+          own(parameters, parameter, JSON.parse(decodeText(rest.slice(comma + 1))) as unknown);
+        } catch {
+          refuse(`The value of the parameter "${shortened(parameter)}" is not written as JSON.`);
+        }
+        break;
+      }
+      default:
+        refuse(`${SIMULATION_CLAUSES}, not "${shortened(name)}".`);
+    }
+  }
+  if (Object.keys(parameters).length > 0) simulation.parameters = parameters;
+  return simulation;
+}
+
 /** Takes off the address's percent-encoding, where `+` is a space as a form writes it. */
 function decodeAddress(text: string): string {
   try {
@@ -447,7 +515,7 @@ function shortened(text: string): string {
  */
 export function writeViewState(state: ViewState): string {
   const parts = [`view=${state.view}`];
-  const { camera, select, filters, focus, scenario, step, choices, space } = state;
+  const { camera, select, filters, focus, scenario, step, choices, space, simulation } = state;
   if (camera) {
     parts.push(
       `camera=${writeNumber(camera.x)},${writeNumber(camera.y)},${writeNumber(camera.zoom)}`,
@@ -465,6 +533,7 @@ export function writeViewState(state: ViewState): string {
     parts.push(`choices=${pairs.join(',')}`);
   }
   if (space) parts.push(`space=${writeSpace(space)}`);
+  if (simulation) parts.push(`simulation=${writeSimulation(simulation)}`);
   return parts.join('&');
 }
 
@@ -498,6 +567,16 @@ export function withViewState(address: string, state: ViewState): string {
 /** The shortest digits that read back as the same number; a negative zero is written as 0. */
 function writeNumber(value: number): string {
   return String(value === 0 ? 0 : value);
+}
+
+function writeSimulation(simulation: ViewSimulation): string {
+  const clauses = [simulation.element];
+  if (simulation.seed !== undefined) clauses.push(`seed:${simulation.seed}`);
+  if (simulation.tick !== undefined) clauses.push(`tick:${simulation.tick}`);
+  for (const [name, value] of Object.entries(simulation.parameters ?? {})) {
+    clauses.push(`p:${writeText(name)},${writeText(JSON.stringify(value))}`);
+  }
+  return clauses.join(';');
 }
 
 function writeFilters(filters: ViewFilters): string {
@@ -585,7 +664,15 @@ function checked(value: Record<string, unknown>): ViewState {
   if (value.step !== undefined) state.step = checkId(value.step);
   if (value.choices !== undefined) state.choices = checkChoices(value.choices);
   if (value.space !== undefined) state.space = checkSpace(value.space);
+  if (value.simulation !== undefined) state.simulation = checkSimulation(value.simulation);
   return state;
+}
+
+/** One simulation (ADR 0085), as `readSavedSimulation` reads it. */
+function checkSimulation(value: unknown): ViewSimulation {
+  const read = readSavedSimulation(value);
+  if (!read.ok) refuse(read.message);
+  return read.simulation;
 }
 
 const SPACE_KEYS: ReadonlySet<string> = new Set([
@@ -892,6 +979,7 @@ export function viewStateProblems(project: ProjectSnapshot, state: ViewState): s
   if (root !== undefined && index.element(root) === undefined) {
     problems.push(spaceRootProblem(root));
   }
+  if (state.simulation) problems.push(...simulationProblemsIn(project, state.simulation));
   if (state.filters) {
     const definitions = definitionsIn(project);
     for (const id of state.filters.components) {
@@ -932,6 +1020,23 @@ export function viewStateProblems(project: ProjectSnapshot, state: ViewState): s
     }
   }
   return problems;
+}
+
+/**
+ * What a view state's simulation names that the project does not hold (ADR 0085): an element, one
+ * whose component simulates nothing, or parameters its simulation refuses.
+ */
+function simulationProblemsIn(project: ProjectSnapshot, simulation: ViewSimulation): string[] {
+  const element = modelIndexOf(project).element(simulation.element);
+  if (element === undefined) {
+    return [
+      `The simulation shows "${simulation.element}", which is not an element of the project.`,
+    ];
+  }
+  const simulated = simulationOf(definitionsIn(project), element.component);
+  if (simulated === undefined) return [`The element "${element.name}" simulates nothing.`];
+  const parameters = checkParameters(simulated.definition, simulation.parameters);
+  return parameters.ok ? [] : [parameters.reason];
 }
 
 /** What a view state says of a physical-space panel that shows what is not an element. */

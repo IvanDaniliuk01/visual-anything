@@ -5,7 +5,13 @@
  * resulting operations to every open app. It also sends Claude's guidance, which marks and moves the
  * open view without changing the model.
  */
-import type { DecisionChoices, Id, SolidCamera, SpaceCamera } from '@visual-anything/schema';
+import type {
+  DecisionChoices,
+  Id,
+  SavedSimulation,
+  SolidCamera,
+  SpaceCamera,
+} from '@visual-anything/schema';
 import type { Command } from './commands';
 import {
   readDrawingMade,
@@ -32,6 +38,8 @@ import {
 import type { Operation } from './operations';
 import type { PreferenceChanges, Preferences } from './preferences';
 import type { Problem } from './problems';
+import { SIMULATION_LIMITS, type SimulationSpeed } from './simulation/limits';
+import { readSavedSimulation } from './simulation/saved';
 import type { ProjectSnapshot } from './snapshot';
 import { checkTimeRange, type ViewTimeRange } from './time-range';
 import {
@@ -111,6 +119,9 @@ import { readSpaceCamera } from './space/camera';
  *    names, answered with `solid-files/listed` or `solid/refused`; and the guidance `turn`, which
  *    turns a shape's solid to a camera. And the guidance `space` (M10, ADR 0076), which opens,
  *    roots, moves and closes the physical-space panel.
+ *    And simulations (M12, ADR 0085), in 7 too, since no build of 7 shipped: a package's components
+ *    may declare `simulation`, view states may carry one, and the guidance `simulation` opens an
+ *    element's simulation at a tick with parameters and a seed, plays or pauses it, or closes it.
  */
 export const PROTOCOL_VERSION = 7;
 
@@ -362,7 +373,20 @@ export type Guidance =
       frame?: Id[];
       view?: Id;
       close?: true;
-    };
+    }
+  /**
+   * Opens an element's simulation in the inspector (ADR 0085), in the open view or in `view`, with
+   * the parameters chosen, the seed and the tick, as a view state's simulation does, then plays it
+   * at `speed` or pauses it. With `close`, it closes the simulation shown, and carries nothing else.
+   * Nothing is recorded: the person changes the parameters, plays, pauses and closes it at will.
+   */
+  | ({
+      kind: 'simulation';
+      view?: Id;
+      play?: boolean;
+      speed?: SimulationSpeed;
+    } & SavedSimulation)
+  | { kind: 'simulation'; close: true };
 
 /** Why the camera of guidance for the physical-space panel cannot be read. */
 const SPACE_GUIDANCE_CAMERA =
@@ -593,6 +617,45 @@ export function readGuidance(value: unknown): Guidance {
         ...(root === undefined ? {} : { root }),
         ...(camera === undefined ? {} : { camera }),
         ...(frame === undefined ? {} : { frame: [...frame] }),
+        ...view(),
+      };
+    }
+    case 'simulation': {
+      if (value.close !== undefined) {
+        if (value.close !== true) {
+          throw new ProtocolError('Guidance closes the simulation shown with close: true.');
+        }
+        const more = ['element', 'parameters', 'seed', 'tick', 'play', 'speed', 'view'].filter(
+          (key) => value[key] !== undefined,
+        );
+        if (more.length > 0) {
+          throw new ProtocolError(
+            'Guidance that closes the simulation shown carries nothing else.',
+          );
+        }
+        return { kind: 'simulation', close: true };
+      }
+      const { element, parameters, seed, tick, play, speed } = value;
+      const read = readSavedSimulation({ element, parameters, seed, tick });
+      if (!read.ok) throw new ProtocolError(read.message);
+      if (play !== undefined && typeof play !== 'boolean') {
+        throw new ProtocolError(
+          'Guidance plays a simulation with play: true, or pauses it with false.',
+        );
+      }
+      if (
+        speed !== undefined &&
+        !(SIMULATION_LIMITS.speeds as readonly unknown[]).includes(speed)
+      ) {
+        throw new ProtocolError(
+          `A simulation plays at ${SIMULATION_LIMITS.speeds.join(', ')} ticks a second.`,
+        );
+      }
+      return {
+        kind: 'simulation',
+        ...read.simulation,
+        ...(play === undefined ? {} : { play }),
+        ...(speed === undefined ? {} : { speed: speed as SimulationSpeed }),
         ...view(),
       };
     }

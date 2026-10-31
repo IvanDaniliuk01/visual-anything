@@ -7,7 +7,17 @@ import type { AppearanceImage, ImageDefinition } from './images';
 
 export type { AppearanceImage, BitmapImage, ImageDefinition, SvgImage } from './images';
 import type { AppearanceSolid, SolidDefinition } from './solids';
+import type { SavedSimulation, SimulationDefinition } from './simulation';
 import type { Pose, SavedSpace } from './space';
+export type {
+  ParameterChoice,
+  ParameterDefinition,
+  ParameterValue,
+  SavedSimulation,
+  SimulatedValueDefinition,
+  SimulationDefinition,
+  TickLength,
+} from './simulation';
 export type {
   Pose,
   PosePoint,
@@ -315,6 +325,11 @@ export interface Component {
   /** The attributes this component adds to the ones it inherits. */
   attributes?: AttributeDefinition[];
   appearance?: Appearance;
+  /**
+   * What it can simulate (ADR 0085), worked out tick by tick by its package's code; inherited whole,
+   * and replaced whole by declaring another.
+   */
+  simulation?: SimulationDefinition;
 }
 
 /** The reusable definition of a kind of relation. It inherits everything it does not redefine. */
@@ -1851,6 +1866,8 @@ export interface SavedViewState {
   choices?: DecisionChoices;
   /** The physical-space panel, open beside the canvas (ADR 0076); left out, it is closed. */
   space?: SavedSpace;
+  /** One simulation shown at one tick (ADR 0085); left out, none. */
+  simulation?: SavedSimulation;
 }
 
 /** Where the canvas looks: the point of the view at its middle, in canvas units, and the zoom. */
