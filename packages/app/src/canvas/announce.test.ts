@@ -2,6 +2,7 @@ import { compileFace, type ProjectSnapshot } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
 import { EMPTY_SELECTION, selectionOf } from '../editor/selection';
 import { loadSample } from '../test/sample';
+import { armDefinition, withSolids } from '../test/solids';
 import { describeRelation, describeSelection, describeShape, nameOfEnd } from './announce';
 import { indexScene } from './hit';
 import { buildScene } from './scene';
@@ -110,6 +111,27 @@ describe('describeShape', () => {
     const scene = indexScene(buildScene(twice, 'system-overview'));
     expect(describeShape(scene, twice, shape('clinic-booking/reminder-service', scene))).toBe(
       'Reminder service, Service, in Clinic booking and 1 other container, 1 relation.',
+    );
+  });
+
+  it('says a solid’s description, its text alternative, or that it has none (ADR 0075)', () => {
+    const robot = withSolids();
+    const scene = indexScene(buildScene(robot, 'robot'));
+    expect(describeShape(scene, robot, shape('motor', scene))).toBe(
+      'Motor, Motor, in World, 1 relation, with a solid: A test arm of five parts.',
+    );
+    expect(describeShape(scene, robot, shape('arm', scene))).toMatch(
+      /^Arm, Arm, in World, .*, with a solid: A test arm of five parts\.$/,
+    );
+    // An anchored part is said as any shape is: its drawing gives the solid.
+    expect(describeShape(scene, robot, shape('arm/base', scene))).not.toContain('solid');
+    // A solid no package defines is not drawn, and is not said.
+    expect(describeShape(scene, robot, shape('unknown', scene))).not.toContain('solid');
+
+    const bare = withSolids('robot', [{ ...armDefinition(), description: ' ' }]);
+    const bareScene = indexScene(buildScene(bare, 'robot'));
+    expect(describeShape(bareScene, bare, shape('motor', bareScene))).toBe(
+      'Motor, Motor, in World, 1 relation, with the solid “Arm”, which has no description.',
     );
   });
 });

@@ -233,6 +233,66 @@ describe('Anchor parts… for a solid', () => {
     expect(anchorsOf(byExternal)).toEqual([['UBERON_0002084', 'matched', 'lv']]);
   });
 
+  it('matches by an external identifier through the crosswalks of the packages', () => {
+    // Node names as HRA's reference organs write them, and a part named by its Uberon id.
+    const heart: SolidDefinition = {
+      ...ARM,
+      parts: [
+        { name: 'VH_M_mitral_valve', point: { x: 0, y: 1, z: 0 } },
+        { name: 'UBERON_0002078', point: { x: 0, y: 1.5, z: 0 } },
+        { name: 'VH_M_aorta', point: { x: 0, y: 2, z: 0 } },
+      ],
+    };
+    const state = armWith([
+      // Reached from the node's name by the table from HRA's nodes to Uberon.
+      content('mv', 'Valva mitralis', { ids: { uberon: 'UBERON:0002135' } }),
+      // Reached from the part's Uberon id by the table from Uberon to FMA, backwards from FMA.
+      content('ra', 'Atrium dextrum', { ids: { fma: 'FMA:7096' } }),
+    ]);
+    const withCrosswalks: ProjectSnapshot = {
+      ...state,
+      packages: [
+        robotics({
+          solids: [heart, OTHER],
+          crosswalks: [
+            {
+              from: 'hra',
+              to: 'uberon',
+              entries: { VH_M_mitral_valve: 'UBERON:0002135', VH_M_aorta: 'UBERON:0000947' },
+            },
+            { from: 'uberon', to: 'fma', entries: { 'UBERON:0002078': 'FMA:7096' } },
+          ],
+        }),
+      ],
+    };
+    expect(
+      anchorsOf(planned(withCrosswalks, { matching: { by: 'external', scheme: 'hra' } })),
+    ).toEqual([
+      ['VH_M_mitral_valve', 'matched', 'mv'],
+      ['UBERON_0002078', 'unmatched', undefined],
+      ['VH_M_aorta', 'unmatched', undefined],
+    ]);
+    const byUberon = planned(withCrosswalks, { matching: { by: 'external', scheme: 'uberon' } });
+    expect(anchorsOf(byUberon)).toEqual([
+      ['VH_M_mitral_valve', 'unmatched', undefined],
+      ['UBERON_0002078', 'matched', 'ra'],
+      ['VH_M_aorta', 'unmatched', undefined],
+    ]);
+    // Without the tables, neither matches.
+    const without: ProjectSnapshot = {
+      ...withCrosswalks,
+      packages: [robotics({ solids: [heart, OTHER] })],
+    };
+    expect(planned(without, { matching: { by: 'external', scheme: 'hra' } }).anchors).toBe(0);
+    expect(planned(without, { matching: { by: 'external', scheme: 'uberon' } }).anchors).toBe(0);
+    // The anchors name the solid.
+    const after = apply(withCrosswalks, solidAnchoringCommand(byUberon) as Command);
+    expect(after.model.elements.find((each) => each.id === 'ra')?.appearance?.part).toEqual({
+      part: 'UBERON_0002078',
+      solid: ARM_ID,
+    });
+  });
+
   it('creates an element for each part that matches nothing, inside the drawing, when asked', () => {
     const state = armWith([content('b', 'Base')]);
     const plan = planned(state, { create: { component: 'robotics.link' } });

@@ -4,25 +4,28 @@
  * their ids, and what people wrote stays as they wrote it.
  */
 import { modelIndexOf, type ProjectSnapshot } from '@visual-anything/core';
-import { nameOfEnd } from '../canvas/announce';
+import { nameOfEnd, solidNote } from '../canvas/announce';
 import type { Translator } from '../i18n';
 import { textOf, type OutlineItem, type RelationItem, type ShapeItem } from './outlineItems';
 
 /**
  * What a shape's row says after its name, as `shapeNoteOf` says it in English: its component's name,
- * and on a collapsed container that it is collapsed and how many shapes it holds.
+ * and on a collapsed container that it is collapsed and how many shapes it holds; then, for a shape
+ * that shows a solid, the solid's description, its text alternative (ADR 0075).
  */
 export function shapeNote(t: Translator, project: ProjectSnapshot, item: ShapeItem): string {
   const { shape } = item;
   const component = modelIndexOf(project).element(shape.element)?.component;
   const name =
     component === undefined ? shape.componentName : t.definition(component, shape.componentName);
-  return shape.collapsed === undefined
-    ? name
-    : t('{component}, collapsed: {count} inside', {
-        component: name,
-        count: shape.collapsed.contents,
-      });
+  const note =
+    shape.collapsed === undefined
+      ? name
+      : t('{component}, collapsed: {count} inside', {
+          component: name,
+          count: shape.collapsed.contents,
+        });
+  return `${note}${solidNote(t, project, shape)}`;
 }
 
 /** The name of a relation row's type: the language's for a built-in one. */

@@ -926,7 +926,7 @@ Its tasks run in this order:
     - relations that end at a part's point;
     - `solidPictureKey(shape)`, and the image store's serials for solid pictures.
   - The incremental scene keeps all of it across moves and recolors, which its property test checks against a full build.
-- [ ] **The cleaner and solid files, in the program** (`server/src/solids/`, `server/src/project.ts`, the import pipeline; ADR 0075):
+- [x] **The cleaner and solid files, in the program** (`server/src/solids/`, `server/src/project.ts`, the import pipeline; ADR 0075):
   - reading `.glb` and `.gltf` with `@gltf-transform/core` and `@gltf-transform/extensions` 4.5.1, from bytes only, every address refused before reading, and meshopt-compressed input decoded with meshoptimizer 1.3.0;
   - the allow-list and the caps, units and the up axis, part names, textures through the core's bitmap cleaner, simplifying with meshoptimizer when asked, and the canonical writer, whose output the core's reader takes;
   - the worker thread, limited to 1 GiB and 30 s;
@@ -935,7 +935,7 @@ Its tasks run in this order:
   - Import… with `.glb` and `.gltf`: the preview, the units, the up axis, the report and the single action; `visual-anything import` with `--units`, `--up` and `--simplify`;
   - the hostile-input tests;
   - the single executables carrying the reader and meshoptimizer, and their notice of bundled code.
-  - Built 2026-10-31 in the program, by a builder (ADR 0075's clarification of that date), all but two things: Import…'s dialog in the app, which the program answers with `solid/prepared` (its preview, units, up axis and report) and then takes `define-solid`, is left for the app's side; and textures past the core's bitmap cleaner's caps (1,024 pixels, 192 KiB), under a solid's own, are dropped until the core lets the cleaner pass a solid's caps.
+  - Done 2026-10-31. The program's side was built by a builder (ADR 0075's clarification of that date). Import…'s dialog in the app (`app/src/import/SolidImport.tsx`), with its preview, units, up axis, report and single action, came with the editors' task. A solid's textures are cleaned within a solid's own caps, 2,048 pixels a side, 16 megapixels and 16 MiB in all, since the core's bitmap cleaner takes them (`SOLID_TEXTURE_CAPS`, a0e41e8); `cleaner.test.ts` cleans a file at every cap, those textures included, within 1 GiB and 30 s.
 - [x] **The solid worker** (`app/src/solids/worker/`; ADR 0075). Done 2026-10-31, tested without a GPU behind a fake of its renderer; its drawing on a real GPU is first seen once the canvas task draws its pictures (ADR 0075's clarification):
   - three 0.186.1 and three-mesh-bvh 0.9.16, pinned, imported only by the worker;
   - the canonical file read with the core's reader and built into three.js objects, without GLTFLoader;

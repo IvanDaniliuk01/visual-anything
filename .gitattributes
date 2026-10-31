@@ -17,3 +17,6 @@
 *.vascenario merge=visual-anything
 *.vatour merge=visual-anything
 *.vacomment merge=visual-anything
+
+# Solid files are binary glTF, cleaned by the program and named by their hash (ADR 0075).
+*.glb binary

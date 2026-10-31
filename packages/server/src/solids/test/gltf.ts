@@ -270,7 +270,8 @@ export function png(width: number, height: number, text = 'Comment\0made in a te
   ]);
 }
 
-function pngChunk(type: string, data: Uint8Array): Buffer {
+/** One chunk of a PNG: its length, type, data and CRC. */
+export function pngChunk(type: string, data: Uint8Array): Buffer {
   const out = Buffer.alloc(12 + data.length);
   out.writeUInt32BE(data.length, 0);
   out.write(type, 4, 'latin1');

@@ -158,7 +158,9 @@ export async function unnamedSolidFileSizes(
  * Removes the files of `solids/` that no package names, by their hashes, as the person asks from the
  * Components tab (ADR 0075); it cannot be undone. Only a regular file named by a hash, directly in a
  * `solids/` that is a folder of its own inside the project folder, is removed: never a link, a folder,
- * a file of another name or one a package names now, so that nothing outside `solids/` can be.
+ * a file of another name or one a package names now, so that nothing outside `solids/` can be. That
+ * `solids/` is the project's own is checked again right before each file is removed, so that a folder
+ * swapped for a link while earlier files were removed loses nothing.
  */
 export async function removeUnnamedSolidFiles(
   folder: string,
@@ -183,11 +185,12 @@ export async function removeUnnamedSolidFiles(
       kept.push({ hash, message: `A package names the solid file "${name}", so it stays.` });
       continue;
     }
+    const notOwn = {
+      hash,
+      message: `The project's solids/ folder is not a folder of its own, so "${name}" stays.`,
+    };
     if (!own) {
-      kept.push({
-        hash,
-        message: `The project's solids/ folder is not a folder of its own, so "${name}" stays.`,
-      });
+      kept.push(notOwn);
       continue;
     }
     const path = solidFilePath(folder, hash);
@@ -198,6 +201,10 @@ export async function removeUnnamedSolidFiles(
     }
     if (!info.isFile()) {
       kept.push({ hash, message: `"${name}" is not a regular file, so it stays.` });
+      continue;
+    }
+    if (!(await solidsFolderIsOwn(folder, at))) {
+      kept.push(notOwn);
       continue;
     }
     try {
