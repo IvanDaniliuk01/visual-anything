@@ -209,6 +209,29 @@ describe('cleaning a solid (ADR 0075)', () => {
     ).toBe(true);
   }, 60_000);
 
+  it('decodes a file compressed with meshopt into what its uncompressed file gives', async () => {
+    const { WebIO } = await import('@gltf-transform/core');
+    const { EXTMeshoptCompression } = await import('@gltf-transform/extensions');
+    const { MeshoptEncoder } = await import('meshoptimizer/encoder');
+    await MeshoptEncoder.ready;
+    const plain = cleaned(await cleanSolid(inputGlb(ARM)));
+    // The arm, written again by glTF Transform with its buffer views compressed.
+    const io = new WebIO().registerExtensions([EXTMeshoptCompression]).registerDependencies({
+      'meshopt.encoder': MeshoptEncoder,
+    });
+    const document = await io.readBinary(inputGlb(ARM));
+    document
+      .createExtension(EXTMeshoptCompression)
+      .setRequired(true)
+      .setEncoderOptions({ method: EXTMeshoptCompression.EncoderMethod.FILTER });
+    const compressed = await io.writeBinary(document);
+    expect(new TextDecoder().decode(compressed.subarray(0, 2000))).toContain(
+      'EXT_meshopt_compression',
+    );
+    const decoded = cleaned(await cleanSolid(compressed));
+    expect(decoded.description).toEqual(plain.description);
+  });
+
   it('cleans what it wrote into the same bytes, for any small solid', async () => {
     const meshArb: fc.Arbitrary<InputMesh> = fc
       .tuple(

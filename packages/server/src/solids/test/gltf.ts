@@ -178,13 +178,14 @@ export function gltfParts(solid: InputSolid): { json: Record<string, unknown>; b
     asset: { version: '2.0', generator: 'a test' },
     scene: 0,
     scenes: [{ nodes: roots }],
-    nodes: solid.nodes,
+    // Copies, so that a test's edit never changes the solid another test reads.
+    nodes: structuredClone(solid.nodes),
     meshes,
     accessors,
     bufferViews,
     buffers: [{ byteLength: length }],
   };
-  if (solid.materials) json.materials = solid.materials;
+  if (solid.materials) json.materials = structuredClone(solid.materials);
   if (images.length > 0) {
     json.images = images;
     json.textures = images.map((_, source) => ({ source }));

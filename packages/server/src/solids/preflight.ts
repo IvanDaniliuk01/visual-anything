@@ -501,12 +501,12 @@ function checkAccessors(json: Json): void {
     const count = whole(accessor.count);
     if (count < 1) invalid('An accessor of the file holds nothing.');
     const element = componentBytes * components;
-    total += count * element;
-    if (total > INPUT_CAPS.dataBytes)
-      tooLarge("The file's accessors would make over 512 MiB of data.");
     if (accessor.bufferView !== undefined) {
       within(accessor.bufferView, accessor.byteOffset, count, element, componentBytes);
     }
+    total += count * element;
+    if (total > INPUT_CAPS.dataBytes)
+      tooLarge("The file's accessors would make over 512 MiB of data.");
     if (accessor.sparse !== undefined) {
       const sparse = record(accessor.sparse);
       const sparseCount = whole(sparse.count);
