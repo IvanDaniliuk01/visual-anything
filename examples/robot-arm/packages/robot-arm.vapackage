@@ -1,12 +1,81 @@
 {
   "id": "robot-arm",
   "name": "Pick-and-place arm",
-  "description": "The sample’s own package: the arm’s solid, which its links, joints, gripper and camera are anchored to.",
+  "description": "The sample’s own package: the arm’s solid, which its links, joints and gripper are anchored to, and the workcell it works in, with its table and bins.",
   "version": "1.0.0",
   "license": "CC0-1.0",
   "attribution": "Visual Anything contributors",
-  "components": [],
-  "relationTypes": [],
+  "components": [
+    {
+      "id": "robot-arm.workcell",
+      "name": "Workcell",
+      "derivesFrom": "essence",
+      "description": "The fenced cell a robot works in, with what it works on: its table, its bins and the cameras that watch them.",
+      "appearance": {
+        "shape": "rounded-rectangle",
+        "fill": "#F4F6F8",
+        "stroke": "#3E4A57",
+        "width": 640,
+        "height": 400
+      }
+    },
+    {
+      "id": "robot-arm.table",
+      "name": "Table",
+      "derivesFrom": "essence",
+      "description": "A table a robot is bolted to, or that holds what it works on.",
+      "attributes": [
+        {
+          "name": "height",
+          "type": "number",
+          "description": "How high its top is.",
+          "unit": "m"
+        }
+      ],
+      "appearance": {
+        "shape": "rectangle",
+        "fill": "#EEE8E0",
+        "stroke": "#5C4A36",
+        "width": 176,
+        "height": 56,
+        "detail": {
+          "attributes": [
+            "height"
+          ]
+        }
+      }
+    },
+    {
+      "id": "robot-arm.bin",
+      "name": "Bin",
+      "derivesFrom": "essence",
+      "description": "A bin that parts are picked from or placed in.",
+      "appearance": {
+        "shape": "rounded-rectangle",
+        "fill": "#FFF4E0",
+        "stroke": "#8A5A00",
+        "width": 176,
+        "height": 72
+      }
+    }
+  ],
+  "relationTypes": [
+    {
+      "id": "robot-arm.is-in",
+      "name": "is in",
+      "derivesFrom": "relates-to",
+      "description": "Places the arm, a table, a bin or a camera in the workcell, or a part in its bin: it is posed there, and moves with it.",
+      "direction": "directed",
+      "nests": true
+    },
+    {
+      "id": "robot-arm.is-mounted-on",
+      "name": "is mounted on",
+      "derivesFrom": "physical-ai.is-attached-to",
+      "description": "Mounts a sensor on the link it rides on: it is posed in that link, and moves with it.",
+      "nests": true
+    }
+  ],
   "solids": [
     {
       "id": "robot-arm.six-axis-arm",

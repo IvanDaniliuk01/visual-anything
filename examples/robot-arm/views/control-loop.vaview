@@ -157,6 +157,9 @@
     ],
     "added": [
       "workpiece"
+    ],
+    "leftOut": [
+      "workcell-camera"
     ]
   }
 }

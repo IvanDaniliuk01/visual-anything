@@ -3,8 +3,10 @@
  * byte for byte, the cleaner takes it back unchanged, the package's definition is what the core reads
  * from it, and it ships with a source, a license and a description. The sample `examples/robot-arm`
  * opens through the program's loader with nothing to warn about, its file checked as a session checks
- * it, its links, joints, gripper and camera anchored to the solid's parts, and its scenario "Pick a
- * part" plays over its control loop.
+ * it, its links, joints and gripper anchored to the solid's parts, and its scenario "Pick a part" plays
+ * over its control loop. Since M10 (ADR 0076) it stands in a workcell, with a table, two bins and a
+ * camera posed in it, its wrist camera posed on link 6, and a tour plays "Pick a part" with the
+ * physical-space panel open.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -16,9 +18,11 @@ import {
   readSolid,
   scenarioTimeline,
   shippingProblems,
+  spaceOf,
+  tourStepProblems,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { PackageFile } from '@visual-anything/schema';
+import { fileKindOf, type FileContentByKind, type PackageFile } from '@visual-anything/schema';
 import { formatFile } from '@visual-anything/schema/format';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadProject } from '../src/project';
@@ -35,6 +39,9 @@ const PARTS = [
   'gripper',
   'camera',
 ];
+
+/** The parts an element is anchored to: every one but the camera, which the wrist camera is posed at. */
+const ANCHORED = PARTS.filter((part) => part !== 'camera');
 
 function packageFile(): PackageFile {
   return JSON.parse(
@@ -107,13 +114,27 @@ describe('the robot arm sample', () => {
     project = opened.project;
   });
 
+  it('writes each of its files in the stable key order', () => {
+    const files = ['project.vaproject', 'model.vamodel'];
+    for (const folder of ['packages', 'views', 'scenarios', 'tours']) {
+      files.push(...readdirSync(join(FOLDER, folder)).map((name) => `${folder}/${name}`));
+    }
+    for (const path of files) {
+      const kind = fileKindOf(path);
+      if (kind === undefined) throw new Error(`${path} is no project file.`);
+      const text = readFileSync(join(FOLDER, path), 'utf8');
+      const value = JSON.parse(text) as FileContentByKind[typeof kind];
+      expect(formatFile(kind, value), path).toBe(text);
+    }
+  });
+
   it('opens with nothing to warn about, its solid’s file there and clean', () => {
     expect(checkProject(project)).toEqual({ errors: [], warnings: [] });
     expect(solidFileWarnings(project, FOLDER)).toEqual([]);
     expect(project.project.packages).toEqual(['physical-ai', 'robot-arm']);
   });
 
-  it('anchors its links, joints, gripper and camera to the solid’s parts, naming the solid', () => {
+  it('anchors its links, joints and gripper to the solid’s parts, naming the solid', () => {
     const anchored = anchoredElements(project);
     const parts = project.model.elements.flatMap((element) => {
       const part = element.appearance?.part;
@@ -121,10 +142,10 @@ describe('the robot arm sample', () => {
         ? [{ element: element.id, part: part.part, solid: part.solid }]
         : [];
     });
-    expect(parts.map((each) => each.part).sort()).toEqual([...PARTS].sort());
+    expect(parts.map((each) => each.part).sort()).toEqual([...ANCHORED].sort());
     for (const each of parts) expect(each.solid, each.element).toBe(ROBOT_ARM_SOLID);
     // Every one of them is anchored to the solid's part, and none to an image's.
-    expect(anchored.map((each) => each.part.part).sort()).toEqual([...PARTS].sort());
+    expect(anchored.map((each) => each.part.part).sort()).toEqual([...ANCHORED].sort());
     for (const each of anchored) expect(each.images, each.element.id).toEqual([]);
     const arm = project.model.elements.find((element) => element.id === 'arm');
     expect(arm?.appearance?.solid).toEqual({ solid: ROBOT_ARM_SOLID, placement: 'parts' });
@@ -136,7 +157,7 @@ describe('the robot arm sample', () => {
     expect(count('physical-ai.controller')).toBe(1);
     expect(count('physical-ai.motor')).toBe(6);
     expect(count('physical-ai.encoder')).toBe(6);
-    expect(count('physical-ai.camera')).toBe(1);
+    expect(count('physical-ai.camera')).toBe(2);
     expect(count('physical-ai.topic')).toBe(3);
     expect(count('physical-ai.link')).toBe(7);
     expect(project.views.map((view) => view.id).sort()).toEqual([
@@ -144,6 +165,7 @@ describe('the robot arm sample', () => {
       'kinematic-chain',
       'software',
       'structure',
+      'workcell',
     ]);
   });
 
@@ -159,5 +181,97 @@ describe('the robot arm sample', () => {
       expect(isBroken(entry), entry.steps.join()).toBe(false);
       expect(isOutside(entry), entry.steps.join()).toBe(false);
     }
+  });
+
+  it('stands in its workcell, everything posed there in physical space under World', () => {
+    const space = spaceOf(project);
+    const place = (id: string) => {
+      const entry = space.entries.get(id);
+      if (!entry) throw new Error(`${id} is not in physical space.`);
+      const [x, y, z] = entry.matrix.slice(12, 15) as [number, number, number];
+      return { how: entry.how, in: entry.in, x, y, z };
+    };
+    const posed = project.model.elements.filter((element) => element.pose !== undefined);
+    expect(posed.map((element) => element.id).sort()).toEqual(
+      [
+        'arm',
+        'bin-a',
+        'bin-b',
+        'table',
+        'workcell',
+        'workcell-camera',
+        'workpiece',
+        'wrist-camera',
+      ].sort(),
+    );
+    // Every pose is used: each element posed is in physical space, posed where its pose says.
+    for (const element of posed) {
+      expect(place(element.id), element.id).toMatchObject({
+        how: 'posed',
+        in: element.pose?.in ?? project.model.world.id,
+      });
+    }
+    // In meters, +Y up: the table's top 75 cm up, the arm on it, the bins on it in front, the camera
+    // above them and the part in bin A.
+    expect(place('workcell')).toMatchObject({ x: 0, y: 0, z: 0 });
+    expect(place('table').y).toBeCloseTo(0.75, 9);
+    expect(place('arm').y).toBeCloseTo(0.75, 9);
+    for (const bin of ['bin-a', 'bin-b']) {
+      expect(place(bin).y, bin).toBeCloseTo(0.75, 9);
+      expect(place(bin).z, bin).toBeGreaterThan(place('arm').z);
+    }
+    expect(place('workcell-camera').y).toBeGreaterThan(2);
+    expect(place('workpiece')).toMatchObject({ in: 'bin-a' });
+    expect(place('workpiece').x).toBeCloseTo(place('bin-a').x, 9);
+    // Each anchored part of the arm is in physical space too, through the arm.
+    for (const part of ANCHORED) {
+      expect(place(part), part).toMatchObject({ how: 'anchored', in: 'arm' });
+    }
+  });
+
+  it('poses the wrist camera on link 6, where the solid draws the camera, turned to look past the gripper', () => {
+    const point = (name: string) =>
+      packageFile().solids?.[0]?.parts?.find((part) => part.name === name)?.point;
+    const camera = spaceOf(project, undefined, 'arm').entries.get('wrist-camera');
+    expect(camera).toMatchObject({ how: 'posed', in: 'link-6' });
+    const m = camera?.matrix ?? [];
+    expect(m[12]).toBeCloseTo(point('camera')?.x ?? NaN, 9);
+    expect(m[13]).toBeCloseTo(point('camera')?.y ?? NaN, 9);
+    expect(m[14]).toBeCloseTo(point('camera')?.z ?? NaN, 9);
+    // It looks along its -Z, as glTF's cameras do: toward the arm's front (+Z), and down.
+    expect(-(m[10] ?? 0)).toBeGreaterThan(0.8);
+    expect(-(m[9] ?? 0)).toBeLessThan(-0.4);
+    // It is mounted on link 6 by a relation that nests, derived from "is attached to".
+    const mounted = project.model.relations.find((each) => each.id === 'camera-on-link-6');
+    expect(mounted).toMatchObject({
+      relationType: 'robot-arm.is-mounted-on',
+      from: 'wrist-camera',
+      to: 'link-6',
+    });
+  });
+
+  it('has a tour that plays "Pick a part" with the physical-space panel open, every step whole', () => {
+    expect(project.tours.map((each) => [each.id, each.name])).toEqual([
+      ['pick-a-part', 'Pick a part'],
+    ]);
+    const [tour] = project.tours;
+    if (!tour) throw new Error('No tour.');
+    for (const step of tour.steps) {
+      expect(tourStepProblems(project, step), step.id).toEqual([]);
+      // Every step opens the panel, on something in physical space.
+      expect(step.viewState.space, step.id).toBeDefined();
+      const view = project.views.find((each) => each.id === step.viewState.view);
+      const space = spaceOf(project, view, step.viewState.space?.root);
+      expect(space.entries.size, step.id).toBeGreaterThan(3);
+      for (const id of step.viewState.select ?? []) {
+        expect(space.entries.has(id), `${step.id}: ${id}`).toBe(true);
+      }
+    }
+    const playing = tour.steps.filter((step) => step.play?.scenario === 'pick-a-part');
+    expect(playing.map((step) => step.viewState.view)).toEqual(['control-loop']);
+    // While it plays, the ends of its first step, the wrist camera and the part, are in physical space.
+    const loop = project.views.find((each) => each.id === 'control-loop');
+    const space = spaceOf(project, loop);
+    for (const id of ['wrist-camera', 'workpiece']) expect(space.entries.has(id), id).toBe(true);
   });
 });

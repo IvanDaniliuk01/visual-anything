@@ -1,0 +1,95 @@
+{
+  "id": "pick-a-part",
+  "name": "Pick a part",
+  "description": "The arm in its workcell, and one pick from bin A, followed on the control loop and in physical space side by side.",
+  "steps": [
+    {
+      "id": "the-workcell",
+      "viewState": {
+        "view": "workcell",
+        "space": {
+          "camera": {
+            "target": {
+              "x": 0,
+              "y": 1,
+              "z": 0
+            },
+            "azimuth": 35,
+            "elevation": 25,
+            "distance": 3.6
+          },
+          "names": true
+        }
+      },
+      "caption": {
+        "title": "The workcell",
+        "text": "The arm is bolted to the back of its table, a bin in front of it on either side: it picks each part from bin A and places it in bin B. A camera hangs above the bins.\n\nBeside the canvas, physical space shows each of them where it is, in meters."
+      },
+      "marks": [
+        "arm",
+        "bin-a",
+        "bin-b",
+        "workcell-camera"
+      ]
+    },
+    {
+      "id": "the-wrist-camera",
+      "viewState": {
+        "view": "kinematic-chain",
+        "select": [
+          "wrist-camera"
+        ],
+        "space": {
+          "root": "arm",
+          "camera": {
+            "target": {
+              "x": 0,
+              "y": 0.72,
+              "z": 0.5
+            },
+            "azimuth": 60,
+            "elevation": 20,
+            "distance": 0.9
+          }
+        }
+      },
+      "caption": {
+        "title": "The wrist camera",
+        "text": "The wrist camera is mounted on link 6, the tool flange, just above the gripper. It is posed in link 6, so it goes wherever the arm takes the flange, and looks past the gripper at the part it is about to pick.",
+        "pointTo": "wrist-camera"
+      },
+      "marks": [
+        "wrist-camera",
+        "camera-on-link-6",
+        "link-6"
+      ]
+    },
+    {
+      "id": "one-pick",
+      "viewState": {
+        "view": "control-loop",
+        "scenario": "pick-a-part",
+        "step": "see",
+        "space": {
+          "camera": {
+            "target": {
+              "x": 0,
+              "y": 1.1,
+              "z": 0
+            },
+            "azimuth": 35,
+            "elevation": 20,
+            "distance": 2.2
+          }
+        }
+      },
+      "caption": {
+        "title": "One pick, step by step",
+        "text": "Follow one pick on the control loop and in physical space:\n\n1. the wrist camera sees the part in bin A;\n2. the policy picks joint targets, and the controller drives the motors;\n3. the motors turn the joints, and the encoders read them back;\n4. the gripper closes on the part."
+      },
+      "play": {
+        "scenario": "pick-a-part"
+      }
+    }
+  ]
+}

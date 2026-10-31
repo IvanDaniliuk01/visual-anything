@@ -71,14 +71,22 @@ describe('the sample projects the program holds', () => {
       for (const step of scenario?.steps ?? []) {
         for (const relation of step.relations) expect(relations.has(relation)).toBe(true);
       }
-      // The robot arm's own package holds only its solid, which no built-in package can name the file
-      // of (M9, ADR 0075's clarification of 2026-10-31).
+      // The robot arm's own package holds its solid, which no built-in package can name the file of
+      // (M9, ADR 0075's clarification of 2026-10-31), and its workcell's components and the relation
+      // types that pose things in it (M10, ADR 0076's clarification of 2026-10-31).
       const own = [...loaded.files.packages.keys()];
       if (id === 'robot-arm') {
         expect(own).toEqual(['robot-arm']);
         const arm = loaded.project.packages.find((file) => file.id === 'robot-arm');
-        expect(arm?.components).toEqual([]);
-        expect(arm?.relationTypes).toEqual([]);
+        expect(arm?.components.map((each) => each.id)).toEqual([
+          'robot-arm.workcell',
+          'robot-arm.table',
+          'robot-arm.bin',
+        ]);
+        expect(arm?.relationTypes.map((each) => [each.id, each.nests])).toEqual([
+          ['robot-arm.is-in', true],
+          ['robot-arm.is-mounted-on', true],
+        ]);
         expect(arm?.solids?.map((each) => each.id)).toEqual(['robot-arm.six-axis-arm']);
       } else {
         expect(own).toEqual([]);
