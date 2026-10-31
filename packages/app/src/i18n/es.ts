@@ -3036,6 +3036,18 @@ export const ui: Catalog = {
   '{what}: what is kept, and the other choice': '{what}: lo que se conserva y la otra opción',
   '{file} holds no conflict now: its file can be added with git add.':
     '{file} ya no tiene ningún conflicto: su archivo se puede agregar con git add.',
+  // Solids on the canvas, and turning them (ADR 0075).
+  'the front': 'adelante',
+  'the front left': 'adelante a la izquierda',
+  'the left': 'la izquierda',
+  'the back left': 'atrás a la izquierda',
+  'the back': 'atrás',
+  'the back right': 'atrás a la derecha',
+  'the right': 'la derecha',
+  'the front right': 'adelante a la derecha',
+  '{name}, seen from {side}, above': '{name}, visto desde {side}, desde arriba',
+  '{name}, seen from {side}, below': '{name}, visto desde {side}, desde abajo',
+  '{name}, seen from {side}': '{name}, visto desde {side}',
 };
 
 /**

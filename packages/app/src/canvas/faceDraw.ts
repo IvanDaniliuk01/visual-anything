@@ -31,6 +31,7 @@ import {
 } from './faces';
 import type { Point, Rect } from './geometry';
 import type { ElementShape } from './scene';
+import type { ShapeSolid } from './shape-solids';
 
 /** A picture a face draws: its image, and the tint of a silhouette. */
 export type FacePictureSource = FacePicture & { tint?: Color };
@@ -45,6 +46,15 @@ export interface FacePictures {
    * when `waiting` is painted again.
    */
   textureFor(picture: FacePictureSource, side: number, waiting: FaceLabel): Texture | undefined;
+  /**
+   * The texture to draw a shape's solid with by `<icon/>` (ADR 0075), with its picture's size; none
+   * until it is made, when `waiting` is painted again.
+   */
+  solidTextureFor?(
+    shape: { solid?: ShapeSolid },
+    side: number,
+    waiting: FaceLabel,
+  ): { texture: Texture; width: number; height: number } | undefined;
 }
 
 /** A face's picture, ready to draw: its texture, its own size and its tint. */
@@ -120,6 +130,8 @@ export interface FaceLabelPictures {
   pictures: FacePictures;
   /** The shape's own image, which `<icon/>` draws. */
   icon?: FacePictureSource;
+  /** The shape's solid, which `<icon/>` draws in place of an image (ADR 0075). */
+  solid?: { solid: ShapeSolid };
   /** The images its `<image ref="…"/>` name, by `ref`. */
   images?: Readonly<Record<string, FacePicture>>;
 }
@@ -162,6 +174,13 @@ export class FaceLabel extends Container {
 
   readonly #picture = (image: FaceImage, box: Rect): DrawnPicture | undefined => {
     const sources = this.sources as FaceLabelPictures;
+    if (image.kind === 'icon' && sources.solid) {
+      return sources.pictures.solidTextureFor?.(
+        sources.solid,
+        Math.max(box.width, box.height),
+        this,
+      );
+    }
     const source: FacePictureSource | undefined =
       image.kind === 'icon' ? sources.icon : sources.images?.[image.ref];
     if (!source) return undefined;
@@ -194,6 +213,7 @@ export function faceLabel(
     pictures && drawing.images.length > 0
       ? {
           pictures,
+          ...(shape.solid && shape.solid.placeholder !== true ? { solid: { solid: shape.solid } } : {}),
           ...(shape.image
             ? {
                 icon: {
