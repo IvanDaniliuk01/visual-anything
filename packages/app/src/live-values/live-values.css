@@ -1,12 +1,12 @@
 /* Live values in the inspector (ADR 0057): each with its mark and its age; a stale one fades. */
 .live-values-note {
-  margin: 0 0 var(--space-1);
+  margin: 0 0 var(--space-25);
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
 
 .live-values {
-  margin: var(--space-1) 0;
+  margin: var(--space-25) 0;
   padding: 0;
   list-style: none;
 }
@@ -14,9 +14,9 @@
 .live-value {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-2);
+  gap: var(--space-25) var(--space-50);
   align-items: baseline;
-  padding: var(--space-1) 0;
+  padding: var(--space-25) 0;
 }
 
 .live-value-name {
@@ -29,8 +29,8 @@
 }
 
 .live-mark {
-  padding: 0 var(--space-1);
-  border: 1px solid var(--accent);
+  padding: 0 var(--space-25);
+  border: var(--stroke-thin) solid var(--accent);
   border-radius: var(--radius-sm);
   color: var(--accent);
   font-size: var(--text-xs);

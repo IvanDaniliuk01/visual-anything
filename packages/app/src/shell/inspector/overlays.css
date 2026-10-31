@@ -2,55 +2,55 @@
 
 .inspector-overlay-list {
   display: grid;
-  gap: 0.6rem;
+  gap: var(--space-60);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .inspector-overlay {
-  padding: 0.45rem 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: 0.35rem;
+  padding: var(--space-45) var(--space-55);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-md);
 }
 
 .inspector-overlay-head {
   display: flex;
-  gap: 0.45rem;
+  gap: var(--space-45);
   align-items: center;
 }
 
 .inspector-overlay-title {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   overflow-wrap: anywhere;
 }
 
 .inspector-overlay-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: var(--space-35);
 }
 
 .inspector-overlay-form {
   display: grid;
-  gap: 0.1rem;
-  margin-top: 0.6rem;
-  padding: 0.55rem;
-  border: 1px solid var(--control-border);
-  border-radius: 0.35rem;
+  gap: var(--space-10);
+  margin-top: var(--space-60);
+  padding: var(--space-55);
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-md);
 }
 
 .inspector-overlay-rows {
   display: grid;
-  gap: 0.35rem;
-  margin: 0.6rem 0 0;
-  padding: 0.45rem;
-  border: 1px solid var(--border);
-  border-radius: 0.3rem;
+  gap: var(--space-35);
+  margin: var(--space-60) 0 0;
+  padding: var(--space-45);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-sm);
 }
 
 .inspector-overlay-rows > legend {
-  padding: 0 0.25rem;
+  padding: 0 var(--space-25);
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
@@ -58,21 +58,25 @@
 .inspector-overlay-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
-  gap: 0.3rem;
+  gap: var(--space-30);
   align-items: center;
 }
 
 .inspector-overlay-row input[type='color'] {
-  width: 2.2rem;
-  height: 1.8rem;
+  width: var(--size-220);
+  height: var(--size-180);
   padding: 0;
-  border: 1px solid var(--control-border);
-  border-radius: 0.3rem;
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
 }
 
+.inspector-overlay-row input[type='color']:is(:hover, :active):not(:disabled) {
+  border-color: var(--accent);
+}
+
 .inspector-overlay-row input[type='number'] {
-  width: 4.5rem;
+  width: var(--size-450);
 }
 
 .inspector-overlay-row label {

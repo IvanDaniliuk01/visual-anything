@@ -62,7 +62,13 @@ export function AttributeDefinitionsSection({
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
       <h4 id={headingId}>{t('Attributes')}</h4>
-      {attributes.length === 0 && <p className="panel-empty">{t('It has no attributes yet.')}</p>}
+      {attributes.length === 0 && (
+        <p className="panel-empty">
+          {readOnly
+            ? t('It has no attributes. To give it some, derive from it and add them there.')
+            : t('It has no attributes yet. Add one below, under New attribute.')}
+        </p>
+      )}
       <ul className="definition-attributes" aria-labelledby={headingId}>
         {attributes.map((attribute) => {
           const source = sources.get(attribute.name) ?? id;

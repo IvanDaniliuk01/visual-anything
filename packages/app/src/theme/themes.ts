@@ -37,7 +37,9 @@ export interface ShellColors {
   accentSoft: Color;
   /** The background of a primary action. */
   accentFill: Color;
-  /** Text on `accentFill`. */
+  /** A primary action under the pointer or pressed. */
+  accentFillHover: Color;
+  /** Text on `accentFill` and `accentFillHover`. */
   onAccent: Color;
   /** What is selected, on the canvas and in the panels. */
   selected: Color;
@@ -157,6 +159,7 @@ const LIGHT: ShellTheme = {
     accent: '#1D4F91',
     accentSoft: '#E6EEFA',
     accentFill: '#1D4F91',
+    accentFillHover: '#163D70',
     onAccent: '#FFFFFF',
     selected: '#2563EB',
     focusRing: '#2563EB',
@@ -199,6 +202,7 @@ const DARK: ShellTheme = {
     accent: '#8AB4F8',
     accentSoft: '#1E3A5F',
     accentFill: '#8AB4F8',
+    accentFillHover: '#A8C7FA',
     onAccent: '#0F1B2D',
     selected: '#4C8DF6',
     focusRing: '#4C8DF6',

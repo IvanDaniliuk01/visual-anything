@@ -46,6 +46,7 @@ import {
   InfoIcon,
   ListIcon,
   PlayIcon,
+  ProductMark,
   SearchIcon,
   SpaceIcon,
   TourIcon,
@@ -441,7 +442,11 @@ export function Viewer({ project: opened, made, preferences, solids, space }: Vi
                       solids={solids}
                     />
                   ) : (
-                    <p className="canvas-message">{t('This project has no view to show.')}</p>
+                    <p className="canvas-message">
+                      {t(
+                        'This project has no view to show. Whoever shared it can add one in Visual Anything and export the page again.',
+                      )}
+                    </p>
                   )}
                   <FindBar
                     project={project}
@@ -547,28 +552,7 @@ export function Viewer({ project: opened, made, preferences, solids, space }: Vi
 function ProductName() {
   return (
     <span className="viewer-product">
-      <svg
-        className="shell-mark"
-        aria-hidden="true"
-        focusable="false"
-        width="20"
-        height="20"
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.75"
-      >
-        <rect x="1.5" y="1.5" width="11" height="11" rx="2.5" />
-        <rect
-          x="7.5"
-          y="7.5"
-          width="11"
-          height="11"
-          rx="2.5"
-          fill="currentColor"
-          fillOpacity="0.3"
-        />
-      </svg>
+      <ProductMark />
       <span className="viewer-product-name">Visual Anything</span>
     </span>
   );

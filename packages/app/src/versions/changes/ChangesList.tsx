@@ -259,9 +259,15 @@ export function ChangesList({ changes, openViewId, selection, onShow }: ChangesL
         </label>
       </fieldset>
       {total === 0 ? (
-        <p className="panel-empty">{t('No changes.')}</p>
+        <p className="panel-empty">
+          {t(
+            'No changes: both sides are the same. To compare with another version, choose Compare with… in the header.',
+          )}
+        </p>
       ) : kept.length === 0 ? (
-        <p className="panel-empty">{t('No change matches the filters.')}</p>
+        <p className="panel-empty">
+          {t('No change matches the filters. Change the filters above, or clear them.')}
+        </p>
       ) : (
         <VirtualTree
           shown={shown}

@@ -305,7 +305,11 @@ function PlacesSection({ element, index, definitions, onSelect }: PlacesSectionP
             }}
           />
         ) : (
-          <p className="panel-empty">{t('No relation ends on it.')}</p>
+          <p className="panel-empty">
+            {t(
+              'No relation ends on it. To relate it, drag the handle beside its shape on the canvas to another shape.',
+            )}
+          </p>
         )}
       </section>
     </>

@@ -136,7 +136,7 @@ describe('Shell', () => {
   it('details the open view in the inspector, with nothing selected', () => {
     render(<Shell project={sample} />);
     const inspector = screen.getByRole('complementary', { name: 'Inspector' });
-    expect(within(inspector).getByText('Nothing is selected.')).toBeInTheDocument();
+    expect(within(inspector).getByText(/^Nothing is selected\./)).toBeInTheDocument();
     expect(detail(inspector, 'Name')).toBe('System overview');
     expect(detail(inspector, 'Description')).toBe(
       'How a booking request travels from the patient to the calendar.',
@@ -177,15 +177,26 @@ describe('Shell', () => {
       ),
     ).toBeInTheDocument();
     const panel = showModelTab();
-    expect(within(panel).getByText('World holds no elements yet.')).toBeInTheDocument();
-    expect(within(panel).getByText('This project has no views yet.')).toBeInTheDocument();
-    expect(within(panel).getByText('This project has no scenarios yet.')).toBeInTheDocument();
+    // Each says what to do next (A4).
     expect(
-      within(screen.getByRole('main')).getByText('There is no view to draw.'),
+      within(panel).getByText(
+        'World holds no elements yet. Add one with Add an element, on the canvas.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(panel).getByText('This project has no views yet. Make one with New view…, below.'),
+    ).toBeInTheDocument();
+    expect(
+      within(panel).getByText(/^This project has no scenarios yet\. Make one with New scenario/),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('main')).getByText(
+        'There is no view to draw. Make one with New view…, under Views in the Model tab.',
+      ),
     ).toBeInTheDocument();
     expect(
       within(screen.getByRole('complementary', { name: 'Inspector' })).getByText(
-        'No view is open.',
+        'No view is open. Open one from Views, in the Model tab.',
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole('application')).not.toBeInTheDocument();

@@ -1,21 +1,21 @@
 /* A package from another project (ADR 0051): the packages of the folder chosen, and what changes. */
 .share-package-choices {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-50);
   margin: 0;
   padding: 0;
   border: 0;
 }
 
 .share-package-choices legend {
-  margin-bottom: var(--space-1);
+  margin-bottom: var(--space-25);
   color: var(--text-muted);
 }
 
 .share-package-choice {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  column-gap: var(--space-2);
+  column-gap: var(--space-50);
   align-items: baseline;
 }
 
@@ -25,11 +25,11 @@
 
 .share-package-changes {
   display: grid;
-  gap: var(--space-1);
-  margin: 0 0 var(--space-2);
-  padding-left: var(--space-4);
+  gap: var(--space-25);
+  margin: 0 0 var(--space-50);
+  padding-left: var(--space-100);
 }
 
 .share-package h5 {
-  margin: var(--space-2) 0 var(--space-1);
+  margin: var(--space-50) 0 var(--space-25);
 }

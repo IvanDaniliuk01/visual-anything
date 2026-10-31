@@ -8,10 +8,10 @@
 .review-waiting button {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-50);
   min-height: var(--control-sm);
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--control-border);
+  padding: var(--space-25) var(--space-75);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
@@ -30,12 +30,27 @@
   color: var(--on-accent);
 }
 
+.proposal-button:hover:not(:disabled),
 .proposal-buttons button:hover:not([aria-disabled='true']),
-.review-waiting button:hover {
+.review-waiting button:hover:not(:disabled) {
   background: var(--surface-hover);
 }
 
-.proposal-buttons button[aria-disabled='true'] {
+.proposal-button:active:not(:disabled),
+.proposal-buttons button:active:not([aria-disabled='true']),
+.review-waiting button:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.proposal-button[aria-pressed='true']:is(:hover, :active):not(:disabled) {
+  background: var(--accent-fill-hover);
+}
+
+.proposal-button:disabled,
+.proposal-buttons button[aria-disabled='true'],
+.review-waiting button:disabled {
+  border-color: var(--control-border);
+  background: var(--surface);
   color: var(--text-muted);
   cursor: not-allowed;
 }
@@ -46,17 +61,23 @@
   color: var(--on-accent);
 }
 
+/* Under the pointer it stays filled: the buttons' own hover would leave its text on a light ground. */
+.proposal-buttons .proposal-accept:not([aria-disabled='true']):is(:hover, :active) {
+  border-color: var(--accent-fill-hover);
+  background: var(--accent-fill-hover);
+}
+
 .proposal-decision {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  margin: 0 1rem 0.5rem;
+  gap: var(--space-50);
+  margin: 0 var(--space-100) var(--space-50);
 }
 
 .proposal-labels {
   display: flex;
   align-items: baseline;
-  gap: var(--space-2);
+  gap: var(--space-50);
   margin: 0;
   color: var(--text-muted);
   overflow-wrap: anywhere;
@@ -65,7 +86,7 @@
 .proposal-buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-50);
 }
 
 .proposal-note,
@@ -78,21 +99,21 @@
 }
 
 .proposal-details p {
-  margin: var(--space-1) 0 0;
+  margin: var(--space-25) 0 0;
 }
 
 .review-setting {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-4) var(--space-3);
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-25);
+  padding: var(--space-50) var(--space-100) var(--space-75);
+  border-bottom: var(--stroke-thin) solid var(--border);
 }
 
 .review-toggle {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-50);
 }
 
 .review-hint {
@@ -105,6 +126,6 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
-  margin: var(--space-1) 0 0;
+  gap: var(--space-50);
+  margin: var(--space-25) 0 0;
 }

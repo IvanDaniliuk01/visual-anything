@@ -61,7 +61,9 @@ describe('ChangesList', () => {
     for (const status of ['Added', 'Changed', 'Moved']) {
       fireEvent.click(screen.getByRole('checkbox', { name: status }));
     }
-    expect(screen.getByText('No change matches the filters.')).toBeInTheDocument();
+    expect(
+      screen.getByText(/^No change matches the filters\. Change the filters/),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('checkbox', { name: 'Moved' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Only the open view' }));
     expect(rows().filter((row) => row.startsWith('Moved:')).length).toBeGreaterThan(0);
@@ -136,7 +138,7 @@ describe('ChangesList', () => {
         onShow={() => {}}
       />,
     );
-    expect(screen.getByText('No changes.')).toBeInTheDocument();
+    expect(screen.getByText(/^No changes: both sides are the same\./)).toBeInTheDocument();
   });
 });
 

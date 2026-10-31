@@ -307,7 +307,9 @@ export function OverlaysSection({ view }: { view: ViewFile }) {
       <h4 id={heading}>{t('Overlays')}</h4>
       {overlays.length === 0 && (
         <p className="inspector-notes">
-          {t('No overlay changes how this view’s shapes look by their attributes.')}
+          {t(
+            'No overlay changes how this view’s shapes look by their attributes. Add one with Add an overlay.',
+          )}
         </p>
       )}
       <ul className="inspector-overlay-list">

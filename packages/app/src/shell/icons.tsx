@@ -1,7 +1,9 @@
 /**
- * The icons the app draws, kept in the app rather than taken from a package: paths from Lucide
- * (https://lucide.dev, ISC license, see LICENSE-lucide.txt), drawn in the current text color. Each is
+ * The icons the app draws, the one set every panel, menu and toolbar takes its icons from (A4), kept
+ * in the app rather than taken from a package: paths from Lucide (https://lucide.dev, ISC license, see
+ * LICENSE-lucide.txt) unless an icon says otherwise, drawn in the current text color. Each is
  * decorative (`aria-hidden`): the control that holds it carries the name, as visible or hidden text.
+ * No component draws an icon of its own, as an inline `<svg>` or as a character (`icons.test.ts`).
  */
 import type { ReactNode } from 'react';
 
@@ -11,7 +13,16 @@ interface IconProps {
   className?: string;
 }
 
-function icon(name: string, paths: ReactNode) {
+/** The box an icon's paths are drawn in, and the width of their strokes in it. */
+interface IconBox {
+  box: number;
+  stroke: number;
+}
+
+/** Lucide's: a box of 24 with strokes of 2. */
+const LUCIDE: IconBox = { box: 24, stroke: 2 };
+
+function icon(name: string, paths: ReactNode, { box, stroke }: IconBox = LUCIDE) {
   function Icon({ size = 16, className }: IconProps) {
     return (
       <svg
@@ -20,10 +31,10 @@ function icon(name: string, paths: ReactNode) {
         focusable="false"
         width={size}
         height={size}
-        viewBox="0 0 24 24"
+        viewBox={`0 0 ${box} ${box}`}
         fill="none"
         stroke="currentColor"
-        strokeWidth="2"
+        strokeWidth={String(stroke)}
         strokeLinecap="round"
         strokeLinejoin="round"
       >
@@ -34,6 +45,116 @@ function icon(name: string, paths: ReactNode) {
   Icon.displayName = `${name}Icon`;
   return Icon;
 }
+
+/** The product's mark, made as the icons are, so that this file exports only what its makers make. */
+function productMark() {
+  function ProductMark() {
+    return (
+      <svg
+        className="shell-mark"
+        aria-hidden="true"
+        focusable="false"
+        width="20"
+        height="20"
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+      >
+        <rect x="1.5" y="1.5" width="11" height="11" rx="2.5" />
+        <rect
+          x="7.5"
+          y="7.5"
+          width="11"
+          height="11"
+          rx="2.5"
+          fill="currentColor"
+          fillOpacity="0.3"
+        />
+      </svg>
+    );
+  }
+  return ProductMark;
+}
+
+/**
+ * The product's mark: two overlapping rounded squares, in the accent color, drawn for Visual Anything
+ * (not from Lucide). The header and the read-only page show it before their names.
+ */
+export const ProductMark = productMark();
+
+/** Import: Lucide's "upload". */
+export const ImportIcon = icon(
+  'Import',
+  <>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <path d="m17 8-5-5-5 5" />
+    <path d="M12 3v12" />
+  </>,
+);
+
+/**
+ * The stacking order's moves, drawn for Visual Anything in a box of 16 (not from Lucide): chevrons
+ * up or down, to a bar at the end for the moves to the front and to the back.
+ */
+const STACKING: IconBox = { box: 16, stroke: 1.5 };
+
+export const BringToFrontIcon = icon(
+  'BringToFront',
+  <>
+    <path d="M3 2.5h10" />
+    <path d="M4 9l4-4 4 4" />
+    <path d="M4 13l4-4 4 4" />
+  </>,
+  STACKING,
+);
+
+export const BringForwardIcon = icon('BringForward', <path d="M4 10l4-4 4 4" />, STACKING);
+
+export const SendBackwardIcon = icon('SendBackward', <path d="M4 6l4 4 4-4" />, STACKING);
+
+export const SendToBackIcon = icon(
+  'SendToBack',
+  <>
+    <path d="M4 3l4 4 4-4" />
+    <path d="M4 7l4 4 4-4" />
+    <path d="M3 13.5h10" />
+  </>,
+  STACKING,
+);
+
+/** A branch of a tree that is open: Lucide's "chevron-down". */
+export const ChevronDownIcon = icon('ChevronDown', <path d="m6 9 6 6 6-6" />);
+
+/** A branch of a tree that is closed: Lucide's "chevron-right". */
+export const ChevronRightIcon = icon('ChevronRight', <path d="m9 18 6-6-6-6" />);
+
+/** A column sorted up: Lucide's "arrow-up". */
+export const ArrowUpIcon = icon(
+  'ArrowUp',
+  <>
+    <path d="m5 12 7-7 7 7" />
+    <path d="M12 19V5" />
+  </>,
+);
+
+/** A column sorted down: Lucide's "arrow-down". */
+export const ArrowDownIcon = icon(
+  'ArrowDown',
+  <>
+    <path d="M12 5v14" />
+    <path d="m19 12-7 7-7-7" />
+  </>,
+);
+
+/** Back to where one came from: Lucide's "arrow-left". */
+export const BackIcon = icon(
+  'Back',
+  <>
+    <path d="m12 19-7-7 7-7" />
+    <path d="M19 12H5" />
+  </>,
+);
 
 export const ZoomInIcon = icon(
   'ZoomIn',

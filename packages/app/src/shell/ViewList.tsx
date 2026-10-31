@@ -62,7 +62,9 @@ export function ViewList({ project, definitions, openViewId, labelledBy }: ViewL
           ))}
         </ul>
       ) : (
-        <p className="panel-empty">{t('This project has no views yet.')}</p>
+        <p className="panel-empty">
+          {t('This project has no views yet. Make one with New view…, below.')}
+        </p>
       )}
       {creating && editable ? (
         <NewViewForm

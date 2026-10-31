@@ -15,7 +15,7 @@
 }
 
 .changes-title {
-  margin: 0.25rem 1rem 0.4rem;
+  margin: var(--space-25) var(--space-100) var(--space-40);
   font-size: var(--text-md);
   overflow-wrap: anywhere;
 }
@@ -23,8 +23,8 @@
 .changes-counts {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-  margin: 0 1rem 0.4rem;
+  gap: var(--space-25) var(--space-75);
+  margin: 0 var(--space-100) var(--space-40);
   padding: 0;
   list-style: none;
   color: var(--text-muted);
@@ -33,14 +33,14 @@
 .changes-counts li {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: var(--space-30);
 }
 
 .changes-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.2rem 0.75rem;
-  margin: 0 1rem 0.5rem;
+  gap: var(--space-20) var(--space-75);
+  margin: 0 var(--space-100) var(--space-50);
   padding: 0;
   border: 0;
 }
@@ -48,14 +48,14 @@
 .changes-filter {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-25);
 }
 
 .changes-group,
 .changes-row {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-40);
   min-width: 0;
 }
 
@@ -84,12 +84,12 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 1.15rem;
-  height: 1.15rem;
+  width: var(--size-115);
+  height: var(--size-115);
   border-radius: 50%;
   color: var(--canvas);
   font-weight: var(--weight-heading);
-  line-height: 1;
+  line-height: var(--line-none);
 }
 
 .change-added {
@@ -112,31 +112,31 @@
   flex: none;
   max-height: 40%;
   overflow: auto;
-  padding: 0.5rem 1rem 0.75rem;
-  border-top: 1px solid var(--border);
+  padding: var(--space-50) var(--space-100) var(--space-75);
+  border-top: var(--stroke-thin) solid var(--border);
 }
 
 .changes-chosen-title {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  margin: 0 0 0.3rem;
+  gap: var(--space-40);
+  margin: 0 0 var(--space-30);
   font-weight: var(--weight-strong);
   overflow-wrap: anywhere;
 }
 
 .changes-differences {
   margin: 0;
-  padding-left: 1.2rem;
+  padding-left: var(--space-120);
   overflow-wrap: anywhere;
 }
 
 /* A note beside a change, such as that the person changed it too (ADR 0073). */
 .changes-row-note {
   flex: none;
-  padding: 0 0.3rem;
-  border: 1px solid var(--border);
-  border-radius: 0.6rem;
+  padding: 0 var(--space-30);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-lg);
   color: var(--text-muted);
   font-size: var(--text-sm);
 }

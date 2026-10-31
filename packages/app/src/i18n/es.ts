@@ -323,7 +323,8 @@ export const ui: Catalog = {
     'Arriba y abajo recorren lo encontrado. Enter va a lo elegido; Alt+Enter lista cada vista que lo dibuja. Escape cierra. {shortcut} vuelve a buscar.',
   Found: 'Encontrado',
   'Getting ready to find…': 'Preparando la búsqueda…',
-  'Nothing found': 'No se encontró nada',
+  'Nothing found. Try fewer or other words.':
+    'No se encontró nada. Probar con menos palabras, u otras.',
   '{count} found': { one: '{count} encontrado', other: '{count} encontrados' },
   '{shown} of {count} found': '{shown} de {count} encontrados',
   'In {view}': 'En {view}',
@@ -355,7 +356,8 @@ export const ui: Catalog = {
 
   // The shell and the canvas's text alternative.
   Canvas: 'Lienzo',
-  'There is no view to draw.': 'No hay ninguna vista para dibujar.',
+  'There is no view to draw. Make one with New view…, under Views in the Model tab.':
+    'No hay ninguna vista para dibujar. Crear una con Nueva vista…, en Vistas, en la pestaña Modelo.',
   '{count} element shapes': {
     one: '{count} forma de elemento',
     other: '{count} formas de elementos',
@@ -478,13 +480,14 @@ export const ui: Catalog = {
   Find: 'Buscar',
   'Find (Ctrl+F)': 'Buscar (Ctrl+F)',
   About: 'Acerca de',
-  'This project has no view to show.': 'Este proyecto no tiene ninguna vista para mostrar.',
+  'This project has no view to show. Whoever shared it can add one in Visual Anything and export the page again.':
+    'Este proyecto no tiene ninguna vista para mostrar. Quien lo compartió puede agregar una en Visual Anything y volver a exportar la página.',
   '{view} ({perspective})': '{view} ({perspective})',
   'Zoom in (+)': 'Acercar (+)',
   'Zoom out (−)': 'Alejar (−)',
   'Fit the view': 'Encuadrar la vista',
   'Fit the view (0)': 'Encuadrar la vista (0)',
-  'This view has no shapes.': 'Esta vista no tiene formas.',
+  'This view has no shapes. Choose another view.': 'Esta vista no tiene formas. Elegir otra vista.',
   'Drag or use two fingers to pan; pinch, Ctrl with the wheel, or + and − to zoom; 0 fits the view. Arrow keys go from shape to shape, Alt with ↑ and ↓ to the container and inside it; ] and [ step through relations, Enter follows one; Alt with − and + collapses and expands. Escape clears the selection.':
     'Arrastrar o usar dos dedos para desplazar; pellizcar, Ctrl con la rueda, o + y − para hacer zoom; 0 encuadra la vista. Las flechas van de forma en forma, Alt con ↑ y ↓ al contenedor y a su interior; ] y [ recorren las relaciones, Enter sigue una; Alt con − y + contrae y expande. Escape quita la selección.',
   'This page cannot show its project': 'Esta página no puede mostrar su proyecto',
@@ -607,17 +610,20 @@ export const ui: Catalog = {
   '{action}, by you': '{action}, por usted',
 
   // The Model tab.
-  'World holds no elements yet.': 'Mundo todavía no contiene elementos.',
+  'World holds no elements yet. Add one with Add an element, on the canvas.':
+    'Mundo todavía no contiene elementos. Agregar uno con Agregar un elemento, en el lienzo.',
   Views: 'Vistas',
   Scenarios: 'Escenarios',
   '{count} steps over {view}': {
     one: '{count} paso sobre {view}',
     other: '{count} pasos sobre {view}',
   },
-  'This project has no scenarios yet.': 'Este proyecto todavía no tiene escenarios.',
+  'This project has no scenarios yet. Make one with New scenario, then click relations on the canvas in the order they happen.':
+    'Este proyecto todavía no tiene escenarios. Crear uno con Nuevo escenario, y luego hacer clic en las relaciones del lienzo en el orden en que suceden.',
 
   // The views.
-  'This project has no views yet.': 'Este proyecto todavía no tiene vistas.',
+  'This project has no views yet. Make one with New view…, below.':
+    'Este proyecto todavía no tiene vistas. Crear una con Nueva vista…, más abajo.',
   'New view…': 'Nueva vista…',
   'New view': 'Nueva vista',
   'This view is open on the canvas': 'Esta vista está abierta en el lienzo',
@@ -654,7 +660,11 @@ export const ui: Catalog = {
 
   // The outline.
   'There is no view to outline.': 'No hay ninguna vista para mostrar en el esquema.',
+  'There is no view to outline. Make one with New view…, under Views.':
+    'No hay ninguna vista para mostrar en el esquema. Crear una con Nueva vista…, en Vistas.',
   'This view has no shapes yet.': 'Esta vista todavía no tiene formas.',
+  'This view has no shapes yet. Add one with Add an element, on the canvas.':
+    'Esta vista todavía no tiene formas. Agregar una con Agregar un elemento, en el lienzo.',
   Outline: 'Esquema',
   'Outline of {view}': 'Esquema de {view}',
   '{component}, collapsed: {count} inside': '{component}, contraído: {count} dentro',
@@ -679,6 +689,8 @@ export const ui: Catalog = {
   ', ending on {end}': ', que termina en {end}',
   ', relation {position} of {count} of {element}': ', relación {position} de {count} de {element}',
   'Nothing is selected.': 'No hay nada seleccionado.',
+  'Nothing is selected. Select a shape on the canvas, or an item of the outline, to see it here.':
+    'No hay nada seleccionado. Seleccionar una forma en el lienzo, o un elemento del esquema, para verlo aquí.',
   '1 element selected.': '1 elemento seleccionado.',
   'Note: {text}': 'Nota: {text}',
   'Arrow.': 'Flecha.',
@@ -1666,7 +1678,8 @@ export const ui: Catalog = {
   '{things} are selected.': 'Selección: {things}.',
   'Select only one to see and edit the rest of it.':
     'Seleccionar solo uno para ver y editar el resto.',
-  'No view is open.': 'No hay ninguna vista abierta.',
+  'No view is open. Open one from Views, in the Model tab.':
+    'No hay ninguna vista abierta. Abrir una desde Vistas, en la pestaña Modelo.',
   None: 'Ninguno',
   'Element shapes': 'Formas de elementos',
   'Free shapes': 'Formas libres',
@@ -1691,7 +1704,8 @@ export const ui: Catalog = {
   Containers: 'Contenedores',
   'World contains every other element.': 'Mundo contiene todos los demás elementos.',
   'It sits directly in World.': 'Está directamente en Mundo.',
-  'No relation ends on it.': 'Ninguna relación termina en él.',
+  'No relation ends on it. To relate it, drag the handle beside its shape on the canvas to another shape.':
+    'Ninguna relación termina en él. Para relacionarlo, arrastrar el control junto a su forma en el lienzo hasta otra forma.',
   Ends: 'Extremos',
   From: 'Origen',
   To: 'Destino',
@@ -1824,7 +1838,8 @@ export const ui: Catalog = {
   'Component, derives from {name}': 'Componente, deriva de {name}',
   'Relation type, derives from {name}': 'Tipo de relación, deriva de {name}',
   'In use': 'En uso',
-  'The project uses no package yet.': 'El proyecto todavía no usa ningún paquete.',
+  'The project uses no package yet. Use one from Not in use yet, below, or make one with New package.':
+    'El proyecto todavía no usa ningún paquete. Usar uno de Todavía sin usar, más abajo, o crear uno con Nuevo paquete.',
   'Not in use yet': 'Todavía sin usar',
   'The project uses every built-in package.': 'El proyecto usa todos los paquetes incorporados.',
   New: 'Nuevo',
@@ -1871,7 +1886,10 @@ export const ui: Catalog = {
   'Write “{name}” later': 'Escribir “{name}” después',
   'while “{name}” is true': 'mientras “{name}” es verdadero',
   'while it is the from end of “{name}”': 'mientras es el extremo de origen de “{name}”',
-  'No badges.': 'Sin insignias.',
+  'No badges. A component derived from it can add some.':
+    'Sin insignias. Un componente derivado de él puede agregar algunas.',
+  'No badges yet. Add one below: its text, and when it is written.':
+    'Todavía sin insignias. Agregar una más abajo: su texto, y cuándo se escribe.',
   'Remove the badge “{text}”': 'Quitar la insignia “{text}”',
   'Give the badge a text, such as PK.': 'La insignia necesita un texto, como PK.',
   'New badge': 'Nueva insignia',
@@ -1933,7 +1951,10 @@ export const ui: Catalog = {
     'El último se queda: elegir Cualquiera para quitar el límite, o el heredado.',
 
   // Attributes in the component editor.
-  'It has no attributes yet.': 'Todavía no tiene atributos.',
+  'It has no attributes. To give it some, derive from it and add them there.':
+    'No tiene atributos. Para darle algunos, derivar de él y agregarlos allí.',
+  'It has no attributes yet. Add one below, under New attribute.':
+    'Todavía no tiene atributos. Agregar uno más abajo, en Nuevo atributo.',
   'An inherited attribute cannot be removed or moved here: redefine it to change it, or derive from a definition nearer the one that defines it.':
     'Un atributo heredado no se puede quitar ni mover aquí: redefinirlo para cambiarlo, o derivar de una definición más cercana a la que lo define.',
   'redefined here': 'redefinido aquí',
@@ -1999,7 +2020,10 @@ export const ui: Catalog = {
   'Its file goes, with the {defines} it defines; Undo brings them back.':
     'Se va su archivo, con {defines} que define; Deshacer los recupera.',
   'Used by': 'Usado por',
-  'Nothing uses it yet.': 'Nada lo usa todavía.',
+  'Nothing uses it yet. Add an element made from it with Add an element, on the canvas.':
+    'Nada lo usa todavía. Agregar un elemento creado a partir de él con Agregar un elemento, en el lienzo.',
+  'Nothing uses it yet. Relate two shapes on the canvas, and choose it for the relation.':
+    'Nada lo usa todavía. Relacionar dos formas en el lienzo, y elegirlo para la relación.',
   'World is created from it.': 'Mundo se crea a partir de él.',
   '{count} elements are created from it.': {
     one: '{count} elemento se crea a partir de él.',
@@ -2502,8 +2526,8 @@ export const ui: Catalog = {
   'The value itself': 'El valor mismo',
   // The view's overlays in the inspector.
   Overlays: 'Superposiciones',
-  'No overlay changes how this view’s shapes look by their attributes.':
-    'Ninguna superposición cambia cómo se ven las formas de esta vista según sus atributos.',
+  'No overlay changes how this view’s shapes look by their attributes. Add one with Add an overlay.':
+    'Ninguna superposición cambia cómo se ven las formas de esta vista según sus atributos. Agregar una con Agregar una superposición.',
   'Where two overlays set the same thing, the one higher in the list wins.':
     'Cuando dos superposiciones definen lo mismo, gana la que está más arriba en la lista.',
   'Add an overlay': 'Agregar una superposición',
@@ -2592,7 +2616,8 @@ export const ui: Catalog = {
   '{width} by {height}': '{width} por {height}',
   'The preview shows once the face has no errors.':
     'La vista previa aparece cuando la cara no tiene errores.',
-  'No markup to preview.': 'No hay marcado para previsualizar.',
+  'No markup to preview. Write the face’s markup above to see it here.':
+    'No hay marcado para previsualizar. Escribir el marcado de la cara arriba para verlo aquí.',
   'Preview of its face: {text}': 'Vista previa de su cara: {text}',
   'Cut where it overflows': 'Cortada donde se desborda',
   Apply: 'Aplicar',
@@ -2696,7 +2721,8 @@ export const ui: Catalog = {
   'Sorted by {column}, descending.': 'Ordenado por {column}, de mayor a menor.',
   'Nothing is listed here. Choose another component, or add elements on the canvas.':
     'Aquí no hay nada en la lista. Elegir otro componente, o agregar elementos en el lienzo.',
-  'No element matches “{filter}”.': 'Ningún elemento coincide con “{filter}”.',
+  'No element matches “{filter}”. Change the filter, or clear it.':
+    'Ningún elemento coincide con “{filter}”. Cambiar el filtro, o borrarlo.',
   'The component is changed in the inspector.': 'El componente se cambia en el inspector.',
   '“{name}”, {column}: {why}': '“{name}”, {column}: {why}',
   'This cell holds no destination to follow.': 'Esta celda no tiene ningún destino que seguir.',
@@ -2772,7 +2798,7 @@ export const ui: Catalog = {
   'Claude (AI)': 'Claude (IA)',
   'This change to the tour was not made: with its steps, the tour takes more than the {limit} MiB one change from the app carries. Delete some of its steps, or put them in another tour.':
     'Este cambio al recorrido no se hizo: con sus pasos, el recorrido ocupa más de los {limit} MiB que lleva un cambio desde la app. Eliminar algunos de sus pasos, o ponerlos en otro recorrido.',
-  '← All threads': '← Todos los hilos',
+  'All threads': 'Todos los hilos',
   'Select what the thread is about': 'Seleccionar aquello sobre lo que trata el hilo',
   Resolved: 'Resuelto',
   'What this thread is about was deleted. The thread is kept: undoing the deletion brings it back.':
@@ -3020,6 +3046,8 @@ export const ui: Catalog = {
   'Newer version: {version}': 'Versión más reciente: {version}',
   'Counts: {counts}': 'Cantidades: {counts}',
   'No changes.': 'No hay cambios.',
+  'No changes: both sides are the same. To compare with another version, choose Compare with… in the header.':
+    'No hay cambios: ambos lados son iguales. Para comparar con otra versión, elegir Comparar con… en el encabezado.',
   'The rest of the project': 'El resto del proyecto',
   'View “{view}”': 'Vista “{view}”',
   Drawings: 'Dibujos',
@@ -3034,8 +3062,10 @@ export const ui: Catalog = {
   'Changes by state': 'Cambios por estado',
   'Which changes to list': 'Qué cambios enumerar',
   'Only the open view': 'Solo la vista abierta',
-  'No change matches the filters.': 'Ningún cambio coincide con los filtros.',
-  'Nothing is being compared.': 'No se está comparando nada.',
+  'No change matches the filters. Change the filters above, or clear them.':
+    'Ningún cambio coincide con los filtros. Cambiar los filtros de arriba, o quitarlos.',
+  'Nothing is being compared. To see what changed since a version, choose Compare with… in the header.':
+    'No se está comparando nada. Para ver qué cambió desde una versión, elegir Comparar con… en el encabezado.',
   'The project': 'El proyecto',
   'The order of elements': 'El orden de los elementos',
   'Shapes’ places': 'Lugares de las formas',
@@ -3069,7 +3099,8 @@ export const ui: Catalog = {
   'Find a version': 'Buscar una versión',
   'Branch, tag, commit, subject or author': 'Rama, tag, commit, asunto o autor',
   Versions: 'Versiones',
-  'No version holds “{text}”.': 'Ninguna versión contiene “{text}”.',
+  'No version holds “{text}”. Type other words, or clear the box to list them all.':
+    'Ninguna versión contiene “{text}”. Escribir otras palabras, o vaciar el cuadro para verlas todas.',
   '{count} more versions are not listed here: type to find them.': {
     one: '{count} versión más no se lista aquí: escribir para encontrarla.',
     other: '{count} versiones más no se listan aquí: escribir para encontrarlas.',

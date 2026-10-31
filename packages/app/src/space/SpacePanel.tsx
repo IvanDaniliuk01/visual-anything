@@ -49,7 +49,7 @@ import { useEmphasis } from '../editor/emphasis';
 import { useHover } from '../editor/hover';
 import type { Selection } from '../editor/selection';
 import { useT } from '../i18n';
-import { WorldIcon } from '../shell/icons';
+import { DismissIcon, WorldIcon } from '../shell/icons';
 import { useAttributeLookup } from '../live-values/context';
 import { useMotion } from '../scenarios/motion';
 import type { SolidClient, SolidProblem, SpaceDrawing } from '../solids/solid-client';
@@ -181,7 +181,7 @@ function OpenSpacePanel({
           title={t('Close the physical-space panel')}
           onClick={() => store.close(view.id)}
         >
-          <span aria-hidden="true">×</span>
+          <DismissIcon />
         </button>
       </div>
       {drawn && (

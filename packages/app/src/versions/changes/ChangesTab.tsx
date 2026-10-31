@@ -23,7 +23,13 @@ export function ChangesTab() {
   const { said } = useOpenedChanges();
   const conflicts = useConflictsShown(editor?.project);
   if (!listed && !conflicts) {
-    return <p className="panel-empty">{t('Nothing is being compared.')}</p>;
+    return (
+      <p className="panel-empty">
+        {t(
+          'Nothing is being compared. To see what changed since a version, choose Compare with… in the header.',
+        )}
+      </p>
+    );
   }
   return (
     <div className="changes-tab">

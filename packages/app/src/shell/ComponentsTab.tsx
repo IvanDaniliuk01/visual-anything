@@ -80,7 +80,11 @@ export function ComponentsTab({ active }: ComponentsTabProps) {
             )}
           />
         ) : (
-          <p className="panel-empty">{t('The project uses no package yet.')}</p>
+          <p className="panel-empty">
+            {t(
+              'The project uses no package yet. Use one from Not in use yet, below, or make one with New package.',
+            )}
+          </p>
         )}
       </section>
 

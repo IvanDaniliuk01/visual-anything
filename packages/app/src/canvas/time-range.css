@@ -1,4 +1,4 @@
 /* A time range under the toolbar (R43): where it is, its two sliders and its playback. */
 .explore-range input[type='range'] {
-  width: 8rem;
+  width: var(--size-800);
 }

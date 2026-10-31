@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore, type FocusEvent, type MouseE
 import type { Notice, NoticeLevel } from '../live/connection';
 import { useT } from '../i18n';
 import { useLive } from '../live/context';
+import { DismissIcon } from './icons';
 
 /** How long info stays before it goes by itself; warnings and errors stay until dismissed. */
 const INFO_TIMEOUT_MS = 6_000;
@@ -106,7 +107,7 @@ function NoticeItem({ notice, dismiss }: NoticeItemProps) {
         aria-label={t('Dismiss')}
         onClick={onDismiss}
       >
-        <span aria-hidden="true">×</span>
+        <DismissIcon />
       </button>
     </div>
   );

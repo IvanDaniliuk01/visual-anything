@@ -2,8 +2,8 @@
 
 .comments-tab {
   display: grid;
-  gap: var(--space-3);
-  padding: var(--space-3);
+  gap: var(--space-75);
+  padding: var(--space-75);
   overflow-y: auto;
 }
 
@@ -16,13 +16,13 @@
 .comment-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-50);
 }
 
 .comment-button {
   min-height: var(--control-sm);
-  padding: 0 var(--space-2);
-  border: 1px solid var(--control-border);
+  padding: 0 var(--space-50);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
@@ -56,7 +56,7 @@
 
 .comment-button-small {
   min-height: auto;
-  padding: 0 var(--space-1);
+  padding: 0 var(--space-25);
   font-size: var(--text-xs);
 }
 
@@ -82,7 +82,7 @@
 .comment-about:hover,
 .comment-back:hover,
 button.comment-mention:hover {
-  text-decoration-thickness: 2px;
+  text-decoration-thickness: var(--stroke-thick);
 }
 
 .comment-link:active,
@@ -92,7 +92,19 @@ button.comment-mention:active {
   color: var(--text);
 }
 
+.comment-link:disabled,
+.comment-about:disabled,
+.comment-back:disabled,
+button.comment-mention:disabled {
+  color: var(--text-muted);
+  text-decoration: none;
+  cursor: not-allowed;
+}
+
 .comment-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-25);
   justify-self: start;
   font-size: var(--text-sm);
 }
@@ -108,26 +120,39 @@ span.comment-mention {
 }
 
 .comments-tab :is(button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thin);
 }
 
 .comment-composer,
 .comment-signing {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-25);
 }
 
 .comment-signing input,
 .comment-box,
 .comment-filters select {
   min-height: var(--control-sm);
-  padding: var(--space-1);
-  border: 1px solid var(--control-border);
+  padding: var(--space-25);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   font: inherit;
+}
+
+.comment-signing input:is(:hover, :active):not(:disabled),
+.comment-box:is(:hover, :active):not(:disabled),
+.comment-filters select:is(:hover, :active):not(:disabled) {
+  border-color: var(--text-muted);
+}
+
+.comment-signing input:disabled,
+.comment-box:disabled,
+.comment-filters select:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 .comment-box {
@@ -152,7 +177,7 @@ span.comment-mention {
 .comment-filters {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: var(--space-1) var(--space-2);
+  gap: var(--space-25) var(--space-50);
   align-items: center;
   font-size: var(--text-sm);
 }
@@ -160,7 +185,7 @@ span.comment-mention {
 .comment-rows,
 .comment-list {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-25);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -168,10 +193,10 @@ span.comment-mention {
 
 .comment-row {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-25);
   width: 100%;
-  padding: var(--space-2);
-  border: 1px solid var(--border);
+  padding: var(--space-50);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
@@ -187,6 +212,13 @@ span.comment-mention {
 
 .comment-row:active {
   background: var(--surface-pressed);
+}
+
+.comment-row:disabled {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 .comment-row-about {
@@ -207,7 +239,7 @@ span.comment-mention {
 
 .comment-thread {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-50);
 }
 
 .comment-thread-title {
@@ -216,9 +248,9 @@ span.comment-mention {
 
 .comment {
   display: grid;
-  gap: var(--space-1);
-  padding: var(--space-2);
-  border-left: 3px solid var(--border);
+  gap: var(--space-25);
+  padding: var(--space-50);
+  border-left: var(--stroke-mark) solid var(--border);
 }
 
 .comment-header {
@@ -243,30 +275,30 @@ span.comment-mention {
 .comment-text p,
 .comment-text ul,
 .comment-text ol {
-  margin: 0 0 var(--space-1);
+  margin: 0 0 var(--space-25);
 }
 
 .comment-text ul,
 .comment-text ol {
-  padding-inline-start: var(--space-5);
+  padding-inline-start: var(--space-150);
 }
 
 .comment-confirm {
-  padding: var(--space-2);
-  border: 1px solid var(--control-border);
+  padding: var(--space-50);
+  border: var(--stroke-thin) solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--surface);
 }
 
 .comment-confirm p {
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-50);
 }
 
 .comment-detached {
   display: grid;
-  gap: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border);
+  gap: var(--space-50);
+  padding-top: var(--space-50);
+  border-top: var(--stroke-thin) solid var(--border);
 }
 
 /* The pins over the canvas, under its toolbar and menus. */
@@ -274,7 +306,7 @@ span.comment-mention {
 .comment-pins {
   position: absolute;
   inset: 0;
-  z-index: calc(var(--z-toolbar) - 1);
+  z-index: var(--z-marks);
   overflow: hidden;
   pointer-events: none;
 }
@@ -288,7 +320,7 @@ span.comment-mention {
   width: var(--control-sm);
   height: var(--control-sm);
   padding: 0;
-  border: 2px solid var(--surface);
+  border: var(--stroke-thick) solid var(--surface);
   border-radius: var(--radius-full) var(--radius-full) var(--radius-full) 0;
   background: var(--accent-fill);
   color: var(--on-accent);
@@ -309,14 +341,31 @@ span.comment-mention {
 }
 
 .comment-pin:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thick);
 }
 
 .comment-pin-resolved {
   border-color: var(--control-border);
   background: var(--surface);
   color: var(--text-muted);
+}
+
+.comment-pin-resolved:hover {
+  box-shadow: var(--shadow-2);
+}
+
+.comment-pin-resolved:active {
+  background: var(--surface-pressed);
+}
+
+.comment-pin:disabled,
+.comment-pin-resolved:disabled {
+  border-color: var(--control-border);
+  background: var(--surface);
+  color: var(--text-muted);
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
 .comment-pin-new {
@@ -334,6 +383,6 @@ span.comment-mention {
 }
 
 .comment-placing:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: calc(-1 * var(--stroke-thick));
 }

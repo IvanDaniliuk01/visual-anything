@@ -10,10 +10,15 @@
   color: var(--on-accent);
 }
 
+.follow-dialog .dialog-actions .dialog-confirm:is(:hover, :active) {
+  border-color: var(--accent-fill-hover);
+  background: var(--accent-fill-hover);
+}
+
 /* The whole web address, as text, so that the person reads what opens. */
 .follow-address {
-  padding: var(--space-2);
-  border: 1px solid var(--border);
+  padding: var(--space-50);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--panel);
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
@@ -24,7 +29,7 @@
 /* The inspector's destinations: what each opens, and the button that follows it. */
 .inspector-destinations {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-50);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -33,7 +38,7 @@
 .inspector-destination {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-1) var(--space-2);
+  gap: var(--space-25) var(--space-50);
   align-items: center;
 }
 
@@ -49,7 +54,7 @@
 /* The external identifiers: by scheme, each with its identifier. */
 .inspector-ids {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-50);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -57,8 +62,8 @@
 
 .inspector-id {
   display: grid;
-  grid-template-columns: minmax(4rem, auto) minmax(0, 1fr) auto;
-  gap: var(--space-1) var(--space-2);
+  grid-template-columns: minmax(var(--size-400), auto) minmax(0, 1fr) auto;
+  gap: var(--space-25) var(--space-50);
   align-items: center;
 }
 
@@ -70,14 +75,14 @@
 
 .inspector-new-id {
   display: grid;
-  grid-template-columns: minmax(4rem, 1fr) minmax(0, 2fr) auto;
-  gap: var(--space-1) var(--space-2);
+  grid-template-columns: minmax(var(--size-400), 1fr) minmax(0, 2fr) auto;
+  gap: var(--space-25) var(--space-50);
   align-items: end;
-  margin-top: var(--space-2);
+  margin-top: var(--space-50);
 }
 
 /* The editor of a destination's value: what it opens, then where. */
 .destination-control {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-25);
 }

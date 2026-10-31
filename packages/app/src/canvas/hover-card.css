@@ -4,21 +4,21 @@
   top: 0;
   left: 0;
   z-index: var(--z-editor);
-  max-width: 22rem;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border);
+  max-width: var(--size-2200);
+  padding: var(--space-25) var(--space-50);
+  border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
   color: var(--text);
-  font-size: 0.8rem;
-  line-height: 1.4;
+  font-size: var(--text-xs);
+  line-height: var(--line-normal);
   box-shadow: var(--shadow-2);
   pointer-events: none;
   overflow-wrap: anywhere;
 }
 
 .canvas-hover-card-name {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .canvas-hover-card-detail {

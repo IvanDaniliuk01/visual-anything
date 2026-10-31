@@ -2,20 +2,20 @@
 
 .canvas-keys {
   position: absolute;
-  bottom: 0.6rem;
-  left: 0.6rem;
+  bottom: var(--space-60);
+  left: var(--space-60);
   z-index: var(--z-toolbar);
-  max-width: calc(100% - 1.2rem);
+  max-width: calc(100% - var(--size-120));
 }
 
 .canvas-keys > summary {
   display: inline-block;
-  padding: 0.3rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
+  padding: var(--space-30) var(--space-65);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   box-shadow: var(--shadow-1);
   cursor: pointer;
   list-style: none;
@@ -29,9 +29,14 @@
   border-color: var(--accent);
 }
 
+.canvas-keys > summary:active {
+  border-color: var(--accent);
+  background: var(--surface-pressed);
+}
+
 .canvas-keys > summary:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--stroke-thick) solid var(--accent);
+  outline-offset: var(--stroke-thick);
 }
 
 .canvas-keys[open] > summary {
@@ -41,29 +46,29 @@
 
 .canvas-keys-list {
   position: absolute;
-  bottom: calc(100% + 0.4rem);
+  bottom: calc(100% + var(--space-40));
   left: 0;
   display: grid;
-  gap: 0.35rem;
-  width: min(26rem, calc(100vw - 4rem));
+  gap: var(--space-35);
+  width: min(var(--size-2600), calc(100vw - var(--size-400)));
   max-height: 60vh;
   overflow: auto;
-  padding: 0.7rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
+  padding: var(--space-70) var(--space-90);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-2);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
 }
 
 .canvas-keys-list > div {
   display: grid;
-  grid-template-columns: 8.5rem 1fr;
-  gap: 0.6rem;
+  grid-template-columns: var(--size-850) 1fr;
+  gap: var(--space-60);
 }
 
 .canvas-keys-list dt {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .canvas-keys-list dd {

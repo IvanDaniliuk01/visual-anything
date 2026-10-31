@@ -86,9 +86,25 @@ export function OutlineTree({ active, onMenu, onCollapse }: OutlineTreeProps) {
   );
 
   if (!active) return null;
-  if (!scene) return <p className="panel-empty">{t('There is no view to outline.')}</p>;
+  // The read-only page changes nothing, so it points at another view instead.
+  const readOnly = editor.send === undefined;
+  if (!scene) {
+    return (
+      <p className="panel-empty">
+        {readOnly
+          ? t('There is no view to outline.')
+          : t('There is no view to outline. Make one with New view…, under Views.')}
+      </p>
+    );
+  }
   if (!outline || !shown || shown.rows.length === 0) {
-    return <p className="panel-empty">{t('This view has no shapes yet.')}</p>;
+    return (
+      <p className="panel-empty">
+        {readOnly
+          ? t('This view has no shapes. Choose another view.')
+          : t('This view has no shapes yet. Add one with Add an element, on the canvas.')}
+      </p>
+    );
   }
 
   /** Selects the relation's far end, shows it on the canvas and moves the focus to its row. */

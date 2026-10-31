@@ -53,10 +53,10 @@ describe('tokens.css', () => {
 
   it('defines the scales once, the same in both themes', () => {
     const declarations = rulesOf(committed).get(':root');
-    expect(declarations?.get('--space-2')).toBe(SCALE.space[2]);
+    expect(declarations?.get('--space-50')).toBe(SCALE.space[50]);
     expect(declarations?.get('--z-notices')).toBe(SCALE.z.notices);
     expect(declarations?.get('--text-xs')).toBe('0.857rem');
-    expect(committed.match(/--space-2:/g)).toHaveLength(1);
+    expect(committed.match(/--space-50:/g)).toHaveLength(1);
   });
 
   it('turns token names into CSS variables', () => {
@@ -65,12 +65,13 @@ describe('tokens.css', () => {
     expect(cssVariable('text')).toBe('--text');
   });
 
-  it('puts notices above dialogs, menus above the inline editor, and that above the toolbar', () => {
+  it('puts notices above dialogs, menus above the inline editor, that above the toolbar, and that above the canvas’s marks', () => {
     const z = SCALE.z;
     expect(Number(z.notices)).toBeGreaterThan(Number(z.dialog));
     expect(Number(z.dialog)).toBeGreaterThan(Number(z.menu));
     expect(Number(z.menu)).toBeGreaterThan(Number(z.editor));
     expect(Number(z.editor)).toBeGreaterThan(Number(z.toolbar));
+    expect(Number(z.toolbar)).toBeGreaterThan(Number(z.marks));
   });
 
   it('never goes below 12 px for text, at the default text size of 14 px', () => {
