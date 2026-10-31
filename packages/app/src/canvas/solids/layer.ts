@@ -92,7 +92,7 @@ interface Entry {
   /** Whether it is the shape being turned, rather than a drawing with parts. */
   turned: boolean;
   /** What it shows now: a texture, its part buffer and where on the canvas. */
-  shown?: { texture: Texture; key?: string; buffer: SolidPartBuffer | undefined };
+  shown?: { texture: Texture; key?: string; picture?: string; buffer: SolidPartBuffer | undefined };
   mesh?: Mesh<MeshGeometry, Shader>;
   uniforms?: UniformGroup;
   partsTexture?: { buffer: SolidPartBuffer | undefined; texture: Texture };
@@ -226,6 +226,15 @@ export class SolidLayer {
     return { buffer, rect: entry.solid.rect };
   }
 
+  /**
+   * The picture a drawing with parts shows now, by the key it is kept by (`solidPictureKey`): the
+   * benchmark waits for the one drawn without the parts a filter hides. None for a shape it does not
+   * draw, or while its picture has not arrived.
+   */
+  pictureShown(key: string): string | undefined {
+    return this.byKey.get(key)?.shown?.picture;
+  }
+
   /** The named parts of the solid a shape draws, and its anchored parts by index, for pointing. */
   partsAt(
     key: string,
@@ -295,6 +304,7 @@ export class SolidLayer {
         entry.shown = {
           texture: made.texture,
           key: made.key,
+          picture: made.picture.key,
           buffer: made.picture.partBuffer,
         };
         this.paint(entry);

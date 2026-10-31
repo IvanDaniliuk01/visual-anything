@@ -929,6 +929,14 @@ export class CanvasRenderer {
     this.requestRender();
   }
 
+  /**
+   * The picture a drawing with parts that shows a solid shows now, by the key it is kept by; none
+   * before it arrives (ADR 0075). The benchmark waits on it after a filter hides parts.
+   */
+  solidPictureShown(key: string): string | undefined {
+    return this.solidLayer.pictureShown(key);
+  }
+
   /** The relations on the turning drawing's parts as they are routed now, for the tests. */
   get turningRoutes(): readonly RelationLine[] {
     return this.turnedRoutes;

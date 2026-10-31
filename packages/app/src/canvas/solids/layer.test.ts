@@ -159,16 +159,20 @@ describe('the solid layer', () => {
     await frames(layer, images);
     const before = layer.placedBuffer('arm')?.buffer;
     expect(before).toBeDefined();
+    const arm = shapeOf(scene, 'arm');
+    expect(layer.pictureShown('arm')).toBe(solidPictureKey(arm));
     // The gripper hidden: its part, and none it holds, is asked for drawn without.
     layer.setScene(scene, NONE, NONE, new Set(['arm/gripper']));
     images.solids?.begin();
     layer.frame(VIEW);
     // Until it arrives, the old picture shows.
     expect(layer.placedBuffer('arm')?.buffer).toBe(before);
+    expect(layer.pictureShown('arm')).toBe(solidPictureKey(arm));
     await frames(layer, images);
     const draws = workers[0]?.ofType('draw') ?? [];
     expect(draws.at(-1)?.hidden).toEqual([4]);
-    const arm = shapeOf(scene, 'arm');
+    expect(layer.pictureShown('arm')).toBe(solidPictureKey(withHiddenParts(arm, [4])));
+    expect(layer.pictureShown('motor')).toBeUndefined();
     expect(draws.at(-1)?.key).toBe(`${solidPictureKey(withHiddenParts(arm, [4]))}@512`);
     expect(layer.placedBuffer('arm')?.buffer).not.toBe(before);
   });

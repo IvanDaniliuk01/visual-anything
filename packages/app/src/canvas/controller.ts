@@ -85,7 +85,13 @@ import {
   type RelationStop,
   type Start,
 } from './navigation';
-import { CanvasRenderer, type DragFrame, type GridOptions, type Overlay } from './renderer';
+import {
+  CanvasRenderer,
+  type DragFrame,
+  type GridOptions,
+  type Overlay,
+  type RendererOptions,
+} from './renderer';
 import { RouteEditor } from './routing/editor';
 import { sameSlot } from './rowDrop';
 import { rowMoveFor, rowTargetFor } from './rowKeys';
@@ -200,6 +206,10 @@ export interface ControllerOptions {
   solids?: SolidClient;
   /** Whether the person asks for reduced motion, under which no solid's animation is offered. */
   reducedMotion?: () => boolean;
+  /** How pictures are decoded and made textures; the browser's by default, as tests replace it. */
+  images?: RendererOptions['images'];
+  /** How text is made; PixiJS's by default, as tests in jsdom, which draws none, replace it. */
+  text?: RendererOptions['text'];
 }
 
 type Gesture =
@@ -420,6 +430,8 @@ export class CanvasController {
         ...(options.theme ? { theme: options.theme } : {}),
         ...(options.firstFit ? { firstFit: options.firstFit } : {}),
         ...(options.solids ? { solids: options.solids } : {}),
+        ...(options.images ? { images: options.images } : {}),
+        ...(options.text ? { text: options.text } : {}),
       },
     );
     this.solids = options.solids;
