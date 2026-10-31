@@ -95,3 +95,15 @@ A component with `simulation` whose package code does not export `simulate`, or 
 - The app gains the worker's simulation messages, the tab's simulation store, the inspector's section, simulated values in its attribute lookup, and a tick's marks on the canvas and in the panel.
 - Claude gains `get_simulation`, `run_simulation` and `show_simulation`.
 - CONTEXT.md gains Simulation, Simulation run, Tick, Parameter, Simulated value and Simulation limit.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-31 under the user's standing delegation of design decisions. -->
+
+- 2026-10-31 (M12's worker): what the ADR left open.
+  - **The tick's generator in the sandbox.** The prelude makes the core's `TICK_RANDOM_SOURCE` before the package's code runs, on an `imul` of its own, so code that replaces `Math.imul` changes nothing it draws. `Math.random` is the prelude's own function, which code can neither replace nor get past: assigning to it throws. For each call of `simulate` it draws from a generator made afresh from the run's seed and the tick, in one sequence with `context.random()`; a `Math.random` taken at the module's top draws from the tick under way too. In the other hooks it draws as the engine does.
+  - **Numbers that are not finite.** JSON cannot hold them, so `simulate`'s answer leaves the interpreter as `[answer, carried]`: a simulated value that is `NaN`, `Infinity` or `-Infinity` is written `null`, and `carried` names it with what it was, so that the core's check stops the run at that value's limit. Only values are carried: such a number in the state, or anywhere else, is not plain data, and fails.
+  - **How long an answer may be.** 128 KiB as JSON, twice the state's cap, so that a state up to 64 KiB with the tick's values and marks reaches the core's check, which refuses a state past 64 KiB; past 128 KiB the interpreter refuses the answer before it leaves.
+  - **Slices.** The runner takes the tab's requests in order, once the packages sent before them run. Runs' ticks are worked out in slices of their own, as long as the hooks' (40 ms); while both have work, a slice of each in turn, within a long round of hooks too, so neither waits on the other. The worker says it is idle only when neither has work, so its watchdog keeps watching while a run plays, and blames the package whose `simulate` it called last.
+  - **What counts towards turning code off.** Each failure of a run counts one stop, as a stopped call of ADR 0054 does, and shows as the package's last problem, naming `simulate` and the element. A tick that answers ends no row of stops: a run calls `simulate` for every tick, so code failing at its fourth tick every time would otherwise never be counted, nor code that stalls the worker there, whose runs the tab starts again. A hook's call that does not stop ends the row, as ADR 0054 has it.
+  - **Why a run cannot go on.** A run whose code is turned off, or no longer among the packages the app sends, ends as when the model changed, keeping its ticks, and also says why, as a run that cannot start does: `off`, `not-approved`, or `no-code` for code that does not export `simulate` or did not load.

@@ -10,6 +10,12 @@
  * fetched and hands back what came, and the elements that read an address are called again when its
  * answer changes. What such a call answers is a live value, not a computed one: the app sends it to
  * the program, as the package's.
+ *
+ * It also plays simulation runs (ADR 0085), through a `SimulationDriver` it owns: the tab's requests
+ * go to the driver, and the runs' ticks are worked out in slices of their own, taking turns with the
+ * hooks' slices whenever both have work, so that neither waits on the other. A call of `simulate`
+ * keeps every limit a hook's call keeps, and a failure of the code in it counts towards turning its
+ * package off as a stopped call does; a stop at a limit, at its ticks or by itself does not.
  */
 import {
   CODE_LIMITS,
@@ -34,8 +40,12 @@ import {
   type ModelReader,
   type Problem,
   type ProjectSnapshot,
+  type RunBudget,
+  type CodeFailure,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
+import { SimulationDriver, type SimulateOutcome, type SimulationHost } from '../simulation/driver';
+import type { SimulationReply, SimulationRequest } from '../simulation/messages';
 import type {
   CodeReply,
   CodeRequest,
@@ -46,7 +56,7 @@ import type {
   RunPackage,
   WantedAddress,
 } from './messages';
-import type { CodeSandbox, NetworkReader } from './sandbox';
+import { exportsNo, type CodeSandbox, type NetworkReader } from './sandbox';
 
 /** What one hook of one package answered for one element, kept until its input changes. */
 interface HookResult {
@@ -82,6 +92,8 @@ export interface RunnerOptions {
   pause?: () => Promise<void>;
   /** How long a slice of work runs before it tells the app and lets messages in, in milliseconds. */
   sliceMs?: number;
+  /** For tests: smaller budgets for what simulation runs keep than the limits'. */
+  simulationBudget?: Partial<RunBudget>;
 }
 
 export class CodeRunner {
@@ -111,15 +123,33 @@ export class CodeRunner {
   private readonly now: () => number;
   private readonly pause: () => Promise<void>;
   private readonly sliceMs: number;
+  /** The simulation runs, worked out here (ADR 0085). */
+  private readonly driver: SimulationDriver;
+  /** What the tab asked of its runs that the driver has not taken yet, in order. */
+  private readonly simulationRequests: SimulationRequest[] = [];
+  /** The generation the hooks last went over everything for. */
+  private roundFor = -1;
+  /** The package and the element of the call of `simulate` under way, or the last one. */
+  private simulating: { pkg: Id; element: { id: Id; name: string } } | undefined;
 
   constructor(private readonly options: RunnerOptions) {
     this.now = options.now ?? (() => performance.now());
     this.pause = options.pause ?? (() => new Promise((resolve) => setTimeout(resolve, 0)));
     this.sliceMs = options.sliceMs ?? 40;
+    this.driver = new SimulationDriver(
+      this.simulationHost(),
+      options.simulationBudget ? { budget: options.simulationBudget } : {},
+    );
   }
 
   /** Takes a request from the app; the work it calls for starts at once, or after the work under way. */
   receive(request: CodeRequest): void {
+    if (isSimulationRequest(request)) {
+      // Taken in order, once the packages asked for before it run.
+      this.simulationRequests.push(request);
+      this.start();
+      return;
+    }
     switch (request.kind) {
       case 'project':
         this.project = request.project;
@@ -135,6 +165,11 @@ export class CodeRunner {
         break;
     }
     this.generation += 1;
+    this.start();
+  }
+
+  /** Starts working, unless it works already. */
+  private start(): void {
     this.working ??= this.work().finally(() => {
       this.working = undefined;
     });
@@ -145,15 +180,124 @@ export class CodeRunner {
     while (this.working) await this.working;
   }
 
+  /**
+   * Works until everything asked for is done: the hooks' rounds, and the ticks the tab asked its runs
+   * for. While both have work, a slice of each in turn.
+   */
   private async work(): Promise<void> {
-    let finished = false;
-    while (!finished) {
+    let runsTurn = false;
+    for (;;) {
+      this.sandbox ??= await this.options.newSandbox();
+      this.syncPackages();
+      this.takeSimulationRequests();
+      const hooksDue = this.roundFor !== this.generation;
+      const runsDue = this.driver.busy;
+      if (!hooksDue && !runsDue) break;
+      if (runsDue && (runsTurn || !hooksDue)) {
+        await this.simulationSlice();
+        runsTurn = false;
+        continue;
+      }
+      runsTurn = true;
       const generation = this.generation;
-      finished = (await this.round(generation)) && generation === this.generation;
+      if (await this.round(generation)) this.roundFor = generation;
     }
     this.calling = undefined;
     this.flush();
     this.options.post({ kind: 'idle' });
+  }
+
+  /** Hands the driver what the tab asked of its runs, and tells the tab what it answers at once. */
+  private takeSimulationRequests(): void {
+    for (const request of this.simulationRequests.splice(0)) {
+      this.postSimulation(this.driver.receive(request));
+    }
+  }
+
+  /**
+   * One slice of simulation runs: ticks worked out, one from each run in turn, until the slice is
+   * over or no run wants more; then the tab is told, and the messages that came in are let in.
+   */
+  private async simulationSlice(): Promise<void> {
+    const started = this.now();
+    const replies = this.driver.work(
+      () => this.sandbox?.crashed === true || this.now() - started > this.sliceMs,
+    );
+    this.postSimulation(replies);
+    if (this.sandbox?.crashed) await this.replaceSandbox();
+    this.flush();
+    await this.pause();
+  }
+
+  private postSimulation(replies: readonly SimulationReply[]): void {
+    for (const reply of replies) this.options.post(reply);
+  }
+
+  /** Tells the driver the project and the packages as they run now: a run that reads otherwise ends. */
+  private refreshRuns(): void {
+    if (this.project) this.postSimulation(this.driver.refresh(this.project));
+  }
+
+  /** What the driver needs of this worker: the packages' code, their sandbox and their row of stops. */
+  private simulationHost(): SimulationHost {
+    return {
+      code: (pkg) => {
+        const running = this.running.get(pkg);
+        if (!running || !this.requested.some((each) => each.package === pkg)) {
+          return { ok: false, reason: 'not-approved' };
+        }
+        const { run } = running;
+        if (run.state === 'off') return { ok: false, reason: 'off' };
+        if (run.state === 'failed' && run.problem?.code === 'code-not-approved') {
+          return { ok: false, reason: 'not-approved' };
+        }
+        if (run.state !== 'running' || !run.hooks.includes('simulate')) {
+          return { ok: false, reason: 'no-code' };
+        }
+        return { ok: true, hash: running.request.hash };
+      },
+      call: (pkg, input, seed, tick): SimulateOutcome => {
+        const running = this.running.get(pkg);
+        const sandbox = this.sandbox;
+        this.simulating = { pkg, element: { id: input.element.id, name: input.element.name } };
+        if (!running || running.run.state !== 'running' || !sandbox) {
+          return { ok: false, failure: { kind: 'threw', message: exportsNo('simulate') } };
+        }
+        this.calling = pkg;
+        const reads = running.request.granted.includes('model:read');
+        const outcome = sandbox.simulate(
+          pkg,
+          input,
+          seed,
+          tick,
+          reads && this.project ? modelReaderOf(this.project) : undefined,
+        );
+        return outcome.ok
+          ? { ok: true, answer: outcome.answer }
+          : { ok: false, failure: outcome.failure };
+      },
+      failed: (pkg, failure) => this.simulationFailed(pkg, failure),
+    };
+  }
+
+  /**
+   * A run's failure, which counts as a call that stopped (ADR 0085): its code threw, ran past its
+   * time or its memory, or answered what the core's checks refuse. It shows as the package's last
+   * problem, and the third in a row turns the package off, ending its other runs. A tick that
+   * answers ends no row: a run calls `simulate` for every tick, so code that fails at its fourth
+   * tick every time would never be counted, nor would code that stalls the worker there, whose runs
+   * the tab starts again; a hook's call that does not stop ends it, as ADR 0054 has it.
+   */
+  private simulationFailed(pkg: Id, failure: CodeFailure): void {
+    const running = this.running.get(pkg);
+    if (!running || running.run.state !== 'running') return;
+    const on = this.simulating?.pkg === pkg ? this.simulating.element : undefined;
+    if (on) {
+      const named = { id: pkg, name: running.request.name };
+      running.run = { ...running.run, problem: callProblem(named, 'simulate', on, failure) };
+      this.pendingPackages.set(pkg, running.run);
+    }
+    this.count(running, true);
   }
 
   /** One pass over everything; false when a newer request came in during it. */
@@ -175,6 +319,8 @@ export class CodeRunner {
         const running = this.running.get(id);
         for (const hook of running?.run.hooks ?? []) {
           if (!running || running.run.state !== 'running') break;
+          // Only simulation runs call simulate, tick by tick, in slices of their own.
+          if (hook === 'simulate') continue;
           if (hook === 'draw' && !this.view.shown.has(element.id)) {
             this.resultsOf(id, hook).delete(element.id);
             continue;
@@ -186,6 +332,11 @@ export class CodeRunner {
             this.flush();
             await this.pause();
             if (generation !== this.generation) return false;
+            this.takeSimulationRequests();
+            if (this.driver.busy) {
+              await this.simulationSlice();
+              if (generation !== this.generation) return false;
+            }
             sliceStart = this.now();
           }
         }
@@ -363,6 +514,7 @@ export class CodeRunner {
       this.running.set(request.package, { request, run });
       this.pendingPackages.set(request.package, run);
     }
+    this.refreshRuns();
   }
 
   /** Calls a hook on an element when what it would be given changed since it was last called. */
@@ -459,6 +611,9 @@ export class CodeRunner {
         stops,
         offProblem({ id: request.package, name: request.name }),
       );
+      this.pendingPackages.set(request.package, running.run);
+      this.refreshRuns();
+      return;
     } else {
       running.run = { ...running.run, stops };
     }
@@ -554,6 +709,18 @@ export class CodeRunner {
     this.pendingCleared.clear();
     this.pendingPackages.clear();
   }
+}
+
+const SIMULATION_REQUESTS: ReadonlySet<string> = new Set<SimulationRequest['kind']>([
+  'simulation/start',
+  'simulation/until',
+  'simulation/from-here',
+  'simulation/more',
+  'simulation/close',
+]);
+
+function isSimulationRequest(request: CodeRequest): request is SimulationRequest {
+  return SIMULATION_REQUESTS.has(request.kind);
 }
 
 /** How often an address is fetched again, in milliseconds, from the seconds the code asked for. */

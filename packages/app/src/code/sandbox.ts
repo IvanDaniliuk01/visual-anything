@@ -8,8 +8,14 @@
  * knows nothing of projects: it is handed the code, the capabilities granted and each hook's input,
  * and hands back what the code answered, parsed from JSON and not yet checked by the core.
  */
-import type { CodeFailure, HookInput, HookName, ModelReader } from '@visual-anything/core';
-import { CODE_LIMITS, HOOK_NAMES } from '@visual-anything/core';
+import type {
+  CodeFailure,
+  HookInput,
+  HookName,
+  ModelReader,
+  SimulateInput,
+} from '@visual-anything/core';
+import { CODE_LIMITS, HOOK_NAMES, SIMULATION_LIMITS } from '@visual-anything/core';
 import type { Capability, Id } from '@visual-anything/schema';
 import type {
   QuickJSContext,
@@ -25,6 +31,13 @@ import { NOT_AN_ERROR, PRELUDE, REFUSED } from './prelude';
  * it reaches the browser's limit before QuickJS's, so this keeps well under it.
  */
 export const STACK_BYTES = 48 * 1024;
+
+/**
+ * The longest answer `simulate` may give, as JSON, in characters: twice the longest state a tick may
+ * answer (ADR 0085), so that a state up to its cap, with the tick's values and marks, reaches the
+ * core's check, which keeps or refuses it.
+ */
+export const SIMULATE_ANSWER_TEXT = 2 * SIMULATION_LIMITS.stateText;
 
 /**
  * Why the sandbox itself could not run a package's code, in its own words: messages of their own,
@@ -288,9 +301,30 @@ export class CodeSandbox {
   }
 
   /**
+   * Calls a loaded package's `simulate` for one tick of a run (ADR 0085), with a frozen copy of its
+   * input: `simulate(element, context)`, where `context.random()` and `Math.random()` draw from the
+   * generator of the run's seed and the tick, as the core's `tickRandom(seed, tick)` does. With
+   * `model:read` granted, `context.model` reads the whole model through `reader`.
+   *
+   * Its answer may be up to {@link SIMULATE_ANSWER_TEXT} characters as JSON, so that a state of 64 KiB
+   * reaches the core's check; and a simulated value that is a number but not finite comes back as
+   * itself, `NaN` or `Infinity`, for the core's check to stop the run at its limit.
+   */
+  simulate(
+    id: Id,
+    input: SimulateInput,
+    seed: number,
+    tick: number,
+    reader?: ModelReader,
+  ): CallOutcome {
+    return this.call(id, 'simulate', input, reader, undefined, { seed, tick });
+  }
+
+  /**
    * Calls one hook of a loaded package with a frozen copy of its input: `hook(element, context)`.
    * With `model:read` granted, `context.model` reads the whole model through `reader`; with an origin
-   * granted, `context.fetched` reads what was fetched through `network`, in `attributes` only.
+   * granted, `context.fetched` reads what was fetched through `network`, in `attributes` only. For
+   * `simulate`, `random` gives the run's seed and the tick, the default seed and tick 0 when left out.
    */
   call(
     id: Id,
@@ -298,8 +332,11 @@ export class CodeSandbox {
     input: HookInput,
     reader?: ModelReader,
     network?: NetworkReader,
+    random?: { seed: number; tick: number },
   ): CallOutcome {
     const started = this.now();
+    const simulating = hook === 'simulate';
+    const answerText = simulating ? SIMULATE_ANSWER_TEXT : CODE_LIMITS.answerText;
     const loaded = this.packages.get(id);
     const handle = loaded?.hooks.get(hook);
     if (!loaded || !handle) {
@@ -315,7 +352,7 @@ export class CodeSandbox {
     try {
       const json = context.newString(JSON.stringify([input.element, input.context]));
       handles.push(json);
-      const limit = context.newNumber(CODE_LIMITS.answerText);
+      const limit = context.newNumber(answerText);
       handles.push(limit);
       loaded.reader = reader;
       loaded.network = network;
@@ -327,6 +364,12 @@ export class CodeSandbox {
         loaded.readNetwork !== undefined && network !== undefined && hook === 'attributes'
           ? loaded.readNetwork
           : context.undefined;
+      // For simulate, the run's seed and the tick, from which the prelude makes the tick's generator.
+      const seed = simulating
+        ? context.newNumber(random?.seed ?? SIMULATION_LIMITS.defaultSeed)
+        : context.undefined;
+      const tick = simulating ? context.newNumber(random?.tick ?? 0) : context.undefined;
+      if (simulating) handles.push(seed, tick);
       // The deadline stays in force until everything is read back: whatever reads a value the code
       // made runs inside `run`, and a getter or a proxy trap that never ends is stopped there.
       this.deadline = started + this.callMs;
@@ -338,6 +381,8 @@ export class CodeSandbox {
         limit,
         read,
         readNetwork,
+        seed,
+        tick,
       );
       const ms = this.now() - started;
       if (result.error) {
@@ -353,7 +398,7 @@ export class CodeSandbox {
       const type = context.typeof(value);
       if (type === 'number') {
         const code = context.getNumber(value);
-        const reason = REFUSED[code]?.(CODE_LIMITS.answerText) ?? 'it is not plain data';
+        const reason = REFUSED[code]?.(answerText) ?? 'it is not plain data';
         return { ok: false, failure: { kind: 'answer', reason }, ms };
       }
       if (type !== 'string') {
@@ -361,24 +406,25 @@ export class CodeSandbox {
       }
       // A primitive string: its length is read before its text, so a long one is never copied out.
       const length = lengthOf(context, value, handles);
-      if (length > CODE_LIMITS.answerText + 1 + LONGEST_DESCRIPTION) {
+      if (length > answerText + 1 + LONGEST_DESCRIPTION) {
         return {
           ok: false,
-          failure: { kind: 'answer', reason: REFUSED[3]?.(CODE_LIMITS.answerText) ?? '' },
+          failure: { kind: 'answer', reason: REFUSED[3]?.(answerText) ?? '' },
           ms,
         };
       }
       const text = context.getString(value);
       if (text.startsWith('E'))
         return { ok: false, failure: inOwnWords(describedFailure(text.slice(1))), ms };
-      if (!text.startsWith('A') || text.length - 1 > CODE_LIMITS.answerText) {
+      if (!text.startsWith('A') || text.length - 1 > answerText) {
         return {
           ok: false,
-          failure: { kind: 'answer', reason: REFUSED[3]?.(CODE_LIMITS.answerText) ?? '' },
+          failure: { kind: 'answer', reason: REFUSED[3]?.(answerText) ?? '' },
           ms,
         };
       }
-      return { ok: true, answer: JSON.parse(text.slice(1)) as unknown, ms };
+      const parsed = JSON.parse(text.slice(1)) as unknown;
+      return { ok: true, answer: simulating ? carriedThrough(parsed) : parsed, ms };
     } catch (error) {
       this.deadline = Infinity;
       this.spent = true;
@@ -501,6 +547,40 @@ const DESCRIBE_MS = 5;
 
 /** The longest name or message `describe` gives, as the prelude cuts them. */
 const LONGEST_DESCRIPTION = 1000;
+
+/**
+ * What `run` wrote for `simulate`, `[answer, carried]`, as the answer itself: each simulated value
+ * `carried` names, written null since JSON cannot hold it, is the number it was, `NaN`, `Infinity`
+ * or `-Infinity`, for the core's check to stop the run at its limit.
+ */
+function carriedThrough(written: unknown): unknown {
+  if (!Array.isArray(written) || written.length !== 2) return written;
+  const [answer, carried] = written as [unknown, unknown];
+  if (!Array.isArray(carried) || carried.length === 0) return answer;
+  const values =
+    typeof answer === 'object' && answer !== null
+      ? (answer as { values?: unknown }).values
+      : undefined;
+  if (typeof values !== 'object' || values === null) return answer;
+  for (let at = 0; at + 1 < carried.length; at += 2) {
+    const name: unknown = carried[at];
+    const what: unknown = carried[at + 1];
+    if (typeof name !== 'string') continue;
+    const value =
+      what === 'Infinity'
+        ? Number.POSITIVE_INFINITY
+        : what === '-Infinity'
+          ? Number.NEGATIVE_INFINITY
+          : Number.NaN;
+    Object.defineProperty(values, name, {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return answer;
+}
 
 /** The length of a primitive string, read without running anything: strings' own length. */
 function lengthOf(context: QuickJSContext, text: QuickJSHandle, handles: QuickJSHandle[]): number {
