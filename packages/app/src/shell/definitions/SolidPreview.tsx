@@ -21,6 +21,7 @@ import { useSolidClient } from '../../canvas/solids/useSolidClient';
 import { useT } from '../../i18n';
 import type { SolidClient, SolidTurning } from '../../solids/client';
 import type { SolidFrameReply } from '../../solids/protocol';
+import './images.css';
 
 interface SolidPreviewProps {
   /** The solid's file, by its hash. */

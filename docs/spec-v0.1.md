@@ -950,11 +950,12 @@ Its tasks run in this order:
   - relations ending at the parts' points with their dots, and layout's ports for each related part (ADR 0015's clarification);
   - drawing again when filters or isolation hide parts;
   - Turn: the shape's handle, the shape menu and T, dragging, the wheel and the keys, Escape, relations following their parts while it turns, Play, and Use this view.
-- [ ] **The editors** (the inspector, the component editor and the Components tab):
+- [x] **The editors** (the inspector, the component editor and the Components tab). Done 2026-10-31, by a builder, with Import…'s dialog for `.glb` and `.gltf`, which the cleaner's task left to it, and the files no package names over the live connection (ADR 0075's clarification of that date):
   - the component editor's Solid section: choosing a solid, its placement, its camera with Use this view, its lighting, and a preview that turns;
   - the Components tab's solids: name, description, source, license, size and counts, Replace with the parts it loses, Remove, and the files no package names;
   - Anchor parts… for solids;
-  - every text in English and Spanish, and the catalog test's avoided words extended with the new terms' avoid lists.
+  - every text in English and Spanish, and the catalog test's avoided words extended with the new terms' avoid lists;
+  - the inspector's solid with its description, or that it has none, and the canvas's Use this view while it turns.
 - [ ] **Claude's tools** (`server/src/claude/solid-tools.ts`):
   - `import_solid`, from a regular file inside the project folder, with `units`, `up` and `simplify`;
   - `list_solid_parts`, `update_solid`, `replace_solid` with the parts it loses, and `remove_solid`;

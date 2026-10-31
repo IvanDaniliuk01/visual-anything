@@ -313,3 +313,41 @@
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
+
+/* The Components tab's solids (ADR 0075): each solid, its fields, and the files no package names. */
+.components-solid {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.components-solid .item-notes {
+  margin: 0;
+}
+
+.components-solid-fields {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.3rem 0.5rem;
+}
+
+.components-solid-fields .item-notes {
+  grid-column: 1 / -1;
+}
+
+.components-unnamed {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+}
+
+.components-unnamed h4 {
+  margin: 0;
+}
+
+.components-unnamed-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.5rem;
+}
