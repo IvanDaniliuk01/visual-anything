@@ -194,7 +194,7 @@ export class SimulationDriver {
       definition: simulated.definition,
       base,
       baseKey: JSON.stringify(base),
-      markable: markableOf(base),
+      markable: markableOf(base, project),
       until: request.until,
       told: 0,
     });

@@ -1081,7 +1081,7 @@ Its tasks run in this order:
 - runs, parameters and seeds are never saved; a view state, its address and a tour step can carry one simulation at one tick;
 - the keyboard and a screen reader reach the section and announce a run's stops; the text is in English and Spanish;
 - Claude reads a simulation with `get_simulation`, runs it with `run_simulation` after the person's approval, and shows it in the app with the guidance `show_simulation`;
-- a sample project holds a work queue under load that goes past its limit when arrivals outgrow its workers, and a case moving through its states along the model's relations, with a tour, in English and Spanish;
+- a sample project holds a work queue under load that goes past its limit when arrivals outgrow its workers, and a case moving through its states along the model's relations, with a tour, written in English as samples are (ADR 0051);
 - the simulation benchmark (`?simulate`) is measured and recorded (not held): 100 elements simulating at once on the 10,000-element view, with an overlay reading their values. The marks are:
   - the canvas keeps its 60 frames per second target;
   - a tick shows within two frames of its answer;
@@ -1108,7 +1108,7 @@ Its tasks run in this order:
   - view states and addresses with `simulation`;
   - announcements, keys and the text in English and Spanish.
 - [ ] **Claude's tools** (`server/src/claude/simulation-tools.ts`): `get_simulation`, `run_simulation` and `show_simulation`, with descriptions and examples.
-- [ ] **The sample:** `examples/simulate`, with a package of a work queue and a case through its states, its code, a view, and a tour that shows the queue going past its limit, in English and Spanish.
+- [ ] **The sample:** `examples/simulate`, with a package of a work queue and a case through its states, its code, a view, and a tour that shows the queue going past its limit, in English as samples are (ADR 0051).
 - [ ] **The benchmark:** `?simulate`, in work and frames modes, with the marks of the "Done when" above, recorded in `docs/designs/benchmark-12.md`.
 
 **Track A · Look and feel**, beside the milestones: A1 right after M2 and before M3's app tasks; A2's core before M3's commands for collapse, expand and filters, and A2 tagged before M4's write tools are fixed; A3 after M3's canvas tasks; A4 before M4's UI tasks. Its commits start with `A<n>:`, and each stage is tagged `a<n>` when its Done when holds.

@@ -27,7 +27,7 @@ Both are a state that moves forward one tick at a time, from parameters, with ch
   - It answers:
     - `values`: the declared simulated values, by name;
     - `state`: any plain data the next tick needs, up to 64 KiB written as JSON;
-    - `marks`: up to 64 ids among the element, its relations, their ends, its containers and its contents, to show on the canvas this tick;
+    - `marks`: up to 64 ids among the element, its relations, their ends, its containers, its contents and the relations between its contents, to show on the canvas this tick, so that a case moving through the states it holds marks the way it went;
     - `done`: `true`, or a short sentence, when the behavior has ended by itself.
 - **Chance repeats.** `context.random()` and `Math.random()` draw from one generator whose seed is made from the run's seed and the tick, so the same code, parameters, seed and model always give the same ticks. A tick can also be worked out again from the state before it, with nothing else kept. The clock stays off without `time` (ADR 0054), and `context.time` is simulated time, never the clock's.
 - **The input is read once.** A run reads the element's context when it starts. An edit to the model while it runs ends the run, which says that the model changed. The ticks it holds are kept, and Run again starts it afresh.

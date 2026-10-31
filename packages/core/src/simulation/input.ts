@@ -7,6 +7,7 @@ import type { Id, JsonValue, TickLength } from '@visual-anything/schema';
 import type { HookContext, HookInput } from '../code/input';
 import { hookInputOf } from '../code/input';
 import type { ProjectSnapshot } from '../snapshot';
+import { modelIndexOf } from '../state';
 import type { RunParameters } from './parameters';
 
 /** What lies around the element, and where the run is. */
@@ -59,13 +60,25 @@ export function simulateInputAt(
   };
 }
 
-/** What a tick of a run on this input may mark: the element, its relations, their ends, its
- * containers and its contents. */
-export function markableOf(base: HookInput): Set<Id> {
+/**
+ * What a tick of a run on this input may mark: the element, its relations, their ends, its
+ * containers and its contents, and, given the project, the relations between its contents, so that
+ * a case moving through the states it holds can mark the way it went.
+ */
+export function markableOf(base: HookInput, project?: ProjectSnapshot): Set<Id> {
   const markable = new Set<Id>([base.element.id]);
   for (const relation of base.context.relations) markable.add(relation.id);
   for (const end of base.context.ends) markable.add(end.id);
   for (const each of base.context.containers) markable.add(each.id);
-  for (const each of base.context.contents) markable.add(each.id);
+  const contents = new Set(base.context.contents.map((each) => each.id));
+  for (const id of contents) markable.add(id);
+  if (project) {
+    const index = modelIndexOf(project);
+    for (const id of contents) {
+      for (const relation of index.relationsOn(id)) {
+        if (contents.has(relation.from) && contents.has(relation.to)) markable.add(relation.id);
+      }
+    }
+  }
   return markable;
 }
