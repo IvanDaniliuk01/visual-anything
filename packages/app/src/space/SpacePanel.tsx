@@ -15,7 +15,10 @@
  * the one its state gives, or the one that frames everything.
  *
  * It also draws in space the relations along which markers travel on the canvas, the scenario step
- * played among them, with their markers (`lines.ts`); takes up the framings it is asked for
+ * played among them, with their markers, and, while Relations of the selection is on, the relations
+ * of the selection that the canvas draws and its emphasis does not hide (`lines.ts`); offers the ways
+ * of reading under its tools (`SpaceReading`), whose exploded view eases in unless motion is
+ * reduced, and Show World in its bar while it shows an element; takes up the framings it is asked for
  * (`useFramingRequests.ts`); and keeps where each frame was drawn from, which moves of its camera
  * start from (`moves.ts`).
  */
@@ -25,6 +28,7 @@ import {
   overlayLookOf,
   spaceOf,
   type ProjectSnapshot,
+  type Space,
   type ThemeName,
   type ViewSpace,
 } from '@visual-anything/core';
@@ -39,12 +43,13 @@ import {
   useState,
   type RefObject,
 } from 'react';
-import { emphasize } from '../canvas/emphasize';
+import { emphasize, type Emphasized } from '../canvas/emphasize';
 import type { Scene } from '../canvas/scene';
 import { useEmphasis } from '../editor/emphasis';
 import { useHover } from '../editor/hover';
 import type { Selection } from '../editor/selection';
 import { useT } from '../i18n';
+import { WorldIcon } from '../shell/icons';
 import { useAttributeLookup } from '../live-values/context';
 import { useMotion } from '../scenarios/motion';
 import type { SolidClient, SolidProblem, SpaceDrawing } from '../solids/solid-client';
@@ -64,7 +69,9 @@ import { SpaceTools } from './SpaceTools';
 import { shiftsFrom } from './drag';
 import { useSpaceInteraction, type HandleMode } from './useSpaceInteraction';
 import { drawsNothing, spaceEntriesOf } from './entries';
-import { spaceLinesOf } from './lines';
+import { selectionRelationsOf, spaceLinesOf, type SelectionRelation } from './lines';
+import { EXPLODE_EASE, explodeBetween, showingWorld } from './reading';
+import { SpaceReading } from './SpaceReading';
 import { SpacePanelEdge } from './SpacePanelEdge';
 import { shapeEmphasisOf, spaceStateList, spaceStates, type SpaceOverlayLook } from './states';
 import type { SpacePanelStore } from './store';
@@ -146,6 +153,12 @@ function OpenSpacePanel({
     [],
   );
   const drawn = !empty && client !== undefined;
+  const world = index.world;
+  const showsElement = shown.root !== undefined && shown.root !== world.id;
+  const showWorld = () => {
+    store.set(view.id, showingWorld(store.state(view.id) ?? shown));
+    say(t('Shows World.'));
+  };
   return (
     <section className="space-panel" id={id} aria-labelledby={heading}>
       <div className="space-panel-bar">
@@ -154,6 +167,12 @@ function OpenSpacePanel({
         </h2>
         {root && (
           <span className="space-panel-shows">{t('Shows “{name}”', { name: root.name })}</span>
+        )}
+        {showsElement && (
+          <button type="button" className="space-panel-tool space-panel-world" onClick={showWorld}>
+            <WorldIcon />
+            {t('Show World')}
+          </button>
         )}
         <button
           type="button"
@@ -175,6 +194,9 @@ function OpenSpacePanel({
           say={say}
           readOnly={readOnly}
         />
+      )}
+      {drawn && (
+        <SpaceReading store={store} viewId={view.id} shown={shown} space={space} say={say} />
       )}
       {empty ? (
         <p className="space-panel-message">
@@ -279,13 +301,14 @@ function SpaceFrames({
   const hovered = useHover()?.element;
   const lookup = useAttributeLookup();
   const overlay = useMemo(() => overlayOf(project, view, lookup), [project, view, lookup]);
+  const emphasized = useMemo(() => emphasize(scene, emphasis), [scene, emphasis]);
   const states = useMemo(
     () =>
       spaceStateList(
         spaceStates({
           space,
           shapes: scene.shapes,
-          emphasis: shapeEmphasisOf(emphasize(scene, emphasis)),
+          emphasis: shapeEmphasisOf(emphasized),
           selected: selection.elements,
           hovered,
           overlay,
@@ -293,14 +316,27 @@ function SpaceFrames({
           world: index.world.id,
         }),
       ),
-    [space, scene, emphasis, selection.elements, hovered, overlay, index],
+    [space, scene, emphasized, selection.elements, hovered, overlay, index],
   );
-  // The relations markers travel along on the canvas, drawn in space with their markers.
+  // The relations markers travel along on the canvas, drawn in space with their markers, and the
+  // relations of the selection while Relations of the selection is on.
   const markers = emphasis.markers;
-  const lines = useMemo(
-    () => (markers && markers.length > 0 ? spaceLinesOf(project, space, markers) : undefined),
-    [project, space, markers],
+  const ofSelection = useSelectionRelations(
+    shown.relations === true,
+    project,
+    space,
+    scene,
+    emphasized,
+    selection,
   );
+  const lines = useMemo(
+    () =>
+      (markers && markers.length > 0) || ofSelection.length > 0
+        ? spaceLinesOf(project, space, markers ?? [], ofSelection)
+        : undefined,
+    [project, space, markers, ofSelection],
+  );
+  const explode = useEasedExplode(store, shown.explode ?? 0, reduced);
   // How far the exploded view moves each entry, as the newest frame that said so.
   const [shifts, setShifts] = useState<ReadonlyMap<Id, SpacePoint>>();
   const interaction = useSpaceInteraction({
@@ -325,7 +361,7 @@ function SpaceFrames({
       states,
       ...(shown.camera ? { camera: shown.camera } : {}),
       ...(shown.cut ? { cut: shown.cut } : {}),
-      ...(shown.explode === undefined ? {} : { explode: shown.explode }),
+      ...(explode > 0 ? { explode } : {}),
       ...(shown.names === undefined ? {} : { names: shown.names }),
       ...(lines && lines.length > 0 ? { lines } : {}),
       theme,
@@ -338,7 +374,7 @@ function SpaceFrames({
       states,
       shown.camera,
       shown.cut,
-      shown.explode,
+      explode,
       shown.names,
       lines,
       theme,
@@ -417,6 +453,58 @@ function SpaceFrames({
       )}
     </div>
   );
+}
+
+const NO_RELATIONS: readonly SelectionRelation[] = [];
+
+/** The relations of the selection the panel draws: none while Relations of the selection is off. */
+function useSelectionRelations(
+  on: boolean,
+  project: ProjectSnapshot,
+  space: Space,
+  scene: Scene,
+  emphasized: Emphasized,
+  selection: Selection,
+): readonly SelectionRelation[] {
+  const { elements, relations } = selection;
+  return useMemo(
+    () =>
+      on
+        ? selectionRelationsOf(project, space, scene, emphasized, { elements, relations })
+        : NO_RELATIONS,
+    [on, project, space, scene, emphasized, elements, relations],
+  );
+}
+
+/**
+ * The exploded view the panel draws: the factor it is given, eased in over a moment from where it
+ * was, on the store's frames, or at once while motion is reduced (ADR 0076).
+ */
+function useEasedExplode(store: SpacePanelStore, target: number, reduced: boolean): number {
+  const [drawn, setDrawn] = useState(target);
+  const current = useRef(target);
+  useEffect(() => {
+    const from = current.current;
+    if (reduced || from === target) {
+      current.current = target;
+      setDrawn(target);
+      return;
+    }
+    const start = store.now();
+    let handle: number | undefined;
+    const step = () => {
+      const share = Math.min(1, (store.now() - start) / EXPLODE_EASE);
+      const value = share >= 1 ? target : explodeBetween(from, target, share);
+      current.current = value;
+      setDrawn(value);
+      handle = share < 1 ? store.frames.request(step) : undefined;
+    };
+    handle = store.frames.request(step);
+    return () => {
+      if (handle !== undefined) store.frames.cancel(handle);
+    };
+  }, [store, target, reduced]);
+  return reduced ? target : drawn;
 }
 
 /** Hands a frame to the panel's canvas, which takes its bitmap. */

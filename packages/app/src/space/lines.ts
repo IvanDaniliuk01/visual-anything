@@ -1,11 +1,17 @@
 /**
- * Relations drawn in physical space (ADR 0076): the relations along which markers travel on the
- * canvas, which are the scenario step being played (ADR 0031) and a tour's pulse, drawn in the panel
- * as straight lines between their ends' points (`pointInSpace`), with their markers where the canvas
- * has them. An end inside a collapsed container is that container's point. A relation that ends on a
- * relation ends at the middle of that relation's line when it is drawn, and is not drawn otherwise;
- * nor is one whose end is not in the space, nor one whose two ends are the same point. Each line names
- * what its ends are the points of, so that the exploded view moves them with it.
+ * Relations drawn in physical space (ADR 0076), as straight lines between their ends' points
+ * (`pointInSpace`):
+ * - the relations along which markers travel on the canvas, which are the scenario step being played
+ *   (ADR 0031) and a tour's pulse, with their markers where the canvas has them;
+ * - while Relations of the selection is on, the relations of the selection (`selectionRelationsOf`):
+ *   those the view draws that are selected or end on a selected element, or on what is drawn as a
+ *   selected collapsed container, unless the canvas's emphasis hides them, and faint where it dims
+ *   them.
+ *
+ * An end inside a collapsed container is that container's point. A relation that ends on a relation
+ * ends at the middle of that relation's line when it is drawn, and is not drawn otherwise; nor is one
+ * whose end is not in the space, nor one whose two ends are the same point. Each line names what its
+ * ends are the points of, so that the exploded view moves them with it.
  *
  * Under reduced motion the canvas's markers stand still at the end they travel to, and so do these.
  */
@@ -16,7 +22,10 @@ import {
   type Space,
 } from '@visual-anything/core';
 import type { Id, SpacePoint } from '@visual-anything/schema';
+import type { Emphasized } from '../canvas/emphasize';
+import { relationLinesOf, type Scene } from '../canvas/scene';
 import type { Marker } from '../editor/emphasis';
+import type { Selection } from '../editor/selection';
 import { MAX_SPACE_LINE_MARKERS, MAX_SPACE_LINES, type SpaceLine } from '../solids/protocol';
 
 /** What a relation's end shows in space as: its element, or its collapsed container. */
@@ -26,13 +35,68 @@ function endEntry(space: Space, element: Id): Id | undefined {
   return entry.drawnAs ?? element;
 }
 
-/** The lines the panel draws for the relations markers travel along, with those markers. */
+/** A relation of the selection, drawn in space while Relations of the selection is on. */
+export interface SelectionRelation {
+  relation: Id;
+  /** Selected itself, rather than ending on what is. */
+  selected?: boolean;
+  /** Dimmed by the canvas's emphasis, outside a focus or by a filter. */
+  faint?: boolean;
+}
+
+/**
+ * The relations of the selection that the panel draws while Relations of the selection is on: of
+ * those the open view draws as lines on the canvas (`scene`), the ones selected and the ones that end
+ * on a selected element, or on an element drawn here as a selected collapsed container; none the
+ * canvas's emphasis hides, and faint those it dims. The selected relations come first, then those on
+ * each selected element in model order.
+ */
+export function selectionRelationsOf(
+  project: ProjectSnapshot,
+  space: Space,
+  scene: Scene,
+  emphasized: Pick<Emphasized, 'hidden' | 'dimmed'>,
+  selection: Pick<Selection, 'elements' | 'relations'>,
+): SelectionRelation[] {
+  if (selection.elements.size === 0 && selection.relations.size === 0) return [];
+  const index = modelIndexOf(project);
+  const drawn = relationLinesOf(scene);
+  const found = new Map<Id, SelectionRelation>();
+  const add = (relation: Id, selected: boolean) => {
+    if (found.has(relation)) return;
+    const line = drawn.get(relation);
+    if (!line || emphasized.hidden.relations.has(line.relation)) return;
+    const faint = emphasized.dimmed.relations.has(line.relation);
+    found.set(relation, {
+      relation,
+      ...(selected ? { selected: true } : {}),
+      ...(faint ? { faint: true } : {}),
+    });
+  };
+  for (const relation of selection.relations) add(relation, true);
+  const on = new Set<Id>(selection.elements);
+  // What is drawn as a selected collapsed container is pointed at as it, so its relations are its.
+  for (const entry of [...space.entries.values(), ...space.faint.values()]) {
+    if (entry.drawnAs !== undefined && selection.elements.has(entry.drawnAs)) on.add(entry.element);
+  }
+  for (const element of on) {
+    for (const relation of index.relationsOn(element)) add(relation.id, false);
+  }
+  return [...found.values()];
+}
+
+/**
+ * The lines the panel draws for the relations markers travel along, with those markers, then for the
+ * relations of the selection given. A relation in both is drawn once, highlighted, with its markers,
+ * and selected when it is.
+ */
 export function spaceLinesOf(
   project: ProjectSnapshot,
   space: Space,
   markers: readonly Marker[],
+  ofSelection: readonly SelectionRelation[] = [],
 ): SpaceLine[] {
-  if (markers.length === 0) return [];
+  if (markers.length === 0 && ofSelection.length === 0) return [];
   const index = modelIndexOf(project);
   const along = new Map<Id, number[]>();
   for (const marker of markers) {
@@ -41,6 +105,12 @@ export function spaceLinesOf(
     if (!list) along.set(marker.relation, [progress]);
     else if (list.length < MAX_SPACE_LINE_MARKERS) list.push(progress);
   }
+  const selected = new Map<Id, SelectionRelation>();
+  for (const each of ofSelection) {
+    if (!selected.has(each.relation)) selected.set(each.relation, each);
+  }
+  // Whether a relation's line is drawn here, so that a relation may end at its middle.
+  const drawnHere = (relation: Id) => along.has(relation) || selected.has(relation);
   // Each relation's ends, worked out once; a relation on a relation waits for that one's line.
   type Ends = { from: SpacePoint; to: SpacePoint; of: { from: Id; to: Id } };
   const ends = new Map<Id, Ends | undefined>();
@@ -56,7 +126,7 @@ export function spaceLinesOf(
         return of === undefined || !at ? undefined : { at, of };
       }
       // Only a relation drawn here has a line whose middle can be ended on.
-      if (!along.has(end)) return undefined;
+      if (!drawnHere(end)) return undefined;
       const line = endsOf(end, next);
       return line && { at: middle(line.from, line.to), of: end };
     };
@@ -79,7 +149,22 @@ export function spaceLinesOf(
       from: line.from,
       to: line.to,
       highlighted: true,
+      ...(selected.get(relation)?.selected ? { selected: true } : {}),
       markers: progress,
+      ends: line.of,
+    });
+  }
+  for (const [relation, each] of selected) {
+    if (lines.length >= MAX_SPACE_LINES) break;
+    if (along.has(relation)) continue;
+    const line = endsOf(relation, new Set());
+    if (!line) continue;
+    lines.push({
+      relation,
+      from: line.from,
+      to: line.to,
+      ...(each.selected ? { selected: true } : {}),
+      ...(each.faint ? { faint: true } : {}),
       ends: line.of,
     });
   }

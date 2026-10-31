@@ -7,7 +7,10 @@
 import { pointInSpace, spaceOf, type ProjectSnapshot } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
 import { workcell } from '../test/space';
-import { spaceLinesOf, stepElementsInSpace } from './lines';
+import { NOTHING_EMPHASIZED } from '../canvas/emphasize';
+import { buildScene } from '../canvas/scene';
+import { selectionOf } from '../editor/selection';
+import { selectionRelationsOf, spaceLinesOf, stepElementsInSpace } from './lines';
 
 const FLOWS = 'cell.flows';
 
@@ -100,5 +103,79 @@ describe('lines in physical space', () => {
     ]);
     expect(stepElementsInSpace(project, space, { relations: ['lights'] })).toEqual(['arm']);
     expect(stepElementsInSpace(project, space, { container: 'table' })).toEqual(['table']);
+  });
+});
+
+describe('the relations of the selection in physical space', () => {
+  const nothing = { hidden: NOTHING_EMPHASIZED.hidden, dimmed: NOTHING_EMPHASIZED.dimmed };
+  const hiding = (relations: string[], dimmed: string[] = []) => ({
+    hidden: { ...NOTHING_EMPHASIZED.hidden, relations: new Set(relations) },
+    dimmed: { ...NOTHING_EMPHASIZED.dimmed, relations: new Set(dimmed) },
+  });
+
+  it('are those the view draws that are selected or end on what is, the selected first', () => {
+    const project = flowing();
+    const space = spaceOf(project, project.views[0]);
+    const scene = buildScene(project, 'cell-view');
+    const selection = selectionOf([
+      { kind: 'element', id: 'arm' },
+      { kind: 'relation', id: 'feeds' },
+    ]);
+    // Not "elbow-in-arm": the view nests by it, so the canvas draws no line for it.
+    expect(selectionRelationsOf(project, space, scene, nothing, selection)).toEqual([
+      { relation: 'feeds', selected: true },
+      { relation: 'sees' },
+      { relation: 'lights' },
+      { relation: 'moves' },
+    ]);
+    expect(
+      selectionRelationsOf(project, space, scene, hiding(['sees'], ['moves']), selection),
+    ).toEqual([
+      { relation: 'feeds', selected: true },
+      { relation: 'lights' },
+      { relation: 'moves', faint: true },
+    ]);
+  });
+
+  it('draws them after the markers’ lines, once each, ending on each other', () => {
+    const project = flowing();
+    const space = spaceOf(project, project.views[0]);
+    const lines = spaceLinesOf(
+      project,
+      space,
+      [{ relation: 'sees', progress: 0.5 }],
+      [{ relation: 'feeds', selected: true }, { relation: 'sees' }, { relation: 'lights' }],
+    );
+    // "lights" starts at the lamp, which is in no place.
+    expect(lines.map((line) => [line.relation, line.highlighted, line.selected])).toEqual([
+      ['sees', true, undefined],
+      ['feeds', undefined, true],
+    ]);
+    // Without the markers, "feeds" still ends at the middle of "sees", drawn for the selection.
+    const plain = spaceLinesOf(
+      project,
+      space,
+      [],
+      [{ relation: 'sees', faint: true }, { relation: 'feeds' }],
+    );
+    expect(plain.map((line) => line.relation)).toEqual(['sees', 'feeds']);
+    expect(plain[0]?.faint).toBe(true);
+    expect(plain[1]?.ends).toEqual({ from: 'table', to: 'sees' });
+  });
+
+  it('takes a selected collapsed container’s relations to be those of what it is drawn as', () => {
+    const project = flowing(['arm']);
+    const space = spaceOf(project, project.views[0]);
+    const scene = buildScene(project, 'cell-view');
+    const found = selectionRelationsOf(
+      project,
+      space,
+      scene,
+      nothing,
+      selectionOf([{ kind: 'element', id: 'arm' }]),
+    ).map((each) => each.relation);
+    expect(found).toContain('sees');
+    // The arm's relation to its own elbow, inside it, is drawn by no line on the canvas.
+    expect(found).not.toContain('moves');
   });
 });

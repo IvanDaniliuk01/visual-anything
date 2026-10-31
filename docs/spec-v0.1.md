@@ -1059,6 +1059,7 @@ Its tasks run in this order:
   - picking: 3 to 4 ms at the 95th percentile, met;
   - a step played with its relations drawn in space: the panel 16.7 ms between frames shown (18 ms at the 95th percentile, one frame of 36 ms), the canvas 60 frames per second, its work 17 ms at the 95th percentile;
   - the canvas with the panel at rest: as before, its single slow frames panning with names shown aside.
+- The spec review's blockers were fixed on 2026-10-31, by a builder (ADR 0076's clarification "the review's blockers"): Relations of the selection is drawn in space, and the panel has controls for every way of reading, in the app and the read-only page, with Show World while it shows an element.
 
 **M12 · Simulate (case 4).** Planned for the fifth wave, after M10, on 2026-10-31, from research done with the user's medical-audit model in mind, reading only its shape: an audit moving through its states, and a rule engine under load (ADR 0085, which builds on ADR 0054). Its two seams go first and in order, in the main session: the schema and the core, then the app's. After them, the worker and the inspector run in parallel, Claude's tools and the sample follow them, and the benchmark is measured once the rest is merged. Done when:
 
