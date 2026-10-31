@@ -16,6 +16,8 @@ import {
   updateRelationType,
 } from './definitions';
 import { reorderElements } from './order';
+import { setPoses } from './poses';
+import { newPoseWarnings } from '../space/pose';
 import { addPackage, replacePackage } from './packages';
 import { setCollapsed } from './collapse';
 import { addToView, leaveOutOfView, setRelationTypesLeftOut, setScope } from './scopes';
@@ -114,6 +116,7 @@ export function executeCommand(
       draft.warnings.push(
         ...newUnknownParts(state, draft.state),
         ...newSolidWarnings(state, draft.state),
+        ...newPoseWarnings(state, draft.state),
         ...newLargeGeometry(state, draft.state),
       );
     }
@@ -267,6 +270,8 @@ function dispatch(draft: Draft, command: Command): string {
       return replacePackage(draft, command);
     case 'reorder-elements':
       return reorderElements(draft, command);
+    case 'set-poses':
+      return setPoses(draft, command);
     case 'set-collapsed':
       return setCollapsed(draft, command);
     case 'set-scope':

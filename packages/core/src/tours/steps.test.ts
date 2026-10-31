@@ -143,6 +143,25 @@ describe('the view state a step keeps', () => {
     );
   });
 
+  it('keeps the physical-space panel as the step keeps it', () => {
+    const saved: SavedViewState = {
+      view: 'overview',
+      space: {
+        root: 'arm',
+        camera: { target: { x: 0, y: 1, z: 0 }, azimuth: 30, elevation: 20, distance: 3 },
+        cut: { axis: 'x', at: 0.5, keep: 'above' },
+        explode: 1,
+        names: true,
+      },
+    };
+    expect(savedViewStateOf(viewStateOfStep(saved))).toEqual(saved);
+    expect(checkSavedViewState(saved)).toEqual({ ok: true, state: saved });
+    expect(checkSavedViewState({ view: 'v', space: { explode: 0, relations: false } })).toEqual({
+      ok: true,
+      state: { view: 'v', space: {} },
+    });
+  });
+
   it('keeps the time range of the filters, alone or beside the rest', () => {
     const range = {
       of: 'elements' as const,

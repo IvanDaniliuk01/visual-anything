@@ -32,6 +32,7 @@ import type {
   Overlay,
   PackageFile,
   PartReference,
+  Pose,
   Perspective,
   Point,
   RelationAppearance,
@@ -82,6 +83,7 @@ export type Command =
   | AddPackageCommand
   | ReplacePackageCommand
   | ReorderElementsCommand
+  | SetPosesCommand
   | SetCollapsedCommand
   | SetScopeCommand
   | AddToViewCommand
@@ -135,6 +137,8 @@ export interface NewElement {
   appearance?: Appearance;
   /** What it is in other catalogs, by scheme (ADR 0056). */
   ids?: ExternalIds;
+  /** Where it is in physical space (ADR 0076), measured from World or one of the containers given. */
+  pose?: Pose;
 }
 
 /** Creates an element, optionally inside containers and with its shapes placed in views. */
@@ -178,7 +182,18 @@ export interface UpdateElementCommand {
     removeAttributes?: string[];
     /** Its external identifiers by scheme: a text sets one, `null` takes it out; `null` takes all out. */
     ids?: ExternalIdChanges | null;
+    /** Where it is in physical space (ADR 0076); `null` takes it out of physical space. */
+    pose?: Pose | null;
   };
+}
+
+/**
+ * Sets the poses of several elements as one action (ADR 0076), as a gesture in the physical-space
+ * panel ends: each pose replaced whole, `null` taking it out. Each element once.
+ */
+export interface SetPosesCommand {
+  type: 'set-poses';
+  poses: { element: Id; pose: Pose | null }[];
 }
 
 /**

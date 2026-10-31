@@ -45,6 +45,7 @@ import { checkDestinationValues } from './destinations';
 import { changedExternalIds, checkedExternalIds } from '../external-ids';
 import { putScope } from './scopes';
 import { putPositions } from './views';
+import { checkedPose, checkedPoseValues, requirePoseIn } from '../space/pose';
 
 export function createElement(draft: Draft, command: CreateElementCommand): string {
   const { element } = command;
@@ -74,6 +75,10 @@ export function createElement(draft: Draft, command: CreateElementCommand): stri
     attributes,
     appearance,
   });
+  // Its pose is checked against its containers once they are made (ADR 0076).
+  if (element.pose !== undefined) {
+    created.pose = checkedPoseValues(element.pose, created, draft.index.world.id);
+  }
   const index =
     command.before === undefined
       ? draft.state.model.elements.length
@@ -94,6 +99,7 @@ export function createElement(draft: Draft, command: CreateElementCommand): stri
     list.push({ ...position, element: id });
     byView.set(view, list);
   }
+  if (created.pose !== undefined) requirePoseIn(created.pose, created, draft.index);
   for (const [view, positions] of byView) putPositions(draft, view, positions);
   // Placed before other elements in the model's order, it would be drawn behind them.
   if (command.before !== undefined) bringNewToFront(draft, id);
@@ -149,6 +155,8 @@ export function updateElement(draft: Draft, command: UpdateElementCommand): stri
     if (ids === undefined) delete next.ids;
     else next.ids = ids;
   }
+  if (changes.pose === null) delete next.pose;
+  else if (changes.pose !== undefined) next.pose = checkedPose(changes.pose, next, draft.index);
   const component = draft.definitions.component(next.component);
   if (component !== undefined) {
     checkDestinationValues(changes.attributes, component.attributes, of);
@@ -188,9 +196,17 @@ export function updateElement(draft: Draft, command: UpdateElementCommand): stri
   if (changes.ids !== undefined && Object.keys(changes).length === 1) {
     return `Change the external identifiers of "${next.name}"`;
   }
+  if (changes.pose !== undefined && Object.keys(changes).length === 1) {
+    return poseLabel(next.name, changes.pose);
+  }
   return onlyAppearance(changes)
     ? `${next.appearance === undefined ? 'Reset' : 'Change'} the appearance of "${next.name}"`
     : `Edit "${next.name}"`;
+}
+
+/** How the history names posing one element, or taking it out of physical space. */
+export function poseLabel(name: string, pose: unknown): string {
+  return pose === null ? `Take "${name}" out of physical space` : `Pose "${name}"`;
 }
 
 /** Whether the only changes a command makes are to an appearance, whole or trait by trait. */

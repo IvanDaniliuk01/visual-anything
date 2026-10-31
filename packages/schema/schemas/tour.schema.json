@@ -157,6 +157,10 @@
         "choices": {
           "$ref": "#/definitions/DecisionChoices",
           "description": "The alternatives chosen at that scenario's decisions (ADR 0078); it needs `scenario`."
+        },
+        "space": {
+          "$ref": "#/definitions/SavedSpace",
+          "description": "The physical-space panel, open beside the canvas (ADR 0076); left out, it is closed."
         }
       },
       "required": [
@@ -386,6 +390,134 @@
       "description": "The alternative chosen at each decision of a scenario, by the decision's id (ADR 0078). Choices belong to the tab that plays; a file keeps them only to play a given alternative from a tour's step or a view state.",
       "minProperties": 1,
       "maxProperties": 64
+    },
+    "SavedSpace": {
+      "type": "object",
+      "properties": {
+        "root": {
+          "$ref": "#/definitions/Id",
+          "description": "The panel's root: World when left out, or one element."
+        },
+        "camera": {
+          "$ref": "#/definitions/SpaceCamera",
+          "description": "Where it looks; left out, it fits what it draws."
+        },
+        "cut": {
+          "$ref": "#/definitions/SpaceCut"
+        },
+        "explode": {
+          "type": "number",
+          "description": "How far each part moves away from the middle of what holds it: 0, the default, to 2.",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "relations": {
+          "type": "boolean",
+          "description": "Whether the selection's relations are drawn in space; left out, they are not."
+        },
+        "names": {
+          "type": "boolean",
+          "description": "Whether names are written for the parts nearest the camera; left out, they are not."
+        }
+      },
+      "additionalProperties": false,
+      "description": "The physical-space panel in a view state (ADR 0076); its presence means the panel is open. Reading it changes nothing in the project."
+    },
+    "SpaceCamera": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "$ref": "#/definitions/SpaceTarget",
+          "description": "The point it turns around, in the root's coordinates, in meters."
+        },
+        "azimuth": {
+          "type": "number",
+          "description": "Degrees around +Y, 0 looking from +Z toward −Z.",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "elevation": {
+          "type": "number",
+          "description": "Degrees above the horizon, or below it when negative.",
+          "minimum": -89,
+          "maximum": 89
+        },
+        "distance": {
+          "type": "number",
+          "description": "In meters.",
+          "exclusiveMinimum": 0,
+          "maximum": 100000000
+        }
+      },
+      "required": [
+        "target",
+        "azimuth",
+        "elevation",
+        "distance"
+      ],
+      "additionalProperties": false,
+      "description": "Where the physical-space panel looks: around a point, from a direction, at a distance."
+    },
+    "SpaceTarget": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": -100000000,
+          "maximum": 100000000
+        },
+        "y": {
+          "type": "number",
+          "minimum": -100000000,
+          "maximum": 100000000
+        },
+        "z": {
+          "type": "number",
+          "minimum": -100000000,
+          "maximum": 100000000
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "additionalProperties": false,
+      "description": "A point in the root's coordinates that the physical-space panel looks at, in meters."
+    },
+    "SpaceCut": {
+      "type": "object",
+      "properties": {
+        "axis": {
+          "type": "string",
+          "enum": [
+            "x",
+            "y",
+            "z"
+          ]
+        },
+        "at": {
+          "type": "number",
+          "description": "Where the plane crosses the axis, in meters.",
+          "minimum": -100000000,
+          "maximum": 100000000
+        },
+        "keep": {
+          "type": "string",
+          "enum": [
+            "below",
+            "above"
+          ],
+          "description": "The side kept: the one below the plane along its axis, or above."
+        }
+      },
+      "required": [
+        "axis",
+        "at",
+        "keep"
+      ],
+      "additionalProperties": false,
+      "description": "A cutting plane across one of the root's axes, keeping one side of it."
     },
     "TourCaption": {
       "type": "object",

@@ -79,6 +79,10 @@ export type ProblemCode =
   | 'solid-file-missing'
   | 'solid-not-clean'
   | 'unknown-solid'
+  // Poses (ADR 0076): one a command refuses, and, only as a warning on open, one whose `in` is not
+  // one of its element's containers, kept and not used.
+  | 'invalid-pose'
+  | 'pose-not-in-container'
   // Faces (ADR 0083): markup or style outside the subset, a face past its caps, and, only as
   // warnings, a slot naming an attribute the component lacks and text that reads poorly.
   | 'invalid-face'

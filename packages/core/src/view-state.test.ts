@@ -19,6 +19,7 @@ import {
   viewStateProblems,
   withViewState,
   writeViewState,
+  type ViewSpace,
   type ViewState,
   type ViewTimeRange,
 } from './view-state';
@@ -343,6 +344,35 @@ const focus = fc
   })
   .map(({ from, ...rest }) => (from === undefined ? rest : { ...rest, from }));
 
+/** A number of the physical-space panel from `min` to `max`, a negative zero read back as 0. */
+const spaceNumber = (min: number, max: number) =>
+  fc.double({ min, max, noNaN: true }).map((value) => (value === 0 ? 0 : value));
+
+const space: fc.Arbitrary<ViewSpace> = fc.record(
+  {
+    root: anId,
+    camera: fc.record({
+      target: fc.record({
+        x: spaceNumber(-1e8, 1e8),
+        y: spaceNumber(-1e8, 1e8),
+        z: spaceNumber(-1e8, 1e8),
+      }),
+      azimuth: spaceNumber(-180, 180),
+      elevation: spaceNumber(-89, 89),
+      distance: fc.double({ min: Number.MIN_VALUE, max: 1e8, noNaN: true }),
+    }),
+    cut: fc.record({
+      axis: fc.constantFrom('x' as const, 'y' as const, 'z' as const),
+      at: spaceNumber(-1e8, 1e8),
+      keep: fc.constantFrom('below' as const, 'above' as const),
+    }),
+    explode: fc.double({ min: Number.MIN_VALUE, max: 2, noNaN: true }),
+    relations: fc.constant(true),
+    names: fc.constant(true),
+  },
+  { requiredKeys: [] },
+);
+
 const viewState: fc.Arbitrary<ViewState> = fc
   .record(
     {
@@ -366,6 +396,7 @@ const viewState: fc.Arbitrary<ViewState> = fc
             ),
           ),
       ),
+      space,
     },
     { requiredKeys: ['view'] },
   )
@@ -578,6 +609,15 @@ describe('viewStateProblems', () => {
     ]);
   });
 
+  it('says when the physical-space panel’s root is not an element, and World is one', () => {
+    expect(viewStateProblems(project, { view: 'overview', space: { root: 'ghost' } })).toEqual([
+      'The physical-space panel shows "ghost", which is not an element of the project.',
+    ]);
+    const world = project.model.world.id;
+    expect(viewStateProblems(project, { view: 'overview', space: { root: world } })).toEqual([]);
+    expect(viewStateProblems(project, { view: 'overview', space: { root: 'api' } })).toEqual([]);
+  });
+
   it('finds nothing wrong with choices of the scenario’s decisions that play its step', () => {
     expect(
       viewStateProblems(project, {
@@ -778,4 +818,78 @@ describe('a time range in the view state', () => {
       }),
     );
   }, 30_000);
+});
+
+describe('the physical-space panel in a view state', () => {
+  const OPEN: ViewState = {
+    view: 'v',
+    space: {
+      root: 'arm',
+      camera: { target: { x: 0, y: 1.5, z: -2 }, azimuth: 30, elevation: -20, distance: 4.5 },
+      cut: { axis: 'y', at: 1, keep: 'below' },
+      explode: 0.5,
+      relations: true,
+      names: true,
+    },
+  };
+
+  it('is written as one clause, each part only when it says something', () => {
+    expect(writeViewState(OPEN)).toBe(
+      'view=v&space=root:arm;camera:0,1.5,-2,30,-20,4.5;cut:y,1,below;explode:0.5;relations;names',
+    );
+    expect(read(writeViewState(OPEN))).toEqual(OPEN);
+    expect(writeViewState({ view: 'v', space: {} })).toBe('view=v&space=open');
+    expect(read('view=v&space=open')).toEqual({ view: 'v', space: {} });
+    expect(read('view=v')).toEqual({ view: 'v' });
+  });
+
+  it('leaves out what says nothing', () => {
+    expect(
+      checkViewState({ view: 'v', space: { explode: 0, relations: false, names: false } }),
+    ).toEqual({ ok: true, state: { view: 'v', space: {} } });
+  });
+
+  it.each<[string, string]>([
+    [
+      'open;names',
+      'The physical-space panel holds root, camera, cut, explode, relations and names, or is open alone, not "open".',
+    ],
+    ['names;names', 'The physical-space panel holds "names" twice.'],
+    ['names:yes', '"names" in the physical-space panel takes no value.'],
+    [
+      'camera:1,2,3',
+      'The camera of the physical-space panel is six numbers: x,y,z,azimuth,elevation,distance.',
+    ],
+    ['camera:0,0,0,0,90,1', 'The elevation of the physical-space panel is from -89 to 89 degrees.'],
+    [
+      'camera:0,0,0,181,0,1',
+      'The azimuth of the physical-space panel is from -180 to 180 degrees.',
+    ],
+    [
+      'camera:0,0,0,0,0,0',
+      'The physical-space panel looks from more than 0 m and at most 100000000 m.',
+    ],
+    ['cut:w,1,below', 'A cut is cut:<axis>,<at>,<keep>: x, y or z, a number, and below or above.'],
+    ['cut:x,1,inside', 'A cut is cut:<axis>,<at>,<keep>: x, y or z, a number, and below or above.'],
+    ['explode:3', 'The physical-space panel explodes by a factor from 0 to 2.'],
+    ['root:not an id', '"not an id" is not an id.'],
+  ])('refuses space=%s', (clause, message) => {
+    expect(read(`view=v&space=${encodeURIComponent(clause)}`)).toBe(message);
+  });
+
+  it.each<[unknown, string]>([
+    [[], 'The physical-space panel is an object.'],
+    [{ zoom: 2 }, 'The physical-space panel has no "zoom".'],
+    [{ relations: 'yes' }, 'Whether the physical-space panel draws relations is true or false.'],
+    [
+      { camera: { target: { x: 2e8, y: 0, z: 0 }, azimuth: 0, elevation: 0, distance: 1 } },
+      'The physical-space panel looks at most 100000000 m from the origin of what it shows.',
+    ],
+    [
+      { cut: { axis: 'x', at: 0 } },
+      'A cut is cut:<axis>,<at>,<keep>: x, y or z, a number, and below or above.',
+    ],
+  ])('checkViewState refuses the space %j', (given, message) => {
+    expect(checkViewState({ view: 'v', space: given })).toEqual({ ok: false, message });
+  });
 });

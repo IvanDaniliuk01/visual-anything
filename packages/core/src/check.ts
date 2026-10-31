@@ -14,6 +14,7 @@ import { faceWarnings } from './faces/project-check';
 import { threadErrors } from './comments/check';
 import { checkImages } from './images/check';
 import { checkSolids } from './solids/check';
+import { poseWarnings } from './space/pose';
 import { overlayProblems } from './overlays/check';
 import { positionKey } from './operations';
 import { problem, type Problem } from './problems';
@@ -375,6 +376,8 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
   const solids = checkSolids(state);
   errors.push(...solids.errors);
   warnings.push(...solids.warnings);
+  // Poses only warn, and one whose `in` is not a container is kept and not used (ADR 0076).
+  warnings.push(...poseWarnings(state));
   // Routes chosen by hand never keep a project from opening (ADR 0039).
   warnings.push(...routeWarnings(state));
   // Overlays keep a project from opening only with an id twice in one view (ADR 0055).

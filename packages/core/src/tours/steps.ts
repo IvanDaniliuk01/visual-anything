@@ -20,7 +20,13 @@ import type { ProblemCode } from '../problems';
 import { choicesToReach, knownChoices, playedSteps } from '../scenarios/blocks';
 import type { ProjectSnapshot } from '../snapshot';
 import { definitionsIn, modelIndexOf } from '../state';
-import { checkViewState, choiceProblems, type ViewState } from '../view-state';
+import {
+  checkViewState,
+  choiceProblems,
+  copiedSpace,
+  spaceRootProblem,
+  type ViewState,
+} from '../view-state';
 import { chainBreak, pulseLegs, type ChainLink, type PulseLeg, pulseProblems } from './pulse';
 import { advanceAfter } from './timing';
 
@@ -94,6 +100,7 @@ export function viewStateOfStep(saved: SavedViewState): ViewState {
   if (saved.scenario !== undefined) state.scenario = saved.scenario;
   if (saved.step !== undefined) state.step = saved.step;
   if (saved.choices !== undefined) state.choices = { ...saved.choices };
+  if (saved.space !== undefined) state.space = copiedSpace(saved.space);
   return state;
 }
 
@@ -133,6 +140,7 @@ export function savedViewStateOf(state: ViewState): SavedViewState {
   if (state.step !== undefined) saved.step = state.step;
   // Written only when there are some (ADR 0078): a view state without choices plays every default.
   if (state.choices && Object.keys(state.choices).length > 0) saved.choices = { ...state.choices };
+  if (state.space !== undefined) saved.space = copiedSpace(state.space);
   return saved;
 }
 
@@ -265,6 +273,10 @@ export function tourStepProblems(project: ProjectSnapshot, step: TourStep): Tour
         subject: id,
       });
     }
+  }
+  const root = viewState.space?.root;
+  if (root !== undefined && index.element(root) === undefined) {
+    problems.push({ code: 'unknown-element', message: spaceRootProblem(root), subject: root });
   }
   if (viewState.filters) {
     const definitions = definitionsIn(project);

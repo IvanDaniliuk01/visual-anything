@@ -999,8 +999,8 @@ Its tasks run in this order:
   - with the panel open and at rest, the canvas meets the 10,000-element benchmark's marks;
   - playing a step whose 20 relations are drawn in space keeps the target.
 
-- [ ] **Seam 1, in the main session: poses and the space in the schema and the core**, test-first with property tests (ADR 0076).
-  - **Schema:** `Element.pose` (`Pose`: `in`, `at` and `rotation`; `Rotation`), and `SavedViewState.space` (`SavedSpace`: `root`, `camera`, `cut`, `explode`, `relations` and `names`; `SpaceCamera` and `SpaceCut`); the schemas regenerated.
+- [x] **Seam 1, in the main session: poses and the space in the schema and the core**, test-first with property tests (ADR 0076, and its clarification of 2026-10-31).
+  - **Schema:** `Element.pose` (`Pose`: `in`, `at` and `rotation`; `PosePoint`, `Rotation`), and `SavedViewState.space` (`SavedSpace`: `root`, `camera`, `cut`, `explode`, `relations` and `names`; `SpaceCamera`, `SpaceTarget` and `SpaceCut`); the schemas regenerated.
   - **Commands:** `pose` in `create-element` and `update-element`, `null` taking it out, and `set-poses`; the checks `invalid-pose` and `pose-not-in-container`.
   - **The space,** `core/src/space/`:
     - `spaceOf(project, view, root)`: what is in physical space under the root, each with how it is there (posed, anchored, or the root itself), what it is posed or anchored in, its matrix in the root's coordinates, its solid and parts, what it is drawn as when a collapsed container holds it, and the containers drawn faintly;

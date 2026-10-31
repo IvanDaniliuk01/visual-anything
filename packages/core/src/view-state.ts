@@ -30,8 +30,12 @@
  * - `choices=<decision>:<alternative>,…`: the alternative chosen at each of that scenario's decisions,
  *   by their ids, in the order of the decisions' ids, so that the same choices write the same address
  *   (ADR 0078); a decision it does not name plays its default.
+ * - `space=root:<id>;camera:<x>,<y>,<z>,<azimuth>,<elevation>,<distance>;cut:<axis>,<at>,<keep>;
+ *   explode:<factor>;relations;names`: the physical-space panel, open (ADR 0076), each clause only
+ *   when it says something, in that order; `space=open` when none does. An address without it reads
+ *   as before, with the panel closed.
  */
-import type { DecisionChoices, Id, ScenarioFile } from '@visual-anything/schema';
+import type { DecisionChoices, Id, SavedSpace, ScenarioFile } from '@visual-anything/schema';
 import { ESSENCE, RELATES_TO } from './builtin';
 import { isId } from './ids';
 import {
@@ -97,7 +101,18 @@ export interface ViewState {
    * needs `scenario`. A decision it does not name plays its default; absent, every one does.
    */
   choices?: DecisionChoices;
+  /** The physical-space panel, open beside the canvas (ADR 0076); absent, it is closed. */
+  space?: ViewSpace;
 }
+
+/**
+ * The physical-space panel in a view state (ADR 0076): its root, where it looks and how it reads.
+ * What says nothing is left out: no explosion, and relations and names off.
+ */
+export type ViewSpace = SavedSpace;
+
+/** How far from the root's origin the panel's camera may look and cut, in meters, either way. */
+export const MAX_SPACE_DISTANCE = 100_000_000;
 
 /** The parts of a view state, in the order an address writes them. */
 export const VIEW_STATE_KEYS = [
@@ -109,6 +124,7 @@ export const VIEW_STATE_KEYS = [
   'scenario',
   'step',
   'choices',
+  'space',
 ] as const satisfies readonly (keyof ViewState)[];
 
 /** The most alternatives a view state chooses: as many as a scenario has decisions. */
@@ -188,6 +204,7 @@ function parseFragment(fragment: string): ViewState | undefined {
   const scenario = parts.get('scenario');
   const step = parts.get('step');
   const choices = parts.get('choices');
+  const space = parts.get('space');
   return checked({
     ...(view === undefined ? {} : { view }),
     ...(camera === undefined ? {} : { camera: parseCamera(camera) }),
@@ -197,6 +214,7 @@ function parseFragment(fragment: string): ViewState | undefined {
     ...(scenario === undefined ? {} : { scenario }),
     ...(step === undefined ? {} : { step }),
     ...(choices === undefined ? {} : { choices: parseChoices(choices) }),
+    ...(space === undefined ? {} : { space: parseSpace(space) }),
   });
 }
 
@@ -322,6 +340,58 @@ function parseChoices(text: string): Record<string, string> {
   return choices;
 }
 
+const SPACE_CLAUSES =
+  'The physical-space panel holds root, camera, cut, explode, relations and names, or is open alone';
+
+const SPACE_CAMERA_FORM =
+  'The camera of the physical-space panel is six numbers: x,y,z,azimuth,elevation,distance.';
+
+const SPACE_CUT_FORM = 'A cut is cut:<axis>,<at>,<keep>: x, y or z, a number, and below or above.';
+
+/** The physical-space panel an address writes, as checking takes it as a value. */
+function parseSpace(text: string): Record<string, unknown> {
+  if (text === 'open') return {};
+  const space: Record<string, unknown> = {};
+  for (const clause of text.split(';')) {
+    const at = clause.indexOf(':');
+    const name = at < 0 ? clause : clause.slice(0, at);
+    const rest = at < 0 ? undefined : clause.slice(at + 1);
+    if (Object.hasOwn(space, name)) refuse(`The physical-space panel holds "${name}" twice.`);
+    const numbers = (count: number, form: string): number[] => {
+      const items = (rest ?? '').split(',');
+      if (items.length !== count || !items.every((each) => NUMBER.test(each))) refuse(form);
+      return items.map(Number);
+    };
+    switch (name) {
+      case 'root':
+        space.root = rest ?? '';
+        break;
+      case 'camera': {
+        const [x, y, z, azimuth, elevation, distance] = numbers(6, SPACE_CAMERA_FORM);
+        space.camera = { target: { x, y, z }, azimuth, elevation, distance };
+        break;
+      }
+      case 'cut': {
+        const items = (rest ?? '').split(',');
+        if (items.length !== 3 || !NUMBER.test(items[1] ?? '')) refuse(SPACE_CUT_FORM);
+        space.cut = { axis: items[0], at: Number(items[1]), keep: items[2] };
+        break;
+      }
+      case 'explode':
+        space.explode = numbers(1, 'Explode is one number: explode:<factor>.')[0];
+        break;
+      case 'relations':
+      case 'names':
+        if (rest !== undefined) refuse(`"${name}" in the physical-space panel takes no value.`);
+        space[name] = true;
+        break;
+      default:
+        refuse(`${SPACE_CLAUSES}, not "${shortened(name)}".`);
+    }
+  }
+  return space;
+}
+
 const FOCUS_FORM = 'Focus is degrees,direction, then isolate or nothing.';
 
 function parseFocus(text: string): ViewFocus {
@@ -376,7 +446,7 @@ function shortened(text: string): string {
  */
 export function writeViewState(state: ViewState): string {
   const parts = [`view=${state.view}`];
-  const { camera, select, filters, focus, scenario, step, choices } = state;
+  const { camera, select, filters, focus, scenario, step, choices, space } = state;
   if (camera) {
     parts.push(
       `camera=${writeNumber(camera.x)},${writeNumber(camera.y)},${writeNumber(camera.zoom)}`,
@@ -393,7 +463,24 @@ export function writeViewState(state: ViewState): string {
     );
     parts.push(`choices=${pairs.join(',')}`);
   }
+  if (space) parts.push(`space=${writeSpace(space)}`);
   return parts.join('&');
+}
+
+function writeSpace(space: ViewSpace): string {
+  const clauses: string[] = [];
+  const number = writeRangeEnd;
+  if (space.root !== undefined) clauses.push(`root:${space.root}`);
+  if (space.camera) {
+    const { target, azimuth, elevation, distance } = space.camera;
+    const numbers = [target.x, target.y, target.z, azimuth, elevation, distance].map(number);
+    clauses.push(`camera:${numbers.join(',')}`);
+  }
+  if (space.cut) clauses.push(`cut:${space.cut.axis},${number(space.cut.at)},${space.cut.keep}`);
+  if (space.explode !== undefined) clauses.push(`explode:${number(space.explode)}`);
+  if (space.relations) clauses.push('relations');
+  if (space.names) clauses.push('names');
+  return clauses.length === 0 ? 'open' : clauses.join(';');
 }
 
 /**
@@ -496,7 +583,112 @@ function checked(value: Record<string, unknown>): ViewState {
   if (value.scenario !== undefined) state.scenario = checkId(value.scenario);
   if (value.step !== undefined) state.step = checkId(value.step);
   if (value.choices !== undefined) state.choices = checkChoices(value.choices);
+  if (value.space !== undefined) state.space = checkSpace(value.space);
   return state;
+}
+
+const SPACE_KEYS: ReadonlySet<string> = new Set([
+  'root',
+  'camera',
+  'cut',
+  'explode',
+  'relations',
+  'names',
+]);
+
+/**
+ * The physical-space panel (ADR 0076), with what says nothing left out: an explosion of 0, and
+ * relations and names off.
+ */
+function checkSpace(value: unknown): ViewSpace {
+  if (!isRecord(value)) refuse('The physical-space panel is an object.');
+  for (const key of Object.keys(value)) {
+    if (!SPACE_KEYS.has(key)) refuse(`The physical-space panel has no "${shortened(key)}".`);
+  }
+  const space: ViewSpace = {};
+  if (value.root !== undefined) space.root = checkId(value.root);
+  if (value.camera !== undefined) space.camera = checkSpaceCamera(value.camera);
+  if (value.cut !== undefined) space.cut = checkSpaceCut(value.cut);
+  if (value.explode !== undefined) {
+    const explode = within(value.explode, 0, 2);
+    if (explode === undefined) refuse('The physical-space panel explodes by a factor from 0 to 2.');
+    if (explode > 0) space.explode = explode;
+  }
+  for (const key of ['relations', 'names'] as const) {
+    const on = value[key];
+    if (on === undefined) continue;
+    if (typeof on !== 'boolean') {
+      refuse(
+        key === 'relations'
+          ? 'Whether the physical-space panel draws relations is true or false.'
+          : 'Whether the physical-space panel draws names is true or false.',
+      );
+    }
+    if (on) space[key] = true;
+  }
+  return space;
+}
+
+/** A finite number from `min` to `max`, a negative zero as 0; otherwise `undefined`. */
+function within(value: unknown, min: number, max: number): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
+    return undefined;
+  }
+  return value === 0 ? 0 : value;
+}
+
+function checkSpaceCamera(value: unknown): NonNullable<ViewSpace['camera']> {
+  if (!isRecord(value) || Object.keys(value).length !== 4 || !isRecord(value.target)) {
+    refuse(SPACE_CAMERA_FORM);
+  }
+  const { target } = value;
+  if (Object.keys(target).length !== 3) refuse(SPACE_CAMERA_FORM);
+  const [x, y, z] = [target.x, target.y, target.z].map((each) =>
+    within(each, -MAX_SPACE_DISTANCE, MAX_SPACE_DISTANCE),
+  );
+  if (x === undefined || y === undefined || z === undefined) {
+    refuse(
+      `The physical-space panel looks at most ${MAX_SPACE_DISTANCE} m from the origin of what it shows.`,
+    );
+  }
+  const azimuth = within(value.azimuth, -180, 180);
+  if (azimuth === undefined) {
+    refuse('The azimuth of the physical-space panel is from -180 to 180 degrees.');
+  }
+  const elevation = within(value.elevation, -89, 89);
+  if (elevation === undefined) {
+    refuse('The elevation of the physical-space panel is from -89 to 89 degrees.');
+  }
+  const distance = within(value.distance, 0, MAX_SPACE_DISTANCE);
+  if (distance === undefined || distance === 0) {
+    refuse(
+      `The physical-space panel looks from more than 0 m and at most ${MAX_SPACE_DISTANCE} m.`,
+    );
+  }
+  return { target: { x, y, z }, azimuth, elevation, distance };
+}
+
+function checkSpaceCut(value: unknown): NonNullable<ViewSpace['cut']> {
+  if (!isRecord(value) || Object.keys(value).length !== 3) refuse(SPACE_CUT_FORM);
+  const { axis, keep } = value;
+  if (axis !== 'x' && axis !== 'y' && axis !== 'z') refuse(SPACE_CUT_FORM);
+  if (keep !== 'below' && keep !== 'above') refuse(SPACE_CUT_FORM);
+  const at = within(value.at, -MAX_SPACE_DISTANCE, MAX_SPACE_DISTANCE);
+  if (at === undefined) {
+    refuse(
+      `A cut crosses its axis at most ${MAX_SPACE_DISTANCE} m from the origin of what it cuts.`,
+    );
+  }
+  return { axis, at, keep };
+}
+
+/** A copy of the physical-space panel of a view state, sharing nothing with it. */
+export function copiedSpace(space: ViewSpace): ViewSpace {
+  return {
+    ...space,
+    ...(space.camera ? { camera: { ...space.camera, target: { ...space.camera.target } } } : {}),
+    ...(space.cut ? { cut: { ...space.cut } } : {}),
+  };
 }
 
 const CHOICES_MAP = 'Choices map the id of each decision to the id of an alternative.';
@@ -720,6 +912,10 @@ export function viewStateProblems(project: ProjectSnapshot, state: ViewState): s
       problems.push(`Focus starts from elements and relations, and "${id}" is neither.`);
     }
   }
+  const root = state.space?.root;
+  if (root !== undefined && index.element(root) === undefined) {
+    problems.push(spaceRootProblem(root));
+  }
   if (state.filters) {
     const definitions = definitionsIn(project);
     for (const id of state.filters.components) {
@@ -760,6 +956,11 @@ export function viewStateProblems(project: ProjectSnapshot, state: ViewState): s
     }
   }
   return problems;
+}
+
+/** What a view state says of a physical-space panel that shows what is not an element. */
+export function spaceRootProblem(root: Id): string {
+  return `The physical-space panel shows "${root}", which is not an element of the project.`;
 }
 
 /**

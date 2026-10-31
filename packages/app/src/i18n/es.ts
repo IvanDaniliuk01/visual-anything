@@ -6105,6 +6105,74 @@ export const messages: Catalog = {
     '{owner} se dibuja como una parte del sólido "{id}", que ningún paquete en uso define; se dibuja como una forma común.',
   '{owner} is drawn as the part "{part}" of the solid "{name}", which has no such part; it is drawn as an ordinary shape.':
     '{owner} se dibuja como la parte "{part}" del sólido "{name}", que no tiene esa parte; se dibuja como una forma común.',
+  // M10 seam 1: poses, what commands refuse of them and what opening warns (ADR 0076).
+  'Pose "{name}"': 'Ubicar "{name}"',
+  'Pose {n} elements': 'Ubicar {n} elementos',
+  'Take "{name}" out of physical space': 'Sacar "{name}" del espacio físico',
+  'No elements were given to pose.': 'No se indicó ningún elemento para ubicar.',
+  'World is where physical space is measured from; it has no pose.':
+    'Mundo es desde donde se mide el espacio físico; no tiene ubicación.',
+  'The pose of "{name}" is not a pose.': 'La ubicación de "{name}" no es una ubicación.',
+  'The pose of "{name}" has "{key}", which a pose has not.':
+    'La ubicación de "{name}" tiene "{key}", que una ubicación no tiene.',
+  'The pose of "{name}" names no container in "in".':
+    'La ubicación de "{name}" no nombra ningún contenedor en "in".',
+  'The pose of "{name}" has no place in "at".':
+    'La ubicación de "{name}" no tiene un lugar en "at".',
+  'The pose of "{name}" has "{key}" in "at", which a place has not.':
+    'La ubicación de "{name}" tiene "{key}" en "at", que un lugar no tiene.',
+  'The pose of "{name}" has no finite {axis} in "at".':
+    'La ubicación de "{name}" no tiene un {axis} finito en "at".',
+  'The pose of "{name}" puts {axis} past 1,000 km from its container.':
+    'La ubicación de "{name}" pone {axis} a más de 1.000 km de su contenedor.',
+  'The pose of "{name}" has no quaternion in "rotation".':
+    'La ubicación de "{name}" no tiene un cuaternión en "rotation".',
+  'The pose of "{name}" has "{key}" in "rotation", which a quaternion has not.':
+    'La ubicación de "{name}" tiene "{key}" en "rotation", que un cuaternión no tiene.',
+  'The pose of "{name}" has no finite {part} in "rotation".':
+    'La ubicación de "{name}" no tiene un {part} finito en "rotation".',
+  'The pose of "{name}" has a rotation that is not of unit length.':
+    'La ubicación de "{name}" tiene una rotación que no es de longitud uno.',
+  'The pose of "{name}" is measured from "{container}", which is not an element.':
+    'La ubicación de "{name}" se mide desde "{container}", que no es un elemento.',
+  'The pose of "{name}" is measured from "{container}", which is not one of its containers.':
+    'La ubicación de "{name}" se mide desde "{container}", que no es uno de sus contenedores.',
+  'The pose of "{name}" is measured from "{container}", which is gone; it is kept, and "{element}" is not in physical space until it is posed again.':
+    'La ubicación de "{name}" se mide desde "{container}", que ya no existe; se conserva, y "{element}" no está en el espacio físico hasta que se lo ubique de nuevo.',
+  'The pose of "{name}" is measured from "{container}", which no longer holds it; it is kept, and "{element}" is not in physical space until it is posed again.':
+    'La ubicación de "{name}" se mide desde "{container}", que ya no lo contiene; se conserva, y "{element}" no está en el espacio físico hasta que se lo ubique de nuevo.',
+  // M10 seam 1: the physical-space panel in a view state and its address (ADR 0076).
+  'The physical-space panel holds root, camera, cut, explode, relations and names, or is open alone, not "{name}".':
+    'El panel de espacio físico tiene root, camera, cut, explode, relations y names, o está abierto solo, no "{name}".',
+  'The physical-space panel holds "{name}" twice.':
+    'El panel de espacio físico tiene "{name}" dos veces.',
+  '"{name}" in the physical-space panel takes no value.':
+    '"{name}" en el panel de espacio físico no lleva valor.',
+  'The camera of the physical-space panel is six numbers: x,y,z,azimuth,elevation,distance.':
+    'La cámara del panel de espacio físico son seis números: x,y,z,azimuth,elevation,distance.',
+  'A cut is cut:<axis>,<at>,<keep>: x, y or z, a number, and below or above.':
+    'Un corte es cut:<axis>,<at>,<keep>: x, y o z, un número, y below o above.',
+  'Explode is one number: explode:<factor>.': 'La explosión es un número: explode:<factor>.',
+  'The physical-space panel is an object.': 'El panel de espacio físico es un objeto JSON.',
+  'The physical-space panel has no "{name}".': 'El panel de espacio físico no tiene "{name}".',
+  'The physical-space panel explodes by a factor from 0 to 2.':
+    'El panel de espacio físico separa las partes por un factor de 0 a 2.',
+  'Whether the physical-space panel draws relations is true or false.':
+    'Si el panel de espacio físico dibuja las relaciones es true o false.',
+  'Whether the physical-space panel draws names is true or false.':
+    'Si el panel de espacio físico escribe los nombres es true o false.',
+  'The physical-space panel looks at most {n} m from the origin of what it shows.':
+    'El panel de espacio físico mira a lo sumo a {n} m del origen de lo que muestra.',
+  'The azimuth of the physical-space panel is from -180 to 180 degrees.':
+    'El acimut del panel de espacio físico va de -180 a 180 grados.',
+  'The elevation of the physical-space panel is from -89 to 89 degrees.':
+    'La elevación del panel de espacio físico va de -89 a 89 grados.',
+  'The physical-space panel looks from more than 0 m and at most {n} m.':
+    'El panel de espacio físico mira desde más de 0 m y a lo sumo {n} m.',
+  'A cut crosses its axis at most {n} m from the origin of what it cuts.':
+    'Un corte cruza su eje a lo sumo a {n} m del origen de lo que corta.',
+  'The physical-space panel shows "{root}", which is not an element of the project.':
+    'El panel de espacio físico muestra "{root}", que no es un elemento del proyecto.',
   'No nesting relation type can hold a new element of "{component}" inside "{name}".':
     'Ningún tipo de relación que anida puede contener un nuevo elemento de "{component}" dentro de "{name}".',
   // M8b seam 1: free geometry, named parts and automatic route styles (ADR 0066, 0067, 0069).

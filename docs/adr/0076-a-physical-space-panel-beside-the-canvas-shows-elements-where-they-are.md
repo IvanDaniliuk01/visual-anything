@@ -173,3 +173,17 @@ The page (ADR 0041) has the panel when it holds solids or poses: linked as in th
 - Full-screen playback, view addresses, guidance and Claude's tools gain `space`, and the read-only page gains the panel.
 - A changed pose shows in comparisons as a change of its element, and merges as one key of it.
 - CONTEXT.md changes **Physical space**, gains **Pose** and **Physical-space panel**, and **View state** says that it carries where the panel looks.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-31 under the user's standing delegation of design decisions, while building M10's first seam. -->
+
+- 2026-10-31 (M10, Seam 1): **how the first seam builds the schema and the core.**
+  - **Where a pose's numbers may go.** A solid's `SpacePoint` stops at 100 km, so a pose's `at` is a `PosePoint` of its own, at most 1,000 km either way, as the commands refuse past it. The panel's camera looks at a `SpaceTarget` in the root's coordinates, at most 100,000 km away, as far as its distance and a cut may reach, since nested poses add up.
+  - **What a pose in an anchored part is measured from.** A solid's definition keeps each part's point, not its node's turn, which only the solid's file holds and the core never reads. So an anchored part's origin is its part's point, with its solid's axes, and a part that draws nothing of its own has its solid's origin. A camera posed on a wrist sits where the wrist's point is, turned as the arm is.
+  - **World by its id.** A pose whose `in` names World is stored with `in` left out. World has no pose: commands refuse one with `world-not-allowed`.
+  - **What a command stores.** A rotation within a millionth of unit length is stored divided by its length, and a negative zero as 0. `set-poses` refuses an empty list and an element named twice, and changes nothing for a pose given as it is.
+  - **What opening and actions warn of.** Opening warns with `invalid-pose` for a pose whose values a command would refuse, and with `pose-not-in-container` for one whose `in` is not a container. An action warns with `pose-not-in-container` only for the poses it leaves unusable, not for those that already were.
+  - **The view state.** The address writes the panel as `space=root:<id>;camera:<x>,<y>,<z>,<azimuth>,<elevation>,<distance>;cut:<axis>,<at>,<keep>;explode:<factor>;relations;names`, each clause only when it says something, and `space=open` when none does. Checking leaves out an explosion of 0 and relations or names that are off, so an address and a tour step keep the same value. A root that is not an element is a problem of the view state, and of a tour step as `unknown-element`.
+  - **Words.** The glossary avoids "root" for World, so what people read never calls the panel's element its root: the panel "shows" it. `root` stays as the name of the view state's field, as this decision gives it. In Spanish a pose is "ubicación", and posing is "ubicar".
+  - **The core's exports.** `spaceOf`, `poseIn` and `pointInSpace` are exported with the checks of poses. The maths are exported under `spaceMath`, so that names such as `multiply` do not stand alone beside the canvas's. Only `rotationFromDegrees`, `degreesOfRotation` and `NO_ROTATION` are exported by name.

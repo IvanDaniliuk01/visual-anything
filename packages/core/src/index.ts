@@ -195,6 +195,8 @@ export { checkProject } from './check';
 export * from './images';
 // Solids (ADR 0075): the canonical form's reader, the camera's maths and the catalog.
 export * from './solids';
+// Physical space (ADR 0076): poses and what is in physical space under a root.
+export * from './space';
 export * from './import';
 
 export type {
@@ -312,12 +314,14 @@ export type {
   ViewFocus,
   ViewState,
   ViewStateCheck,
+  ViewSpace,
   ViewStateRead,
   ViewTimeRange,
 } from './view-state';
 export {
   MAX_CAMERA_DISTANCE,
   MAX_CAMERA_ZOOM,
+  MAX_SPACE_DISTANCE,
   MAX_VIEW_STATE_ADDRESS,
   MAX_VIEW_STATE_CHOICES,
   MAX_VIEW_STATE_IDS,
@@ -325,6 +329,7 @@ export {
   VIEW_STATE_KEYS,
   checkViewState,
   choiceProblems,
+  copiedSpace,
   readViewState,
   viewStateProblems,
   withViewState,

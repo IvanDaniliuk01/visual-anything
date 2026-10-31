@@ -7,6 +7,16 @@ import type { AppearanceImage, ImageDefinition } from './images';
 
 export type { AppearanceImage, BitmapImage, ImageDefinition, SvgImage } from './images';
 import type { AppearanceSolid, SolidDefinition } from './solids';
+import type { Pose, SavedSpace } from './space';
+export type {
+  Pose,
+  PosePoint,
+  Rotation,
+  SavedSpace,
+  SpaceCamera,
+  SpaceCut,
+  SpaceTarget,
+} from './space';
 export type {
   AppearanceSolid,
   SolidAnimation,
@@ -156,6 +166,11 @@ export interface Element {
   attributes?: Attributes;
   /** An appearance of its own, which is a particularity. Whatever it leaves out comes from the component. */
   appearance?: Appearance;
+  /**
+   * Where it is in physical space and which way it faces, measured from one of its containers or
+   * from World (ADR 0076); absent when it has no place there.
+   */
+  pose?: Pose;
 }
 
 /** A meaningful tie between two ends, each an element or another relation, always of a relation type. */
@@ -1834,6 +1849,8 @@ export interface SavedViewState {
   step?: Id;
   /** The alternatives chosen at that scenario's decisions (ADR 0078); it needs `scenario`. */
   choices?: DecisionChoices;
+  /** The physical-space panel, open beside the canvas (ADR 0076); left out, it is closed. */
+  space?: SavedSpace;
 }
 
 /** Where the canvas looks: the point of the view at its middle, in canvas units, and the zoom. */

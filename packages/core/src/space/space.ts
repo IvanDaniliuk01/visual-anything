@@ -1,0 +1,276 @@
+/**
+ * What is in physical space under a root (ADR 0076), worked out from the model, never stored:
+ *
+ * - the root itself: World, or one element;
+ * - an element posed in an element in physical space, or posed with no `in` while the root is World;
+ * - an anchored part of a solid shown by an element in physical space (ADR 0075), drawn as its node
+ *   there. A pose it has is kept and not used.
+ *
+ * An element is in physical space at most once. Poses never form a cycle, since `in` is always one of
+ * the element's containers and containment never forms one (ADR 0019); a pose whose `in` is not one
+ * of them is kept and not used (`pose-not-in-container`).
+ */
+import type {
+  Element,
+  Id,
+  Pose,
+  SolidDefinition,
+  SpacePoint,
+  ViewFile,
+} from '@visual-anything/schema';
+import type { ProjectSnapshot } from '../snapshot';
+import { shownByScope } from '../scope';
+import { definitionsIn, modelIndexOf } from '../state';
+import { solidAnchoredElements } from '../solids/anchoring';
+import { solidShownBy, solidsIn } from '../solids/catalog';
+import { poseIsUsable } from './pose';
+import {
+  IDENTITY,
+  decompose,
+  inverseRigid,
+  matrixOf,
+  multiply,
+  transformPoint,
+  type Matrix,
+} from './math';
+
+/** How an element is in physical space. */
+export type SpaceHow = 'root' | 'posed' | 'anchored';
+
+/** One element in physical space under a root. */
+export interface SpaceEntry {
+  readonly element: Id;
+  readonly how: SpaceHow;
+  /** What it is posed or anchored in: its container, or the element whose solid holds its part. */
+  readonly in?: Id;
+  /**
+   * Where its origin and axes are, in the root's coordinates. An anchored part's origin is its
+   * part's point, with its solid's axes.
+   */
+  readonly matrix: Matrix;
+  /** The solid it shows, by id, when a package in use defines it. */
+  readonly solid?: { readonly id: Id; readonly definition: SolidDefinition };
+  /** For an anchored part: the part of its holder's solid it is drawn as, and that part's index. */
+  readonly part?: { readonly solid: Id; readonly name: string; readonly index: number };
+  /** The outermost collapsed container of the view it is drawn as, if any. */
+  readonly drawnAs?: Id;
+}
+
+/** What the physical-space panel draws under its root. */
+export interface Space {
+  readonly root: Id;
+  /** Every element in physical space that the view shows, by id, in the order they were reached. */
+  readonly entries: ReadonlyMap<Id, SpaceEntry>;
+  /**
+   * The elements through which a shown element is in physical space but which the view does not
+   * show: drawn faintly, as a container of what a filter shows is.
+   */
+  readonly faint: ReadonlyMap<Id, SpaceEntry>;
+}
+
+interface Placed {
+  readonly entry: SpaceEntry;
+  /** The chain of entries that brought it into space, the root first. */
+  readonly through: readonly Id[];
+}
+
+/**
+ * What is in physical space under `root`, World when left out, for `view`: every element in it, how
+ * it is there and where, as the open view shows it. Without a view, the whole model.
+ */
+export function spaceOf(project: ProjectSnapshot, view?: ViewFile, root?: Id): Space {
+  const placed = placeAll(project, root);
+  const rootId = root ?? project.model.world.id;
+  const shown = view ? shownByScope(project, view) : undefined;
+  const collapsed = new Set(view?.collapsed ?? []);
+  const entries = new Map<Id, SpaceEntry>();
+  const faint = new Map<Id, SpaceEntry>();
+  for (const [id, { entry, through }] of placed) {
+    if (shown && !shown.element(id) && id !== rootId) continue;
+    // The outermost collapsed container of the view on its way into space.
+    const drawnAs = [...through, id].find((each) => each !== id && collapsed.has(each));
+    entries.set(id, drawnAs === undefined ? entry : { ...entry, drawnAs });
+    for (const each of through) {
+      if (entries.has(each) || faint.has(each)) continue;
+      if (shown && !shown.element(each) && each !== rootId) {
+        const holder = placed.get(each);
+        if (holder) faint.set(each, holder.entry);
+      }
+    }
+  }
+  return { root: rootId, entries, faint };
+}
+
+const placements = new WeakMap<
+  object,
+  { packages: unknown; byRoot: Map<Id, ReadonlyMap<Id, Placed>> }
+>();
+
+/** Every element in physical space under a root, whatever a view shows; kept per model and root. */
+function placeAll(project: ProjectSnapshot, root?: Id): ReadonlyMap<Id, Placed> {
+  const rootId = root ?? project.model.world.id;
+  let kept = placements.get(project.model);
+  if (kept === undefined || kept.packages !== project.packages) {
+    kept = { packages: project.packages, byRoot: new Map() };
+    placements.set(project.model, kept);
+  }
+  let placed = kept.byRoot.get(rootId);
+  if (placed === undefined) {
+    placed = place(project, rootId);
+    kept.byRoot.set(rootId, placed);
+  }
+  return placed;
+}
+
+function place(project: ProjectSnapshot, rootId: Id): Map<Id, Placed> {
+  const index = modelIndexOf(project);
+  const definitions = definitionsIn(project);
+  const solids = solidsIn(project);
+  const worldId = project.model.world.id;
+  const solidOf = (element: Element): SpaceEntry['solid'] => {
+    const shown = solidShownBy(element, definitions);
+    const defined = shown && solids.solid(shown.solid);
+    return defined ? { id: shown.solid, definition: defined.definition } : undefined;
+  };
+
+  // Anchored parts by the container whose solid holds them; an anchored element's pose is not used.
+  const anchoredIn = new Map<Id, { element: Element; name: string; solid: Id }[]>();
+  const anchored = new Set<Id>();
+  for (const { element, part, solids: named } of solidAnchoredElements(project)) {
+    for (const container of index.containersOf(element.id)) {
+      const holder = index.element(container);
+      const shown = holder && solidShownBy(holder, definitions);
+      if (!shown || !named.includes(shown.solid)) continue;
+      const list = anchoredIn.get(container) ?? [];
+      list.push({ element, name: part.part, solid: shown.solid });
+      anchoredIn.set(container, list);
+      anchored.add(element.id);
+      break;
+    }
+  }
+
+  // Posed elements by what they are posed in, World for no `in`; a pose in a non-container is unused.
+  const posedIn = new Map<Id, Element[]>();
+  for (const element of project.model.elements) {
+    const pose = element.pose;
+    if (pose === undefined || anchored.has(element.id)) continue;
+    if (!poseIsUsable(pose, element.id, index)) continue;
+    const container = pose.in ?? worldId;
+    const list = posedIn.get(container) ?? [];
+    list.push(element);
+    posedIn.set(container, list);
+  }
+
+  const result = new Map<Id, Placed>();
+  const rootElement = index.element(rootId);
+  if (!rootElement) return result;
+  const rootSolid = solidOf(rootElement);
+  result.set(rootId, {
+    entry: {
+      element: rootId,
+      how: 'root',
+      matrix: IDENTITY,
+      ...(rootSolid ? { solid: rootSolid } : {}),
+    },
+    through: [],
+  });
+  const queue: Id[] = [rootId];
+  while (queue.length > 0) {
+    const holderId = queue.shift() as Id;
+    const holder = result.get(holderId) as Placed;
+    const through = [...holder.through, holderId];
+    // Its solid's anchored parts, drawn as their nodes in it.
+    const holderSolid = holder.entry.solid;
+    for (const { element, name, solid } of anchoredIn.get(holderId) ?? []) {
+      if (result.has(element.id) || !holderSolid || holderSolid.id !== solid) continue;
+      const index = holderSolid.definition.parts.findIndex((each) => each.name === name);
+      if (index < 0) continue;
+      const own = solidOf(element);
+      // Measured from its part's point, with its solid's axes; a part drawing nothing of its own has
+      // its solid's origin.
+      const point = holderSolid.definition.parts[index]?.point ?? { x: 0, y: 0, z: 0 };
+      result.set(element.id, {
+        entry: {
+          element: element.id,
+          how: 'anchored',
+          in: holderId,
+          matrix: multiply(holder.entry.matrix, matrixOf(point)),
+          part: { solid, name, index },
+          ...(own ? { solid: own } : {}),
+        },
+        through,
+      });
+      queue.push(element.id);
+    }
+    // What is posed in it; with World as the root, what is posed with no `in` too.
+    for (const element of posedIn.get(holderId) ?? []) {
+      if (result.has(element.id)) continue;
+      const pose = element.pose as Pose;
+      const own = solidOf(element);
+      result.set(element.id, {
+        entry: {
+          element: element.id,
+          how: 'posed',
+          in: holderId,
+          matrix: multiply(holder.entry.matrix, matrixOf(pose.at, pose.rotation)),
+          ...(own ? { solid: own } : {}),
+        },
+        through,
+      });
+      queue.push(element.id);
+    }
+  }
+  return result;
+}
+
+/**
+ * The pose that keeps an element where it is in physical space once it is posed in `container`: its
+ * place and turn measured from the container's origin and axes. `undefined` when either is not in
+ * physical space under World.
+ */
+export function poseIn(
+  project: ProjectSnapshot,
+  element: Id,
+  container: Id | undefined,
+): Pose | undefined {
+  const placed = placeAll(project);
+  const self = placed.get(element);
+  const holder = placed.get(container ?? project.model.world.id);
+  if (!self || !holder) return undefined;
+  const local = multiply(inverseRigid(holder.entry.matrix), self.entry.matrix);
+  const { at, rotation } = decompose(local);
+  const round = (value: number) => {
+    const rounded = Math.round(value * 1e9) / 1e9;
+    return Object.is(rounded, -0) ? 0 : rounded;
+  };
+  const near = (value: number, to: number) => Math.abs(value - to) < 1e-12;
+  const turned = !(near(rotation.x, 0) && near(rotation.y, 0) && near(rotation.z, 0));
+  return {
+    ...(container === undefined || container === project.model.world.id ? {} : { in: container }),
+    at: { x: round(at.x), y: round(at.y), z: round(at.z) },
+    ...(turned ? { rotation } : {}),
+  };
+}
+
+/**
+ * Where a relation drawn in space ends on an element (ADR 0076): its anchored part's point, or else
+ * the middle of its solid's bounds, or else its origin, in the root's coordinates. `undefined` when
+ * it is not in the space.
+ */
+export function pointInSpace(space: Space, element: Id): SpacePoint | undefined {
+  const entry = space.entries.get(element) ?? space.faint.get(element);
+  if (!entry) return undefined;
+  const holder =
+    entry.part && (space.entries.get(entry.in as Id) ?? space.faint.get(entry.in as Id));
+  const anchoredAtPoint = entry.part && holder?.solid?.definition.parts[entry.part.index]?.point;
+  if (!anchoredAtPoint && entry.solid) {
+    const { min, max } = entry.solid.definition.bounds;
+    return transformPoint(entry.matrix, {
+      x: (min.x + max.x) / 2,
+      y: (min.y + max.y) / 2,
+      z: (min.z + max.z) / 2,
+    });
+  }
+  // An anchored part's origin is its point.
+  return transformPoint(entry.matrix, { x: 0, y: 0, z: 0 });
+}

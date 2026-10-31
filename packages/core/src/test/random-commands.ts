@@ -15,7 +15,8 @@ import type {
 import { containmentTree, type Placement } from '../containment';
 import { nestingTypesInView } from '../containers';
 import type { ProjectSnapshot } from '../snapshot';
-import { definitionsIn } from '../state';
+import { rotationFromDegrees } from '../space/math';
+import { definitionsIn, modelIndexOf } from '../state';
 import { testProject } from './fixtures';
 
 export const COMPONENTS = ['test.box', 'test.service', 'test.database', 'essence'];
@@ -77,6 +78,7 @@ export type Intent =
   | { kind: 'update-relation-type'; at: number; change: number; value: number }
   | { kind: 'update-package'; value: number }
   | { kind: 'reorder'; picks: number[]; before: number | null }
+  | { kind: 'pose'; picks: number[]; container: number; at: number; turn: number; out: boolean }
   | { kind: 'collapse'; at: number; picks: number[]; collapsed: boolean }
   | { kind: 'scope'; at: number; rule: number; picks: number[]; clear: boolean }
   | { kind: 'in-view'; at: number; picks: number[]; out: boolean }
@@ -126,6 +128,7 @@ export const COMMAND_TYPES: readonly Command['type'][] = [
   'update-relation-type',
   'update-package',
   'reorder-elements',
+  'set-poses',
   'set-collapsed',
   'set-scope',
   'add-to-view',
@@ -253,6 +256,18 @@ export const intent: fc.Arbitrary<Intent> = fc.oneof(
       before: fc.option(index),
     }),
     weight: 2,
+  },
+  // Poses (ADR 0076), in World or one of the element's containers, and now and then in what is not.
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('pose'),
+      picks: fc.array(index, { minLength: 1, maxLength: 3 }),
+      container: index,
+      at: index,
+      turn: index,
+      out: fc.boolean(),
+    }),
+    weight: 3,
   },
   fc.record({
     kind: fc.constant('collapse'),
@@ -684,6 +699,40 @@ export function commandFor(state: ProjectSnapshot, wish: Intent): Command | unde
             ? { name: `Test ${wish.value % 5}` }
             : { description: wish.value % 3 === 0 ? null : 'Ours.' },
       };
+    case 'pose': {
+      const model = modelIndexOf(state);
+      // An element and, now and then, its first container, so that poses nest.
+      const chosen = wish.picks.map((at) => pick(elements, at) as Id).filter(Boolean);
+      const first = chosen[0];
+      const above = first === undefined ? undefined : model.containersOf(first)[0];
+      const picked = [...new Set([...chosen, ...(above && wish.turn % 2 === 0 ? [above] : [])])];
+      if (picked.length === 0) return undefined;
+      const poseOf = (id: Id, at: number) => {
+        if (wish.out && at === 0) return null;
+        const containers = model.containersOf(id);
+        const container =
+          wish.container % 5 === 4
+            ? pick(elements, wish.container)
+            : wish.container % 5 === 0
+              ? undefined
+              : pick(containers, wish.container + at);
+        const turn =
+          wish.turn % 3 === 0 ? undefined : rotationFromDegrees(0, (wish.turn % 8) * 45, 15);
+        return {
+          ...(container === undefined ? {} : { in: container }),
+          at: { x: ((wish.at + at) % 7) - 3, y: (wish.at % 5) * 0.5, z: -(wish.at % 3) },
+          ...(turn === undefined ? {} : { rotation: turn }),
+        };
+      };
+      const [only] = picked;
+      if (picked.length === 1 && only !== undefined && wish.at % 2 === 0) {
+        return { type: 'update-element', id: only, changes: { pose: poseOf(only, 0) } };
+      }
+      return {
+        type: 'set-poses',
+        poses: picked.map((element, at) => ({ element, pose: poseOf(element, at) })),
+      };
+    }
     case 'reorder': {
       if (elements.length === 0) return undefined;
       const moving = [...new Set(wish.picks.map((at) => pick(elements, at) as Id))];
