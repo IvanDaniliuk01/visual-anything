@@ -4,9 +4,14 @@
  * worker starts once the open view first draws a solid. Importing the client is what makes the app's
  * build emit the solid worker, as a script of its own.
  */
-import { useContext, type ContextType } from 'react';
+import { useContext, useMemo, type ContextType } from 'react';
 import { LiveContext } from '../../live/context';
-import { createSolidClient, solidFilesOver, type SolidClient } from '../../solids/client';
+import {
+  createSolidClient,
+  solidFilesOver,
+  type SolidClient,
+  type SolidFiles,
+} from '../../solids/client';
 
 type GetSolidFile = NonNullable<ContextType<typeof LiveContext>>['getSolidFile'];
 
@@ -20,6 +25,12 @@ export function solidClientOver(getSolidFile: NonNullable<GetSolidFile>): SolidC
     clients.set(getSolidFile, client);
   }
   return client;
+}
+
+/** The solids' files of the live session's program, as a read-only page takes them; none outside one. */
+export function useSolidFiles(): SolidFiles | undefined {
+  const getSolidFile = useContext(LiveContext)?.getSolidFile;
+  return useMemo(() => (getSolidFile ? solidFilesOver({ getSolidFile }) : undefined), [getSolidFile]);
 }
 
 /** The solid client of the live session; none outside one, where every solid draws its placeholder. */

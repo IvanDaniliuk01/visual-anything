@@ -16,6 +16,7 @@ import {
   builtinPackage,
   checkProject,
   cleanedImage,
+  solidsIn,
   type Problem,
   type ProjectSnapshot,
 } from '@visual-anything/core';
@@ -31,6 +32,7 @@ import type {
   ViewFile,
 } from '@visual-anything/schema';
 import type { ValidationResult } from '@visual-anything/schema/validate';
+import { readPageSolids, type PageSolids } from './solids';
 
 /** The version of the page's data format; a page of a later one is refused with what to do. */
 export const PAGE_FORMAT = 1;
@@ -61,12 +63,19 @@ export interface PageData {
    * page: they are often remarks still being worked out, and they name people (ADR 0059).
    */
   tours?: TourFile[];
+  /**
+   * What it holds of the solids its views show (ADR 0075): their files, or only their pictures; left
+   * out when its views show none. Data, never fetched and never run.
+   */
+  solids?: PageSolids;
 }
 
 /** What else a page's data says, besides the project. */
 export interface PageDataOptions {
   start?: string;
   made?: Date;
+  /** The solids its views show, as the export gathered them; none for a page without solids. */
+  solids?: PageSolids;
 }
 
 /** The data of a page made from a project as it is open. */
@@ -85,6 +94,7 @@ export function pageDataOf(project: ProjectSnapshot, options: PageDataOptions = 
     ...(project.tours.length === 0
       ? {}
       : { tours: project.tours.map((tour) => withoutNotes(withoutConflicts(tour))) }),
+    ...(options.solids === undefined ? {} : { solids: options.solids }),
   };
 }
 
@@ -163,6 +173,8 @@ export type PageRead =
       made?: string;
       /** What the project breaks of the rules that only warn. */
       warnings: Problem[];
+      /** What it holds of its solids, read strictly; none for a page without solids. */
+      solids?: PageSolids;
     }
   | { ok: false; problems: string[] };
 
@@ -228,6 +240,8 @@ export function readPageData(text: string, validate: ValidateFile): PageRead {
     const read = check('tour', tour, `Tour ${at + 1}`);
     return read ? [read] : [];
   });
+  const solids = data.solids === undefined ? undefined : readPageSolids(data.solids);
+  if (solids && !solids.ok) problems.push(solids.problem);
   if (!project || !model || problems.length > 0) return { ok: false, problems };
 
   onceEach(packages, 'package', problems);
@@ -247,6 +261,16 @@ export function readPageData(text: string, validate: ValidateFile): PageRead {
     tours,
     comments: [],
   };
+  // A page holds the files of solids its packages define, and no other file.
+  if (solids?.ok && solids.solids.form === 'files') {
+    const defined = new Set(
+      [...solidsIn(snapshot).solids.values()].map((each) => each.definition.hash),
+    );
+    for (const hash of Object.keys(solids.solids.files)) {
+      if (!defined.has(hash)) problems.push(`The page holds a solid file "${hash}" no package names.`);
+    }
+    if (problems.length > 0) return { ok: false, problems };
+  }
   const checked = checkProject(snapshot);
   if (checked.errors.length > 0) {
     return { ok: false, problems: checked.errors.map((error) => error.message) };
@@ -257,6 +281,7 @@ export function readPageData(text: string, validate: ValidateFile): PageRead {
     ...(start === undefined ? {} : { start }),
     ...(made === undefined ? {} : { made }),
     warnings: checked.warnings,
+    ...(solids?.ok ? { solids: solids.solids } : {}),
   };
 }
 

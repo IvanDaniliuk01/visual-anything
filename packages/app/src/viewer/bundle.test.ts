@@ -1,7 +1,10 @@
 /**
  * The viewer's bundle holds no live connection, no commands, no editors, no inspector controls, no
  * launch-address code and no package code (ADR 0041, ADR 0054): this builds it as `pnpm build` does,
- * in a process of its own, and reads which modules its script holds and what it says.
+ * in a process of its own, and reads which modules its script holds and what it says. It also builds
+ * the solid worker as a page holds it (ADR 0075): three.js is in it and nowhere else, so that neither
+ * the viewer nor a page without solids holds it, and a page with solids' files holds it as text its
+ * policy lets it start, and nothing else.
  */
 import { execFile } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
@@ -10,8 +13,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
+import { encodeBase64, solidHash } from '@visual-anything/core';
+import { ARM_FILE, withSolids } from '../test/solids';
 import { pageDataOf } from './data';
-import { writePage } from './page';
+import { SOLID_WORKER_ID, writePage } from './page';
 
 const APP = resolve(import.meta.dirname, '../..');
 
@@ -118,6 +123,11 @@ let out = '';
 let script = '';
 let style = '';
 let modules: string[] = [];
+let workerOut = '';
+let solidWorker = '';
+
+/** What only three.js's own code says: the revision it registers itself under. */
+const THREE_MARK = '__THREE__';
 
 /** Runs a command, and resolves once it ends well. */
 function run(command: string, args: string[], env: NodeJS.ProcessEnv): Promise<void> {
@@ -154,10 +164,28 @@ beforeAll(async () => {
   script = readFileSync(join(out, 'viewer.js'), 'utf8');
   style = readFileSync(join(out, 'viewer.css'), 'utf8');
   modules = JSON.parse(readFileSync(join(out, 'modules.json'), 'utf8')) as string[];
+  workerOut = mkdtempSync(join(tmpdir(), 'visual-anything-solid-worker-'));
+  await run(
+    process.execPath,
+    [
+      vite,
+      'build',
+      '--config',
+      'vite.solid-worker.config.ts',
+      '--outDir',
+      workerOut,
+      '--emptyOutDir',
+      '--logLevel',
+      'error',
+    ],
+    process.env,
+  );
+  solidWorker = readFileSync(join(workerOut, 'solid-worker.js'), 'utf8');
 }, 300_000);
 
 afterAll(() => {
   if (out !== '') rmSync(out, { recursive: true, force: true });
+  if (workerOut !== '') rmSync(workerOut, { recursive: true, force: true });
 });
 
 describe('The viewer’s bundle', () => {
@@ -206,5 +234,74 @@ describe('The viewer’s bundle', () => {
     expect(style.match(/@import|url\((?!\s*['"]?data:)/gi)).toBeNull();
     expect(page.policy).toContain("connect-src 'none'");
     expect(page.large).toBe(false);
+  });
+
+  it('holds neither three.js nor the solid worker, which only a page with solids’ files holds', () => {
+    expect(modules.filter((path) => /node_modules\/(three|three-mesh-bvh)\//.test(path))).toEqual([]);
+    expect(modules.filter((path) => path.includes('packages/app/src/solids/worker/'))).toEqual([]);
+    expect(modules).not.toContain('packages/app/src/solids/client.ts');
+    expect(script).not.toContain(THREE_MARK);
+  });
+
+  it('builds the solid worker as one classic script with three.js and its licenses, loading nothing', () => {
+    expect(readdirSync(workerOut)).toEqual(['solid-worker.js']);
+    expect(solidWorker).toContain(THREE_MARK);
+    expect(solidWorker).toMatch(/^\/\*! Visual Anything’s solid worker\. three\.js .*MIT License/);
+    for (const forbidden of [
+      /\bfetch\(/,
+      /new XMLHttpRequest\b/,
+      /new WebSocket\b/,
+      /\bimportScripts\(/,
+      /\bimport\(/,
+      /new Worker\b/,
+      /\beval\(/,
+      /new Function\b/,
+    ]) {
+      expect(solidWorker).not.toMatch(forbidden);
+    }
+  });
+
+  it('makes a page without solids, or with their pictures, that holds no three.js and keeps its policy', async () => {
+    for (const solids of [undefined, { form: 'pictures' as const, pictures: [] }]) {
+      const page = await writePage({
+        assets: { script, style, solidWorker },
+        data: pageDataOf(withSolids(), solids ? { solids } : {}),
+        title: 'Robot',
+      });
+      expect(page.html).not.toContain(THREE_MARK);
+      expect(page.html).not.toContain(SOLID_WORKER_ID);
+      expect(page.policy).toContain("worker-src 'none'");
+      expect(page.policy).toMatch(/trusted-types default$/);
+    }
+    const plain = await writePage({
+      assets: { script, style, solidWorker },
+      data: pageDataOf(loadSample()),
+      title: 'My systems',
+    });
+    expect(plain.html).not.toContain(THREE_MARK);
+  });
+
+  it('makes a page with solids’ files that holds three.js only as its worker’s text, and loads nothing', async () => {
+    const page = await writePage({
+      assets: { script, style, solidWorker },
+      data: pageDataOf(withSolids(), {
+        solids: { form: 'files', files: { [solidHash(ARM_FILE)]: encodeBase64(ARM_FILE) } },
+      }),
+      title: 'Robot',
+    });
+    const held = [...page.html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+    const withThree = held.filter(([, , body]) => (body ?? '').includes(THREE_MARK));
+    expect(withThree.map(([, attributes]) => (attributes ?? '').trim())).toEqual([
+      `type="text/plain" id="${SOLID_WORKER_ID}"`,
+    ]);
+    expect(page.policy).toContain('worker-src blob:');
+    expect(page.policy).toContain("connect-src 'none'");
+    expect(page.policy).toContain("default-src 'none'");
+    const markup = page.html.replace(
+      /(<(script|style)\b[^>]*>)[\s\S]*?(<\/\2>)/gi,
+      (_whole, open: string, _tag: string, close: string) => `${open}${close}`,
+    );
+    expect(markup.match(/\b(src|href|action|srcset)\s*=|<link\b|<iframe\b|<object\b/gi)).toBeNull();
+    expect(NOT_SAID.filter((each) => script.includes(each))).toEqual([]);
   });
 });

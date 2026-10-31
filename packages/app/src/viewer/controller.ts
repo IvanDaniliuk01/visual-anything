@@ -10,7 +10,8 @@
  * project.
  */
 import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
-import type { Id } from '@visual-anything/schema';
+import type { Id, SolidPart } from '@visual-anything/schema';
+import type { SolidClient } from '../solids/solid-client';
 import { describeRelation, describeSelection, nameOfEnd } from '../canvas/announce';
 import {
   panBy,
@@ -132,11 +133,16 @@ export class ViewerController {
   /** The element whose relations ] and [ step through, and the relation they are on. */
   private stepping: { element: Id; relation: Id | undefined } | undefined;
 
+  /** What draws the page's solids (ADR 0075); none in a page without solids. */
+  private readonly solids: SolidClient | undefined;
+  private solidsFrom: ProjectSnapshot['packages'] | undefined;
+
   constructor(
     private readonly host: HTMLElement,
     private readonly callbacks: ViewerCallbacks,
-    options: { theme?: CanvasTheme } = {},
+    options: { theme?: CanvasTheme; solids?: SolidClient } = {},
   ) {
+    this.solids = options.solids;
     this.renderer = new CanvasRenderer(
       host,
       {
@@ -144,7 +150,10 @@ export class ViewerController {
         onCamera: (camera) => callbacks.camera(camera),
         onThemeShown: (theme) => callbacks.themeShown?.(theme),
       },
-      options.theme ? { theme: options.theme } : {},
+      {
+        ...(options.theme ? { theme: options.theme } : {}),
+        ...(options.solids ? { solids: options.solids } : {}),
+      },
     );
     host.addEventListener('pointerdown', this.onPointerDown);
     host.addEventListener('pointermove', this.onPointerMove);
@@ -160,9 +169,21 @@ export class ViewerController {
   update(project: ProjectSnapshot, indexed: IndexedScene): void {
     this.project = project;
     this.indexed = indexed;
+    this.followSolids(project);
     this.hovered = this.hovered && indexed.byKey.get(this.hovered.key);
     this.renderer.show(indexed);
     this.refreshMarks();
+  }
+
+  /** The named parts of the solids the project's packages define, for the parts' states (ADR 0075). */
+  private followSolids(project: ProjectSnapshot): void {
+    if (!this.solids || project.packages === this.solidsFrom) return;
+    this.solidsFrom = project.packages;
+    const parts = new Map<Id, readonly SolidPart[]>();
+    for (const file of project.packages) {
+      for (const solid of file.solids ?? []) if (!parts.has(solid.id)) parts.set(solid.id, solid.parts);
+    }
+    this.renderer.setSolids(this.solids, (id) => parts.get(id));
   }
 
   setSelection(selection: Selection): void {

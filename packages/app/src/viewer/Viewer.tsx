@@ -56,6 +56,7 @@ import { PlaybackBar, ScenarioChooser } from './PlaybackBar';
 import { PlaybackSession } from './playback';
 import { usePagePreferences, type PagePreferences } from './preferences';
 import { ViewerCanvas } from './ViewerCanvas';
+import type { SolidClient } from '../solids/solid-client';
 import { withCollapsed } from './collapse';
 import '../styles.css';
 import './viewer.css';
@@ -63,10 +64,12 @@ import './viewer.css';
 interface ViewerAppProps {
   read: PageRead;
   preferences: PagePreferences;
+  /** What draws the page's solids (ADR 0075); none in a page without solids. */
+  solids?: SolidClient | undefined;
 }
 
 /** The page: the viewer once its data was read, or what keeps it from opening. */
-export function ViewerApp({ read, preferences }: ViewerAppProps) {
+export function ViewerApp({ read, preferences, solids }: ViewerAppProps) {
   const shown = usePagePreferences(preferences);
   return (
     <PageLanguage language={shown.shownLanguage}>
@@ -75,6 +78,7 @@ export function ViewerApp({ read, preferences }: ViewerAppProps) {
           project={read.project}
           {...(read.made === undefined ? {} : { made: read.made })}
           preferences={preferences}
+          solids={solids}
         />
       ) : (
         <Unreadable problems={read.problems} preferences={preferences} />
@@ -140,9 +144,11 @@ interface ViewerProps {
   /** When the page was made. */
   made?: string;
   preferences: PagePreferences;
+  /** What draws the page's solids (ADR 0075); none in a page without solids. */
+  solids?: SolidClient | undefined;
 }
 
-export function Viewer({ project: opened, made, preferences }: ViewerProps) {
+export function Viewer({ project: opened, made, preferences, solids }: ViewerProps) {
   const t = useT();
   const shown = usePagePreferences(preferences);
   // The page's own copy of the project, whose views change only as collapsing changes them here.
@@ -361,6 +367,7 @@ export function Viewer({ project: opened, made, preferences }: ViewerProps) {
                   revealed={revealed}
                   theme={shown.shownTheme}
                   onCanvas={setCanvas}
+                  solids={solids}
                 />
               ) : (
                 <p className="canvas-message">{t('This project has no view to show.')}</p>
