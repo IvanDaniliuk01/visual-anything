@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { cpuNow } from '../test/cpu';
+import { stopwatch } from '../test/cpu';
 import {
   type EmphasisBlock,
   type EmphasisRun,
@@ -471,17 +471,21 @@ describe('properties', () => {
       (n) => '***a\n\n'.repeat(n),
     ];
     /** The time one reading takes, read again and again for long enough that a coarse clock counts. */
-    const timeOf = (text: string) => {
-      parseEmphasis(text, { blocks: true });
-      const started = cpuNow();
+    const once = (text: string) => {
+      const elapsed = stopwatch();
       let times = 0;
       let took: number;
       do {
         parseEmphasis(text, { blocks: true });
         times++;
-        took = cpuNow() - started;
+        took = elapsed();
       } while (took < 60);
       return took / times;
+    };
+    // The least of three readings: a collection or a busy machine only ever makes one slower.
+    const timeOf = (text: string) => {
+      parseEmphasis(text, { blocks: true });
+      return Math.min(once(text), once(text), once(text));
     };
     for (const shape of shapes) {
       const small = shape(2_000);
