@@ -19,7 +19,9 @@
  *   middle of its solid's bounds; else its origin.
  *
  * Places are kept in the coordinates of the element the panel shows, in double precision; the GPU
- * draws them less the camera's target (`scene.ts`).
+ * draws them less the camera's target (`scene.ts`). Where things are ({@link placeOut}) is kept apart
+ * from how they look ({@link layOut}), so that a change of states, marks or boxes looks again without
+ * placing anything again.
  */
 import type { Color, Id, SpaceBounds, SpacePoint } from '@visual-anything/schema';
 import { Matrix3, Matrix4, Vector3 } from 'three';
@@ -107,7 +109,12 @@ export interface SpaceLayout {
   readonly drawn: ReadonlyMap<Id, DrawnEntry>;
   /** How far the exploded view moves each entry it moves ({@link explosionShifts}). */
   readonly shifts: ReadonlyMap<Id, Vector3>;
+  /** Where it was laid out from; a scene is drawn from it (`scene.ts`). */
+  readonly placement?: SpacePlacement;
 }
+
+/** A layout with where it was laid out from, as {@link layOut} answers it. */
+export type PlacedLayout = SpaceLayout & { readonly placement: SpacePlacement };
 
 /** What {@link layOut} reads of a space. */
 export type LaidOutSpace = Pick<SpaceToDraw, 'entries' | 'states' | 'solids' | 'explode' | 'boxed'>;
@@ -385,11 +392,61 @@ export function trianglesOf(solid: BuiltSolid): number {
   return count;
 }
 
-// The layout --------------------------------------------------------------------------------------
+// The placement ------------------------------------------------------------------------------------
 
-/** What a space draws apart from its camera, from what the worker holds of it. */
-export function layOut(space: LaidOutSpace): SpaceLayout {
-  const { states, solids } = space;
+/** One piece of a solid where it is drawn: its index among its solid's pieces, and its place. */
+export interface PlacedPiece {
+  readonly piece: SolidPiece;
+  readonly index: number;
+  /** Its place in the coordinates of the element the panel shows. */
+  readonly matrix: Matrix4;
+}
+
+/** A solid drawn for an entry, where it is drawn, whatever its looks. */
+export interface PlacedSolid {
+  readonly entry: SpaceDrawnEntry;
+  readonly solid: BuiltSolid;
+  /** Its entry's matrix, as the exploded view moves it. */
+  readonly matrix: Matrix4;
+  /** Every piece, hidden or not. */
+  readonly pieces: readonly PlacedPiece[];
+  /** The entries of the anchored parts standing for its parts, by part index. */
+  readonly anchored: ReadonlyMap<number, SpaceDrawnEntry> | undefined;
+  /** Its bounds, along the panel's axes, where the exploded view moves it. */
+  readonly bounds: SpaceBounds;
+  /** Its bounds in its own coordinates. */
+  readonly own: SpaceBounds;
+}
+
+/**
+ * Where everything a space draws is, apart from its camera and its looks: worked out again only when
+ * its entries, the solids loaded or the exploded view change, so that a change of states, marks or
+ * boxes only looks again ({@link layOut}).
+ */
+export interface SpacePlacement {
+  readonly entries: readonly SpaceDrawnEntry[];
+  readonly solids: readonly PlacedSolid[];
+  /** Each marker's entry and its origin. */
+  readonly markers: readonly { readonly entry: SpaceDrawnEntry; readonly at: SpacePoint }[];
+  /** Where each entry's name is written. */
+  readonly points: ReadonlyMap<Id, SpacePoint>;
+  /** How far the exploded view moves each entry it moves ({@link explosionShifts}). */
+  readonly shifts: ReadonlyMap<Id, Vector3>;
+  /** The exploded view's factor. */
+  readonly explode: number;
+  /**
+   * What a scene drawn from it is made of: which solid each entry draws, and which entries are
+   * markers. A scene follows another placement of the same structure in place (`scene.ts`).
+   */
+  readonly structure: string;
+}
+
+/** What {@link placeOut} reads of a space. */
+export type PlacedSpace = Pick<SpaceToDraw, 'entries' | 'solids' | 'explode'>;
+
+/** Where everything a space draws is, from its entries, the solids loaded and the exploded view. */
+export function placeOut(space: PlacedSpace): SpacePlacement {
+  const { solids } = space;
   const byElement = new Map(space.entries.map((entry) => [entry.element, entry]));
   // The anchored parts of each element's solid, by part index.
   const partsOf = new Map<Id, Map<number, SpaceDrawnEntry>>();
@@ -418,52 +475,41 @@ export function layOut(space: LaidOutSpace): SpaceLayout {
     return placed;
   };
 
-  const laidSolids: LaidSolid[] = [];
-  const markers: LaidMarker[] = [];
-  const drawn = new Map<Id, DrawnEntry>();
-  const lookFor = (entry: SpaceDrawnEntry) => lookOf(entry, states.get(entry.element));
-
+  const placedSolids: PlacedSolid[] = [];
+  const markers: { entry: SpaceDrawnEntry; at: SpacePoint }[] = [];
+  const points = new Map<Id, SpacePoint>();
+  const structure: string[] = [];
   for (const entry of space.entries) {
-    const look = lookFor(entry);
     const solid = solidOf(entry);
+    const matrix = placedOf(entry);
     if (solid) {
-      laidSolids.push(
-        laySolid(entry, placedOf(entry), solid, look, partsOf.get(entry.element), space),
+      placedSolids.push(
+        placeSolid(entry, matrix, solid, partsOf.get(entry.element), space.explode),
       );
+      structure.push(`${entry.element}\u0000${solid.hash}`);
     }
-    if (entry.marker && look) {
-      const color = look.fill ?? entry.fill;
-      markers.push({
-        entry,
-        at: originOf(placedOf(entry).elements),
-        look,
-        ...(color === undefined ? {} : { color }),
-      });
+    if (entry.marker) {
+      markers.push({ entry, at: originOf(matrix.elements) });
+      structure.push(`${entry.element}\u0000marker`);
     }
+    points.set(entry.element, pointOf(entry, matrix));
   }
-  // An anchored part is drawn when its own piece is: inside a holder drawn, and not hidden.
-  for (const entry of space.entries) {
-    const look = entry.part ? partLook(entry) : lookFor(entry);
-    if (look) {
-      const marks = marksOf(states.get(entry.element));
-      drawn.set(entry.element, { entry, look, point: pointOf(entry), marks });
-    }
-  }
-  return { solids: laidSolids, markers, drawn, shifts };
-
-  function partLook(entry: SpaceDrawnEntry): SpaceLook | undefined {
-    const holder = entry.part && byElement.get(entry.part.of);
-    const laid = holder && laidSolids.find((each) => each.entry === holder);
-    if (!laid || !entry.part || entry.part.index >= laid.parts.length) return lookFor(entry);
-    return laid.parts[entry.part.index];
-  }
+  return {
+    entries: space.entries,
+    solids: placedSolids,
+    markers,
+    points,
+    shifts,
+    explode: space.explode,
+    structure: structure.join('\u0001'),
+  };
 
   /** Where an entry's name is written. */
-  function pointOf(entry: SpaceDrawnEntry): SpacePoint {
+  function pointOf(entry: SpaceDrawnEntry, matrix: Matrix4): SpacePoint {
     const solid = solidOf(entry);
     if (solid) {
       const bounds = entry.bounds ?? solid.description.bounds;
-      return toPoint(middleOf(bounds).applyMatrix4(placedOf(entry)));
+      return toPoint(middleOf(bounds).applyMatrix4(matrix));
     }
     if (entry.part) {
       const holder = byElement.get(entry.part.of);
@@ -475,21 +521,88 @@ export function layOut(space: LaidOutSpace): SpaceLayout {
         return toPoint(middle.applyMatrix4(placedOf(holder)));
       }
     }
-    return originOf(placedOf(entry).elements);
+    return originOf(matrix.elements);
+  }
+}
+
+function placeSolid(
+  entry: SpaceDrawnEntry,
+  matrix: Matrix4,
+  solid: BuiltSolid,
+  anchored: ReadonlyMap<number, SpaceDrawnEntry> | undefined,
+  explode: number,
+): PlacedSolid {
+  const own = entry.bounds ?? solid.description.bounds;
+  const offsets = explosionOf(solid, explode);
+  const rest = piecesAtRest(solid);
+  const pieces = solid.pieces.map((piece, index): PlacedPiece => {
+    const placed = matrix.clone();
+    const moved = piece.part >= 0 ? offsets[piece.part] : undefined;
+    if (moved && moved.lengthSq() > 0) {
+      placed.multiply(new Matrix4().makeTranslation(moved.x, moved.y, moved.z));
+    }
+    placed.multiply(rest[index] as Matrix4);
+    return { piece, index, matrix: placed };
+  });
+  return {
+    entry,
+    solid,
+    matrix,
+    pieces,
+    anchored,
+    bounds: boundsPlaced(matrix.elements, own),
+    own,
+  };
+}
+
+// The layout --------------------------------------------------------------------------------------
+
+/**
+ * What a space draws apart from its camera, from what the worker holds of it: its placement
+ * ({@link placeOut}), worked out here unless given, and each thing's look from the states.
+ */
+export function layOut(space: LaidOutSpace, placement = placeOut(space)): PlacedLayout {
+  const { states } = space;
+  const lookFor = (entry: SpaceDrawnEntry) => lookOf(entry, states.get(entry.element));
+  const laidSolids: LaidSolid[] = [];
+  const bySolid = new Map<Id, LaidSolid>();
+  for (const placed of placement.solids) {
+    const laid = laySolid(placed, lookFor(placed.entry), space);
+    laidSolids.push(laid);
+    if (!bySolid.has(placed.entry.element)) bySolid.set(placed.entry.element, laid);
+  }
+  const markers: LaidMarker[] = [];
+  for (const { entry, at } of placement.markers) {
+    const look = lookFor(entry);
+    if (!look) continue;
+    const color = look.fill ?? entry.fill;
+    markers.push({ entry, at, look, ...(color === undefined ? {} : { color }) });
+  }
+  // An anchored part is drawn when its own piece is: inside a holder drawn, and not hidden.
+  const drawn = new Map<Id, DrawnEntry>();
+  for (const entry of placement.entries) {
+    const look = entry.part ? partLook(entry) : lookFor(entry);
+    if (look) {
+      const marks = marksOf(states.get(entry.element));
+      const point = placement.points.get(entry.element) as SpacePoint;
+      drawn.set(entry.element, { entry, look, point, marks });
+    }
+  }
+  return { solids: laidSolids, markers, drawn, shifts: placement.shifts, placement };
+
+  function partLook(entry: SpaceDrawnEntry): SpaceLook | undefined {
+    const laid = entry.part && bySolid.get(entry.part.of);
+    if (!laid || !entry.part || entry.part.index >= laid.parts.length) return lookFor(entry);
+    return laid.parts[entry.part.index];
   }
 }
 
 function laySolid(
-  entry: SpaceDrawnEntry,
-  matrix: Matrix4,
-  solid: BuiltSolid,
+  placed: PlacedSolid,
   look: SpaceLook | undefined,
-  anchored: ReadonlyMap<number, SpaceDrawnEntry> | undefined,
-  space: Pick<SpaceToDraw, 'states' | 'explode' | 'boxed'>,
+  space: Pick<SpaceToDraw, 'states' | 'boxed'>,
 ): LaidSolid {
-  const own = entry.bounds ?? solid.description.bounds;
-  const offsets = explosionOf(solid, space.explode);
-  const rest = piecesAtRest(solid);
+  const { solid, anchored } = placed;
   // Each part's look: its anchored element's, or its holder's; marks inherited from every holder.
   const partLooks: (SpaceLook | undefined)[] = [];
   const holderMarks: number[] = [];
@@ -500,32 +613,25 @@ function laySolid(
     const standing = anchored?.get(at);
     const found = standing
       ? lookOf(standing, space.states.get(standing.element), inherited)
-      : outer && { ...outer, marks: outer.marks | inherited };
+      : outer && (inherited === outer.marks ? outer : { ...outer, marks: outer.marks | inherited });
     partLooks.push(found);
     holderMarks.push(found ? found.marks : inherited);
   });
   const pieces: LaidPiece[] = [];
-  solid.pieces.forEach((piece, index) => {
-    const pieceLook = piece.part >= 0 ? partLooks[piece.part] : look;
-    if (!pieceLook) return;
-    const placed = matrix.clone();
-    const moved = piece.part >= 0 ? offsets[piece.part] : undefined;
-    if (moved && moved.lengthSq() > 0) {
-      placed.multiply(new Matrix4().makeTranslation(moved.x, moved.y, moved.z));
-    }
-    placed.multiply(rest[index] as Matrix4);
-    pieces.push({ piece, index, matrix: placed, look: pieceLook });
-  });
+  for (const each of placed.pieces) {
+    const pieceLook = each.piece.part >= 0 ? partLooks[each.piece.part] : look;
+    if (pieceLook) pieces.push({ ...each, look: pieceLook });
+  }
   return {
-    entry,
+    entry: placed.entry,
     solid,
-    matrix,
+    matrix: placed.matrix,
     look,
     pieces,
     parts: partLooks,
-    boxed: space.boxed.has(entry.element),
-    bounds: boundsPlaced(matrix.elements, own),
-    own,
+    boxed: space.boxed.has(placed.entry.element),
+    bounds: placed.bounds,
+    own: placed.own,
   };
 }
 

@@ -90,3 +90,82 @@ The panel's phases of frames went one change a frame for 180 frames, three secon
 - **The panel's frames are far from the marks**: about 3 frames a second turning at the whole space and 1 close in, against 60, though while the camera moves each frame draws fewer than 2 million triangles; the whole space drawn at rest, about 0.3 a second, against 30. A selection or a focus made on the canvas shows in the panel after about 2 to 3 s, against two frames.
 - **What it points at**, for whoever takes it up: every change of states makes the worker lay the space out and build its three.js scene again (`SpaceDrawings`: the states are part of the layout's key), about 40 to 120 ms of layout in Node and then the scene and its materials, so a hover or a selection costs a whole scene; and each of the 6,674 pieces is a draw of its own, twice when something is marked, the cap's 4,096 meshes among them, which is what a moving camera pays. Drawing marks and looks from a table of states, as the canvas's parts' shader does, and merging the pieces of a solid that draw alike would be where to start.
 - **What the run changed:** the worker worked out the exploded view's moves again for every frame, 2 to 10 ms at this size; it now keeps them until the entries, the factor or the solids loaded change.
+
+## After the panel's speed work
+
+Date: 2026-10-31, the same day, on the same laptop and in the same way, on the branch that makes the panel fast enough to use (ADR 0076's clarification "the panel's speed"); no other builder ran beside it. Chrome 155 again, headless on the laptop's GPU, served on another port. "Before" is the run above.
+
+**What the profile found.** Timed inside the worker, frame by frame: every change of states, and every change of which solids are boxed while the camera moves (most frames of a turn), laid the space out again (50 to 130 ms boxed, about 1 s whole) and made its scene again, whose first frame then prepared its new materials, 5,000 of them whole: 0.2 s boxed, 1.3 to 4.6 s whole. A frame drawn from a kept scene took 5 to 10 ms boxed (500 to 700 draws) but 150 to 230 ms whole (5,100 draws), the draws costing more than the 5.6 million triangles.
+
+**What changed:** where things are is kept apart from how they look, and a scene follows a change of looks, boxes or the exploded view by writing tables and places, never making a material again; pieces that draw alike are merged once for each solid, so a frame takes 15 to 23 draws; a frame in which only lines, names or handles change draws them over the picture of the solids kept; and the programs a scene may need later are compiled once its first frame is sent.
+
+### In Node, after
+
+| Step | Before, median | After, median | After, 95th percentile |
+| --- | --- | --- | --- |
+| Laying the space out from nothing, now placing it and looking | 38 | 76 | 132 |
+| Placing it, from nothing | n/a | 39 | 52 |
+| Looking again after a selection, from the placement kept | 38 (laid out again) | 2.1 | 9.4 |
+| Merging each solid's pieces that draw alike, once: 26.8 MiB, a second copy | n/a | 148 | 148 |
+| Making the space's scene, 22 batches (20 of pieces) for 200 solids | n/a | 9.7 | 37 |
+| The scene following a change of looks, in place | n/a (made again) | 1.2 | 2.1 |
+
+The machine ran slower than for the first run (making the files took 10.4 s against 8.3 s), which the first row shows too.
+
+### In the browser, work mode, after
+
+| Phase | Before, average | After, average | After, 95th percentile | After, worst | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| Panel: turn the camera, whole space | 297 | 18.1 | 20.1 | 264 | misses |
+| Panel: turn the camera, close in | 990 | 16.7 | 19.7 | 34.3 | misses |
+| Panel: zoom in and out, close in | 382 | 17.1 | 19.4 | 111 | misses |
+| Canvas, panel at rest: pan, whole view | 5.4 | 4.8 | 5.7 | 6.2 | meets |
+| Canvas, panel at rest: zoom, whole view | 7.6 | 7.1 | 12.0 | 48.5 | misses, its worst frame |
+| Canvas, panel at rest: select by clicking, whole view | 8.1 | 6.7 | 7.6 | 8.8 | meets |
+| Canvas, panel at rest: pan, names shown | 23.1 | 11.4 | 19.9 | 653 | misses |
+| Canvas, panel at rest: zoom, names shown | 4.3 | 4.5 | 7.1 | 21.7 | meets |
+| Canvas, panel at rest: select by clicking, names shown | 6.7 | 6.4 | 8.1 | 9.4 | meets |
+| Panel: play a step, its relations drawn in space | 241 | 21.4 | 33.5 | 36.8 | misses |
+| Canvas: play a step, its relations drawn in space | 17.5 | 12.9 | 16.9 | 19.0 | misses |
+
+| Change | Before, median | After, median | After, 95th percentile | After, worst | Mark |
+| --- | --- | --- | --- | --- | --- |
+| Panel: the whole space drawn again at rest, 5.64 million triangles | 3,025 | 11 | 19 | 29 | 33 ms, meets |
+| A selection on the canvas, until the panel shows it | 2,878 | 14 | 50 | 95 | 33 ms, misses at the 95th percentile |
+| A change of focus on the canvas, until the panel shows it | 2,105 | 31 | 55 | 173 | 33 ms, misses at the 95th percentile |
+| A pick in the panel, answered | 2 | 1.4 | 3.7 | 43 | 16 ms, meets |
+
+A panel's phase in work mode times each change to its frame, and the worker draws at most once a frame, so about 16.7 ms is its floor: the panel's camera now moves at the frame rate, which the work budget of 10 ms on average cannot show. The page's own work for a selection was 5.1 ms at the median and for a change of focus 20.9 ms (the canvas's emphasis over 10,000 shapes and the panel's states), so most of what is left of a focus is the page's, not the worker's.
+
+### In the browser, frames mode, after
+
+| Phase | Before, average | After, average | After, 95th percentile | After, worst | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| Panel: turn the camera, whole space | 788 | 16.7 | 19.8 | 31.6 | meets |
+| Panel: turn the camera, close in | 2,435 | 16.8 | 19.2 | 33.5 | misses, by 0.2 ms at its worst |
+| Panel: zoom in and out, close in | 1,304 | 16.7 | 19.4 | 20.5 | meets |
+| Canvas, panel at rest: pan, whole view | 16.7 | 16.7 | 16.7 | 17.2 | meets |
+| Canvas, panel at rest: zoom, whole view | 16.8 | 16.9 | 16.7 | 50.0 | misses, one frame |
+| Canvas, panel at rest: select by clicking, whole view | 16.7 | 16.7 | 16.7 | 16.8 | meets |
+| Canvas, panel at rest: pan, names shown | 16.7 | 20.7 | 16.8 | 717 | misses, one frame |
+| Canvas, panel at rest: zoom, names shown | 16.7 | 16.7 | 16.7 | 16.8 | meets |
+| Canvas, panel at rest: select by clicking, names shown | 16.7 | 18.3 | 16.8 | 117 | misses, one frame |
+| Panel: play a step, its relations drawn in space | 2,851 | 16.7 | 18.0 | 35.6 | misses, one frame |
+| Canvas: play a step, its relations drawn in space | 16.7 | 16.7 | 16.7 | 16.8 | meets |
+
+| Change | Before, median | After, median | After, 95th percentile | After, worst | Mark |
+| --- | --- | --- | --- | --- | --- |
+| Panel: the whole space drawn again at rest | 2,806 | 14 | 20 | 32 | 33 ms, meets |
+| A selection on the canvas, until the panel shows it | 2,710 | 12 | 28 | 29 | 33 ms, meets |
+| A change of focus on the canvas, until the panel shows it | 2,069 | 29 | 58 | 180 | 33 ms, misses at the 95th percentile |
+| A pick in the panel, answered | 2 | 1.5 | 3.0 | 45 | 16 ms, meets |
+
+The panel's phases of frames now draw a frame for every change, 180 in three seconds, where they drew 2 or 3.
+
+### What it says now
+
+- **The panel's camera moves at 60 frames per second** as shown, at the whole space and close in, against 1 to 3 frames a second before; the whole space drawn again at rest, 5.64 million triangles, takes 11 to 14 ms against 3 s, within the 30 frames per second mark.
+- **A selection made on the canvas shows in the panel within a frame at the median**, and within two at the 95th percentile in frames mode (28 ms); a change of focus within two frames at the median (29 to 31 ms) and 55 to 58 ms at the 95th percentile, about 20 ms of it the page's own work.
+- **A step's lines** cost the worker 1 to 2 ms a frame, its solids not drawn again; the panel keeps 60 frames a second as shown while the step plays, and the canvas beside it too.
+- **The single slow frames left** (264 ms turning the whole space, 111 ms zooming, 653 to 717 ms panning the canvas with names shown) came once each, as in the first run; they are not chased here.
+- **The cost:** the merged copy of small pieces, 26.8 MiB for this space, kept once for each solid and let go of with it; opening the panel still takes about 1.3 s for its first frame, which builds, merges, uploads and compiles.
