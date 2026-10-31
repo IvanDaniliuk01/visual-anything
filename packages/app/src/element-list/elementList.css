@@ -5,23 +5,23 @@
  * keys by the focus ring, and a value a component gives by default is written muted.
  */
 
-/* The panel takes the canvas's column, below it. */
+/* The panel takes the canvas's column, below it; the physical-space panel keeps its whole column. */
 .shell:has(> .element-list) {
   grid-template-areas:
-    'header header header'
-    'notice notice notice'
-    'model canvas inspector'
-    'model list inspector';
+    'header header header header'
+    'notice notice notice notice'
+    'model canvas space inspector'
+    'model list space inspector';
   grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 
 /* With the scenario panel too, which takes the inspector's column below it. */
 .shell:has(> .element-list):has(> .scenario-panel) {
   grid-template-areas:
-    'header header header'
-    'notice notice notice'
-    'model canvas inspector'
-    'model list scenario';
+    'header header header header'
+    'notice notice notice notice'
+    'model canvas space inspector'
+    'model list space scenario';
 }
 
 .element-list {

@@ -130,6 +130,9 @@
  * | added, removed          | agregado, quitado                |
  * | changed, moved          | cambiado, movido                 |
  * | proposal                | propuesta                        |
+ * | physical space          | espacio físico                   |
+ * | physical-space panel    | panel del espacio físico         |
+ * | pose, to pose           | ubicación, ubicar                |
  * | conflict                | conflicto                        |
  *
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
@@ -1370,6 +1373,30 @@ export const ui: Catalog = {
   'The model panel is open.': 'El panel del modelo está abierto.',
   'The inspector is collapsed.': 'El inspector está contraído.',
   'The inspector is open.': 'El inspector está abierto.',
+  // M10: the physical-space panel beside the canvas (ADR 0076). The glossary avoids "root" for World,
+  // so the panel "muestra" an element; never "3D" alone.
+  'Physical space': 'Espacio físico',
+  'Open the physical-space panel': 'Abrir el panel del espacio físico',
+  'Close the physical-space panel': 'Cerrar el panel del espacio físico',
+  'Width of the physical-space panel': 'Ancho del panel del espacio físico',
+  'Shows “{name}”': 'Muestra “{name}”',
+  'Nothing this view shows is in physical space yet. To put an element there, select it and choose Place in physical space, show a solid on it, or ask Claude to give it a pose.':
+    'Nada de lo que muestra esta vista está todavía en el espacio físico. Para poner un elemento allí, seleccionarlo y elegir Ubicar en el espacio físico, mostrar un sólido en él, o pedirle a Claude que lo ubique.',
+  'Physical space is drawn while Visual Anything is connected.':
+    'El espacio físico se dibuja mientras Visual Anything está conectado.',
+  'This browser cannot draw physical space: it has no WebGL.':
+    'Este navegador no puede dibujar el espacio físico: no tiene WebGL.',
+  'Physical space: {count} elements': {
+    one: 'Espacio físico: {count} elemento',
+    other: 'Espacio físico: {count} elementos',
+  },
+  'Alt+Shift+P (⌥⇧P on macOS)': 'Alt+Mayús+P (⌥⇧P en macOS)',
+  'Open the physical-space panel beside the canvas, or close it; these keys work wherever the focus is, except while typing':
+    'Abrir el panel del espacio físico junto al lienzo, o cerrarlo; estas teclas funcionan dondequiera que esté el foco, salvo mientras se escribe',
+  'Left and Right arrows, on the edge of the physical-space panel':
+    'Flechas izquierda y derecha, en el borde del panel del espacio físico',
+  'Make the panel wider or narrower by 16 pixels; Home and End make it as narrow or as wide as it goes, from 280 pixels to half the window':
+    'Ensanchar o estrechar el panel 16 píxeles; Inicio y Fin lo dejan tan estrecho o tan ancho como puede ser, de 280 píxeles a la mitad de la ventana',
   // M8b W53: an end dragged onto a shape with free geometry or onto an anchored part.
   'Attach at this point of its edge': 'Conectar en este punto de su borde',
   'Attach at this point inside it': 'Conectar en este punto, dentro de la forma',

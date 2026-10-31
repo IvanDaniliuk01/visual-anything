@@ -16,8 +16,12 @@
  * - **Turning, picking, letting go, a lost context.** A turning's frames come as the camera changes,
  *   the newest one kept; what the worker let go of is loaded again when next drawn; draws refused
  *   while its context is lost are asked again once it is back, and a turning is started again.
+ * - **Spaces** (ADR 0076): the physical-space panel shows a space with `showSpace`, and changes it
+ *   with its drawing's `update`, which sends only what changed. The client loads the solids its
+ *   entries draw, again after the worker lets go of one, and shows the space again in a worker started
+ *   anew; the worker draws a frame whenever something it shows changed, the newest one kept.
  */
-import type { SolidCamera } from '@visual-anything/schema';
+import type { Id, SolidCamera, SpaceCamera, SpacePoint } from '@visual-anything/schema';
 import {
   readSolidWorkerReply,
   solidBucketFor,
@@ -32,6 +36,10 @@ import {
   type SolidWorkerLimits,
   type SolidWorkerReply,
   type SolidWorkerRequest,
+  type SpaceChange,
+  type SpaceFrameReply,
+  type SpaceGestureEndedReply,
+  type SpaceShown,
 } from './protocol';
 import { solidPictureSerial } from '../canvas/image-serials';
 import type { SolidPictureAsk } from './ask';
@@ -106,6 +114,43 @@ export interface SolidTurning {
   end(): void;
 }
 
+/** Who hears of a space's drawing. */
+export interface SpaceListeners {
+  /**
+   * Each newer frame. Its bitmap may be handed to a `bitmaprenderer`, which takes it; the client
+   * closes the frame a newer one replaces.
+   */
+  onFrame?(frame: SpaceFrameReply): void;
+  /** A gesture on the space's handles that ended, from which the panel sends one `set-poses`. */
+  onGesture?(gesture: SpaceGestureEndedReply): void;
+  /** Why the space is not drawn: no WebGL to draw with, or frames too large for the worker. */
+  onProblem?(problem: SolidProblem): void;
+}
+
+/** What lies under a pixel of a space: an element, by id, or none, and the point there. */
+export interface SpacePick {
+  element: Id | null;
+  /** In the coordinates of the element the panel shows; absent where nothing is. */
+  point?: SpacePoint;
+}
+
+/** A space drawn for the physical-space panel (ADR 0076), by the number its messages carry. */
+export interface SpaceDrawing {
+  readonly space: number;
+  /** Its newest frame; absent until the first comes. */
+  readonly frame: SpaceFrameReply | undefined;
+  /** Why it is not drawn, once the worker said; absent while it is. */
+  readonly problem: SolidProblem | undefined;
+  /** Changes what it shows: what `change` gives replaces what was; a change of nothing sends nothing. */
+  update(change: SpaceChange): void;
+  /** The camera that frames these elements, or everything it draws; none when the worker cannot say. */
+  fit(elements?: readonly Id[]): Promise<SpaceCamera | undefined>;
+  /** What lies under the pixel (x, y) of its frames, from their top left; none when the worker cannot say. */
+  pick(x: number, y: number): Promise<SpacePick | undefined>;
+  /** Stops drawing it and closes its newest frame. */
+  end(): void;
+}
+
 /** The app's side of the solid worker. */
 export interface SolidClient {
   /** Whether the worker started. */
@@ -142,6 +187,11 @@ export interface SolidClient {
   pick(request: Omit<SolidPickRequest, 'type' | 'id'>): Promise<SolidPickedReply | undefined>;
   /** Lets go of a solid the open views no longer draw. Its pictures stay kept. */
   release(hash: string): void;
+  /**
+   * Draws a space for the physical-space panel (ADR 0076), loading the solids its entries draw.
+   * Starts the worker as `ask` does.
+   */
+  showSpace(shown: SpaceShown, listeners?: SpaceListeners): SpaceDrawing;
   /** Stops the worker and closes every picture kept. */
   dispose(): void;
 }
@@ -205,6 +255,15 @@ class Client implements SolidClient {
   private readonly listeners = new Set<(picture: SolidPicture) => void>();
   private readonly picks = new Map<number, (reply: SolidPickedReply | undefined) => void>();
   private readonly turnings = new Map<number, TurningState>();
+  private spaceCount = 0;
+  private readonly spaces = new Map<number, SpaceState>();
+  /** What a space's framing or pick waits for, by its id; undefined when it was refused. */
+  private readonly spaceAnswers = new Map<
+    number,
+    (
+      reply: Extract<SolidWorkerReply, { type: 'space/framed' | 'space/picked' }> | undefined,
+    ) => void
+  >();
   /** What `draw` waits for, by kept key: asked for before anything else until it settles. */
   private readonly pinned = new Map<
     string,
@@ -366,6 +425,98 @@ class Client implements SolidClient {
     this.post({ type: 'release', hash });
   }
 
+  showSpace(shown: SpaceShown, listeners: SpaceListeners = {}): SpaceDrawing {
+    const space = ++this.spaceCount;
+    const state: SpaceState = { shown, started: false, ended: false, serial: 0, listeners };
+    this.spaces.set(space, state);
+    this.startSpace(space, state);
+    return {
+      space,
+      get frame() {
+        return state.frame;
+      },
+      get problem() {
+        return state.problem;
+      },
+      update: (change) => {
+        if (state.ended || Object.keys(change).length === 0) return;
+        state.shown = changedShown(state.shown, change);
+        if (state.started) this.post({ type: 'space/update', space, ...change });
+        if (change.entries) this.loadSpaceSolids(state);
+      },
+      fit: (elements) =>
+        this.askSpace(state, (id) => ({
+          type: 'space/framing',
+          space,
+          id,
+          ...(elements ? { elements: [...elements] } : {}),
+        })).then((reply) => (reply?.type === 'space/framed' ? reply.camera : undefined)),
+      pick: (x, y) =>
+        this.askSpace(state, (id) => ({ type: 'space/pick', space, id, x, y })).then((reply) =>
+          reply?.type === 'space/picked'
+            ? { element: reply.element, ...(reply.point ? { point: reply.point } : {}) }
+            : undefined,
+        ),
+      end: () => {
+        if (state.ended) return;
+        state.ended = true;
+        this.spaces.delete(space);
+        state.frame?.bitmap.close();
+        delete state.frame;
+        if (state.started) this.post({ type: 'space/end', space });
+      },
+    };
+  }
+
+  /** Shows a space in the worker, starting it if needed, and loads the solids it draws. */
+  private startSpace(space: number, state: SpaceState): void {
+    if (state.ended || this.disposed) return;
+    if (this.unavailable || !this.ensure()) {
+      if (this.unavailable && !state.problem) {
+        this.spaceProblem(state, { code: 'unavailable', message: 'This build draws no solids.' });
+      }
+      return;
+    }
+    // Shown again, as in a worker started anew, its frames count from the start.
+    state.serial = 0;
+    state.started = this.post({ type: 'space/show', space, ...state.shown });
+    this.loadSpaceSolids(state);
+  }
+
+  /** Loads each solid a space draws that is not loaded, nor on its way, nor refused. */
+  private loadSpaceSolids(state: SpaceState): void {
+    if (this.disposed || this.unavailable) return;
+    for (const entry of state.shown.entries) {
+      const hash = entry.solid;
+      if (hash === undefined || this.loaded.has(hash) || this.loading.has(hash)) continue;
+      if (this.problems.has(hash) || !this.ensure()) continue;
+      this.load(hash);
+    }
+  }
+
+  /** Asks the worker something about a space, answered by the id it is sent with. */
+  private askSpace(
+    state: SpaceState,
+    request: (id: number) => SolidWorkerRequest,
+  ): Promise<Extract<SolidWorkerReply, { type: 'space/framed' | 'space/picked' }> | undefined> {
+    if (state.ended || !state.started || this.disposed || this.unavailable) {
+      return Promise.resolve(undefined);
+    }
+    const id = ++this.count;
+    return new Promise((resolve) => {
+      this.spaceAnswers.set(id, resolve);
+      if (!this.post(request(id))) {
+        this.spaceAnswers.delete(id);
+        resolve(undefined);
+      }
+    });
+  }
+
+  private spaceProblem(state: SpaceState, problem: SolidProblem): void {
+    state.problem = problem;
+    state.listeners.onProblem?.(problem);
+  }
+
   dispose(): void {
     this.disposed = true;
     for (const pin of this.pinned.values()) for (const resolve of pin.waiting) resolve(undefined);
@@ -379,6 +530,10 @@ class Client implements SolidClient {
     this.turnings.clear();
     for (const resolve of this.picks.values()) resolve(undefined);
     this.picks.clear();
+    for (const state of this.spaces.values()) state.frame?.bitmap.close();
+    this.spaces.clear();
+    for (const resolve of this.spaceAnswers.values()) resolve(undefined);
+    this.spaceAnswers.clear();
     this.wanted = [];
     this.drawing.clear();
   }
@@ -591,6 +746,31 @@ class Client implements SolidClient {
         return;
       case 'let-go':
         for (const hash of reply.hashes) this.loaded.delete(hash);
+        // A space still draws what the worker let go of: it is loaded again.
+        for (const state of this.spaces.values()) this.loadSpaceSolids(state);
+        return;
+      case 'space/frame': {
+        const state = this.spaces.get(reply.space);
+        if (!state || reply.serial <= state.serial) {
+          reply.bitmap.close();
+          return;
+        }
+        state.serial = reply.serial;
+        state.frame?.bitmap.close();
+        state.frame = reply;
+        delete state.problem;
+        state.listeners.onFrame?.(reply);
+        return;
+      }
+      case 'space/framed':
+      case 'space/picked': {
+        const resolve = this.spaceAnswers.get(reply.id);
+        this.spaceAnswers.delete(reply.id);
+        resolve?.(reply);
+        return;
+      }
+      case 'space/gesture-ended':
+        this.spaces.get(reply.space)?.listeners.onGesture?.(reply);
         return;
       case 'context-lost':
         this.contextLost = true;
@@ -610,7 +790,25 @@ class Client implements SolidClient {
   }
 
   private refused(reply: Extract<SolidWorkerReply, { type: 'refused' }>): void {
+    if (reply.space !== undefined) {
+      const state = this.spaces.get(reply.space);
+      // A lost context is drawn again by the worker once it is back; a failure, at the next change.
+      if (state && (reply.code === 'unavailable' || reply.code === 'too-large')) {
+        this.spaceProblem(state, { code: reply.code, message: reply.message });
+      }
+    }
+    if (reply.id !== undefined && this.spaceAnswers.has(reply.id)) {
+      const resolve = this.spaceAnswers.get(reply.id);
+      this.spaceAnswers.delete(reply.id);
+      resolve?.(undefined);
+      if (reply.code !== 'unavailable') return;
+    }
     if (reply.code === 'unavailable') {
+      for (const state of this.spaces.values()) {
+        if (!state.problem) {
+          this.spaceProblem(state, { code: reply.code, message: reply.message });
+        }
+      }
       this.unavailable = true;
       this.wanted = [];
       this.settlePins();
@@ -680,8 +878,34 @@ class Client implements SolidClient {
     this.picks.clear();
     for (const state of this.turnings.values()) state.started = false;
     for (const [turn, state] of this.turnings) this.startTurning(turn, state);
+    for (const resolve of this.spaceAnswers.values()) resolve(undefined);
+    this.spaceAnswers.clear();
+    for (const state of this.spaces.values()) state.started = false;
+    for (const [space, state] of this.spaces) this.startSpace(space, state);
     this.pump();
   }
+}
+
+/** What a space shows once a change is made to it. */
+function changedShown(shown: SpaceShown, change: SpaceChange): SpaceShown {
+  const { camera, cut, ...rest } = change;
+  const next: SpaceShown = { ...shown, ...rest };
+  if (camera === null) delete next.camera;
+  else if (camera !== undefined) next.camera = camera;
+  if (cut === null) delete next.cut;
+  else if (cut !== undefined) next.cut = cut;
+  return next;
+}
+
+interface SpaceState {
+  shown: SpaceShown;
+  started: boolean;
+  ended: boolean;
+  /** The serial of its newest frame since it was last shown. */
+  serial: number;
+  frame?: SpaceFrameReply;
+  problem?: SolidProblem;
+  listeners: SpaceListeners;
 }
 
 interface TurningState {

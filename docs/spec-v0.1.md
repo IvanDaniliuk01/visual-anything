@@ -1008,12 +1008,13 @@ Its tasks run in this order:
     - an element's point in space, where relations drawn in space end.
   - **View states:** `space` in `checkViewState` and `viewStateProblems`, the address's `space=` clause, and tour steps' saved view states.
   - **Property tests:** those of the "Done when" above.
-- [ ] **Seam 2, in the main session: the panel's seam** (ADR 0076).
+- [x] **Seam 2, in the main session: the panel's seam** (ADR 0076).
   - The panel's place in the shell (`app/src/space/`): opened and closed, resized, and kept by the tab for each view with its root and camera.
   - The solid worker's messages for the panel, in `app/src/solids/protocol.ts`: showing a space, its elements' states, the camera, framing, the cut and the exploded view, names, picking, and gestures that ended; its frames handed to a `bitmaprenderer` canvas.
   - `spaceStates(emphasis, space)`: each element's state in space from the canvas's emphasis, by element id.
   - The selection and hover shared with the canvas by element id.
   - A stand-in worker that draws boxes, for tests.
+  - Done 2026-10-31, by a builder (ADR 0076's clarification of that date): the `space/*` messages with `SpaceGpu` beside `SolidGpu`, whose first drawing draws each solid at its place lit as studio; `SolidClient.showSpace` and its `SpaceDrawing`; `spaceStates` from the canvas's emphasis by shape key; `HoverStore` by element id, written by the canvas; `SpacePanelStore` and `useSpacePanel()` for each view, the shell's fourth column, Physical space in the toolbar and Alt+Shift+P; the stand-in worker draws spaces as boxes. Nothing of it has been seen on a GPU yet.
 - [ ] **Drawing a space** (`app/src/solids/worker/space/`):
   - solids at their places, repeated ones as instances; anchored parts in their solids; markers; faint containers;
   - the states: faint, hidden, highlighted, selected and hovered, overlays' fill and opacity, collapsed containers drawn as one;

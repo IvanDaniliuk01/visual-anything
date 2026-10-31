@@ -6,7 +6,15 @@
  */
 
 /** The groups that go under More, the first to go first. */
-export const OVERFLOW_ORDER = ['grid', 'stacking', 'layout', 'shapes', 'explore', 'fit'] as const;
+export const OVERFLOW_ORDER = [
+  'grid',
+  'stacking',
+  'layout',
+  'shapes',
+  'explore',
+  'space',
+  'fit',
+] as const;
 
 /** A group of the canvas toolbar that can go under More. */
 export type OverflowGroup = (typeof OVERFLOW_ORDER)[number];
@@ -18,6 +26,7 @@ export const MORE_ORDER: readonly OverflowGroup[] = [
   'explore',
   'layout',
   'grid',
+  'space',
   'fit',
 ];
 

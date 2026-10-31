@@ -4,13 +4,13 @@
  * by the highlight color, and a broken step says so in words.
  */
 
-/* The panel takes the inspector's column, below it. */
+/* The panel takes the inspector's column, below it; the physical-space panel keeps its own. */
 .shell:has(> .scenario-panel) {
   grid-template-areas:
-    'header header header'
-    'notice notice notice'
-    'model canvas inspector'
-    'model canvas scenario';
+    'header header header header'
+    'notice notice notice notice'
+    'model canvas space inspector'
+    'model canvas space scenario';
   grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 

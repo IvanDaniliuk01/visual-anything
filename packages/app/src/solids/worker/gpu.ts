@@ -12,9 +12,15 @@
  *   Pieces of no part write 0 and still hide what lies behind them.
  * - **A lost context** is followed: three.js gets it back and uploads again what it draws next, the
  *   room's light is made again, and the host is told both times.
+ * - **A space** (ADR 0076), for now drawn at its first and simplest: each entry's solid at its
+ *   matrix, lit as studio, relative to the camera's target, one solid after another into one depth
+ *   buffer, so that a solid drawn in several places needs no copy. States, markers, names, the cut,
+ *   the exploded view, lines, instancing, the budget and picking are "Drawing a space"'s, under
+ *   `space/`; until then, a pick finds nothing.
  */
 import {
   DirectionalLight,
+  Matrix4,
   NearestFilter,
   NeutralToneMapping,
   NoBlending,
@@ -32,7 +38,8 @@ import {
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { SOLID_BUCKETS, type SolidPartBuffer, type SolidView } from '../protocol';
 import type { BuiltSolid } from './build';
-import type { DrawnPicture, SolidGpu } from './host';
+import type { DrawnPicture, SolidGpu, SpaceGpu, SpaceToDraw } from './host';
+import { relativeMatrix, spaceKeyLight, spaceThreeCamera } from './space/stage';
 import { keyLightPosition, partBufferFrom, partBytes, stageView } from './stage';
 
 /** The key light's strength, beside the room's light. */
@@ -54,8 +61,11 @@ function largestBucket(pixels: number): number | undefined {
   return [...SOLID_BUCKETS].reverse().find((bucket) => bucket <= pixels);
 }
 
-/** The worker's GPU, on a canvas of its own; throws when there is no WebGL to draw with. */
-export function createThreeGpu(canvas: OffscreenCanvas): SolidGpu {
+/**
+ * The worker's GPU, on a canvas of its own, which draws solids' pictures and spaces alike; throws when
+ * there is no WebGL to draw with.
+ */
+export function createThreeGpu(canvas: OffscreenCanvas): SolidGpu & SpaceGpu {
   const renderer = new WebGLRenderer({
     canvas,
     antialias: true,
@@ -201,6 +211,57 @@ export function createThreeGpu(canvas: OffscreenCanvas): SolidGpu {
       } finally {
         scene.remove(solid.root);
       }
+    },
+    drawSpace(space: SpaceToDraw): ImageBitmap {
+      if (lost || gl.isContextLost()) throw new Error('The context is lost.');
+      const { width, height } = space.size;
+      const camera = spaceThreeCamera(space.camera, width / height);
+      scene.environment = roomLight();
+      key.visible = true;
+      key.position.copy(spaceKeyLight(camera));
+      key.target.position.set(0, 0, 0);
+      key.updateMatrixWorld();
+      key.target.updateMatrixWorld();
+      renderer.setRenderTarget(null);
+      renderer.setSize(width, height, false);
+      renderer.clear();
+      renderer.autoClear = false;
+      try {
+        for (const entry of space.entries) {
+          const solid = entry.solid === undefined ? undefined : space.solids.get(entry.solid);
+          if (solid) drawPlaced(solid, relativeMatrix(entry.matrix, space.camera.target));
+        }
+      } finally {
+        renderer.autoClear = true;
+      }
+      if (gl.isContextLost()) throw new Error('The context was lost while drawing.');
+      return canvas.transferToImageBitmap();
+
+      /** Draws one solid at its place, into what is drawn so far, and puts it back at its origin. */
+      function drawPlaced(solid: BuiltSolid, matrix: Matrix4): void {
+        for (const piece of solid.pieces) {
+          piece.mesh.material = piece.studio;
+          piece.mesh.visible = true;
+        }
+        const { root } = solid;
+        const automatic = root.matrixAutoUpdate;
+        root.matrixAutoUpdate = false;
+        root.matrix.copy(matrix);
+        root.updateMatrixWorld(true);
+        scene.add(root);
+        try {
+          renderer.render(scene, camera);
+        } finally {
+          scene.remove(root);
+          root.matrixAutoUpdate = automatic;
+          root.updateMatrix();
+          root.updateMatrixWorld(true);
+        }
+      }
+    },
+    pickSpace() {
+      // Picking on the solids' bounding volume hierarchies is "Drawing a space"'s.
+      return { element: null };
     },
   };
 }

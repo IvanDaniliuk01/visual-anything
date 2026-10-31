@@ -9,7 +9,7 @@
 import type { SolidWorkerReply } from '../protocol';
 import type { DecodedImage } from './build';
 import { createThreeGpu } from './gpu';
-import { SolidWorkerHost, type SolidGpu } from './host';
+import { SolidWorkerHost, type SolidGpu, type SpaceGpu } from './host';
 
 /** What this file needs of its worker scope, which the DOM types do not describe. */
 interface SolidWorkerScope {
@@ -20,7 +20,8 @@ interface SolidWorkerScope {
 
 const scope = self as unknown as SolidWorkerScope;
 
-function startGpu(): SolidGpu | undefined {
+/** The one GPU, which draws solids' pictures and the physical-space panel's frames alike. */
+function startGpu(): (SolidGpu & SpaceGpu) | undefined {
   if (typeof OffscreenCanvas === 'undefined') return undefined;
   try {
     return createThreeGpu(new OffscreenCanvas(1, 1));
@@ -28,6 +29,8 @@ function startGpu(): SolidGpu | undefined {
     return undefined;
   }
 }
+
+const gpu = startGpu();
 
 /** Decodes a texture from its bytes, as glTF reads it: not flipped, its alpha and colors untouched. */
 async function decodeImage(bytes: Uint8Array, mimeType: string): Promise<DecodedImage | undefined> {
@@ -44,7 +47,8 @@ async function digest(bytes: Uint8Array): Promise<string> {
 
 const host = new SolidWorkerHost({
   post: (reply, transfer) => scope.postMessage(reply, transfer),
-  gpu: startGpu(),
+  gpu,
+  ...(gpu ? { space: gpu } : {}),
   decodeImage,
   ...(typeof crypto !== 'undefined' && crypto.subtle ? { digest } : {}),
   schedule: (callback) => {
