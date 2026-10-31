@@ -98,6 +98,74 @@ describe('solids over the live connection (ADR 0075)', () => {
     expect(decodeServerMessage(encodeMessage(prepared))).toEqual(prepared);
   });
 
+  it('reads solid-files/list and solid-files/remove from an app, by hashes only', () => {
+    const list: AppMessage = { type: 'solid-files/list', requestId: 'r1' };
+    expect(decodeAppMessage(encodeMessage(list))).toEqual(list);
+    const remove: AppMessage = { type: 'solid-files/remove', requestId: 'r2', hashes: [HASH] };
+    expect(decodeAppMessage(encodeMessage(remove))).toEqual(remove);
+    // A hash named twice is removed once.
+    expect(
+      decodeAppMessage(
+        JSON.stringify({ type: 'solid-files/remove', requestId: 'r', hashes: [HASH, HASH] }),
+      ),
+    ).toEqual({ type: 'solid-files/remove', requestId: 'r', hashes: [HASH] });
+  });
+
+  it('refuses a removal that names anything but hashes, so nothing can leave solids/', () => {
+    const remove = (more: object) => () =>
+      decodeAppMessage(JSON.stringify({ type: 'solid-files/remove', requestId: 'r', ...more }));
+    const why = 'A removal names 1 to 1024 solid files by their SHA-256, in lowercase hexadecimal.';
+    for (const hashes of [
+      [],
+      ['../project.vaproject'],
+      [`../${HASH}`],
+      [`${HASH}.glb`],
+      [`solids/${HASH}`],
+      [HASH.toUpperCase()],
+      ['/etc/passwd'],
+      ['..\\..\\x'],
+      [`${'a'.repeat(63)}/`],
+      [42],
+      'a'.repeat(64),
+      Array.from({ length: 1025 }, () => HASH),
+    ]) {
+      expect(reason(remove({ hashes }))).toBe(why);
+    }
+    expect(reason(remove({ hashes: [HASH], path: 'solids' }))).toBe(
+      'solid-files/remove holds only its id and the hashes of the files to remove.',
+    );
+    expect(reason(remove({ hashes: [HASH], requestId: '' }))).toBe(
+      'The message has no valid request id.',
+    );
+    expect(
+      reason(() =>
+        decodeAppMessage(JSON.stringify({ type: 'solid-files/list', requestId: 'r', all: true })),
+      ),
+    ).toBe('solid-files/list holds only its id.');
+  });
+
+  it('reads solid-files/listed from the program', () => {
+    const listed: ServerMessage = {
+      type: 'solid-files/listed',
+      requestId: 'r1',
+      files: [{ hash: HASH, bytes: 2048 }],
+      removed: ['b'.repeat(64)],
+      kept: [{ hash: 'c'.repeat(64), message: 'A package names it.' }],
+    };
+    expect(decodeServerMessage(encodeMessage(listed))).toEqual(listed);
+    expect(
+      reason(() =>
+        decodeServerMessage(
+          JSON.stringify({
+            type: 'solid-files/listed',
+            requestId: 'r',
+            files: [{ hash: '../x', bytes: 1 }],
+          }),
+        ),
+      ),
+    ).toBe('The files are listed by their hashes and sizes.');
+  });
+
   it('refuses a piece past a canonical file’s 32 pieces, or one that is not base64', () => {
     const piece = (more: object) => () =>
       decodeServerMessage(

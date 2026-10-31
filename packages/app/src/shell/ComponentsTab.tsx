@@ -9,6 +9,7 @@ import { nameOf } from './definitions/traits';
 import { useSender } from './definitions/useSender';
 import { InlineProblem } from './inspector/controls';
 import { Secondary } from './Secondary';
+import { SolidsSection } from './SolidsSection';
 import { shownRows, type TreeRow } from './tree';
 import { VirtualTree } from './VirtualTree';
 import { EmphasisRuns } from '../text/EmphasisText';
@@ -22,8 +23,9 @@ interface ComponentsTabProps {
 /**
  * The project's components, relation types and packages: the packages in use, its own first, each
  * with its components (and what each derives from) and its relation types, any of which opens in the
- * component editor with Enter or a click; then the built-in packages not in use yet, each with Use;
- * and the ways to make a new component, relation type or package.
+ * component editor with Enter or a click; the packages' solids and the files in `solids/` no package
+ * names (ADR 0075); then the built-in packages not in use yet, each with Use; and the ways to make a
+ * new component, relation type or package.
  */
 export function ComponentsTab({ active }: ComponentsTabProps) {
   const t = useT();
@@ -81,6 +83,8 @@ export function ComponentsTab({ active }: ComponentsTabProps) {
           <p className="panel-empty">{t('The project uses no package yet.')}</p>
         )}
       </section>
+
+      <SolidsSection />
 
       <section className="panel-section">
         <h3 id={unusedHeading}>{t('Not in use yet')}</h3>

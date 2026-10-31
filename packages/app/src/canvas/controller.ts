@@ -155,6 +155,11 @@ export interface ControllerCallbacks {
   addRow?(container: ElementShape, below?: Id): void;
   /** Says that the canvas shows a theme, in the frame that first shows it (ADR-0033). */
   themeShown?(theme: ThemeName): void;
+  /**
+   * Says which element's solid turns now (ADR 0075), once when turning starts and once when it ends,
+   * so that the inspector can offer Use this view while it turns.
+   */
+  turning?(turned: { key: string; element: Id } | undefined): void;
   /** Asks to follow the first destination of an element, from its mark or Alt+Enter (ADR 0056). */
   follow?(element: Id): void;
   /**
@@ -390,6 +395,8 @@ export class CanvasController {
   private hoverSaid: string | undefined;
   /** Turning the selected shape's solid (ADR 0075), and the solids the project's packages define. */
   private readonly turner: SolidTurner;
+  /** The key of the shape whose turning was last said to the callbacks. */
+  private turningSaid: string | undefined;
   private readonly solids: SolidClient | undefined;
   private solidDefinitions = new Map<Id, SolidDefinition>();
   private solidsFrom: readonly PackageFile[] | undefined;
@@ -423,7 +430,17 @@ export class CanvasController {
       project: () => this.project,
       scale: () => this.camera.scale,
       resolution: () => this.host.ownerDocument.defaultView?.devicePixelRatio ?? 1,
-      show: (turning) => this.renderer.setTurning(turning),
+      show: (turning) => {
+        this.renderer.setTurning(turning);
+        // Said once when turning starts and once when it ends, never for each frame.
+        const key = turning?.key;
+        if (key === this.turningSaid) return;
+        this.turningSaid = key;
+        const turned = this.turner.turned;
+        callbacks.turning?.(
+          key === undefined || turned === undefined ? undefined : { key, element: turned.element },
+        );
+      },
       announce: (text) => this.announce(text),
       command: (command) => callbacks.command(command),
       reducedMotion,

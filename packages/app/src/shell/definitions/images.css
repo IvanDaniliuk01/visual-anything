@@ -89,3 +89,72 @@
 .image-control-report:empty {
   display: none;
 }
+
+/* The Solid section (ADR 0075): the solid shown, its placement, lighting and camera, and its preview. */
+.solid-control {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.solid-control-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.3rem 0.5rem;
+}
+
+.solid-control-camera {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.3rem 0.5rem;
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.solid-control-camera legend {
+  padding: 0 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.solid-control-camera .inspector-action {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.solid-preview {
+  display: grid;
+  justify-items: start;
+  gap: 0.3rem;
+}
+
+.solid-preview-picture,
+.solid-preview-none {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  touch-action: none;
+}
+
+.solid-preview-picture {
+  cursor: grab;
+}
+
+.solid-preview-none {
+  display: grid;
+  place-items: center;
+  padding: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.solid-preview-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}

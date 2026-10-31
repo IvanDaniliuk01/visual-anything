@@ -12,6 +12,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
+import { TurningContext, type CanvasTurning } from '../canvas/solids/turningContext';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { ExportControl } from '../export/ExportControl';
 import { fragmentOf } from '../export/page-export';
@@ -212,6 +213,8 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
   // The view state: what the tab's address holds and Copy address copies, and where search jumps.
   const live = useContext(LiveContext);
   const [canvas, setCanvas] = useState<CanvasCamera>();
+  // What the open view's canvas turns, for the inspector's Use this view (ADR 0075).
+  const [turning, setTurning] = useState<CanvasTurning>();
   useFollowZoom(zoom, project, view, scene, canvas);
   const viewState = useViewState({
     // While a comparison shows, what search and the Changes tab go to is what the canvas draws.
@@ -361,6 +364,9 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                     {...(live?.status === 'open' && live.makeDrawing !== undefined
                                       ? { makeDrawing: live.makeDrawing }
                                       : {})}
+                                    {...(live?.status === 'open' && live.prepareSolid !== undefined
+                                      ? { prepareSolid: live.prepareSolid }
+                                      : {})}
                                     {...(selection.elements.size === 1
                                       ? { selectedElement: [...selection.elements][0] }
                                       : {})}
@@ -431,6 +437,7 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                     theme={theme}
                                     onThemeShown={onThemeShown}
                                     onCanvas={setCanvas}
+                                    onTurning={setTurning}
                                   />
                                 </ImageSourceContext>
                               ) : (
@@ -447,13 +454,15 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                               <TourPlaybackLayer project={project} tours={tours} />
                             </main>
                             <PanelEdge store={panels} side="inspector" controls={inspectorId} />
-                            <Inspector
-                              id={inspectorId}
-                              hidden={inspectorCollapsed}
-                              view={view}
-                              scene={scene}
-                              definitions={definitions}
-                            />
+                            <TurningContext value={turning}>
+                              <Inspector
+                                id={inspectorId}
+                                hidden={inspectorCollapsed}
+                                view={view}
+                                scene={scene}
+                                definitions={definitions}
+                              />
+                            </TurningContext>
                             <PanelAnnouncer store={panels} />
                             <OpenWhenShown
                               panels={panels}

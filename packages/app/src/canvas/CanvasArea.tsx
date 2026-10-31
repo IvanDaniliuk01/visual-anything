@@ -91,6 +91,7 @@ import { laidOutBounds } from './layout/laidOut';
 import { useLayout } from './layout/useLayout';
 import { useReducedMotion } from '../scenarios/motion';
 import { useSolidClient } from './solids/useSolidClient';
+import type { CanvasTurning } from './solids/turningContext';
 import { pinnedInTheWay } from './layout/pinnedInTheWay';
 import { useAvoidedRoutes } from './routing/useAvoidedRoutes';
 import { RelationMenu } from './RelationMenu';
@@ -138,6 +139,11 @@ interface CanvasAreaProps {
    * state can follow and move it (W21).
    */
   onCanvas?: (canvas: CanvasCamera | undefined) => void;
+  /**
+   * Given what the canvas turns once a solid starts turning, and undefined once it ends (ADR 0075),
+   * so that the inspector can offer the canvas's Use this view.
+   */
+  onTurning?: (turning: CanvasTurning | undefined) => void;
   /**
    * The comparison the canvas shows (ADR 0070), whose marks it draws over `scene`, which is then the
    * comparison's: read-only, as `onCommand` is absent while it shows.
@@ -230,6 +236,7 @@ export function CanvasArea({
   theme = 'light',
   onThemeShown,
   onCanvas,
+  onTurning,
   comparison,
 }: CanvasAreaProps) {
   const t = useT();
@@ -468,6 +475,14 @@ export function CanvasArea({
     if (latest.current.indexed?.byKey.has(key)) controllerRef.current?.reveal(key);
     else revealKey.current = key;
   };
+  const turningChanged = useEffectEvent((turned: { key: string; element: Id } | undefined) => {
+    onTurning?.(
+      turned && {
+        element: turned.element,
+        useThisView: () => controllerRef.current?.useThisView() ?? Promise.resolve(false),
+      },
+    );
+  });
   const addRowFromCanvas = useEffectEvent((container: ElementShape, below?: Id) => {
     void addRow(container, below);
   });
@@ -534,6 +549,7 @@ export function CanvasArea({
         themeShown: (shown) => themeShown(shown),
         follow: (element) => follow(element),
         hoverShape: (key) => hoverShape(key),
+        turning: (turned) => turningChanged(turned),
       },
       // The canvas starts in the theme shown now, and follows it from then on.
       {
@@ -550,6 +566,8 @@ export function CanvasArea({
     return () => {
       controller.destroy();
       controllerRef.current = null;
+      // Nothing turns once the canvas goes.
+      turningChanged(undefined);
     };
     // The controller lives as long as the canvas area; `latest` gives it the current props.
   }, [cameras, changePreferences, hoverShape]);

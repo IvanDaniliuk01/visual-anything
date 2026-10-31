@@ -3059,6 +3059,132 @@ export const ui: Catalog = {
   'Use this view': 'Usar esta vista',
   'Keeps where its solid is seen from, in its appearance.':
     'Guarda desde dónde se ve su sólido, en su apariencia.',
+  // M9: the editors of solids, Import…'s solid step, and the files no package names (ADR 0075).
+  'A glTF file, .glb or .gltf, becomes a solid: Visual Anything cleans it of anything that runs or names anything outside it, and keeps it in the project’s solids/ folder.':
+    'Un archivo glTF, .glb o .gltf, se vuelve un sólido: Visual Anything lo limpia de todo lo que se ejecuta o nombra algo fuera de él, y lo guarda en la carpeta solids/ del proyecto.',
+  'The file’s unit': 'La unidad del archivo',
+  Meters: 'Metros',
+  Centimeters: 'Centímetros',
+  Millimeters: 'Milímetros',
+  Inches: 'Pulgadas',
+  'Up axis': 'Eje hacia arriba',
+  'Y, as glTF has it': 'Y, como lo tiene glTF',
+  'Z, as robotics and CAD tools often have it':
+    'Z, como suelen tenerlo las herramientas de robótica y CAD',
+  'Simplify it to fit': 'Simplificarlo para que entre',
+  'Simplifying keeps each node’s own geometry, with fewer triangles.':
+    'Simplificar conserva la geometría propia de cada nodo glTF, con menos triángulos.',
+  'What cleaning dropped or changed': 'Lo que la limpieza quitó o cambió',
+  'Nothing: the file held only what a solid keeps.':
+    'Nada: el archivo tenía solo lo que guarda un sólido.',
+  'A license is written by its SPDX identifier, such as CC0-1.0 or CC-BY-4.0.':
+    'Una licencia se escribe con su identificador SPDX, como CC0-1.0 o CC-BY-4.0.',
+  'Imported “{name}” as a solid': 'Se importó “{name}” como sólido',
+  'The solid is stored in one of the project’s own packages, and its file in the project’s solids/ folder. A component’s Solid section shows it. One undo takes it back.':
+    'El sólido se guarda en uno de los paquetes propios del proyecto, y su archivo en la carpeta solids/ del proyecto. La sección Sólido de un componente lo muestra. Deshacer una vez lo quita.',
+  'Import “{name}” as a solid': 'Importar “{name}” como sólido',
+  'The solid “{name}”, which has no description yet':
+    'El sólido “{name}”, que todavía no tiene descripción',
+  'Its description is its text alternative, which the outline, the inspector and screen readers give with its shapes: say what it shows, such as “a six-axis arm on a round base”.':
+    'Su descripción es su texto alternativo, que el esquema, el inspector y los lectores de pantalla dan con sus formas: decir lo que muestra, como “un brazo de seis ejes sobre una base redonda”.',
+  Source: 'Origen',
+  'The file says: {copyright}': 'El archivo dice: {copyright}',
+  'Cleaning the file…': 'Limpiando el archivo…',
+  'Its named parts': 'Sus partes con nombre',
+  '{count} named parts': { one: '{count} parte con nombre', other: '{count} partes con nombre' },
+  '{count} animations': { one: '{count} animación', other: '{count} animaciones' },
+  '{count} textures': { one: '{count} textura', other: '{count} texturas' },
+  '{x} × {y} × {z} {unit}': '{x} × {y} × {z} {unit}',
+  '({x} × {y} × {z} m)': '({x} × {y} × {z} m)',
+  '{count} triangles': '{count} triángulos',
+  '{count} vertices': '{count} puntos de geometría',
+  'The project has no solid yet: import a .glb or .gltf file with Import… in the header.':
+    'El proyecto todavía no tiene sólidos: importar un archivo .glb o .gltf con Importar… en el encabezado.',
+  '“{id}”, which no package defines': '“{id}”, que ningún paquete define',
+  'Its image is not drawn: a shape that shows a solid draws the solid instead.':
+    'Su imagen no se dibuja: una forma que muestra un sólido dibuja el sólido en su lugar.',
+  'The solid “{name}” has no description, which is its text alternative: add one in the Components tab.':
+    'El sólido “{name}” no tiene descripción, que es su texto alternativo: agregar una en la pestaña Componentes.',
+  'Its text alternative: {description}': 'Su texto alternativo: {description}',
+  'Drawing, above its name': 'Dibujo, encima de su nombre',
+  Lighting: 'Iluminación',
+  'Studio, lit as in a room': 'Estudio, iluminado como en una sala',
+  'Flat, its colors without light': 'Plana, sus colores sin luz',
+  'Camera, the solid’s own': 'Cámara, la del sólido',
+  'Camera, its own': 'Cámara, la suya propia',
+  'Azimuth, in degrees': 'Acimut, en grados',
+  'An azimuth is from −180 to 180 degrees.': 'Un acimut va de −180 a 180 grados.',
+  'Elevation, in degrees': 'Elevación, en grados',
+  'An elevation is from −89 to 89 degrees.': 'Una elevación va de −89 a 89 grados.',
+  'A zoom is from 0.25 to 16.': 'Un acercamiento va de 0,25 a 16.',
+  Projection: 'Proyección',
+  Orthographic: 'Ortográfica',
+  'Use the solid’s own camera': 'Usar la cámara del sólido',
+  'Show no solid': 'No mostrar ningún sólido',
+  solid: 'sólido',
+  'No preview here: the solid is drawn where Visual Anything draws solids.':
+    'Aquí no hay vista previa: el sólido se dibuja donde Visual Anything dibuja sólidos.',
+  'Drag or use the arrow keys to turn it, + and − to zoom, and 0 to go back.':
+    'Arrastrar o usar las flechas para girarlo, + y − para acercar o alejar, y 0 para volver.',
+  'Its solid, “{solid}”, has {count} named parts.': {
+    one: 'Su sólido, “{solid}”, tiene {count} parte con nombre.',
+    other: 'Su sólido, “{solid}”, tiene {count} partes con nombre.',
+  },
+  'drawn with its parts': 'dibujado con sus partes',
+  'as an icon': 'como ícono',
+  'as its drawing': 'como su dibujo',
+  '“{name}”, {placement}.': '“{name}”, {placement}.',
+  'The solid has no description, so its shapes have no text alternative: add one in the Components tab.':
+    'El sólido no tiene descripción, así que sus formas no tienen texto alternativo: agregar una en la pestaña Componentes.',
+  '{name}, with a solid: {description}': '{name}, con un sólido: {description}',
+  'It shows the solid “{id}”, which no package defines, so its image is drawn if it has one.':
+    'Muestra el sólido “{id}”, que ningún paquete define, así que se dibuja su imagen si tiene una.',
+  'Its solid turns on the canvas now.': 'Su sólido gira ahora en el lienzo.',
+  'It is seen from this view already.': 'Ya se ve desde esta vista.',
+  'It cannot be removed while {count} things show it: {names}.': {
+    one: 'No se puede quitar mientras {count} cosa lo muestra: {names}.',
+    other: 'No se puede quitar mientras {count} cosas lo muestran: {names}.',
+  },
+  'The project’s solids/ folder holds {count} files that no package names. They stay until you remove them.':
+    {
+      one: 'La carpeta solids/ del proyecto tiene {count} archivo que ningún paquete nombra. Queda hasta que se quite.',
+      other:
+        'La carpeta solids/ del proyecto tiene {count} archivos que ningún paquete nombra. Quedan hasta que se quiten.',
+    },
+  'The new file lacks {count} parts that elements are drawn as. Until a solid has them again, their elements are drawn as ordinary shapes; undoing brings them back:':
+    {
+      one: 'Al archivo nuevo le falta {count} parte como la que se dibuja un elemento. Hasta que un sólido la tenga de nuevo, su elemento se dibuja como una forma común; deshacer la recupera:',
+      other:
+        'Al archivo nuevo le faltan {count} partes como las que se dibujan elementos. Hasta que un sólido las tenga de nuevo, sus elementos se dibujan como formas comunes; deshacer las recupera:',
+    },
+  'No description, so its shapes have no text alternative.':
+    'Sin descripción, así que sus formas no tienen texto alternativo.',
+  'Source: {source}': 'Origen: {source}',
+  'not said': 'no se dice',
+  'License: {license}': 'Licencia: {license}',
+  'Change…': 'Cambiar…',
+  'Replace…': 'Reemplazar…',
+  'Replace the file of “{name}”': 'Reemplazar el archivo de “{name}”',
+  'A solid needs a name.': 'Un sólido necesita un nombre.',
+  'Description, its text alternative': 'Descripción, su texto alternativo',
+  'Licenses that ship with Visual Anything: {licenses}.':
+    'Licencias de lo que viene con Visual Anything: {licenses}.',
+  'Replace the solid “{name}” with “{file}”?': '¿Reemplazar el sólido “{name}” por “{file}”?',
+  'Every part an element is drawn as is in the new file too.':
+    'Cada parte como la que se dibuja un elemento está también en el archivo nuevo.',
+  'Files no package names': 'Archivos que ningún paquete nombra',
+  'Looking in the project’s solids/ folder…': 'Buscando en la carpeta solids/ del proyecto…',
+  'Every file in the project’s solids/ folder is named by a package.':
+    'Un paquete nombra cada archivo de la carpeta solids/ del proyecto.',
+  'Remove “solids/{hash}.glb”': 'Quitar “solids/{hash}.glb”',
+  'Remove all {count} files': 'Quitar los {count} archivos',
+  'Remove the file “solids/{hash}.glb”?': '¿Quitar el archivo “solids/{hash}.glb”?',
+  'Remove {count} files from the project’s solids/ folder?':
+    '¿Quitar {count} archivos de la carpeta solids/ del proyecto?',
+  'No package names it now, but a version of the project, a branch, or an action you undid may. This cannot be undone: once removed, the file is gone from the folder.':
+    'Ningún paquete lo nombra ahora, pero puede hacerlo una versión del proyecto, una rama o una acción deshecha. Esto no se puede deshacer: una vez quitado, el archivo ya no está en la carpeta.',
+  'Its solid': 'Su sólido',
+  'Which solid': 'Qué sólido',
 };
 
 /**
@@ -5436,6 +5562,31 @@ export const messages: Catalog = {
     'Los bytes del archivo de sólido "solids/{hash}.glb" no son los que dice su nombre.',
   'Visual Anything sent pieces of a solid’s file that do not fit together.':
     'Visual Anything envió trozos del archivo de un sólido que no encajan entre sí.',
+  // The files in solids/ that no package names (ADR 0075).
+  'solid-files/list holds only its id.': 'solid-files/list tiene solo su id.',
+  'solid-files/remove holds only its id and the hashes of the files to remove.':
+    'solid-files/remove tiene solo su id y los resúmenes de los archivos que quitar.',
+  'A removal names 1 to {n} solid files by their SHA-256, in lowercase hexadecimal.':
+    'Quitar nombra de 1 a {n} archivos de sólidos por su SHA-256, en hexadecimal en minúscula.',
+  'solid-files/listed holds nothing else.': 'solid-files/listed no tiene nada más.',
+  'The files are listed by their hashes and sizes.':
+    'Los archivos se listan por sus resúmenes y tamaños.',
+  'The files removed are listed by their hashes.':
+    'Los archivos quitados se listan por sus resúmenes.',
+  'The files kept are listed by their hashes, each with why.':
+    'Los archivos que quedan se listan por sus resúmenes, cada uno con el porqué.',
+  'A solid file is named by its SHA-256, in lowercase hexadecimal.':
+    'Un archivo de sólido se nombra por su SHA-256, en hexadecimal en minúscula.',
+  'A package names the solid file "solids/{hash}.glb", so it stays.':
+    'Un paquete nombra el archivo de sólido "solids/{hash}.glb", así que queda.',
+  'The project\'s solids/ folder is not a folder of its own, so "solids/{hash}.glb" stays.':
+    'La carpeta solids/ del proyecto no es una carpeta propia, así que "solids/{hash}.glb" queda.',
+  '"solids/{hash}.glb" is not a regular file, so it stays.':
+    '"solids/{hash}.glb" no es un archivo común, así que queda.',
+  'The solid file "solids/{hash}.glb" could not be removed: {why}':
+    'No se pudo quitar el archivo de sólido "solids/{hash}.glb": {why}',
+  "The project's solid files could not be read: {why}":
+    'No se pudieron leer los archivos de sólidos del proyecto: {why}',
   // M9: the solid cleaner's refusals and report, and the program's solid files (ADR 0075).
   'The file is over 256 MiB, the most cleaning reads.':
     'El archivo pasa de 256 MiB, lo más que lee la limpieza.',

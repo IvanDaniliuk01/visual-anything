@@ -3,9 +3,13 @@ import {
   componentOrEssence,
   crosswalksOf,
   planAnchoring,
+  planSolidAnchoring,
+  solidAnchoringCommand,
   type AnchorMatching,
   type AnchorPlan,
+  type AnchorRequest,
   type ProjectSnapshot,
+  type SolidAnchorPlan,
 } from '@visual-anything/core';
 import { ESSENCE_ID, type Element, type Id, type ViewFile } from '@visual-anything/schema';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -39,20 +43,32 @@ const LISTED = 8;
 
 type By = AnchorMatching['by'];
 
+/** A plan of any drawing's parts, an SVG image's or a solid's, as the dialog shows it. */
+type Plan = AnchorPlan | SolidAnchorPlan;
+
+/** A planned part's id: an SVG part's id, or a solid part's name, which is its id. */
+function partIdOf(part: { readonly id: string } | { readonly name: string }): string {
+  return 'id' in part ? part.id : part.name;
+}
+
 /**
- * Anchor parts… (ADR 0067): matches the parts of a drawing's picture to its contents by name, by id
- * or by an external identifier in a scheme the person picks, translated through the crosswalks of the
- * project's packages, and optionally creates an element of a chosen component for each part that
- * matches nothing. It shows what it would do as the choices change, with the core's own plan, and
- * applies it as one undoable action. Modal: the focus stays inside it until it closes.
+ * Anchor parts… (ADR 0067, ADR 0075): matches the parts of a drawing's picture, or of the solid it
+ * shows, to its contents by name, by id or by an external identifier in a scheme the person picks,
+ * translated through the crosswalks of the project's packages, and optionally creates an element of a
+ * chosen component for each part that matches nothing. It shows what it would do as the choices
+ * change, with the core's own plan, and applies it as one undoable action. Modal: the focus stays
+ * inside it until it closes.
  */
 export function AnchorPartsDialog({
   drawing,
   view,
+  of = 'image',
   onClose,
 }: {
   drawing: Element;
   view: ViewFile | undefined;
+  /** Whose parts: the SVG image the drawing shows, or its solid. */
+  of?: 'image' | 'solid';
   onClose: () => void;
 }) {
   const t = useT();
@@ -78,18 +94,20 @@ export function AnchorPartsDialog({
     const matching: AnchorMatching =
       by === 'external' ? { by: 'external', scheme: scheme.trim() } : { by };
     if (matching.by === 'external' && matching.scheme === '') return undefined;
-    return planAnchoring(project, {
+    const request: AnchorRequest = {
       drawing: drawing.id,
       matching,
       ...(view === undefined ? {} : { view: view.id }),
       ...(create && component !== '' ? { create: { component } } : {}),
-    });
-  }, [project, drawing.id, view, by, scheme, create, component]);
-  const plan = planning?.ok ? planning.plan : undefined;
+    };
+    return of === 'solid' ? planSolidAnchoring(project, request) : planAnchoring(project, request);
+  }, [project, drawing.id, view, by, scheme, create, component, of]);
+  const plan: Plan | undefined = planning?.ok ? planning.plan : undefined;
   const nameOf = (id: Id) => t.definition(id, componentOrEssence(definitions, id).name);
 
   const apply = async () => {
-    const command = plan && anchoringCommand(plan);
+    const command =
+      plan && ('solid' in plan ? solidAnchoringCommand(plan) : anchoringCommand(plan));
     if (!command || !send) return;
     setBusy(true);
     try {
@@ -216,7 +234,7 @@ export function AnchorPartsDialog({
 }
 
 /** What a plan would do: the parts it matches and creates, those it keeps and those left. */
-function PlanSummary({ plan }: { plan: AnchorPlan }) {
+function PlanSummary({ plan }: { plan: Plan }) {
   const t = useT();
   const matched: string[] = [];
   const created: string[] = [];
@@ -224,9 +242,9 @@ function PlanSummary({ plan }: { plan: AnchorPlan }) {
   let unmatched = 0;
   for (const { part, anchor } of plan.parts) {
     if (anchor.kind === 'matched') {
-      matched.push(t('“{part}” → “{name}”', { part: part.id, name: anchor.element.name }));
+      matched.push(t('“{part}” → “{name}”', { part: partIdOf(part), name: anchor.element.name }));
     } else if (anchor.kind === 'created') {
-      created.push(t('“{part}” → a new “{name}”', { part: part.id, name: anchor.name }));
+      created.push(t('“{part}” → a new “{name}”', { part: partIdOf(part), name: anchor.name }));
     } else if (anchor.kind === 'kept') kept += 1;
     else unmatched += 1;
   }

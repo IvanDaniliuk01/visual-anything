@@ -24,6 +24,8 @@ import type { CommandResult } from '../live/connection';
 import './import.css';
 import { diagramFormatsHelp } from './diagram-formats';
 import { DrawingImport, type MakeDrawing } from './DrawingImport';
+import { SolidImport, type PrepareSolid } from './SolidImport';
+import { SOLID_FILE_TYPES, isSolidFileName } from '../shell/definitions/solidCommands';
 import {
   ACCEPTED,
   LIVE_MESSAGE_LIMIT,
@@ -47,6 +49,8 @@ interface ImportControlProps {
   openView?: (id: Id) => void;
   /** Asks the local program to make a drawing of HTML (ADR 0068); absent, HTML is not imported. */
   makeDrawing?: MakeDrawing;
+  /** Asks the local program to clean a glTF file as a solid (ADR 0075); absent, none is imported. */
+  prepareSolid?: PrepareSolid;
   /** The element selected on the canvas, which can show an imported drawing. */
   selectedElement?: Id;
 }
@@ -61,6 +65,7 @@ export function ImportControl({
   send,
   openView,
   makeDrawing,
+  prepareSolid,
   selectedElement,
 }: ImportControlProps) {
   const t = useT();
@@ -92,6 +97,7 @@ export function ImportControl({
           send={send}
           {...(openView === undefined ? {} : { openView })}
           {...(makeDrawing === undefined ? {} : { makeDrawing })}
+          {...(prepareSolid === undefined ? {} : { prepareSolid })}
           {...(selectedElement === undefined ? {} : { selectedElement })}
           onClose={close}
         />
@@ -129,6 +135,7 @@ interface ImportDialogProps {
   send: (command: Command) => Promise<CommandResult>;
   openView?: (id: Id) => void;
   makeDrawing?: MakeDrawing;
+  prepareSolid?: PrepareSolid;
   selectedElement?: Id;
   onClose: () => void;
 }
@@ -146,6 +153,7 @@ function ImportDialog({
   send,
   openView,
   makeDrawing,
+  prepareSolid,
   selectedElement,
   onClose,
 }: ImportDialogProps) {
@@ -164,7 +172,16 @@ function ImportDialog({
   const [choices, setChoices] = useState<Choices>();
   const [outcome, setOutcome] = useState<Outcome>();
   const [drawing, setDrawing] = useState<{ name: string; text: string }>();
-  const step = drawing !== undefined ? 'drawing' : reading === undefined ? 'choose' : 'map';
+  // A glTF file chosen, which imports as a solid (ADR 0075), and whether its step is open.
+  const [solidFile, setSolidFile] = useState<File>();
+  const [solidOpen, setSolidOpen] = useState(false);
+  const step = solidOpen
+    ? 'solid'
+    : drawing !== undefined
+      ? 'drawing'
+      : reading === undefined
+        ? 'choose'
+        : 'map';
 
   useEffect(() => {
     dialog.current?.querySelector<HTMLElement>('input, textarea, select, button')?.focus();
@@ -180,6 +197,11 @@ function ImportDialog({
         : { name: pastedName.trim() === '' ? t('pasted text') : pastedName.trim(), text: pasted };
 
   function read(keyed: string | undefined = key): void {
+    if (source === 'file' && solidFile !== undefined && prepareSolid !== undefined) {
+      setProblems([]);
+      setSolidOpen(true);
+      return;
+    }
     if (input === undefined) return;
     // HTML becomes a drawing, which the local program makes (ADR 0068).
     if (format === DRAWING_FORMAT || (format === '' && isDrawingFile(input.name))) {
@@ -255,7 +277,17 @@ function ImportDialog({
           if (event.key === 'Escape' && outcome?.state !== 'sending') onClose();
         }}
       >
-        {drawing !== undefined && makeDrawing !== undefined ? (
+        {solidOpen && solidFile !== undefined && prepareSolid !== undefined ? (
+          <SolidImport
+            titleId={titleId}
+            project={project}
+            file={solidFile}
+            prepareSolid={prepareSolid}
+            send={send}
+            onBack={() => setSolidOpen(false)}
+            onClose={onClose}
+          />
+        ) : drawing !== undefined && makeDrawing !== undefined ? (
           <DrawingImport
             titleId={titleId}
             project={project}
@@ -298,6 +330,13 @@ function ImportDialog({
                 )}
               </p>
             )}
+            {prepareSolid !== undefined && (
+              <p className="dialog-note">
+                {t(
+                  'A glTF file, .glb or .gltf, becomes a solid: Visual Anything cleans it of anything that runs or names anything outside it, and keeps it in the project’s solids/ folder.',
+                )}
+              </p>
+            )}
             <details className="import-help">
               <summary>{t('Which files it reads')}</summary>
               <dl>
@@ -333,12 +372,19 @@ function ImportDialog({
                 <span>{t('File')}</span>
                 <input
                   type="file"
-                  accept={ACCEPTED}
+                  accept={prepareSolid === undefined ? ACCEPTED : `${ACCEPTED},${SOLID_FILE_TYPES}`}
                   onChange={(event) => {
                     const chosen = event.target.files?.[0];
                     setProblems([]);
+                    setSolidFile(undefined);
                     if (chosen === undefined) {
                       setFile(undefined);
+                      return;
+                    }
+                    // A glTF file is binary, and the local program reads it (ADR 0075).
+                    if (prepareSolid !== undefined && isSolidFileName(chosen.name)) {
+                      setFile(undefined);
+                      setSolidFile(chosen);
                       return;
                     }
                     void readChosenFile(chosen).then(setFile);
@@ -396,7 +442,11 @@ function ImportDialog({
               <button
                 type="button"
                 className="dialog-confirm"
-                aria-disabled={input === undefined ? true : undefined}
+                aria-disabled={
+                  input === undefined && !(source === 'file' && solidFile !== undefined)
+                    ? true
+                    : undefined
+                }
                 onClick={() => read()}
               >
                 {t('Read')}

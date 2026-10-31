@@ -409,13 +409,24 @@ export class SolidStore {
     return { ok: true, bytes, description };
   }
 
-  /** The messages that answer `solid/get`: the file's pieces, in order, or one refusal. */
+  /**
+   * The messages that answer `solid/get`: the file's pieces, in order, or one refusal. A file the
+   * program holds prepared and has not written yet is served from what it holds, which its cleaner
+   * wrote, so that the import dialog's preview can draw it before it is defined (ADR 0075's
+   * clarification of 2026-10-31, the editors).
+   */
   async serve(requestId: string, hash: string, state: ProjectSnapshot): Promise<ServerMessage[]> {
-    const read = await this.#read(hash);
-    if (!read.ok)
-      return [{ type: 'solid/refused', requestId, code: read.code, message: read.message }];
-    this.#compare(hash, read.description, state);
-    const { bytes } = read;
+    const prepared = this.prepared(hash);
+    let bytes: Uint8Array;
+    if (prepared !== undefined) {
+      bytes = prepared.bytes;
+    } else {
+      const read = await this.#read(hash);
+      if (!read.ok)
+        return [{ type: 'solid/refused', requestId, code: read.code, message: read.message }];
+      this.#compare(hash, read.description, state);
+      bytes = read.bytes;
+    }
     const count = Math.ceil(bytes.length / SOLID_PIECE_BYTES);
     const pieces: ServerMessage[] = [];
     for (let index = 0; index < count; index++) {

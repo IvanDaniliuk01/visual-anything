@@ -5,6 +5,9 @@ import type {
   DrawingMadeMessage,
   LiveFetchedMessage,
   LiveKeptMessage,
+  SolidFilesListedMessage,
+  SolidImportOptions,
+  SolidPreparedMessage,
   VersionRef,
   VersionsListedMessage,
 } from '@visual-anything/core';
@@ -126,6 +129,19 @@ export interface Live extends LiveState {
    * hands to the solid worker; absent where no program serves solids.
    */
   getSolidFile?: (hash: string) => Promise<LiveResult<Uint8Array>>;
+  /**
+   * Sends a file to the local program to be cleaned as a solid (ADR 0075), which changes nothing;
+   * absent where no program cleans solids.
+   */
+  prepareSolid?: (
+    fileName: string,
+    bytes: Uint8Array,
+    options?: SolidImportOptions,
+  ) => Promise<LiveResult<SolidPreparedMessage>>;
+  /** The files in `solids/` that no package names; absent where no program keeps solids. */
+  listSolidFiles?: () => Promise<LiveResult<SolidFilesListedMessage>>;
+  /** Removes files in `solids/` that no package names, which cannot be undone. */
+  removeSolidFiles?: (hashes: readonly string[]) => Promise<LiveResult<SolidFilesListedMessage>>;
 }
 
 /**

@@ -16,6 +16,7 @@ import {
   propose,
   type Proposal,
   planAnchoring,
+  planSolidAnchoring,
   prepareDrawingImport,
   readBitmap,
   type AnchorRequest,
@@ -1812,6 +1813,42 @@ function anchoring(sample: ProjectSnapshot): Said[] {
     { ...drawing([]), views: [] },
     { create: { component: 'systems.service' } },
   );
+  // Anchor parts… for a solid's parts (ADR 0075).
+  const arm = {
+    id: 'clinic.arm',
+    name: 'Arm',
+    hash: 'a'.repeat(64),
+    bytes: 1,
+    bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } },
+    counts: { triangles: 1, vertices: 3, nodes: 1, textures: 0 },
+    parts: [{ name: 'lung' }],
+    camera: { azimuth: 30, elevation: 20 },
+  };
+  const withArm: ProjectSnapshot = {
+    ...state,
+    packages: state.packages.map((file) =>
+      file.id === 'clinic' ? { ...file, solids: [...(file.solids ?? []), arm] } : file,
+    ),
+    model: {
+      ...state.model,
+      elements: state.model.elements.map((each) =>
+        each.id === 'patient'
+          ? { ...each, appearance: { solid: { solid: arm.id, placement: 'parts' as const } } }
+          : each,
+      ),
+    },
+  };
+  for (const [name, on, request] of [
+    ['anchor a solid’s parts on what shows none', state, {}],
+    ['anchor a part the solid lacks', withArm, { parts: ['heart'] }],
+  ] as const) {
+    const planning = planSolidAnchoring(on, {
+      drawing: 'patient',
+      matching: { by: 'name' },
+      ...request,
+    });
+    if (!planning.ok) said.push({ command: name, message: planning.problem.message });
+  }
   return said;
 }
 

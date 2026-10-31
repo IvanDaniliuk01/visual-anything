@@ -99,7 +99,7 @@ import { capOf, describeCap, readRegularFile } from './regular-files';
 import { comparisonOfView, Versions, type VersionsOptions } from './versions/versions';
 import { watchProject, type ProjectWatcher, type WatchMode } from './watcher';
 import { removeFile, writeFileAtomic, type WriteOptions } from './writer';
-import { solidFileWarnings } from './solids/files';
+import { removeUnnamedSolidFiles, solidFileWarnings, unnamedSolidFileSizes } from './solids/files';
 import { planSolidImport, type SolidChoices } from './solids/import';
 import { readProjectSolidFile } from './solids/project-file';
 import {
@@ -806,7 +806,67 @@ export class Session implements LiveSession {
       case 'solid/prepare':
         await this.prepareSolidPiece(client, message);
         return;
+      case 'solid-files/list':
+        await this.listUnnamedSolidFiles(origin);
+        return;
+      case 'solid-files/remove':
+        await this.removeUnnamedSolidFiles(origin, message.hashes);
+        return;
     }
+  }
+
+  /**
+   * Answers with the files in `solids/` that no package names (ADR 0075), for the Components tab. It
+   * only reads, in the turn of the queue, so that it lists them as the project is once the work asked
+   * for before it is done.
+   */
+  listUnnamedSolidFiles(origin: Origin): Promise<void> {
+    return this.#enqueue(async () => {
+      try {
+        const files = await unnamedSolidFileSizes(this.folder, this.#state);
+        this.#send(origin.client, {
+          type: 'solid-files/listed',
+          requestId: origin.requestId,
+          files,
+        });
+      } catch (error) {
+        this.#refuseSolidFiles(origin, error);
+      }
+    });
+  }
+
+  /**
+   * Removes files of `solids/` that no package names, as the person asks (ADR 0075): it cannot be
+   * undone, and changes no project file. In the turn of the queue, so that no action naming one of
+   * them runs between the check and the removal; answers with what is left, what it removed, and
+   * what it would not remove, with why.
+   */
+  removeUnnamedSolidFiles(origin: Origin, hashes: readonly string[]): Promise<void> {
+    return this.#enqueue(async () => {
+      try {
+        const { removed, kept } = await removeUnnamedSolidFiles(this.folder, this.#state, hashes);
+        const files = await unnamedSolidFileSizes(this.folder, this.#state);
+        this.#send(origin.client, {
+          type: 'solid-files/listed',
+          requestId: origin.requestId,
+          files,
+          removed,
+          ...(kept.length === 0 ? {} : { kept }),
+        });
+      } catch (error) {
+        this.#refuseSolidFiles(origin, error);
+      }
+    });
+  }
+
+  #refuseSolidFiles(origin: Origin, error: unknown): void {
+    this.#err(`Could not read the project's solid files: ${reasonOf(error)}`);
+    this.#send(origin.client, {
+      type: 'solid/refused',
+      requestId: origin.requestId,
+      code: 'program-failed',
+      message: `The project's solid files could not be read: ${reasonOf(error)}`,
+    });
   }
 
   /**

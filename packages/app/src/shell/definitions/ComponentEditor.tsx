@@ -1,6 +1,8 @@
 import {
   componentImage,
+  componentSolid,
   imagesIn,
+  solidsIn,
   traitSources,
   type AppearanceChanges,
   type Command,
@@ -25,6 +27,7 @@ import { ExternalIdsSection } from '../../destinations/ExternalIdsSection';
 import { perform } from '../inspector/send';
 import { componentImageAction } from './imageCommands';
 import { ImageControl } from './ImageControl';
+import { SolidControl } from './SolidControl';
 import { FaceSection } from './FaceSection';
 import { LevelsSection } from './LevelsSection';
 import { BuiltInNote, Gone, RemoveDefinition } from './parts';
@@ -130,7 +133,7 @@ interface AppearanceTraitsProps {
   update: (changes: ImageChanges) => Command;
 }
 
-/** A component's shape, colors, size, image and rows, each with where it comes from. */
+/** A component's shape, colors, size, image, solid and rows, each with where it comes from. */
 function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
   const t = useT();
   const { project, definitions } = useEditor();
@@ -156,6 +159,18 @@ function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
         : image.placement === 'parts'
           ? t('{name}, with its parts', { name: pictureName ?? '' })
           : t('{name}, as an icon', { name: pictureName ?? '' });
+  const solid = componentSolid(definitions, id);
+  const ownSolid = definitions.components.get(id)?.definition.appearance?.solid;
+  const solidShownName =
+    solid && (solidsIn(project).solid(solid.solid)?.definition.name ?? solid.solid);
+  const solidName =
+    solid === undefined
+      ? t('None')
+      : solid.placement === 'parts'
+        ? t('{name}, with its parts', { name: solidShownName ?? '' })
+        : solid.placement === 'icon'
+          ? t('{name}, as an icon', { name: solidShownName ?? '' })
+          : t('{name}, as its drawing', { name: solidShownName ?? '' });
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
@@ -265,6 +280,28 @@ function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
                   {t('Show no image')}
                 </button>
               )}
+            </>
+          )}
+        </TraitRow>
+        <TraitRow
+          label={t('Its solid')}
+          group
+          {...row('solid')}
+          inherit={() => update({ solid: null })}
+        >
+          {({ send, describedBy }) => (
+            <>
+              <p className="definition-value">{solidName}</p>
+              <SolidControl
+                project={project}
+                component={id}
+                shown={solid}
+                ownNone={ownSolid === 'none'}
+                showsImage={image !== undefined}
+                disabled={readOnly}
+                send={send}
+                describedBy={describedBy}
+              />
             </>
           )}
         </TraitRow>

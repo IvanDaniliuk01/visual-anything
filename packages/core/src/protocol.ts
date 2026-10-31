@@ -61,11 +61,17 @@ import {
   type CaptureRequestMessage,
 } from './capture';
 import {
+  readSolidFilesList,
+  readSolidFilesListed,
+  readSolidFilesRemove,
   readSolidGet,
   readSolidPieceMessage,
   readSolidPrepare,
   readSolidPrepared,
   readSolidRefused,
+  type SolidFilesListMessage,
+  type SolidFilesListedMessage,
+  type SolidFilesRemoveMessage,
   type SolidGetMessage,
   type SolidPieceMessage,
   type SolidPrepareMessage,
@@ -100,7 +106,9 @@ import { readSolidCamera } from './solids/camera';
  *    And a view's `rows` and `selectionFadesLines` (ADR 0080, section 5), which an older app of 7
  *    would refuse when it opens the view file. And solids (M9, ADR 0075): `solid/prepare` and
  *    `solid/get` from an app, answered with `solid/prepared`, `solid/piece` or `solid/refused`;
- *    and the guidance `turn`, which turns a shape's solid to a camera.
+ *    `solid-files/list` and `solid-files/remove`, for the files in `solids/` that no package
+ *    names, answered with `solid-files/listed` or `solid/refused`; and the guidance `turn`, which
+ *    turns a shape's solid to a camera.
  */
 export const PROTOCOL_VERSION = 7;
 
@@ -152,7 +160,8 @@ export type ServerMessage =
   | CaptureRequestMessage
   | SolidPreparedMessage
   | SolidPieceMessage
-  | SolidRefusedMessage;
+  | SolidRefusedMessage
+  | SolidFilesListedMessage;
 
 /**
  * Sent in place of `project/opened` while the local program runs on a folder that holds no project yet
@@ -732,7 +741,9 @@ export type AppMessage =
   | LayoutDoneMessage
   | CaptureAnswerMessage
   | SolidPrepareMessage
-  | SolidGetMessage;
+  | SolidGetMessage
+  | SolidFilesListMessage
+  | SolidFilesRemoveMessage;
 
 /** The longest name the start screen may give a new project or its first view. */
 export const MAX_START_NAME = 200;
@@ -825,6 +836,7 @@ const SERVER_TYPES = new Set<string>([
   'solid/prepared',
   'solid/piece',
   'solid/refused',
+  'solid-files/listed',
 ]);
 
 /**
@@ -910,6 +922,8 @@ export function decodeServerMessage(text: string): ServerMessage {
       return readSolidMessage(readSolidPieceMessage(message));
     case 'solid/refused':
       return readSolidMessage(readSolidRefused(message));
+    case 'solid-files/listed':
+      return readSolidMessage(readSolidFilesListed(message));
   }
   return message as unknown as ServerMessage;
 }
@@ -1003,6 +1017,10 @@ export function decodeAppMessage(text: string): AppMessage {
       return readSolidMessage(readSolidPrepare(message));
     case 'solid/get':
       return readSolidMessage(readSolidGet(message));
+    case 'solid-files/list':
+      return readSolidMessage(readSolidFilesList(message));
+    case 'solid-files/remove':
+      return readSolidMessage(readSolidFilesRemove(message));
     default:
       throw new ProtocolError(`Unknown message type: ${JSON.stringify(message.type)}.`);
   }
