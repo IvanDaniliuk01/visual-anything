@@ -17,7 +17,7 @@ import { EMPTY_SELECTION, selectionOf, type Selection } from '../editor/selectio
 import { createSolidClient, type SolidClient } from '../solids/client';
 import type { SpaceShift } from '../solids/protocol';
 import { StandInSolidWorker } from '../solids/stand-in';
-import { handleShapes } from '../solids/worker/space/handles';
+import { handleShapes } from './handles';
 import { workcell } from '../test/space';
 import { spaceProjection } from './camera';
 import { SpacePanelContext } from './context';

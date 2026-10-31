@@ -241,7 +241,7 @@ export type SpaceAxis = 'x' | 'y' | 'z';
 
 /**
  * The handles that move or rotate posed elements (ADR 0076), which the worker draws over a space and
- * the page hit-tests and drives (`solids/worker/space/handles.ts` works out where they are for both).
+ * the page hit-tests and drives (`space/handles.ts` works out where they are for both).
  */
 export interface SpaceHandles {
   /** Arrows along three axes to move, or rings around them to rotate. */

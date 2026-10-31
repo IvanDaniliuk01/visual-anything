@@ -2,7 +2,8 @@
  * Times in Node what the space benchmark (`?space`, M10) measures without a GPU (ADR 0076): making its
  * twenty canonical files and its project; the panel's work on the page, `spaceOf`, the entries the
  * worker draws and the states after a selection on the canvas; and the solid worker's own work apart
- * from drawing, its solids built with three.js, the space laid out, the exploded view's moves, the
+ * from drawing, its solids built with three.js, the space laid out, placed and looked at again, its
+ * pieces merged, its scene made and following a change of looks, the exploded view's moves, the
  * farthest solids boxed while the camera moves, and picks on the solids' bounding volume hierarchies.
  * A short check, not a benchmark: the frames are the browser's to measure (`pnpm bench`, `?space`).
  *
@@ -14,7 +15,9 @@ import { emphasize } from '../canvas/emphasize';
 import type { SpaceElementState } from '../solids/protocol';
 import { buildSolid, type BuiltSolid } from '../solids/worker/build';
 import type { SpaceToDraw } from '../solids/worker/host';
-import { explosionShifts, layOut } from '../solids/worker/space/layout';
+import { explosionShifts, layOut, placeOut } from '../solids/worker/space/layout';
+import { drawGroupsOf } from '../solids/worker/space/merge';
+import { SpaceScene } from '../solids/worker/space/scene';
 import { SPACE_TRIANGLE_BUDGET, boxedFrom } from '../solids/worker/space/lod';
 import { pickInSpace } from '../solids/worker/space/pick';
 import { boundsPlaced, frameSpace } from '../space/camera';
@@ -169,6 +172,60 @@ async function main(): Promise<void> {
   line(
     'Laying it out exploded, at a factor of 1',
     Array.from({ length: Math.max(1, runs) }, () => time(() => layOut(toDraw(1)))),
+  );
+  // What a change of states costs the worker now: looking again from the placement kept, and the
+  // scene following it in place.
+  const placement = placeOut(toDraw(0));
+  line(
+    'Placing the space, from nothing',
+    Array.from({ length: Math.max(1, runs) }, () => time(() => placeOut(toDraw(0)))),
+  );
+  const lookTimes: number[] = [];
+  const looked: ReturnType<typeof layOut>[] = [];
+  for (let each = 0; each < 50; each++) {
+    const selected = posed[Math.floor(random() * posed.length)] as string;
+    const changed = { ...toDraw(0), states: new Map([[selected, { selected: true }]]) };
+    lookTimes.push(time(() => looked.push(layOut(changed, placement))));
+  }
+  line('Looking again after a selection, from the placement kept', lookTimes);
+  line('Merging the pieces of each solid that draw alike, once', [
+    time(() => {
+      for (const solid of solids.values()) drawGroupsOf(solid);
+    }),
+  ]);
+  let mergedBytes = 0;
+  for (const solid of solids.values()) {
+    for (const group of drawGroupsOf(solid)) {
+      if (!group.merged) continue;
+      const { attributes, index } = group.geometry;
+      for (const name of Object.keys(attributes)) {
+        mergedBytes += (attributes[name]?.array as ArrayLike<number> & { byteLength: number })
+          .byteLength;
+      }
+      mergedBytes += index?.array.byteLength ?? 0;
+    }
+  }
+  console.log(`    ${(mergedBytes / 2 ** 20).toFixed(1)} MiB of merged geometry, a second copy`);
+  let spaceScene: SpaceScene | undefined;
+  line(
+    'Making the space’s scene',
+    Array.from({ length: Math.max(1, runs) }, () =>
+      time(() => {
+        spaceScene?.dispose();
+        spaceScene = new SpaceScene(layOut(toDraw(0), placement), {
+          cut: undefined,
+          theme: 'light',
+        });
+      }),
+    ),
+  );
+  const drawnScene = spaceScene as SpaceScene;
+  console.log(
+    `    ${drawnScene.batches.length} batches, ${drawnScene.batches.filter((batch) => batch.kind === 'piece').length} of pieces, for ${layout.solids.length} solids`,
+  );
+  line(
+    'The scene following a change of looks, in place',
+    looked.map((each) => time(() => drawnScene.show(each))),
   );
   line(
     'The exploded view’s moves, as a frame sends them',

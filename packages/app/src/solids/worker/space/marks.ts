@@ -1,7 +1,7 @@
 /**
  * The marks of selection, hover and highlight in a space (ADR 0076), drawn as the canvas draws its
  * parts' marks (`canvas/solids/shader.ts`): a pass writes each pixel's marks' bits, from the nearest
- * piece or marker drawn there, and a second draws, along the inside of each marked region's edge, a
+ * piece, box or marker drawn there, and a second draws, along the inside of each marked region's edge, a
  * casing, the mark's line and a casing again. Each casing is black or white, whichever keeps 3:1 or
  * more against the mark's color, so that a mark reads on any solid, in either theme. A piece inside a
  * marked one inherits its marks, so no edge is drawn between them.
@@ -19,6 +19,7 @@ import {
 import { rgbOf } from '../../../canvas/solids/states';
 import { THEMES } from '../../../theme/themes';
 import { SPACE_MARK } from './layout';
+import { LOOK_VERTEX, LOOK_VERTEX_END, LOOK_VERTEX_PARS } from './looks';
 
 /** The marks, in the order they are drawn: the later one over the earlier. */
 const MARKS = [
@@ -185,25 +186,33 @@ void main() {
   gl_FragColor = vec4(rgb, 1.0);
 }`;
 
-/** The vertex program of the bits' pass: each piece where it is drawn, instanced, cut as drawn. */
+/**
+ * The vertex program of the bits' pass: each instance of a batch where it is drawn, cut as drawn,
+ * reading its looks as the batch's other passes do (`looks.ts`), and moving out of the frame what is
+ * hidden, or faint and unmarked.
+ */
 export const BITS_VERTEX = /* glsl */ `
 #include <common>
 #include <clipping_planes_pars_vertex>
+${LOOK_VERTEX_PARS}
 void main() {
-  vec4 mvPosition = vec4(position, 1.0);
+  vec3 transformed = vec3(position);
+${LOOK_VERTEX}
+  vec4 mvPosition = vec4(transformed, 1.0);
   #ifdef USE_INSTANCING
     mvPosition = instanceMatrix * mvPosition;
   #endif
   mvPosition = modelViewMatrix * mvPosition;
   gl_Position = projectionMatrix * mvPosition;
   #include <clipping_planes_vertex>
+${LOOK_VERTEX_END}
 }`;
 
-/** The fragment program of the bits' pass: its marks' bits in the red byte. */
+/** The fragment program of the bits' pass: its look's marks' bits in the red byte. */
 export const BITS_FRAGMENT = /* glsl */ `
 #include <clipping_planes_pars_fragment>
-uniform float bits;
+varying float vLookMarks;
 void main() {
   #include <clipping_planes_fragment>
-  gl_FragColor = vec4(bits / 255.0, 0.0, 0.0, 1.0);
+  gl_FragColor = vec4(vLookMarks / 255.0, 0.0, 0.0, 1.0);
 }`;

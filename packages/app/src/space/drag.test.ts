@@ -8,7 +8,7 @@
 import { executeCommand, rotationFromDegrees, spaceMath, spaceOf } from '@visual-anything/core';
 import type { SpaceCamera } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
-import { handleShapes } from '../solids/worker/space/handles';
+import { handleShapes } from './handles';
 import { workcell } from '../test/space';
 import { spaceProjection } from './camera';
 import {

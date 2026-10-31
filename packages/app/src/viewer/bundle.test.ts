@@ -108,15 +108,6 @@ const READ_ONLY_IN_THOSE = [
   'packages/app/src/shell/inspector/lengths.ts',
 ];
 
-/**
- * The solid worker's modules a page holds outside the worker, which hold no three.js: the handles and
- * the ground, which the physical-space panel projects as the worker draws them (ADR 0076).
- */
-const WORKER_MODULES_IN_THE_PAGE = [
-  'packages/app/src/solids/worker/space/grid.ts',
-  'packages/app/src/solids/worker/space/handles.ts',
-];
-
 /** What no page's script may say: the ways a page could reach a program, a session or the network. */
 const NOT_SAID = [
   'WebSocket',
@@ -263,13 +254,7 @@ describe('The viewer’s bundle', () => {
     expect(modules.filter((path) => /node_modules\/(three|three-mesh-bvh)\//.test(path))).toEqual(
       [],
     );
-    expect(
-      modules.filter(
-        (path) =>
-          path.includes('packages/app/src/solids/worker/') &&
-          !WORKER_MODULES_IN_THE_PAGE.includes(path),
-      ),
-    ).toEqual([]);
+    expect(modules.filter((path) => path.includes('packages/app/src/solids/worker/'))).toEqual([]);
     expect(modules).not.toContain('packages/app/src/solids/client.ts');
     expect(script).not.toContain(THREE_MARK);
   });

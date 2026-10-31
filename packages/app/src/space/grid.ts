@@ -6,7 +6,7 @@
  * from the origin keeps its precision. A scale says how long one cell is.
  */
 import type { SpaceCamera } from '@visual-anything/schema';
-import { SPACE_FIELD_OF_VIEW } from '../../../space/camera';
+import { SPACE_FIELD_OF_VIEW } from './camera';
 
 /** The fewest cells across the frame's height at the target. */
 const FEWEST_CELLS = 8;

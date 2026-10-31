@@ -17,7 +17,9 @@
  *   render target without smoothing; the solids, markers and ground, lit as studio, the cut and
  *   explosion as the scene has them; the marks along the edges of what is marked
  *   (`space/marks.ts`); then relation lines, names, the ground's scale and the handles, facing the
- *   screen (`space/overlay.ts`). Picks are answered from the layout the frame was drawn from.
+ *   screen (`space/overlay.ts`). The picture of the first three is kept, and a frame in which only
+ *   the fourth changed draws the fourth alone over it (`space/drawings.ts`). Picks are answered from
+ *   the layout the frame was drawn from.
  */
 import type { Color } from '@visual-anything/schema';
 import {
@@ -39,6 +41,7 @@ import {
   Vector3,
   WebGLRenderer,
   WebGLRenderTarget,
+  type PerspectiveCamera,
   type Side,
   type Texture,
 } from 'three';
@@ -48,6 +51,8 @@ import { SOLID_BUCKETS, type SolidPartBuffer, type SolidView } from '../protocol
 import type { BuiltSolid } from './build';
 import type { DrawnPicture, SolidGpu, SpaceGpu, SpaceToDraw } from './host';
 import { SpaceDrawings } from './space/drawings';
+import type { SpaceScene } from './space/scene';
+import { spaceThreeCamera } from './space/stage';
 import { MARKS_FRAGMENT, MARKS_VERTEX, markColorsOf } from './space/marks';
 import { overlayFont, overlayOf, paintOverlay } from './space/overlay';
 import { keyLightPosition, partBufferFrom, partBytes, stageView } from './stage';
@@ -193,6 +198,81 @@ export function createThreeGpu(canvas: OffscreenCanvas): SolidGpu & SpaceGpu {
     return new Vector3(r / 255, g / 255, b / 255);
   };
 
+  /** Draws a space's solids, markers, ground and marks, from its scene, into a picture. */
+  const drawSolids = (space: SpaceToDraw, drawn: SpaceScene): ImageBitmap => {
+    const { width, height } = space.size;
+    const camera = drawn.place(space.camera, space.size, space.pixelRatio, space.cut);
+    const clipping = renderer.localClippingEnabled;
+    renderer.localClippingEnabled = space.cut !== undefined;
+    renderer.setSize(width, height, false);
+    try {
+      // The bits of what is marked, for the marks' pass.
+      if (drawn.marked) {
+        bitsTarget.setSize(width, height);
+        drawn.scene.environment = null;
+        drawn.key.visible = false;
+        renderer.setRenderTarget(bitsTarget);
+        renderer.clear();
+        drawn.withBits(() => renderer.render(drawn.scene, camera));
+      }
+      // The solids, markers and ground.
+      renderer.setRenderTarget(null);
+      drawn.scene.environment = roomLight();
+      drawn.key.visible = true;
+      renderer.clear();
+      renderer.render(drawn.scene, camera);
+      // The marks, over them.
+      if (drawn.marked) {
+        const colors = markColorsOf(space.theme);
+        const uniforms = marksMaterial.uniforms as Record<string, { value: unknown }>;
+        (uniforms.size?.value as Vector2).set(width, height);
+        (uniforms.selected as { value: Vector3 }).value = rgb(colors.selected);
+        (uniforms.selectedCasing as { value: Vector3 }).value = rgb(colors.selectedCasing);
+        (uniforms.highlight as { value: Vector3 }).value = rgb(colors.highlight);
+        (uniforms.highlightCasing as { value: Vector3 }).value = rgb(colors.highlightCasing);
+        (uniforms.scale as { value: number }).value = space.pixelRatio;
+        renderer.autoClear = false;
+        try {
+          renderer.render(marksScene, marksCamera);
+        } finally {
+          renderer.autoClear = true;
+        }
+      }
+    } finally {
+      renderer.setRenderTarget(null);
+      renderer.localClippingEnabled = clipping;
+    }
+    if (gl.isContextLost()) throw new Error('The context was lost while drawing.');
+    return canvas.transferToImageBitmap();
+  };
+
+  /**
+   * Compiles every program a space's scene may draw with, its see-through, caps, boxes and bits'
+   * passes too, so that a change of looks never waits on a compiler; with
+   * `KHR_parallel_shader_compile`, without waiting on it either.
+   */
+  const warmed = new WeakSet<SpaceScene>();
+  const warm = (drawn: SpaceScene, camera: PerspectiveCamera) => {
+    if (lost || gl.isContextLost() || !drawings.holds(drawn)) return;
+    const clipping = renderer.localClippingEnabled;
+    renderer.localClippingEnabled = drawn.plane !== undefined;
+    try {
+      renderer.setRenderTarget(null);
+      drawn.scene.environment = roomLight();
+      drawn.key.visible = true;
+      renderer.compile(drawn.scene, camera);
+      drawn.scene.environment = null;
+      drawn.key.visible = false;
+      renderer.setRenderTarget(bitsTarget);
+      drawn.withBits(() => renderer.compile(drawn.scene, camera));
+      renderer.setRenderTarget(null);
+      renderer.compile(marksScene, marksCamera);
+    } finally {
+      renderer.setRenderTarget(null);
+      renderer.localClippingEnabled = clipping;
+    }
+  };
+
   const listeners: ((state: 'lost' | 'restored') => void)[] = [];
   let lost = false;
   canvas.addEventListener('webglcontextlost', (event) => {
@@ -282,58 +362,22 @@ export function createThreeGpu(canvas: OffscreenCanvas): SolidGpu & SpaceGpu {
       if (lost || gl.isContextLost()) throw new Error('The context is lost.');
       const { width, height } = space.size;
       const drawn = drawings.sceneOf(space);
-      const camera = drawn.place(space.camera, space.size, space.pixelRatio, space.cut);
-      const clipping = renderer.localClippingEnabled;
-      renderer.localClippingEnabled = space.cut !== undefined;
-      renderer.setSize(width, height, false);
-      try {
-        // The bits of what is marked, for the marks' pass.
-        if (drawn.marked) {
-          bitsTarget.setSize(width, height);
-          drawn.scene.environment = null;
-          drawn.key.visible = false;
-          renderer.setRenderTarget(bitsTarget);
-          renderer.clear();
-          drawn.withBits(() => renderer.render(drawn.scene, camera));
+      // The picture of the solids is kept while nothing it shows changes, as when only lines,
+      // names or handles do.
+      let picture = drawings.pictureOf(space) as ImageBitmap | undefined;
+      if (!picture) {
+        picture = drawSolids(space, drawn);
+        drawings.keepPicture(space, picture);
+        if (!warmed.has(drawn)) {
+          warmed.add(drawn);
+          // Once its first frame is sent, what it may draw later is compiled while nothing waits.
+          const camera = spaceThreeCamera(space.camera, width / height);
+          setTimeout(() => warm(drawn, camera), 0);
         }
-        // The solids, markers and ground.
-        renderer.setRenderTarget(null);
-        drawn.scene.environment = roomLight();
-        drawn.key.visible = true;
-        renderer.clear();
-        renderer.render(drawn.scene, camera);
-        // The marks, over them.
-        if (drawn.marked) {
-          const colors = markColorsOf(space.theme);
-          const uniforms = marksMaterial.uniforms as Record<string, { value: unknown }>;
-          (uniforms.size?.value as Vector2).set(width, height);
-          (uniforms.selected as { value: Vector3 }).value = rgb(colors.selected);
-          (uniforms.selectedCasing as { value: Vector3 }).value = rgb(colors.selectedCasing);
-          (uniforms.highlight as { value: Vector3 }).value = rgb(colors.highlight);
-          (uniforms.highlightCasing as { value: Vector3 }).value = rgb(colors.highlightCasing);
-          (uniforms.scale as { value: number }).value = space.pixelRatio;
-          renderer.autoClear = false;
-          try {
-            renderer.render(marksScene, marksCamera);
-          } finally {
-            renderer.autoClear = true;
-          }
-        }
-      } finally {
-        renderer.setRenderTarget(null);
-        renderer.localClippingEnabled = clipping;
       }
-      if (gl.isContextLost()) throw new Error('The context was lost while drawing.');
-      const picture = canvas.transferToImageBitmap();
 
       // What faces the screen, over the picture.
-      let context: OffscreenCanvasRenderingContext2D;
-      try {
-        context = overlayContext(width, height);
-      } catch (error) {
-        picture.close();
-        throw error;
-      }
+      const context = overlayContext(width, height);
       const marks = overlayOf({
         layout: drawn.layout,
         camera: space.camera,
@@ -351,7 +395,6 @@ export function createThreeGpu(canvas: OffscreenCanvas): SolidGpu & SpaceGpu {
       });
       context.clearRect(0, 0, width, height);
       context.drawImage(picture, 0, 0);
-      picture.close();
       paintOverlay(context, marks);
       return (overlay as OffscreenCanvas).transferToImageBitmap();
     },
