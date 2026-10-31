@@ -289,3 +289,140 @@ export function readSolidPrepared(message: Record<string, unknown>): Read<SolidP
     },
   };
 }
+
+/**
+ * The files in `solids/` that no package names (ADR 0075), which the Components tab lists and only the
+ * person removes:
+ *
+ * - `solid-files/list`, from an app, asks for them;
+ * - `solid-files/remove`, from an app, removes some of them by their hashes, which cannot be undone;
+ * - `solid-files/listed`, from the program, answers either with the files no package names now, each
+ *   with its size, and for a removal the hashes removed and those it would not remove, with why.
+ */
+export interface SolidFilesListMessage {
+  type: 'solid-files/list';
+  requestId: string;
+}
+
+/** The most files one removal names. */
+export const MAX_SOLID_FILES_REMOVED = 1024;
+
+export interface SolidFilesRemoveMessage {
+  type: 'solid-files/remove';
+  requestId: string;
+  /** The files to remove, by their hashes, which name them `solids/<hash>.glb`. */
+  hashes: string[];
+}
+
+/** A file in `solids/` that no package names. */
+export interface UnnamedSolidFile {
+  hash: string;
+  /** Its size, in bytes. */
+  bytes: number;
+}
+
+/** A file a removal would not remove, and why. */
+export interface KeptSolidFile {
+  hash: string;
+  message: string;
+}
+
+export interface SolidFilesListedMessage {
+  type: 'solid-files/listed';
+  requestId: string;
+  /** The files no package names now, by hash, in order. */
+  files: UnnamedSolidFile[];
+  /** For a removal: the files it removed. */
+  removed?: string[];
+  /** For a removal: the files it would not remove, and why. */
+  kept?: KeptSolidFile[];
+}
+
+/** Reads `solid-files/list`, from an app. */
+export function readSolidFilesList(message: Record<string, unknown>): Read<SolidFilesListMessage> {
+  const requestId = requestIdOf(message);
+  if (requestId === undefined) return fail('The request has no valid id.');
+  if (!onlyKeys(message, ['type', 'requestId'])) return fail('solid-files/list holds only its id.');
+  return { ok: true, value: { type: 'solid-files/list', requestId } };
+}
+
+/**
+ * Reads `solid-files/remove`, from an app: hashes only, never a path, so that nothing it names can lie
+ * outside `solids/`.
+ */
+export function readSolidFilesRemove(
+  message: Record<string, unknown>,
+): Read<SolidFilesRemoveMessage> {
+  const requestId = requestIdOf(message);
+  if (requestId === undefined) return fail('The request has no valid id.');
+  if (!onlyKeys(message, ['type', 'requestId', 'hashes'])) {
+    return fail('solid-files/remove holds only its id and the hashes of the files to remove.');
+  }
+  const { hashes } = message;
+  if (
+    !Array.isArray(hashes) ||
+    hashes.length === 0 ||
+    hashes.length > MAX_SOLID_FILES_REMOVED ||
+    !hashes.every(isHash)
+  ) {
+    return fail(
+      `A removal names 1 to ${MAX_SOLID_FILES_REMOVED} solid files by their SHA-256, in lowercase hexadecimal.`,
+    );
+  }
+  return {
+    ok: true,
+    value: { type: 'solid-files/remove', requestId, hashes: [...new Set(hashes)] },
+  };
+}
+
+function isHash(value: unknown): value is string {
+  return typeof value === 'string' && HASH.test(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Reads `solid-files/listed`, from the program. */
+export function readSolidFilesListed(
+  message: Record<string, unknown>,
+): Read<SolidFilesListedMessage> {
+  const requestId = requestIdOf(message);
+  if (requestId === undefined) return fail('The answer has no valid request id.');
+  if (!onlyKeys(message, ['type', 'requestId', 'files', 'removed', 'kept'])) {
+    return fail('solid-files/listed holds nothing else.');
+  }
+  const { files, removed, kept } = message;
+  const isFile = (file: unknown): file is UnnamedSolidFile =>
+    isRecord(file) &&
+    isHash(file.hash) &&
+    typeof file.bytes === 'number' &&
+    Number.isInteger(file.bytes) &&
+    file.bytes >= 0;
+  if (!Array.isArray(files) || !files.every(isFile)) {
+    return fail('The files are listed by their hashes and sizes.');
+  }
+  if (removed !== undefined && (!Array.isArray(removed) || !removed.every(isHash))) {
+    return fail('The files removed are listed by their hashes.');
+  }
+  const isKept = (each: unknown): each is KeptSolidFile =>
+    isRecord(each) &&
+    isHash(each.hash) &&
+    typeof each.message === 'string' &&
+    each.message.length <= 2000;
+  if (kept !== undefined && (!Array.isArray(kept) || !kept.every(isKept))) {
+    return fail('The files kept are listed by their hashes, each with why.');
+  }
+  return {
+    ok: true,
+    value: {
+      type: 'solid-files/listed',
+      requestId,
+      files: files.map(({ hash, bytes }) => ({ hash, bytes })),
+      ...(removed === undefined ? {} : { removed: [...removed] }),
+      ...(kept === undefined
+        ? {}
+        : { kept: kept.map(({ hash, message: why }) => ({ hash, message: why })) }),
+    },
+  };
+}

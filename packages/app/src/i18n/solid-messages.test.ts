@@ -77,6 +77,20 @@ const REASONS: string[] = [
   `The solid file "solids/${HASH}.glb" cannot be read: The file is a link.`,
   `The bytes of the solid file "solids/${HASH}.glb" are not the ones its name says.`,
   'Visual Anything sent pieces of a solid’s file that do not fit together.',
+  // The files in solids/ that no package names, and why the program keeps one.
+  reasonOf(app({ type: 'solid-files/list', more: 1 })),
+  reasonOf(app({ type: 'solid-files/remove', hashes: ['../x'] })),
+  reasonOf(app({ type: 'solid-files/remove', hashes: [HASH], more: 1 })),
+  reasonOf(server({ type: 'solid-files/listed', files: [], more: 1 })),
+  reasonOf(server({ type: 'solid-files/listed', files: [{ hash: 'x', bytes: 1 }] })),
+  reasonOf(server({ type: 'solid-files/listed', files: [], removed: ['x'] })),
+  reasonOf(server({ type: 'solid-files/listed', files: [], kept: [{ hash: 'x' }] })),
+  'A solid file is named by its SHA-256, in lowercase hexadecimal.',
+  `A package names the solid file "solids/${HASH}.glb", so it stays.`,
+  `The project's solids/ folder is not a folder of its own, so "solids/${HASH}.glb" stays.`,
+  `"solids/${HASH}.glb" is not a regular file, so it stays.`,
+  `The solid file "solids/${HASH}.glb" could not be removed: EPERM`,
+  "The project's solid files could not be read: EIO",
 ];
 
 describe('what the live connection says about solids, in Spanish', () => {
@@ -85,7 +99,7 @@ describe('what the live connection says about solids, in Spanish', () => {
       expect(reason).not.toBe('');
       const missing = untranslatedParts('es', reason).filter(
         // A reason from the file system comes from outside, and stays as it is.
-        (part) => part !== 'The file is a link.',
+        (part) => part !== 'The file is a link.' && part !== 'EPERM' && part !== 'EIO',
       );
       expect(missing, reason).toEqual([]);
     }

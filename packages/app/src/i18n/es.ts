@@ -5436,6 +5436,31 @@ export const messages: Catalog = {
     'Los bytes del archivo de sólido "solids/{hash}.glb" no son los que dice su nombre.',
   'Visual Anything sent pieces of a solid’s file that do not fit together.':
     'Visual Anything envió trozos del archivo de un sólido que no encajan entre sí.',
+  // The files in solids/ that no package names (ADR 0075).
+  'solid-files/list holds only its id.': 'solid-files/list tiene solo su id.',
+  'solid-files/remove holds only its id and the hashes of the files to remove.':
+    'solid-files/remove tiene solo su id y los resúmenes de los archivos que quitar.',
+  'A removal names 1 to {n} solid files by their SHA-256, in lowercase hexadecimal.':
+    'Quitar nombra de 1 a {n} archivos de sólidos por su SHA-256, en hexadecimal en minúscula.',
+  'solid-files/listed holds nothing else.': 'solid-files/listed no tiene nada más.',
+  'The files are listed by their hashes and sizes.':
+    'Los archivos se listan por sus resúmenes y tamaños.',
+  'The files removed are listed by their hashes.':
+    'Los archivos quitados se listan por sus resúmenes.',
+  'The files kept are listed by their hashes, each with why.':
+    'Los archivos que quedan se listan por sus resúmenes, cada uno con el porqué.',
+  'A solid file is named by its SHA-256, in lowercase hexadecimal.':
+    'Un archivo de sólido se nombra por su SHA-256, en hexadecimal en minúscula.',
+  'A package names the solid file "solids/{hash}.glb", so it stays.':
+    'Un paquete nombra el archivo de sólido "solids/{hash}.glb", así que queda.',
+  'The project\'s solids/ folder is not a folder of its own, so "solids/{hash}.glb" stays.':
+    'La carpeta solids/ del proyecto no es una carpeta propia, así que "solids/{hash}.glb" queda.',
+  '"solids/{hash}.glb" is not a regular file, so it stays.':
+    '"solids/{hash}.glb" no es un archivo común, así que queda.',
+  'The solid file "solids/{hash}.glb" could not be removed: {why}':
+    'No se pudo quitar el archivo de sólido "solids/{hash}.glb": {why}',
+  "The project's solid files could not be read: {why}":
+    'No se pudieron leer los archivos de sólidos del proyecto: {why}',
   // M9: the solid cleaner's refusals and report, and the program's solid files (ADR 0075).
   'The file is over 256 MiB, the most cleaning reads.':
     'El archivo pasa de 256 MiB, lo más que lee la limpieza.',
@@ -5908,6 +5933,11 @@ export const messages: Catalog = {
     'Las partes coinciden por un identificador externo en un catálogo, un nombre corto en minúsculas como "uberon"; "{scheme}" no lo es.',
   'The picture of "{name}" has no part "{part}".':
     'La imagen de "{name}" no tiene ninguna parte "{part}".',
+  // M9: Anchor parts… for solids (ADR 0075).
+  'The element "{name}" is no drawing with parts: it does not show a solid with its parts.':
+    'El elemento "{name}" no es un dibujo con partes: no muestra un sólido con sus partes.',
+  'The solid of "{name}" has no part "{part}".':
+    'El sólido de "{name}" no tiene ninguna parte "{part}".',
   'No nesting relation type can hold a new element of "{component}" inside "{name}".':
     'Ningún tipo de relación que anida puede contener un nuevo elemento de "{component}" dentro de "{name}".',
   // M8b seam 1: free geometry, named parts and automatic route styles (ADR 0066, 0067, 0069).

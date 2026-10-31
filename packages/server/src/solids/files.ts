@@ -13,9 +13,15 @@
  */
 import { createHash } from 'node:crypto';
 import { lstatSync } from 'node:fs';
-import { lstat, readdir } from 'node:fs/promises';
+import { lstat, readdir, realpath, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { SOLID_CAPS, type Problem, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  SOLID_CAPS,
+  type KeptSolidFile,
+  type Problem,
+  type ProjectSnapshot,
+  type UnnamedSolidFile,
+} from '@visual-anything/core';
 import type { SolidDefinition } from '@visual-anything/schema';
 import { readRegularFile, type RegularRead } from '../regular-files';
 import { writeFileAtomic, type WriteOptions } from '../writer';
@@ -132,4 +138,93 @@ export async function unnamedSolidFiles(folder: string, state: ProjectSnapshot):
     .map((entry) => FILE_NAME.exec(entry.name)?.[1])
     .filter((hash): hash is string => hash !== undefined && !named.has(hash))
     .sort();
+}
+
+/** The files in `solids/` that no package names, each with its size, for the Components tab. */
+export async function unnamedSolidFileSizes(
+  folder: string,
+  state: ProjectSnapshot,
+): Promise<UnnamedSolidFile[]> {
+  const files: UnnamedSolidFile[] = [];
+  for (const hash of await unnamedSolidFiles(folder, state)) {
+    const info = await lstat(solidFilePath(folder, hash)).catch(() => undefined);
+    // A file gone, or no longer a regular file, since the folder was read is not listed.
+    if (info?.isFile()) files.push({ hash, bytes: info.size });
+  }
+  return files;
+}
+
+/**
+ * Removes the files of `solids/` that no package names, by their hashes, as the person asks from the
+ * Components tab (ADR 0075); it cannot be undone. Only a regular file named by a hash, directly in a
+ * `solids/` that is a folder of its own inside the project folder, is removed: never a link, a folder,
+ * a file of another name or one a package names now, so that nothing outside `solids/` can be.
+ */
+export async function removeUnnamedSolidFiles(
+  folder: string,
+  state: ProjectSnapshot,
+  hashes: readonly string[],
+): Promise<{ removed: string[]; kept: KeptSolidFile[] }> {
+  const removed: string[] = [];
+  const kept: KeptSolidFile[] = [];
+  const named = new Set(definedSolids(state).map(({ definition }) => definition.hash));
+  const at = join(folder, SOLIDS_FOLDER);
+  const own = await solidsFolderIsOwn(folder, at);
+  for (const hash of hashes) {
+    const name = solidFileName(hash);
+    if (!HASH.test(hash)) {
+      kept.push({
+        hash,
+        message: 'A solid file is named by its SHA-256, in lowercase hexadecimal.',
+      });
+      continue;
+    }
+    if (named.has(hash)) {
+      kept.push({ hash, message: `A package names the solid file "${name}", so it stays.` });
+      continue;
+    }
+    if (!own) {
+      kept.push({
+        hash,
+        message: `The project's solids/ folder is not a folder of its own, so "${name}" stays.`,
+      });
+      continue;
+    }
+    const path = solidFilePath(folder, hash);
+    const info = await lstat(path).catch(() => undefined);
+    if (info === undefined) {
+      kept.push({ hash, message: `The project has no solid file "${name}".` });
+      continue;
+    }
+    if (!info.isFile()) {
+      kept.push({ hash, message: `"${name}" is not a regular file, so it stays.` });
+      continue;
+    }
+    try {
+      await unlink(path);
+      removed.push(hash);
+    } catch (error) {
+      kept.push({
+        hash,
+        message: `The solid file "${name}" could not be removed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  }
+  return { removed, kept };
+}
+
+const HASH = /^[0-9a-f]{64}$/;
+
+/**
+ * Whether `solids/` is a real folder, not a link, whose real path lies directly in the project
+ * folder's: a folder linked from elsewhere, or one the project folder reaches through a link, is not.
+ */
+async function solidsFolderIsOwn(folder: string, at: string): Promise<boolean> {
+  const info = await lstat(at).catch(() => undefined);
+  if (info === undefined || !info.isDirectory()) return false;
+  const [real, project] = await Promise.all([
+    realpath(at).catch(() => undefined),
+    realpath(folder).catch(() => undefined),
+  ]);
+  return real !== undefined && project !== undefined && real === join(project, SOLIDS_FOLDER);
 }

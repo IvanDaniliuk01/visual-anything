@@ -7,6 +7,7 @@ import { sha256Bytes } from '../code/hash';
 import { describeSolid, type SolidDescription } from './describe';
 import { readCanonicalGlb, SolidRefusal } from './glb';
 
+export * from './anchoring';
 export * from './caps';
 export * from './camera';
 export * from './catalog';

@@ -17,6 +17,7 @@ import type {
 import type { Defined, Definitions } from '../definitions';
 import { problem, type Problem } from '../problems';
 import type { ProjectSnapshot } from '../snapshot';
+import { definitionsIn, modelIndexOf } from '../state';
 import { MAX_PACKAGE_SOLID_BYTES, MAX_PROJECT_SOLID_BYTES } from './caps';
 
 /** The solids of a set of packages. */
@@ -175,8 +176,10 @@ export function solidUsers(state: ProjectSnapshot, solidId: Id): Id[] {
 /**
  * The parts a solid's anchored elements are drawn as that a replacement would lose (ADR 0075): the
  * names of anchored parts the new parts lack, each with the elements drawn as it, in the model's
- * order. The replace dialog and `replace_solid` say them before the replacement applies; after it they
- * warn `unknown-part`, and an undo brings them back.
+ * order. An element is anchored to the solid when its own appearance names the part with the solid,
+ * or names the part alone and one of its containers shows the solid with its parts, as Anchor parts…
+ * anchors them. The replace dialog and `replace_solid` say them before the replacement applies; after
+ * it they warn `unknown-part`, and an undo brings them back.
  */
 export function solidPartsLostByReplacing(
   state: ProjectSnapshot,
@@ -184,11 +187,31 @@ export function solidPartsLostByReplacing(
   newParts: readonly SolidPart[],
 ): { part: string; elements: Id[] }[] {
   const kept = new Set(newParts.map((part) => part.name));
+  const index = modelIndexOf(state);
+  const definitions = definitionsIn(state);
+  // The drawings with parts that show the solid, whose contents may name its parts alone.
+  const drawings = new Set<Id>();
+  const showsIt = (id: Id) => {
+    const container = index.element(id);
+    if (!container) return false;
+    const shown = solidShownBy(container, definitions);
+    return shown?.solid === solidId && shown.placement === 'parts';
+  };
   const lost = new Map<string, Id[]>();
   for (const element of [state.model.world, ...state.model.elements] as Element[]) {
     const part = element.appearance?.part;
-    if (part === undefined || part === 'none' || part.solid !== solidId) continue;
+    if (part === undefined || part === 'none' || part.image !== undefined) continue;
     if (kept.has(part.part)) continue;
+    const anchored =
+      part.solid === undefined
+        ? index.containersOf(element.id).some((id) => {
+            if (drawings.has(id)) return true;
+            if (!showsIt(id)) return false;
+            drawings.add(id);
+            return true;
+          })
+        : part.solid === solidId;
+    if (!anchored) continue;
     lost.set(part.part, [...(lost.get(part.part) ?? []), element.id]);
   }
   return [...lost].map(([part, elements]) => ({ part, elements }));

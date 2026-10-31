@@ -173,8 +173,47 @@ export function drawingPartsOf(
  * parts get an element of their own, as {@link anchoringCommand} then does in one action.
  */
 export function planAnchoring(state: ProjectSnapshot, request: AnchorRequest): AnchorPlanning {
-  const refuse = (code: Problem['code'], message: string, ids: Id[] = []): AnchorPlanning => ({
-    ok: false,
+  return planDrawnParts(state, request, {
+    drawn: (element, view) => drawingPartsOf(state, element.id, view),
+    notDrawing: (element) =>
+      `The element "${element.name}" is no drawing with parts: it does not show an SVG image with its parts.`,
+    noPart: (element, id) => `The picture of "${element.name}" has no part "${id}".`,
+  });
+}
+
+/** The parts a plan pairs: any drawing's, an SVG image's or a solid's, by their ids. */
+export interface PartsToPlan<P extends { readonly id: string }> {
+  readonly drawing: AnchorContent;
+  readonly parts: readonly { readonly part: P; readonly anchor: PartAnchor }[];
+  readonly contents: readonly AnchorContent[];
+}
+
+/** What a plan of any drawing's parts adds to the parts it pairs. */
+export interface PlannedParts {
+  readonly matching: AnchorMatching;
+  readonly anchors: number;
+  readonly view?: Id;
+  readonly nesting?: NestingChoice;
+  readonly viewNesting?: readonly Id[];
+}
+
+/**
+ * Plans Anchor parts… over the parts of a drawing, whatever draws them: an SVG image's here, a
+ * solid's in `solids/anchoring.ts` (ADR 0075), so that both match alike.
+ */
+export function planDrawnParts<D extends PartsToPlan<{ readonly id: string }>>(
+  state: ProjectSnapshot,
+  request: AnchorRequest,
+  reading: {
+    drawn: (element: Element, view: ViewFile | undefined) => D | undefined;
+    notDrawing: (element: Element) => string;
+    noPart: (element: Element, id: string) => string;
+  },
+):
+  | { readonly ok: true; readonly plan: D & PlannedParts }
+  | { readonly ok: false; readonly problem: Problem } {
+  const refuse = (code: Problem['code'], message: string, ids: Id[] = []) => ({
+    ok: false as const,
     problem: problem(code, message, ids),
   });
   const index = modelIndexOf(state);
@@ -189,14 +228,8 @@ export function planAnchoring(state: ProjectSnapshot, request: AnchorRequest): A
     view = state.views.find((each) => each.id === request.view);
     if (!view) return refuse('unknown-view', `There is no view "${request.view}".`, [request.view]);
   }
-  const drawn = drawingPartsOf(state, element.id, view);
-  if (!drawn) {
-    return refuse(
-      'invalid-command',
-      `The element "${element.name}" is no drawing with parts: it does not show an SVG image with its parts.`,
-      [element.id],
-    );
-  }
+  const drawn = reading.drawn(element, view);
+  if (!drawn) return refuse('invalid-command', reading.notDrawing(element), [element.id]);
   const { matching } = request;
   if (matching.by === 'external' && !isScheme(matching.scheme)) {
     return refuse(
@@ -207,11 +240,7 @@ export function planAnchoring(state: ProjectSnapshot, request: AnchorRequest): A
   const asked = request.parts === undefined ? undefined : new Set(request.parts);
   for (const id of asked ?? []) {
     if (!drawn.parts.some((each) => each.part.id === id)) {
-      return refuse(
-        'unknown-part',
-        `The picture of "${element.name}" has no part "${String(id)}".`,
-        [element.id],
-      );
+      return refuse('unknown-part', reading.noPart(element, String(id)), [element.id]);
     }
   }
   const definitions = definitionsIn(state);
@@ -246,7 +275,8 @@ export function planAnchoring(state: ProjectSnapshot, request: AnchorRequest): A
   const keys = candidates.map((content) => matcher.contentKeys(content));
   const taken = new Set<Id>();
   let anchors = 0;
-  const parts = drawn.parts.map((planned): PlannedPart => {
+  type Planned = D['parts'][number];
+  const parts = drawn.parts.map((planned): Planned => {
     if (planned.anchor.kind === 'kept') return planned;
     if (asked && !asked.has(planned.part.id)) return planned;
     const wanted = matcher.partKeys(planned.part.id);
@@ -258,7 +288,7 @@ export function planAnchoring(state: ProjectSnapshot, request: AnchorRequest): A
       const content = candidates[at] as Element;
       taken.add(content.id);
       anchors += 1;
-      return { part: planned.part, anchor: { kind: 'matched', element: content } };
+      return { part: planned.part, anchor: { kind: 'matched', element: content } } as Planned;
     }
     if (create && nesting) {
       anchors += 1;
@@ -274,7 +304,7 @@ export function planAnchoring(state: ProjectSnapshot, request: AnchorRequest): A
           component: create.component,
           ...(identifier && isExternalId(identifier.id) ? { identifier } : {}),
         },
-      };
+      } as Planned;
     }
     return planned;
   });
@@ -307,7 +337,9 @@ export function planAnchoring(state: ProjectSnapshot, request: AnchorRequest): A
  * made inside the drawing, drawn as its part, all labelled `Anchor 12 parts of "Heart"`. `undefined`
  * when the plan anchors nothing.
  */
-export function anchoringCommand(plan: AnchorPlan): BatchCommand | undefined {
+export function anchoringCommand(
+  plan: PlannedParts & PartsToPlan<{ readonly id: string }>,
+): BatchCommand | undefined {
   if (plan.anchors === 0) return undefined;
   const commands: Command[] = [];
   const { nesting, view, viewNesting } = plan;
@@ -442,7 +474,11 @@ function meets(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
  * The contents of a drawing, in the model's order: the `from` ends of the nesting relations that end
  * on it, of the view's nesting relation types, or of any without a view.
  */
-function contentsOf(state: ProjectSnapshot, drawing: Id, view: ViewFile | undefined): Element[] {
+export function contentsOf(
+  state: ProjectSnapshot,
+  drawing: Id,
+  view: ViewFile | undefined,
+): Element[] {
   const index = modelIndexOf(state);
   const types = view === undefined ? undefined : new Set(nestingTypesInView(state, view));
   const ids = new Set<Id>();
