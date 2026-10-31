@@ -18,6 +18,8 @@ import type {
   SpacePoint,
   ViewFile,
 } from '@visual-anything/schema';
+import { nestingTypesInView } from '../containers';
+import { indexModel } from '../model-index';
 import type { ProjectSnapshot } from '../snapshot';
 import { shownByScope } from '../scope';
 import { definitionsIn, modelIndexOf } from '../state';
@@ -52,7 +54,10 @@ export interface SpaceEntry {
   readonly solid?: { readonly id: Id; readonly definition: SolidDefinition };
   /** For an anchored part: the part of its holder's solid it is drawn as, and that part's index. */
   readonly part?: { readonly solid: Id; readonly name: string; readonly index: number };
-  /** The outermost collapsed container of the view it is drawn as, if any. */
+  /**
+   * The outermost collapsed container of the view it is drawn as, if any: one that holds it under
+   * the view's nesting relation types, inside what the panel shows.
+   */
   readonly drawnAs?: Id;
 }
 
@@ -82,13 +87,13 @@ export function spaceOf(project: ProjectSnapshot, view?: ViewFile, root?: Id): S
   const placed = placeAll(project, root);
   const rootId = root ?? project.model.world.id;
   const shown = view ? shownByScope(project, view) : undefined;
-  const collapsed = new Set(view?.collapsed ?? []);
+  const drawnAsOf =
+    view && (view.collapsed?.length ?? 0) > 0 ? collapsedHolders(project, view, rootId) : undefined;
   const entries = new Map<Id, SpaceEntry>();
   const faint = new Map<Id, SpaceEntry>();
   for (const [id, { entry, through }] of placed) {
     if (shown && !shown.element(id) && id !== rootId) continue;
-    // The outermost collapsed container of the view on its way into space.
-    const drawnAs = [...through, id].find((each) => each !== id && collapsed.has(each));
+    const drawnAs = drawnAsOf?.(id);
     entries.set(id, drawnAs === undefined ? entry : { ...entry, drawnAs });
     for (const each of through) {
       if (entries.has(each) || faint.has(each)) continue;
@@ -99,6 +104,38 @@ export function spaceOf(project: ProjectSnapshot, view?: ViewFile, root?: Id): S
     }
   }
   return { root: rootId, entries, faint };
+}
+
+/**
+ * The outermost collapsed container of the view that holds each element, by the view's containment
+ * (ADR 0076: a collapsed container is drawn whole, and what it holds as it), found below `rootId`
+ * only: what the panel shows is never drawn as what holds it. On each way up the first container's
+ * way counts, as the canvas draws a shape first in its first container.
+ */
+function collapsedHolders(
+  project: ProjectSnapshot,
+  view: ViewFile,
+  rootId: Id,
+): (element: Id) => Id | undefined {
+  const index = indexModel(project.model, new Set(nestingTypesInView(project, view)));
+  const collapsed = new Set(view.collapsed ?? []);
+  const known = new Map<Id, Id | null>();
+  const holderOf = (element: Id): Id | undefined => {
+    if (element === rootId) return undefined;
+    const kept = known.get(element);
+    if (kept !== undefined) return kept ?? undefined;
+    let found: Id | undefined;
+    for (const container of index.containersOf(element)) {
+      if (container === rootId) continue;
+      // Containment never forms a cycle (ADR 0019), so the way up ends.
+      const above = holderOf(container);
+      found = above ?? (collapsed.has(container) ? container : undefined);
+      if (found !== undefined) break;
+    }
+    known.set(element, found ?? null);
+    return found;
+  };
+  return holderOf;
 }
 
 const placements = new WeakMap<

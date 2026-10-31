@@ -210,6 +210,30 @@ describe('spaceOf for a view', () => {
     expect(space.entries.get('arm')?.drawnAs).toBe('hall');
     expect(space.entries.get('hall')?.drawnAs).toBeUndefined();
   });
+
+  it('draws as its collapsed container what that container holds, whatever it is posed in', () => {
+    const state = robots({ collapsed: ['hall'] });
+    const stool = thing('stool', { pose: { at: { x: 1, y: 0, z: 1 } } });
+    const held: ProjectSnapshot = {
+      ...state,
+      model: {
+        ...state.model,
+        elements: [...state.model.elements, stool],
+        relations: [
+          ...state.model.relations,
+          { id: 'stool-in-hall', relationType: INSIDE, from: 'stool', to: 'hall' },
+        ],
+      },
+    };
+    const space = spaceOf(held, held.views[0]);
+    expect(space.entries.get('stool')?.drawnAs).toBe('hall');
+  });
+
+  it('never draws what the panel shows, or what is in it, as a container that holds it', () => {
+    const state = robots({ collapsed: ['hall'] });
+    const space = spaceOf(state, state.views[0], 'arm');
+    for (const entry of space.entries.values()) expect(entry.drawnAs).toBeUndefined();
+  });
 });
 
 describe('poseIn', () => {
