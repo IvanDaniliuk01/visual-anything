@@ -893,7 +893,7 @@ function describeShown(t: Translator, project: ProjectSnapshot, step: TourStep):
   if (viewState.filters) parts.push(t('filters'));
   if (viewState.focus) parts.push(t('focus'));
   if (viewState.scenario !== undefined || step.play) parts.push(t('a scenario'));
-  if (viewState.space) parts.push(t('physical space'));
+  if (viewState.space) parts.push(t('the physical-space panel'));
   const name = view?.name ?? viewState.view;
   return parts.length === 0
     ? t('Shows “{view}”', { view: name })

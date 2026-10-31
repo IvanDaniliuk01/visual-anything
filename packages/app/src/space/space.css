@@ -109,3 +109,87 @@
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* The panel's tools, under its bar: what reads, then what poses. */
+.space-panel-tools {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.space-panel-tools-gap {
+  flex: 1;
+}
+
+.space-panel-tool {
+  height: var(--control-sm);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.space-panel-tool:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.space-panel-tool:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.space-panel-tool[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The frames take the pointer and the fingers whole: dragging turns, pans and pinches the camera. */
+.space-panel-canvas {
+  touch-action: none;
+  cursor: grab;
+}
+
+.space-panel-canvas:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The list of what the panel shows, under its frames. */
+.space-panel-list {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  height: clamp(6rem, 30%, 16rem);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.space-panel-list-title {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-heading);
+}
+
+.space-panel-list-rows {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.space-panel-list-how {
+  margin-inline-start: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}

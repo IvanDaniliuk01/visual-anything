@@ -1398,6 +1398,66 @@ export const ui: Catalog = {
     'Flechas izquierda y derecha, en el borde del panel del espacio físico',
   'Make the panel wider or narrower by 16 pixels; Home and End make it as narrow or as wide as it goes, from 280 pixels to half the window':
     'Ensanchar o estrechar el panel 16 píxeles; Inicio y Fin lo dejan tan estrecho o tan ancho como puede ser, de 280 píxeles a la mitad de la ventana',
+  // M10: the panel's interaction and its list (ADR 0076): its camera, its tools, its handles, its
+  // list and what it says of where an element is. Posed is "ubicado"; the panel "muestra" its element.
+  'Arrow keys, in the physical-space panel': 'Flechas, en el panel del espacio físico',
+  'Turn the space as dragging that way does; with Shift, pan it':
+    'Girar el espacio como lo hace arrastrar en ese sentido; con Mayús, desplazarlo',
+  '+, − and 0, in the physical-space panel': '+, − y 0, en el panel del espacio físico',
+  'Zoom in, zoom out, and fit everything the panel shows':
+    'Acercar, alejar y encuadrar todo lo que muestra el panel',
+  'Enter, in the physical-space panel': 'Enter, en el panel del espacio físico',
+  'Frame the selection; in the panel’s list, select the row’s element and frame it':
+    'Encuadrar la selección; en la lista del panel, seleccionar el elemento de la fila y encuadrarlo',
+  'Drag, Shift+drag and the wheel, in the physical-space panel':
+    'Arrastrar, Mayús+arrastrar y la rueda, en el panel del espacio físico',
+  'Turn, pan and zoom; with two fingers, pan and pinch to zoom; a double click frames what is there':
+    'Girar, desplazar y hacer zoom; con dos dedos, desplazar y pellizcar para hacer zoom; un doble clic encuadra lo que hay allí',
+  'M and R, in the physical-space panel': 'M y R, en el panel del espacio físico',
+  'Choose whether the handles move or rotate the selected posed elements':
+    'Elegir si los controles mueven o rotan los elementos ubicados seleccionados',
+  'Alt while dragging a handle (⌥ on macOS)': 'Alt mientras se arrastra un control (⌥ en macOS)',
+  'Move or rotate without snapping to 1 cm and 15°': 'Mover o rotar sin ajustarse a 1 cm y 15°',
+  'Escape, in the physical-space panel': 'Esc, en el panel del espacio físico',
+  'Let a handle’s gesture go, or clear the selection':
+    'Soltar el gesto de un control, o vaciar la selección',
+  'physical space': 'espacio físico',
+  'Arrow keys turn the space, Shift with them pans, + and − zoom, 0 fits everything and Enter frames the selection; M and R choose whether the handles move or rotate.':
+    'Las flechas giran el espacio, con Mayús lo desplazan, + y − hacen zoom, 0 encuadra todo y Enter encuadra la selección; M y R eligen si los controles mueven o rotan.',
+  'Physical space tools': 'Herramientas del espacio físico',
+  'Fit everything (0)': 'Encuadrar todo (0)',
+  Frame: 'Encuadrar la selección',
+  'Frame the selection (Enter)': 'Encuadrar la selección (Enter)',
+  Rotate: 'Rotar',
+  'Move with the handles (M)': 'Mover con los controles (M)',
+  'Rotate with the handles (R)': 'Rotar con los controles (R)',
+  'The handles move.': 'Los controles mueven.',
+  'The handles rotate.': 'Los controles rotan.',
+  'Placed {count} elements in physical space.':
+    'Se ubicaron {count} elementos en el espacio físico.',
+  'Placed “{name}” in physical space, in {container}.':
+    'Se ubicó “{name}” en el espacio físico, en {container}.',
+  'Placed “{name}” in World, which this panel does not show.':
+    'Se ubicó “{name}” en Mundo, que este panel no muestra.',
+  'Took {count} elements out of physical space.':
+    'Se sacaron {count} elementos del espacio físico.',
+  'What the panel shows': 'Lo que muestra el panel',
+  shown: 'mostrado',
+  posed: 'ubicado',
+  anchored: 'anclado',
+  'not in this view': 'no está en esta vista',
+  '{name}, not in this physical space': '{name}, no está en este espacio físico',
+  '{name}, drawn faintly: this view does not show it':
+    '{name}, dibujado tenue: esta vista no lo muestra',
+  '{name}, which the panel shows': '{name}, que muestra el panel',
+  '{name}, anchored to the part “{part}” of {container}':
+    '{name}, anclado a la parte “{part}” de {container}',
+  '{name}, posed in {container}, at its origin': '{name}, ubicado en {container}, en su origen',
+  '{name}, posed in {container}, {distance} from it':
+    '{name}, ubicado en {container}, a {distance} de él',
+  ', drawn as {container}, which is collapsed': ', dibujado como {container}, que está contraído',
+  '{count} elements selected, {inSpace} of them in this physical space.':
+    '{count} elementos seleccionados, {inSpace} de ellos en este espacio físico.',
   // M10: the inspector's Pose section, Show in physical space in the shape's menu, and the outline's
   // mark (ADR 0076). A pose is "ubicación" and posing "ubicar"; an image's or a solid's placement is
   // "colocación", so that the two never read alike.
@@ -2343,7 +2403,7 @@ export const ui: Catalog = {
   filters: 'filtros',
   focus: 'foco',
   'a scenario': 'un escenario',
-  'physical space': 'el espacio físico',
+  'the physical-space panel': 'el panel del espacio físico',
   'Shows “{view}”': 'Muestra “{view}”',
   'Shows “{view}”: {parts}': 'Muestra “{view}”: {parts}',
   'Marks nothing.': 'No marca nada.',
@@ -6044,17 +6104,17 @@ export const messages: Catalog = {
     'Para girar se da una cámara: un azimut de -180 a 180, una elevación de -89 a 89 y, si se quiere, un zoom de 0.25 a 16, un punto de giro y una proyección.',
   // M10: the guidance that opens, moves and closes the physical-space panel (ADR 0076).
   'Guidance closes the physical-space panel with close: true.':
-    'Una guía cierra el panel de espacio físico con close: true.',
+    'Una guía cierra el panel del espacio físico con close: true.',
   'Guidance that closes the physical-space panel carries nothing else.':
-    'Una guía que cierra el panel de espacio físico no lleva nada más.',
+    'Una guía que cierra el panel del espacio físico no lleva nada más.',
   'The physical-space panel shows an element named by its id.':
-    'El panel de espacio físico muestra un elemento nombrado por su id.',
+    'El panel del espacio físico muestra un elemento nombrado por su id.',
   'The camera of the physical-space panel is a target, a point in meters, with an azimuth, an elevation and a distance.':
-    'La cámara del panel de espacio físico es un punto al que mira, en metros, con un acimut, una elevación y una distancia.',
+    'La cámara del panel del espacio físico es un punto al que mira, en metros, con un acimut, una elevación y una distancia.',
   'The physical-space panel frames one to {n} elements, by id.':
-    'El panel de espacio físico encuadra de uno a {n} elementos, por su id.',
+    'El panel del espacio físico encuadra de uno a {n} elementos, por su id.',
   'The physical-space panel moves to a camera or frames elements, not both.':
-    'El panel de espacio físico va a una cámara o encuadra elementos, no las dos cosas.',
+    'El panel del espacio físico va a una cámara o encuadra elementos, no las dos cosas.',
   'The message has no command.': 'El mensaje no tiene ningún comando.',
   'The action to undo up to is named by its id.':
     'La acción hasta la que deshacer se nombra por su id.',
@@ -6238,36 +6298,36 @@ export const messages: Catalog = {
     'La ubicación de "{name}" se mide desde "{container}", que ya no lo contiene; se conserva, y "{element}" no está en el espacio físico hasta que se lo ubique de nuevo.',
   // M10 seam 1: the physical-space panel in a view state and its address (ADR 0076).
   'The physical-space panel holds root, camera, cut, explode, relations and names, or is open alone, not "{name}".':
-    'El panel de espacio físico tiene root, camera, cut, explode, relations y names, o está abierto solo, no "{name}".',
+    'El panel del espacio físico tiene root, camera, cut, explode, relations y names, o está abierto solo, no "{name}".',
   'The physical-space panel holds "{name}" twice.':
-    'El panel de espacio físico tiene "{name}" dos veces.',
+    'El panel del espacio físico tiene "{name}" dos veces.',
   '"{name}" in the physical-space panel takes no value.':
-    '"{name}" en el panel de espacio físico no lleva valor.',
+    '"{name}" en el panel del espacio físico no lleva valor.',
   'The camera of the physical-space panel is six numbers: x,y,z,azimuth,elevation,distance.':
-    'La cámara del panel de espacio físico son seis números: x,y,z,azimuth,elevation,distance.',
+    'La cámara del panel del espacio físico son seis números: x,y,z,azimuth,elevation,distance.',
   'A cut is cut:<axis>,<at>,<keep>: x, y or z, a number, and below or above.':
     'Un corte es cut:<axis>,<at>,<keep>: x, y o z, un número, y below o above.',
   'Explode is one number: explode:<factor>.': 'La explosión es un número: explode:<factor>.',
-  'The physical-space panel is an object.': 'El panel de espacio físico es un objeto JSON.',
-  'The physical-space panel has no "{name}".': 'El panel de espacio físico no tiene "{name}".',
+  'The physical-space panel is an object.': 'El panel del espacio físico es un objeto JSON.',
+  'The physical-space panel has no "{name}".': 'El panel del espacio físico no tiene "{name}".',
   'The physical-space panel explodes by a factor from 0 to 2.':
-    'El panel de espacio físico separa las partes por un factor de 0 a 2.',
+    'El panel del espacio físico separa las partes por un factor de 0 a 2.',
   'Whether the physical-space panel draws relations is true or false.':
-    'Si el panel de espacio físico dibuja las relaciones es true o false.',
+    'Si el panel del espacio físico dibuja las relaciones es true o false.',
   'Whether the physical-space panel draws names is true or false.':
-    'Si el panel de espacio físico escribe los nombres es true o false.',
+    'Si el panel del espacio físico escribe los nombres es true o false.',
   'The physical-space panel looks at most {n} m from the origin of what it shows.':
-    'El panel de espacio físico mira a lo sumo a {n} m del origen de lo que muestra.',
+    'El panel del espacio físico mira a lo sumo a {n} m del origen de lo que muestra.',
   'The azimuth of the physical-space panel is from -180 to 180 degrees.':
-    'El acimut del panel de espacio físico va de -180 a 180 grados.',
+    'El acimut del panel del espacio físico va de -180 a 180 grados.',
   'The elevation of the physical-space panel is from -89 to 89 degrees.':
-    'La elevación del panel de espacio físico va de -89 a 89 grados.',
+    'La elevación del panel del espacio físico va de -89 a 89 grados.',
   'The physical-space panel looks from more than 0 m and at most {n} m.':
-    'El panel de espacio físico mira desde más de 0 m y a lo sumo {n} m.',
+    'El panel del espacio físico mira desde más de 0 m y a lo sumo {n} m.',
   'A cut crosses its axis at most {n} m from the origin of what it cuts.':
     'Un corte cruza su eje a lo sumo a {n} m del origen de lo que corta.',
   'The physical-space panel shows "{root}", which is not an element of the project.':
-    'El panel de espacio físico muestra "{root}", que no es un elemento del proyecto.',
+    'El panel del espacio físico muestra "{root}", que no es un elemento del proyecto.',
   'No nesting relation type can hold a new element of "{component}" inside "{name}".':
     'Ningún tipo de relación que anida puede contener un nuevo elemento de "{component}" dentro de "{name}".',
   // M8b seam 1: free geometry, named parts and automatic route styles (ADR 0066, 0067, 0069).

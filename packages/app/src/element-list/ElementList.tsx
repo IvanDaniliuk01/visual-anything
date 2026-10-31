@@ -27,6 +27,7 @@ import {
 import { readDestination } from '@visual-anything/core';
 import { useFollow } from '../destinations/follower';
 import { useEditor } from '../editor/EditorContext';
+import { useHoverStore } from '../editor/hover';
 import { selectionOf, type Selection } from '../editor/selection';
 import { useT, type Translator } from '../i18n';
 import { LiveContext } from '../live/context';
@@ -128,6 +129,9 @@ function sourceValue(source: ListSource): string {
 export function ElementList({ onClose }: { onClose: () => void }) {
   const t = useT();
   const editor = useEditor();
+  // Resting the pointer on a row hovers its element everywhere (ADR 0076).
+  const hovers = useHoverStore();
+  useEffect(() => () => hovers?.set('list', undefined), [hovers]);
   const { project, definitions, viewId, selection, send, scene } = editor;
   const live = useContext(LiveContext);
   // How attributes read: live and computed values over stored ones (ADR 0057).
@@ -658,6 +662,8 @@ export function ElementList({ onClose }: { onClose: () => void }) {
                     aria-rowindex={row + 2}
                     aria-selected={selected}
                     className="element-list-row"
+                    onPointerEnter={() => hovers?.set('list', element.id)}
+                    onPointerLeave={() => hovers?.set('list', undefined)}
                     style={{
                       top: row * ROW_HEIGHT,
                       height: ROW_HEIGHT,

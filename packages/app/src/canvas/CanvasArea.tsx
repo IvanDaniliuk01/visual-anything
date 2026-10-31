@@ -39,7 +39,7 @@ import {
   type ComponentProps,
 } from 'react';
 import { useEmphasis, type Emphasis } from '../editor/emphasis';
-import { useHoverStore } from '../editor/hover';
+import { useHover, useHoverStore } from '../editor/hover';
 import { useCodeDrawings } from '../code/context';
 import { elementDestinations } from '../destinations/follow';
 import { useFollow } from '../destinations/follower';
@@ -595,6 +595,14 @@ export function CanvasArea({
   useEffect(() => {
     controllerRef.current?.renderer.setTheme(THEMES[theme].canvas);
   }, [theme]);
+
+  // What the physical-space panel, the outline or the element list hovers is marked in each of its
+  // shapes here, as hovering in either marks it in both (ADR 0076).
+  const hover = useHover();
+  const linkedHover = hover && hover.from !== 'canvas' ? hover.element : undefined;
+  useEffect(() => {
+    controllerRef.current?.renderer.setLinkedHover(linkedHover);
+  }, [linkedHover]);
 
   // What package code draws inside shapes (ADR 0054).
   const codeDrawings = useCodeDrawings();

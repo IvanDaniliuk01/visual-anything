@@ -30,4 +30,32 @@ export const SPACE_KEYS: readonly { keys: string; does: string }[] = [
     keys: 'Left and Right arrows, on the edge of the physical-space panel',
     does: 'Make the panel wider or narrower by 16 pixels; Home and End make it as narrow or as wide as it goes, from 280 pixels to half the window',
   },
+  {
+    keys: 'Arrow keys, in the physical-space panel',
+    does: 'Turn the space as dragging that way does; with Shift, pan it',
+  },
+  {
+    keys: '+, − and 0, in the physical-space panel',
+    does: 'Zoom in, zoom out, and fit everything the panel shows',
+  },
+  {
+    keys: 'Enter, in the physical-space panel',
+    does: 'Frame the selection; in the panel’s list, select the row’s element and frame it',
+  },
+  {
+    keys: 'Drag, Shift+drag and the wheel, in the physical-space panel',
+    does: 'Turn, pan and zoom; with two fingers, pan and pinch to zoom; a double click frames what is there',
+  },
+  {
+    keys: 'M and R, in the physical-space panel',
+    does: 'Choose whether the handles move or rotate the selected posed elements',
+  },
+  {
+    keys: 'Alt while dragging a handle (⌥ on macOS)',
+    does: 'Move or rotate without snapping to 1 cm and 15°',
+  },
+  {
+    keys: 'Escape, in the physical-space panel',
+    does: 'Let a handle’s gesture go, or clear the selection',
+  },
 ];

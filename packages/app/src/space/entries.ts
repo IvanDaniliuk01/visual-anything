@@ -8,10 +8,14 @@
  *   a container without a solid is drawn as what is in it; it is drawn in its shape's fill, which
  *   `fillOf` gives;
  * - the collapsed container it is drawn as, which a pick answers and whose marks it takes.
+ *
+ * A collapsed container that is not in the space while what it holds is gets an entry of its own
+ * that draws nothing, so that its name is written.
  */
 import type { Space, SpaceEntry } from '@visual-anything/core';
-import type { Color, Id } from '@visual-anything/schema';
+import type { Color, Id, SpaceBounds } from '@visual-anything/schema';
 import { MAX_SPACE_NAME, type SpaceDrawnEntry } from '../solids/protocol';
+import { boundsOfPoint, boundsPlaced } from './camera';
 
 /** The entries of a space, as the worker draws them; names come from `nameOf`, fills from `fillOf`. */
 export function spaceEntriesOf(
@@ -43,10 +47,53 @@ export function spaceEntriesOf(
       ...(fill !== undefined && /^#[0-9a-fA-F]{6}$/.test(fill) ? { fill } : {}),
     };
   };
-  return [
+  const all = [
     ...[...space.entries.values()].map(drawn),
     ...[...space.faint.values()].filter((entry) => !space.entries.has(entry.element)).map(drawn),
   ];
+  return [...all, ...collapsedNames(space, all, nameOf)];
+}
+
+/**
+ * An entry that draws nothing but a collapsed container's name, for each collapsed container of the
+ * view that is neither in the space nor faint while what it holds is: the worker writes a collapsed
+ * container's name once, by its own entry, so its contents need one to be named. It stands at the
+ * middle of what they draw, where its name is written.
+ */
+function collapsedNames(
+  space: Pick<Space, 'entries' | 'faint'>,
+  drawn: readonly SpaceDrawnEntry[],
+  nameOf: (element: Id) => string,
+): SpaceDrawnEntry[] {
+  const held = new Map<Id, SpaceBounds[]>();
+  for (const entry of drawn) {
+    const as = entry.as;
+    if (as === undefined || space.entries.has(as) || space.faint.has(as)) continue;
+    const boxes = held.get(as) ?? [];
+    boxes.push(
+      entry.bounds
+        ? boundsPlaced(entry.matrix, entry.bounds)
+        : boundsOfPoint({
+            x: entry.matrix[12] ?? 0,
+            y: entry.matrix[13] ?? 0,
+            z: entry.matrix[14] ?? 0,
+          }),
+    );
+    held.set(as, boxes);
+  }
+  return [...held].map(([container, boxes]) => {
+    const middle = (axis: 'x' | 'y' | 'z') => {
+      const low = Math.min(...boxes.map((box) => box.min[axis]));
+      const high = Math.max(...boxes.map((box) => box.max[axis]));
+      return (low + high) / 2;
+    };
+    const name = nameOf(container);
+    return {
+      element: container,
+      name: name.length > MAX_SPACE_NAME ? `${name.slice(0, MAX_SPACE_NAME - 1)}…` : name,
+      matrix: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, middle('x'), middle('y'), middle('z'), 1],
+    };
+  });
 }
 
 /** Whether a space draws nothing: only its element, with no solid, and nothing faint. */

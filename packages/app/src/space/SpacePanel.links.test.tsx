@@ -7,6 +7,7 @@
 import { act, render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { buildScene } from '../canvas/scene';
+import { EditorContext, type Editor } from '../editor/EditorContext';
 import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import { HoverContext, HoverStore } from '../editor/hover';
 import { EMPTY_SELECTION } from '../editor/selection';
@@ -42,22 +43,26 @@ function setUp() {
       return worker;
     },
   });
+  // The panel's tools read the editor: what it can change, and the selection.
+  const editor = { project, viewId: VIEW, selection: EMPTY_SELECTION } as unknown as Editor;
   render(
-    <EmphasisContext.Provider value={emphasis}>
-      <SpacePanelContext value={store}>
-        <HoverContext value={new HoverStore()}>
-          <SpacePanel
-            id="space-panel"
-            store={store}
-            project={project}
-            view={view}
-            scene={buildScene(project, VIEW)}
-            selection={EMPTY_SELECTION}
-            client={client}
-          />
-        </HoverContext>
-      </SpacePanelContext>
-    </EmphasisContext.Provider>,
+    <EditorContext.Provider value={editor}>
+      <EmphasisContext.Provider value={emphasis}>
+        <SpacePanelContext value={store}>
+          <HoverContext value={new HoverStore()}>
+            <SpacePanel
+              id="space-panel"
+              store={store}
+              project={project}
+              view={view}
+              scene={buildScene(project, VIEW)}
+              selection={EMPTY_SELECTION}
+              client={client}
+            />
+          </HoverContext>
+        </SpacePanelContext>
+      </EmphasisContext.Provider>
+    </EditorContext.Provider>,
   );
   const tick = (ms: number) =>
     act(() => {

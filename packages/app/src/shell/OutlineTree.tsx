@@ -1,8 +1,9 @@
 import { plainText, spaceOf, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useEditor } from '../editor/EditorContext';
 import { useEmphasis } from '../editor/emphasis';
+import { useHoverStore } from '../editor/hover';
 import { selectionOf, sizeOf, type Selectable } from '../editor/selection';
 import { useT } from '../i18n';
 import { useSpacePanel, useSpacePanelState } from '../space/context';
@@ -58,6 +59,8 @@ export function OutlineTree({ active, onMenu, onCollapse }: OutlineTreeProps) {
   const t = useT();
   const editor = useEditor();
   const { project, viewId, scene, selection } = editor;
+  const hovers = useHoverStore();
+  useEffect(() => () => hovers?.set('outline', undefined), [hovers]);
   // What filters and focus hide is left out, as the canvas leaves it out.
   const { hidden } = useEmphasis();
   const outline = useMemo(
@@ -117,38 +120,53 @@ export function OutlineTree({ active, onMenu, onCollapse }: OutlineTreeProps) {
 
   const viewName = project.views.find((view) => view.id === viewId)?.name;
   return (
-    <VirtualTree
-      shown={shown}
-      label={viewName === undefined ? t('Outline') : t('Outline of {view}', { view: viewName })}
-      selectedId={placeOfSelection((selectable) => outline.placeOf(selectable), selection)?.id}
-      request={tree.request}
-      isSelected={(row) => isItemSelected(selection, row.item)}
-      textOf={(row) => typedTextOf(t, row.item)}
-      labelOf={(row) => labelOf(t, project, row.item)}
-      onOpen={(row, value) => tree.setOpen(row.id, value)}
-      onActivate={activate}
-      renderRow={(row) => (
-        <OutlineRow
-          project={project}
-          item={row.item}
-          inSpace={row.item.kind === 'shape' && (inSpace?.has(row.item.shape.element) ?? false)}
-        />
-      )}
-      onMenu={(row, at) => {
-        const { item } = row;
-        if (!onMenu || item.kind !== 'shape') return false;
-        const from = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        onMenu(item.shape.element, at, from);
-        return true;
+    // Resting the pointer on a shape's row hovers its element everywhere (ADR 0076).
+    <div
+      className="outline-hover"
+      onPointerOver={(event) => {
+        const row = (event.target as HTMLElement).closest('[role="treeitem"]');
+        const at = Number(row?.getAttribute('data-index') ?? NaN);
+        const item = Number.isInteger(at) ? shown.rows[at]?.item : undefined;
+        hovers?.set('outline', item?.kind === 'shape' ? item.shape.element : undefined);
       }}
-      onKey={(row, event) => {
-        const folding =
-          event.altKey && !event.ctrlKey && !event.metaKey ? COLLAPSE_KEYS[event.code] : undefined;
-        if (folding === undefined || !onCollapse || row.item.kind !== 'shape') return false;
-        onCollapse(row.item.shape.element, folding);
-        return true;
-      }}
-    />
+      onPointerLeave={() => hovers?.set('outline', undefined)}
+    >
+      <VirtualTree
+        shown={shown}
+        label={viewName === undefined ? t('Outline') : t('Outline of {view}', { view: viewName })}
+        selectedId={placeOfSelection((selectable) => outline.placeOf(selectable), selection)?.id}
+        request={tree.request}
+        isSelected={(row) => isItemSelected(selection, row.item)}
+        textOf={(row) => typedTextOf(t, row.item)}
+        labelOf={(row) => labelOf(t, project, row.item)}
+        onOpen={(row, value) => tree.setOpen(row.id, value)}
+        onActivate={activate}
+        renderRow={(row) => (
+          <OutlineRow
+            project={project}
+            item={row.item}
+            inSpace={row.item.kind === 'shape' && (inSpace?.has(row.item.shape.element) ?? false)}
+          />
+        )}
+        onMenu={(row, at) => {
+          const { item } = row;
+          if (!onMenu || item.kind !== 'shape') return false;
+          const from =
+            document.activeElement instanceof HTMLElement ? document.activeElement : null;
+          onMenu(item.shape.element, at, from);
+          return true;
+        }}
+        onKey={(row, event) => {
+          const folding =
+            event.altKey && !event.ctrlKey && !event.metaKey
+              ? COLLAPSE_KEYS[event.code]
+              : undefined;
+          if (folding === undefined || !onCollapse || row.item.kind !== 'shape') return false;
+          onCollapse(row.item.shape.element, folding);
+          return true;
+        }}
+      />
+    </div>
   );
 }
 
