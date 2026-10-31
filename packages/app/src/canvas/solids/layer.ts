@@ -408,13 +408,33 @@ export class SolidLayer {
     return entry;
   }
 
+  /**
+   * A drawing's part states as an image of the canvas draws them (ADR 0075): as the emphasis and the
+   * overlays leave them, without the marks of the selection, hover or highlights, which no image
+   * draws. None for a shape the layer does not draw.
+   */
+  imageStates(key: string): PartStates | undefined {
+    const entry = this.byKey.get(key);
+    return entry && this.statesOf(entry, NO_MARKS);
+  }
+
   /** Works out a drawing's part states from what the canvas marks. */
   private restate(entry: Entry): void {
     if (entry.turned && entry.solid.placement !== 'parts') {
       entry.states = partStatesOf([], new Map());
       return;
     }
-    const { selected, hovered, highlighted } = this.marks;
+    const states = this.statesOf(entry, this.marks);
+    if (sameTable(entry.states, states) && entry.states.hidden.length === states.hidden.length) {
+      return;
+    }
+    entry.states = states;
+    if (entry.mesh) this.paint(entry);
+  }
+
+  /** A drawing's part states with these marks, as the emphasis and the overlays leave them. */
+  private statesOf(entry: Entry, marks: SolidMarks): PartStates {
+    const { selected, hovered, highlighted } = marks;
     const dimmed = this.from.dimmed as ReadonlySet<string> | undefined;
     const elements = new Map<number, PartElementState>();
     for (const [index, shape] of entry.anchored) {
@@ -429,12 +449,7 @@ export class SolidLayer {
       if (look?.opacity !== undefined && look.opacity < 1) state.opacity = look.opacity;
       elements.set(index, state);
     }
-    const states = partStatesOf(entry.parts, elements, entry.faint);
-    if (sameTable(entry.states, states) && entry.states.hidden.length === states.hidden.length) {
-      return;
-    }
-    entry.states = states;
-    if (entry.mesh) this.paint(entry);
+    return partStatesOf(entry.parts, elements, entry.faint);
   }
 
   // Drawing -----------------------------------------------------------------------------------------

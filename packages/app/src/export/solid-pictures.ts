@@ -14,8 +14,7 @@
  *   `export_view`, a solid is drawn as its placeholder, and the export says so.
  */
 import type { ThemeName } from '@visual-anything/core';
-import { solidsIn, type ProjectSnapshot } from '@visual-anything/core';
-import type { Color, SolidPart } from '@visual-anything/schema';
+import type { Color, Id, SolidPart } from '@visual-anything/schema';
 import type { Scene, ElementShape } from '../canvas/scene';
 import { overlayLookOfPart } from '../canvas/overlays/decorate';
 import { withHiddenParts } from '../canvas/shape-solids';
@@ -229,12 +228,12 @@ function meets(
 }
 
 /**
- * Has every solid a scene shows drawn for an export, by `painter`, at the export's scale, with its
+ * Has every solid a scene shows drawn for an export, by `painter`, its named parts found by `partsOf`, at the export's scale, with its
  * parts' states laid over drawings with parts. Without a painter, every solid is its placeholder, and
  * the export says so; a picture that cannot be drawn is its placeholder too, counted in what it lost.
  */
 export async function solidShotsOf(
-  project: ProjectSnapshot,
+  partsOf: (solid: Id) => readonly SolidPart[] | undefined,
   scene: Scene,
   painter: SolidPainter | undefined,
   options: SolidShotOptions,
@@ -250,11 +249,10 @@ export async function solidShotsOf(
   const pictures = new Map<string, PaintedSolid>();
   if (shapes.length === 0) return { pictures, lost: [] };
   if (!painter) return { pictures, lost: [solidsAsPlaceholders()] };
-  const catalog = solidsIn(project);
   const statesOf =
     options.statesOf ??
     ((drawing: ElementShape) => {
-      const parts = drawing.solid && catalog.solid(drawing.solid.id)?.definition.parts;
+      const parts = drawing.solid && partsOf(drawing.solid.id);
       return parts ? overlayPartStates(scene, drawing, parts) : undefined;
     });
   const wanted: { shape: ElementShape; ask: SolidPictureAsk; states: PartStates | undefined }[] =

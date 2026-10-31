@@ -7,7 +7,7 @@
  *   const exported = await exportView(project, 'system-overview', 'pdf', { theme: 'dark' });
  *   // { format: 'pdf', bytes, mediaType: 'application/pdf', fileName: 'My systems - System overview.pdf', size, lost }
  */
-import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
+import { solidsIn, type ProjectSnapshot, type ThemeName } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { t } from '../i18n';
 import { writeMermaid } from './mermaid';
@@ -194,7 +194,8 @@ export async function solidPicturesFor(
   theme: ThemeName,
 ): Promise<Map<string, SvgSolidPicture>> {
   const scene = buildScene(project, viewId);
-  const shots = await solidShotsOf(project, scene, painter, {
+  const catalog = solidsIn(project);
+  const shots = await solidShotsOf((id) => catalog.solid(id)?.definition.parts, scene, painter, {
     pixelsPerUnit: SVG_SOLID_PIXELS,
     theme,
   });
