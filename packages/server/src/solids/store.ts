@@ -88,8 +88,7 @@ interface Arriving {
 export type PieceOutcome =
   | { kind: 'more' }
   | { kind: 'whole'; bytes: Uint8Array; fileName: string; options: SolidImportOptions }
-  | { kind: 'refused'; problem: Problem }
-  | { kind: 'ignored' };
+  | { kind: 'refused'; problem: Problem };
 
 export class SolidStore {
   readonly #folder: string;
@@ -147,6 +146,8 @@ export class SolidStore {
       };
       this.#arriving.push(arriving);
     }
+    // The options come with the first piece, whenever it arrives.
+    if (message.options !== undefined) arriving.options = message.options;
     const drop = (problem: Problem): PieceOutcome => {
       this.#arriving.splice(this.#arriving.indexOf(arriving), 1);
       return { kind: 'refused', problem };
