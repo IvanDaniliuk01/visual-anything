@@ -993,7 +993,7 @@ Its tasks run in this order:
 - the panel's list, keys and announcements reach everything it shows from the keyboard and with a screen reader, and closing the panel loses nothing;
 - the read-only page has the panel when it holds solids or poses;
 - Claude reads where things are with `get_space`, poses them with `set_pose` and `clear_pose`, and opens, roots and moves the panel through guidance;
-- the space benchmark (`?space`) meets these marks on the reference laptop, for a space of 200 posed solids, from 20 distinct solids, 2 of them at the caps, with 2,000 anchored parts:
+- the space benchmark (`?space`) meets these marks on the reference laptop, for a space of 200 posed solids, from 20 distinct solids, 2 of them at the caps, with 2,000 anchored parts (measured once on 2026-10-31, `docs/designs/benchmark-10.md`: picking and most of the canvas's phases meet their marks; the panel's frames and the selection and focus shown in it miss theirs, which by the user's decision of 2026-10-27 do not hold M10 back):
   - moving the panel's camera around keeps the 60 frames per second target while a frame draws up to 2,000,000 triangles, and 30 at least up to 6,000,000, past which the farthest solids show as boxes while the camera moves;
   - a selection or a change of focus made on the canvas shows in the panel within two frames, and a pick in the panel is answered within 16 ms;
   - with the panel open and at rest, the canvas meets the 10,000-element benchmark's marks;
@@ -1046,12 +1046,12 @@ Its tasks run in this order:
 - [ ] **The read-only page's panel:** linked as in the app, with touch, when the page holds solids or poses.
 - [x] **A sample:** `examples/robot-arm` gains a workcell, with a table, two bins and a camera posed in it, the wrist camera posed on its link, and a tour that plays "Pick a part" with the panel open.
   - Done 2026-10-31, by a builder (ADR 0076's clarification of that date): the wrist camera posed in link 6 where the solid draws its camera, no longer anchored to it; the sample's package gains Workcell, Table and Bin and the nesting relation types "is in" and "is mounted on"; a view `workcell`; the tour `pick-a-part`, whose three steps open the panel, the last playing the scenario over the control loop.
-- [ ] **The benchmark:** `?space`, in work and frames modes, with the phases of the "Done when" above:
-  - moving the panel's camera around, at the whole space and close in;
-  - a selection and a change of focus made on the canvas;
-  - picking in the panel;
-  - the canvas's phases with the panel open and at rest;
-  - a step played with its relations in space.
+- [x] **The benchmark:** `?space`, in work and frames modes, with the phases of the "Done when" above. Built and measured once on 2026-10-31, by a builder (`bench/space.ts`, `bench/spaceProject.ts`, `bench/space-timing.ts`; `docs/designs/benchmark-10.md`; ADR 0076's clarification of the benchmark), in headless Chrome on the reference laptop's own GPU and in Node; by the user's decision of 2026-10-27 the missed marks do not hold the milestone back:
+  - moving the panel's camera around, at the whole space and close in: about 300 ms a frame turning at the whole space and 1 s close in in work mode (0.8 and 2.4 s between frames shown), against 60 frames per second, though the worker's budget keeps each frame under 2,000,000 triangles while it moves (1.88 and 1.97 million); the whole space drawn again at rest, 5.64 million triangles, about 3 s against 30 frames per second: missed;
+  - a selection and a change of focus made on the canvas: shown in the panel after 2.9 s and 2.1 s at the median against two frames, missed; the page's own work, the panel's states included, is 5 to 7 ms and 16 to 18 ms, the rest being the worker laying the space out and building its scene again for every change of states;
+  - picking in the panel: 3 ms at the 95th percentile against 16 ms, met (2 to 6 ms in Node, on the bounding volume hierarchies);
+  - the canvas's phases with the panel open and at rest: the panel draws no frame meanwhile; four of six meet the 10,000-element benchmark's marks in work mode and five in frames mode, panning with names shown and the worst frame of zooming the whole view missing them as on this laptop before;
+  - a step played with its 20 relations drawn in space: the canvas keeps 60 frames per second as shown (its work 53 ms at the 95th percentile); the panel, 240 ms a frame, misses.
 
 **Track A · Look and feel**, beside the milestones: A1 right after M2 and before M3's app tasks; A2's core before M3's commands for collapse, expand and filters, and A2 tagged before M4's write tools are fixed; A3 after M3's canvas tasks; A4 before M4's UI tasks. Its commits start with `A<n>:`, and each stage is tagged `a<n>` when its Done when holds.
 
