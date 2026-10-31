@@ -3059,6 +3059,25 @@ export const ui: Catalog = {
   'Use this view': 'Usar esta vista',
   'Keeps where its solid is seen from, in its appearance.':
     'Guarda desde dónde se ve su sólido, en su apariencia.',
+  // M9: solids in the exports and the read-only page (ADR 0075).
+  '{count} solids could not be drawn, and are drawn as their placeholders.': {
+    one: 'Un sólido no se pudo dibujar y se dibuja como su marcador.',
+    other: '{count} sólidos no se pudieron dibujar y se dibujan como sus marcadores.',
+  },
+  'Solids are drawn as placeholders, their outline, name and a mark: only the app draws their pictures.':
+    'Los sólidos se dibujan como marcadores, con su contorno, su nombre y una marca: solo la aplicación dibuja sus imágenes.',
+  '{count} shapes’ solids are left out: solids are drawn only in the canvas, the PNG, the SVG, the PDF and the read-only page.':
+    {
+      one: 'Se omite el sólido de una forma: los sólidos solo se dibujan en el lienzo, el PNG, el SVG, el PDF y la página de solo lectura.',
+      other:
+        'Se omiten los sólidos de {count} formas: los sólidos solo se dibujan en el lienzo, el PNG, el SVG, el PDF y la página de solo lectura.',
+    },
+  ', with a solid: {description}': ', con un sólido: {description}',
+  ', with the solid “{solid}”, which has no description':
+    ', con el sólido “{solid}”, que no tiene descripción',
+  'It has no description.': 'No tiene descripción.',
+  'Source: {source}.': 'Origen: {source}.',
+  'License: {license}.': 'Licencia: {license}.',
 };
 
 /**

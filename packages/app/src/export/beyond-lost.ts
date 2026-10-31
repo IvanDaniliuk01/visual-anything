@@ -1,7 +1,7 @@
 /**
  * What the text exports lose of what the canvas draws beyond boxes (M8b): shapes' free geometry
  * (ADR 0066), shapes drawn as named parts with their pictures (ADR 0067), the curved and straight
- * styles of routes (ADR 0069), and faces (ADR 0083). Mermaid and Structurizr draw each shape by its
+ * styles of routes (ADR 0069), faces (ADR 0083) and solids (ADR 0075). Mermaid and Structurizr draw each shape by its
  * kind and each relation in their own style, so each says, in its report, how many it drew so.
  */
 import type { ElementShape, RelationLine } from '../canvas/scene';
@@ -19,6 +19,11 @@ const FACES: PluralText = {
   one: 'One shape’s face is left out: faces are drawn only in the canvas, the SVG, the PDF and the read-only page.',
   other:
     '{count} shapes’ faces are left out: faces are drawn only in the canvas, the SVG, the PDF and the read-only page.',
+};
+const SOLIDS: PluralText = {
+  one: 'One shape’s solid is left out: solids are drawn only in the canvas, the PNG, the SVG, the PDF and the read-only page.',
+  other:
+    '{count} shapes’ solids are left out: solids are drawn only in the canvas, the PNG, the SVG, the PDF and the read-only page.',
 };
 const ROUTE_STYLES: PluralText = {
   one: 'One relation drawn curved or straight is drawn in {tool}’s own style.',
@@ -39,7 +44,10 @@ export function lostBeyondBoxes(
   let parts = 0;
   let outlines = 0;
   let faces = 0;
+  let solids = 0;
   for (const shape of shapes) {
+    // A solid shown by a shape, or one of whose parts it is drawn as (ADR 0075).
+    if (shape.solid !== undefined || shape.part?.solid !== undefined) solids += 1;
     if (shape.part) parts += 1;
     else if (shape.outline) outlines += 1;
     if (shape.face) faces += 1;
@@ -50,6 +58,7 @@ export function lostBeyondBoxes(
     ...(outlines > 0 ? [t(FREE_GEOMETRY, { count: outlines })] : []),
     ...(parts > 0 ? [t(NAMED_PARTS, { count: parts })] : []),
     ...(faces > 0 ? [t(FACES, { count: faces })] : []),
+    ...(solids > 0 ? [t(SOLIDS, { count: solids })] : []),
     ...(styled > 0 ? [t(ROUTE_STYLES, { count: styled, tool })] : []),
   ];
 }
