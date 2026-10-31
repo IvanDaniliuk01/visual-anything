@@ -21,6 +21,9 @@
  *   the entries' bounds, their solids' and their parts', without the GPU. While the app moves a
  *   space's camera and what it draws passes 2,000,000 triangles, the farthest solids are drawn as
  *   their boxes (`space/lod.ts`); once the camera has rested for 200 ms, the whole is drawn again.
+ *   While the exploded view is on, framing frames the entries where it moves them, their solids'
+ *   parts exploded, and a frame says how far it moved each entry when that changed (`shifts`), so
+ *   that the page moves the handles with what they hold.
  */
 import type { ThemeName } from '@visual-anything/core';
 import type { Id, SpaceBounds, SpaceCamera, SpaceCut, SpacePoint } from '@visual-anything/schema';
@@ -42,13 +45,14 @@ import {
   type SpaceDrawnEntry,
   type SpaceElementState,
   type SpaceLine,
+  type SpaceShift,
   type SpaceShown,
   type SpaceStateEntry,
 } from '../protocol';
 import { loopedTime, poseAt } from './animation';
 import { buildSolid, type BuiltSolid, type Digest, type ImageDecoder } from './build';
 import { SolidMemory } from './memory';
-import { trianglesOf } from './space/layout';
+import { explodedBoundsOf, explosionShifts, trianglesOf } from './space/layout';
 import { SPACE_REST_MS, SPACE_TRIANGLE_BUDGET, boxedFrom } from './space/lod';
 import { pickAt } from './stage';
 
@@ -174,6 +178,8 @@ interface Showing {
   movedAt: number | undefined;
   /** The solids its last frame drew as their boxes, drawn whole once its camera rests. */
   boxed: ReadonlySet<Id>;
+  /** The exploded view's moves its last frame sent, as text; none before its first frame. */
+  shifted?: string;
 }
 
 /** The solid worker, apart from its GPU and its scope. */
@@ -717,11 +723,24 @@ export class SolidWorkerHost {
    * its origin alone. With every entry hidden, all of them.
    */
   private boxesOf(
-    shown: Pick<SpaceShown, 'entries'>,
+    shown: Pick<SpaceShown, 'entries' | 'explode'>,
     states: ReadonlyMap<Id, SpaceElementState>,
     elements?: readonly Id[],
   ): SpaceBounds[] {
     const byElement = new Map(shown.entries.map((entry) => [entry.element, entry]));
+    // Where the exploded view moves each entry, and its solid's parts.
+    const factor = shown.explode ?? 0;
+    const shifts = explosionShifts(shown.entries, this.loaded, factor);
+    const moved = (entry: SpaceDrawnEntry, bounds: SpaceBounds): SpaceBounds => {
+      const shift = shifts.get(entry.element);
+      if (!shift) return bounds;
+      const by = (point: SpacePoint) => ({
+        x: point.x + shift.x,
+        y: point.y + shift.y,
+        z: point.z + shift.z,
+      });
+      return { min: by(bounds.min), max: by(bounds.max) };
+    };
     const named = elements ? new Set(elements) : undefined;
     let chosen = shown.entries.filter((entry) =>
       named ? named.has(entry.element) : states.get(entry.element)?.hidden !== true,
@@ -729,17 +748,22 @@ export class SolidWorkerHost {
     if (!named && chosen.length === 0) chosen = [...shown.entries];
     return chosen.map((entry) => {
       const solid = entry.solid === undefined ? undefined : this.loaded.get(entry.solid);
-      const bounds = entry.bounds ?? solid?.description.bounds;
-      if (bounds) return boundsPlaced(entry.matrix, bounds);
+      const bounds =
+        solid && factor > 0
+          ? explodedBoundsOf(solid, factor)
+          : (entry.bounds ?? solid?.description.bounds);
+      if (bounds) return moved(entry, boundsPlaced(entry.matrix, bounds));
       if (entry.part) {
         const holder = byElement.get(entry.part.of);
         const held = holder?.solid === undefined ? undefined : this.loaded.get(holder.solid);
         if (holder && held && entry.part.index < held.description.parts.length) {
-          return boundsPlaced(holder.matrix, held.partBounds(entry.part.index));
+          // Each part it holds where the exploded view moves it, with its holder.
+          const exploded = explodedBoundsOf(held, factor, entry.part.index);
+          return moved(holder, boundsPlaced(holder.matrix, exploded));
         }
       }
       const m = entry.matrix;
-      return boundsOfPoint({ x: m[12] ?? 0, y: m[13] ?? 0, z: m[14] ?? 0 });
+      return moved(entry, boundsOfPoint({ x: m[12] ?? 0, y: m[13] ?? 0, z: m[14] ?? 0 }));
     });
   }
 
@@ -824,6 +848,10 @@ export class SolidWorkerHost {
       return;
     }
     showing.serial += 1;
+    const shifts = shiftsOf(toDraw);
+    const shifted = JSON.stringify(shifts);
+    const changed = shifted !== showing.shifted;
+    showing.shifted = shifted;
     this.send(
       {
         type: 'space/frame',
@@ -833,6 +861,7 @@ export class SolidWorkerHost {
         bitmap,
         width,
         height,
+        ...(changed ? { shifts } : {}),
       },
       [bitmap],
     );
@@ -855,6 +884,15 @@ export class SolidWorkerHost {
 
 /** The messages of the physical-space panel's drawings. */
 type SpaceRequest = Extract<SolidWorkerRequest, { type: `space/${string}` }>;
+
+/** How far the exploded view moves each entry of a space it moves, in the entries' order. */
+function shiftsOf(space: SpaceToDraw): SpaceShift[] {
+  if (!(space.explode > 0)) return [];
+  const shifts = explosionShifts(space.entries, space.solids, space.explode);
+  const list: SpaceShift[] = [];
+  for (const [element, by] of shifts) list.push({ element, by: { x: by.x, y: by.y, z: by.z } });
+  return list;
+}
 
 /** Each element's state, by id, from the list a message carries. */
 function statesOf(states: readonly SpaceStateEntry[]): Map<Id, SpaceElementState> {

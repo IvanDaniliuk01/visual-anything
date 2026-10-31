@@ -341,7 +341,7 @@ export function createThreeGpu(canvas: OffscreenCanvas): SolidGpu & SpaceGpu {
         pixelRatio: space.pixelRatio,
         theme: space.theme,
         names: space.names,
-        lines: space.lines,
+        lines: drawings.linesOf(space),
         cut: space.cut,
         handles: space.handles,
         measure: (text, size) => {

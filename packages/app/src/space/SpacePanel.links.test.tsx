@@ -121,6 +121,7 @@ describe('relations drawn in space', () => {
         to: { x: 0, y: 0, z: 0 },
         highlighted: true,
         markers: [0.5],
+        ends: { from: 'camera', to: 'table' },
       },
     ]);
     act(() => emphasis.set('playback', undefined));

@@ -27,7 +27,7 @@ import {
   type ProjectSnapshot,
   type ViewSpace,
 } from '@visual-anything/core';
-import type { Color, Id, ViewFile } from '@visual-anything/schema';
+import type { Color, Id, SpacePoint, ViewFile } from '@visual-anything/schema';
 import {
   useCallback,
   useEffect,
@@ -61,6 +61,7 @@ import { changeOf } from './changes';
 import { SpaceControl } from './control';
 import { SpaceList } from './SpaceList';
 import { SpaceTools } from './SpaceTools';
+import { shiftsFrom } from './drag';
 import { useSpaceInteraction, type HandleMode } from './useSpaceInteraction';
 import { drawsNothing, spaceEntriesOf } from './entries';
 import { spaceLinesOf } from './lines';
@@ -275,6 +276,8 @@ function SpaceFrames({
     () => (markers && markers.length > 0 ? spaceLinesOf(project, space, markers) : undefined),
     [project, space, markers],
   );
+  // How far the exploded view moves each entry, as the newest frame that said so.
+  const [shifts, setShifts] = useState<ReadonlyMap<Id, SpacePoint>>();
   const interaction = useSpaceInteraction({
     control,
     canvas,
@@ -285,6 +288,7 @@ function SpaceFrames({
     mode,
     setMode,
     say,
+    ...(shifts ? { shifts } : {}),
   });
   const drawnEntries = interaction.entries;
   const handles = interaction.handles;
@@ -333,6 +337,8 @@ function SpaceFrames({
     const started = client.showSpace(latest.current, {
       onFrame: (frame) => {
         showFrame(canvas.current, frame);
+        const moved = frame.shifts;
+        if (moved) setShifts((last) => shiftsFrom(moved, last));
         const { viewId, root } = where.current;
         store.moves.setDrawn(viewId, {
           camera: frame.camera,

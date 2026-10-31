@@ -2,7 +2,8 @@
 /**
  * The solid worker's side of the physical-space panel (ADR 0076), with fake GPUs: a space is drawn
  * once a frame, only when something it shows changed, framed whole while the app gives no camera;
- * framing works from bounds without the GPU; picks go to the space's GPU; a lost context draws again
+ * framing works from bounds without the GPU, exploded while the exploded view is on, and frames say
+ * how far it moves each entry; picks go to the space's GPU; a lost context draws again
  * once it is back; and without a GPU to draw spaces, they are refused as unavailable. Every reply
  * passes the app's reader.
  */
@@ -213,6 +214,62 @@ describe('a space in the solid worker', () => {
     expect(one?.camera.azimuth).toBe(45);
     expect(all?.camera.target.x).toBeCloseTo(2, 9);
     expect(gpu.spaces).toHaveLength(0);
+  });
+
+  it('frames what the exploded view draws, where it moves it', async () => {
+    const { send, ofType } = setUp();
+    await send({ type: 'load', id: 1, hash: ARM_HASH, bytes: ARM.slice().buffer });
+    const wrist: SpaceDrawnEntry = {
+      element: 'wrist',
+      name: 'Wrist',
+      matrix: at(0, 0.6, 0),
+      part: { of: 'arm', index: 1 },
+    };
+    const lamp: SpaceDrawnEntry = { ...CAMERA_ENTRY, element: 'lamp', in: 'wrist' };
+    await send(show([ARM_ENTRY, wrist, lamp], { camera: CAMERA }));
+    const framed = async (id: number, elements?: string[]) => {
+      await send({ type: 'space/framing', space: 1, id, ...(elements ? { elements } : {}) });
+      return ofType('space/framed').find((each) => each.id === id)?.camera;
+    };
+    // At rest, the link and the gripper it holds reach from 0.2 to 1.2 m up.
+    expect((await framed(1, ['wrist']))?.target.y).toBeCloseTo(0.7, 6);
+    expect((await framed(2, ['arm']))?.target.y).toBeCloseTo(0.6, 6);
+    await send({ type: 'space/update', space: 1, explode: 1 });
+    // Exploded, the link moves 0.1 m up, the gripper 0.5 m: the link and the gripper reach from 0.3
+    // to 1.7 m up, and the arm from 0 to 1.7 m.
+    expect((await framed(3, ['wrist']))?.target.y).toBeCloseTo(1, 6);
+    expect((await framed(4, ['arm']))?.target.y).toBeCloseTo(0.85, 6);
+    // What is posed in the link moves with it.
+    expect((await framed(5, ['lamp']))?.target).toMatchObject({ x: 4, z: 0 });
+    expect((await framed(5, ['lamp']))?.target.y).toBeCloseTo(0.1, 6);
+  });
+
+  it('says how far the exploded view moves each entry, on the first frame and when it changes', async () => {
+    const { send, tick, ofType } = setUp();
+    await send({ type: 'load', id: 1, hash: ARM_HASH, bytes: ARM.slice().buffer });
+    const wrist: SpaceDrawnEntry = {
+      element: 'wrist',
+      name: 'Wrist',
+      matrix: at(0, 0.6, 0),
+      part: { of: 'arm', index: 1 },
+    };
+    const lamp: SpaceDrawnEntry = { ...CAMERA_ENTRY, element: 'lamp', in: 'wrist' };
+    await send(show([ARM_ENTRY, wrist, lamp], { camera: CAMERA }));
+    tick();
+    await send({ type: 'space/update', space: 1, explode: 2 });
+    tick();
+    await send({ type: 'space/update', space: 1, camera: { ...CAMERA, azimuth: 5 } });
+    tick();
+    await send({ type: 'space/update', space: 1, explode: 0 });
+    tick();
+    const frames = ofType('space/frame');
+    expect(frames.map((frame) => frame.serial)).toEqual([1, 2, 3, 4]);
+    expect(frames[0]?.shifts).toEqual([]);
+    expect(frames[1]?.shifts?.map((shift) => shift.element)).toEqual(['wrist', 'lamp']);
+    expect(frames[1]?.shifts?.[1]?.by.y).toBeCloseTo(0.2, 6);
+    // The camera alone moved: the moves are those of the frame before.
+    expect(frames[2]?.shifts).toBeUndefined();
+    expect(frames[3]?.shifts).toEqual([]);
   });
 
   it('frames what is not hidden, or everything when all of it is', async () => {

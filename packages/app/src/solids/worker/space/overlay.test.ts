@@ -42,7 +42,7 @@ function drawn(
 }
 
 function layout(entries: [Id, DrawnEntry][] = []): SpaceLayout {
-  return { solids: [], markers: [], drawn: new Map(entries) };
+  return { solids: [], markers: [], drawn: new Map(entries), shifts: new Map() };
 }
 
 function input(more: Partial<OverlayInput> = {}): OverlayInput {

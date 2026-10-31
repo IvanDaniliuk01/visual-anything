@@ -1,7 +1,8 @@
 /**
  * The relations a scenario step plays, drawn in physical space (ADR 0076): lines between their ends'
  * points with their markers; an end in a collapsed container at its point; a relation on a relation
- * at the middle of that one's line when it is drawn, and not otherwise.
+ * at the middle of that one's line when it is drawn, and not otherwise; each naming what its ends
+ * are the points of, for the exploded view to move them.
  */
 import { pointInSpace, spaceOf, type ProjectSnapshot } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
@@ -47,6 +48,7 @@ describe('lines in physical space', () => {
       to: pointInSpace(space, 'arm'),
       highlighted: true,
       markers: [0.25],
+      ends: { from: 'camera', to: 'arm' },
     });
     // The arm's point is the middle of its solid's bounds.
     expect(line?.to).toEqual({ x: 2, y: 1, z: 0 });
@@ -66,6 +68,8 @@ describe('lines in physical space', () => {
       y: ((sees?.from.y ?? 0) + (sees?.to.y ?? 0)) / 2,
       z: ((sees?.from.z ?? 0) + (sees?.to.z ?? 0)) / 2,
     });
+    // Its end on the other line is that line's.
+    expect(feeds?.ends).toEqual({ from: 'table', to: 'sees' });
     expect(spaceLinesOf(project, space, [{ relation: 'feeds', progress: 1 }])).toEqual([]);
   });
 

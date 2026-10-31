@@ -69,6 +69,12 @@ describe('what the app sends the worker for a space', () => {
             highlighted: true,
             markers: [0, 0.5, 1],
           },
+          {
+            relation: 'r2',
+            from: { x: 0, y: 0, z: 0 },
+            to: { x: 0.5, y: 1, z: 1.5 },
+            ends: { from: 'wrist', to: 'r1' },
+          },
         ],
       },
       { type: 'space/update', space: 1, camera: CAMERA },
@@ -201,6 +207,32 @@ describe('what the app sends the worker for a space', () => {
         'A marker is a number from 0 to 1.',
       ],
       [
+        show({
+          lines: [
+            {
+              relation: 'r',
+              from: { x: 0, y: 0, z: 0 },
+              to: { x: 1, y: 0, z: 0 },
+              ends: { from: 'arm' },
+            },
+          ],
+        }),
+        'What a line ends on is an id.',
+      ],
+      [
+        show({
+          lines: [
+            {
+              relation: 'r',
+              from: { x: 0, y: 0, z: 0 },
+              to: { x: 1, y: 0, z: 0 },
+              ends: { from: 'arm', to: 'wrist', via: 'r' },
+            },
+          ],
+        }),
+        'A line’s ends holds no "via".',
+      ],
+      [
         { type: 'space/framing', space: 1, id: 1, elements: ['ok', ''] },
         'An element framed is an id.',
       ],
@@ -265,6 +297,26 @@ describe('what the worker sends the app for a space', () => {
         width: 640,
         height: 480,
       },
+      {
+        type: 'space/frame',
+        space: 1,
+        serial: 2,
+        camera: CAMERA,
+        bitmap: bitmap(640, 480) as unknown as ImageBitmap,
+        width: 640,
+        height: 480,
+        shifts: [{ element: 'wrist', by: { x: 0, y: 0.1, z: -0.2 } }],
+      },
+      {
+        type: 'space/frame',
+        space: 1,
+        serial: 3,
+        camera: CAMERA,
+        bitmap: bitmap(640, 480) as unknown as ImageBitmap,
+        width: 640,
+        height: 480,
+        shifts: [],
+      },
       { type: 'space/framed', space: 1, id: 7, camera: CAMERA },
       { type: 'space/picked', space: 1, id: 9, element: 'arm', point: { x: 0.1, y: 0.2, z: 0 } },
       { type: 'space/picked', space: 1, id: 9, element: null },
@@ -310,6 +362,15 @@ describe('what the worker sends the app for a space', () => {
         'A space’s distance is a number from 0 to 100000000.',
       ],
       [{ ...frame, camera: { ...CAMERA, target: 1 } }, 'A space’s target is an object.'],
+      [{ ...frame, shifts: {} }, 'A frame’s shifts is a list of at most 65536.'],
+      [
+        { ...frame, shifts: [{ element: 'arm', by: { x: 0, y: 0 } }] },
+        "How far a shift moves's coordinate is a number from -100000000 to 100000000.",
+      ],
+      [
+        { ...frame, shifts: [{ element: 'arm', by: { x: 0, y: 0, z: 0 }, part: 1 }] },
+        'A shift holds no "part".',
+      ],
       [
         { type: 'space/picked', space: 1, id: 1, element: 'not an id' },
         'The element picked is an id.',

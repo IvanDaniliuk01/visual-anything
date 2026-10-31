@@ -8,10 +8,11 @@
  *   to the selection, and the pointer resting on something hovers it everywhere;
  * - **the handles** that move and rotate the selected posed elements, drawn by the worker and
  *   hit-tested here, snapped to 1 cm and 15° unless Alt is held, sent as one `set-poses` when the
- *   gesture ends; Escape lets a gesture go.
+ *   gesture ends; Escape lets a gesture go. While the exploded view is on, the handles stand where
+ *   the worker draws what they hold, by how far it says it moved each entry.
  */
 import type { Space } from '@visual-anything/core';
-import type { Id } from '@visual-anything/schema';
+import type { Id, SpacePoint } from '@visual-anything/schema';
 import {
   useEffect,
   useEffectEvent,
@@ -38,6 +39,8 @@ import {
   HandleGesture,
   movedMatrices,
   posesMoved,
+  shiftedHandles,
+  shiftOfHandles,
 } from './drag';
 import { cameraKeyOf, cameraMovedByKey, panByDrag, turnByDrag, zoomBy } from './orbit';
 import { whereIs } from './where';
@@ -61,6 +64,8 @@ export interface SpaceInteractionInput {
   setMode: (mode: HandleMode) => void;
   /** Says something through the panel's status. */
   say: (text: string) => void;
+  /** How far the exploded view moves each entry it moves, as the newest frame that said so. */
+  shifts?: ReadonlyMap<Id, SpacePoint>;
 }
 
 export interface SpaceInteraction {
@@ -101,7 +106,7 @@ interface Preview {
 }
 
 export function useSpaceInteraction(input: SpaceInteractionInput): SpaceInteraction {
-  const { control, canvas, size, pixelRatio, space, entries, mode, setMode, say } = input;
+  const { control, canvas, size, pixelRatio, space, entries, mode, setMode, say, shifts } = input;
   const t = useT();
   const editor = useEditor();
   const { project, selection, send } = editor;
@@ -132,6 +137,11 @@ export function useSpaceInteraction(input: SpaceInteractionInput): SpaceInteract
     () => (moved ? entriesMoved(entries, moved) : entries),
     [entries, moved],
   );
+  // Where the exploded view draws what the handles hold.
+  const shift = useMemo(
+    () => (target ? shiftOfHandles(target.elements, shifts) : undefined),
+    [target, shifts],
+  );
   const handles = useMemo(() => {
     if (!target) return undefined;
     const at =
@@ -142,8 +152,9 @@ export function useSpaceInteraction(input: SpaceInteractionInput): SpaceInteract
             z: target.at.z + (preview.move[14] ?? 0),
           }
         : target.at;
-    return handlesOf({ ...target, at }, mode, preview?.axis ?? pointedAxis);
-  }, [target, mode, preview, pointedAxis]);
+    const drawn = handlesOf({ ...target, at }, mode, preview?.axis ?? pointedAxis);
+    return shift ? shiftedHandles(drawn, shift) : drawn;
+  }, [target, mode, preview, pointedAxis, shift]);
 
   /** A point of the page, from the canvas's top left, in pixels of the page. */
   const pageAt = (event: { clientX: number; clientY: number }): Point => {
@@ -252,7 +263,7 @@ export function useSpaceInteraction(input: SpaceInteractionInput): SpaceInteract
       gesture.current = {
         kind: 'handle',
         pointer: event.pointerId,
-        gesture: new HandleGesture(handles, axis, camera, size, framePoint(point)),
+        gesture: new HandleGesture(handles, axis, camera, size, framePoint(point), shift),
         elements: target.elements,
         amount: 0,
       };

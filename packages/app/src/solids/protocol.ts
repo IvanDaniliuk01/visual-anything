@@ -212,6 +212,25 @@ export interface SpaceLine {
   faint?: boolean;
   /** Markers travelling along it, each a fraction of the way from `from`, 0, to `to`, 1. */
   markers?: number[];
+  /**
+   * What each end's point is the point of: an entry of the space (the element, or the collapsed
+   * container it is drawn as), or a relation whose line is drawn, at the middle of which it ends. The
+   * exploded view moves each end as what it is of moves; left out, the ends stay where `from` and
+   * `to` put them.
+   */
+  ends?: SpaceLineEnds;
+}
+
+/** What a line's two ends are the points of, by id. */
+export interface SpaceLineEnds {
+  from: Id;
+  to: Id;
+}
+
+/** How far the exploded view moves an entry, in the coordinates of the element the panel shows. */
+export interface SpaceShift {
+  element: Id;
+  by: SpacePoint;
 }
 
 /** The least and the most device pixels a space's frames draw for each pixel of the page. */
@@ -429,6 +448,12 @@ export interface SpaceFrameReply {
   bitmap: ImageBitmap;
   width: number;
   height: number;
+  /**
+   * How far the exploded view moves each entry it moves, as this frame draws them: on a drawing's
+   * first frame, and on each frame whose moves differ from the frame's before; `[]` when it moves
+   * none. The page moves the handles by them, as the worker moves what they hold.
+   */
+  shifts?: SpaceShift[];
 }
 
 /** The camera that frames what a `space/framing` named, from the camera's own direction. */
@@ -853,7 +878,7 @@ const LINE_FLAGS = ['highlighted', 'selected', 'hovered', 'faint'] as const;
 
 function lineOf(value: unknown): SpaceLine {
   const line = recordOf(value, 'A line');
-  onlyKeys(line, ['relation', 'from', 'to', ...LINE_FLAGS, 'markers'], 'A line');
+  onlyKeys(line, ['relation', 'from', 'to', ...LINE_FLAGS, 'markers', 'ends'], 'A line');
   const read: SpaceLine = {
     relation: idOf(line.relation, 'A line’s relation'),
     from: spacePointOf(line.from, 'Where a line starts'),
@@ -867,7 +892,25 @@ function lineOf(value: unknown): SpaceLine {
       finiteWithin(each, 0, 1, 'A marker'),
     );
   }
+  if (line.ends !== undefined) {
+    const ends = recordOf(line.ends, 'A line’s ends');
+    onlyKeys(ends, ['from', 'to'], 'A line’s ends');
+    read.ends = {
+      from: idOf(ends.from, 'What a line starts on'),
+      to: idOf(ends.to, 'What a line ends on'),
+    };
+  }
   return read;
+}
+
+/** How far the exploded view moves one entry. */
+function shiftOf(value: unknown): SpaceShift {
+  const shift = recordOf(value, 'A shift');
+  onlyKeys(shift, ['element', 'by'], 'A shift');
+  return {
+    element: idOf(shift.element, 'What a shift moves'),
+    by: spacePointOf(shift.by, 'How far a shift moves'),
+  };
 }
 
 const SHOWN_KEYS = [
@@ -1272,7 +1315,7 @@ export function readSolidWorkerReply(value: unknown): Read<SolidWorkerReply> {
       case 'space/frame':
         onlyKeys(
           message,
-          ['type', 'space', 'serial', 'camera', 'bitmap', 'width', 'height'],
+          ['type', 'space', 'serial', 'camera', 'bitmap', 'width', 'height', 'shifts'],
           'space/frame',
         );
         return {
@@ -1281,6 +1324,11 @@ export function readSolidWorkerReply(value: unknown): Read<SolidWorkerReply> {
           serial: counter(message.serial, 'A frame’s serial'),
           camera: spaceCameraOf(message.camera),
           ...(pictureOf(message) as { bitmap: ImageBitmap; width: number; height: number }),
+          ...(message.shifts === undefined
+            ? {}
+            : {
+                shifts: listOf(message.shifts, MAX_SPACE_ENTRIES, 'A frame’s shifts').map(shiftOf),
+              }),
         };
       case 'space/framed':
         onlyKeys(message, ['type', 'space', 'id', 'camera'], 'space/framed');
