@@ -94,14 +94,14 @@ describe('Claude’s turn guidance on the canvas', () => {
 
   it('waits for the canvas, and turns nothing in a tab the person did not use last for another view', () => {
     const { turning, turned } = canvas();
-    let ready: GuidedTurning | undefined;
+    const ready: { canvas?: GuidedTurning } = {};
     const { rerender } = renderHook(
       ({ asked }: { asked: GuidedTurnRequest }) =>
-        useGuidedTurn(asked, project, 'robot', indexed, () => ready),
+        useGuidedTurn(asked, project, 'robot', indexed, () => ready.canvas),
       { initialProps: { asked: request() } },
     );
     expect(turned).toEqual([]);
-    ready = turning;
+    ready.canvas = turning;
     rerender({ asked: request() });
     expect(turned).toHaveLength(1);
 
