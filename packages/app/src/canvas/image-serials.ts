@@ -2,7 +2,8 @@
  * The serials of images' contents, apart from the texture store so that the scene, which the layout
  * worker loads too, can name a picture without loading PixiJS. Equal content has one serial across
  * reloads that bring new image objects, so that its textures and tiles are kept; changed content gets
- * a new one. Nothing hashes image text but once for each new image object.
+ * a new one. Nothing hashes image text but once for each new image object. Solids' pictures, which the
+ * solid worker draws, take serials from the same count (ADR 0075).
  */
 import type { CleanedImage } from '@visual-anything/core';
 
@@ -30,6 +31,22 @@ export function imageSerial(image: CleanedImage): number {
       contentOfSerial.set(serial, key);
     }
     serialsByImage.set(image, serial);
+  }
+  return serial;
+}
+
+const serialsOfSolidPictures = new Map<string, number>();
+
+/**
+ * The serial of a solid's picture in the image store (ADR 0075), by the key it is kept by: its
+ * shape's `solidPictureKey` and its bucket. The same key has one serial for the session, as the
+ * picture is kept for it, and no serial of a solid's picture is an image's.
+ */
+export function solidPictureSerial(kept: string): number {
+  let serial = serialsOfSolidPictures.get(kept);
+  if (serial === undefined) {
+    serial = ++lastSerial;
+    serialsOfSolidPictures.set(kept, serial);
   }
   return serial;
 }

@@ -8,9 +8,11 @@ import {
   LAUNCH_PARAM,
   MAX_CAPTURE_WHY,
   OperationError,
+  SOLID_PIECE_BYTES,
   TOKEN_PARAM,
   ProtocolError,
   applyOperations,
+  decodeBase64,
   decodeServerMessage,
   encodeMessage,
   type AppMessage,
@@ -32,6 +34,7 @@ import {
   type ProposalClosedMessage,
   type ProposalShownMessage,
   type ServerMessage,
+  type SolidPieceMessage,
   type Comparison,
   type VersionRef,
   type VersionsListedMessage,
@@ -255,7 +258,17 @@ type Waiting =
   | { kind: 'live-set'; resolve: (result: LiveResult<LiveKeptMessage>) => void }
   | { kind: 'drawing'; resolve: (result: LiveResult<DrawingMadeMessage>) => void }
   | { kind: 'versions'; resolve: (result: LiveResult<VersionsListedMessage>) => void }
-  | { kind: 'compare'; resolve: (result: ComparedResult) => void };
+  | { kind: 'compare'; resolve: (result: ComparedResult) => void }
+  | SolidFileWaiting;
+
+/** A solid's file asked for (ADR 0075): its pieces as they come, until the last one. */
+interface SolidFileWaiting {
+  kind: 'solid';
+  hash: string;
+  pieces: (Uint8Array | undefined)[];
+  received: number;
+  resolve: (result: LiveResult<Uint8Array>) => void;
+}
 
 /** What each request about versions resolves with. */
 interface VersionAnswers {
@@ -274,6 +287,7 @@ function nextRequestId(): string {
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
 const CLOSED_BEFORE_ANSWER = 'The connection to Visual Anything closed before it answered.';
 const NO_VERSION_DRAWN = 'Visual Anything sent the comparison without the version to draw.';
+const PIECES_APART = 'Visual Anything sent pieces of a solid’s file that do not fit together.';
 const DRIFTED =
   'This tab’s copy of the project fell out of step with Visual Anything, so it is getting the project again.';
 
@@ -553,6 +567,24 @@ export class LiveConnection {
     const text = encodeMessage({ type: 'drawing/make', requestId, name, html, width });
     return new Promise((resolve) => {
       this.waiting.set(requestId, { kind: 'drawing', resolve });
+      this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
+    });
+  };
+
+  /**
+   * Asks the local program for a solid's file by its hash (ADR 0075): resolves with its bytes, put
+   * together from the pieces the program sends, or with why it sent none. This tab keeps no copy:
+   * the solid worker reads the bytes, and checks them against their hash.
+   */
+  readonly getSolidFile = (hash: string): Promise<LiveResult<Uint8Array>> => {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') {
+      return Promise.resolve(closedResult(NOT_CONNECTED));
+    }
+    const requestId = nextRequestId();
+    const text = encodeMessage({ type: 'solid/get', requestId, hash });
+    return new Promise((resolve) => {
+      this.waiting.set(requestId, { kind: 'solid', hash, pieces: [], received: 0, resolve });
       this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
     });
   };
@@ -946,6 +978,22 @@ export class LiveConnection {
       case 'capture/request':
         void this.answerCapture(message);
         break;
+      case 'solid/piece':
+        this.solidPiece(message);
+        break;
+      case 'solid/refused': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'solid') {
+          answered.resolve({
+            ok: false,
+            problems: [{ code: message.code, message: message.message }],
+          });
+        }
+        break;
+      }
+      case 'solid/prepared':
+        // Importing a solid comes with the cleaner's task (M9); nothing here asks for one yet.
+        break;
       case 'guidance':
         this.guidanceCount += 1;
         this.update({
@@ -976,7 +1024,8 @@ export class LiveConnection {
       taken.kind === 'drawing' ||
       taken.kind === 'versions' ||
       taken.kind === 'compare' ||
-      taken.kind === 'proposal'
+      taken.kind === 'proposal' ||
+      taken.kind === 'solid'
         ? undefined
         : taken;
     let next: ProjectSnapshot;
@@ -1071,6 +1120,44 @@ export class LiveConnection {
       this.notify('error', notice);
     }
     answered.resolve({ ok: false, problems: message.problems });
+  }
+
+  /**
+   * Keeps a piece of a solid's file asked for, and once the last one came, answers with the bytes they
+   * make. Pieces that do not fit together, as of another file or of another count, end the request.
+   */
+  private solidPiece(message: SolidPieceMessage): void {
+    const waiting = this.waiting.get(message.requestId);
+    if (waiting?.kind !== 'solid') return;
+    const { index, count, data } = message.piece;
+    const bytes = decodeBase64(data);
+    const fits =
+      message.hash === waiting.hash &&
+      (waiting.received === 0 || waiting.pieces.length === count) &&
+      waiting.pieces[index] === undefined &&
+      bytes !== undefined &&
+      bytes.length > 0 &&
+      (index === count - 1
+        ? bytes.length <= SOLID_PIECE_BYTES
+        : bytes.length === SOLID_PIECE_BYTES);
+    if (!fits) {
+      this.waiting.delete(message.requestId);
+      waiting.resolve({ ok: false, problems: [{ code: 'invalid-solid', message: PIECES_APART }] });
+      return;
+    }
+    if (waiting.received === 0) waiting.pieces = new Array<Uint8Array | undefined>(count);
+    waiting.pieces[index] = bytes;
+    waiting.received += 1;
+    if (waiting.received < count) return;
+    this.waiting.delete(message.requestId);
+    const parts = waiting.pieces as Uint8Array[];
+    const whole = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
+    let offset = 0;
+    for (const part of parts) {
+      whole.set(part, offset);
+      offset += part.length;
+    }
+    waiting.resolve({ ok: true, answer: whole });
   }
 
   /** The project the start screen asked for is open: every start request waiting is done. */
