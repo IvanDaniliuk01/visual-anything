@@ -74,6 +74,13 @@ export interface ShapeMenuProps {
   onEndTurning?: () => void;
   onUseThisView?: () => void;
   onPlay?: (on: boolean) => void;
+  /**
+   * Show in physical space (ADR 0076), and what it does for the shape's element: opens the
+   * physical-space panel showing it, or frames it there when it is in physical space under World
+   * (`frames`). Absent where there is no panel, as in the read-only page for now.
+   */
+  showInSpace?: { frames: boolean };
+  onShowInSpace?: () => void;
 }
 
 /** How many of the other shapes under the pointer the menu lists. */
@@ -115,6 +122,8 @@ export function ShapeMenu({
   onEndTurning,
   onUseThisView,
   onPlay,
+  showInSpace,
+  onShowInSpace,
 }: ShapeMenuProps) {
   const t = useT();
   const menu = useMenuInsideFrame<HTMLDivElement>(at);
@@ -213,6 +222,22 @@ export function ShapeMenu({
               />
             )
           )}
+          <div role="separator" className="canvas-menu-separator" />
+        </>
+      )}
+      {showInSpace && onShowInSpace && (
+        <>
+          <Item
+            label={t('Show in physical space')}
+            title={
+              showInSpace.frames
+                ? t('Frames it in the physical-space panel, where it is in World.')
+                : t(
+                    'Opens the physical-space panel showing it, with what is posed or anchored in it.',
+                  )
+            }
+            onPress={onShowInSpace}
+          />
           <div role="separator" className="canvas-menu-separator" />
         </>
       )}

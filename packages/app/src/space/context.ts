@@ -6,13 +6,13 @@
 import type { ViewSpace } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { createContext, useContext, useSyncExternalStore } from 'react';
-import type { SpacePanelStore } from './store';
+import type { SpaceFraming, SpacePanelStore } from './store';
 
 export const SpacePanelContext = createContext<SpacePanelStore | null>(null);
 
 /**
  * The tab's physical-space panel: `state(viewId)`, `open(viewId, space?)`, `close(viewId)`,
- * `set(viewId, space)` and `toggle(viewId)`; none outside the shell.
+ * `set(viewId, space)`, `toggle(viewId)` and `frame(viewId, elements)`; none outside the shell.
  */
 export function useSpacePanel(): SpacePanelStore | null {
   return useContext(SpacePanelContext);
@@ -25,6 +25,16 @@ export function useSpacePanelState(
 ): ViewSpace | undefined {
   return useSyncExternalStore(store?.subscribe ?? noSubscription, () =>
     store && viewId !== undefined ? store.state(viewId) : undefined,
+  );
+}
+
+/** The framing a view's panel was asked for and has not done yet (`SpacePanelStore.frame`). */
+export function useSpaceFraming(
+  store: SpacePanelStore | null,
+  viewId: Id | undefined,
+): SpaceFraming | undefined {
+  return useSyncExternalStore(store?.subscribe ?? noSubscription, () =>
+    store && viewId !== undefined ? store.framing(viewId) : undefined,
   );
 }
 

@@ -102,6 +102,8 @@ import { RouteMenu } from './routing/RouteMenu';
 import { relationLinesOf, type ElementShape, type Scene } from './scene';
 import type { ComparisonScene } from './comparison/scene';
 import { ShapeMenu } from './ShapeMenu';
+import { useSpacePanel } from '../space/context';
+import { showInSpace, showInSpaceOf } from '../space/show';
 import { PlacedHoverCard } from './HoverCard';
 import { useHoverCard } from './useHoverCard';
 import { LegendPanel } from './overlays/LegendPanel';
@@ -384,6 +386,8 @@ export function CanvasArea({
     hovers?.set('canvas', shape?.element);
   });
   useEffect(() => () => hovers?.set('canvas', undefined), [hovers]);
+  // Show in physical space, in the shape's menu, opens the tab's panel on the element (ADR 0076).
+  const spacePanel = useSpacePanel();
   // A destination's mark, Alt+Enter and the shape's menu follow it (ADR 0056).
   const follower = useFollow();
   const follow = useEffectEvent((element: Id) => {
@@ -1212,6 +1216,17 @@ export function CanvasArea({
                 onPlay: (on: boolean) => {
                   closeMenu();
                   controller()?.playTurning(on);
+                },
+              }
+            : {})}
+          {...(spacePanel
+            ? {
+                showInSpace: {
+                  frames: showInSpaceOf(project, view, menuShape.element).kind === 'frames',
+                },
+                onShowInSpace: () => {
+                  closeMenu();
+                  showInSpace(spacePanel, project, view, menuShape.element);
                 },
               }
             : {})}

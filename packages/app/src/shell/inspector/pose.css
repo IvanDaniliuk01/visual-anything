@@ -1,0 +1,30 @@
+/* The inspector's Pose section (ADR 0076): a place's three coordinates and a rotation's three
+   angles, each a row of three fields under its legend. */
+.inspector-pose-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.2rem 0.4rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.inspector-pose-fields legend {
+  grid-column: 1 / -1;
+  margin-bottom: 0.2rem;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.inspector-pose-field {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.inspector-pose-field label {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}

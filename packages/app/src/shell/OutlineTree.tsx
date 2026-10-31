@@ -1,10 +1,12 @@
-import { plainText, type ProjectSnapshot } from '@visual-anything/core';
+import { plainText, spaceOf, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useMemo } from 'react';
 import { useEditor } from '../editor/EditorContext';
 import { useEmphasis } from '../editor/emphasis';
 import { selectionOf, sizeOf, type Selectable } from '../editor/selection';
 import { useT } from '../i18n';
+import { useSpacePanel, useSpacePanelState } from '../space/context';
+import { SpaceIcon } from './icons';
 import {
   isItemSelected,
   outlineOf,
@@ -73,6 +75,12 @@ export function OutlineTree({ active, onMenu, onCollapse }: OutlineTreeProps) {
     () => outline && shownRows(outline, (item, id) => open.get(id) ?? outline.openAtFirst(item)),
     [outline, open],
   );
+  // What is in physical space (ADR 0076): under World, and under what the view's panel shows.
+  const panelShows = useSpacePanelState(useSpacePanel(), viewId)?.root;
+  const inSpace = useMemo(
+    () => (active ? inPhysicalSpace(project, panelShows) : undefined),
+    [active, project, panelShows],
+  );
 
   if (!active) return null;
   if (!scene) return <p className="panel-empty">{t('There is no view to outline.')}</p>;
@@ -119,7 +127,13 @@ export function OutlineTree({ active, onMenu, onCollapse }: OutlineTreeProps) {
       labelOf={(row) => labelOf(t, project, row.item)}
       onOpen={(row, value) => tree.setOpen(row.id, value)}
       onActivate={activate}
-      renderRow={(row) => <OutlineRow project={project} item={row.item} />}
+      renderRow={(row) => (
+        <OutlineRow
+          project={project}
+          item={row.item}
+          inSpace={row.item.kind === 'shape' && (inSpace?.has(row.item.shape.element) ?? false)}
+        />
+      )}
       onMenu={(row, at) => {
         const { item } = row;
         if (!onMenu || item.kind !== 'shape') return false;
@@ -138,8 +152,35 @@ export function OutlineTree({ active, onMenu, onCollapse }: OutlineTreeProps) {
   );
 }
 
-/** What a row says: an element's name and component, a relation, or a free shape. */
-function OutlineRow({ project, item }: { project: ProjectSnapshot; item: OutlineItem }) {
+/**
+ * The elements in physical space (ADR 0076): under World, and under the element the view's panel
+ * shows while it shows one; World itself is not marked.
+ */
+function inPhysicalSpace(project: ProjectSnapshot, panelShows: Id | undefined): ReadonlySet<Id> {
+  const world = project.model.world.id;
+  const found = new Set<Id>(spaceOf(project).entries.keys());
+  if (panelShows !== undefined && panelShows !== world) {
+    for (const element of spaceOf(project, undefined, panelShows).entries.keys()) {
+      found.add(element);
+    }
+  }
+  found.delete(world);
+  return found;
+}
+
+/**
+ * What a row says: an element's name and component, a relation, or a free shape. A shape whose
+ * element is in physical space has its mark after its name, heard as ", in physical space".
+ */
+function OutlineRow({
+  project,
+  item,
+  inSpace,
+}: {
+  project: ProjectSnapshot;
+  item: OutlineItem;
+  inSpace: boolean;
+}) {
   const t = useT();
   switch (item.kind) {
     case 'shape': {
@@ -159,6 +200,12 @@ function OutlineRow({ project, item }: { project: ProjectSnapshot; item: Outline
       return (
         <>
           <span className="item-name">{item.shape.name}</span>
+          {inSpace && (
+            <span className="outline-space" title={t('In physical space')}>
+              <SpaceIcon size={12} />
+              <span className="visually-hidden">{t(', in physical space')}</span>
+            </span>
+          )}
           <Secondary text={leaves === undefined ? note : `${note} · ${leaves}`} />
         </>
       );

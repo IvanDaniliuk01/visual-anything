@@ -133,6 +133,7 @@
  * | physical space          | espacio físico                   |
  * | physical-space panel    | panel del espacio físico         |
  * | pose, to pose           | ubicación, ubicar                |
+ * | placement (of an image) | colocación                       |
  * | conflict                | conflicto                        |
  *
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
@@ -1397,6 +1398,58 @@ export const ui: Catalog = {
     'Flechas izquierda y derecha, en el borde del panel del espacio físico',
   'Make the panel wider or narrower by 16 pixels; Home and End make it as narrow or as wide as it goes, from 280 pixels to half the window':
     'Ensanchar o estrechar el panel 16 píxeles; Inicio y Fin lo dejan tan estrecho o tan ancho como puede ser, de 280 píxeles a la mitad de la ventana',
+  // M10: the inspector's Pose section, Show in physical space in the shape's menu, and the outline's
+  // mark (ADR 0076). A pose is "ubicación" and posing "ubicar"; an image's or a solid's placement is
+  // "colocación", so that the two never read alike.
+  Pose: 'Ubicación',
+  'Posed in': 'Ubicado en',
+  'Posed in “{container}”.': 'Ubicado en “{container}”.',
+  'Where it is, from “{container}”': 'Dónde está, desde “{container}”',
+  'Rotation, in degrees about X, then Y, then Z':
+    'Rotación, en grados alrededor de X, luego de Y, luego de Z',
+  'About X': 'Alrededor de X',
+  'About Y': 'Alrededor de Y',
+  'About Z': 'Alrededor de Z',
+  'Place in physical space': 'Ubicar en el espacio físico',
+  'Take out of physical space': 'Sacar del espacio físico',
+  'Pose in World where it was': 'Ubicar en Mundo donde estaba',
+  'Not in physical space: it has no pose.': 'No está en el espacio físico: no tiene ubicación.',
+  'Physical space is measured from World, which has no pose of its own.':
+    'El espacio físico se mide desde Mundo, que no tiene una ubicación propia.',
+  'Placed “{name}” at the origin of “{container}”.':
+    'Se ubicó “{name}” en el origen de “{container}”.',
+  'Took “{name}” out of physical space.': 'Se sacó “{name}” del espacio físico.',
+  'Posed “{name}” in World, where it was.': 'Se ubicó “{name}” en Mundo, donde estaba.',
+  'Posed “{name}” at the origin of World: where it was is not known.':
+    'Se ubicó “{name}” en el origen de Mundo: no se sabe dónde estaba.',
+  '“{name}” is posed in “{container}” now, where it was.':
+    '“{name}” está ubicado ahora en “{container}”, donde estaba.',
+  '“{name}” is posed in “{container}” now.': '“{name}” está ubicado ahora en “{container}”.',
+  '“{container}” is in no place under World, so “{name}” shows in physical space when the panel shows “{container}”.':
+    '“{container}” no tiene lugar bajo Mundo, así que “{name}” se ve en el espacio físico cuando el panel muestra “{container}”.',
+  'Anchored to the part “{part}” of the solid “{solid}”, which “{container}” shows.':
+    'Anclado a la parte “{part}” del sólido “{solid}”, que muestra “{container}”.',
+  'Where its part is, from “{container}”: x {x}, y {y}, z {z}.':
+    'Dónde está su parte, desde “{container}”: x {x}, y {y}, z {z}.',
+  'Its place is its solid’s, so it cannot be posed here.':
+    'Su lugar es el de su sólido, así que no se puede ubicar aquí.',
+  'The pose it has is kept and not used.': 'La ubicación que tiene se conserva y no se usa.',
+  'Its pose is measured from “{container}”, which is gone, so it is not in physical space.':
+    'Su ubicación se mide desde “{container}”, que ya no existe, así que no está en el espacio físico.',
+  'Its pose is measured from “{container}”, which no longer holds it, so it is not in physical space.':
+    'Su ubicación se mide desde “{container}”, que ya no lo contiene, así que no está en el espacio físico.',
+  'Enter a length, such as 12 cm, 1.5 m or 3 in.':
+    'Escribir una longitud, como 12 cm, 1.5 m o 3 in.',
+  'Enter a length of at most 1,000 km either way.':
+    'Escribir una longitud de 1.000 km como máximo hacia cualquier lado.',
+  'Enter an angle in degrees, such as 90 or -45.': 'Escribir un ángulo en grados, como 90 o -45.',
+  'Show in physical space': 'Mostrar en el espacio físico',
+  'Frames it in the physical-space panel, where it is in World.':
+    'Lo encuadra en el panel del espacio físico, donde está en Mundo.',
+  'Opens the physical-space panel showing it, with what is posed or anchored in it.':
+    'Abre el panel del espacio físico mostrándolo, con lo que está ubicado o anclado en él.',
+  'In physical space': 'En el espacio físico',
+  ', in physical space': ', en el espacio físico',
   // M8b W53: an end dragged onto a shape with free geometry or onto an anchored part.
   'Attach at this point of its edge': 'Conectar en este punto de su borde',
   'Attach at this point inside it': 'Conectar en este punto, dentro de la forma',
@@ -1408,7 +1461,7 @@ export const ui: Catalog = {
   'Use a picture already in the project': 'Usar una imagen que ya está en el proyecto',
   'Pictures in the project': 'Imágenes del proyecto',
   'Use “{name}”': 'Usar “{name}”',
-  Placement: 'Ubicación',
+  Placement: 'Colocación',
   'Icon, beside the name': 'Ícono, junto al nombre',
   'Drawing, in place of the shape': 'Dibujo, en lugar de la forma',
   'As a silhouette': 'Como silueta',
