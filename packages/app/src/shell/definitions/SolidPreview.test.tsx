@@ -73,7 +73,7 @@ describe('a solid’s preview', () => {
   it('turns with the keys, announces where it is seen from, and keeps that view when asked', () => {
     const { client, session } = fakeClient();
     const { onUseView } = renderPreview(CAMERA, client);
-    const keep = screen.getByRole('button', { name: 'Use this view' }) as HTMLButtonElement;
+    const keep = screen.getByRole<HTMLButtonElement>('button', { name: 'Use this view' });
     // Nothing to keep while it is seen from the camera given.
     expect(keep.disabled).toBe(true);
     const picture = screen.getByRole('img', { name: 'A six-axis arm on a round base.' });

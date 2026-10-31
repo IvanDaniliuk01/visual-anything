@@ -113,7 +113,7 @@ describe('Import… with a glTF file', () => {
       shown.getByRole('img', { name: 'The solid “arm”, which has no description yet' }),
     ).toBeTruthy();
     // The file's copyright is offered as its source.
-    expect((shown.getByLabelText('Source') as HTMLInputElement).value).toBe('© Acme Robotics');
+    expect(shown.getByLabelText<HTMLInputElement>('Source').value).toBe('© Acme Robotics');
     expect(shown.getByText('The file says: © Acme Robotics')).toBeTruthy();
     fireEvent.change(shown.getByLabelText('Description'), {
       target: { value: 'A six-axis arm on a round base.' },
