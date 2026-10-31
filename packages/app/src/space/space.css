@@ -3,7 +3,7 @@
  * as wide as the panel's store writes `--space-panel-width` while the open view's panel is open, and
  * of no width otherwise; its edge, astride its left side, as the side panels' edges are; its bar; and
  * its frames, which fill the rest. Colors and sizes come from the theme's tokens. While a tour plays
- * full screen, the shell hides it with the other panels (tours.css).
+ * full screen, it shows beside the canvas, half each, when the step opens it (tours.css).
  */
 
 .shell[data-space-panel] {

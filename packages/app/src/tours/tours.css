@@ -19,6 +19,23 @@
 }
 
 /*
+ * A step whose view state opens the physical-space panel shows it beside the canvas, half each
+ * (ADR 0076). The stage's caption, controls and progress stay over the canvas's half; the panel's
+ * edge and its close button hide with the other controls, since the step says whether it shows.
+ */
+:root .shell.tour-playing[data-space-panel] {
+  grid-template: 'canvas space' minmax(0, 1fr) / minmax(0, 1fr) minmax(0, 1fr);
+}
+
+:root .shell.tour-playing[data-space-panel] > .space-panel {
+  display: flex;
+}
+
+:root .shell.tour-playing .space-panel-close {
+  display: none;
+}
+
+/*
  * While a tour plays, only errors show among the notices: info and warnings, such as those of a
  * project as it opens, would cover the canvas the viewer is watching. They come back when it ends.
  */

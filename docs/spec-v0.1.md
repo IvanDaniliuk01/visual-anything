@@ -1028,11 +1028,12 @@ Its tasks run in this order:
   - Place in physical space, Take out of physical space, and the handles that move and rotate, snapped, each one action;
   - the list of what it shows, by what each is posed or anchored in, with keyboard navigation and announcements;
   - its keys in the keyboard help, and its text in English and Spanish.
-- [ ] **Playback, tours, guidance and addresses:**
+- [x] **Playback, tours, guidance and addresses:**
   - a step's relations drawn in space with travelling markers, and the step brought into view in the panel (ADR 0031's clarification);
   - view addresses and Copy address with `space`;
   - tour steps that open the panel, the stage showing it beside the canvas, and its eased and capped moves (ADR 0058);
   - guidance that opens the panel, chooses its root, moves its camera and frames elements, and `open_app` and `get_view_address` with `space`.
+  - Done 2026-10-31, by a builder (ADR 0076's clarification of that date): the view state reads and opens the panel, an address without `space` closing it; the panel's camera moves by `space/travel.ts`, eased or cut as a tour's, through `SpacePanelStore.moves`; full-screen playback shows the canvas and the panel half each; the relations the canvas's markers travel along are drawn as lines with their markers; the scenario panel's `SpacePlaybackFollow` brings the step into view through the framing request, which the panel now takes up; guidance `space` in `guidance/useGuidedSpace.ts`.
 - [x] **The inspector, the canvas and the outline:**
   - the inspector's Pose section: where an element is, in which container, its rotation in degrees, lengths in mm, cm, m or km, and Pose in World where it was;
   - Show in physical space in the shape menu, and the outline's mark for what is in physical space;

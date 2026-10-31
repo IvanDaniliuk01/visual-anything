@@ -23,6 +23,9 @@
  *   caption's leader line follows the camera to the mark it points at; and its pulse runs along its
  *   chain once its transition is over, R playing it again. Under reduced motion each cuts or is
  *   marked at once.
+ * - **The physical-space panel (ADR 0076):** a step whose view state opens it shows the canvas and
+ *   the panel side by side, half each (`tours.css`); its camera moves as a tour's does, eased or cut
+ *   (`space/travel.ts`), through the view state applier.
  */
 import {
   playableStep,
@@ -220,6 +223,8 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
         if (player.playing) stepCamera.arrive(to, (glide.delay ?? 0) + glide.duration);
         return glide;
       },
+      // The physical-space panel's camera cuts, too, for a step that always cuts (ADR 0076).
+      cutsSpace: () => player.playing && cutsAlways.current,
     }),
     [transitions, player, stepCamera, emphasis],
   );

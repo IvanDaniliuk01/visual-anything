@@ -1,7 +1,8 @@
 /**
  * The view state (core's `ViewState`) as the app holds it: the open view, the camera, the selection,
  * the explorer's filters with their time range and focus (ADR-0025, ADR 0044's clarification of
- * W44), and the scenario session's scenario, step and choices (ADR-0031, ADR 0078). These functions
+ * W44), the scenario session's scenario, step and choices (ADR-0031, ADR 0078), and the
+ * physical-space panel while it is open, with what it shows and where it looks (ADR 0076). These functions
  * turn the one into the other, both ways, without touching anything.
  */
 import {
@@ -20,6 +21,7 @@ import {
   type ViewFilters,
   type ViewFocus,
   type ViewState,
+  type ViewSpace,
   type ViewTimeRange,
 } from '@visual-anything/core';
 import type { DecisionChoices, Id, ViewFile } from '@visual-anything/schema';
@@ -73,6 +75,8 @@ export interface AppViewState {
    * tab chose at its decisions (ADR 0078).
    */
   scenario?: { id: Id; step: number; choices?: DecisionChoices } | undefined;
+  /** The view's physical-space panel while it is open (ADR 0076); absent while it is closed. */
+  space?: ViewSpace | undefined;
 }
 
 /**
@@ -80,7 +84,7 @@ export interface AppViewState {
  * larger than an address holds. Filters keep only the conditions that apply.
  */
 export function viewStateOf(input: AppViewState): { state: ViewState; selectionLeftOut: boolean } {
-  const { project, viewId, camera, selection, filters, focus, scenario } = input;
+  const { project, viewId, camera, selection, filters, focus, scenario, space } = input;
   const selected = [...selection.elements, ...selection.relations, ...selection.freeShapes];
   const selectionLeftOut = selected.length > MAX_VIEW_STATE_IDS;
   const state: ViewState = { view: viewId };
@@ -98,11 +102,17 @@ export function viewStateOf(input: AppViewState): { state: ViewState; selectionL
     const choices = knownChoices(played, scenario.choices);
     if (choices) state.choices = choices;
   }
+  if (space) state.space = space;
   // Whatever the core would refuse is left out rather than written, part by part.
   const checked = checkViewState(state);
   if (checked.ok) return { state: checked.state, selectionLeftOut };
-  const plain: ViewState = { view: viewId, ...(camera ? { camera } : {}) };
-  return { state: checkViewState(plain).ok ? plain : { view: viewId }, selectionLeftOut };
+  // Else the camera and the panel, each kept when the core takes it.
+  const plain: ViewState = { view: viewId };
+  for (const part of [camera ? { camera } : {}, space ? { space } : {}]) {
+    const tried = checkViewState({ ...plain, ...part });
+    if (tried.ok) Object.assign(plain, tried.state);
+  }
+  return { state: plain, selectionLeftOut };
 }
 
 /** The filters that hide something, as lists, with their time range; none when they hide nothing. */

@@ -224,6 +224,8 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
   // What the open view's canvas turns, for the inspector's Use this view (ADR 0075).
   const [turning, setTurning] = useState<CanvasTurning>();
   useFollowZoom(zoom, project, view, scene, canvas);
+  // The physical-space panel (ADR 0076), whose state view addresses, tours and guidance carry.
+  const [spacePanel] = useState(() => new SpacePanelStore());
   const viewState = useViewState({
     // While a comparison shows, what search and the Changes tab go to is what the canvas draws.
     project: comparing?.project ?? project,
@@ -237,6 +239,7 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
     scenarios,
     emphasis,
     canvas,
+    space: spacePanel,
     notify: live?.notify,
     reducedMotion,
   });
@@ -312,7 +315,6 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
   usePanelShortcuts(panels, tours.playback.tour !== undefined);
   // The physical-space panel (ADR 0076): kept by the tab for each view, opened from the toolbar's
   // Physical space and Alt+Shift+P; what it shows when nothing is chosen follows the selection.
-  const [spacePanel] = useState(() => new SpacePanelStore());
   const [hovers] = useState(() => new HoverStore());
   const spaceClient = useSolidClient();
   const spacePanelId = useId();

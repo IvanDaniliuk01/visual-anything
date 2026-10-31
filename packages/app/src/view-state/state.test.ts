@@ -219,6 +219,63 @@ describe('viewStateOf', () => {
   });
 });
 
+describe('viewStateOf and the physical-space panel', () => {
+  const space = {
+    root: 'appointments-api',
+    camera: { target: { x: 0, y: 1.5, z: -2 }, azimuth: 30, elevation: -20, distance: 4.5 },
+    explode: 0.5,
+    names: true,
+  };
+
+  it('holds the panel while it is open, and an address writes it as its space= clause', () => {
+    const { state } = viewStateOf({
+      project: sample,
+      viewId: VIEW,
+      selection: EMPTY_SELECTION,
+      ...UNEXPLORED,
+      space,
+    });
+    expect(state).toEqual({ view: VIEW, space });
+    expect(writeViewState(state)).toBe(
+      'view=system-overview&space=root:appointments-api;camera:0,1.5,-2,30,-20,4.5;explode:0.5;names',
+    );
+    expect(readViewState(writeViewState(state))).toEqual({ ok: true, state });
+    const open = viewStateOf({
+      project: sample,
+      viewId: VIEW,
+      selection: EMPTY_SELECTION,
+      ...UNEXPLORED,
+      space: {},
+    });
+    expect(writeViewState(open.state)).toBe('view=system-overview&space=open');
+  });
+
+  it('holds no panel while it is closed', () => {
+    const { state } = viewStateOf({
+      project: sample,
+      viewId: VIEW,
+      selection: EMPTY_SELECTION,
+      ...UNEXPLORED,
+      space: undefined,
+    });
+    expect(state).not.toHaveProperty('space');
+  });
+
+  it('keeps the panel when another part is left out', () => {
+    const { state } = viewStateOf({
+      project: sample,
+      viewId: VIEW,
+      camera: { x: 1, y: 2, zoom: 1 },
+      selection: EMPTY_SELECTION,
+      ...UNEXPLORED,
+      // Focus whose degrees an address cannot hold is refused by the core.
+      focus: { ...UNEXPLORED.focus, on: true, degrees: Number.NaN },
+      space,
+    });
+    expect(state).toEqual({ view: VIEW, camera: { x: 1, y: 2, zoom: 1 }, space });
+  });
+});
+
 describe('selectionFrom', () => {
   it('selects the elements, relations and free shapes it names, and lists what is not there', () => {
     const view = sample.views[0];

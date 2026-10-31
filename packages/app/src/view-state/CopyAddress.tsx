@@ -62,7 +62,7 @@ export function CopyAddress({
         type="button"
         className="copy-address"
         title={t(
-          'Copy an address that opens this view where it is: its camera, selection, filters, focus and scenario step',
+          'Copy an address that opens this view where it is: its camera, selection, filters, focus, scenario step and physical-space panel',
         )}
         onClick={() => void copy()}
       >

@@ -5,7 +5,8 @@
  * when Claude wants it seen there: that view opens first, in the tab the person used last
  * (`tabs.ts`). Filters, focus mode and playback go to the
  * explorer and the scenario session, and a tour to the tab's full-screen playback, as the person's
- * would. Nothing here changes the project.
+ * would. The physical-space panel opens, shows, moves and frames as `useGuidedSpace.ts` says.
+ * Nothing here changes the project.
  */
 import type { ProjectSnapshot } from '@visual-anything/core';
 import { useContext, useEffect, useMemo, useRef } from 'react';
@@ -13,11 +14,14 @@ import { EditorContext } from '../editor/EditorContext';
 import { useEmphasisSource } from '../editor/emphasis';
 import { useT } from '../i18n';
 import { LiveContext } from '../live/context';
+import { useMotion } from '../scenarios/motion';
 import type { ScenarioSession } from '../scenarios/session';
+import { useSpacePanel } from '../space/context';
 import { NO_GUIDANCE } from './state';
 import { forThisTab } from './tabs';
 import { describeMarks, guidanceEmphasis, revealKeyFor } from './targets';
 import { useGuidedRequests } from './useGuidedRequests';
+import { useGuidedSpace } from './useGuidedSpace';
 import './guidance.css';
 
 interface GuidanceLayerProps {
@@ -33,6 +37,9 @@ export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
   const guidance = live?.guidance ?? NO_GUIDANCE;
   const { marks, panTo, caption } = guidance;
   useGuidedRequests(guidance, editor, scenarios);
+  const spacePanel = useSpacePanel();
+  const { reduced } = useMotion();
+  useGuidedSpace(guidance.space, editor, spacePanel, reduced);
   const project = editor?.project;
   const scene = editor?.scene;
   const viewId = editor?.viewId;
