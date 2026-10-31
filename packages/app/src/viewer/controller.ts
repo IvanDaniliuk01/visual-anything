@@ -8,9 +8,14 @@
  * through an element's relations, Enter follows one, Escape clears the selection, + and − zoom, 0
  * fits, and Alt with − or + collapses or expands the selected containers. Nothing here changes the
  * project.
+ *
+ * A page that holds its solids' files turns them as the app does (ADR 0075): T turns the selected
+ * shape's solid, dragging over its picture and the arrows turn it, the wheel over it zooms it, and
+ * Escape or selecting something else ends it. Use this view, which stores a camera, is the app's.
  */
 import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
-import type { Id, SolidPart } from '@visual-anything/schema';
+import type { Id, SolidDefinition } from '@visual-anything/schema';
+import { SolidTurner } from '../canvas/solids/turner';
 import type { SolidClient } from '../solids/solid-client';
 import { describeRelation, describeSelection, nameOfEnd } from '../canvas/announce';
 import {
@@ -79,7 +84,9 @@ type Gesture =
   | { kind: 'press'; pointer: number; start: Point; camera: Camera; additive: boolean }
   | { kind: 'pan'; pointer: number; start: Point; camera: Camera }
   /** Two pointers: the camera follows their middle and the distance between them. */
-  | { kind: 'pinch'; start: { middle: Point; distance: number }; camera: Camera };
+  | { kind: 'pinch'; start: { middle: Point; distance: number }; camera: Camera }
+  /** A drag over a turning solid's picture, `width` screen pixels across, which turns it. */
+  | { kind: 'turn'; pointer: number; width: number };
 
 /** How far a press moves before it pans, in screen pixels: further for a finger than a mouse. */
 const PAN_AFTER = { mouse: 4, touch: 10 };
@@ -136,6 +143,9 @@ export class ViewerController {
   /** What draws the page's solids (ADR 0075); none in a page without solids. */
   private readonly solids: SolidClient | undefined;
   private solidsFrom: ProjectSnapshot['packages'] | undefined;
+  private solidDefinitions = new Map<Id, SolidDefinition>();
+  /** Turning the selected shape's solid live, in a page that holds the solid worker (ADR 0075). */
+  private readonly turner: SolidTurner;
 
   constructor(
     private readonly host: HTMLElement,
@@ -155,6 +165,19 @@ export class ViewerController {
         ...(options.solids ? { solids: options.solids } : {}),
       },
     );
+    const view = host.ownerDocument.defaultView;
+    this.turner = new SolidTurner({
+      client: () => this.solids,
+      definition: (id) => this.solidDefinitions.get(id),
+      project: () => this.project,
+      scale: () => this.camera.scale,
+      resolution: () => view?.devicePixelRatio ?? 1,
+      show: (turning) => this.renderer.setTurning(turning),
+      announce: (text) => callbacks.announce(text),
+      // A page stores nothing: Use this view is the app's.
+      command: () => Promise.resolve(false),
+      reducedMotion: () => view?.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true,
+    });
     host.addEventListener('pointerdown', this.onPointerDown);
     host.addEventListener('pointermove', this.onPointerMove);
     host.addEventListener('pointerup', this.onPointerUp);
@@ -170,6 +193,7 @@ export class ViewerController {
     this.project = project;
     this.indexed = indexed;
     this.followSolids(project);
+    this.turner.follow(indexed.byKey);
     this.hovered = this.hovered && indexed.byKey.get(this.hovered.key);
     this.renderer.show(indexed);
     this.refreshMarks();
@@ -179,15 +203,17 @@ export class ViewerController {
   private followSolids(project: ProjectSnapshot): void {
     if (!this.solids || project.packages === this.solidsFrom) return;
     this.solidsFrom = project.packages;
-    const parts = new Map<Id, readonly SolidPart[]>();
+    const definitions = new Map<Id, SolidDefinition>();
     for (const file of project.packages) {
-      for (const solid of file.solids ?? []) if (!parts.has(solid.id)) parts.set(solid.id, solid.parts);
+      for (const solid of file.solids ?? []) if (!definitions.has(solid.id)) definitions.set(solid.id, solid);
     }
-    this.renderer.setSolids(this.solids, (id) => parts.get(id));
+    this.solidDefinitions = definitions;
+    this.renderer.setSolids(this.solids, (id) => definitions.get(id)?.parts);
   }
 
   setSelection(selection: Selection): void {
     this.selection = selection;
+    this.turner.selectionChanged(selection.elements);
     this.refreshMarks();
   }
 
@@ -247,6 +273,7 @@ export class ViewerController {
     host.removeEventListener('blur', this.onBlur);
     this.gesture = { kind: 'idle' };
     this.pointers.clear();
+    this.turner.end(false);
     this.renderer.destroy();
   }
 
@@ -271,6 +298,21 @@ export class ViewerController {
     if (this.pointers.size >= 2) {
       // A second finger turns whatever the first was doing into a pinch.
       this.gesture = { kind: 'pinch', start: this.spread(), camera: this.camera };
+      return;
+    }
+    // A press on a turning solid's picture turns it (ADR 0075).
+    const turned = this.turner.turned;
+    const turnedShape = turned && this.indexed.byKey.get(turned.key);
+    if (
+      event.button === 0 &&
+      turnedShape &&
+      this.turner.press(screenToWorld(this.camera, screen), screen, turnedShape)
+    ) {
+      this.gesture = {
+        kind: 'turn',
+        pointer: event.pointerId,
+        width: (turnedShape.solid?.rect.width ?? 1) * this.camera.scale,
+      };
       return;
     }
     const additive = event.shiftKey || event.ctrlKey || event.metaKey;
@@ -300,6 +342,9 @@ export class ViewerController {
       }
       case 'pan':
         if (gesture.pointer === event.pointerId) this.panTo(gesture.camera, gesture.start, screen);
+        return;
+      case 'turn':
+        if (gesture.pointer === event.pointerId) this.turner.move(screen, gesture.width);
         return;
       case 'pinch': {
         const now = this.spread();
@@ -331,11 +376,13 @@ export class ViewerController {
     if (gesture.kind === 'idle' || gesture.pointer !== event.pointerId) return;
     this.gesture = { kind: 'idle' };
     this.host.style.cursor = '';
+    if (gesture.kind === 'turn') this.turner.release();
     if (gesture.kind === 'press') this.click(gesture.start, gesture.additive, event.pointerType);
   };
 
   private readonly onPointerCancel = (event: PointerEvent): void => {
     this.pointers.delete(event.pointerId);
+    if (this.gesture.kind === 'turn') this.turner.release();
     this.gesture = { kind: 'idle' };
     this.host.style.cursor = '';
   };
@@ -350,6 +397,18 @@ export class ViewerController {
   private readonly onWheel = (event: WheelEvent): void => {
     event.preventDefault();
     const scale = event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 400 : 1;
+    // Over a turning solid's picture, the wheel zooms the solid rather than the canvas (ADR 0075).
+    const turned = this.turner.turned;
+    if (
+      turned &&
+      this.turner.wheel(
+        screenToWorld(this.camera, this.local(event)),
+        event.deltaY * scale,
+        this.indexed?.byKey.get(turned.key),
+      )
+    ) {
+      return;
+    }
     if (event.ctrlKey || event.metaKey) {
       this.renderer.setCamera(
         zoomAt(this.camera, this.local(event), wheelFactor(event.deltaY * scale)),
@@ -368,7 +427,18 @@ export class ViewerController {
   };
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
+    // A turning solid takes its keys first (ADR 0075): the arrows, + and −, 0 and Escape.
+    if (this.gesture.kind === 'idle' && this.turner.key(event)) return;
     const command = event.ctrlKey || event.metaKey;
+    // T turns the selected shape's solid.
+    if ((event.key === 't' || event.key === 'T') && !command && !event.altKey && !event.shiftKey) {
+      const shape = this.selectedShape();
+      if (shape && this.turner.canTurn(shape)) {
+        event.preventDefault();
+        this.turner.start(shape);
+        return;
+      }
+    }
     if (event.key === 'Escape') {
       this.callbacks.hoverShape?.(undefined);
       this.choose(EMPTY_SELECTION);
@@ -412,6 +482,16 @@ export class ViewerController {
     else if (event.key === '-' || event.key === '_') this.zoomBy(1 / KEY_ZOOM);
     else if (event.key === '0' || (event.key === '!' && event.shiftKey)) this.fit();
   };
+
+  /** The shape of the one element selected, the one the keys are on when it has several. */
+  private selectedShape(): ElementShape | undefined {
+    const indexed = this.indexed;
+    const [only, ...more] = [...this.selection.elements];
+    if (!indexed || only === undefined || more.length > 0) return undefined;
+    const current = this.current === undefined ? undefined : indexed.byKey.get(this.current);
+    if (current?.element === only) return current;
+    return indexed.scene.shapes.find((shape) => shape.element === only);
+  }
 
   /** A press that did not move: selects what is under it, or collapses a container by its toggle. */
   private click(screen: Point, additive: boolean, pointerType: string): void {
