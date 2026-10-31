@@ -9,6 +9,7 @@ import { ESSENCE_ID, type Element } from '@visual-anything/schema';
 import { useId, type Ref } from 'react';
 import { CodeSection } from '../../code/CodeSection';
 import { LiveValuesSection } from '../../live-values/LiveValuesSection';
+import { SimulationSection } from '../../simulation/SimulationSection';
 import { useEditor } from '../../editor/EditorContext';
 import type { Selectable } from '../../editor/selection';
 import { useT } from '../../i18n';
@@ -125,6 +126,7 @@ export function ElementInspector({
       />
       <LiveValuesSection item={{ kind: 'element', element }} />
       <CodeSection element={element} />
+      <SimulationSection element={element} />
       <ExternalIdsSection ids={element.ids} disabled={disabled} change={(ids) => update({ ids })} />
       <AppearanceSection
         element={element}

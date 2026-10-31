@@ -3,7 +3,7 @@
  * attribute as the lookup reads it, with its mark, so that a value from outside is never taken for a
  * stored one, and the view's overlays color, size, mark and fade shapes by the values the lookup
  * reads. A live value is marked "●" while fresh; once stale it keeps "○" and says how old it is,
- * "○ 95 ms (3 min)"; a computed value is marked "ƒ".
+ * "○ 95 ms (3 min)"; a computed value is marked "ƒ", and a simulated one "∿" (ADR 0085).
  *
  * The scene the view builds stays as it is: this makes, for the canvas only, the scene with the
  * shapes and lines that read otherwise, each a new object in the same place, but for what an
@@ -38,12 +38,15 @@ import { shortAge } from './words';
 export const LIVE_MARK = '●';
 export const STALE_MARK = '○';
 export const COMPUTED_MARK = 'ƒ';
+/** The mark of a value a simulation run shown worked out at its tick shown (ADR 0085). */
+export const SIMULATED_MARK = '∿';
 
 /** What a shape's live detail was worked out from, so that it is worked out again only when that changes. */
 interface Worked {
   element: Element;
   live: ReadonlyMap<string, LiveValue> | undefined;
   computed: unknown;
+  simulated: unknown;
   definitions: Definitions;
   translator: Translator;
   /** How each live value reads by the clock: fresh, or the age a stale one says. */
@@ -134,6 +137,7 @@ function detailOf(
 ): { detail: string; runs: EmphasisRun[] | undefined } {
   const live = lookup.liveOf(element.id);
   const computed = lookup.computed.get(element.id);
+  const simulated = lookup.simulatedOf(element.id);
   const ages = agesOf(live, lookup.now, t);
   const known = worked.get(element.id);
   if (
@@ -141,6 +145,7 @@ function detailOf(
     known.element === element &&
     known.live === live &&
     known.computed === computed &&
+    known.simulated === simulated &&
     known.definitions === definitions &&
     known.translator === t &&
     known.ages === ages
@@ -179,6 +184,7 @@ function detailOf(
     element,
     live,
     computed,
+    simulated,
     definitions,
     translator: t,
     ages,
@@ -190,8 +196,8 @@ function detailOf(
 
 /**
  * A value's text with the mark of where it comes from, as the canvas and the element list write it:
- * "● 95 ms" while live and fresh, "○ 95 ms (3 min)" once stale, "ƒ gold" when computed, and as it is
- * when stored.
+ * "∿ 42" when a simulation run shown worked it out, "● 95 ms" while live and fresh, "○ 95 ms (3 min)"
+ * once stale, "ƒ gold" when computed, and as it is when stored.
  */
 export function markedText(
   t: Translator,
@@ -199,6 +205,7 @@ export function markedText(
   text: string,
   now: number,
 ): string {
+  if (reading?.origin === 'simulated') return `${SIMULATED_MARK} ${text}`;
   if (reading?.origin === 'computed') return `${COMPUTED_MARK} ${text}`;
   if (reading?.origin !== 'live' || reading.live === undefined) return text;
   const age = liveAge(reading.live, now);

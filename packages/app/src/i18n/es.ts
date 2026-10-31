@@ -3391,6 +3391,82 @@ export const ui: Catalog = {
     one: 'No se pudo obtener un sólido, y la página lo dibuja como su marcador.',
     other: 'No se pudieron obtener {count} sólidos, y la página los dibuja como sus marcadores.',
   },
+  // M12: the inspector's Simulation section, its stops and its marks (ADR 0085). A simulation run
+  // is a "corrida", a tick a "tic", a parameter a "parámetro", a seed a "semilla", a simulated value
+  // a "valor simulado" and a simulation limit a "límite".
+  Simulation: 'Simulación',
+  'Open it to choose its parameters and play it tick by tick. Nothing it works out is saved.':
+    'Ábrala para elegir sus parámetros y reproducirla tic a tic. Nada de lo que calcula se guarda.',
+  'Open the simulation': 'Abrir la simulación',
+  'Close the simulation': 'Cerrar la simulación',
+  Parameters: 'Parámetros',
+  '{name}, as a slider': '{name}, con un control deslizante',
+  Seed: 'Semilla',
+  'New seed': 'Nueva semilla',
+  'The same seed and parameters always play the same ticks.':
+    'La misma semilla y los mismos parámetros siempre dan los mismos tics.',
+  'A seed is a whole number from 0 to {max}.': 'Una semilla es un número entero de 0 a {max}.',
+  'Back a tick': 'Un tic atrás',
+  'Forward a tick': 'Un tic adelante',
+  'Run from here': 'Correr desde aquí',
+  Reset: 'Reiniciar',
+  'As fast as it goes': 'Lo más rápido posible',
+  '{count} ticks a second': { one: '{count} tic por segundo', other: '{count} tics por segundo' },
+  'Tick {tick} of {last}': 'Tic {tick} de {last}',
+  'Tick {tick} of {last}, at {time}': 'Tic {tick} de {last}, a los {time}',
+  'tick {tick}': 'tic {tick}',
+  'tick {tick}, at {time}': 'tic {tick}, a los {time}',
+  'Working out the ticks up to tick {tick}…': 'Calculando los tics hasta el tic {tick}…',
+  'Simulated values': 'Valores simulados',
+  'none at this tick': 'ninguno en este tic',
+  true: 'verdadero',
+  false: 'falso',
+  'Simulated by the code of “{name}”, and never saved.':
+    'Simulado por el código de “{name}”, y nunca se guarda.',
+  'Shown on the canvas in place of the attribute “{name}”.':
+    'Se muestra en el lienzo en lugar del atributo “{name}”.',
+  'Limits: from {min} to {max}': 'Límites: de {min} a {max}',
+  'Limit: at least {min}': 'Límite: al menos {min}',
+  'Limit: at most {max}': 'Límite: como máximo {max}',
+  'One of: {choices}': 'Uno de: {choices}',
+  'Chart of “{name}”: the tick shown': 'Gráfico de “{name}”: el tic que se muestra',
+  'From {low} to {high} over the ticks held': 'De {low} a {high} en los tics que guarda',
+  'It ended by itself at tick {tick}.': 'Terminó por sí misma en el tic {tick}.',
+  'It ended by itself at tick {tick}: {message}':
+    'Terminó por sí misma en el tic {tick}: {message}',
+  'It played its {count} ticks.': {
+    one: 'Reprodujo su único tic.',
+    other: 'Reprodujo sus {count} tics.',
+  },
+  'At tick {tick}, “{value}” went below its lowest limit, {bound}: it was {got}. The ticks before it are kept.':
+    'En el tic {tick}, “{value}” bajó de su límite inferior, {bound}: valía {got}. Se conservan los tics anteriores.',
+  'At tick {tick}, “{value}” went above its highest limit, {bound}: it was {got}. The ticks before it are kept.':
+    'En el tic {tick}, “{value}” pasó su límite superior, {bound}: valía {got}. Se conservan los tics anteriores.',
+  'At tick {tick}, “{value}” was “{got}”, which is not one of its choices. The ticks before it are kept.':
+    'En el tic {tick}, “{value}” valía “{got}”, que no es una de sus opciones. Se conservan los tics anteriores.',
+  'At tick {tick}, “{value}” was not a finite number. The ticks before it are kept.':
+    'En el tic {tick}, “{value}” no era un número finito. Se conservan los tics anteriores.',
+  'At tick {tick}, the code failed: {message}': 'En el tic {tick}, el código falló: {message}',
+  'At tick {tick}, the code was stopped: it ran past its time.':
+    'En el tic {tick}, se detuvo el código: superó su tiempo.',
+  'At tick {tick}, the code was stopped: it took more memory than it may.':
+    'En el tic {tick}, se detuvo el código: usó más memoria de la que puede.',
+  'At tick {tick}, the code’s answer was refused: {reason}':
+    'En el tic {tick}, se rechazó la respuesta del código: {reason}',
+  'What it keeps for going back is full, so it stopped before tick {tick}. Run from here plays on from an earlier tick.':
+    'Lo que guarda para volver atrás está lleno, así que se detuvo antes del tic {tick}. Correr desde aquí sigue desde un tic anterior.',
+  'The model changed, so it stopped before tick {tick}. Reset plays it again from the model as it is now.':
+    'El modelo cambió, así que se detuvo antes del tic {tick}. Reiniciar la vuelve a reproducir desde el modelo tal como está ahora.',
+  'Its component simulates nothing now.': 'Su componente ya no simula nada.',
+  'The package “{name}” declares this simulation, but its code exports no simulate hook.':
+    'El paquete “{name}” declara esta simulación, pero su código no exporta simulate.',
+  'The code of “{name}” is not approved, so it cannot simulate. Review it to approve it.':
+    'El código de “{name}” no está aprobado, así que no puede simular. Revíselo para aprobarlo.',
+  'The code of “{name}” is turned off after it failed too many times in a row. Review it to run it again.':
+    'El código de “{name}” está apagado porque falló demasiadas veces seguidas. Revíselo para que vuelva a funcionar.',
+  'This tab runs as many simulations as it may at once. Close one, then press Reset to run this one.':
+    'Esta pestaña ya corre tantas simulaciones a la vez como puede. Cierre una y luego pulse Reiniciar para correr esta.',
+  'The simulation of “{name}” stopped. {reason}': 'La simulación de “{name}” se detuvo. {reason}',
 };
 
 /**
@@ -6363,6 +6439,23 @@ export const messages: Catalog = {
     'Un corte cruza su eje a lo sumo a {n} m del origen de lo que corta.',
   'The physical-space panel shows "{root}", which is not an element of the project.':
     'El panel del espacio físico muestra "{root}", que no es un elemento del proyecto.',
+  // What a view state's simulation, or a parameter typed in the Simulation section, is refused for
+  // (ADR 0085).
+  'The simulation shows "{element}", which is not an element of the project.':
+    'La simulación muestra "{element}", que no es un elemento del proyecto.',
+  'The element "{name}" simulates nothing.': 'El elemento "{name}" no simula nada.',
+  'The simulation has no parameter "{name}".': 'La simulación no tiene el parámetro "{name}".',
+  'The parameters are not an object of values by name.':
+    'Los parámetros no son un objeto JSON de valores por nombre.',
+  'The parameter "{name}" is not a number.': 'El parámetro "{name}" no es un número.',
+  'The parameter "{name}" is below its lowest, {min}.':
+    'El parámetro "{name}" está por debajo de su mínimo, {min}.',
+  'The parameter "{name}" is above its highest, {max}.':
+    'El parámetro "{name}" está por encima de su máximo, {max}.',
+  'The parameter "{name}" is not true or false.': 'El parámetro "{name}" no es verdadero ni falso.',
+  'The parameter "{name}" is not one of its choices.':
+    'El parámetro "{name}" no es una de sus opciones.',
+  'No simulation of this element is open.': 'No hay ninguna simulación abierta de este elemento.',
   'No nesting relation type can hold a new element of "{component}" inside "{name}".':
     'Ningún tipo de relación que anida puede contener un nuevo elemento de "{component}" dentro de "{name}".',
   // M8b seam 1: free geometry, named parts and automatic route styles (ADR 0066, 0067, 0069).

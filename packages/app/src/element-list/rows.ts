@@ -219,14 +219,17 @@ export interface ShownCell {
   emphasis?: string;
   /** For a live value: whether it is older than its sender said it stays fresh. */
   stale?: boolean;
-  /** For a live value, who sent it; for a computed value, the package whose code computed it. */
+  /**
+   * For a live value, who sent it; for a computed or a simulated value, the package whose code
+   * worked it out.
+   */
   from?: { sender: 'claude' | 'command-line' } | { package: Id };
 }
 
 /**
- * A cell as the list shows it: an attribute as the lookup reads it, a live value over a computed one
- * over the stored one over its default, with the marks the canvas writes ("●", "○" and its age,
- * "ƒ"); any other column as it is.
+ * A cell as the list shows it: an attribute as the lookup reads it, a simulated value over a live
+ * one over a computed one over the stored one over its default, with the marks the canvas writes
+ * ("∿", "●", "○" and its age, "ƒ"); any other column as it is.
  */
 export function shownCell(
   t: Translator,

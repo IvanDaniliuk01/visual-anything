@@ -353,7 +353,21 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   // Exploring and playing.
   { word: /\bvecindarios?\b/i },
   { word: /\bejemplos?\b/i },
-  { word: /\bsimulaci[oó]n(es)?\b/i },
+  // A simulation is a programmable component's (ADR 0085), never a scenario's; and its terms keep
+  // to theirs: a run is a "corrida", never a playback or an execution; a tick a "tic", never a
+  // step, a frame or an iteration; a parameter never an input or a setting; a simulated value never
+  // an output or a result; a simulation limit never a bound or a threshold. A solid's keyframes are
+  // "fotogramas clave" (ADR 0075).
+  { word: /\bescenarios? de simulaci[oó]n\b|\bsimulaci[oó]n(es)? de(l| los)? escenarios?\b/i },
+  { word: /\breproducci[oó]n(es)? de (la )?simulaci[oó]n\b/i },
+  { word: /\bejecuci[oó]n(es)? de (la )?simulaci[oó]n\b/i },
+  { word: /\bpasos? de (la )?simulaci[oó]n\b/i },
+  { word: /\bfotogramas?\b/i, unless: /\bfotogramas? clave\b/i },
+  { word: /\biteraci[oó]n(es)?\b/i },
+  { word: /\bentradas? de (la )?simulaci[oó]n\b/i },
+  { word: /\b(salidas?|resultados?) de (la )?simulaci[oó]n\b/i },
+  { word: /\bumbral(es)?\b/i },
+  { word: /\bcotas?\b/i },
   { word: /\betapas?\b/i },
   { word: /\bhu[eé]rfan[oa]s?\b/i },
   // A pulse is a tour step's (ADR 0084), "pulso": never the travelling marker's, "marcador".

@@ -68,6 +68,11 @@ export class SimulationStore {
   private versionNumber = 0;
   private simulatedCache: ReadonlyMap<Id, ReadonlyMap<string, ComputedReading>> | undefined;
   private marksCache: ReadonlyMap<Id, readonly Id[]> | undefined;
+  /** The values of each tick last read, by the tick, as `simulated` gives them. */
+  private readonly byTick = new WeakMap<
+    SimulatedTick,
+    { package: Id; values: ReadonlyMap<string, ComputedReading> }
+  >();
   /** When each playing run last moved on, and the fraction of a tick it carries. */
   private readonly clock = new Map<Id, { at: number; carry: number }>();
   /** How many ticks the worker was last asked to hold, by run. */
@@ -120,10 +125,17 @@ export class SimulationStore {
     for (const shown of this.runs.values()) {
       const tick = shown.ticks[shown.shown];
       if (!tick) continue;
+      // A run whose tick shown stayed keeps its map, so that only the elements that moved read again.
+      const kept = this.byTick.get(tick);
+      if (kept?.package === shown.simulation.package) {
+        made.set(shown.element, kept.values);
+        continue;
+      }
       const byName = new Map<string, ComputedReading>();
       for (const [name, value] of Object.entries(tick.values)) {
         byName.set(name, { value, package: shown.simulation.package });
       }
+      this.byTick.set(tick, { package: shown.simulation.package, values: byName });
       made.set(shown.element, byName);
     }
     this.simulatedCache = made;
@@ -172,7 +184,7 @@ export class SimulationStore {
     };
     this.runs.set(element, shown);
     this.restart(shown);
-    this.changed();
+    this.shownChanged();
     return { ok: true };
   }
 
@@ -182,7 +194,7 @@ export class SimulationStore {
     this.clock.delete(element);
     this.asked.delete(element);
     this.port.simulate({ kind: 'simulation/close', element });
-    this.changed();
+    this.shownChanged();
   }
 
   /** Closes every run. */
@@ -388,7 +400,7 @@ export class SimulationStore {
         if (shown.shown > 0) shown.target = Math.max(shown.target ?? 0, shown.shown);
         this.restart(shown);
       }
-      this.changed();
+      this.shownChanged();
       return;
     }
     const shown = this.runs.get(reply.element);

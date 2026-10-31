@@ -1,10 +1,13 @@
 /**
  * What the shell does with live values (ADR 0057): it makes the attribute lookup of each moment,
- * from the live values the program sent and what package code computed, and the scene the canvas
+ * from the live values the program sent, what package code computed and what the tab's simulation
+ * runs worked out at the ticks they show (ADR 0085), and the scene the canvas
  * draws with them in the details of shapes and in the view's overlays.
  */
-import type { Definitions, ProjectSnapshot } from '@visual-anything/core';
-import { useContext, useEffect, useMemo, useSyncExternalStore } from 'react';
+import type { ComputedReading, Definitions, ProjectSnapshot } from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
+import type { SimulationStore } from '../simulation/store';
+import { useCallback, useContext, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { setHidden } from '../canvas/navigation';
 import type { Scene } from '../canvas/scene';
 import { NO_CODE, type CodeStore } from '../code/context';
@@ -18,14 +21,32 @@ import { AttributeLookup } from './lookup';
 const NONE = (): (() => void) => () => {};
 const noValues = (): LiveView => NO_LIVE_VALUES;
 
-/** The attribute lookup of this moment: a new one whenever live or computed values change. */
-export function useLookup(code: CodeStore): AttributeLookup {
+/**
+ * The attribute lookup of this moment: a new one whenever live, computed or simulated values change,
+ * the last as the tab's simulation runs show another tick (ADR 0085).
+ */
+export function useLookup(code: CodeStore, simulations?: SimulationStore): AttributeLookup {
   const live = useContext(LiveContext);
   const book = live?.liveValues;
   const values = useSyncExternalStore(book?.subscribe ?? NONE, book?.current ?? noValues, noValues);
   const computed = useSyncExternalStore(code.subscribe, code.snapshot, () => NO_CODE).elements;
-  return useMemo(() => new AttributeLookup(values, computed), [values, computed]);
+  const subscribeSimulations = useCallback(
+    (listener: () => void) => simulations?.subscribe(listener) ?? NONE(),
+    [simulations],
+  );
+  const simulated = useSyncExternalStore(
+    subscribeSimulations,
+    simulations ? () => simulations.simulated() : noSimulated,
+    noSimulated,
+  );
+  return useMemo(
+    () => new AttributeLookup(values, computed, simulated),
+    [values, computed, simulated],
+  );
 }
+
+const NO_SIMULATED: ReadonlyMap<Id, ReadonlyMap<string, ComputedReading>> = new Map();
+const noSimulated = () => NO_SIMULATED;
 
 /**
  * The scene the canvas draws: the view's scene with the lookup's values in the details of shapes and

@@ -349,4 +349,61 @@ describe('filters', () => {
     expect(choices.attributes.elements).toContain('connections');
     expect(choices.attributes.relations).toContain('calls');
   });
+
+  it('read simulated values over live and stored ones (ADR 0085)', () => {
+    const simulated = new Map([['api', new Map([['latency', { value: 40, package: 'ops' }]])]]);
+    expect(
+      hidden(new AttributeLookup(viewOf([live('api', 'latency', 300)]), new Map(), simulated)),
+    ).toEqual(['api', 'api-reads-db', 'db', 'web']);
+  });
+});
+
+describe('simulated values on the canvas (ADR 0085)', () => {
+  const state = project();
+  const definitions = definitionsIn(state);
+  const scene = buildScene(state, 'v');
+  const api = state.model.elements[0]!;
+  const simulated = (latency: number) =>
+    new Map([
+      [
+        'api',
+        new Map([
+          ['latency', { value: latency, package: 'ops' }],
+          ['queue', { value: 3, package: 'ops' }],
+        ]),
+      ],
+    ]);
+
+  it('read over live, computed and stored values, marked ∿ with their package', () => {
+    const lookup = new AttributeLookup(
+      viewOf([live('api', 'latency', 95)]),
+      new Map(),
+      simulated(40),
+    );
+    expect(lookup.read({ kind: 'element', element: api }, 'latency', definitions)).toEqual({
+      name: 'latency',
+      value: 40,
+      origin: 'simulated',
+      package: 'ops',
+    });
+    const drawn = liveSceneOf(scene, state, definitions, lookup, t);
+    expect(drawn.shapes.find((shape) => shape.element === 'api')?.detail).toBe(
+      'Service · ∿ 40 ms · bronze',
+    );
+  });
+
+  it('draw again what a new tick changed, and read nothing for a name that is no attribute', () => {
+    const first = new AttributeLookup(NO_LIVE_VALUES, new Map(), simulated(40));
+    const next = new AttributeLookup(NO_LIVE_VALUES, new Map(), simulated(60));
+    expect([...(next.changedSince(first) ?? [])]).toEqual(['api']);
+    const before = liveSceneOf(scene, state, definitions, first, t);
+    const after = liveSceneOf(scene, state, definitions, next, t);
+    expect(after.shapes.find((shape) => shape.element === 'api')?.detail).toBe(
+      'Service · ∿ 60 ms · bronze',
+    );
+    expect(after.shapes.find((shape) => shape.element === 'web')).toBe(
+      before.shapes.find((shape) => shape.element === 'web'),
+    );
+    expect(next.read({ kind: 'element', element: api }, 'queue', definitions)).toBeUndefined();
+  });
 });
