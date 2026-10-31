@@ -241,13 +241,15 @@ export function firstInside(
 
 /**
  * The anchored parts of a drawing with parts that the canvas shows, in its picture's order, which the
- * scene draws them in.
+ * scene draws them in; a solid's in its solid's order, that of its named parts (ADR 0075).
  */
 export function partsInOrder(indexed: IndexedScene, drawing: string): ElementShape[] {
   const rank = (shape: ElementShape) => indexed.rankOf[indexed.indexOfKey.get(shape.key) ?? 0] ?? 0;
+  const solidIndex = (shape: ElementShape) =>
+    shape.part?.solid === undefined ? -1 : shape.part.index;
   return (indexed.contentsOf.get(drawing) ?? [])
     .filter((each) => each.part?.inDrawing === true && !isHidden(indexed.scene, each.key))
-    .sort((a, b) => rank(a) - rank(b));
+    .sort((a, b) => solidIndex(a) - solidIndex(b) || rank(a) - rank(b));
 }
 
 /** A relation ] and [ step through from an element, and the end it is reached through. */

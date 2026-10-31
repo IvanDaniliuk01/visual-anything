@@ -29,7 +29,7 @@ import {
   type Texture,
 } from 'pixi.js';
 import type { Legend, ThemeName } from '@visual-anything/core';
-import type { Id, LevelOfDetail } from '@visual-anything/schema';
+import type { Id, LevelOfDetail, SolidPart } from '@visual-anything/schema';
 import { levelDetail, namesFromOf, type TileDetail } from './levels';
 import type { Emphasis } from '../editor/emphasis';
 import {
@@ -125,6 +125,11 @@ import {
   type RoutePiece,
 } from './tiles';
 import { PARTS_PICTURES, PartLayer } from './partsDraw';
+import type { SolidClient } from '../solids/client';
+import type { SolidFrameReply } from '../solids/protocol';
+import { SOLID_LAYER, SolidLayer } from './solids/layer';
+import { pointedPart } from './solids/pointing';
+import { isAnchoredSolidPart } from './solidMark';
 import { ARROW_PAINT, LINE_PAINT, NOTE_PAINT, SHAPE_PAINT, sameListButPaint } from './theme/paint';
 import {
   buildGeometry,
@@ -244,6 +249,8 @@ export interface Overlay {
   connect?: { from: Point; to: Point };
   /** The handle to drag from to relate an element to another. */
   handle?: Point;
+  /** The handle that turns the selected shape's solid (ADR 0075). */
+  turnHandle?: Point;
   /** The shape or relation a dragged line would end on. */
   target?: Rect;
   /** Where dragged shapes would land if dropped now. */
@@ -413,6 +420,8 @@ export interface RendererOptions {
   images?: ImagePlatform<Texture, unknown>;
   /** The theme to draw in from the start; the light theme by default. */
   theme?: CanvasTheme;
+  /** Draws solids' pictures through this client (ADR 0075); without one, solids draw placeholders. */
+  solids?: SolidClient;
   /**
    * How the first scene shown is fitted while nothing has set the camera: as Fit fits, at a scale
    * where names draw, by default; or whole, whatever the scale, as the benchmark measures it.
@@ -649,6 +658,8 @@ export class CanvasRenderer {
   private readonly codeDrawings: CodeDrawingLayer;
   /** What is drawn over anchored parts (ADR 0067), above the shapes and under package code's drawings. */
   private readonly partLayer: PartLayer;
+  /** Drawings with parts that show a solid, and the solid being turned (ADR 0075), above the shapes. */
+  private readonly solidLayer: SolidLayer;
   /** A comparison's marks (ADR 0070), above the scene and under the selection's marks. */
   private readonly comparison: ComparisonLayer;
 
@@ -666,13 +677,20 @@ export class CanvasRenderer {
     this.codeDrawings = new CodeDrawingLayer(this.text, () => this.requestRender());
     this.codeDrawings.setDark(this.painter.theme.name === 'dark');
     this.partLayer = new PartLayer(this.pictures.store, () => this.requestRender(), this.text);
+    if (options.solids) this.pictures.setSolids(options.solids);
+    this.solidLayer = new SolidLayer(
+      () => this.pictures.solids,
+      () => this.requestRender(),
+    );
     this.comparison = new ComparisonLayer(
       bitmapMarkText,
       () => this.requestRender(),
       this.painter.theme,
     );
     this.partLayer.setTheme(this.painter.name);
+    this.themeSolids();
     this.pictures.keep(PARTS_PICTURES);
+    this.pictures.keep(SOLID_LAYER);
     this.tintMarks();
     this.elementShapes.addChild(this.overflowBand);
     this.rerouted.addChild(this.reroutedLines);
@@ -693,6 +711,7 @@ export class CanvasRenderer {
     );
     this.world.addChild(
       this.elementShapes,
+      this.solidLayer.container,
       this.partLayer.container,
       this.codeDrawings.container,
       this.relations.container,
@@ -836,7 +855,72 @@ export class CanvasRenderer {
       this.hovered = hovered;
       this.drawHover();
     }
+    this.markSolidParts();
     this.requestRender();
+  }
+
+  /**
+   * Draws solids' pictures through this client from now on (ADR 0075), the named parts of each solid
+   * read by its id; without a client, every solid draws its placeholder.
+   */
+  setSolids(
+    client: SolidClient | undefined,
+    partsOf: (solid: Id) => readonly SolidPart[] | undefined = () => undefined,
+  ): void {
+    this.pictures.setSolids(client);
+    this.solidLayer.setParts(partsOf);
+    if (this.indexed) this.pictures.show(this.indexed.scene.shapes);
+    this.requestRender();
+  }
+
+  /** Shows the shape being turned with its newest frame (ADR 0075), or nothing once turning ends. */
+  setTurning(turning: { key: string; frame: SolidFrameReply | undefined } | undefined): void {
+    this.solidLayer.setTurning(turning);
+    this.requestRender();
+  }
+
+  /**
+   * What the pointer finds at a point over a drawing with parts that shows a solid (ADR 0075): the
+   * anchored part the pixel of its part buffer stands for, exact to a pixel of its picture, or the
+   * drawing itself where none does, or while its picture does not show.
+   */
+  solidPartAt(drawing: ElementShape, point: Point): ElementShape {
+    const placed = this.solidLayer.placedBuffer(drawing.key);
+    const parts = placed && this.solidLayer.partsAt(drawing.key);
+    if (!placed || !parts) return drawing;
+    const hidden = this.updateEmphasized().hidden.shapes;
+    return pointedPart(drawing, placed, point, parts.parts, parts.anchored, (shape) =>
+      hidden.has(shape.key),
+    );
+  }
+
+  /** Whether the canvas draws a shape's solid's picture now, at least as large as `pixels` on screen. */
+  solidShownAt(key: string): { rect: Rect } | undefined {
+    const placed = this.solidLayer.placedBuffer(key);
+    return placed ? { rect: placed.rect } : undefined;
+  }
+
+  /** Gives the solid layer what the canvas marks on parts: the selection, the hover and highlights. */
+  private markSolidParts(): void {
+    const lit = this.emphasized.highlighted.shapes;
+    if (this.litKeysFor !== lit) {
+      this.litKeysFor = lit;
+      this.litKeys = new Set(lit.map((shape) => shape.key));
+    }
+    this.solidLayer.setMarks({
+      selected: this.selection.elements,
+      hovered: this.hovered,
+      highlighted: this.litKeys,
+    });
+  }
+
+  private litKeysFor: readonly ElementShape[] | undefined;
+  private litKeys: ReadonlySet<string> = new Set();
+
+  /** Gives the solid layer the theme's fills and marks. */
+  private themeSolids(): void {
+    const { selected, highlight } = this.painter.theme;
+    this.solidLayer.setTheme(this.painter.name, { selected, highlight });
   }
 
   /**
@@ -1069,6 +1153,7 @@ export class CanvasRenderer {
     this.followGrid();
     this.codeDrawings.setCamera(camera, this.viewport, NAMES_FROM);
     this.partLayer.setScale(camera.scale);
+    this.solidLayer.setScale(camera.scale);
     this.callbacks.onCamera?.(camera);
     this.requestRender();
   }
@@ -1567,6 +1652,7 @@ export class CanvasRenderer {
       this.app.destroy(true, { children: true, context: true });
     }
     this.partLayer.destroy();
+    this.solidLayer.destroy();
     this.pictures.destroy();
     this.status = 'destroyed';
   }
@@ -1578,6 +1664,7 @@ export class CanvasRenderer {
   resetImages(): void {
     this.pictures.reset();
     this.partLayer.reset();
+    this.solidLayer.reset();
     this.requestRender();
   }
 
@@ -1725,6 +1812,15 @@ export class CanvasRenderer {
       this.emphasized.dimmed.shapes,
     );
     this.partLayer.setScale(this.camera.scale);
+    // A solid's parts the emphasis hides are drawn again without them (ADR 0075).
+    this.solidLayer.setScene(
+      this.indexed?.scene,
+      this.hiddenNow().shapes,
+      this.emphasized.dimmed.shapes,
+      this.emphasized.hidden.shapes,
+    );
+    this.solidLayer.setScale(this.camera.scale);
+    this.markSolidParts();
   }
 
   private rebuildShapes(
@@ -3159,6 +3255,12 @@ export class CanvasRenderer {
       for (const shape of indexed.byElement.get(id) ?? []) {
         if (!unseen.shapes.has(shape.key)) {
           const carried = hidden.shapes.has(shape.key);
+          // An anchored part of a solid is marked by the solid layer, along its edges (ADR 0075).
+          if (isAnchoredSolidPart(shape)) {
+            shapesMarked += 1;
+            if (!carried && shapesMarked <= MOST_NAMES_BESIDE) still.push(shape);
+            continue;
+          }
           box(shape, carried);
           shapesMarked += 1;
           if (!carried && shapesMarked <= MOST_NAMES_BESIDE) still.push(shape);
@@ -3273,6 +3375,7 @@ export class CanvasRenderer {
    * each end. The corner marks and the dots tell a highlight apart without its color.
    */
   private drawHighlights(): void {
+    this.markSolidParts();
     const { highlighted } = this.emphasized;
     let { arriving } = this.emphasized;
     this.arrivingMarks.clear();
@@ -3395,7 +3498,11 @@ export class CanvasRenderer {
   /** Marks these in `marks`, as `drawHighlights` says. */
   private drawLit(marks: Graphics, lit: Lit): void {
     marks.clear();
-    const { shapes, lines, notes, arrows } = lit;
+    const { lines, notes, arrows } = lit;
+    // An anchored part of a solid is marked by the solid layer, along its edges (ADR 0075).
+    const shapes = lit.shapes.some(isAnchoredSolidPart)
+      ? lit.shapes.filter((shape) => !isAnchoredSolidPart(shape))
+      : lit.shapes;
     if (countLit(lit) === 0) return;
     const { scale } = this.camera;
     const { highlight } = this.painter.theme;
@@ -3471,6 +3578,8 @@ export class CanvasRenderer {
     this.besideHovered = shape && namedBeside(shape) ? [shape] : [];
     this.showNamesBeside();
     if (!shape) return;
+    // An anchored part of a solid is marked by the solid layer, along its edges (ADR 0075).
+    if (isAnchoredSolidPart(shape)) return;
     traceMark(mark, shape, 3 / this.camera.scale);
     mark.stroke({ color: this.painter.theme.selected, width: 1 / this.camera.scale });
   }
@@ -3487,7 +3596,7 @@ export class CanvasRenderer {
   private drawGesture(): void {
     const marks = this.gestureMarks;
     marks.clear();
-    const { box, connect, handle, target, drop, ghost } = this.overlay;
+    const { box, connect, handle, target, drop, ghost, turnHandle } = this.overlay;
     const width = 1.5 / this.camera.scale;
     const { selected, refused, handleFill, boxFillAlpha } = this.painter.theme;
     const outline = (rect: Rect, color: string, lineWidth: number) =>
@@ -3531,6 +3640,28 @@ export class CanvasRenderer {
         .lineTo(connect.to.x, connect.to.y)
         .stroke({ color: selected, width: width * 1.5 });
       marks.circle(connect.to.x, connect.to.y, 4 / this.camera.scale).fill(selected);
+    }
+    if (turnHandle) {
+      // A circle with an arrow going round it: the solid turns (ADR 0075).
+      const r = 7 / this.camera.scale;
+      marks
+        .circle(turnHandle.x, turnHandle.y, r)
+        .fill(handleFill)
+        .stroke({ color: selected, width });
+      const arc = r * 0.55;
+      marks
+        .arc(turnHandle.x, turnHandle.y, arc, -Math.PI * 0.9, Math.PI * 0.4)
+        .stroke({ color: selected, width });
+      const tip = {
+        x: turnHandle.x + arc * Math.cos(Math.PI * 0.4),
+        y: turnHandle.y + arc * Math.sin(Math.PI * 0.4),
+      };
+      const barb = r * 0.35;
+      marks
+        .moveTo(tip.x - barb, tip.y)
+        .lineTo(tip.x, tip.y)
+        .lineTo(tip.x, tip.y - barb)
+        .stroke({ color: selected, width });
     }
     if (handle) {
       marks
@@ -3601,6 +3732,8 @@ export class CanvasRenderer {
       }
       // The parts' own pictures, with the textures the store made this frame (ADR 0067).
       if (this.partLayer.frame(this.imageView(performance.now() - began))) this.requestRender();
+      // Drawings with parts that show a solid, and the solid being turned (ADR 0075).
+      if (this.solidLayer.frame(this.imageView(performance.now() - began))) this.requestRender();
       // What the camera's rest leaves to do, in what the frame has left of its time.
       this.idle(began);
       const drag = this.drag;
@@ -3809,6 +3942,7 @@ export class CanvasRenderer {
     if (this.status !== 'ready') {
       this.painter = painterOf(theme);
       this.partLayer.setTheme(theme.name);
+      this.themeSolids();
       this.pending = undefined;
       this.tintMarks();
       return;
@@ -4123,6 +4257,7 @@ export class CanvasRenderer {
     const before = this.painter;
     this.painter = painter;
     this.partLayer.setTheme(painter.name);
+    this.themeSolids();
     this.pending = undefined;
     this.stats.swapAfter.push(this.restyleFrames - pending.opened);
     if (before === painter) return;

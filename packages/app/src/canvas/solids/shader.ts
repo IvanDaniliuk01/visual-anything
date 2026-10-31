@@ -103,13 +103,7 @@ function marked(table: Uint8Array, value: number, bit: number): boolean {
  * How far inside a marked region a pixel lies from its edge, in whole steps of a pixel up to
  * `reach`: the first step at which some direction leaves the region. `Infinity` past the reach.
  */
-function depthIn(
-  input: ShadeInput,
-  x: number,
-  y: number,
-  bit: number,
-  reach: number,
-): number {
+function depthIn(input: ShadeInput, x: number, y: number, bit: number, reach: number): number {
   const steps = Math.ceil(reach);
   for (let step = 1; step <= steps; step++) {
     for (const [dx, dy] of DIRECTIONS) {

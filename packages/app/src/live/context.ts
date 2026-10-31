@@ -121,6 +121,11 @@ export interface Live extends LiveState {
   ) => Promise<CommandResult>;
   /** Refuses Claude's proposal whole; absent where there is no live session to ask. */
   refuseProposal?: (proposal: Id) => Promise<CommandResult>;
+  /**
+   * A solid's file from the local program, by its hash (ADR 0075), which the canvas's solid client
+   * hands to the solid worker; absent where no program serves solids.
+   */
+  getSolidFile?: (hash: string) => Promise<LiveResult<Uint8Array>>;
 }
 
 /**

@@ -15,7 +15,12 @@
  *   behind their transparent background, drawn under them.
  */
 import type { ImageStore, ImageTexture } from '../images';
-import { solidAskFor, type SolidClient, type SolidPicture, type SolidPictureAsk } from '../../solids/client';
+import {
+  solidAskFor,
+  type SolidClient,
+  type SolidPicture,
+  type SolidPictureAsk,
+} from '../../solids/client';
 import { solidPictureKey, type ShapeSolid } from '../shape-solids';
 
 /** How a frame sees the canvas, as far as pictures go. */
@@ -92,7 +97,15 @@ export class SolidPictures<T, P = unknown> {
     if (standing) this.#standing.set(ask.key, ask);
   }
 
-  /** Sends what the frame asked for, when it changed since it was last sent. */
+  /** Starts a frame: what it asks for replaces what the frames before asked. */
+  begin(): void {
+    this.#asks = new Map();
+  }
+
+  /**
+   * Sends what the frame asked for so far, when it changed since it was last sent: the tiles' asks,
+   * then the solid layer's with them, in the same frame.
+   */
   flush(): void {
     if (!this.available) {
       this.#asks.clear();
@@ -103,7 +116,6 @@ export class SolidPictures<T, P = unknown> {
       else if (!this.#asks.has(key)) this.#asks.set(key, ask);
     }
     const asks = [...this.#asks.values()].sort((a, b) => a.distance - b.distance);
-    this.#asks = new Map();
     const sent = asks.map((ask) => `${ask.key}@${Math.round(ask.pixels)}`).join('\n');
     if (sent === this.#sent) return;
     this.#sent = sent;

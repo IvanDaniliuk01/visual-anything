@@ -79,6 +79,7 @@ export function LiveProvider({
       compareVersion: connection.compareVersion,
       acceptProposal: connection.acceptProposal,
       refuseProposal: connection.refuseProposal,
+      getSolidFile: connection.getSolidFile,
     }),
     [state, connection],
   );

@@ -12,7 +12,13 @@ import { createSolidClient, type SolidFileResult } from '../../solids/client';
 import { StandInSolidWorker } from '../../solids/stand-in';
 import { ARM_FILE, withSolids } from '../../test/solids';
 import type { Rect } from '../geometry';
-import { IMAGE_LIMITS, ImageStore, readyTextureKey, type ImagePlatform, type Slot } from '../images';
+import {
+  IMAGE_LIMITS,
+  ImageStore,
+  readyTextureKey,
+  type ImagePlatform,
+  type Slot,
+} from '../images';
 import { TileImages, tileSolidOf, type ImageTile, type ImageView } from '../images-draw';
 import { buildScene, type ElementShape } from '../scene';
 
@@ -62,13 +68,12 @@ async function settle(): Promise<void> {
 
 function clientOf(workers: StandInSolidWorker[] = []) {
   const files = {
-    get: vi.fn(
-      (hash: string): Promise<SolidFileResult> =>
-        Promise.resolve(
-          hash === solidHash(ARM_FILE)
-            ? { ok: true, bytes: ARM_FILE.slice() }
-            : { ok: false, code: 'solid-file-missing', message: 'No such file.' },
-        ),
+    get: vi.fn((hash: string): Promise<SolidFileResult> =>
+      Promise.resolve(
+        hash === solidHash(ARM_FILE)
+          ? { ok: true, bytes: ARM_FILE.slice() }
+          : { ok: false, code: 'solid-file-missing', message: 'No such file.' },
+      ),
     ),
   };
   const client = createSolidClient({
@@ -103,7 +108,12 @@ function tileOf(...shapes: ElementShape[]): ImageTile & { container: Container; 
   };
 }
 
-function view(scale: number, shown: Rect, settled = true, theme: 'light' | 'dark' = 'light'): ImageView {
+function view(
+  scale: number,
+  shown: Rect,
+  settled = true,
+  theme: 'light' | 'dark' = 'light',
+): ImageView {
   return { scale, shown, resolution: 1, settled, theme, spent: 0 };
 }
 
@@ -245,10 +255,13 @@ describe('solids’ pictures in tiles', () => {
       images.solids?.texture(arm, 320, 0, 'test', true);
       images.store.frame({ spent: 0, moving: false });
     }
-    const [dragged] = images.dragged([arm], view(1, { x: -200, y: -200, width: 1200, height: 800 }));
-    expect(
-      dragged?.context.instructions.filter((each) => each.action === 'texture'),
-    ).toHaveLength(1);
+    const [dragged] = images.dragged(
+      [arm],
+      view(1, { x: -200, y: -200, width: 1200, height: 800 }),
+    );
+    expect(dragged?.context.instructions.filter((each) => each.action === 'texture')).toHaveLength(
+      1,
+    );
   });
 });
 

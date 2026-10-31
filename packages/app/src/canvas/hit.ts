@@ -16,6 +16,8 @@ import { distanceToRoute } from './route';
 import type { ArrowShape, ElementShape, NoteShape, RelationLine, Scene } from './scene';
 import { holdsDrawn } from './shape-images';
 import { SpatialIndex, overlaps, rectAround, segmentsOf, within } from './spatial';
+import { isAnchoredSolidPart } from './solidMark';
+import { boxHoldsSolidPart } from './solids/pointing';
 
 /** What lies at a point, topmost first: free shapes over relations over element shapes. */
 export type Hit =
@@ -580,7 +582,14 @@ export function enclosedBy(
   const shapes = indexed.shapes
     .query(box)
     .map((at) => scene.shapes[at] as ElementShape)
-    .filter((shape) => !hidden.has(shape.key) && within(selectedBoxOf(shape), box));
+    .filter(
+      (shape) =>
+        !hidden.has(shape.key) &&
+        // An anchored part of a solid is in the box when its point is (ADR 0075).
+        (isAnchoredSolidPart(shape)
+          ? boxHoldsSolidPart(shape, box)
+          : within(selectedBoxOf(shape), box)),
+    );
   return {
     // A box around a table selects the table, not its rows as well (ADR 0023).
     shapes: withoutRowsOfEnclosed(shapes),

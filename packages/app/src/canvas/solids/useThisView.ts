@@ -34,7 +34,7 @@ export function storedCamera(camera: SolidCamera): SolidCamera {
  * The command Use this view sends for an element's solid seen from `camera`; none when the element
  * shows no solid, shows another one than `solid`, or already shows it from this camera.
  */
-export function useThisViewCommand(
+export function commandForThisView(
   state: ProjectSnapshot,
   elementId: Id,
   solid: Id,
@@ -49,10 +49,15 @@ export function useThisViewCommand(
   const shown = solidShownBy(element, definitions);
   if (!shown || shown.solid !== solid) return undefined;
   const stored = storedCamera(camera);
-  if (shown.camera && sameTurnCamera(shown.camera, stored)) return undefined;
+  // The camera it is seen from now: its appearance's, or else the solid's own.
+  const own = state.packages
+    .flatMap((file) => file.solids ?? [])
+    .find((each) => each.id === solid)?.camera;
+  const current = shown.camera ?? own;
+  if (current && sameTurnCamera(storedCamera(current), stored)) return undefined;
   const next: AppearanceSolid = { ...shown, camera: stored };
-  const own = element.appearance?.solid;
-  if (own !== undefined && own !== 'none') {
+  const ownSolid = element.appearance?.solid;
+  if (ownSolid !== undefined && ownSolid !== 'none') {
     return {
       type: 'update-element',
       id: element.id,

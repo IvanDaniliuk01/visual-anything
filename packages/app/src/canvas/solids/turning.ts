@@ -126,14 +126,7 @@ export function turnKey(
 
 /** The side a solid is seen from, by its camera's azimuth, as a person names it. */
 export type SeenSide =
-  | 'front'
-  | 'front left'
-  | 'left'
-  | 'back left'
-  | 'back'
-  | 'back right'
-  | 'right'
-  | 'front right';
+  'front' | 'front left' | 'left' | 'back left' | 'back' | 'back right' | 'right' | 'front right';
 
 /** Where a camera sees its solid from: a side, and above, below or level. */
 export function seenFrom(camera: SolidCamera): {

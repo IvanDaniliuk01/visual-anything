@@ -88,8 +88,7 @@ export function partStatesOf(
   for (let at = 0; at < parts.length; at++) {
     const part = parts[at] as SolidPart;
     // A part's parent comes before it in depth-first order; one that does not is held by none.
-    const holder =
-      part.parent === undefined || part.parent >= at ? undefined : states[part.parent];
+    const holder = part.parent === undefined || part.parent >= at ? undefined : states[part.parent];
     const own = elements.get(at);
     const state: PartState = {
       selected: own?.selected === true || holder?.selected === true,

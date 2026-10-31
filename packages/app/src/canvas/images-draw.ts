@@ -303,6 +303,7 @@ export class TileImages<
    */
   frame(tiles: Iterable<ImageTile>, view: ImageView): boolean {
     if (!this.#any) return false;
+    this.#solids?.begin();
     const { scale, shown } = view;
     const side = Math.max(shown.width, shown.height);
     const reach = grow(shown, side / 2);
@@ -667,7 +668,10 @@ function solidWhole(solid: ShapeSolid): boolean {
 }
 
 /** How many device pixels a solid's picture takes along its longer side at this view. */
-export function solidPixels(solid: ShapeSolid, view: { scale: number; resolution: number }): number {
+export function solidPixels(
+  solid: ShapeSolid,
+  view: { scale: number; resolution: number },
+): number {
   return Math.max(solid.rect.width, solid.rect.height) * view.scale * view.resolution;
 }
 

@@ -11,13 +11,23 @@
  * Pure, with no PixiJS: the canvas hands it the part buffer it draws with.
  */
 import type { SolidPart } from '@visual-anything/schema';
-import type { SolidPartBuffer } from '../../solids/protocol';
 import type { Point, Rect } from '../geometry';
 import type { ElementShape } from '../scene';
 
+/**
+ * A part buffer as the solid worker's protocol gives it (`SolidPartBuffer`): for each pixel, row by
+ * row from the top left, 0 for none or a part's index plus one. Written out here, so that hit testing
+ * brings in nothing of the worker's protocol, which names the page's bitmaps.
+ */
+export interface PartBuffer {
+  width: number;
+  height: number;
+  data: Uint16Array;
+}
+
 /** A picture's part buffer, and where on the canvas its picture is drawn. */
 export interface PlacedPartBuffer {
-  buffer: SolidPartBuffer;
+  buffer: PartBuffer;
   rect: Rect;
 }
 

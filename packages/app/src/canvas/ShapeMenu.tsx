@@ -64,6 +64,16 @@ export interface ShapeMenuProps {
    */
   align?: Readonly<Record<AlignHow, AlignAction>>;
   onAlign?: (how: AlignHow) => void;
+  /**
+   * For a shape whose solid can be turned (ADR 0075): whether it turns now, and how many animations
+   * Play offers while it does, none under reduced motion; and what Turn, Stop turning, Use this view,
+   * Play and Pause do.
+   */
+  solid?: { turning: boolean; animations: number; playing: boolean };
+  onTurn?: () => void;
+  onEndTurning?: () => void;
+  onUseThisView?: () => void;
+  onPlay?: (on: boolean) => void;
 }
 
 /** How many of the other shapes under the pointer the menu lists. */
@@ -100,6 +110,11 @@ export function ShapeMenu({
   onFollow,
   align,
   onAlign,
+  solid,
+  onTurn,
+  onEndTurning,
+  onUseThisView,
+  onPlay,
 }: ShapeMenuProps) {
   const t = useT();
   const menu = useMenuInsideFrame<HTMLDivElement>(at);
@@ -164,6 +179,40 @@ export function ShapeMenu({
               onPress={() => onFollow(destination)}
             />
           ))}
+          <div role="separator" className="canvas-menu-separator" />
+        </>
+      )}
+      {solid && (
+        <>
+          {solid.turning ? (
+            <>
+              {onUseThisView && (
+                <Item
+                  label={t('Use this view')}
+                  title={t('Keeps where its solid is seen from, in its appearance.')}
+                  readOnly={!editable}
+                  onPress={onUseThisView}
+                />
+              )}
+              {onPlay && solid.animations > 0 && (
+                <Item
+                  label={solid.playing ? t('Pause') : t('Play')}
+                  onPress={() => onPlay(!solid.playing)}
+                />
+              )}
+              {onEndTurning && (
+                <Item label={t('Stop turning')} title={t('Escape')} onPress={onEndTurning} />
+              )}
+            </>
+          ) : (
+            onTurn && (
+              <Item
+                label={t('Turn')}
+                title={t('Turns its solid live, by the pointer or the arrow keys. T')}
+                onPress={onTurn}
+              />
+            )
+          )}
           <div role="separator" className="canvas-menu-separator" />
         </>
       )}

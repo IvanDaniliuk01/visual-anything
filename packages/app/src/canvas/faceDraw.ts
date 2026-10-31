@@ -213,7 +213,9 @@ export function faceLabel(
     pictures && drawing.images.length > 0
       ? {
           pictures,
-          ...(shape.solid && shape.solid.placeholder !== true ? { solid: { solid: shape.solid } } : {}),
+          ...(shape.solid && shape.solid.placeholder !== true
+            ? { solid: { solid: shape.solid } }
+            : {}),
           ...(shape.image
             ? {
                 icon: {

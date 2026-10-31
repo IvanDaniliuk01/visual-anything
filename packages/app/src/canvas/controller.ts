@@ -10,6 +10,10 @@
  * out: while they are dragged, the canvas outlines where they would go and a caption beside the
  * pointer says it; Alt only moves. A secondary press, Shift+F10 or the menu key opens a shape's menu.
  *
+ * A shape that shows a solid can be turned (ADR 0075): from its turn handle, its menu or T; while it
+ * turns, dragging over its picture, the wheel there and the keys turn it, and Escape ends it.
+ * Pointing at a drawing with parts that shows a solid finds the part its part buffer draws there.
+ *
  * The toggle in a container's corner collapses or expands it, and so do Alt with − and Alt with + for
  * the selected containers. Pointing goes past what the emphasis hides, as the canvas does not draw it.
  * An aggregated relation stands for the relations it aggregates: pointing at it selects them all.
@@ -22,7 +26,7 @@ import {
   type ProjectSnapshot,
   type ThemeName,
 } from '@visual-anything/core';
-import type { Id } from '@visual-anything/schema';
+import type { Id, PackageFile, SolidDefinition } from '@visual-anything/schema';
 import type { CanvasTheme } from '../theme/themes';
 import {
   EMPTY_SELECTION,
@@ -103,6 +107,9 @@ import { rectAround, rectBetween } from './spatial';
 import type { AlignHow } from './align';
 import { ALIGN_BY_KEY, alignCommand } from './alignActions';
 import { ShapeEditor, guidesOff, type MoveGuide } from './shapeEditor';
+import type { SolidClient } from '../solids/client';
+import { isAnchoredSolidPart } from './solidMark';
+import { SolidTurner } from './solids/turner';
 import { t } from '../i18n';
 
 /** What the canvas asks of the rest of the app. */
@@ -184,6 +191,10 @@ export interface ControllerOptions {
   theme?: CanvasTheme;
   /** How the first scene is fitted (`RendererOptions.firstFit`). */
   firstFit?: 'readable' | 'whole';
+  /** Draws solids' pictures, and turns them, through this client (ADR 0075). */
+  solids?: SolidClient;
+  /** Whether the person asks for reduced motion, under which no solid's animation is offered. */
+  reducedMotion?: () => boolean;
 }
 
 type Gesture =
@@ -196,7 +207,9 @@ type Gesture =
   /** A handle or a segment of a route being dragged, which the route editor follows. */
   | { kind: 'route'; pointer: number }
   /** A handle of the shape selected alone being dragged, which the shape editor follows (ADR 0074). */
-  | { kind: 'resize'; pointer: number };
+  | { kind: 'resize'; pointer: number }
+  /** The pointer dragged over a turning solid's picture, which turns it (ADR 0075). */
+  | { kind: 'turn'; pointer: number; width: number };
 
 /**
  * Shapes being dragged: from where the press was, by how far, and the renderer's drawing of them; and
@@ -375,6 +388,11 @@ export class CanvasController {
   private readonly shapes: ShapeEditor;
   /** The shape last said to be hovered, for its hover card. */
   private hoverSaid: string | undefined;
+  /** Turning the selected shape's solid (ADR 0075), and the solids the project's packages define. */
+  private readonly turner: SolidTurner;
+  private readonly solids: SolidClient | undefined;
+  private solidDefinitions = new Map<Id, SolidDefinition>();
+  private solidsFrom: readonly PackageFile[] | undefined;
 
   constructor(
     private readonly host: HTMLElement,
@@ -394,8 +412,22 @@ export class CanvasController {
       {
         ...(options.theme ? { theme: options.theme } : {}),
         ...(options.firstFit ? { firstFit: options.firstFit } : {}),
+        ...(options.solids ? { solids: options.solids } : {}),
       },
     );
+    this.solids = options.solids;
+    const reducedMotion = options.reducedMotion ?? (() => false);
+    this.turner = new SolidTurner({
+      client: () => this.solids,
+      definition: (id) => this.solidDefinitions.get(id),
+      project: () => this.project,
+      scale: () => this.camera.scale,
+      resolution: () => this.host.ownerDocument.defaultView?.devicePixelRatio ?? 1,
+      show: (turning) => this.renderer.setTurning(turning),
+      announce: (text) => this.announce(text),
+      command: (command) => callbacks.command(command),
+      reducedMotion,
+    });
     this.routes = new RouteEditor({
       renderer: this.renderer,
       state: () =>
@@ -471,6 +503,7 @@ export class CanvasController {
     this.viewId = viewId;
     this.indexed = indexed;
     this.editable = editable;
+    this.followSolids(project);
     // The hovered shape as it is now: where it is, and its handle, may have changed.
     this.hovered = this.hovered && indexed.byKey.get(this.hovered.key);
     // The drops whose changes this scene holds stop being drawn apart first, so that the scene is
@@ -479,13 +512,73 @@ export class CanvasController {
       if (move.applied && move.from !== project) this.forget(move, false);
     }
     this.renderer.show(indexed);
+    this.turner.follow(indexed.byKey);
     this.refreshMarks();
     this.nudgeNext();
   }
 
   setSelection(selection: Selection): void {
     this.selection = selection;
+    // Selecting something else ends turning (ADR 0075).
+    this.turner.selectionChanged(selection.elements);
     this.refreshMarks();
+  }
+
+  /** The solids the project's packages define, by id, for the parts' states and turning. */
+  private followSolids(project: ProjectSnapshot): void {
+    if (project.packages === this.solidsFrom) return;
+    this.solidsFrom = project.packages;
+    const definitions = new Map<Id, SolidDefinition>();
+    for (const file of project.packages) {
+      for (const solid of file.solids ?? []) definitions.set(solid.id, solid);
+    }
+    this.solidDefinitions = definitions;
+    this.renderer.setSolids(this.solids, (id) => this.solidDefinitions.get(id)?.parts);
+  }
+
+  /** The shape turned now (ADR 0075), by its key and element, and the camera it is seen from. */
+  get turning(): { key: string; element: Id } | undefined {
+    return this.turner.turned;
+  }
+
+  /** Whether a shape's solid can be turned. */
+  canTurn(key: string): boolean {
+    return this.turner.canTurn(this.indexed?.byKey.get(key));
+  }
+
+  /** Turns a shape's solid live (ADR 0075), as its menu and T do; says whether it started. */
+  turn(key: string): boolean {
+    const shape = this.indexed?.byKey.get(key);
+    if (!shape) return false;
+    this.host.focus({ preventScroll: true });
+    if (!this.selection.elements.has(shape.element) || this.selection.elements.size !== 1) {
+      this.current = shape.key;
+      this.select(selectionOf([{ kind: 'element', id: shape.element }]));
+    }
+    const started = this.turner.start(shape);
+    this.refreshMarks();
+    return started;
+  }
+
+  /** Ends turning, and the shape's picture comes back. */
+  endTurning(): void {
+    this.turner.end();
+    this.refreshMarks();
+  }
+
+  /** Use this view: keeps the turned solid's camera in its appearance, in one action. */
+  useThisView(): Promise<boolean> {
+    return this.turner.useThisView();
+  }
+
+  /** How many animations the turned solid offers to play, and whether one plays now. */
+  get turningPlay(): { animations: number; playing: boolean } {
+    return { animations: this.turner.animations, playing: this.turner.playing };
+  }
+
+  /** Plays or pauses the turned solid's animation; never under reduced motion. */
+  playTurning(on: boolean): void {
+    this.turner.play(on);
   }
 
   /** Draws the emphasis (interface I2): pointing then goes past what it hides. */
@@ -627,6 +720,7 @@ export class CanvasController {
     this.sent = [];
     this.nudges = [];
     this.confirming = undefined;
+    this.turner.end(false);
     this.renderer.destroy();
   }
 
@@ -639,7 +733,22 @@ export class CanvasController {
    */
   private hit(world: Point, tolerance: number): Hit | undefined {
     if (!this.indexed) return undefined;
-    return hitAt(this.indexed, world, tolerance, this.exact, this.renderer.hiddenByEmphasis);
+    const hit = hitAt(this.indexed, world, tolerance, this.exact, this.renderer.hiddenByEmphasis);
+    return hit?.kind === 'shape' ? this.solidPartHit(hit, world) : hit;
+  }
+
+  /**
+   * A shape hit over a drawing with parts that shows a solid (ADR 0075): the part its part buffer
+   * draws under the pointer, exact to a pixel of its picture, or the drawing where none, or before its
+   * picture arrives. An anchored part's own dot points at nothing on its own.
+   */
+  private solidPartHit(hit: Extract<Hit, { kind: 'shape' }>, world: Point): Hit {
+    let shape = hit.shape;
+    if (isAnchoredSolidPart(shape) && shape.containerShape !== undefined) {
+      shape = this.indexed?.byKey.get(shape.containerShape) ?? shape;
+    }
+    if (shape.solid?.placement === 'parts') shape = this.renderer.solidPartAt(shape, world);
+    return shape === hit.shape ? hit : { kind: 'shape', shape };
   }
 
   private readonly onPointerDown = (event: PointerEvent): void => {
@@ -671,6 +780,24 @@ export class CanvasController {
     }
     if (event.button !== 0) return;
     const world = screenToWorld(this.camera, screen);
+    // A press on a turning solid's picture turns it; one on a selected shape's turn handle starts.
+    const turned = this.turner.turned;
+    const turnedShape = turned && indexed.byKey.get(turned.key);
+    if (turnedShape && this.turner.press(world, screen, turnedShape)) {
+      const rect = turnedShape.solid?.rect;
+      this.begin(event, {
+        kind: 'turn',
+        pointer: event.pointerId,
+        width: (rect?.width ?? 1) * this.camera.scale,
+      });
+      return;
+    }
+    const turnable = this.turnHandleShape();
+    const turnHandle = this.turner.handleOf(turnable);
+    if (turnable && turnHandle && distance(world, turnHandle) <= HANDLE_REACH / this.camera.scale) {
+      this.turn(turnable.key);
+      return;
+    }
     // The handles of a route are hit before anything else.
     const modified = event.shiftKey || event.ctrlKey || event.metaKey;
     if (this.editable && this.routes.press(world, screen, modified)) {
@@ -813,6 +940,9 @@ export class CanvasController {
       case 'resize':
         this.shapes.move(world, screen, event);
         return;
+      case 'turn':
+        this.turner.move(screen, gesture.width);
+        return;
       case 'box':
         this.showOverlay({ box: rectBetween(gesture.start, world) });
         return;
@@ -929,6 +1059,9 @@ export class CanvasController {
         if (event.altKey) this.altDragged = true;
         this.shapes.release();
         return;
+      case 'turn':
+        this.turner.release();
+        return;
       case 'box': {
         const world = screenToWorld(this.camera, this.local(event));
         const box = rectBetween(gesture.start, world);
@@ -978,6 +1111,18 @@ export class CanvasController {
   private readonly onWheel = (event: WheelEvent): void => {
     event.preventDefault();
     const scale = event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 400 : 1;
+    // Over a turning solid's picture, the wheel zooms the solid rather than the canvas (ADR 0075).
+    const turned = this.turner.turned;
+    if (
+      turned &&
+      this.turner.wheel(
+        screenToWorld(this.camera, this.local(event)),
+        event.deltaY * scale,
+        this.indexed?.byKey.get(turned.key),
+      )
+    ) {
+      return;
+    }
     if (event.ctrlKey || event.metaKey) {
       this.renderer.setCamera(
         zoomAt(this.camera, this.local(event), wheelFactor(event.deltaY * scale)),
@@ -1010,10 +1155,27 @@ export class CanvasController {
   };
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
+    // A turning solid takes its keys first (ADR 0075): the arrows, + and −, 0 and Escape.
+    if (this.gesture.kind === 'idle' && this.turner.key(event)) return;
     // Editing a route takes its keys first: those of its mode, and Delete on a chosen bend point.
     if (this.routes.keyDown(event)) return;
     const command = event.ctrlKey || event.metaKey;
     const gesture = this.gesture;
+    // T turns the selected shape's solid.
+    if (
+      (event.key === 't' || event.key === 'T') &&
+      !command &&
+      !event.altKey &&
+      !event.shiftKey &&
+      gesture.kind === 'idle'
+    ) {
+      const shape = this.turnHandleShape();
+      if (shape && this.turner.canTurn(shape)) {
+        event.preventDefault();
+        this.turn(shape.key);
+        return;
+      }
+    }
     // Shift, Alt, Ctrl and ⌘ change a resize under way at once (ADR 0074).
     if (gesture.kind === 'resize' && this.shapes.keyChange(event)) return;
     if ((event.key === 'Control' || event.key === 'Meta') && gesture.kind === 'drag') {
@@ -1307,6 +1469,7 @@ export class CanvasController {
   }
 
   private cancel(): void {
+    if (this.gesture.kind === 'turn') this.turner.release();
     if (this.gesture.kind === 'route') this.routes.cancel();
     if (this.gesture.kind === 'resize') this.shapes.cancel();
     if (this.gesture.kind === 'drag') {
@@ -2104,8 +2267,24 @@ export class CanvasController {
     this.shapes.refresh();
     if (this.gesture.kind === 'idle') {
       const shape = this.handleShape();
-      this.showOverlay(shape ? { handle: this.handleOf(shape) } : {});
+      const turnHandle = this.turner.handleOf(this.turnHandleShape());
+      this.showOverlay({
+        ...(shape ? { handle: this.handleOf(shape) } : {}),
+        ...(turnHandle ? { turnHandle } : {}),
+      });
     }
+  }
+
+  /** The shape a turn handle and T turn: the one the keys are on, when its element is selected alone. */
+  private turnHandleShape(): ElementShape | undefined {
+    const indexed = this.indexed;
+    if (!indexed || this.selection.elements.size !== 1 || this.selection.relations.size > 0) {
+      return undefined;
+    }
+    const [id] = this.selection.elements;
+    if (id === undefined) return undefined;
+    const current = this.current === undefined ? undefined : indexed.byKey.get(this.current);
+    return current?.element === id ? current : indexed.byElement.get(id)?.[0];
   }
 
   private local(event: MouseEvent): Point {

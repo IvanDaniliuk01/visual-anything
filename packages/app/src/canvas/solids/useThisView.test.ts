@@ -2,17 +2,22 @@
  * Use this view (ADR 0075): the camera a solid was turned to is kept in the appearance that shows the
  * solid, at the level the project can change, in one undoable action.
  */
-import { applyOperations, definitionsIn, executeCommand, solidShownBy } from '@visual-anything/core';
+import {
+  applyOperations,
+  definitionsIn,
+  executeCommand,
+  solidShownBy,
+} from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
 import { ARM_ID, withSolids } from '../../test/solids';
-import { storedCamera, useThisViewCommand } from './useThisView';
+import { storedCamera, commandForThisView } from './useThisView';
 
 const TURNED = { azimuth: -45, elevation: 35, zoom: 1.5 };
 
 describe('Use this view', () => {
   it('keeps the camera in the component’s appearance, the solid as it is shown', () => {
     const state = withSolids();
-    const command = useThisViewCommand(state, 'arm', ARM_ID, TURNED);
+    const command = commandForThisView(state, 'arm', ARM_ID, TURNED);
     expect(command).toEqual({
       type: 'set-component-appearance',
       component: 'robotics.arm',
@@ -29,7 +34,7 @@ describe('Use this view', () => {
 
   it('keeps it in the element’s own appearance when that names the solid', () => {
     const state = withSolids();
-    const command = useThisViewCommand(state, 'pictured', ARM_ID, TURNED);
+    const command = commandForThisView(state, 'pictured', ARM_ID, TURNED);
     expect(command).toMatchObject({
       type: 'update-element',
       id: 'pictured',
@@ -47,24 +52,26 @@ describe('Use this view', () => {
 
   it('sends nothing for another solid, an element without one, or the camera it has', () => {
     const state = withSolids();
-    expect(useThisViewCommand(state, 'arm', 'robotics.other', TURNED)).toBeUndefined();
-    expect(useThisViewCommand(state, 'extra', ARM_ID, TURNED)).toBeUndefined();
-    expect(useThisViewCommand(state, 'gone', ARM_ID, TURNED)).toBeUndefined();
+    expect(commandForThisView(state, 'arm', 'robotics.other', TURNED)).toBeUndefined();
+    expect(commandForThisView(state, 'extra', ARM_ID, TURNED)).toBeUndefined();
+    expect(commandForThisView(state, 'gone', ARM_ID, TURNED)).toBeUndefined();
     const once = executeCommand(
       state,
-      useThisViewCommand(state, 'arm', ARM_ID, TURNED) as NonNullable<
-        ReturnType<typeof useThisViewCommand>
+      commandForThisView(state, 'arm', ARM_ID, TURNED) as NonNullable<
+        ReturnType<typeof commandForThisView>
       >,
     );
     if (!once.ok) throw new Error('Not applied.');
-    expect(useThisViewCommand(once.state, 'arm', ARM_ID, TURNED)).toBeUndefined();
+    expect(commandForThisView(once.state, 'arm', ARM_ID, TURNED)).toBeUndefined();
   });
 
   it('stores a camera without what it leaves at its defaults', () => {
-    expect(storedCamera({ azimuth: 10, elevation: 5, zoom: 1, projection: 'perspective' })).toEqual({
-      azimuth: 10,
-      elevation: 5,
-    });
+    expect(storedCamera({ azimuth: 10, elevation: 5, zoom: 1, projection: 'perspective' })).toEqual(
+      {
+        azimuth: 10,
+        elevation: 5,
+      },
+    );
     expect(storedCamera({ azimuth: 10, elevation: 5, projection: 'orthographic' })).toEqual({
       azimuth: 10,
       elevation: 5,
