@@ -1,7 +1,9 @@
 /**
  * The read-only page's canvas: the app's renderer drawing the open view, with the page's reading
  * gestures (`controller.ts`), zoom buttons for those without a wheel, and a live region that says what
- * the keys select. It draws the emphasis that filters, focus and playback set, as the app's does.
+ * the keys select. It draws the emphasis that filters, focus and playback set, as the app's does, and
+ * shares what it hovers by element id, marking in each of its shapes what the physical-space panel or
+ * the outline hovers (ADR 0076).
  */
 import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
 import {
@@ -18,6 +20,7 @@ import type { CollapseAction } from '../canvas/collapse';
 import { indexScene } from '../canvas/hit';
 import type { Scene } from '../canvas/scene';
 import { useEmphasis, type Emphasis } from '../editor/emphasis';
+import { useHover, useHoverStore } from '../editor/hover';
 import type { Selection } from '../editor/selection';
 import { useT } from '../i18n';
 import { FitIcon, ZoomInIcon, ZoomOutIcon } from '../shell/icons';
@@ -87,6 +90,13 @@ export function ViewerCanvas({
   const collapse = useEffectEvent((action: CollapseAction, collapsed: boolean) =>
     latest.current.onCollapse(action, collapsed),
   );
+  // What the canvas hovers is shared by element id, as the physical-space panel marks it (ADR 0076).
+  const hovers = useHoverStore();
+  const shareHover = useEffectEvent((key: string | undefined) => {
+    const shape = key === undefined ? undefined : indexed?.byKey.get(key);
+    hovers?.set('canvas', shape?.element);
+  });
+  useEffect(() => () => hovers?.set('canvas', undefined), [hovers]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -99,7 +109,10 @@ export function ViewerCanvas({
         camera: (camera) => cameras.set(camera),
         failure: (error) => setFailure(error instanceof Error ? error.message : String(error)),
         announce: (text) => setAnnouncement((last) => ({ text, count: last.count + 1 })),
-        hoverShape: (key) => hoverShape(key),
+        hoverShape: (key) => {
+          hoverShape(key);
+          shareHover(key);
+        },
       },
       { theme: THEMES[latest.current.theme].canvas, ...(solids ? { solids } : {}) },
     );
@@ -114,6 +127,13 @@ export function ViewerCanvas({
   useEffect(() => {
     controllerRef.current?.renderer.setTheme(THEMES[theme].canvas);
   }, [theme]);
+
+  // What the physical-space panel or the outline hovers is marked in each of its shapes here.
+  const hover = useHover();
+  const linkedHover = hover && hover.from !== 'canvas' ? hover.element : undefined;
+  useEffect(() => {
+    controllerRef.current?.renderer.setLinkedHover(linkedHover);
+  }, [linkedHover]);
 
   useEffect(() => {
     const controller = controllerRef.current;

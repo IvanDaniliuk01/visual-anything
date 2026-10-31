@@ -8,13 +8,19 @@
  * solid worker the build holds beside the viewer, so that they turn in the page as in the app
  * (ADR 0075). The command line has no GPU to draw their pictures, so it never writes a page of
  * pictures only; without the worker, or a file, the page draws those solids as placeholders, and says
- * so.
+ * so. A page whose elements have poses holds the worker too, from no files if need be, for its
+ * physical-space panel (ADR 0076); without the worker, it has no panel, and says so.
  */
 import { realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import { encodeBase64, writeViewState, type ProjectSnapshot } from '@visual-anything/core';
 import { pageDataOf } from '@visual-anything/app/src/viewer/data';
-import { solidHashesShown, type PageSolids } from '@visual-anything/app/src/viewer/solids';
+import {
+  holdsPoses,
+  solidHashesShown,
+  withPoses,
+  type PageSolids,
+} from '@visual-anything/app/src/viewer/solids';
 import {
   LARGE_PAGE,
   pageTitle,
@@ -28,6 +34,14 @@ import { folderFiles, type AppFiles } from './static';
 /** What the command says when the build holds no viewer. */
 export const NO_VIEWER =
   'The read-only page needs its viewer, which this copy of Visual Anything does not hold. Run `pnpm build`, which builds it into packages/app/dist/viewer.';
+
+/** What the command says of a page whose solids it cannot hold without the solid worker. */
+const NO_SOLID_WORKER =
+  'The page draws its solids as placeholders: this copy of Visual Anything holds no solid worker for pages. Run `pnpm build`, which builds it beside the viewer.';
+
+/** What the command says of a page with poses that cannot hold the worker its panel needs (ADR 0076). */
+const NO_SPACE_PANEL =
+  'The page has no physical-space panel: this copy of Visual Anything holds no solid worker for pages. Run `pnpm build`, which builds it beside the viewer.';
 
 /** A page written for the command line, or why it could not be. */
 export type PageExport =
@@ -57,7 +71,13 @@ export async function exportPage(
     }),
     title: pageTitle(project.project.name),
   });
-  if (page.solidBytes > 0) warnings.push(`Its solids take ${megabytes(page.solidBytes)} of it.`);
+  if (page.solidBytes > 0) {
+    warnings.push(
+      solids?.form !== 'files' || Object.keys(solids.files).length > 0
+        ? `Its solids take ${megabytes(page.solidBytes)} of it.`
+        : `Its physical-space panel takes ${megabytes(page.solidBytes)} of it.`,
+    );
+  }
   if (page.large) {
     warnings.push(
       `The page is ${megabytes(page.bytes)}, past ${megabytes(LARGE_PAGE)}: it may open slowly, and some hosts and mail refuse files this large.`,
@@ -76,7 +96,8 @@ export async function exportPage(
  * The files of the solids the project's views show, for a page (ADR 0075): none for views that show
  * none; none, said in `warnings`, without the solid worker that draws them; and those it could not
  * read left out, said there too. When it could read none, the page holds none, and so no worker for
- * nothing.
+ * nothing, unless its elements have poses, which the worker draws in the physical-space panel
+ * (ADR 0076): then it holds the worker, with the files it could read, if any.
  */
 async function solidsOfPage(
   project: ProjectSnapshot,
@@ -85,12 +106,17 @@ async function solidsOfPage(
   warnings: string[],
 ): Promise<PageSolids | undefined> {
   const hashes = solidHashesShown(project);
-  if (hashes.length === 0) return undefined;
-  if (viewer.solidWorker === undefined || read === undefined) {
-    warnings.push(
-      'The page draws its solids as placeholders: this copy of Visual Anything holds no solid worker for pages. Run `pnpm build`, which builds it beside the viewer.',
-    );
+  const posed = holdsPoses(project);
+  if (hashes.length === 0 && !posed) return undefined;
+  if (viewer.solidWorker === undefined) {
+    if (hashes.length > 0) warnings.push(NO_SOLID_WORKER);
+    if (posed) warnings.push(NO_SPACE_PANEL);
     return undefined;
+  }
+  if (hashes.length === 0) return withPoses(project, undefined);
+  if (read === undefined) {
+    warnings.push(NO_SOLID_WORKER);
+    return withPoses(project, undefined);
   }
   const files: Record<string, string> = {};
   let missing = 0;
@@ -106,7 +132,7 @@ async function solidsOfPage(
         : `${missing} solids’ files could not be read, and the page draws them as their placeholders.`,
     );
   }
-  if (missing === hashes.length) return undefined;
+  if (missing === hashes.length) return withPoses(project, undefined);
   return { form: 'files', files };
 }
 

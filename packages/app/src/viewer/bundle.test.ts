@@ -15,8 +15,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
 import { encodeBase64, solidHash } from '@visual-anything/core';
 import { ARM_FILE, withSolids } from '../test/solids';
+import { workcell } from '../test/space';
 import { pageDataOf } from './data';
 import { SOLID_WORKER_ID, writePage } from './page';
+import { withPoses } from './solids';
 
 const APP = resolve(import.meta.dirname, '../..');
 
@@ -94,6 +96,25 @@ const NOT_IN_THE_PAGE = [
   'node_modules/parse5/',
   'node_modules/satori/',
   'node_modules/harfbuzzjs/',
+];
+
+/**
+ * Modules in those folders that only read, which the physical-space panel (ADR 0076) brings into a
+ * page: the ease a layout's move and the panel's camera share, which stores nothing; and how lengths
+ * are written, which the panel's announcements say where things are in.
+ */
+const READ_ONLY_IN_THOSE = [
+  'packages/app/src/canvas/layout/transition.ts',
+  'packages/app/src/shell/inspector/lengths.ts',
+];
+
+/**
+ * The solid worker's modules a page holds outside the worker, which hold no three.js: the handles and
+ * the ground, which the physical-space panel projects as the worker draws them (ADR 0076).
+ */
+const WORKER_MODULES_IN_THE_PAGE = [
+  'packages/app/src/solids/worker/space/grid.ts',
+  'packages/app/src/solids/worker/space/handles.ts',
 ];
 
 /** What no page's script may say: the ways a page could reach a program, a session or the network. */
@@ -207,10 +228,12 @@ describe('The viewer’s bundle', () => {
   });
 
   it('holds no live connection, commands, editors, inspector controls, launch-address code or package code', () => {
-    const held = modules.filter((path) =>
-      NOT_IN_THE_PAGE.some((left) =>
-        left.endsWith('/') ? path.includes(left) : path === left || path.endsWith(`/${left}`),
-      ),
+    const held = modules.filter(
+      (path) =>
+        !READ_ONLY_IN_THOSE.includes(path) &&
+        NOT_IN_THE_PAGE.some((left) =>
+          left.endsWith('/') ? path.includes(left) : path === left || path.endsWith(`/${left}`),
+        ),
     );
     expect(held).toEqual([]);
   });
@@ -240,7 +263,13 @@ describe('The viewer’s bundle', () => {
     expect(modules.filter((path) => /node_modules\/(three|three-mesh-bvh)\//.test(path))).toEqual(
       [],
     );
-    expect(modules.filter((path) => path.includes('packages/app/src/solids/worker/'))).toEqual([]);
+    expect(
+      modules.filter(
+        (path) =>
+          path.includes('packages/app/src/solids/worker/') &&
+          !WORKER_MODULES_IN_THE_PAGE.includes(path),
+      ),
+    ).toEqual([]);
     expect(modules).not.toContain('packages/app/src/solids/client.ts');
     expect(script).not.toContain(THREE_MARK);
   });
@@ -281,6 +310,34 @@ describe('The viewer’s bundle', () => {
       title: 'My systems',
     });
     expect(plain.html).not.toContain(THREE_MARK);
+    // A page of pictures keeps its policy, poses or not: it has no physical-space panel (ADR 0076).
+    const posedPictures = await writePage({
+      assets: { script, style, solidWorker },
+      data: pageDataOf(workcell(), {
+        solids: withPoses(workcell(), { form: 'pictures', pictures: [] }, 'pictures'),
+      }),
+      title: 'Workcell',
+    });
+    expect(posedPictures.html).not.toContain(THREE_MARK);
+    expect(posedPictures.policy).toContain("worker-src 'none'");
+    expect(posedPictures.policy).toMatch(/trusted-types default$/);
+  });
+
+  it('makes a page with poses alone that holds the worker for its panel, and loads nothing', async () => {
+    const page = await writePage({
+      assets: { script, style, solidWorker },
+      data: pageDataOf(workcell(), { solids: withPoses(workcell(), undefined) }),
+      title: 'Workcell',
+    });
+    const held = [...page.html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+    expect(
+      held
+        .filter(([, , body]) => (body ?? '').includes(THREE_MARK))
+        .map(([, attributes]) => (attributes ?? '').trim()),
+    ).toEqual([`type="text/plain" id="${SOLID_WORKER_ID}"`]);
+    expect(page.policy).toContain('worker-src blob:');
+    expect(page.policy).toContain("connect-src 'none'");
+    expect(page.solidBytes).toBeGreaterThan(solidWorker.length);
   });
 
   it('makes a page with solids’ files that holds three.js only as its worker’s text, and loads nothing', async () => {
@@ -299,6 +356,8 @@ describe('The viewer’s bundle', () => {
     expect(page.policy).toContain('worker-src blob:');
     expect(page.policy).toContain("connect-src 'none'");
     expect(page.policy).toContain("default-src 'none'");
+    // It has the physical-space panel, whose script holds no three.js either (ADR 0076).
+    expect(modules).toContain('packages/app/src/space/SpacePanel.tsx');
     const markup = page.html.replace(
       /(<(script|style)\b[^>]*>)[\s\S]*?(<\/\2>)/gi,
       (_whole, open: string, _tag: string, close: string) => `${open}${close}`,

@@ -501,6 +501,7 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                     scene={canvasScene ?? scene}
                                     selection={selection}
                                     client={spaceClient}
+                                    theme={theme}
                                   />
                                 )}
                                 <PanelEdge store={panels} side="inspector" controls={inspectorId} />

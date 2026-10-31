@@ -154,6 +154,74 @@
   touch-action: none;
 }
 
+/*
+ * The physical-space panel (ADR 0076), after the canvas, as wide as its store writes
+ * `--space-panel-width` while the open view's panel is open, with its edge astride its left side; of
+ * no width otherwise. On a narrow screen it goes below the canvas, half the height each. While a tour
+ * plays, it shows beside the canvas, half each, when the step opens it, without its edge and close
+ * button, as in the app (tours.css).
+ */
+.viewer-space {
+  display: none;
+  position: relative;
+  flex: none;
+  width: var(--space-panel-width, 30rem);
+  min-width: 0;
+  min-height: 0;
+}
+
+.viewer[data-space-panel] .viewer-space {
+  display: flex;
+}
+
+.viewer-space > .space-panel {
+  flex: 1;
+}
+
+.viewer-space > .space-panel-edge {
+  position: absolute;
+  inset-block: 0;
+  left: calc(-1 * var(--space-1));
+  margin: 0;
+}
+
+:root .viewer.tour-playing[data-space-panel] .viewer-body > .viewer-space {
+  display: flex;
+  flex: 1;
+  width: auto;
+}
+
+:root .viewer.tour-playing .viewer-space :is(.space-panel-edge, .space-panel-close) {
+  display: none;
+}
+
+@media (max-width: 40rem) {
+  .viewer[data-space-panel] .viewer-body {
+    flex-direction: column;
+  }
+
+  .viewer[data-space-panel] .viewer-space {
+    flex: 1;
+    width: auto;
+  }
+
+  .viewer[data-space-panel] .viewer-side {
+    width: auto;
+    max-height: 40%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .viewer-space > .space-panel {
+    border-top: 1px solid var(--border);
+    border-left: none;
+  }
+
+  .viewer-space > .space-panel-edge {
+    display: none;
+  }
+}
+
 .viewer-zoom {
   position: absolute;
   right: var(--space-3);

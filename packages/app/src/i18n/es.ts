@@ -1424,6 +1424,12 @@ export const ui: Catalog = {
   'physical space': 'espacio físico',
   'Arrow keys turn the space, Shift with them pans, + and − zoom, 0 fits everything and Enter frames the selection; M and R choose whether the handles move or rotate.':
     'Las flechas giran el espacio, con Mayús lo desplazan, + y − hacen zoom, 0 encuadra todo y Enter encuadra la selección; M y R eligen si los controles mueven o rotan.',
+  'Arrow keys turn the space, Shift with them pans, + and − zoom, 0 fits everything and Enter frames the selection.':
+    'Las flechas giran el espacio, con Mayús lo desplazan, + y − hacen zoom, 0 encuadra todo y Enter encuadra la selección.',
+  'Nothing this view shows is in physical space.':
+    'Nada de lo que muestra esta vista está en el espacio físico.',
+  'Its physical-space panel takes {size} of it.':
+    'Su panel del espacio físico ocupa {size} de ella.',
   'Physical space tools': 'Herramientas del espacio físico',
   'Fit everything (0)': 'Encuadrar todo (0)',
   Frame: 'Encuadrar la selección',
