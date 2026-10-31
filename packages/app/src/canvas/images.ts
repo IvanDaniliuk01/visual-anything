@@ -78,6 +78,13 @@ export const IMAGE_LIMITS = {
   /** The largest bucket kept in atlas pages. */
   atlasBucket: 64 as Bucket,
   /**
+   * The largest picture made elsewhere, a solid's (ADR 0075), kept in atlas pages, in pixels on its
+   * longer side; larger ones are textures of their own.
+   */
+  readyAtlas: 256,
+  /** Pictures made elsewhere that a frame turns into textures: at most one. */
+  readyUploads: 1,
+  /**
    * At rest, a large picture is rasterized alone in its frame while what it should cost stays under
    * this many milliseconds, past what a frame keeps to; during a theme switch or a recolor, never.
    */
@@ -301,6 +308,42 @@ interface Made<T> {
   slot?: Slot;
   bytes: number;
   lastUse: number;
+  /** For a picture made elsewhere: the group of pictures that stand in for each other. */
+  group?: string;
+}
+
+/**
+ * A picture made elsewhere, ready to be drawn: a solid's, which the solid worker draws (ADR 0075).
+ * The store makes its texture, nearest the middle of the screen first, at most one a frame, in an
+ * atlas page when it is 256 pixels or fewer on its longer side and as a texture of its own otherwise.
+ * The picture stays its maker's: the store never lets it go.
+ */
+export interface ReadyPictureRequest<P> {
+  /** Its serial, one for each picture and size (`solidPictureSerial`). */
+  serial: number;
+  /** The pictures that stand in for each other while one is made: the sizes of one picture. */
+  group: string;
+  picture: P;
+  /** Its size, in pixels. */
+  width: number;
+  height: number;
+  /** How far its middle is from the middle of the screen: nearer is made first. */
+  distance: number;
+  /** The tile whose drawing shows it, which is rebuilt once its texture is made. */
+  tile: string;
+}
+
+interface ReadyWanted<P> {
+  key: string;
+  request: ReadyPictureRequest<P>;
+  distance: number;
+  tiles: Set<string>;
+  outSince?: number;
+}
+
+/** The key of the texture of a picture made elsewhere. */
+export function readyTextureKey(serial: number): string {
+  return `${serial}:r`;
 }
 
 interface Wanted<P> {
@@ -324,6 +367,9 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
   readonly #platform: ImagePlatform<T, P>;
   readonly #made = new Map<string, Made<T>>();
   readonly #wanted = new Map<string, Wanted<P>>();
+  /** Pictures made elsewhere whose textures are wanted, and the textures made of each group. */
+  readonly #ready = new Map<string, ReadyWanted<P>>();
+  readonly #groups = new Map<string, Set<string>>();
   /** Costs of rasterizing each SVG, by serial, then bucket, in milliseconds. */
   readonly #costs = new Map<number, Map<Bucket, number>>();
   readonly #broken = new Set<number>();
@@ -395,6 +441,39 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
     return this.#broken.has(imageSerial(image));
   }
 
+  /**
+   * The texture to draw a picture made elsewhere with now (`ReadyPictureRequest`): its own, or a stand-in
+   * of its group while its own is made; `undefined` to draw the placeholder. It asks for its own when
+   * missing.
+   */
+  readyTexture(request: ReadyPictureRequest<P>): ImageTexture<T> | undefined {
+    const key = readyTextureKey(request.serial);
+    const made = this.#made.get(key);
+    if (made) return { texture: made.texture, key, bucket: made.bucket, exact: true };
+    const known = this.#ready.get(key);
+    if (known) {
+      known.distance = Math.min(known.distance, request.distance);
+      known.tiles.add(request.tile);
+      // The newest picture, should its maker have drawn it again.
+      known.request = request;
+    } else {
+      this.#ready.set(key, {
+        key,
+        request,
+        distance: request.distance,
+        tiles: new Set([request.tile]),
+      });
+    }
+    let standIn: Made<T> | undefined;
+    for (const each of this.#groups.get(request.group) ?? []) {
+      const other = this.#made.get(each);
+      if (other && (!standIn || other.lastUse > standIn.lastUse)) standIn = other;
+    }
+    return standIn
+      ? { texture: standIn.texture, key: standIn.key, bucket: standIn.bucket, exact: false }
+      : undefined;
+  }
+
   /** Records the textures a tile's image drawing uses, in place of what it used before. */
   use(tile: string, keys: Iterable<string>): void {
     this.release(tile);
@@ -443,6 +522,14 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
       if (now - wanted.outSince < IMAGE_LIMITS.outOfReach) continue;
       if (wanted.picture !== undefined) this.#platform.releasePicture(wanted.picture);
       this.#wanted.delete(key);
+    }
+    for (const [key, wanted] of this.#ready) {
+      if ([...wanted.tiles].some((tile) => inReach.has(tile))) {
+        delete wanted.outSince;
+        continue;
+      }
+      wanted.outSince ??= now;
+      if (now - wanted.outSince >= IMAGE_LIMITS.outOfReach) this.#ready.delete(key);
     }
     for (const tile of [...this.#uses.keys()]) {
       if (inReach.has(tile)) {
@@ -516,6 +603,19 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
         } else more = true;
       }
     }
+    // Pictures made elsewhere, nearest first: at most one a frame, and none once the frame is spent.
+    if (this.#ready.size > 0) {
+      const ready = [...this.#ready.values()].sort((a, b) => a.distance - b.distance);
+      let made = 0;
+      for (const wanted of ready) {
+        if (made >= IMAGE_LIMITS.readyUploads || spent() >= IMAGE_LIMITS.workAfter) {
+          more = true;
+          break;
+        }
+        made += 1;
+        this.#makeReady(wanted);
+      }
+    }
     this.#more = more || this.#rebuild.length > IMAGE_LIMITS.tileRebuilds;
     platform.flush();
     this.#evict();
@@ -530,6 +630,8 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
     for (const [key, wanted] of this.#wanted)
       if (!present.has(wanted.serial)) this.#wanted.delete(key);
     for (const made of [...this.#made.values()]) {
+      // Pictures made elsewhere are not images of the project: their maker keeps them.
+      if (made.group !== undefined) continue;
       if (!present.has(made.serial) && !this.#usedBy.has(made.key)) this.#drop(made);
     }
     for (const serial of this.#costs.keys()) if (!present.has(serial)) this.#costs.delete(serial);
@@ -552,6 +654,7 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
       if (wanted.picture !== undefined) this.#platform.releasePicture(wanted.picture);
     }
     this.#wanted.clear();
+    this.#ready.clear();
   }
 
   /**
@@ -786,6 +889,46 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
     return made;
   }
 
+  /** Makes the texture of a picture made elsewhere, and asks its tiles to rebuild. */
+  #makeReady(wanted: ReadyWanted<P>): void {
+    this.#ready.delete(wanted.key);
+    const { request } = wanted;
+    const width = Math.max(1, Math.round(request.width));
+    const height = Math.max(1, Math.round(request.height));
+    const long = Math.max(width, height);
+    const inAtlas = long <= IMAGE_LIMITS.readyAtlas;
+    // The smallest size that holds it: an atlas cell of that size.
+    const bucket = sharpBucketFor(long, true);
+    const common = {
+      key: wanted.key,
+      serial: request.serial,
+      bucket,
+      silhouette: false,
+      lastUse: this.#platform.now(),
+      group: request.group,
+    };
+    let made: Made<T>;
+    if (inAtlas) {
+      const { slot, newPage } = this.#atlas.place(bucket);
+      if (newPage) this.#pageBytes += IMAGE_LIMITS.atlasPage * IMAGE_LIMITS.atlasPage * 4;
+      const texture = this.#platform.atlasTexture(slot, request.picture, width, height, false);
+      made = { ...common, texture, slot, bytes: 0 };
+    } else {
+      const texture = this.#platform.texture(request.picture, width, height, false);
+      const bytes = Math.round(width * height * 4 * MIPMAPS);
+      this.#textureBytes += bytes;
+      made = { ...common, texture, bytes };
+    }
+    this.#made.set(made.key, made);
+    let group = this.#groups.get(request.group);
+    if (!group) {
+      group = new Set();
+      this.#groups.set(request.group, group);
+    }
+    group.add(made.key);
+    for (const tile of wanted.tiles) if (!this.#rebuild.includes(tile)) this.#rebuild.push(tile);
+  }
+
   #madeFrom(wanted: Wanted<P>): Omit<Made<T>, 'texture' | 'slot' | 'bytes'> {
     return {
       key: wanted.key,
@@ -824,6 +967,11 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
 
   #drop(made: Made<T>): void {
     this.#made.delete(made.key);
+    if (made.group !== undefined) {
+      const group = this.#groups.get(made.group);
+      group?.delete(made.key);
+      if (group?.size === 0) this.#groups.delete(made.group);
+    }
     if (made.slot) {
       this.#platform.destroyTexture(made.texture, false);
       if (this.#atlas.free(made.slot)) {
@@ -1021,9 +1169,15 @@ export function browserImagePlatform(): ImagePlatform<Texture, CanvasImageSource
   const pages = new Map<number, { pixels: AtlasPage; source: BufferImageSource }>();
   // Where a cell is drawn before its pixels are copied into its page, read back often and so kept
   // on the CPU.
-  const most = IMAGE_LIMITS.atlasBucket + 2 * gutter;
+  // Pictures made elsewhere, a solid's, take cells of up to 256 pixels and their gutters (ADR 0075).
   let scratch: { canvas: Canvas; context: Context } | undefined;
-  const scratchOf = () => (scratch ??= newCanvas(most, most, { willReadFrequently: true }));
+  const scratchOf = (cell: number) => {
+    if (!scratch || scratch.canvas.width < cell) {
+      const side = Math.max(cell, IMAGE_LIMITS.atlasBucket + 2 * gutter);
+      scratch = newCanvas(side, side, { willReadFrequently: true });
+    }
+    return scratch;
+  };
   const pageOf = (number: number) => {
     let page = pages.get(number);
     if (!page) {
@@ -1065,7 +1219,7 @@ export function browserImagePlatform(): ImagePlatform<Texture, CanvasImageSource
     },
     atlasTexture: (slot, picture, width, height, silhouette) => {
       const page = pageOf(slot.page);
-      const { canvas, context } = scratchOf();
+      const { canvas, context } = scratchOf(slot.cell);
       context.clearRect(0, 0, slot.cell, slot.cell);
       drawPicture(context, picture, gutter, gutter, width, height, silhouette);
       extrudeEdges(context, canvas, gutter, gutter, width, height, gutter);

@@ -261,6 +261,8 @@ function buildOutline(
   for (const [key, list] of held) {
     const holder = byKey.get(key);
     if (holder?.picture && holder.image) held.set(key, inPictureOrder(list, holder.image.image));
+    // A solid's anchored parts first, in its solid's order (ADR 0075).
+    else if (holder?.picture && holder.solid) held.set(key, inSolidOrder(list));
   }
   const notes = new Set<Id>();
   const arrows = new Set<Id>();
@@ -650,6 +652,19 @@ function inPictureOrder(
       .filter((item) => item.shape.part?.inDrawing === true)
       .sort((a, b) => placeOf(a) - placeOf(b)),
     ...list.filter((item) => item.shape.part?.inDrawing !== true),
+  ];
+}
+
+/** A drawing's rows with its solid's anchored parts first, in its solid's order, then the rest. */
+function inSolidOrder(list: ShapeItem[]): ShapeItem[] {
+  const anchored = (item: ShapeItem) =>
+    item.shape.part?.inDrawing === true && item.shape.part.solid !== undefined;
+  if (!list.some(anchored)) return list;
+  return [
+    ...list
+      .filter(anchored)
+      .sort((a, b) => (a.shape.part?.index ?? 0) - (b.shape.part?.index ?? 0)),
+    ...list.filter((item) => !anchored(item)),
   ];
 }
 

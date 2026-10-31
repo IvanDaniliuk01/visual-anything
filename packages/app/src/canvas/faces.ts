@@ -336,7 +336,8 @@ const drawsIcon = new WeakMap<ElementShape, boolean>();
  * icon, is then drawn nowhere else; a drawing's picture stays.
  */
 export function faceDrawsIcon(shape: ElementShape): boolean {
-  if (!shape.face || !shape.image) return false;
+  // A solid's icon is drawn by `<icon/>` as an image's is (ADR 0075).
+  if (!shape.face || (!shape.image && !shape.solid)) return false;
   let known = drawsIcon.get(shape);
   if (known === undefined) {
     const show = deepestFaceShow(shape);
@@ -352,7 +353,7 @@ export function faceDrawsIcon(shape: ElementShape): boolean {
 
 /** Whether a shape's own image, placed as it is, is drawn by its face rather than on its own. */
 export function iconInFace(shape: ElementShape): boolean {
-  const placement = shape.image?.placement;
+  const placement = shape.image?.placement ?? shape.solid?.placement;
   return (placement === 'icon' || placement === 'header') && faceDrawsIcon(shape);
 }
 

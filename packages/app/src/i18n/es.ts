@@ -3036,6 +3036,29 @@ export const ui: Catalog = {
   '{what}: what is kept, and the other choice': '{what}: lo que se conserva y la otra opción',
   '{file} holds no conflict now: its file can be added with git add.':
     '{file} ya no tiene ningún conflicto: su archivo se puede agregar con git add.',
+  // Solids on the canvas, and turning them (ADR 0075).
+  'the front': 'adelante',
+  'the front left': 'adelante a la izquierda',
+  'the left': 'la izquierda',
+  'the back left': 'atrás a la izquierda',
+  'the back': 'atrás',
+  'the back right': 'atrás a la derecha',
+  'the right': 'la derecha',
+  'the front right': 'adelante a la derecha',
+  '{name}, seen from {side}, above': '{name}, visto desde {side}, desde arriba',
+  '{name}, seen from {side}, below': '{name}, visto desde {side}, desde abajo',
+  '{name}, seen from {side}': '{name}, visto desde {side}',
+  'Drag or use the arrow keys to turn it, + and − to zoom, 0 to go back, and Escape to stop.':
+    'Arrastrar o usar las flechas para girarlo, + y − para acercar o alejar, 0 para volver y Esc para terminar.',
+  'Stopped turning {name}.': 'Se terminó de girar {name}.',
+  'Kept this view of {name}.': 'Se guardó esta vista de {name}.',
+  Turn: 'Girar',
+  'Turns its solid live, by the pointer or the arrow keys. T':
+    'Gira su sólido en vivo, con el puntero o las flechas. T',
+  'Stop turning': 'Terminar de girar',
+  'Use this view': 'Usar esta vista',
+  'Keeps where its solid is seen from, in its appearance.':
+    'Guarda desde dónde se ve su sólido, en su apariencia.',
 };
 
 /**

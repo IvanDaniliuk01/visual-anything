@@ -18,6 +18,11 @@
  *   the frame has spent 8 ms. The store keeps its own limits on decoding and rasterizing.
  * - A tile out of the settled reach for 3 seconds drops its image drawing and gives up its textures;
  *   it asks again when it comes back.
+ * - Solids' pictures (ADR 0075) are drawn here too, as images of their placement are, over a plate
+ *   of the shape's fill that covers their placeholder and shows behind their transparent background:
+ *   the solid client has the solid worker draw them, and the store makes their textures
+ *   (`solids/pictures.ts`). A drawing with parts that shows a solid is drawn by the solid layer, with
+ *   its parts' states, but while it is dragged.
  * - Faces' pictures (ADR 0083, F5) are drawn by the faces themselves, among the labels, over their
  *   boxes (`faceDraw.ts`): their textures come from here (`textureFor`), one for each picture and
  *   size of box, at the resolution a box needs at twice its size on a 2x screen, shared by every face
@@ -45,6 +50,10 @@ import type { ElementShape } from './scene';
 import { IMAGE_SCALES, type ShapeImage } from './shape-images';
 import { meets } from './spatial';
 import { shapeColors } from './theme/paint';
+import type { SolidClient } from '../solids/client';
+import { solidBucketFor } from '../solids/protocol';
+import { SolidPictures } from './solids/pictures';
+import type { ShapeSolid } from './shape-solids';
 
 /** What the image drawings need of one of the renderer's tiles. */
 export interface ImageTile {
@@ -85,6 +94,8 @@ interface Drawing {
   /** The tile's shapes it was worked out for, and those of them that show a picture. */
   shapes: readonly ElementShape[];
   pictured: readonly ElementShape[];
+  /** Of these, those that show a solid's picture (ADR 0075). */
+  solids: readonly ElementShape[];
   group?: Container;
   /** Drawings' plates, in white, by the fill and dark shade they are tinted to. */
   plates?: Map<string, Plates>;
@@ -146,9 +157,64 @@ export class TileImages<
   #waiting = new Set<FaceLabel>();
   readonly #ready = new Set<FaceLabel>();
   #sweepAt = FACE_SWEEP;
+  /** Solids' pictures (ADR 0075), once the canvas has a solid client; and faces waiting for one. */
+  #solids: SolidPictures<T, P> | undefined;
+  readonly #onArrive: (() => void) | undefined;
+  #solidWaiting = new Set<FaceLabel>();
 
   constructor(platform: ImagePlatform<T, P>, onArrive?: () => void) {
     this.store = new ImageStore(platform, onArrive);
+    this.#onArrive = onArrive;
+  }
+
+  /** Draws solids' pictures from this client from now on (ADR 0075). */
+  setSolids(client: SolidClient | undefined): void {
+    if (client === this.#solids?.client) return;
+    this.#solids?.dispose();
+    this.#solids = client
+      ? new SolidPictures<T, P>(client, this.store, () => {
+          // A face waiting for a solid's picture asks again, which makes its texture.
+          for (const face of this.#solidWaiting) this.#ready.add(face);
+          this.#solidWaiting = new Set();
+          this.#onArrive?.();
+        })
+      : undefined;
+    // Drawn again with its pictures, or its placeholders.
+    for (const { drawing } of this.#byId.values()) drawing.drawnFor = '';
+    this.#shapes = undefined;
+  }
+
+  /** The solids' pictures, once the canvas has a solid client. */
+  get solids(): SolidPictures<T, P> | undefined {
+    return this.#solids;
+  }
+
+  /**
+   * The texture a face draws its shape's solid with by `<icon/>` (ADR 0075, ADR 0083), as `textureFor`
+   * gives an image's; none until it is made, when `waiting` is painted again.
+   */
+  solidTextureFor(
+    shape: { solid?: ShapeSolid },
+    side: number,
+    waiting: FaceLabel,
+  ): { texture: T; width: number; height: number } | undefined {
+    const solids = this.#solids;
+    if (!solids) return undefined;
+    this.#faces.add(waiting);
+    const pixels = side * FACE_PICTURE_PIXELS;
+    solids.want(shape, pixels, 0, true, true);
+    const made = solids.texture(shape, pixels, 0, FACES, true);
+    if (!made?.exact) {
+      this.#solidWaiting.add(waiting);
+      this.#waiting.add(waiting);
+      this.#asked = true;
+    }
+    if (!made) return undefined;
+    if (!this.#faceKeys.has(made.key)) {
+      this.#faceKeys.add(made.key);
+      this.store.use(FACES, this.#faceKeys);
+    }
+    return { texture: made.texture, width: made.picture.width, height: made.picture.height };
   }
 
   /**
@@ -211,14 +277,16 @@ export class TileImages<
     if (shapes === this.#shapes) return;
     this.#shapes = shapes;
     const images = new Map<number, ShapeImage['image']>();
+    let solids = false;
     for (const shape of shapes) {
       // Its own picture, drawn here or by its face's `<icon/>`, and its face's other pictures.
       const picture = ownPictureOf(shape);
       if (picture) images.set(picture.serial, picture.image);
       const faced = shape.face?.pictures;
       if (faced) for (const each of Object.values(faced)) images.set(each.serial, each.image);
+      solids ||= shape.solid !== undefined && shape.solid.placeholder !== true;
     }
-    this.#any = images.size > 0;
+    this.#any = images.size > 0 || (solids && this.#solids !== undefined);
     // An edit seldom changes which pictures the scene shows: the store is pruned only when it does.
     const serials = [...images.keys()].sort((a, b) => a - b).join(' ');
     if (serials === this.#serials) return;
@@ -235,6 +303,7 @@ export class TileImages<
    */
   frame(tiles: Iterable<ImageTile>, view: ImageView): boolean {
     if (!this.#any) return false;
+    this.#solids?.begin();
     const { scale, shown } = view;
     const side = Math.max(shown.width, shown.height);
     const reach = grow(shown, side / 2);
@@ -265,6 +334,8 @@ export class TileImages<
       if (drawing.plates) tintPlates(drawing.plates, view.theme);
       if (meets(tile.bounds, reach)) inReach.add(drawing.id);
       if (!visible || !meets(tile.bounds, near)) continue;
+      // Solids that show are asked for every frame, nearest the middle first (ADR 0075).
+      if (drawing.solids.length > 0) this.#wantSolids(drawing, view, iconsShown, middle);
       const key = this.#keyOf(drawing, view, iconsShown);
       if (key === drawing.drawnFor) continue;
       const center = {
@@ -279,6 +350,7 @@ export class TileImages<
       });
     }
     this.#byId = byId;
+    this.#solids?.flush();
 
     let rebuilt = 0;
     const began = view.spent;
@@ -345,7 +417,9 @@ export class TileImages<
   /** The pictures of dragged shapes, drawn with the textures already made, for the drag's drawing. */
   dragged(shapes: readonly ElementShape[], view: ImageView): Graphics[] {
     if (!this.#any || view.scale < IMAGE_SCALES.drawingsFrom) return [];
-    const pictured = shapes.filter((shape) => pictureOf(shape) !== undefined);
+    const pictured = shapes.filter(
+      (shape) => pictureOf(shape) !== undefined || tileSolidOf(shape, true) !== undefined,
+    );
     if (pictured.length === 0) return [];
     const graphics = new Graphics();
     const shown = view.shown;
@@ -364,6 +438,7 @@ export class TileImages<
       DRAGGED,
       // Drawn again for the new theme when a switch shows, as the rest of the drag is.
       (shape, box) => plate(graphics, box, shapeColors(shape, view.theme).fill),
+      true,
     );
     for (const key of keys) this.#dragged.keys.add(key);
     this.#dragged.graphics.push(graphics);
@@ -395,12 +470,15 @@ export class TileImages<
     let drawing = this.#drawings.get(tile);
     if (!drawing) {
       drawingCount += 1;
-      drawing = { id: `tile-${drawingCount}`, shapes: [], pictured: [] };
+      drawing = { id: `tile-${drawingCount}`, shapes: [], pictured: [], solids: [] };
       this.#drawings.set(tile, drawing);
     }
     if (drawing.shapes !== tile.shapes) {
       drawing.shapes = tile.shapes;
-      drawing.pictured = tile.shapes.filter((shape) => pictureOf(shape) !== undefined);
+      drawing.solids = tile.shapes.filter((shape) => tileSolidOf(shape) !== undefined);
+      drawing.pictured = tile.shapes.filter(
+        (shape) => pictureOf(shape) !== undefined || tileSolidOf(shape) !== undefined,
+      );
       // What it drew may be another shape's now.
       if (drawing.drawnFor !== undefined) drawing.drawnFor = '';
     }
@@ -411,11 +489,34 @@ export class TileImages<
   #keyOf(drawing: Drawing, view: ImageView, iconsShown: boolean): string {
     let key = `${iconsShown ? 'i' : ''}${view.settled ? 's' : ''}`;
     for (const shape of drawing.pictured) {
+      const solid = tileSolidOf(shape);
+      if (solid) {
+        if (!solidWhole(solid) && !iconsShown) continue;
+        const pixels = solidPixels(solid, view);
+        key += `,${solidBucketFor(pixels)}:${this.#solids?.stateOf(shape, pixels) ?? '-'}`;
+        continue;
+      }
       const image = pictureOf(shape) as ShapeImage;
       if (!drawnWhole(image) && !iconsShown) continue;
       key += `,${bucketOf(image, view)}`;
     }
     return key;
+  }
+
+  /** Notes the solids of a tile that show this frame, for the solid client to draw. */
+  #wantSolids(
+    drawing: Drawing,
+    view: ImageView,
+    iconsShown: boolean,
+    middle: { x: number; y: number },
+  ): void {
+    const solids = this.#solids;
+    if (!solids) return;
+    for (const shape of drawing.solids) {
+      const solid = tileSolidOf(shape) as ShapeSolid;
+      if (!solidWhole(solid) && !iconsShown) continue;
+      solids.want(shape, solidPixels(solid, view), distanceOf(solid.rect, middle), view.settled);
+    }
   }
 
   #draw(
@@ -477,9 +578,38 @@ export class TileImages<
     middle: { x: number; y: number },
     tile: string,
     plateOf: (shape: ElementShape, box: Rect) => void,
+    dragging = false,
   ): string[] {
     const keys: string[] = [];
     for (const shape of shapes) {
+      const solid = tileSolidOf(shape, dragging);
+      if (solid) {
+        // A solid's picture over a plate of its shape's fill, which covers its placeholder and shows
+        // behind its transparent background (ADR 0075).
+        const isDrawing = solidWhole(solid);
+        if (!isDrawing && !iconsShown) continue;
+        const made = this.#solids?.texture(
+          shape,
+          solidPixels(solid, view),
+          distanceOf(solid.rect, middle),
+          tile,
+          view.settled,
+        );
+        if (!made?.exact) this.#asked = true;
+        if (!made) continue;
+        keys.push(made.key);
+        plateOf(shape, solid.placement === 'drawing' ? solid.box : solid.rect);
+        const { rect } = solid;
+        (isDrawing ? drawings : icons).texture(
+          made.texture,
+          undefined,
+          rect.x,
+          rect.y,
+          rect.width,
+          rect.height,
+        );
+        continue;
+      }
       const image = pictureOf(shape) as ShapeImage;
       const isDrawing = drawnWhole(image);
       if (!isDrawing && !iconsShown) continue;
@@ -515,6 +645,38 @@ export class TileImages<
     drawing.plates?.clear();
     delete drawing.drawnFor;
   }
+}
+
+/**
+ * The solid a shape draws in its tile's image drawing (ADR 0075): its own, unless it draws its
+ * placeholder whatever comes, its face draws it by `<icon/>`, or it is the picture of a drawing with
+ * parts, which the solid layer draws, but for `dragging`, where the drag draws it plain.
+ */
+export function tileSolidOf(shape: ElementShape, dragging = false): ShapeSolid | undefined {
+  const { solid } = shape;
+  if (!solid || solid.placeholder) return undefined;
+  if (solid.placement === 'parts' && !dragging) return undefined;
+  if ((solid.placement === 'icon' || solid.placement === 'header') && iconInFace(shape)) {
+    return undefined;
+  }
+  return solid;
+}
+
+/** Whether a solid is drawn as a whole drawing, which shows at the drawings' scales. */
+function solidWhole(solid: ShapeSolid): boolean {
+  return solid.placement === 'drawing' || solid.placement === 'parts';
+}
+
+/** How many device pixels a solid's picture takes along its longer side at this view. */
+export function solidPixels(
+  solid: ShapeSolid,
+  view: { scale: number; resolution: number },
+): number {
+  return Math.max(solid.rect.width, solid.rect.height) * view.scale * view.resolution;
+}
+
+function distanceOf(rect: Rect, middle: { x: number; y: number }): number {
+  return Math.hypot(rect.x + rect.width / 2 - middle.x, rect.y + rect.height / 2 - middle.y);
 }
 
 /** The bucket a picture is drawn from at this view, as the store chooses it. */

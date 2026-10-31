@@ -943,7 +943,7 @@ Its tasks run in this order:
   - turning frames with their part buffers, animations, and picking;
   - one WebGL context, the memory limit and letting go of what was drawn least lately, and losing the context and getting it back;
   - the worker's policy, which allows no connection, and the bundle test.
-- [ ] **Solids on the canvas** (`app/src/canvas/solids/`, the renderer; ADR 0075):
+- [ ] **Solids on the canvas** (`app/src/canvas/solids/`, the renderer; ADR 0075). Built 2026-10-31, tested without a GPU against the stand-in worker, but for relations following their parts while a solid turns, which is left; its pictures and its shader are first seen on a real GPU once the main session runs the app (ADR 0075's clarification):
   - pictures through the image store and its budgets, placeholders, and levels of detail;
   - the parts' shader: the picture, its part buffer and the table of part states in one pass, with veils, overlays' fills and opacity, playback, guidance and tour marks, focus, and selection and hover marks along the parts' edges;
   - pointing, hovering and box selection through the part buffer and the parts' points, and keyboard navigation in the parts' order;

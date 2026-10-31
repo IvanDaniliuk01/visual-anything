@@ -67,8 +67,9 @@ describe('the part layer of the renderer', () => {
     const indexed = indexScene(buildScene(beyondBoxes(), 'anatomy'));
     renderer.show(indexed);
     const children = look.world.children;
+    // The solid layer (ADR 0075) lies between them: it draws drawings of solids, and no image's.
     expect(children.indexOf(look.partLayer.container)).toBe(
-      children.indexOf(look.elementShapes) + 1,
+      children.indexOf(look.elementShapes) + 2,
     );
     expect(children.indexOf(look.codeDrawings.container)).toBe(
       children.indexOf(look.partLayer.container) + 1,

@@ -6,12 +6,17 @@
  * such shape's name under it, centred below its outline, at one size on screen whatever the zoom, in
  * the theme's text over a halo of its canvas, as relations' names are written. The hovered shape's
  * comes first; the outline, the inspector and announcements give every name as for any shape.
+ *
+ * An anchored part of a solid (ADR 0075) has no outline, since its drawing's picture draws it: the
+ * marks write its name beside its point, to its right, and nowhere else on the canvas.
  */
 import type { Color } from '@visual-anything/schema';
 import { Container, Text } from 'pixi.js';
 import { FONT_FAMILY } from './draw';
 import { outlineBoundsOn, writesNameBelow, writesNameInside } from './outlined';
 import type { ElementShape } from './scene';
+import { SOLID_POINT_RADIUS } from './shape-solids';
+import { isAnchoredSolidPart } from './solidMark';
 
 /** The most names written beside their shapes at once. */
 export const MOST_NAMES_BESIDE = 64;
@@ -21,6 +26,7 @@ const SIZE = 12;
 
 /** Whether the marks write a shape's name beside it: a shape with its own outline that writes it neither inside nor in a name tag. */
 export function namedBeside(shape: ElementShape): boolean {
+  if (isAnchoredSolidPart(shape)) return shape.part?.point !== undefined;
   return shape.outline !== undefined && !writesNameInside(shape) && !writesNameBelow(shape);
 }
 
@@ -45,7 +51,9 @@ export class NamesBeside {
     const seen = new Set<string>();
     for (const shape of shapes) {
       if (used >= MOST_NAMES_BESIDE) break;
-      if (seen.has(shape.key) || !namedBeside(shape) || !shape.outline) continue;
+      if (seen.has(shape.key) || !namedBeside(shape)) continue;
+      const point = isAnchoredSolidPart(shape) ? shape.part?.point : undefined;
+      if (!point && !shape.outline) continue;
       seen.add(shape.key);
       let text = this.texts[used];
       if (!text) {
@@ -55,8 +63,15 @@ export class NamesBeside {
         this.container.addChild(text);
       }
       if (text.text !== shape.name) text.text = shape.name;
-      const bounds = outlineBoundsOn({ rect: shape.rect, outline: shape.outline });
-      text.position.set(bounds.x + bounds.width / 2, bounds.y + bounds.height + GAP / scale);
+      if (point) {
+        // Beside a solid's part's point, to its right (ADR 0075).
+        text.anchor.set(0, 0.5);
+        text.position.set(point.x + SOLID_POINT_RADIUS + GAP / scale, point.y);
+      } else if (shape.outline) {
+        text.anchor.set(0.5, 0);
+        const bounds = outlineBoundsOn({ rect: shape.rect, outline: shape.outline });
+        text.position.set(bounds.x + bounds.width / 2, bounds.y + bounds.height + GAP / scale);
+      }
       text.scale.set(1 / scale);
       text.visible = true;
       used += 1;

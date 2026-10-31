@@ -90,6 +90,7 @@ import { EXPAND_CAMERA_MS, cameraToShow, collapseCommand, showInPlace } from './
 import { laidOutBounds } from './layout/laidOut';
 import { useLayout } from './layout/useLayout';
 import { useReducedMotion } from '../scenarios/motion';
+import { useSolidClient } from './solids/useSolidClient';
 import { pinnedInTheWay } from './layout/pinnedInTheWay';
 import { useAvoidedRoutes } from './routing/useAvoidedRoutes';
 import { RelationMenu } from './RelationMenu';
@@ -190,6 +191,18 @@ interface OpenMenu {
   opening: number;
   /** The shapes the emphasis hid when it opened, which it looks past. */
   hidden: ReadonlySet<string>;
+  /** For a shape whose solid can be turned (ADR 0075): whether it turned, and what Play offered. */
+  solid?: { turning: boolean; animations: number; playing: boolean };
+}
+
+/** What the shape menu offers for turning a shape's solid when it opens (ADR 0075). */
+function solidMenuOf(controller: CanvasController | null, key: string): Pick<OpenMenu, 'solid'> {
+  if (!controller) return {};
+  const turning = controller.turning?.key === key;
+  if (!turning && !controller.canTurn(key)) return {};
+  return {
+    solid: { turning, ...(turning ? controller.turningPlay : { animations: 0, playing: false }) },
+  };
 }
 
 /** The container chooser: for which element, from which container, and how it asks. */
@@ -227,6 +240,12 @@ export function CanvasArea({
   const downRef = useRef<HTMLDivElement>(null);
   const addSelect = useRef<HTMLSelectElement>(null);
   const controllerRef = useRef<CanvasController | null>(null);
+  // Solids' pictures and turning, through the live connection's solid client (ADR 0075).
+  const solids = useSolidClient();
+  const solidsRef = useRef(solids);
+  useLayoutEffect(() => {
+    solidsRef.current = solids;
+  });
   // The header's Export draws the open view with this canvas's renderer (R27).
   useLendRenderer(controllerRef);
   // Claude's pictures of the view it draws, off screen, which move nothing here (ADR 0081).
@@ -409,6 +428,10 @@ export function CanvasArea({
   // The containers just expanded by hand, which the camera keeps on screen once they are drawn.
   const showExpanded = useRef<readonly Id[] | undefined>(undefined);
   const reducedMotion = useReducedMotion();
+  const reducedMotionRef = useRef(reducedMotion);
+  useLayoutEffect(() => {
+    reducedMotionRef.current = reducedMotion;
+  });
   // The toggle and the keys, from the controller, which lives as long as the canvas area.
   const collapseFromCanvas = useEffectEvent(collapse);
   // The outline and the inspector expand and collapse the open view as the canvas does.
@@ -495,6 +518,7 @@ export function CanvasArea({
             at,
             shape: shape.key,
             hidden: controllerRef.current?.renderer.hiddenShapes ?? NO_KEYS,
+            ...solidMenuOf(controllerRef.current, shape.key),
             ...(under ? { under: under.map((each) => each.key) } : {}),
             opening: (last?.opening ?? 0) + 1,
           })),
@@ -516,6 +540,8 @@ export function CanvasArea({
         ...(caption ? { caption } : {}),
         ...(across && down ? { pointerMarks: { across, down } } : {}),
         theme: THEMES[latest.current.theme].canvas,
+        ...(solidsRef.current ? { solids: solidsRef.current } : {}),
+        reducedMotion: () => reducedMotionRef.current,
       },
     );
     controllerRef.current = controller;
@@ -1134,6 +1160,27 @@ export function CanvasArea({
                   follower.follow(destination);
                 },
               })}
+          {...(menu.solid
+            ? {
+                solid: menu.solid,
+                onTurn: () => {
+                  closeMenu();
+                  controller()?.turn(menuShape.key);
+                },
+                onEndTurning: () => {
+                  closeMenu();
+                  controller()?.endTurning();
+                },
+                onUseThisView: () => {
+                  closeMenu();
+                  void controller()?.useThisView();
+                },
+                onPlay: (on: boolean) => {
+                  closeMenu();
+                  controller()?.playTurning(on);
+                },
+              }
+            : {})}
           onClose={closeMenu}
         />
       )}
