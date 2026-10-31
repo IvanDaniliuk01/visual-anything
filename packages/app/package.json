@@ -20,7 +20,9 @@
     "quickjs-emscripten-core": "0.32.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "svg-to-pdfkit": "0.1.8"
+    "svg-to-pdfkit": "0.1.8",
+    "three": "0.186.1",
+    "three-mesh-bvh": "0.9.16"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",
@@ -30,6 +32,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/svg-to-pdfkit": "0.1.4",
+    "@types/three": "0.186.0",
     "@vitejs/plugin-react": "^6.1.2",
     "fast-check": "^4.10.2",
     "jsdom": "^29.1.1",

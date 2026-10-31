@@ -935,7 +935,7 @@ Its tasks run in this order:
   - Import… with `.glb` and `.gltf`: the preview, the units, the up axis, the report and the single action; `visual-anything import` with `--units`, `--up` and `--simplify`;
   - the hostile-input tests;
   - the single executables carrying the reader and meshoptimizer, and their notice of bundled code.
-- [ ] **The solid worker** (`app/src/solids/worker/`; ADR 0075):
+- [x] **The solid worker** (`app/src/solids/worker/`; ADR 0075). Done 2026-10-31, tested without a GPU behind a fake of its renderer; its drawing on a real GPU is first seen once the canvas task draws its pictures (ADR 0075's clarification):
   - three 0.186.1 and three-mesh-bvh 0.9.16, pinned, imported only by the worker;
   - the canonical file read with the core's reader and built into three.js objects, without GLTFLoader;
   - studio and flat lighting, the camera from the core's maths, pictures at their buckets with their part buffers, and pictures drawn again with parts hidden;
