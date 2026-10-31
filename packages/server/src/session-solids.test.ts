@@ -25,6 +25,7 @@ import type { SolidDefinition } from '@visual-anything/schema';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openSession, type Session } from './session';
 import { cleanSolid } from './solids/clean';
+import { unnamedSolidFiles } from './solids/files';
 import { solidFilePath } from './solids/serve';
 import { box, grid, inputGlb } from './solids/test/gltf';
 import { FakeClient, testProject, writeProjectFolder } from './test-support';
@@ -382,5 +383,38 @@ describe('opening, and the solid files (ADR 0075)', () => {
       `The solid "Short" names the file "solids/${'a'.repeat(64)}.glb" of 10 bytes, but it holds 3; it is drawn as its placeholder.`,
     );
     expect(messages.some((each) => each.includes('"Good"'))).toBe(false);
+  }, 60_000);
+
+  it('never deletes a file on its own: replacing and removing a solid leave its files, listed as no package’s', async () => {
+    const first = await canonical();
+    const second = await canonical(
+      inputGlb({ nodes: [{ name: 'other', mesh: 0 }], meshes: [box([0, 0, 0], [2, 2, 2])] }),
+    );
+    const { session: opened, folder: at } = await open();
+    await writeSolid(at, first.bytes);
+    await writeSolid(at, second.bytes);
+    // A file that is no solid's name is passed over.
+    await writeFile(join(at, 'solids', 'notes.txt'), 'x');
+    const client = new FakeClient();
+    for (const [requestId, hash] of [
+      ['c1', first.hash],
+      ['c2', second.hash],
+    ] as const) {
+      await ask(opened, client, {
+        type: 'command',
+        requestId,
+        command: { type: 'define-solid', package: 'shop', solid: definition(hash) },
+      });
+    }
+    expect(client.ofType('command/rejected')).toEqual([]);
+    expect(await unnamedSolidFiles(at, opened.snapshot)).toEqual([first.hash]);
+    await ask(opened, client, {
+      type: 'command',
+      requestId: 'c3',
+      command: { type: 'remove-solid', id: 'shop.arm' },
+    });
+    expect(await unnamedSolidFiles(at, opened.snapshot)).toEqual([first.hash, second.hash].sort());
+    expect((await stat(solidFilePath(at, first.hash))).isFile()).toBe(true);
+    expect((await stat(solidFilePath(at, second.hash))).isFile()).toBe(true);
   }, 60_000);
 });

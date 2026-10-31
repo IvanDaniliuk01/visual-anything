@@ -41,6 +41,7 @@ import { openSession, type Session } from './session';
 import { ProgramLog } from './program-log';
 import { PROPOSAL_IDLE_LIMIT } from './proposals';
 
+import { unnamedSolidFiles } from './solids/files';
 import { StartingSession, startingOn } from './start';
 import { AppNotBuiltError } from './static';
 
@@ -418,6 +419,13 @@ async function runWithLog(
     environment.out(`Opened "${session.snapshot.project.name}" from ${toForwardSlashes(folder)}.`);
     for (const warning of session.warnings()) {
       environment.err(`Warning: ${formatProjectProblem(warning)}`);
+    }
+    // Opening says how many solid files no package names; only the person removes them (ADR 0075).
+    const unnamed = await unnamedSolidFiles(session.folder, session.snapshot);
+    if (unnamed.length > 0) {
+      environment.out(
+        `The project's solids/ folder holds ${unnamed.length === 1 ? '1 file' : `${unnamed.length} files`} no package names; they stay until you remove them.`,
+      );
     }
   }
   environment.out(`Visual Anything is running at ${server.address}`);
