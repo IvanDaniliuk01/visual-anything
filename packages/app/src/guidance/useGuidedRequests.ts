@@ -3,7 +3,8 @@
  * open view's explorer as if the person had set them (ADR-0025), so the explore strip shows them and
  * the person ends them there; playback goes to the scenario session, as the scenario panel's buttons
  * do, so the person pauses or closes it there. A request that names a view, or plays a scenario over
- * one, opens that view first; a layout then runs on the canvas, which records it as any layout. A
+ * one, opens that view first; a layout then runs on the canvas, which records it as any layout, and a
+ * solid turns there, recording nothing (`canvas/solids/guidedTurn.ts`). A
  * tour plays full screen through the shell's tour playback, as the tours panel's Play does, and the
  * person ends it with Escape. What would show another view, and a tour, applies only in the tab the
  * person used last (`tabs.ts`). Nothing here changes the project.
@@ -21,6 +22,7 @@ import type {
   GuidedFilterRequest,
   GuidedFocusRequest,
   GuidedLayoutRequest,
+  GuidedTurnRequest,
 } from './state';
 
 /**
@@ -32,7 +34,7 @@ export function useGuidedRequests(
   editor: Editor | undefined,
   scenarios: ScenarioSession | undefined,
 ): void {
-  const { filter, focusView, playback, layout, tour } = guidance;
+  const { filter, focusView, playback, layout, tour, turn } = guidance;
   const tours = useToursHost();
 
   // The last request each one applied, and the requests that opened their view already.
@@ -45,7 +47,7 @@ export function useGuidedRequests(
     // Whether a request can apply now; it opens its view first, once, and waits for it. A request
     // for another view applies only in the tab the person used last (`tabs.ts`).
     const ready = (
-      request: GuidedFilterRequest | GuidedFocusRequest | GuidedLayoutRequest,
+      request: GuidedFilterRequest | GuidedFocusRequest | GuidedLayoutRequest | GuidedTurnRequest,
     ): boolean => {
       if (!forThisTab(request, editor.viewId)) return false;
       if (request.view === undefined || request.view === editor.viewId) return true;
@@ -72,9 +74,11 @@ export function useGuidedRequests(
         else explore.focusOn(focusTargetsOf(focus.targets, editor.project), focusSettingsOf(focus));
       }
     }
-    // A layout runs on the canvas once its view is open (ADR-0029): here it only opens that view.
+    // A layout runs on the canvas once its view is open (ADR-0029), and so does turning a solid
+    // (ADR 0075): here they only open that view.
     if (layout) ready(layout);
-  }, [filter, focusView, layout, editor]);
+    if (turn) ready(turn);
+  }, [filter, focusView, layout, turn, editor]);
 
   // A tour plays full screen through the tab's own tour playback (ADR 0058), from where the tab is,
   // which it comes back to when the person ends the tour with Escape.

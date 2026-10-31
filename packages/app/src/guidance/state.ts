@@ -104,7 +104,7 @@ export interface GuidedComparisonRequest {
 /**
  * A request to turn the solid a shape shows to a camera, once, as Turn does (ADR 0075): the canvas
  * selects the target's shape in the view, or in the open one, and turns its solid live from that
- * camera until the person ends it. Turning records nothing. The canvas's turning takes it up.
+ * camera until the person ends it. Turning records nothing (`canvas/solids/guidedTurn.ts`).
  */
 export interface GuidedTurnRequest {
   target: Id;

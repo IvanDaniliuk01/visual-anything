@@ -116,6 +116,33 @@ describe('Claude’s layout', () => {
   });
 });
 
+describe('Claude’s turn guidance', () => {
+  it('opens the view it names first, where the canvas turns the solid (ADR 0075)', () => {
+    renderShell({
+      turn: {
+        target: 'patient',
+        camera: { azimuth: 0, elevation: 0 },
+        view: 'ownership',
+        request: 1,
+      },
+    });
+    expect(openViewName()).toHaveTextContent('Ownership');
+  });
+
+  it('opens no other view in a tab the person did not use last', () => {
+    setTabUseForTests(usedElsewhere);
+    renderShell({
+      turn: {
+        target: 'patient',
+        camera: { azimuth: 0, elevation: 0 },
+        view: 'ownership',
+        request: 1,
+      },
+    });
+    expect(openViewName()).toHaveTextContent('System overview');
+  });
+});
+
 describe('guidance in a tab the person did not use last', () => {
   it('opens no other view, applies nothing there, and plays no tour', () => {
     setTabUseForTests(usedElsewhere);

@@ -26,7 +26,7 @@ import {
   type ProjectSnapshot,
   type ThemeName,
 } from '@visual-anything/core';
-import type { Id, PackageFile, SolidDefinition } from '@visual-anything/schema';
+import type { Id, PackageFile, SolidCamera, SolidDefinition } from '@visual-anything/schema';
 import type { CanvasTheme } from '../theme/themes';
 import {
   EMPTY_SELECTION,
@@ -563,8 +563,11 @@ export class CanvasController {
     return this.turner.canTurn(this.indexed?.byKey.get(key));
   }
 
-  /** Turns a shape's solid live (ADR 0075), as its menu and T do; says whether it started. */
-  turn(key: string): boolean {
+  /**
+   * Turns a shape's solid live (ADR 0075), as its menu and T do, from `camera` when given, as Claude's
+   * `turn` guidance asks; says whether it started.
+   */
+  turn(key: string, camera?: SolidCamera): boolean {
     const shape = this.indexed?.byKey.get(key);
     if (!shape) return false;
     this.host.focus({ preventScroll: true });
@@ -572,7 +575,7 @@ export class CanvasController {
       this.current = shape.key;
       this.select(selectionOf([{ kind: 'element', id: shape.element }]));
     }
-    const started = this.turner.start(shape);
+    const started = this.turner.start(shape, camera);
     this.refreshMarks();
     return started;
   }
