@@ -75,6 +75,56 @@ describe('get_simulation', () => {
   });
 });
 
+describe('run_simulation', () => {
+  it('runs only code the person approved as it is now', async () => {
+    expect(await tools.failure('run_simulation', { element: 'audit-queue' })).toMatch(
+      /not approved.*Claude cannot approve it/,
+    );
+  });
+
+  it('runs the sample’s code in QuickJS: a queue past its limit, with its numbers and ticks sampled', async () => {
+    approveAsPerson();
+    const run = await tools.value('run_simulation', {
+      element: 'audit-queue',
+      parameters: { arrivals: 50 },
+    });
+    const stop = run.stop as { kind: string; value: string; tick: number; why: string };
+    expect(stop).toMatchObject({ kind: 'limit', value: 'queue', limit: 'max', bound: 5000 });
+    expect(stop.why).toMatch(/queue went above its highest, 5000/);
+    expect(run.ticks).toBe(stop.tick);
+    const sampled = run.sampled as { tick: number }[];
+    expect(sampled.length).toBe(200);
+    expect(sampled.at(-1)?.tick).toBe(stop.tick - 1);
+    const numbers = run.numbers as Record<string, { highest: number }>;
+    expect(numbers.queue?.highest).toBeLessThanOrEqual(5000);
+    // The same parameters and seed, the same run.
+    expect(
+      await tools.value('run_simulation', { element: 'audit-queue', parameters: { arrivals: 50 } }),
+    ).toEqual(run);
+  });
+
+  it('moves an audit to its close through the states it holds, reading the model', async () => {
+    approveAsPerson();
+    const run = await tools.value('run_simulation', {
+      element: 'an-audit',
+      parameters: { strictness: 0 },
+      from: 2,
+    });
+    expect(run.stop).toMatchObject({ kind: 'done', message: 'The case reached Closed.' });
+    expect(run.from).toBe(2);
+  });
+
+  it('refuses parameters out of range, and what simulates nothing', async () => {
+    approveAsPerson();
+    expect(
+      await tools.failure('run_simulation', { element: 'audit-queue', parameters: { workers: 0 } }),
+    ).toBe('The parameter "workers" is below its lowest, 1.');
+    expect(await tools.failure('run_simulation', { element: 'requests' })).toContain(
+      'simulates nothing',
+    );
+  });
+});
+
 describe('show_simulation', () => {
   it('shows a simulation in the open app with its parameters, seed and tick, recording nothing', async () => {
     approveAsPerson();

@@ -14,6 +14,7 @@ import {
   codeStatusOf,
   definitionsIn,
   modelIndexOf,
+  modelReaderOf,
   packageCodeOf,
   simulationOf,
   ticksOf,
@@ -21,13 +22,24 @@ import {
   type Guidance,
   type ProjectSnapshot,
   type SimulatedTick,
-  type SimulationRun,
   type SimulationStop,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
+import { CodeSandbox } from '@visual-anything/app/src/code/sandbox';
+import { SimulationDriver } from '@visual-anything/app/src/simulation/driver';
+import type { SimulationReply } from '@visual-anything/app/src/simulation/messages';
+import { describeFailure, forgetEngine, warmEngine } from './code-tools';
 import { z } from 'zod';
 import { GUIDE, ONE_TAB, READ, fail, guideApps, guidedView, id, ok, tool } from './kit';
-import type { Tool } from './tools';
+import type { Tool, ToolHints } from './tools';
+
+/** Running a simulation changes nothing, but runs code: it is not a read. */
+const RUN: ToolHints = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
 
 /** The most ticks `run_simulation` answers one by one. */
 export const MAX_TICKS_ANSWERED = 200;
@@ -216,12 +228,12 @@ Example: { "close": true }`,
  * highest, and at most `MAX_TICKS_ANSWERED` ticks sampled evenly, the last held and the one before
  * the stop always among them.
  */
-export function summaryOf(run: SimulationRun, from = 0): Record<string, unknown> {
-  const held: SimulatedTick[] = [];
-  for (let tick = from; tick < run.length; tick++) {
-    const each = run.tickAt(tick);
-    if (each) held.push(each);
-  }
+export function summaryOf(
+  all: readonly SimulatedTick[],
+  stop: SimulationStop | undefined,
+  from = 0,
+): Record<string, unknown> {
+  const held = all.slice(from);
   const numbers: Record<string, { first: number; last: number; lowest: number; highest: number }> =
     {};
   for (const tick of held) {
@@ -249,9 +261,9 @@ export function summaryOf(run: SimulationRun, from = 0): Record<string, unknown>
     .sort((a, b) => a - b)
     .map((index) => ({ tick: from + index, ...held[index] }));
   return {
-    ticks: run.length - from,
+    ticks: held.length,
     from,
-    stop: run.stop ? describeStop(run.stop) : undefined,
+    ...(stop ? { stop: describeStop(stop) } : {}),
     numbers,
     sampled: ticks,
   };
@@ -283,5 +295,117 @@ export function describeStop(stop: SimulationStop): Record<string, unknown> {
   }
 }
 
-/** The tools for simulations, in the order Claude reads them; run_simulation joins with the worker. */
-export const SIMULATION_TOOLS: readonly Tool[] = [getSimulation, showSimulation];
+/** How long one call of run_simulation may work, in milliseconds, before it answers what it has. */
+export const RUN_SIMULATION_MS = 20_000;
+
+const runSimulation = tool({
+  name: 'run_simulation',
+  title: 'Run a simulation',
+  description: `Runs an element's simulation here, in Claude's own process, in the same sandbox as the app, and answers what it came to (ADR 0085): the stop and why (it ended by itself, played its ticks, went past a limit, or the code failed), each number's first, last, lowest and highest, and at most ${MAX_TICKS_ANSWERED} ticks sampled evenly, the last always among them. The same parameters and seed always give the same run, so a run can be compared with another that changes one parameter. It runs only code the person approved as it is now; it changes nothing and shows nothing in the app (show_simulation shows it). from answers only the ticks from that one on; ticks plays more than the simulation's own number, up to ${SIMULATION_LIMITS.maxTicks}. A call works at most ${RUN_SIMULATION_MS / 1000} s and then answers the ticks it has.
+
+Example: { "element": "audit-queue", "parameters": { "arrivals": 50 } }
+Example: { "element": "an-audit", "parameters": { "strictness": 0.8 }, "seed": 7, "ticks": 120, "from": 60 }`,
+  input: {
+    element: id().describe('The element whose simulation to run.'),
+    parameters: parameters(),
+    seed: seed(),
+    ticks: z
+      .number()
+      .int()
+      .min(1)
+      .max(SIMULATION_LIMITS.maxTicks)
+      .optional()
+      .describe('How many ticks to play; the simulation’s own number by default.'),
+    from: z
+      .number()
+      .int()
+      .min(0)
+      .max(SIMULATION_LIMITS.maxTicks)
+      .optional()
+      .describe('Answer the ticks from this one on; 0 by default.'),
+  },
+  hints: RUN,
+  run: async (args, program) => {
+    const state = await program.project();
+    const found = simulatedFor(state, { element: args.element });
+    if (!found.ok) return fail(found.message);
+    const { simulation } = found;
+    const checked = checkParameters(simulation.definition, args.parameters);
+    if (!checked.ok) return fail(checked.reason);
+    const approval = await approvalOf(state, simulation, program);
+    if (!approval.approved) return fail(approval.reason ?? APPROVAL);
+    const file = state.packages.find((each) => each.id === simulation.package);
+    const code = file ? packageCodeOf(file) : undefined;
+    if (!code) return fail('Its package holds no code to work it out.');
+    const sandbox = new CodeSandbox(await warmEngine());
+    try {
+      const loaded = sandbox.load({
+        package: simulation.package,
+        code: code.text,
+        granted: approval.granted,
+      });
+      if (!loaded.ok) return fail(`The code did not load: ${describeFailure(loaded.failure)}`);
+      if (!loaded.hooks.includes('simulate')) {
+        return fail(
+          `The code of "${simulation.package}" exports no simulate, so it simulates nothing.`,
+        );
+      }
+      const reader = approval.granted.includes('model:read') ? modelReaderOf(state) : undefined;
+      const driver = new SimulationDriver({
+        code: () => ({ ok: true, hash: code.hash }),
+        call: (pkg, input, runSeed, tick) => {
+          const outcome = sandbox.simulate(pkg, input, runSeed, tick, reader);
+          return outcome.ok ? { ok: true, answer: outcome.answer } : outcome;
+        },
+      });
+      driver.refresh(state);
+      const ticks = args.ticks ?? ticksOf(simulation.definition);
+      const held: SimulatedTick[] = [];
+      let stop: SimulationStop | undefined;
+      const take = (replies: SimulationReply[]): string | undefined => {
+        for (const reply of replies) {
+          if (reply.kind === 'simulation/unavailable') return reply.reason;
+          if (reply.kind !== 'simulation/ticks') continue;
+          held.length = Math.min(held.length, reply.from);
+          held.push(...reply.ticks);
+          if (reply.stop) stop = reply.stop;
+        }
+        return undefined;
+      };
+      const refused = take(
+        driver.receive({
+          kind: 'simulation/start',
+          element: args.element,
+          parameters: checked.value,
+          seed: args.seed ?? SIMULATION_LIMITS.defaultSeed,
+          ticks,
+          until: ticks,
+        }),
+      );
+      if (refused !== undefined) return fail(`The simulation cannot run: ${refused}.`);
+      const deadline = performance.now() + RUN_SIMULATION_MS;
+      while (driver.busy && performance.now() < deadline) {
+        take(driver.work(() => performance.now() >= deadline));
+      }
+      const unfinished = driver.busy;
+      return ok({
+        element: args.element,
+        parameters: checked.value,
+        seed: args.seed ?? SIMULATION_LIMITS.defaultSeed,
+        ...summaryOf(held, stop, Math.min(args.from ?? 0, held.length)),
+        ...(unfinished
+          ? {
+              note: `It worked for ${RUN_SIMULATION_MS / 1000} s and answers the ticks it had; ask for fewer ticks, or from a later one.`,
+            }
+          : {}),
+      });
+    } finally {
+      sandbox.dispose();
+      // An interpreter that failed is not used again.
+      if (sandbox.crashed) forgetEngine();
+    }
+  },
+});
+
+/** The tools for simulations, in the order Claude reads them. */
+export const SIMULATION_TOOLS: readonly Tool[] = [getSimulation, runSimulation, showSimulation];

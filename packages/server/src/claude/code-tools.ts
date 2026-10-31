@@ -230,12 +230,17 @@ let engine: Promise<QuickJSWASMModule> | undefined;
  * The interpreter, made once and warmed up on code of its own, so that the first hook it runs is not
  * timed while its WebAssembly is still being compiled.
  */
-function warmEngine(): Promise<QuickJSWASMModule> {
+export function warmEngine(): Promise<QuickJSWASMModule> {
   engine ??= loadNodeEngine().then(warmedUp);
   return engine;
 }
 
-function describeFailure(failure: CodeFailure): string {
+/** Lets go of an interpreter that failed, so that the next run makes a new one. */
+export function forgetEngine(): void {
+  engine = undefined;
+}
+
+export function describeFailure(failure: CodeFailure): string {
   switch (failure.kind) {
     case 'threw':
       return failure.message;
