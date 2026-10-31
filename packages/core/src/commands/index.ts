@@ -22,6 +22,7 @@ import { addToView, leaveOutOfView, setRelationTypesLeftOut, setScope } from './
 import { Draft, Rejection, reject, requireList, requireName } from './draft';
 import { newLargeGeometry } from '../geometry/files';
 import { newUnknownParts } from '../images/anchored';
+import { newSolidWarnings } from '../solids/check';
 import { checkImageReferences, defineImage, removeImage } from './images';
 import { defineSolid, removeSolid, updateSolid } from './solids';
 import {
@@ -112,6 +113,7 @@ export function executeCommand(
     if (draft.operations.length > 0) {
       draft.warnings.push(
         ...newUnknownParts(state, draft.state),
+        ...newSolidWarnings(state, draft.state),
         ...newLargeGeometry(state, draft.state),
       );
     }

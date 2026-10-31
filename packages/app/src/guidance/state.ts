@@ -6,7 +6,7 @@
  * message replaces what it concerns, and the person can dismiss all of it.
  */
 import type { Guidance, LayoutPass, LayoutResult, VersionRef } from '@visual-anything/core';
-import type { Id } from '@visual-anything/schema';
+import type { Id, SolidCamera } from '@visual-anything/schema';
 
 /** Claude's marks: the targets highlighted, or focused on with everything else dimmed. */
 export interface GuidanceMarks {
@@ -101,6 +101,18 @@ export interface GuidedComparisonRequest {
   request: number;
 }
 
+/**
+ * A request to turn the solid a shape shows to a camera, once, as Turn does (ADR 0075): the canvas
+ * selects the target's shape in the view, or in the open one, and turns its solid live from that
+ * camera until the person ends it. Turning records nothing. The canvas's turning takes it up.
+ */
+export interface GuidedTurnRequest {
+  target: Id;
+  camera: SolidCamera;
+  view?: Id;
+  request: number;
+}
+
 /** Everything Claude's guidance shows now, and what it asks of the tab. */
 export interface GuidanceState {
   marks?: GuidanceMarks;
@@ -113,6 +125,7 @@ export interface GuidanceState {
   layout?: GuidedLayoutRequest;
   tour?: GuidedTourRequest;
   comparison?: GuidedComparisonRequest;
+  turn?: GuidedTurnRequest;
 }
 
 /** No guidance at all. */
@@ -211,6 +224,15 @@ export function applyGuidance(
         request,
       };
       return { ...state, comparison };
+    }
+    case 'turn': {
+      const turn: GuidedTurnRequest = {
+        target: guidance.target,
+        camera: guidance.camera,
+        ...viewOf(guidance),
+        request,
+      };
+      return { ...state, turn };
     }
   }
 }

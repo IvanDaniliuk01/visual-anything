@@ -16,10 +16,14 @@ import {
   modelIndexOf,
   partsOf,
   planAnchoring,
+  planSolidAnchoring,
   shapesInView,
+  solidAnchoringCommand,
+  solidDrawnWithParts,
   type AnchorMatching,
   type AnchorPlan,
   type ProjectSnapshot,
+  type SolidAnchorPlan,
 } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
 import { z } from 'zod';
@@ -49,6 +53,11 @@ Example: { "drawing": "heart", "view": "circulation" }`,
     if (args.drawing !== undefined) {
       const element = modelIndexOf(state).element(args.drawing);
       if (!element) return fail(`There is no element "${args.drawing}".`);
+      if (solidDrawnWithParts(state, element) !== undefined) {
+        return fail(
+          `The element "${element.name}" shows a solid with its parts, which list_solid_parts lists.`,
+        );
+      }
       const shown = imageShownBy(element, definitionsIn(state));
       if (shown?.placement !== 'parts') {
         return fail(
@@ -101,7 +110,7 @@ Example: { "drawing": "heart", "view": "circulation" }`,
 const anchorParts = tool({
   name: 'anchor_parts',
   title: 'Anchor parts of a drawing',
-  description: `Anchors the contents of a drawing with parts to the named parts of its picture, as the app's Anchor parts… does, in one undoable action of yours: each content matched is drawn as its part, in the part's place over the picture, and is then selected, related, focused, filtered and colored by overlays as its element's shape. A part already drawn as a content keeps it; each part and each content is paired at most once, parts in document order, each taking the first content in the model's order it matches.
+  description: `Anchors the contents of a drawing with parts to the named parts of its picture, an SVG image's or a solid's, as the app's Anchor parts… does, in one undoable action of yours: each content matched is drawn as its part, in the part's place over the picture, and is then selected, related, focused, filtered and colored by overlays as its element's shape. A part already drawn as a content keeps it; each part and each content is paired at most once, parts in document order (a solid's in depth-first order), each taking the first content in the model's order it matches. A drawing that shows a solid with its parts anchors to the solid's named parts, its file's named nodes, and each content then names the part with its solid; list_solid_parts lists them.
 
 Match by:
 - "name": the part's id and the content's name read alike whatever their case, accents and separators (left_ventricle, LeftVentricle and "Left ventricle");
@@ -112,7 +121,9 @@ With create, a component's id, each part that matches nothing gets a new element
 
 Example: a heart taken from an anatomical atlas, whose parts carry Uberon ids, with chambers that carry FMA ids, the project's package having an uberon-to-fma crosswalk: { "drawing": "heart", "by": "external", "scheme": "uberon", "view": "circulation" }
 Example: { "drawing": "heart", "by": "name", "create": "anatomy.chamber", "view": "circulation" }
-Example: { "drawing": "floor-plan", "by": "id", "parts": ["room-101", "room-102"] }`,
+Example: { "drawing": "floor-plan", "by": "id", "parts": ["room-101", "room-102"] }
+Example, a robot arm whose solid's nodes are named after its links: { "drawing": "arm", "by": "name", "create": "robotics.link", "view": "structure" }
+Example, a heart whose solid's nodes carry names such as VH_M_mitral_valve, through a crosswalk to Uberon: { "drawing": "heart", "by": "external", "scheme": "hra", "view": "anatomy" }`,
   input: {
     drawing: id().describe('The element that shows its image with its parts.'),
     by: z.enum(['name', 'id', 'external']).describe('How parts are matched to contents.'),
@@ -144,20 +155,27 @@ Example: { "drawing": "floor-plan", "by": "id", "parts": ["room-101", "room-102"
     const state = await program.project();
     const matching: AnchorMatching =
       args.by === 'external' ? { by: 'external', scheme: args.scheme as string } : { by: args.by };
-    const planning = planAnchoring(state, {
+    const request = {
       drawing: args.drawing,
       matching,
       ...(args.view === undefined ? {} : { view: args.view }),
       ...(args.create === undefined ? {} : { create: { component: args.create } }),
       ...(args.parts === undefined ? {} : { parts: args.parts }),
-    });
+    };
+    // A drawing that shows a solid with its parts anchors to the solid's (ADR 0075); a shape that
+    // shows both a solid and an image draws the solid.
+    const drawing = modelIndexOf(state).element(args.drawing);
+    const showsSolid = drawing !== undefined && solidDrawnWithParts(state, drawing) !== undefined;
+    const planning = showsSolid
+      ? planSolidAnchoring(state, request)
+      : planAnchoring(state, request);
     if (!planning.ok)
       return fail(
         `Refused, so nothing changed: ${planning.problem.message} (${planning.problem.code})`,
       );
     const { plan } = planning;
-    const command = anchoringCommand(plan);
-    const summary = summaryOf(plan);
+    const command = 'solid' in plan ? solidAnchoringCommand(plan) : anchoringCommand(plan);
+    const summary = 'solid' in plan ? solidSummaryOf(plan) : summaryOf(plan);
     if (!command) {
       return ok({
         done: 'Nothing matched, so nothing was anchored and nothing was recorded.',
@@ -193,6 +211,29 @@ function summaryOf(plan: AnchorPlan): Record<string, unknown> {
   return {
     drawing: plan.drawing,
     image: { id: plan.image.id, name: plan.image.name },
+    matched,
+    ...(created.length > 0 ? { created } : {}),
+    alreadyAnchored: counted(kept, 'part'),
+    unmatched,
+  };
+}
+
+/** What a plan for a solid's parts did, by part, as {@link summaryOf} says it for an image's. */
+function solidSummaryOf(plan: SolidAnchorPlan): Record<string, unknown> {
+  const matched: { part: string; element: Id; name: string }[] = [];
+  const created: { part: string; name: string }[] = [];
+  const unmatched: string[] = [];
+  let kept = 0;
+  for (const { part, anchor } of plan.parts) {
+    if (anchor.kind === 'matched')
+      matched.push({ part: part.name, element: anchor.element.id, name: anchor.element.name });
+    else if (anchor.kind === 'created') created.push({ part: part.name, name: anchor.name });
+    else if (anchor.kind === 'kept') kept += 1;
+    else unmatched.push(part.name);
+  }
+  return {
+    drawing: plan.drawing,
+    solid: { id: plan.solid.id, name: plan.solid.name },
     matched,
     ...(created.length > 0 ? { created } : {}),
     alreadyAnchored: counted(kept, 'part'),

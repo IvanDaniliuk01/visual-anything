@@ -52,7 +52,14 @@ export interface SolidChoices {
   description?: string;
   source?: string;
   license?: string;
+  /** One of the project's own packages; left out, the first, or a new one named after the project. */
+  package?: string;
 }
+
+/** A file the program prepared, as planning needs it: its bytes, or only how many there are. */
+export type PlannedFile = Pick<PreparedSolid, 'hash' | 'description' | 'fileName' | 'source'> & {
+  bytes: Uint8Array | number;
+};
 
 /** The action that defines a prepared file as a solid, or why it cannot be done. */
 export type PlannedSolid =
@@ -61,12 +68,13 @@ export type PlannedSolid =
 /** Plans the one action that defines a prepared file as a solid, checked as it would run. */
 export function planSolidImport(
   state: ProjectSnapshot,
-  prepared: Pick<PreparedSolid, 'hash' | 'bytes' | 'description' | 'fileName' | 'source'>,
+  prepared: PlannedFile,
   choices: SolidChoices = {},
   generate: IdGenerator = randomIds(),
 ): PlannedSolid {
   const commands: Command[] = [];
-  let packageId = state.packages.find((file) => !builtinPackage(file.id))?.id;
+  const size = typeof prepared.bytes === 'number' ? prepared.bytes : prepared.bytes.length;
+  let packageId = choices.package ?? state.packages.find((file) => !builtinPackage(file.id))?.id;
   if (packageId === undefined) {
     const made = createPackage(state, generate);
     if (!made.ok) return made;
@@ -85,7 +93,7 @@ export function planSolidImport(
       ...(source === undefined ? {} : { source: source.slice(0, 500) }),
       ...(choices.license === undefined ? {} : { license: choices.license }),
       hash: prepared.hash,
-      bytes: prepared.bytes.length,
+      bytes: size,
       bounds: description.bounds,
       counts: description.counts,
       parts: description.parts,

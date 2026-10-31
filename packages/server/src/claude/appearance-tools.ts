@@ -183,10 +183,11 @@ const setAppearance = tool({
 
 Give appearanceTraits to change some traits and keep the others: a value sets a trait, null makes it inherited again. Or give appearance to replace the appearance at that level whole; null removes it.
 
-Shapes' traits: shape (rectangle, rounded-rectangle, ellipse, cylinder or person), fill, stroke, width and height (canvas units), detail ({ componentName, attributes, badges, lines }, each part inherited on its own; lines, from 1 to 6, is how many lines it wraps to, 3 unless set), textPlacement (top, middle or bottom: where the block of the name and the detail sits in the shape; Essence sets middle), contentsAsRows, connectionPoints, image (from list_images), geometry, part, levels and expandFrom (set_levels explains those). Lines' traits: stroke, width, dash (solid, dashed or dotted) and route.
+Shapes' traits: shape (rectangle, rounded-rectangle, ellipse, cylinder or person), fill, stroke, width and height (canvas units), detail ({ componentName, attributes, badges, lines }, each part inherited on its own; lines, from 1 to 6, is how many lines it wraps to, 3 unless set), textPlacement (top, middle or bottom: where the block of the name and the detail sits in the shape; Essence sets middle), contentsAsRows, connectionPoints, image (from list_images), solid, geometry, part, levels and expandFrom (set_levels explains those). Lines' traits: stroke, width, dash (solid, dashed or dotted) and route.
 
 - geometry: the shapes' own outline, drawn in place of their kind: { width, height, outline, keepProportions?, label? }. width and height are the box its coordinates are written in, from its top left; outline holds 1 to 64 contours, { "kind": "path", "d" } in SVG path data (M L H V C S Q T A Z), { "kind": "polygon", "points": "x,y x,y …" } or { "kind": "ellipse", cx, cy, rx, ry }. A contour inside another is a hole. label is where the name goes, in the box. At most 2,000 segments and 32 KiB of path data. "none" takes an inherited one away.
-- part: { part, image }, a named part of an SVG image the shapes are drawn as; image may be left out for an element inside a shape that shows its image with its parts. "none" takes it away. A part the picture lacks is warned about (unknown-part). list_image_parts lists a picture's parts, and anchor_parts anchors a whole drawing's contents at once.
+- solid: { solid, placement, camera, lighting }, from list_solids: placement icon, drawing or parts; lighting studio or flat. "none" takes it away.
+- part: { part, image } or { part, solid }, the named part they are drawn as; image or solid may be left out inside a drawing with parts. "none" takes it away. A part the picture lacks warns unknown-part. list_image_parts and list_solid_parts list parts; anchor_parts anchors a drawing's.
 - route: the style of automatic routes, orthogonal, straight or curved. It comes before a view's routeStyle (update_view).
 
 Colors are #RRGGBB, drawn as stored in both themes. A line needs 3:1 against both canvases: the answer warns about a color under it, and about shapes that blend into a canvas, and never refuses one.
@@ -196,6 +197,7 @@ Example, a heart: { "component": "anatomy.heart", "appearanceTraits": { "geometr
 Example, a triangle: { "element": "warning", "appearanceTraits": { "geometry": { "width": 100, "height": 90, "outline": [{ "kind": "polygon", "points": "50,0 100,90 0,90" }] } } }
 Example, a ring with a hole: { "component": "physics.ring", "appearanceTraits": { "geometry": { "width": 100, "height": 100, "outline": [{ "kind": "path", "d": "M50 0 A50 50 0 1 1 50 100 A50 50 0 1 1 50 0 Z M50 20 A30 30 0 1 1 50 80 A30 30 0 1 1 50 20 Z" }] } } }
 Example, a part of an atlas: { "element": "left-lung", "appearanceTraits": { "part": { "part": "lung-left", "image": "anatomy.body-atlas" } } }
+Example: { "element": "arm", "appearanceTraits": { "solid": { "solid": "robot.arm-k3f9" } } }
 Example: { "relationType": "neuro.nerve", "appearanceTraits": { "route": "curved", "dash": "dashed" } }
 Example: { "component": "systems.service", "appearance": null }`,
   input: {

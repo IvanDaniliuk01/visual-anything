@@ -143,6 +143,15 @@ export interface Program {
   /** Shows guidance in the open apps; resolves with how many it reached. */
   guide(guidance: Guidance): Promise<number>;
   /**
+   * Has the program prepare a glTF file inside the project folder as a solid, by its path from the
+   * folder (ADR 0075): it reads the file itself, cleans it and holds it for ten minutes, changing
+   * nothing. Absent where it cannot.
+   */
+  prepareSolidFile?(
+    path: string,
+    options?: SolidImportOptions,
+  ): Promise<SolidPreparedMessage | SolidRefusedMessage>;
+  /**
    * Lays a view out in the open app, after the layouts asked for before it, and resolves once it is
    * done, with what it moved, or why it was not (M3d). Absent where it cannot wait: `guide` sends it.
    */
@@ -371,6 +380,36 @@ export class ProgramBridge implements Program {
           ...(index === 0 && Object.keys(options).length > 0 ? { options } : {}),
         })),
       // Cleaning has 30 s of its own, after the pieces and the files asked for before it.
+      SOLID_WORKER_WAIT + (this.#options.requestTimeout ?? REQUEST_TIMEOUT),
+    );
+    if (answer.type === 'solid/prepared' || answer.type === 'solid/refused') return answer;
+    if (answer.type === 'command/rejected') {
+      return {
+        type: 'solid/refused',
+        requestId: answer.requestId,
+        code: answer.problems[0]?.code ?? 'program-failed',
+        message: answer.problems.map((each) => each.message).join(' '),
+      };
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  /**
+   * Asks the program to prepare a glTF file inside the project folder as a solid, named by its path
+   * from the folder (ADR 0075): the program reads it itself, only as a regular file inside its folder,
+   * cleans it in its worker and holds it for ten minutes. It changes nothing.
+   */
+  async prepareSolidFile(
+    path: string,
+    options: SolidImportOptions = {},
+  ): Promise<SolidPreparedMessage | SolidRefusedMessage> {
+    const answer = await this.#request(
+      (requestId) => ({
+        type: 'solid/prepare-file',
+        requestId,
+        path,
+        ...(Object.keys(options).length > 0 ? { options } : {}),
+      }),
       SOLID_WORKER_WAIT + (this.#options.requestTimeout ?? REQUEST_TIMEOUT),
     );
     if (answer.type === 'solid/prepared' || answer.type === 'solid/refused') return answer;

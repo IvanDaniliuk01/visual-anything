@@ -170,4 +170,19 @@ describe('applyGuidance for exploring and playback', () => {
     // Clearing the guidance never ends a tour the person watches: the request goes, nothing else.
     expect(applyGuidance(state, { kind: 'clear' }, 6)).toEqual({});
   });
+
+  it('keeps the last request to turn a shape’s solid, with its camera and view', () => {
+    const camera = { azimuth: -90, elevation: 10, zoom: 2 };
+    let state = applyGuidance(NO_GUIDANCE, { kind: 'focus', targets: ['a'] }, 1);
+    state = applyGuidance(state, { kind: 'turn', target: 'arm', camera, view: 'v' }, 2);
+    expect(state.turn).toEqual({ target: 'arm', camera, view: 'v', request: 2 });
+    // The marks stay: turning only asks the canvas to draw one solid live.
+    expect(state.marks?.targets).toEqual(['a']);
+    state = applyGuidance(
+      state,
+      { kind: 'turn', target: 'arm', camera: { azimuth: 0, elevation: 0 } },
+      3,
+    );
+    expect(state.turn).toEqual({ target: 'arm', camera: { azimuth: 0, elevation: 0 }, request: 3 });
+  });
 });

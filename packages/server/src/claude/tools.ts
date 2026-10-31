@@ -55,6 +55,7 @@ import {
 } from './hand-routes';
 import { IMAGE_TOOLS } from './image-tools';
 import { PART_TOOLS } from './part-tools';
+import { SOLID_TOOLS } from './solid-tools';
 import { PROPOSAL_TOOLS, proposalNoteOf } from './proposal-tools';
 import { VERSION_TOOLS } from './version-tools';
 import { CONFLICT_TOOLS } from './conflict-tools';
@@ -1700,8 +1701,10 @@ export const TOOLS: readonly Tool[] = [
   // Tours (ADR 0058).
   ...TOUR_TOOLS,
   ...IMAGE_TOOLS,
-  // Named parts of SVG images (ADR 0067).
+  // Named parts of SVG images (ADR 0067), and of solids (ADR 0075).
   ...PART_TOOLS,
+  // Solids: glTF files cleaned beside the project, drawn inside shapes (ADR 0075).
+  ...SOLID_TOOLS,
   ...CODE_TOOLS,
   // Threads of comments (ADR 0059).
   ...COMMENT_TOOLS,

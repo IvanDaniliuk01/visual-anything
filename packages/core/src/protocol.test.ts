@@ -86,6 +86,10 @@ describe('decodeServerMessage', () => {
     },
     { type: 'guidance', guidance: { kind: 'tour', tour: 'checkout', step: 1 } },
     {
+      type: 'guidance',
+      guidance: { kind: 'turn', target: 'api', camera: { azimuth: 45, elevation: 15 } },
+    },
+    {
       type: 'project/changed',
       operations: [{ op: 'set-project', project: project.project }],
       kind: 'do',
@@ -481,6 +485,60 @@ describe('readGuidance for playing a tour', () => {
     ['a step before the first', { kind: 'tour', tour: 't', step: -1 }],
     ['half a step', { kind: 'tour', tour: 't', step: 0.5 }],
     ['a step that is not a number', { kind: 'tour', tour: 't', step: '2' }],
+  ])('refuses %s', (_case, value) => {
+    expect(() => readGuidance(value)).toThrow(ProtocolError);
+  });
+});
+
+describe('readGuidance for turning a solid', () => {
+  it('reads a shape to turn and the camera to turn its solid to, in a view or the open one', () => {
+    expect(
+      readGuidance({
+        kind: 'turn',
+        target: 'arm',
+        camera: { azimuth: -90, elevation: 10, zoom: 2, projection: 'orthographic' },
+        view: 'structure',
+        targets: ['ignored'],
+      }),
+    ).toEqual({
+      kind: 'turn',
+      target: 'arm',
+      camera: { azimuth: -90, elevation: 10, zoom: 2, projection: 'orthographic' },
+      view: 'structure',
+    });
+    expect(
+      readGuidance({
+        kind: 'turn',
+        target: 'arm',
+        camera: { azimuth: 0, elevation: 0, target: { x: 0, y: 1, z: 0 } },
+      }),
+    ).toEqual({
+      kind: 'turn',
+      target: 'arm',
+      camera: { azimuth: 0, elevation: 0, target: { x: 0, y: 1, z: 0 } },
+    });
+  });
+
+  it.each([
+    ['no target', { kind: 'turn', camera: { azimuth: 0, elevation: 0 } }],
+    ['no camera', { kind: 'turn', target: 'arm' }],
+    [
+      'an azimuth past 180',
+      { kind: 'turn', target: 'arm', camera: { azimuth: 200, elevation: 0 } },
+    ],
+    ['an elevation of 90', { kind: 'turn', target: 'arm', camera: { azimuth: 0, elevation: 90 } }],
+    [
+      'a zoom past 16',
+      { kind: 'turn', target: 'arm', camera: { azimuth: 0, elevation: 0, zoom: 20 } },
+    ],
+    [
+      'a camera with more',
+      { kind: 'turn', target: 'arm', camera: { azimuth: 0, elevation: 0, fov: 60 } },
+    ],
+    [
+      'a view that is not an id',
+      { kind: 'turn', target: 'arm', camera: { azimuth: 0, elevation: 0 }, view: '' },
+    ],
   ])('refuses %s', (_case, value) => {
     expect(() => readGuidance(value)).toThrow(ProtocolError);
   });

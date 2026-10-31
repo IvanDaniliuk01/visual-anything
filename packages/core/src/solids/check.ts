@@ -8,6 +8,7 @@ import type { Appearance, Element } from '@visual-anything/schema';
 import { problem, type Problem } from '../problems';
 import type { ProjectSnapshot } from '../snapshot';
 import { LARGE_PACKAGE_SOLID_BYTES } from './caps';
+import { solidAnchoredElements } from './anchoring';
 import { partSolidId, solidIdOf, solidsIn } from './catalog';
 
 /** What is wrong with a project's solids: errors keep it from opening, warnings do not. */
@@ -82,5 +83,68 @@ export function checkSolids(state: ProjectSnapshot): { errors: Problem[]; warnin
   for (const element of [state.model.world, ...state.model.elements] as Element[]) {
     checkNamed(element.appearance, element.id, `The element "${element.name}"`);
   }
+  // A content that names neither a solid nor an image is drawn as a part of its drawing's solid.
+  for (const { element, part, solids } of solidAnchoredElements(state)) {
+    if (part.solid !== undefined) continue;
+    for (const id of solids) {
+      const defined = catalog.solid(id);
+      if (!defined || defined.definition.parts.some((each) => each.name === part.part)) continue;
+      warnings.push(
+        problem(
+          'unknown-part',
+          `The element "${element.name}" is drawn as the part "${part.part}" of the solid "${defined.definition.name}", which has no such part; it is drawn as an ordinary shape.`,
+          [element.id],
+        ),
+      );
+    }
+  }
   return { errors, warnings };
+}
+
+/** The codes of the warnings an action on solids says when it brings them. */
+const ACTION_CODES: ReadonlySet<Problem['code']> = new Set(['unknown-part', 'unknown-solid']);
+
+/**
+ * The `unknown-part` and `unknown-solid` warnings an action brings (ADR 0075): those its result has
+ * that the project before lacked, as an action on images says its unknown parts. Most projects show
+ * no solid, which costs one look at their packages and appearances.
+ */
+export function newSolidWarnings(before: ProjectSnapshot, after: ProjectSnapshot): Problem[] {
+  const now = actionWarnings(after);
+  if (now.length === 0) return [];
+  const had = new Set(actionWarnings(before).map((each) => each.message));
+  return now.filter((each) => !had.has(each.message));
+}
+
+const actionWarningsOf = new WeakMap<
+  object,
+  { packages: unknown; project: unknown; warnings: readonly Problem[] }
+>();
+
+function actionWarnings(state: ProjectSnapshot): readonly Problem[] {
+  const kept = actionWarningsOf.get(state.model);
+  if (kept && kept.packages === state.packages && kept.project === state.project) {
+    return kept.warnings;
+  }
+  const warnings = namesAnySolid(state)
+    ? checkSolids(state).warnings.filter((each) => ACTION_CODES.has(each.code))
+    : [];
+  actionWarningsOf.set(state.model, {
+    packages: state.packages,
+    project: state.project,
+    warnings,
+  });
+  return warnings;
+}
+
+/** Whether a package defines a solid, or an appearance names one. */
+function namesAnySolid(state: ProjectSnapshot): boolean {
+  if (state.packages.some((file) => (file.solids ?? []).length > 0)) return true;
+  const names = (appearance: Appearance | undefined) =>
+    solidIdOf(appearance) !== undefined || partSolidId(appearance?.part) !== undefined;
+  return (
+    state.packages.some((file) => file.components.some((each) => names(each.appearance))) ||
+    Object.values(state.project.appearances?.components ?? {}).some(names) ||
+    [state.model.world, ...state.model.elements].some((each) => names(each.appearance))
+  );
 }
