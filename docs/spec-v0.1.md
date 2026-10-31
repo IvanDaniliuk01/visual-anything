@@ -1023,12 +1023,13 @@ Its tasks run in this order:
   - drawing only when something changes, and the farthest solids as boxes while the camera moves past the triangles' mark;
   - picking on the solids' bounding volume hierarchies.
   - Done 2026-10-31, by a builder, tested on three.js objects without a renderer; nothing of it has been seen on a GPU yet (ADR 0076's clarification of that date): each piece of a solid an `InstancedMesh` for each look over the solid's own geometry; marks drawn from a pass of their bits as the canvas draws its parts'; the cut capped by back faces drawn flat; lines, names, the scale and the handles on a 2D canvas over the picture; picks answering a relation's line too. Entries gain `as` and `fill`, what a space shows `theme`, `pixelRatio` and `handles`, and a pick `relation`.
-- [ ] **The panel's interaction and its list** (`app/src/space/`):
+- [x] **The panel's interaction and its list** (`app/src/space/`):
   - moving its camera around, panning and zooming it, Fit, framing, and touch;
   - selecting and hovering, linked to the canvas, the outline, the element list and the inspector;
   - Place in physical space, Take out of physical space, and the handles that move and rotate, snapped, each one action;
   - the list of what it shows, by what each is posed or anchored in, with keyboard navigation and announcements;
   - its keys in the keyboard help, and its text in English and Spanish.
+  - Done 2026-10-31, by a builder, against the stand-in worker (ADR 0076's clarification of that date): the camera in `space/orbit.ts` and `space/control.ts`, kept by the tab and eased unless motion is reduced; picks that select elements and relations' lines, and the hover shared with the canvas, the outline and the element list, the canvas marking each shape of what is hovered elsewhere; a container without a solid marking what it holds; handles hit-tested by the page, snapped unless Alt is held, one `set-poses` a gesture; the tools with Place in physical space and Take out of physical space; the list as a tree, with its announcements. A menu at the pointer is left for later.
 - [ ] **Playback, tours, guidance and addresses:**
   - a step's relations drawn in space with travelling markers, and the step brought into view in the panel (ADR 0031's clarification);
   - view addresses and Copy address with `space`;

@@ -87,6 +87,33 @@ describe('the entries a space hands the worker', () => {
     ]);
   });
 
+  it('names a collapsed container that is not in the space by an entry that draws nothing', () => {
+    const at = (x: number) => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, 0, 0, 1];
+    const posed = (element: string, x: number) =>
+      [
+        element,
+        { element, how: 'posed' as const, in: 'world', matrix: at(x), drawnAs: 'room' },
+      ] as const;
+    const space = {
+      entries: new Map([posed('lamp', 1), posed('desk', 3)]),
+      faint: new Map(),
+    };
+    const entries = spaceEntriesOf(space, (id) => (id === 'room' ? 'Room' : id));
+    expect(entries.map((each) => [each.element, each.name, each.as])).toEqual([
+      ['lamp', 'lamp', 'room'],
+      ['desk', 'desk', 'room'],
+      ['room', 'Room', undefined],
+    ]);
+    const room = entries.at(-1);
+    expect(room?.matrix.slice(12, 15)).toEqual([2, 0, 0]);
+    expect(room?.solid ?? room?.part ?? room?.marker).toBeUndefined();
+    // A collapsed container in the space is named by its own entry, as before.
+    const project = workcell({ view: { collapsed: ['table'] } });
+    const named = spaceEntriesOf(spaceOf(project, project.views[0]), name(project));
+    expect(named.filter((each) => each.element === 'table')).toHaveLength(1);
+    expect(named.find((each) => each.element === 'camera')?.as).toBe('table');
+  });
+
   it('shortens a name past what the worker takes', () => {
     const project = workcell();
     const entries = spaceEntriesOf(spaceOf(project), () => 'x'.repeat(500));

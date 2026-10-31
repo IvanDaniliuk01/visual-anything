@@ -52,9 +52,9 @@ function setUp(options: { project?: ProjectSnapshot; client?: boolean } = {}) {
             return worker;
           },
         });
-  const editor = { project, viewId: VIEW } as unknown as Editor;
   function Harness({ selection, children }: { selection: Selection; children?: ReactNode }) {
     useSpacePanelShortcut(store, VIEW, false);
+    const editor = { project, viewId: VIEW, selection } as unknown as Editor;
     return (
       <EditorContext.Provider value={editor}>
         <SpacePanelContext value={store}>
@@ -106,7 +106,9 @@ describe('the physical-space panel', () => {
     await settle();
     const panel = screen.getByRole('region', { name: 'Physical space' });
     expect(panel).toHaveTextContent('Shows “World”');
-    expect(screen.getByRole('img', { name: 'Physical space: 5 elements' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('application', { name: 'Physical space: 5 elements' }),
+    ).toBeInTheDocument();
     const [shown] = worker()?.ofType('space/show') ?? [];
     expect(shown?.entries.map((entry) => entry.element)).toEqual([
       'world',

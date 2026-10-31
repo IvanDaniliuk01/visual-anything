@@ -99,6 +99,11 @@
 
 /* Trees: the viewport scrolls, and only the rows in it are drawn, each at its place. */
 
+/* What hears the outline's rows hovered, without a box of its own (ADR 0076). */
+.outline-hover {
+  display: contents;
+}
+
 .tree-viewport {
   position: relative;
   flex: 1 1 auto;

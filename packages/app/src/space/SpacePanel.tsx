@@ -10,8 +10,9 @@
  * draws only when something does. When nothing the view shows is in the space, it says how to put
  * something there.
  *
- * Moving its camera, picking, the handles, its list and its announcements are the panel's
- * interaction's; the camera here is the one its state gives, or the one that frames everything.
+ * Its camera, picking, the handles, its tools, its list and its announcements are the panel's
+ * interaction's (`SpaceControl`, `useSpaceInteraction`, `SpaceTools`, `SpaceList`); the camera is
+ * the one its state gives, or the one that frames everything.
  */
 import {
   definitionsIn,
@@ -23,6 +24,7 @@ import {
 } from '@visual-anything/core';
 import type { Color, Id, ViewFile } from '@visual-anything/schema';
 import {
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -46,9 +48,14 @@ import {
   type SpaceFrameReply,
   type SpaceShown,
 } from '../solids/protocol';
+import { useReducedMotion } from '../scenarios/motion';
 import { usePreferences } from '../theme/usePreferences';
 import { useSpacePanelState } from './context';
 import { changeOf } from './changes';
+import { SpaceControl } from './control';
+import { SpaceList } from './SpaceList';
+import { SpaceTools } from './SpaceTools';
+import { useSpaceInteraction, type HandleMode } from './useSpaceInteraction';
 import { drawsNothing, spaceEntriesOf } from './entries';
 import { SpacePanelEdge } from './SpacePanelEdge';
 import { shapeEmphasisOf, spaceStateList, spaceStates, type SpaceOverlayLook } from './states';
@@ -67,6 +74,10 @@ interface SpacePanelProps {
   /** The live session's solid client; absent, the panel says it cannot draw. */
   client: SolidClient | undefined;
 }
+
+/** How the panel's frames are moved through from the keyboard, as a screen reader hears it. */
+const SPACE_HINT =
+  'Arrow keys turn the space, Shift with them pans, + and − zoom, 0 fits everything and Enter frames the selection; M and R choose whether the handles move or rotate.';
 
 /** What the panel says when the view holds nothing in physical space. */
 const NOTHING_IN_SPACE =
@@ -100,6 +111,15 @@ function OpenSpacePanel({
   const index = modelIndexOf(project);
   const root = index.element(space.root);
   const empty = drawsNothing(space);
+  const control = useSpaceControl(store, view.id);
+  const [mode, setMode] = useState<HandleMode>('move');
+  // Each message counts, so that the same words said again are heard again.
+  const [message, setMessage] = useState({ text: '', count: 0 });
+  const say = useCallback(
+    (text: string) => setMessage((last) => ({ text, count: last.count + 1 })),
+    [],
+  );
+  const drawn = !empty && client !== undefined;
   return (
     <section className="space-panel" id={id} aria-labelledby={heading}>
       <div className="space-panel-bar">
@@ -119,10 +139,24 @@ function OpenSpacePanel({
           <span aria-hidden="true">×</span>
         </button>
       </div>
+      {drawn && (
+        <SpaceTools
+          project={project}
+          space={space}
+          control={control}
+          mode={mode}
+          setMode={setMode}
+          say={say}
+        />
+      )}
       {empty ? (
         <p className="space-panel-message">{t(NOTHING_IN_SPACE)}</p>
       ) : client ? (
         <SpaceFrames
+          control={control}
+          mode={mode}
+          setMode={setMode}
+          say={say}
           client={client}
           project={project}
           view={view}
@@ -136,11 +170,29 @@ function OpenSpacePanel({
           {t('Physical space is drawn while Visual Anything is connected.')}
         </p>
       )}
+      {drawn && <SpaceList project={project} space={space} control={control} say={say} />}
+      <p role="status" className="visually-hidden">
+        {message.text}
+        {message.count % 2 === 1 ? ' ' : ''}
+      </p>
     </section>
   );
 }
 
+/** The panel's camera for a view while it is open, which eases unless motion is reduced. */
+function useSpaceControl(store: SpacePanelStore, viewId: Id): SpaceControl {
+  const control = useMemo(() => new SpaceControl(store, viewId), [store, viewId]);
+  useEffect(() => () => control.dispose(), [control]);
+  const reduced = useReducedMotion();
+  useEffect(() => control.setReduced(reduced), [control, reduced]);
+  return control;
+}
+
 interface SpaceFramesProps {
+  control: SpaceControl;
+  mode: HandleMode;
+  setMode: (mode: HandleMode) => void;
+  say: (text: string) => void;
   client: SolidClient;
   project: ProjectSnapshot;
   view: ViewFile;
@@ -151,8 +203,21 @@ interface SpaceFramesProps {
 }
 
 /** The worker's frames of the space, and what it is sent as what the panel shows changes. */
-function SpaceFrames({ client, project, view, scene, selection, space, shown }: SpaceFramesProps) {
+function SpaceFrames({
+  control,
+  mode,
+  setMode,
+  say,
+  client,
+  project,
+  view,
+  scene,
+  selection,
+  space,
+  shown,
+}: SpaceFramesProps) {
   const t = useT();
+  const hint = useId();
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const size = useFrameSize(box, client.limits?.largestPicture ?? LARGEST_SOLID_PICTURE);
@@ -186,14 +251,29 @@ function SpaceFrames({ client, project, view, scene, selection, space, shown }: 
           selected: selection.elements,
           hovered,
           overlay,
+          containersOf: (element) => index.containersOf(element),
+          world: index.world.id,
         }),
       ),
-    [space, scene, emphasis, selection.elements, hovered, overlay],
+    [space, scene, emphasis, selection.elements, hovered, overlay, index],
   );
+  const interaction = useSpaceInteraction({
+    control,
+    canvas,
+    size,
+    pixelRatio,
+    space,
+    entries,
+    mode,
+    setMode,
+    say,
+  });
+  const drawnEntries = interaction.entries;
+  const handles = interaction.handles;
   const now = useMemo(
     (): SpaceShown => ({
       size,
-      entries,
+      entries: drawnEntries,
       states,
       ...(shown.camera ? { camera: shown.camera } : {}),
       ...(shown.cut ? { cut: shown.cut } : {}),
@@ -201,8 +281,20 @@ function SpaceFrames({ client, project, view, scene, selection, space, shown }: 
       ...(shown.names === undefined ? {} : { names: shown.names }),
       theme,
       pixelRatio,
+      ...(handles ? { handles } : {}),
     }),
-    [size, entries, states, shown.camera, shown.cut, shown.explode, shown.names, theme, pixelRatio],
+    [
+      size,
+      drawnEntries,
+      states,
+      shown.camera,
+      shown.cut,
+      shown.explode,
+      shown.names,
+      theme,
+      pixelRatio,
+      handles,
+    ],
   );
   const [problem, setProblem] = useState<SolidProblem>();
   const drawing = useRef<SpaceDrawing | undefined>(undefined);
@@ -220,11 +312,13 @@ function SpaceFrames({ client, project, view, scene, selection, space, shown }: 
       onProblem: setProblem,
     });
     drawing.current = started;
+    control.attach(started);
     return () => {
       started.end();
       drawing.current = undefined;
+      control.attach(undefined);
     };
-  }, [client]);
+  }, [client, control]);
 
   // What changed, and nothing else, so that the worker draws only when something does.
   useEffect(() => {
@@ -238,12 +332,18 @@ function SpaceFrames({ client, project, view, scene, selection, space, shown }: 
       <canvas
         ref={canvas}
         className="space-panel-canvas"
-        role="img"
+        role="application"
+        aria-roledescription={t('physical space')}
         aria-label={t(
           { one: 'Physical space: {count} element', other: 'Physical space: {count} elements' },
           { count: space.entries.size },
         )}
+        aria-describedby={hint}
+        {...interaction.props}
       />
+      <p id={hint} className="visually-hidden">
+        {t(SPACE_HINT)}
+      </p>
       {problem?.code === 'unavailable' && (
         <p className="space-panel-message">
           {t('This browser cannot draw physical space: it has no WebGL.')}

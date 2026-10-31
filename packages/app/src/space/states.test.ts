@@ -127,6 +127,76 @@ describe('the states of what is in physical space', () => {
     expect(spaceStateList(got)).toEqual([{ element: 'room', selected: true, faint: true }]);
   });
 
+  it('marks everything a selected or hovered container without a solid holds, at any depth', () => {
+    // A rig with no solid holds a bench, which holds a vice; an arm with a solid holds its wrist.
+    const holds: Record<string, string[]> = {
+      bench: ['rig'],
+      vice: ['bench'],
+      wrist: ['arm'],
+      lamp: ['room'],
+    };
+    const solid = { id: 's', definition: {} as never };
+    const space = spaceOf(
+      [
+        entry('world', { how: 'root' }),
+        entry('rig'),
+        entry('bench', { in: 'rig' }),
+        entry('vice', { in: 'bench' }),
+        entry('arm', { solid }),
+        entry('wrist', { how: 'anchored', in: 'arm' }),
+        // A container that is not in the space at all, with its lamp posed in World.
+        entry('lamp'),
+      ],
+      [],
+    );
+    const containersOf = (element: string) => holds[element] ?? [];
+    const got = spaceStates({
+      space,
+      shapes: [],
+      emphasis: NONE,
+      selected: new Set(['rig', 'arm', 'room']),
+      hovered: 'bench',
+      containersOf,
+      world: 'world',
+    });
+    expect(got).toEqual(
+      new Map([
+        ['rig', { selected: true }],
+        ['bench', { selected: true, hovered: true }],
+        ['vice', { selected: true, hovered: true }],
+        // An arm that draws a solid marks only itself.
+        ['arm', { selected: true }],
+        ['lamp', { selected: true }],
+      ]),
+    );
+    // World selected marks only World.
+    const world = spaceStates({
+      space,
+      shapes: [],
+      emphasis: NONE,
+      selected: new Set(['world']),
+      containersOf: () => ['world'],
+      world: 'world',
+    });
+    expect([...world.keys()]).toEqual(['world']);
+  });
+
+  it('gives a collapsed container that is not an entry a state of its own', () => {
+    const got = spaceStates({
+      space: spaceOf([entry('lamp', { drawnAs: 'room' }), entry('desk', { drawnAs: 'room' })]),
+      shapes: [{ key: 'world/room', element: 'room' }],
+      emphasis: { ...NONE, highlighted: new Set(['world/room']) },
+      selected: new Set(),
+    });
+    expect(got).toEqual(
+      new Map([
+        ['lamp', { highlighted: true }],
+        ['desk', { highlighted: true }],
+        ['room', { highlighted: true }],
+      ]),
+    );
+  });
+
   it('follows its rules for any emphasis of elements drawn in several containers', () => {
     const elements = ['e0', 'e1', 'e2', 'e3'];
     const keys = elements.flatMap((element) => [`a/${element}`, `b/${element}`]);

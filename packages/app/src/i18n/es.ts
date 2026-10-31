@@ -1398,6 +1398,66 @@ export const ui: Catalog = {
     'Flechas izquierda y derecha, en el borde del panel del espacio físico',
   'Make the panel wider or narrower by 16 pixels; Home and End make it as narrow or as wide as it goes, from 280 pixels to half the window':
     'Ensanchar o estrechar el panel 16 píxeles; Inicio y Fin lo dejan tan estrecho o tan ancho como puede ser, de 280 píxeles a la mitad de la ventana',
+  // M10: the panel's interaction and its list (ADR 0076): its camera, its tools, its handles, its
+  // list and what it says of where an element is. Posed is "ubicado"; the panel "muestra" its element.
+  'Arrow keys, in the physical-space panel': 'Flechas, en el panel del espacio físico',
+  'Turn the space as dragging that way does; with Shift, pan it':
+    'Girar el espacio como lo hace arrastrar en ese sentido; con Mayús, desplazarlo',
+  '+, − and 0, in the physical-space panel': '+, − y 0, en el panel del espacio físico',
+  'Zoom in, zoom out, and fit everything the panel shows':
+    'Acercar, alejar y encuadrar todo lo que muestra el panel',
+  'Enter, in the physical-space panel': 'Enter, en el panel del espacio físico',
+  'Frame the selection; in the panel’s list, select the row’s element and frame it':
+    'Encuadrar la selección; en la lista del panel, seleccionar el elemento de la fila y encuadrarlo',
+  'Drag, Shift+drag and the wheel, in the physical-space panel':
+    'Arrastrar, Mayús+arrastrar y la rueda, en el panel del espacio físico',
+  'Turn, pan and zoom; with two fingers, pan and pinch to zoom; a double click frames what is there':
+    'Girar, desplazar y hacer zoom; con dos dedos, desplazar y pellizcar para hacer zoom; un doble clic encuadra lo que hay allí',
+  'M and R, in the physical-space panel': 'M y R, en el panel del espacio físico',
+  'Choose whether the handles move or rotate the selected posed elements':
+    'Elegir si los controles mueven o rotan los elementos ubicados seleccionados',
+  'Alt while dragging a handle (⌥ on macOS)': 'Alt mientras se arrastra un control (⌥ en macOS)',
+  'Move or rotate without snapping to 1 cm and 15°': 'Mover o rotar sin ajustarse a 1 cm y 15°',
+  'Escape, in the physical-space panel': 'Esc, en el panel del espacio físico',
+  'Let a handle’s gesture go, or clear the selection':
+    'Soltar el gesto de un control, o vaciar la selección',
+  'physical space': 'espacio físico',
+  'Arrow keys turn the space, Shift with them pans, + and − zoom, 0 fits everything and Enter frames the selection; M and R choose whether the handles move or rotate.':
+    'Las flechas giran el espacio, con Mayús lo desplazan, + y − hacen zoom, 0 encuadra todo y Enter encuadra la selección; M y R eligen si los controles mueven o rotan.',
+  'Physical space tools': 'Herramientas del espacio físico',
+  'Fit everything (0)': 'Encuadrar todo (0)',
+  Frame: 'Encuadrar la selección',
+  'Frame the selection (Enter)': 'Encuadrar la selección (Enter)',
+  Rotate: 'Rotar',
+  'Move with the handles (M)': 'Mover con los controles (M)',
+  'Rotate with the handles (R)': 'Rotar con los controles (R)',
+  'The handles move.': 'Los controles mueven.',
+  'The handles rotate.': 'Los controles rotan.',
+  'Placed {count} elements in physical space.':
+    'Se ubicaron {count} elementos en el espacio físico.',
+  'Placed “{name}” in physical space, in {container}.':
+    'Se ubicó “{name}” en el espacio físico, en {container}.',
+  'Placed “{name}” in World, which this panel does not show.':
+    'Se ubicó “{name}” en Mundo, que este panel no muestra.',
+  'Took {count} elements out of physical space.':
+    'Se sacaron {count} elementos del espacio físico.',
+  'What the panel shows': 'Lo que muestra el panel',
+  shown: 'mostrado',
+  posed: 'ubicado',
+  anchored: 'anclado',
+  'not in this view': 'no está en esta vista',
+  '{name}, not in this physical space': '{name}, no está en este espacio físico',
+  '{name}, drawn faintly: this view does not show it':
+    '{name}, dibujado tenue: esta vista no lo muestra',
+  '{name}, which the panel shows': '{name}, que muestra el panel',
+  '{name}, anchored to the part “{part}” of {container}':
+    '{name}, anclado a la parte “{part}” de {container}',
+  '{name}, posed in {container}, at its origin': '{name}, ubicado en {container}, en su origen',
+  '{name}, posed in {container}, {distance} from it':
+    '{name}, ubicado en {container}, a {distance} de él',
+  ', drawn as {container}, which is collapsed': ', dibujado como {container}, que está contraído',
+  '{count} elements selected, {inSpace} of them in this physical space.':
+    '{count} elementos seleccionados, {inSpace} de ellos en este espacio físico.',
   // M10: the inspector's Pose section, Show in physical space in the shape's menu, and the outline's
   // mark (ADR 0076). A pose is "ubicación" and posing "ubicar"; an image's or a solid's placement is
   // "colocación", so that the two never read alike.

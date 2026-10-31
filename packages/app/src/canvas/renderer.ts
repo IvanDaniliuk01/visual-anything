@@ -602,6 +602,8 @@ export class CanvasRenderer {
   private indexed: IndexedScene | undefined;
   private selection: Selection = EMPTY_SELECTION;
   private hovered: string | undefined;
+  /** The element hovered elsewhere, in the physical-space panel, the outline or the element list. */
+  private linkedHover: Id | undefined;
   private overlay: Overlay = {};
   /** What a drag takes out of the tiles. */
   private hidden: Hidden = NOTHING_HIDDEN;
@@ -909,6 +911,27 @@ export class CanvasRenderer {
     }
     this.markSolidParts();
     this.requestRender();
+  }
+
+  /**
+   * Marks every shape of an element hovered elsewhere, as the physical-space panel, the outline or the
+   * element list hovers it (ADR 0076), as the shape under the pointer is marked; none takes it away.
+   */
+  setLinkedHover(element: Id | undefined): void {
+    if (element === this.linkedHover) return;
+    this.noteActivity();
+    this.linkedHover = element;
+    this.drawHover();
+    this.requestRender();
+  }
+
+  /** The shapes the hover marks: the one under the pointer, and each of the element hovered elsewhere. */
+  get hoverMarked(): readonly string[] {
+    const keys = this.hovered === undefined ? [] : [this.hovered];
+    const linked =
+      this.linkedHover === undefined ? undefined : this.indexed?.byElement.get(this.linkedHover);
+    for (const shape of linked ?? []) if (shape.key !== this.hovered) keys.push(shape.key);
+    return keys;
   }
 
   /**
@@ -3774,11 +3797,18 @@ export class CanvasRenderer {
     const shape = this.hovered === undefined ? undefined : this.indexed?.byKey.get(this.hovered);
     this.besideHovered = shape && namedBeside(shape) ? [shape] : [];
     this.showNamesBeside();
-    if (!shape) return;
-    // An anchored part of a solid is marked by the solid layer, along its edges (ADR 0075).
-    if (isAnchoredSolidPart(shape)) return;
-    traceMark(mark, shape, 3 / this.camera.scale);
-    mark.stroke({ color: this.painter.theme.selected, width: 1 / this.camera.scale });
+    // The element hovered elsewhere is marked in each of its shapes that is drawn (ADR 0076).
+    const hidden = this.linkedHover === undefined ? undefined : this.hiddenByEmphasis;
+    const shapes = this.hoverMarked
+      .map((key) => this.indexed?.byKey.get(key))
+      .filter((each): each is ElementShape => each !== undefined)
+      .filter((each) => each === shape || !hidden?.has(each.key));
+    for (const each of shapes) {
+      // An anchored part of a solid is marked by the solid layer, along its edges (ADR 0075).
+      if (isAnchoredSolidPart(each)) continue;
+      traceMark(mark, each, 3 / this.camera.scale);
+      mark.stroke({ color: this.painter.theme.selected, width: 1 / this.camera.scale });
+    }
   }
 
   /** Writes the names the hover and selection marks write beside their shapes, the hovered first. */
