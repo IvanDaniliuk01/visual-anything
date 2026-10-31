@@ -75,7 +75,8 @@ export async function exportPage(
 /**
  * The files of the solids the project's views show, for a page (ADR 0075): none for views that show
  * none; none, said in `warnings`, without the solid worker that draws them; and those it could not
- * read left out, said there too.
+ * read left out, said there too. When it could read none, the page holds none, and so no worker for
+ * nothing.
  */
 async function solidsOfPage(
   project: ProjectSnapshot,
@@ -105,6 +106,7 @@ async function solidsOfPage(
         : `${missing} solids’ files could not be read, and the page draws them as their placeholders.`,
     );
   }
+  if (missing === hashes.length) return undefined;
   return { form: 'files', files };
 }
 

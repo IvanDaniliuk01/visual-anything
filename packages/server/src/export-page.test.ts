@@ -180,8 +180,11 @@ describe('visual-anything export --format page, with solids', () => {
     expect(err).toContain(
       'One solid’s file could not be read, and the page draws it as its placeholder.',
     );
-    const read = pageProject(await readFile(join(folder, 'robot.html'), 'utf8'));
-    expect(read.solids).toEqual({ form: 'files', files: {} });
+    // It could read no solid's file, so the page holds no solids and no worker for nothing.
+    const html = await readFile(join(folder, 'robot.html'), 'utf8');
+    expect(pageProject(html).solids).toBeUndefined();
+    expect(html).not.toContain(`id="${SOLID_WORKER_ID}"`);
+    expect(html).toContain("worker-src 'none'");
   });
 
   it('holds no solids without the solid worker, and says so', async () => {

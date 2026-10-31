@@ -219,7 +219,7 @@ describe('turning a solid on the canvas', () => {
       {
         type: 'set-component-appearance',
         component: 'robotics.arm',
-        appearance: {
+        appearanceTraits: {
           solid: { solid: ARM_ID, placement: 'parts', camera: { azimuth: 15, elevation: 20 } },
         },
       },

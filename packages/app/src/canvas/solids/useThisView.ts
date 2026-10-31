@@ -8,6 +8,9 @@
  *   ADR 0034): the project appearance for a built-in component, the component itself for one of the
  *   project's own. The solid its shapes show is set there whole, with the new camera, so that a solid
  *   inherited from further up is kept as it is shown.
+ *
+ * Either way it changes the solid trait alone (`appearanceTraits`), so that another trait changed
+ * meanwhile, by the person elsewhere or by Claude, is kept.
  */
 import {
   definitionsIn,
@@ -61,14 +64,13 @@ export function commandForThisView(
     return {
       type: 'update-element',
       id: element.id,
-      changes: { appearance: { ...element.appearance, solid: next } },
+      changes: { appearanceTraits: { solid: next } },
     };
   }
-  const editable = editableAppearanceOf(state, 'component', element.component);
-  if (!editable) return undefined;
+  if (!editableAppearanceOf(state, 'component', element.component)) return undefined;
   return {
     type: 'set-component-appearance',
     component: element.component,
-    appearance: { ...editable.appearance, solid: next },
+    appearanceTraits: { solid: next },
   };
 }

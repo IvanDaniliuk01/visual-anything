@@ -9,16 +9,18 @@ import {
   modelIndexOf,
   plainText,
   relationTypeOrRelatesTo,
+  solidsIn,
   type ModelIndex,
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Id, Relation } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
-import { t, type PluralText } from '../i18n';
+import { t, type PluralText, type Translator } from '../i18n';
 import type { IndexedScene } from './hit';
 import { faceDetail } from './faces';
 import { drawnRelations } from './navigation';
 import type { ElementShape } from './scene';
+import { isAnchoredSolidPart } from './solidMark';
 import { detailPlainText } from '../text/detail';
 
 /** Where a relation is among the relations of the element the keys step through. */
@@ -70,12 +72,16 @@ export function describeShape(
     };
     return withLeaving(
       shape,
-      values.detail === ''
-        ? t('{name}, {component}, row {position} of {count} in {container}, {relations}.', values)
-        : t(
-            '{name}, {component}, {detail}, row {position} of {count} in {container}, {relations}.',
-            values,
-          ),
+      withSolid(
+        project,
+        shape,
+        values.detail === ''
+          ? t('{name}, {component}, row {position} of {count} in {container}, {relations}.', values)
+          : t(
+              '{name}, {component}, {detail}, row {position} of {count} in {container}, {relations}.',
+              values,
+            ),
+      ),
     );
   }
   const values = {
@@ -87,10 +93,48 @@ export function describeShape(
   };
   return withLeaving(
     shape,
-    values.detail === '' || values.detail === values.component
-      ? t('{name}, {component}, {where}, {relations}.', values)
-      : t('{name}, {component}, {detail}, {where}, {relations}.', values),
+    withSolid(
+      project,
+      shape,
+      values.detail === '' || values.detail === values.component
+        ? t('{name}, {component}, {where}, {relations}.', values)
+        : t('{name}, {component}, {detail}, {where}, {relations}.', values),
+    ),
   );
+}
+
+/**
+ * What a shape says of the solid it shows (ADR 0075): its description, which is its text alternative,
+ * as the inspector and the outline in Markdown give it, or that its solid has no description. Empty
+ * for a shape that shows no solid a package defines, or that is drawn as one of a solid's parts,
+ * which is said as any shape is.
+ */
+export function solidNote(
+  translate: Translator,
+  project: ProjectSnapshot,
+  shape: Pick<ElementShape, 'solid' | 'part'>,
+): string {
+  if (!shape.solid || isAnchoredSolidPart(shape)) return '';
+  const definition = solidsIn(project).solid(shape.solid.id)?.definition;
+  if (!definition) return '';
+  const description = definition.description?.trim();
+  return description
+    ? translate(', with a solid: {description}', { description })
+    : translate(', with the solid “{solid}”, which has no description', {
+        solid: definition.name,
+      });
+}
+
+/**
+ * A shape's sentence with what it says of its solid at its end, after its relations, since a
+ * description can be long: the sentence's own full stop moves after it, unless the description
+ * ends a sentence of its own.
+ */
+function withSolid(project: ProjectSnapshot, shape: ElementShape, said: string): string {
+  const note = solidNote(t, project, shape);
+  if (note === '') return said;
+  const sentence = said.endsWith('.') ? said.slice(0, -1) : said;
+  return /[.!?…]$/.test(note) ? `${sentence}${note}` : `${sentence}${note}.`;
 }
 
 /**

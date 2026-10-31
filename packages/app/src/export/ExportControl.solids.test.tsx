@@ -15,7 +15,7 @@ import { ARM_FILE, withSolids } from '../test/solids';
 import { PAGE_DATA_ID } from '../viewer/data';
 import { SOLID_WORKER_ID, type ViewerAssets } from '../viewer/page';
 import { ExportControl } from './ExportControl';
-import type { PageSolidSource } from './page-export';
+import { gatherPageSolids, type PageSolidSource } from './page-export';
 import type { SolidPainter } from './solid-pictures';
 import { ImageSource, type ImageMaker } from './source';
 
@@ -141,5 +141,21 @@ describe('Export → Read-only page, with solids', () => {
     expect(held.solids?.form).toBe('pictures');
     expect(held.solids?.pictures.length).toBeGreaterThan(0);
     for (const picture of held.solids?.pictures ?? []) expect(picture.png).toMatch(/^iVBORw0KGgo/);
+  });
+});
+
+describe('gathering the files of a page’s solids', () => {
+  it('holds none when no file could be had, so the page holds no worker for nothing', async () => {
+    const none: PageSolidSource = {
+      files: {
+        get: () =>
+          Promise.resolve({ ok: false, code: 'solid-file-missing', message: 'No such file.' }),
+      },
+    };
+    expect(await gatherPageSolids(withSolids(), 'files', none)).toEqual({ missing: 1 });
+    expect(await gatherPageSolids(withSolids(), 'files', source)).toEqual({
+      solids: { form: 'files', files: { [solidHash(ARM_FILE)]: encodeBase64(ARM_FILE) } },
+      missing: 0,
+    });
   });
 });

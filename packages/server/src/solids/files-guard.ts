@@ -66,6 +66,26 @@ const SYNC_AND_CALLBACK = [
   'existsSync',
   'watch',
   'watchFile',
+  'openAsBlob',
+  'glob',
+  'globSync',
+  'statfs',
+  'statfsSync',
+  'mkdtemp',
+  'mkdtempSync',
+  'truncate',
+  'truncateSync',
+  'chmod',
+  'chmodSync',
+  'utimes',
+  'utimesSync',
+  // By a file descriptor, such as one the thread was given.
+  'read',
+  'readSync',
+  'fstat',
+  'fstatSync',
+  'readv',
+  'readvSync',
 ] as const;
 
 const PROMISES = [
@@ -89,6 +109,12 @@ const PROMISES = [
   'cp',
   'access',
   'watch',
+  'glob',
+  'statfs',
+  'mkdtemp',
+  'truncate',
+  'chmod',
+  'utimes',
 ] as const;
 
 let guarded = false;

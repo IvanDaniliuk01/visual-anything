@@ -89,7 +89,8 @@ export interface GatheredSolids {
 /**
  * Gathers what a page holds of the solids its views show (ADR 0075): every file they draw from, by its
  * hash, from the program; or every picture their shapes draw, at two pixels a unit, as the SVG's,
- * drawn by the solid worker, once for each picture. Nothing for a project whose views show no solid.
+ * drawn by the solid worker, once for each picture. Nothing for a project whose views show no solid,
+ * nor when no file could be had, so that the page holds no solid worker for nothing.
  */
 export async function gatherPageSolids(
   project: ProjectSnapshot,
@@ -106,6 +107,7 @@ export async function gatherPageSolids(
       if (got.ok) files[hash] = encodeBase64(got.bytes);
       else missing += 1;
     }
+    if (missing === hashes.length) return { missing };
     return { solids: { form: 'files', files }, missing };
   }
   const asks = new Map<string, NonNullable<ReturnType<typeof solidAskFor>>>();

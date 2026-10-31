@@ -3,13 +3,30 @@
  * cap within them, reaches neither the network nor a file, and is stopped when it runs past either.
  */
 import { Worker } from 'node:worker_threads';
-import { readSolid } from '@visual-anything/core';
+import { readImageHeader, readSolid, SOLID_CAPS } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
 import { fromSources } from '../drawings/make';
 import { cleanSolid } from './clean';
 import { SOLID_WORKER_LIMITS, checkInWorker, cleanInWorker } from './cleaner';
 import { AT_THE_CAPS, solidAtTheCaps } from './test/caps';
 import { box, inputGlb } from './test/gltf';
+
+/** The size and bytes of each texture a canonical file holds, in its images' order. */
+function texturesOf(bytes: Uint8Array): { width: number; height: number; bytes: number }[] {
+  const view = new DataView(bytes.buffer, bytes.byteOffset);
+  const length = view.getUint32(12, true);
+  const json = JSON.parse(new TextDecoder().decode(bytes.subarray(20, 20 + length))) as {
+    images?: { bufferView: number }[];
+    bufferViews: { byteOffset?: number; byteLength: number }[];
+  };
+  const bin = bytes.subarray(20 + length + 8);
+  return (json.images ?? []).map((image) => {
+    const at = json.bufferViews[image.bufferView] as { byteOffset?: number; byteLength: number };
+    const picture = bin.subarray(at.byteOffset ?? 0, (at.byteOffset ?? 0) + at.byteLength);
+    const header = readImageHeader(picture);
+    return { width: header?.width ?? 0, height: header?.height ?? 0, bytes: picture.length };
+  });
+}
 
 const ARM = inputGlb({
   nodes: [
@@ -49,12 +66,28 @@ describe('the cleaner’s worker thread (ADR 0075)', () => {
     expect(seconds).toBeLessThan(SOLID_WORKER_LIMITS.timeMs / 1000);
     const read = readSolid(result.bytes);
     expect(read.ok).toBe(true);
+    expect(result.bytes.length).toBeLessThanOrEqual(SOLID_CAPS.fileBytes);
+    // The description counts what the file keeps; its nodes draw each mesh twice, to the caps.
     expect(result.description.counts).toEqual({
-      triangles: AT_THE_CAPS.triangles,
-      vertices: AT_THE_CAPS.vertices,
+      triangles: AT_THE_CAPS.storedTriangles,
+      vertices: AT_THE_CAPS.storedVertices,
       nodes: AT_THE_CAPS.parts * 2,
       textures: AT_THE_CAPS.textures,
     });
+    expect(AT_THE_CAPS.storedTriangles * 2).toBe(SOLID_CAPS.triangles);
+    expect(AT_THE_CAPS.storedVertices * 2).toBe(SOLID_CAPS.vertices);
+    // Its textures are kept whole, at a solid's largest side, and come to nearly 16 MiB.
+    const textures = texturesOf(result.bytes);
+    expect(textures).toHaveLength(SOLID_CAPS.textures);
+    for (const texture of textures) {
+      expect([texture.width, texture.height]).toEqual([
+        SOLID_CAPS.textureSide,
+        SOLID_CAPS.textureSide,
+      ]);
+    }
+    const textureBytes = textures.reduce((sum, texture) => sum + texture.bytes, 0);
+    expect(textureBytes).toBeLessThanOrEqual(SOLID_CAPS.textureBytes);
+    expect(textureBytes).toBeGreaterThan(SOLID_CAPS.textureBytes * 0.99);
     expect(result.description.parts).toHaveLength(AT_THE_CAPS.parts);
     expect(result.description.animations).toHaveLength(AT_THE_CAPS.animations);
   }, 180_000);
@@ -127,9 +160,11 @@ describe('the file guard of the cleaner’s worker', () => {
       },
     );
     await worker.terminate();
-    expect(Object.values(answer.results)).toEqual(
-      Array.from({ length: 9 }, () => 'Cleaning a solid reads no file.'),
+    const tried = Object.keys(answer.results);
+    expect(tried).toHaveLength(29);
+    expect(answer.results).toEqual(
+      Object.fromEntries(tried.map((name) => [name, 'Cleaning a solid reads no file.'])),
     );
-    expect(answer.attempts).toBe(9);
+    expect(answer.attempts).toBe(tried.length);
   }, 60_000);
 });

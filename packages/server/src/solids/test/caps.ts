@@ -1,28 +1,84 @@
 /**
- * A file at every cap of a solid (ADR 0075), made in the test that cleans it and never kept: 1,000,000
- * triangles and 1,000,000 vertices, 8,192 nodes of which 4,096 are named parts, 4,096 meshes, 8,192
- * primitives, 256 materials, 32 textures at the bitmap cleaner's side, 16 animations of 256 channels
- * and 199,936 keyframes in all.
+ * A file at every cap of a solid (ADR 0075), made in the test that cleans it and never kept: its nodes
+ * draw 1,000,000 triangles and 1,000,000 vertices, 8,192 nodes of which 4,096 are named parts, 4,096
+ * meshes, 8,192 primitives, 256 materials, 32 textures at a solid's largest side whose cleaned bytes
+ * come to nearly 16 MiB in all, 16 animations of 256 channels and 199,936 keyframes in all.
+ *
+ * Every cap at once would not fit the 32 MiB of a cleaned file: 16 MiB of textures, and a million
+ * vertices kept once each, as 32-bit positions with their 16-bit indices, come to over 33 MiB. So each
+ * mesh is drawn by two nodes, its part and the node the part holds, which the caps count once for
+ * each: the file keeps half a million vertices and triangles, and its nodes draw a million of each.
+ * Only primitives with a textured material have texture coordinates.
  */
+import { deflateSync } from 'node:zlib';
 import { SOLID_CAPS } from '@visual-anything/core';
-import { glbOf, png } from './gltf';
+import { glbOf, pngChunk } from './gltf';
 
 /** The numbers the file is made of. */
 export const AT_THE_CAPS = {
   parts: SOLID_CAPS.parts,
   meshes: SOLID_CAPS.meshes,
   primitives: SOLID_CAPS.primitives,
+  /** What its nodes draw, each mesh drawn twice. */
   triangles: SOLID_CAPS.triangles,
   vertices: SOLID_CAPS.vertices,
+  /** What the file keeps, and its description counts. */
+  storedTriangles: SOLID_CAPS.triangles / 2,
+  storedVertices: SOLID_CAPS.vertices / 2,
   materials: SOLID_CAPS.materials,
   textures: SOLID_CAPS.textures,
   animations: SOLID_CAPS.animations,
   channels: SOLID_CAPS.channels,
   /** Keyframes a channel: 781 × 256 = 199,936, within 200,000. */
   keyframes: Math.floor(SOLID_CAPS.keyframes / SOLID_CAPS.channels),
-  /** The side of each texture, the most the core's bitmap cleaner keeps. */
-  textureSide: 1024,
+  /** The side of each texture, the most a solid's texture has. */
+  textureSide: SOLID_CAPS.textureSide,
+  /** The bytes of each texture once cleaned, its share of the textures' bytes in all. */
+  textureBytes: Math.floor(SOLID_CAPS.textureBytes / SOLID_CAPS.textures),
 } as const;
+
+/**
+ * A PNG of `side` pixels a side, with no chunk the cleaner drops, whose bytes are at most `bytes` and
+ * close to it: its first rows are noise, which does not compress, and the rest one color, which
+ * compresses to almost nothing.
+ */
+export function pngOfBytes(side: number, bytes: number): Uint8Array {
+  const rowBytes = 1 + side * 3;
+  const raw = new Uint8Array(rowBytes * side);
+  const header = new Uint8Array(13);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, side);
+  view.setUint32(4, side);
+  header.set([8, 2, 0, 0, 0], 8);
+  const write = (noisy: number): Uint8Array => {
+    raw.fill(128);
+    // Every row's filter is 0, none.
+    for (let row = 0; row < side; row += 1) raw[row * rowBytes] = 0;
+    let seed = 0x9e3779b9;
+    for (let at = 0; at < noisy; at += 1) {
+      if (at % rowBytes === 0) continue;
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      raw[at] = seed & 0xff;
+    }
+    return Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      pngChunk('IHDR', header),
+      pngChunk('IDAT', deflateSync(raw, { level: 1 })),
+      pngChunk('IEND', new Uint8Array(0)),
+    ]);
+  };
+  let noisy = bytes;
+  let picture = write(noisy);
+  // Noise deflates to a little more than itself, so a few steps down bring it within its bytes.
+  for (let step = 0; picture.length > bytes && step < 8; step += 1) {
+    noisy -= picture.length - bytes + 64;
+    picture = write(noisy);
+  }
+  if (picture.length > bytes) throw new Error(`The PNG is ${picture.length} bytes, past ${bytes}.`);
+  return picture;
+}
 
 /** The GLB of a solid at every cap. */
 export function solidAtTheCaps(): Uint8Array {
@@ -47,10 +103,10 @@ export function solidAtTheCaps(): Uint8Array {
     return accessors.length - 1;
   };
 
-  // Each primitive draws a fan of thin triangles: 122 of them, or 123 for the first few, so that the
-  // primitives together hold exactly a million of each.
-  const base = Math.floor(caps.triangles / caps.primitives);
-  const extra = caps.triangles - base * caps.primitives;
+  // Each primitive draws a fan of thin triangles: 61 of them, or 62 for the first few, so that the
+  // primitives together hold exactly half a million of each, which their nodes draw twice.
+  const base = Math.floor(caps.storedTriangles / caps.primitives);
+  const extra = caps.storedTriangles - base * caps.primitives;
   const meshes = [];
   let primitive = 0;
   for (let mesh = 0; mesh < caps.meshes; mesh += 1) {
@@ -79,6 +135,7 @@ export function solidAtTheCaps(): Uint8Array {
         min[at % 3] = Math.min(min[at % 3] as number, value);
         max[at % 3] = Math.max(max[at % 3] as number, value);
       });
+      const material = primitive % caps.materials;
       primitives.push({
         attributes: {
           POSITION: accessor({
@@ -89,12 +146,16 @@ export function solidAtTheCaps(): Uint8Array {
             min,
             max,
           }),
-          TEXCOORD_0: accessor({
-            bufferView: add(new Uint8Array(uv.buffer)),
-            componentType: 5126,
-            count,
-            type: 'VEC2',
-          }),
+          ...(material < caps.textures
+            ? {
+                TEXCOORD_0: accessor({
+                  bufferView: add(new Uint8Array(uv.buffer)),
+                  componentType: 5126,
+                  count,
+                  type: 'VEC2',
+                }),
+              }
+            : {}),
         },
         indices: accessor({
           bufferView: add(new Uint8Array(indices.buffer)),
@@ -102,21 +163,21 @@ export function solidAtTheCaps(): Uint8Array {
           count: count * 3,
           type: 'SCALAR',
         }),
-        material: primitive % caps.materials,
+        material,
       });
       primitive += 1;
     }
     meshes.push({ primitives });
   }
 
-  // Each named part holds one node that draws its mesh.
+  // Each named part draws its mesh, and holds one node that draws it again.
   const nodes: Record<string, unknown>[] = [];
   for (let part = 0; part < caps.parts; part += 1) {
-    nodes.push({ name: `part_${part}`, children: [caps.parts + part] });
+    nodes.push({ name: `part_${part}`, mesh: part, children: [caps.parts + part] });
   }
   for (let part = 0; part < caps.parts; part += 1) nodes.push({ mesh: part });
 
-  const picture = png(caps.textureSide, caps.textureSide, '');
+  const picture = pngOfBytes(caps.textureSide, caps.textureBytes);
   const images = Array.from({ length: caps.textures }, () => ({
     bufferView: add(picture),
     mimeType: 'image/png',

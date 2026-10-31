@@ -8,6 +8,7 @@ import { EditorContext, type Editor } from '../editor/EditorContext';
 import { selectionOf, type Selectable } from '../editor/selection';
 import { useSelection } from '../editor/useSelection';
 import { loadSample } from '../test/sample';
+import { withSolids } from '../test/solids';
 import { ModelPanel } from './ModelPanel';
 
 const sample = loadSample();
@@ -253,6 +254,15 @@ describe('The outline', () => {
     expect(screen.queryByRole('tree', { name: 'Outline of System overview' })).toBeNull();
     fireEvent.click(screen.getByRole('tab', { name: 'Outline' }));
     expect(row('Clinic booking, System')).toHaveAttribute('aria-expanded', 'false');
+  });
+  it('gives a shape’s solid by its description, its text alternative (ADR 0075)', () => {
+    render(<Harness project={withSolids()} />);
+    const tree = screen.getByRole('tree', { name: 'Outline of Robot' });
+    expect(row('Motor, Motor, with a solid: A test arm of five parts.', tree)).toBeInTheDocument();
+    // An anchored part is a row as any shape is: its drawing's row gives the solid.
+    focus(row('Arm, Arm, with a solid: A test arm of five parts.', tree));
+    press('ArrowRight');
+    expect(row('base, Link', tree)).toBeInTheDocument();
   });
 });
 
