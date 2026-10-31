@@ -1,8 +1,11 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
+import { readBitmap } from '../images/bitmap';
+import { png } from '../images/test/bitmaps';
 import { boxMesh, writeGlb, writeTestSolid, type TestSolid } from '../test/solids';
 import {
   DEFAULT_SOLID_CAMERA,
+  SOLID_TEXTURE_CAPS,
   SOLID_CAPS,
   cornersOf,
   fitSolidCamera,
@@ -373,5 +376,14 @@ describe("the camera's maths", () => {
     expect(fitted.eye[0]).toBeGreaterThan(0);
     expect(fitted.eye[1]).toBeGreaterThan(0);
     expect(fitted.eye[2]).toBeGreaterThan(0);
+  });
+});
+
+describe('a solid’s textures', () => {
+  it('are cleaned within a solid’s caps, wider than a stored image’s', () => {
+    const wide = png({ width: 1500, height: 4 });
+    expect(readBitmap(wide, 'png').ok).toBe(false);
+    expect(readBitmap(wide, 'png', SOLID_TEXTURE_CAPS).ok).toBe(true);
+    expect(readBitmap(png({ width: 2049, height: 4 }), 'png', SOLID_TEXTURE_CAPS).ok).toBe(false);
   });
 });

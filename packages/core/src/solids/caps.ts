@@ -37,6 +37,18 @@ export const SOLID_CAPS = {
   smallestSpan: 0.000_001,
 } as const;
 
+/**
+ * The caps a solid's texture is cleaned within, by the core's bitmap cleaner (ADR 0075): a side of
+ * 2,048 pixels and 16 megapixels, and the textures' 16 MiB in all, which the cleaner counts across
+ * them. A stored image keeps the bitmap cleaner's own, tighter caps.
+ */
+export const SOLID_TEXTURE_CAPS = {
+  bytes: SOLID_CAPS.textureBytes,
+  side: SOLID_CAPS.textureSide,
+  pixels: SOLID_CAPS.texturePixels,
+  jpegScans: 64,
+} as const;
+
 /** The most solids a package defines, as `PackageFile.solids` caps them. */
 export const MAX_PACKAGE_SOLIDS = 64;
 

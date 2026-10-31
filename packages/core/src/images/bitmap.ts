@@ -21,6 +21,14 @@ export const BITMAP_CAPS = {
   jpegScans: 64,
 } as const;
 
+/** Caps a bitmap is read within: a stored image's, or a solid's texture's (ADR 0075). */
+export interface BitmapCaps {
+  readonly bytes: number;
+  readonly side: number;
+  readonly pixels: number;
+  readonly jpegScans: number;
+}
+
 /** What a bitmap cleaned keeps: its bytes without metadata, and its size from its header. */
 export interface CleanedBitmap {
   bytes: Uint8Array;
@@ -39,7 +47,11 @@ export interface ImageHeader {
  * Checks a bitmap from its header before anything decodes it, and rebuilds it without metadata. Its
  * type is read from its first bytes and must be `format`.
  */
-export function readBitmap(bytes: Uint8Array, format: BitmapFormat): Cleaned<CleanedBitmap> {
+export function readBitmap(
+  bytes: Uint8Array,
+  format: BitmapFormat,
+  caps: BitmapCaps = BITMAP_CAPS,
+): Cleaned<CleanedBitmap> {
   return cleaning((removals) => {
     if (!(bytes instanceof Uint8Array)) invalid('A bitmap is bytes.');
     const actual = formatOf(bytes);
@@ -49,12 +61,12 @@ export function readBitmap(bytes: Uint8Array, format: BitmapFormat): Cleaned<Cle
     }
     const cleaned =
       format === 'png'
-        ? cleanPng(bytes, removals)
+        ? cleanPng(bytes, removals, caps)
         : format === 'jpeg'
-          ? cleanJpeg(bytes, removals)
-          : cleanWebp(bytes, removals);
-    if (cleaned.bytes.length > BITMAP_CAPS.bytes) {
-      tooLarge(`The picture is over ${BITMAP_CAPS.bytes / 1024} KiB.`);
+          ? cleanJpeg(bytes, removals, caps)
+          : cleanWebp(bytes, removals, caps);
+    if (cleaned.bytes.length > caps.bytes) {
+      tooLarge(`The picture is over ${caps.bytes / 1024} KiB.`);
     }
     return cleaned;
   });
@@ -97,15 +109,15 @@ function startsWith(bytes: Uint8Array, prefix: readonly number[]): boolean {
 }
 
 /** Checks a size against the caps. */
-function checkSize(width: number, height: number): { width: number; height: number } {
+function checkSize(
+  width: number,
+  height: number,
+  caps: BitmapCaps,
+): { width: number; height: number } {
   if (!(width >= 1 && height >= 1)) invalid('The picture has no size.');
-  if (
-    width > BITMAP_CAPS.side ||
-    height > BITMAP_CAPS.side ||
-    width * height > BITMAP_CAPS.pixels
-  ) {
+  if (width > caps.side || height > caps.side || width * height > caps.pixels) {
     tooLarge(
-      `The picture is ${width} × ${height} pixels; at most ${BITMAP_CAPS.side} a side and ${BITMAP_CAPS.pixels} in all are kept.`,
+      `The picture is ${width} × ${height} pixels; at most ${caps.side} a side and ${caps.pixels} in all are kept.`,
     );
   }
   return { width, height };
@@ -144,13 +156,13 @@ function pngSize(bytes: Uint8Array): { width: number; height: number } {
   return { width: uint32be(bytes, 16), height: uint32be(bytes, 20) };
 }
 
-function cleanPng(bytes: Uint8Array, removals: Removals): CleanedBitmap {
+function cleanPng(bytes: Uint8Array, removals: Removals, caps: BitmapCaps): CleanedBitmap {
   const chunks = pngChunks(bytes);
   if (chunks[0]?.type !== 'IHDR' || chunks[0].end - chunks[0].start !== 25) {
     invalid('The PNG picture does not start with its header.');
   }
   const header = pngSize(bytes);
-  const size = checkSize(header.width, header.height);
+  const size = checkSize(header.width, header.height, caps);
   if (chunks.at(-1)?.type !== 'IEND') invalid('The PNG picture is cut short: it has no end.');
   if (chunks.some((chunk) => chunk.type === 'acTL')) {
     invalid('The PNG picture is animated; keep its first frame as a picture of its own.');
@@ -233,7 +245,7 @@ function jpegSize(bytes: Uint8Array): { width: number; height: number } {
   invalid('The JPEG picture has no frame header.');
 }
 
-function cleanJpeg(bytes: Uint8Array, removals: Removals): CleanedBitmap {
+function cleanJpeg(bytes: Uint8Array, removals: Removals, caps: BitmapCaps): CleanedBitmap {
   const kept: Uint8Array[] = [bytes.subarray(0, 2)];
   let at = 2;
   let size: { width: number; height: number } | undefined;
@@ -265,13 +277,13 @@ function cleanJpeg(bytes: Uint8Array, removals: Removals): CleanedBitmap {
     if (isFrame(marker)) {
       if (size) invalid('The JPEG picture has two frame headers.');
       if (length < 8) invalid('The JPEG picture is damaged.');
-      size = checkSize(uint16be(bytes, at + 7), uint16be(bytes, at + 5));
+      size = checkSize(uint16be(bytes, at + 7), uint16be(bytes, at + 5), caps);
     }
     if (marker === 0xda) {
       if (!size) invalid('The JPEG picture has a scan before its frame header.');
       scans += 1;
-      if (scans > BITMAP_CAPS.jpegScans) {
-        tooLarge(`The JPEG picture has over ${BITMAP_CAPS.jpegScans} scans.`);
+      if (scans > caps.jpegScans) {
+        tooLarge(`The JPEG picture has over ${caps.jpegScans} scans.`);
       }
       const dataEnd = scanEnd(bytes, end);
       kept.push(bytes.subarray(at, dataEnd));
@@ -385,7 +397,7 @@ const VP8X_XMP = 0x04;
 const VP8X_EXIF = 0x08;
 const VP8X_ICC = 0x20;
 
-function cleanWebp(bytes: Uint8Array, removals: Removals): CleanedBitmap {
+function cleanWebp(bytes: Uint8Array, removals: Removals, caps: BitmapCaps): CleanedBitmap {
   const chunks = riffChunks(bytes);
   if (chunks.some((chunk) => chunk.fourcc === 'ANIM' || chunk.fourcc === 'ANMF')) {
     invalid('The WebP picture is animated; keep its first frame as a picture of its own.');
@@ -394,7 +406,7 @@ function cleanWebp(bytes: Uint8Array, removals: Removals): CleanedBitmap {
   const [image] = images;
   if (!image || images.length > 1) invalid('The WebP picture must hold exactly one image.');
   const streamSize = bitstreamSize(bytes, image);
-  const stream = checkSize(streamSize.width, streamSize.height);
+  const stream = checkSize(streamSize.width, streamSize.height, caps);
   const extended = chunks.find((chunk) => chunk.fourcc === 'VP8X');
   let size = stream;
   const kept: Uint8Array[] = [];
@@ -406,7 +418,11 @@ function cleanWebp(bytes: Uint8Array, removals: Removals): CleanedBitmap {
         if (flags & VP8X_ANIMATION) {
           invalid('The WebP picture is animated; keep its first frame as a picture of its own.');
         }
-        size = checkSize(uint24le(bytes, chunk.data + 4) + 1, uint24le(bytes, chunk.data + 7) + 1);
+        size = checkSize(
+          uint24le(bytes, chunk.data + 4) + 1,
+          uint24le(bytes, chunk.data + 7) + 1,
+          caps,
+        );
         const copy = bytes.slice(chunk.start, chunk.data + 10);
         copy.set(le32(10), 4);
         // The flags say only what is still there.

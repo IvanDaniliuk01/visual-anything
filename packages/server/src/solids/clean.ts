@@ -43,6 +43,7 @@ import {
   SOLID_ATTRIBUTES,
   SOLID_CAPS,
   SOLID_PART_NAME,
+  SOLID_TEXTURE_CAPS,
   readBitmap,
   readImageHeader,
   readSolid,
@@ -637,7 +638,7 @@ class Textures {
       this.#report.add('texture past its caps', 'textures past their caps');
       return null;
     }
-    const cleaned = readBitmap(bytes, header.format);
+    const cleaned = readBitmap(bytes, header.format, SOLID_TEXTURE_CAPS);
     if (!cleaned.ok) {
       if (cleaned.problem.code === 'image-too-large') {
         this.#report.add('texture past its caps', 'textures past their caps');
