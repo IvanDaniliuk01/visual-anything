@@ -289,8 +289,9 @@ describe('translateMessage', () => {
  */
 const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   // C4's "Deployment node" and Physical AI's "Node", "Nodo de software", are components' names, and
-  // name no element.
-  { word: /\bnodos?\b/i, unless: /\bnodos? de (despliegue|software)\b/i },
+  // name no element. A glTF file's nodes, which cleaning a solid reports on, are "nodos glTF" (ADR
+  // 0075), and its meshes "mallas glTF".
+  { word: /\bnodos?\b/i, unless: /\bnodos? (de (despliegue|software)|glTF)\b/i },
   { word: /\binstancias?\b/i },
   { word: /\bpropiedad(es)?\b/i },
   // Systems' "Semantic layer" is a component's name, and so are Machine learning's layers, which are
@@ -333,7 +334,7 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   { word: /\bhojas?\b/i, unless: /\bhojas? de cálculo\b/i },
   { word: /\bfiguras?\b/i },
   { word: /\bbloquead[oa]s?\b/i },
-  { word: /\bmallas?\b/i },
+  { word: /\bmallas?\b/i, unless: /\bmallas? glTF\b/i },
   { word: /\bim[aá]n(es)?\b/i },
   { word: /\bsubt[ií]tulos?\b/i },
   { word: /\bp[ií]ldoras?\b/i },

@@ -630,9 +630,12 @@ function checkTree(json: Json): void {
   const scenes = list(json.scenes);
   for (const each of scenes) {
     const scene = record(each);
+    const roots = new Set<number>();
     for (const root of list(scene.nodes)) {
       const node = index(root, nodes.length);
       if (held[node]) invalid('A scene holds a node that another node holds.');
+      if (roots.has(node)) invalid('A scene holds a node twice.');
+      roots.add(node);
     }
   }
   if (json.scene !== undefined) index(json.scene, scenes.length);
