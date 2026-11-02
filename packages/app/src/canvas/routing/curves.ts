@@ -136,12 +136,14 @@ export function traceCurve(graphics: Graphics, spans: readonly CurveSpan[]): voi
 export function strokeCurve(
   graphics: Graphics,
   spans: readonly CurveSpan[],
-  style: { color: Color; width: number },
+  style: { color: Color; width: number; alpha?: number },
 ): void {
   if (spans.length === 0) return;
   traceCurve(graphics, spans);
-  // A smooth curve has no corners to join round, which only adds triangles.
-  graphics.stroke({ color: style.color, width: style.width, cap: 'butt', join: 'miter' });
+  // A smooth curve has no corners to join round, which only adds triangles; it is faded only where
+  // its relation's opacity says so (ADR 0088).
+  const faded = style.alpha === undefined || style.alpha === 1 ? {} : { alpha: style.alpha };
+  graphics.stroke({ color: style.color, ...faded, width: style.width, cap: 'butt', join: 'miter' });
 }
 
 /** Whether a line is drawn as a smooth curve: curved and solid; a dashed curve is drawn flattened. */

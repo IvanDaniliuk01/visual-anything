@@ -103,7 +103,6 @@ import {
   headerRoomsOf,
   noteTextPlaceIn,
   personCornerRadius,
-  roundedCornerRadius,
   rowsCornerRadius,
   textSideInset,
 } from '../canvas/drawing';
@@ -180,6 +179,16 @@ import {
 import { partValues, tracedPathData, valueBoxes } from './solid-trace';
 import { anchoredByIndex } from '../canvas/solids/pointing';
 import { arrowStroke, lineStroke, noteColors, shapeColors } from '../canvas/theme/paint';
+import {
+  borderWidthOf,
+  castsShadow,
+  cornerRadiusOf,
+  drawnKindOf,
+  gradientTo,
+  opacityOf,
+  type ShapeGradient,
+  type Styled,
+} from '../canvas/shapeStyle';
 import { THEMES, type CanvasTheme } from '../theme/themes';
 import {
   bitmapSymbol,
@@ -399,10 +408,12 @@ type LineWidths = { least: number } | { width: number };
  * its body (`drawOutline`), a fill over a part (`fillOutline`) or an overlay's stroke along it.
  */
 interface OutlinePaint {
-  /** What fills its fills, their holes cut; none: they are not filled. */
-  fill?: Color;
+  /** What fills its fills, their holes cut, a color or a gradient's `url(#…)`; none: not filled. */
+  fill?: string;
   /** What strokes its closed contours; none: they are not stroked. */
   stroke?: Color;
+  /** How its closed contours are dashed, as `stroke-dasharray` (ADR 0088); solid by default. */
+  dash?: string | undefined;
   /** How wide that stroke is, a shape's stroke width by default, and whether its corners are round. */
   strokeWidth?: number;
   round?: boolean;
@@ -587,6 +598,27 @@ class Writer {
   }
 
   /**
+   * What fills a shape whose fill runs to a gradient's color (ADR 0088): a `linearGradient` written
+   * the first time it is needed, named for its two colors and its direction, so that its id is the
+   * same for the same gradient and never one another part of the drawing has.
+   */
+  gradient(from: Color, to: Color, direction: ShapeGradient['direction']): string {
+    const id = `va-gradient-${from.slice(1)}-${to.slice(1)}-${direction}`.toLowerCase();
+    if (!this.defsById.has(id)) {
+      this.defsById.set(
+        id,
+        element(
+          'linearGradient',
+          { id, x1: 0, y1: 0, x2: direction === 'right' ? 1 : 0, y2: direction === 'down' ? 1 : 0 },
+          empty('stop', { offset: 0, 'stop-color': from }) +
+            empty('stop', { offset: 1, 'stop-color': to }),
+        ),
+      );
+    }
+    return `url(#${id})`;
+  }
+
+  /**
    * Where a picture is used: its symbol, written the first time it is needed, and drawn at `rect`.
    * Nothing, and said so, for a picture this drawing cannot hold.
    */
@@ -666,6 +698,7 @@ class Writer {
         'stroke-width': stroked ? (paint.strokeWidth ?? this.border) : undefined,
         'stroke-linejoin': stroked && paint.round ? 'round' : undefined,
         'stroke-linecap': stroked && paint.round ? 'round' : undefined,
+        'stroke-dasharray': stroked ? paint.dash : undefined,
         'stroke-opacity': stroked ? opacity : undefined,
       });
     }
@@ -1185,7 +1218,16 @@ function shapeParts(writer: Writer, shape: ElementShape): string {
   // A region is its faint fill, its thin border and its name tab (ADR 0086).
   if (shape.region) return regionParts(writer, shape, painted.stroke) + ownPicture();
   if (isRow(shape)) return rowParts(writer, shape, colors.fill, face?.svg, ownPicture);
-  if (outline) return outlineParts(writer, shape, outline, colors, face?.svg, ownPicture);
+  // Its picture as opaque as the shape, its text whole (ADR 0088).
+  const opacity = opacityOf(shape);
+  const fadedPicture =
+    opacity === 1
+      ? ownPicture
+      : () => {
+          const picture = ownPicture();
+          return picture === '' ? '' : element('g', { opacity: num(opacity) }, picture);
+        };
+  if (outline) return outlineParts(writer, shape, outline, colors, face?.svg, fadedPicture);
   if (drawsRows(shape)) {
     return (
       tableParts(writer, shape, colors) +
@@ -1199,27 +1241,34 @@ function shapeParts(writer: Writer, shape: ElementShape): string {
   // A solid without its picture is its placeholder: its outline just inside its plate, as the canvas
   // draws it until its picture comes (ADR 0075).
   const placeholder = shape.solid !== undefined && !writer.solidPicture(shape);
-  // With soft shadows, a shape that holds nothing lays its shadow first (ADR 0086).
-  if (writer.drawing.shapes.shadow === 'soft' && !isContainer(shape)) {
-    body += shadowMarkup(shape.kind, bodyRectOf(shape), writer.drawing);
+  // With soft shadows, a shape that holds nothing lays its shadow first (ADR 0086), and a shape with
+  // a shadow of its own its own (ADR 0088).
+  if (castsShadow(shape, writer.drawing, isContainer(shape))) {
+    body += shadowMarkup(shape, bodyRectOf(shape), writer.drawing);
   }
+  // Its fill, running to its gradient's color in the theme drawn (ADR 0088).
+  const to = gradientTo(shape, writer.theme.name);
+  const filled =
+    to === undefined || shape.style?.gradient === undefined
+      ? colors
+      : { ...colors, fill: writer.gradient(colors.fill, to, shape.style.gradient.direction) };
   if (shape.collapsed !== undefined) {
     const inner = bodyOf(shape);
     if (inner !== shape.rect) {
       body += bodyMarkup(
-        shape.kind,
+        shape,
         { ...inner, x: inner.x + SHEET, y: inner.y + SHEET },
-        colors,
+        filled,
         writer.drawing,
       );
     }
-    body += bodyMarkup(shape.kind, inner, colors, writer.drawing);
+    body += bodyMarkup(shape, inner, filled, writer.drawing);
     // A second border inside, where the drawing defaults count what it holds.
     if (showsInnerBorder(shape.collapsed)) {
       const within = grow(inner, -INNER_BORDER);
       if (within.width > 0 && within.height > 0) {
         body += bodyMarkup(
-          shape.kind,
+          { kind: shape.kind },
           within,
           { fill: 'none', stroke: colors.stroke },
           {
@@ -1230,16 +1279,16 @@ function shapeParts(writer: Writer, shape: ElementShape): string {
       }
     }
   } else if (!drawing) {
-    body += bodyMarkup(shape.kind, shape.rect, colors, writer.drawing);
+    body += bodyMarkup(shape, shape.rect, filled, writer.drawing);
   } else if (placeholder) {
-    body += bodyMarkup(shape.kind, bodyRectOf(shape), colors, writer.drawing);
+    body += bodyMarkup(shape, bodyRectOf(shape), filled, writer.drawing);
   }
   // Otherwise a shape drawn by its picture is covered by the picture's plate, always ready here.
   body += toggleOf(shape, colors);
   const placed = pictureOn(shape);
   if (placed) {
     if (drawing && !placeholder) body += plateOf(placed.box, colors.fill);
-    body += ownPicture();
+    body += fadedPicture();
   }
   // A drawing with parts that is no container writes its name in its name tag, under its box.
   if (writesNameBelow(shape)) {
@@ -1302,21 +1351,34 @@ function facePicture(writer: Writer, shape: ElementShape, image: FaceImage, rect
   return placed ? writer.picture(source, placed) : '';
 }
 
-/** A shape's body by its kind, filled and stroked. */
+/**
+ * A shape's body by its kind, filled and stroked, with its own style where it has one (ADR 0088), as
+ * the canvas draws it: a rectangle of either kind at its own corner radius, its border at its own
+ * width, dashed or dotted, or none at 0, its fill a color or a gradient's `url(#…)`, and each part as
+ * opaque as the shape.
+ */
 function bodyMarkup(
-  kind: ElementShape['kind'],
+  styled: Styled,
   rect: Rect,
-  colors: { fill: Color; stroke: Color },
+  colors: { fill: string; stroke: Color },
   drawing: ResolvedDrawing,
 ): string {
   const { x, y, width, height } = rect;
-  const border = drawing.shapes.borderWidth;
-  const paint = { fill: colors.fill, stroke: colors.stroke, 'stroke-width': border };
-  switch (kind) {
+  const border = borderWidthOf(styled, drawing);
+  const opacity = opacityOf(styled);
+  const dash = styled.style?.dash;
+  const paint = {
+    fill: colors.fill,
+    stroke: border > 0 ? colors.stroke : 'none',
+    'stroke-width': border > 0 ? border : undefined,
+    'stroke-dasharray': border > 0 && dash ? dashArray({ dash, width: border }) : undefined,
+    opacity: opacity === 1 ? undefined : num(opacity),
+  };
+  switch (drawnKindOf(styled)) {
     case 'rectangle':
       return empty('rect', { x, y, width, height, ...paint });
     case 'rounded-rectangle': {
-      const radius = roundedCornerRadius(drawing, width, height);
+      const radius = cornerRadiusOf(styled, drawing, width, height);
       return empty('rect', { x, y, width, height, rx: radius, ...paint });
     }
     case 'ellipse':
@@ -1343,12 +1405,16 @@ function bodyMarkup(
       const front = `M${num(x)} ${num(top)}${halfEllipse(middle, top, radius, cap, 'below')}`;
       return (
         empty('path', { d: outline, ...paint }) +
-        empty('path', {
-          d: front,
-          fill: 'none',
-          stroke: colors.stroke,
-          'stroke-width': border,
-        })
+        (border > 0
+          ? empty('path', {
+              d: front,
+              fill: 'none',
+              stroke: colors.stroke,
+              'stroke-width': border,
+              'stroke-dasharray': paint['stroke-dasharray'],
+              opacity: paint.opacity,
+            })
+          : '')
       );
     }
     case 'person': {
@@ -1443,16 +1509,17 @@ function polygonPath(points: readonly number[]): string {
 
 /**
  * A shape's soft shadow, as the canvas lays it (ADR 0086): one copy offset down, in layers each a
- * unit wider than the next, black at a part of its alpha each.
+ * unit wider than the next, black at a part of its alpha each, as faint as the shape is opaque.
  */
-function shadowMarkup(kind: ElementShape['kind'], rect: Rect, drawing: ResolvedDrawing): string {
+function shadowMarkup(styled: Styled, rect: Rect, drawing: ResolvedDrawing): string {
   const { offset, alpha, layers } = SOFT_SHADOW;
+  const opacity = opacityOf(styled);
   let markup = '';
   for (let layer = layers - 1; layer >= 0; layer--) {
     const at = grow({ ...rect, y: rect.y + offset }, layer);
-    const paint = { fill: '#000000', 'fill-opacity': num(alpha / layers) };
+    const paint = { fill: '#000000', 'fill-opacity': num((alpha / layers) * opacity) };
     const { x, y, width, height } = at;
-    switch (kind) {
+    switch (drawnKindOf(styled)) {
       case 'rectangle':
         markup += empty('rect', { x, y, width, height, ...paint });
         break;
@@ -1487,7 +1554,7 @@ function shadowMarkup(kind: ElementShape['kind'], rect: Rect, drawing: ResolvedD
           y,
           width,
           height,
-          rx: roundedCornerRadius(drawing, width, height),
+          rx: cornerRadiusOf(styled, drawing, width, height),
           ...paint,
         });
     }
@@ -1836,11 +1903,23 @@ function outlineParts(
     shape.image ? writer.picture(shape.image, shape.image.rect) : '',
 ): string {
   const fill = shape.part ? shape.part.color : colors.fill;
+  // Its own border, opacity and gradient (ADR 0088), as the canvas draws them on an outline.
+  const border = borderWidthOf(shape, writer.drawing);
+  const to = gradientTo(shape, writer.theme.name);
+  const dash = shape.style?.dash;
   const paint: OutlinePaint = {
-    fill,
-    stroke: colors.stroke,
-    lines: { color: colors.stroke, widths: { least: writer.border } },
+    fill:
+      to === undefined || shape.style?.gradient === undefined
+        ? fill
+        : writer.gradient(fill, to, shape.style.gradient.direction),
+    lines: { color: colors.stroke, widths: { least: border } },
+    opacity: opacityOf(shape),
   };
+  if (border > 0) {
+    paint.stroke = colors.stroke;
+    paint.strokeWidth = border;
+    paint.dash = dash ? dashArray({ dash, width: border }) : undefined;
+  }
   const placed = outlineAt({ rect: shape.rect, outline }) as PlacedOutline;
   let body = '';
   if (shape.collapsed !== undefined && bodyOf(shape) !== shape.rect) {
@@ -2540,7 +2619,7 @@ function casingOf(line: RelationLine, background: Color): string {
 /** A line along its route, dashed as its relation type says, with its arrowhead. */
 function routeOf(line: RelationLine, stroke: Color): string {
   const d = line.curve ? curvePath(line) : pathThrough(untilArrowhead(line.route, line.arrowhead));
-  return (
+  const drawn =
     (d === ''
       ? ''
       : empty('path', {
@@ -2550,8 +2629,11 @@ function routeOf(line: RelationLine, stroke: Color): string {
           'stroke-width': line.width,
           'stroke-dasharray': dashArray(line),
           'stroke-linejoin': 'miter',
-        })) + (line.arrowhead ? arrowheadMarkup(line.arrowhead, stroke, line.width) : '')
-  );
+        })) + (line.arrowhead ? arrowheadMarkup(line.arrowhead, stroke, line.width) : '');
+  // Its opacity fades its line and arrowhead together, never its label (ADR 0088).
+  return line.opacity === undefined || drawn === ''
+    ? drawn
+    : element('g', { opacity: num(line.opacity) }, drawn);
 }
 
 /** A relation's name at the middle of its route, over a back of the canvas's color. */

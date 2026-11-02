@@ -131,6 +131,7 @@ import {
   type ShapePart,
 } from './partShapes';
 import { midpointOf } from './route';
+import { sameShapeStyle, shapeStyleOf, type ShapeStyle } from './shapeStyle';
 import { leavingByElement, scopedTree } from './scope';
 import type { CurveSpan } from './routing/hand';
 import {
@@ -272,6 +273,12 @@ export interface ElementShape {
    * adapted where the drawing defaults ask for it (ADR 0087).
    */
   dark?: { fill: Color; stroke: Color };
+  /**
+   * What its appearances set of its style (ADR 0088): its border's width and dash, its corner radius,
+   * opacity, shadow and gradient. Absent, as is each trait no appearance sets: the drawing defaults
+   * draw it.
+   */
+  style?: ShapeStyle;
   rect: Rect;
   /**
    * The rectangle holding this shape and everything inside it; larger than `rect` only when contents
@@ -289,8 +296,8 @@ export interface ElementShape {
   /**
    * Present when the drawing defaults draw this container as a quiet region (ADR 0086): its stroke's
    * color, faint, as its fill, a thin border, and a name tab with its kind's icon at its top left,
-   * whatever its kind. A collapsed container, one that draws rows, one with its own outline, a face
-   * or a picture is never one.
+   * whatever its kind. A collapsed container, one that draws rows, one with its own outline, a face,
+   * a picture or a style of its own (ADR 0088) is never one.
    */
   region?: true;
   /** The connection points its appearance sets, where relations attach; absent when it sets none. */
@@ -435,6 +442,8 @@ export interface RelationLine {
   typeStroke?: { light: Color; dark?: Color };
   width: number;
   dash: Dash;
+  /** How opaque its line and arrowhead are, when below 1 (ADR 0088); its label stays whole. */
+  opacity?: number;
   /**
    * Present on an aggregated relation drawn with a count badge (ADR 0086): a pill at its middle that
    * writes how many relations it stands for, its `label`.
@@ -1516,6 +1525,8 @@ export interface Look {
   appearance: ResolvedAppearance;
   /** The colors drawn on the dark canvas, when they differ from the appearance's. */
   dark?: { fill: Color; stroke: Color };
+  /** What its appearances set of its style (ADR 0088), if anything. */
+  style?: ShapeStyle;
   componentName: string;
   details: Map<string, string>;
   /** The runs of those details that take text emphasis, by their text (`detailRunsOf`). */
@@ -1656,6 +1667,8 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
     if (dark.fill !== look.appearance.fill || dark.stroke !== look.appearance.stroke) {
       look.dark = dark;
     }
+    const style = shapeStyleOf(look.appearance, stored);
+    if (style) look.style = style;
     if (look.image?.tint !== undefined && stored === 'adapted') {
       const darkTint = adaptedTintOf(element, definitions, look.image.tint);
       if (darkTint !== look.image.tint) look.image = { ...look.image, darkTint };
@@ -2717,9 +2730,11 @@ function shapeFor(
   // Its extent is its rectangle, exactly, when nothing inside it sticks out: (x + width) - x need not
   // be width again in floating point.
   const holdsOnlyItself = x1 === x && y1 === y && x2 === x + width && y2 === y + height;
-  // A container the drawing defaults draw as a quiet region (ADR 0086), but one drawn otherwise.
+  // A container the drawing defaults draw as a quiet region (ADR 0086), but one drawn otherwise, or
+  // one with a style of its own, which draws it as its kind so that its style shows (ADR 0088).
   const region =
     laying.containers.drawn === 'region' &&
+    look.style === undefined &&
     holdsContents &&
     collapsed === undefined &&
     !appearance.contentsAsRows &&
@@ -2754,6 +2769,7 @@ function shapeFor(
     before.stroke === appearance.stroke &&
     before.dark?.fill === look.dark?.fill &&
     before.dark?.stroke === look.dark?.stroke &&
+    sameShapeStyle(before.style, look.style) &&
     before.rect.x === x &&
     before.rect.y === y &&
     before.rect.width === width &&
@@ -2805,6 +2821,9 @@ function shapeFor(
   if (region) shape.region = true;
   withRowFields(shape, rowish);
   if (look.dark) shape.dark = look.dark;
+  if (look.style)
+    shape.style =
+      before?.style && sameShapeStyle(before.style, look.style) ? before.style : look.style;
   if (points) shape.points = points;
   if (placed) shape.image = placed.image;
   if (placedSolid) {
@@ -3561,6 +3580,7 @@ function lineBetween(
     ends: { from: drawnEnd(spec.from), to: drawnEnd(spec.to), offset },
   };
   if (label) line.label = label;
+  if (appearance.opacity < 1) line.opacity = appearance.opacity;
   if (countBadge) line.countBadge = true;
   if (darkStroke !== stroke) line.darkStroke = darkStroke;
   if (neutral) line.typeStroke = typeStrokeOf(appearance.stroke, typeDark);
