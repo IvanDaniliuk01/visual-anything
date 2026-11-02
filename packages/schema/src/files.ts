@@ -508,6 +508,87 @@ export interface Appearance {
    * inherited on its own.
    */
   face?: Face | 'none';
+  /**
+   * The width of its shapes' border, in canvas units, over the drawing defaults' (ADR 0088); 0 draws
+   * no border.
+   *
+   * @minimum 0
+   * @maximum 16
+   */
+  borderWidth?: number;
+  /** How its shapes' border is drawn (ADR 0088), as a relation's line is. */
+  dash?: 'solid' | 'dashed' | 'dotted';
+  /**
+   * The corner radius of its shapes, in canvas units, over the drawing defaults' (ADR 0088). It rounds
+   * rectangles of either kind; ellipses, cylinders, people and free geometry ignore it.
+   *
+   * @minimum 0
+   * @maximum 64
+   */
+  cornerRadius?: number;
+  /**
+   * How opaque its shapes are, from 0.2 to 1 (ADR 0088). Their text stays whole.
+   *
+   * @minimum 0.2
+   * @maximum 1
+   */
+  opacity?: number;
+  /** Whether its shapes cast a soft shadow, over the drawing defaults' (ADR 0088). */
+  shadow?: 'none' | 'soft';
+  /**
+   * A fill that runs from the fill to a second color (ADR 0088); `none` takes an inherited one away.
+   */
+  gradient?: Gradient | 'none';
+  /** How its shapes write the element's name (ADR 0088). Each part is inherited on its own. */
+  text?: TextStyle;
+}
+
+/** A fill that runs from the shape's fill to `to`, down or to the right (ADR 0088). */
+export interface Gradient {
+  to: Color;
+  direction: 'down' | 'right';
+}
+
+/**
+ * How a shape writes its element's name (ADR 0088). Whatever it leaves out comes from the component,
+ * then the drawing defaults. Emphasis inside text stays Markdown (ADR 0082); these apply to the whole
+ * name.
+ */
+export interface TextStyle {
+  /** The typeface: the drawing defaults' two, or Roboto Mono. */
+  font?: 'roboto' | 'system' | 'mono';
+  /**
+   * The name's size, in canvas units.
+   *
+   * @minimum 8
+   * @maximum 48
+   */
+  size?: number;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  /** How its lines are aligned across the label area. */
+  align?: 'left' | 'center' | 'right';
+  /**
+   * Where the name is written: inside the shape, or in a tag beside it, attached above, below, to its
+   * left or to its right. A name that does not fit inside still moves to a tag below.
+   */
+  position?: 'inside' | 'above' | 'below' | 'left' | 'right';
+  /** The name's color; a color under 4.5:1 on its fill is pointed out, never refused. */
+  color?: Color;
+  /** The fill behind the name. */
+  background?: Color;
+  /** The line around the name's back. */
+  border?: Color;
+  /** Whether the name wraps onto more lines; otherwise it is cut with "…". */
+  wrap?: boolean;
+  /**
+   * The space between the label area's edge and the text, in canvas units.
+   *
+   * @minimum 0
+   * @maximum 48
+   */
+  padding?: number;
 }
 
 /**
@@ -757,6 +838,13 @@ export interface RelationAppearance {
    * inherited one.
    */
   route?: RouteStyle;
+  /**
+   * How opaque its lines are, from 0.2 to 1 (ADR 0088). Their labels stay whole.
+   *
+   * @minimum 0.2
+   * @maximum 1
+   */
+  opacity?: number;
 }
 
 /** How a line runs between its ends: square corners, straight, or a smooth curve. */
@@ -1110,6 +1198,16 @@ export interface ShapePosition {
   height?: number;
   /** Whether the position was set by hand. Layout arranges every other shape around pinned shapes. */
   pinned?: boolean;
+  /**
+   * How far the shape is turned clockwise about its middle, in degrees (ADR 0088). Its name stays
+   * level; containers drawn as regions and rows are never turned.
+   *
+   * @exclusiveMinimum 0
+   * @exclusiveMaximum 360
+   */
+  rotation?: number;
+  /** Whether the shape's outline and image are mirrored (ADR 0088). Its name is never mirrored. */
+  flip?: 'horizontal' | 'vertical' | 'both';
 }
 
 /**

@@ -33,6 +33,7 @@ import type {
   DeleteFreeShapesCommand,
   DeleteViewCommand,
   NewFreeShape,
+  PositionChange,
   RemovePositionsCommand,
   SetPositionsCommand,
   UpdateFreeShapeCommand,
@@ -152,8 +153,9 @@ export function setPositions(draft: Draft, command: SetPositionsCommand): string
  * Sets positions in a view, replacing the ones with the same element and container. A position with
  * a container needs the element to sit in it under one of the view's nesting relation types.
  */
-export function putPositions(draft: Draft, viewId: Id, positions: readonly ShapePosition[]): void {
+export function putPositions(draft: Draft, viewId: Id, positions: readonly PositionChange[]): void {
   const view = draft.view(viewId);
+  const stored = new Map(view.positions.map((position) => [positionKey(position), position]));
   // The same rule as the canvas: the types the view lists that a package in use defines and that nest.
   const nesting = new Set(nestingTypesInView(draft.state, view));
   const keys = new Set<string>();
@@ -207,9 +209,43 @@ export function putPositions(draft: Draft, viewId: Id, positions: readonly Shape
           ? undefined
           : requireNumber(position.height, 'A height', true),
       pinned: position.pinned ? true : undefined,
+      ...turnOf(position, stored.get(key)),
     });
   });
   upsert(draft, { name: 'positions', view: view.id }, view.positions, checked);
+}
+
+const FLIPS = ['horizontal', 'vertical', 'both'] as const;
+
+/**
+ * A shape's turn and mirroring after a position is set (ADR 0088): what the change gives, `0` or
+ * `none` taking it out, and otherwise what was stored, so that layout and moves, which never name
+ * them, keep them. A rotation is kept from 0 up to 360, which is 0 again.
+ */
+function turnOf(
+  change: PositionChange,
+  stored: ShapePosition | undefined,
+): Pick<ShapePosition, 'rotation' | 'flip'> {
+  let rotation = stored?.rotation;
+  if (change.rotation !== undefined) {
+    const { rotation: asked } = change;
+    if (typeof asked !== 'number' || !Number.isFinite(asked) || Math.abs(asked) > 3600) {
+      reject('invalid-command', 'A rotation is a number of degrees from -3,600 to 3,600.');
+    }
+    const turned = ((asked % 360) + 360) % 360;
+    rotation = turned === 0 ? undefined : turned;
+  }
+  let flip = stored?.flip;
+  if (change.flip !== undefined) {
+    if (change.flip !== 'none' && !FLIPS.includes(change.flip)) {
+      reject('invalid-command', 'A shape is flipped "horizontal", "vertical", "both" or "none".');
+    }
+    flip = change.flip === 'none' ? undefined : change.flip;
+  }
+  return {
+    ...(rotation === undefined ? {} : { rotation }),
+    ...(flip === undefined ? {} : { flip }),
+  };
 }
 
 export function removePositions(draft: Draft, command: RemovePositionsCommand): string {

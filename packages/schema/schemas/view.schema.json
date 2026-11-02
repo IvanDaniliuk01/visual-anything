@@ -165,6 +165,21 @@
         "pinned": {
           "type": "boolean",
           "description": "Whether the position was set by hand. Layout arranges every other shape around pinned shapes."
+        },
+        "rotation": {
+          "type": "number",
+          "description": "How far the shape is turned clockwise about its middle, in degrees (ADR 0088). Its name stays level; containers drawn as regions and rows are never turned.",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 360
+        },
+        "flip": {
+          "type": "string",
+          "enum": [
+            "horizontal",
+            "vertical",
+            "both"
+          ],
+          "description": "Whether the shape's outline and image are mirrored (ADR 0088). Its name is never mirrored."
         }
       },
       "required": [

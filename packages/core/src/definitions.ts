@@ -252,6 +252,7 @@ export function relationAppearanceOf(
     stroke: own.stroke ?? inherited.stroke,
     width: own.width ?? inherited.width,
     dash: own.dash ?? inherited.dash,
+    opacity: own.opacity ?? inherited.opacity,
     ...(route === undefined ? {} : { route }),
   };
 }
@@ -269,6 +270,7 @@ export function relationAppearanceOriginsOf(
     width: own.width === undefined ? inherited.width : { kind: 'own' },
     dash: own.dash === undefined ? inherited.dash : { kind: 'own' },
     route: own.route === undefined ? inherited.route : { kind: 'own' },
+    opacity: own.opacity === undefined ? inherited.opacity : { kind: 'own' },
   };
 }
 
@@ -549,12 +551,14 @@ function resolveRelationAppearance(
   const width = first('width');
   const dash = first('dash');
   const route = first('route');
+  const opacity = first('opacity');
   const style = route?.appearance?.route;
   return {
     appearance: {
       stroke: stroke?.appearance?.stroke ?? RELATES_TO.appearance.stroke,
       width: width?.appearance?.width ?? RELATES_TO.appearance.width,
       dash: dash?.appearance?.dash ?? RELATES_TO.appearance.dash,
+      opacity: opacity?.appearance?.opacity ?? RELATES_TO.appearance.opacity,
       ...(style === undefined ? {} : { route: style }),
     },
     origins: {
@@ -562,6 +566,7 @@ function resolveRelationAppearance(
       width: width?.origin ?? base,
       dash: dash?.origin ?? base,
       route: route?.origin ?? base,
+      opacity: opacity?.origin ?? base,
     },
   };
 }

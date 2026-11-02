@@ -168,11 +168,11 @@ describe('validateFile', () => {
     it.each([
       [
         'a project appearance with a trait no appearance has',
-        { ...project, appearances: { components: { 'systems.service': { opacity: 0.5 } } } },
+        { ...project, appearances: { components: { 'systems.service': { glow: 0.5 } } } },
         [
           {
             path: '/appearances/components/systems.service',
-            message: 'must not have the key "opacity"',
+            message: 'must not have the key "glow"',
           },
         ],
       ],

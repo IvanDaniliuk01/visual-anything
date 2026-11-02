@@ -14,11 +14,13 @@ import type {
   DetailRules,
   Face,
   FreeGeometry,
+  Gradient,
   Id,
   JsonValue,
   LevelOfDetail,
   PartReference,
   Relation,
+  TextStyle,
 } from '@visual-anything/schema';
 import { ESSENCE_ID } from '@visual-anything/schema';
 import { ESSENCE } from './builtin/essence-and-relates-to';
@@ -61,6 +63,23 @@ export interface ResolvedAppearance {
   expandFrom?: number;
   /** Its face (ADR 0083), each part from the nearest appearance that sets it; absent without markup. */
   face?: ResolvedFace;
+  /** Its border's width (ADR 0088); absent when the drawing defaults give it. */
+  borderWidth?: number;
+  /** How its border is drawn (ADR 0088). */
+  dash: NonNullable<Appearance['dash']>;
+  /** Its corner radius (ADR 0088); absent when the drawing defaults give it. */
+  cornerRadius?: number;
+  /** How opaque its shapes are (ADR 0088), 1 when nothing sets it. */
+  opacity: number;
+  /** Its shadow (ADR 0088); absent when the drawing defaults give it. */
+  shadow?: NonNullable<Appearance['shadow']>;
+  /** Its gradient (ADR 0088), if any. */
+  gradient?: Gradient;
+  /**
+   * How it writes the name (ADR 0088), each part from the nearest appearance that sets it; a part
+   * absent here comes from the drawing defaults, or is drawn as before ADR 0088.
+   */
+  text: Readonly<TextStyle>;
 }
 
 /**
@@ -92,6 +111,13 @@ export const APPEARANCE_TRAITS = listingEvery<keyof Appearance>()([
   'levels',
   'expandFrom',
   'face',
+  'borderWidth',
+  'dash',
+  'cornerRadius',
+  'opacity',
+  'shadow',
+  'gradient',
+  'text',
 ]);
 
 /** A trait of an appearance. */
@@ -99,12 +125,32 @@ export type AppearanceTrait = (typeof APPEARANCE_TRAITS)[number];
 
 /** A trait, or one part of the detail, each of which is inherited on its own. */
 export type TraitPath =
-  | Exclude<AppearanceTrait, 'detail' | 'face'>
+  | Exclude<AppearanceTrait, 'detail' | 'face' | 'text'>
   | 'detail.componentName'
   | 'detail.attributes'
   | 'detail.badges'
   | 'detail.lines'
-  | FaceTraitPath;
+  | FaceTraitPath
+  | TextTraitPath;
+
+/** A part of how a shape writes the name, each of which is inherited on its own (ADR 0088). */
+export type TextTraitPath = `text.${keyof TextStyle}`;
+
+/** The parts of how a shape writes the name, in the order the format panel shows them. */
+export const TEXT_PARTS = listingEvery<keyof TextStyle>()([
+  'font',
+  'size',
+  'bold',
+  'italic',
+  'underline',
+  'align',
+  'position',
+  'color',
+  'background',
+  'border',
+  'wrap',
+  'padding',
+]);
 
 /** A part of a face, each of which is inherited on its own (ADR 0083). */
 export type FaceTraitPath =
@@ -144,6 +190,13 @@ export const TRAIT_PATHS: readonly TraitPath[] = [
   'face.style',
   'face.variants',
   'face.collapsed',
+  'borderWidth',
+  'dash',
+  'cornerRadius',
+  'opacity',
+  'shadow',
+  'gradient',
+  ...TEXT_PARTS.map((part): TextTraitPath => `text.${part}`),
 ];
 
 /** The value the nearest member of a chain sets for a key, if one does. */
@@ -174,6 +227,11 @@ export function resolveAppearance(
   // `none` takes an inherited outline or part away, so that the kind is drawn again.
   const geometry = nearest(chain, 'geometry') ?? base.geometry;
   const part = nearest(chain, 'part') ?? base.part;
+  const borderWidth = nearest(chain, 'borderWidth') ?? base.borderWidth;
+  const cornerRadius = nearest(chain, 'cornerRadius') ?? base.cornerRadius;
+  const shadow = nearest(chain, 'shadow') ?? base.shadow;
+  // `none` takes an inherited gradient away.
+  const gradient = nearest(chain, 'gradient') ?? base.gradient;
   return {
     shape: nearest(chain, 'shape') ?? base.shape,
     fill: nearest(chain, 'fill') ?? base.fill,
@@ -194,7 +252,28 @@ export function resolveAppearance(
     ...(geometry === undefined || geometry === 'none' ? {} : { geometry }),
     ...(part === undefined || part === 'none' ? {} : { part }),
     ...faceOf(chain, base.face),
+    ...(borderWidth === undefined ? {} : { borderWidth }),
+    dash: nearest(chain, 'dash') ?? base.dash,
+    ...(cornerRadius === undefined ? {} : { cornerRadius }),
+    opacity: nearest(chain, 'opacity') ?? base.opacity,
+    ...(shadow === undefined ? {} : { shadow }),
+    ...(gradient === undefined || gradient === 'none' ? {} : { gradient }),
+    text: textOf(chain, base.text),
   };
+}
+
+/** How a shape writes the name, worked out along a chain, nearest first, part by part over the base's. */
+function textOf(
+  chain: readonly (Appearance | undefined)[],
+  base: Readonly<TextStyle>,
+): Readonly<TextStyle> {
+  const texts = chain.map((each) => each?.text);
+  const text: Record<string, unknown> = {};
+  for (const key of TEXT_PARTS) {
+    const value = nearest(texts, key) ?? base[key];
+    if (value !== undefined) text[key] = value;
+  }
+  return text;
 }
 
 /**
@@ -268,7 +347,11 @@ export function traitValue(appearance: Appearance | undefined, path: TraitPath):
     return value === null ? undefined : value;
   }
   const value =
-    part === undefined ? appearance?.[trait] : appearance?.detail?.[part as keyof DetailRules];
+    part === undefined
+      ? appearance?.[trait]
+      : trait === 'text'
+        ? appearance?.text?.[part as keyof TextStyle]
+        : appearance?.detail?.[part as keyof DetailRules];
   return value === null ? undefined : value;
 }
 

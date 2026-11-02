@@ -3,8 +3,7 @@
  * the grid shows, Alt places freely, Shift+G and Shift+R turn the grid and the rulers on and off, and
  * the rulers take no presses.
  */
-import type { Command, ProjectSnapshot } from '@visual-anything/core';
-import type { ShapePosition } from '@visual-anything/schema';
+import type { Command, PositionChange, ProjectSnapshot } from '@visual-anything/core';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useMemo, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -108,7 +107,7 @@ async function answers(): Promise<void> {
 
 const accepted = () => vi.fn<SendCommand>(() => Promise.resolve({ ok: true, created: ['new-id'] }));
 
-function positionsOf(command: Command | undefined): ShapePosition[] {
+function positionsOf(command: Command | undefined): PositionChange[] {
   if (command?.type === 'set-positions') return command.positions;
   if (command?.type === 'batch') return command.commands.flatMap(positionsOf);
   return [];

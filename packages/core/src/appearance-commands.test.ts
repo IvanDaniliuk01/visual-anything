@@ -476,8 +476,8 @@ describe('an element’s colors', () => {
     expect(
       messages({ type: 'update-element', id: 'api', changes: { appearance: { fill: 'red' } } }),
     ).toEqual(['The fill of "Appointments API" must be a color written as #RRGGBB, not "red".']);
-    expect(messages(setService({ opacity: 0.5 } as Appearance))).toEqual([
-      'The appearance of the component "Service" has no trait "opacity".',
+    expect(messages(setService({ glow: 0.5 } as Appearance))).toEqual([
+      'The appearance of the component "Service" has no trait "glow".',
     ]);
   });
 

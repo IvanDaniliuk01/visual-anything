@@ -9,6 +9,9 @@ const ESSENCE_EXTRAS = {
   textPlacement: 'middle',
   contentsAsRows: false,
   connectionPoints: [],
+  dash: 'solid',
+  opacity: 1,
+  text: {},
 };
 
 describe('definitionsOf', () => {
@@ -55,7 +58,7 @@ describe('definitionsOf', () => {
     expect(reads?.lineage).toEqual(['test.reads', 'test.calls', 'relates-to']);
     expect(reads?.direction).toBe('directed');
     expect(reads?.nests).toBe(false);
-    expect(reads?.appearance).toEqual({ stroke: '#333333', width: 2, dash: 'dashed' });
+    expect(reads?.appearance).toEqual({ stroke: '#333333', width: 2, dash: 'dashed', opacity: 1 });
     expect(reads?.limits).toEqual({ from: ['test.service'], to: ['test.database'] });
   });
 

@@ -87,6 +87,7 @@ describe('project appearances', () => {
       stroke: '#123456',
       width: 2,
       dash: 'dotted',
+      opacity: 1,
     });
     expect(definitions.relationType('systems.communicates-with')?.appearance.stroke).toBe(
       '#3D4651',
@@ -230,12 +231,14 @@ describe('where each trait comes from', () => {
       width: builtIn('systems.communicates-with', 'project'),
       dash: { kind: 'own' },
       route: builtIn('relates-to'),
+      opacity: builtIn('relates-to'),
     });
     expect(relationAppearanceOriginsOf({ relationType: 'clinic.escalates' }, definitions)).toEqual({
       stroke: ours('clinic.escalates'),
       width: ours('clinic.escalates'),
       dash: builtIn('relates-to'),
       route: builtIn('relates-to'),
+      opacity: builtIn('relates-to'),
     });
   });
 });
@@ -248,11 +251,12 @@ describe('a relation’s own appearance', () => {
         { relationType: 'systems.reads-from', appearance: { stroke: '#D6336C' } },
         definitions,
       ),
-    ).toEqual({ stroke: '#D6336C', width: 2, dash: 'dashed' });
+    ).toEqual({ stroke: '#D6336C', width: 2, dash: 'dashed', opacity: 1 });
     expect(relationAppearanceOf({ relationType: 'nowhere.type' }, definitions)).toEqual({
       stroke: '#52606D',
       width: 2,
       dash: 'solid',
+      opacity: 1,
     });
   });
 });
@@ -358,10 +362,10 @@ describe('the dark theme', () => {
     ).toBe('#D6336C');
     expect(
       drawnRelationAppearanceOf({ relationType: 'systems.reads-from' }, definitions, 'dark'),
-    ).toEqual({ stroke: '#AEB8C4', width: 2, dash: 'dashed' });
+    ).toEqual({ stroke: '#AEB8C4', width: 2, dash: 'dashed', opacity: 1 });
     expect(
       drawnRelationAppearanceOf({ relationType: 'systems.reads-from' }, definitions, 'light'),
-    ).toEqual({ stroke: '#3D4651', width: 2, dash: 'dashed' });
+    ).toEqual({ stroke: '#3D4651', width: 2, dash: 'dashed', opacity: 1 });
   });
 });
 

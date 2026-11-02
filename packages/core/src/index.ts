@@ -82,6 +82,8 @@ export {
   sameColor,
   storedColor,
 } from './colors';
+export { PALETTE } from './palette';
+export type { Swatch } from './palette';
 export type { DarkShades } from './builtin/dark';
 export { DARK_SHADES, darkShadeOf } from './builtin/dark';
 export type { EditableAppearance } from './project-appearances';

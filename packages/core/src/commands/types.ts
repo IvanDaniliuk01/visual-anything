@@ -23,6 +23,7 @@ import type {
   ExternalIds,
   Face,
   FaceVariant,
+  Gradient,
   FreeGeometry,
   FreeShape,
   Id,
@@ -44,6 +45,7 @@ import type {
   SolidDefinition,
   Step,
   TourStep,
+  TextStyle,
 } from '@visual-anything/schema';
 
 /** Changes to external identifiers by scheme: a text sets one, `null` takes it out (ADR 0056). */
@@ -247,6 +249,19 @@ export interface AppearanceChanges {
       }
     | 'none'
     | null;
+  /** The width of its border (ADR 0088), from 0 to 16. */
+  borderWidth?: number | null;
+  /** How its border is drawn (ADR 0088). */
+  dash?: NonNullable<Appearance['dash']> | null;
+  /** Its corner radius (ADR 0088), from 0 to 64. */
+  cornerRadius?: number | null;
+  /** How opaque its shapes are (ADR 0088), from 0.2 to 1. */
+  opacity?: number | null;
+  shadow?: NonNullable<Appearance['shadow']> | null;
+  /** A gradient to a second color (ADR 0088); `none` takes an inherited one away. */
+  gradient?: Gradient | 'none' | null;
+  /** How its shapes write the name (ADR 0088), each part on its own; `null` takes every part out. */
+  text?: { [K in keyof TextStyle]?: TextStyle[K] | null } | null;
 }
 
 /** Changes to how a relation type's relations are drawn, trait by trait, as for an appearance. */
@@ -256,6 +271,8 @@ export interface RelationAppearanceChanges {
   dash?: NonNullable<RelationAppearance['dash']> | null;
   /** The style of its relations' automatic routes (ADR 0069); `orthogonal` undoes an inherited one. */
   route?: RouteStyle | null;
+  /** How opaque its lines are (ADR 0088), from 0.2 to 1. */
+  opacity?: number | null;
 }
 
 /**
@@ -607,8 +624,17 @@ export interface DeleteViewCommand {
 export interface SetPositionsCommand {
   type: 'set-positions';
   view: Id;
-  positions: ShapePosition[];
+  positions: PositionChange[];
 }
+
+/**
+ * A position a command sets (ADR 0088): a shape's position, where a rotation of `0` and a flip of
+ * `none` take a stored turn or mirroring out, and leaving either out keeps what is stored.
+ */
+export type PositionChange = Omit<ShapePosition, 'rotation' | 'flip'> & {
+  rotation?: number;
+  flip?: NonNullable<ShapePosition['flip']> | 'none';
+};
 
 /** Forgets where anchored shapes sit in a view, so that layout places them again. */
 export interface RemovePositionsCommand {
