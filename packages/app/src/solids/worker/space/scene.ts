@@ -5,7 +5,8 @@
  * - **Batches**: each group of a solid's pieces drawn together (`merge.ts`) is one `InstancedMesh`
  *   over every entry drawing that solid, so that draws scale with the distinct solids and their
  *   materials, not with their pieces or how often they are drawn; the pieces a solid draws alone are
- *   drawn from the geometry its own meshes hold, which the canvas's pictures share.
+ *   drawn from the geometry its own meshes hold, which the canvas's pictures share. A jointed
+ *   solid's pieces are each drawn alone, so that joints turn each part on its own (ADR 0090).
  * - **Looks** come from a table each batch reads on the GPU (`looks.ts`): an overlay's fill takes the
  *   place of a piece's colors and textures; what is faint, or has an overlay's opacity, is drawn
  *   see-through without writing depth. A change of states, marks, an overlay or of what is boxed
@@ -77,7 +78,7 @@ import {
   type LookUniforms,
 } from './looks';
 import { BITS_FRAGMENT, BITS_VERTEX } from './marks';
-import { drawGroupsOf, type DrawGroup } from './merge';
+import { drawGroupsOf, pieceGroupsOf, type DrawGroup } from './merge';
 import { spaceKeyLight, spaceThreeCamera } from './stage';
 
 /** The key light's strength, beside the room's light, as for a solid's picture. */
@@ -178,16 +179,25 @@ export class SpaceScene {
     const planes = this.plane ? [this.plane] : [];
     const { placement } = layout;
 
-    // Pieces: each group of each solid drawn, over every entry drawing it.
-    const bySolid = new Map<BuiltSolid, number[]>();
+    // Pieces: each group of each solid drawn, over every entry drawing it; a jointed solid's pieces
+    // each alone, so that joints turn each part on its own (ADR 0090).
+    const bySolid = new Map<BuiltSolid, { plain: number[]; jointed: number[] }>();
     placement.solids.forEach((placed, at) => {
-      const list = bySolid.get(placed.solid);
-      if (list) list.push(at);
-      else bySolid.set(placed.solid, [at]);
+      let lists = bySolid.get(placed.solid);
+      if (!lists) {
+        lists = { plain: [], jointed: [] };
+        bySolid.set(placed.solid, lists);
+      }
+      (placed.entry.jointed ? lists.jointed : lists.plain).push(at);
     });
-    for (const [solid, sources] of bySolid) {
+    const drawn: [BuiltSolid, number[], readonly DrawGroup[]][] = [];
+    for (const [solid, { plain, jointed }] of bySolid) {
+      if (plain.length > 0) drawn.push([solid, plain, drawGroupsOf(solid)]);
+      if (jointed.length > 0) drawn.push([solid, jointed, pieceGroupsOf(solid)]);
+    }
+    for (const [solid, sources, groups] of drawn) {
       const columnsOfParts = solid.description.parts.length + 1;
-      for (const group of drawGroupsOf(solid)) {
+      for (const group of groups) {
         const columns = [...new Set(group.pieces.map((at) => (solid.pieces[at]?.part ?? -1) + 1))];
         const table = this.own(new LookTable(group.merged ? columnsOfParts : 1, sources.length));
         const offsets = group.merged ? this.own(new OffsetTable(columnsOfParts)) : undefined;

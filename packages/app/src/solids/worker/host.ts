@@ -52,7 +52,8 @@ import {
 import { loopedTime, poseAt } from './animation';
 import { buildSolid, type BuiltSolid, type Digest, type ImageDecoder } from './build';
 import { SolidMemory } from './memory';
-import { explodedBoundsOf, explosionShifts, trianglesOf } from './space/layout';
+import { Matrix4 } from 'three';
+import { explodedBoundsOf, explosionShifts, partMotionsOf, trianglesOf } from './space/layout';
 import { SPACE_REST_MS, SPACE_TRIANGLE_BUDGET, boxedFrom } from './space/lod';
 import { pickAt } from './stage';
 
@@ -748,6 +749,7 @@ export class SolidWorkerHost {
       named ? named.has(entry.element) : states.get(entry.element)?.hidden !== true,
     );
     if (!named && chosen.length === 0) chosen = [...shown.entries];
+    const turns = partMotionsOf(shown.entries);
     return chosen.map((entry) => {
       const solid = entry.solid === undefined ? undefined : this.loaded.get(entry.solid);
       const bounds =
@@ -759,9 +761,14 @@ export class SolidWorkerHost {
         const holder = byElement.get(entry.part.of);
         const held = holder?.solid === undefined ? undefined : this.loaded.get(holder.solid);
         if (holder && held && entry.part.index < held.description.parts.length) {
-          // Each part it holds where the exploded view moves it, with its holder.
+          // Each part it holds where the exploded view moves it, with its holder, and where joints
+          // turn it in its holder's solid (ADR 0090).
           const exploded = explodedBoundsOf(held, factor, entry.part.index);
-          return moved(holder, boundsPlaced(holder.matrix, exploded));
+          const turn = turns.get(entry.element);
+          const placed = turn
+            ? new Matrix4().fromArray(holder.matrix).multiply(turn).toArray()
+            : holder.matrix;
+          return moved(holder, boundsPlaced(placed, exploded));
         }
       }
       const m = entry.matrix;

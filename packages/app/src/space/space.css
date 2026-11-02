@@ -277,6 +277,90 @@
   outline-offset: var(--stroke-thin);
 }
 
+/* The joints, under the ways of reading: a slider for each, which opens and closes (ADR 0090). */
+.space-panel-joints {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  border-bottom: var(--stroke-thin) solid var(--border);
+  background: var(--surface);
+  font-size: var(--text-sm);
+}
+
+.space-panel-joints-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-25);
+  height: var(--control-sm);
+  padding: 0 var(--space-50);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: var(--weight-heading);
+  text-align: start;
+  cursor: pointer;
+}
+
+.space-panel-joints-toggle[aria-expanded='false'] > .icon {
+  transform: rotate(-90deg);
+}
+
+.space-panel-joints-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.space-panel-joints-toggle:active {
+  background: var(--surface-pressed);
+}
+
+.space-panel-joints-toggle:focus-visible {
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: calc(-1 * var(--stroke-thick));
+}
+
+.space-panel-joints-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-25);
+  padding: 0 var(--space-50) var(--space-25);
+}
+
+/* Many joints scroll within the section, so that the frames keep their room. */
+.space-panel-joints-list {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(var(--size-600), 1fr) auto;
+  align-items: center;
+  gap: var(--space-25) var(--space-50);
+  max-height: var(--size-1600);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.space-panel-joint {
+  display: contents;
+}
+
+.space-panel-joint-name {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.space-panel-joint-slider {
+  width: 100%;
+}
+
+.space-panel-joints-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-25);
+}
+
 /* The frames take the pointer and the fingers whole: dragging turns, pans and pinches the camera. */
 .space-panel-canvas {
   touch-action: none;

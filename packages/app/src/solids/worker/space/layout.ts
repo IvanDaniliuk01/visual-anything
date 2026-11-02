@@ -14,6 +14,9 @@
  *   that entry does, at any depth ({@link explosionShifts}), and is drawn, named and picked there.
  *   Relation lines move their ends with what they end on ({@link explodedLines}), so that their
  *   travelling markers follow; framing frames what the exploded view draws ({@link explodedBoundsOf}).
+ * - **Joints** (ADR 0090): each anchored part of a jointed holder turns its node of the holder's
+ *   solid, and every node it holds that no element stands for, by its motion brought into the solid's
+ *   coordinates ({@link partMotionsOf}), so that drawing, names, framing and picking follow it.
  * - **Markers** are drawn at their entries' origins, in their overlay's fill, or their shape's.
  * - **Points**, where names are written: an anchored part's middle, moved as its part is; else the
  *   middle of its solid's bounds; else its origin.
@@ -444,6 +447,39 @@ export interface SpacePlacement {
 /** What {@link placeOut} reads of a space. */
 export type PlacedSpace = Pick<SpaceToDraw, 'entries' | 'solids' | 'explode'>;
 
+/**
+ * How joints turn each anchored part of a jointed holder in its holder's solid (ADR 0090), by its
+ * element: the part's motion, given in the coordinates of the element the panel shows, brought into
+ * the solid's own, less what moves its holder: `holder⁻¹ · motion · holderMotion⁻¹ · holder`, the
+ * holder's matrix being where it is drawn. Only the parts that move in their holder are named.
+ */
+export function partMotionsOf(entries: readonly SpaceDrawnEntry[]): ReadonlyMap<Id, Matrix4> {
+  const found = new Map<Id, Matrix4>();
+  if (!entries.some((entry) => entry.motion !== undefined)) return found;
+  const byElement = new Map(entries.map((entry) => [entry.element, entry]));
+  for (const entry of entries) {
+    if (!entry.part) continue;
+    const holder = byElement.get(entry.part.of);
+    if (!holder?.jointed || (entry.motion === undefined && holder.motion === undefined)) continue;
+    const placed = new Matrix4().fromArray(holder.matrix);
+    const local = placed.clone().invert();
+    if (entry.motion) local.multiply(new Matrix4().fromArray(entry.motion));
+    if (holder.motion) local.multiply(new Matrix4().fromArray(holder.motion).invert());
+    local.multiply(placed);
+    if (!isIdentity(local)) found.set(entry.element, local);
+  }
+  return found;
+}
+
+function isIdentity(matrix: Matrix4): boolean {
+  const e = matrix.elements;
+  for (let at = 0; at < 16; at++) {
+    const want = at % 5 === 0 ? 1 : 0;
+    if (Math.abs((e[at] as number) - want) > 1e-12) return false;
+  }
+  return true;
+}
+
 /** Where everything a space draws is, from its entries, the solids loaded and the exploded view. */
 export function placeOut(space: PlacedSpace): SpacePlacement {
   const { solids } = space;
@@ -463,6 +499,21 @@ export function placeOut(space: PlacedSpace): SpacePlacement {
     entry?.solid === undefined ? undefined : solids.get(entry.solid);
   // Each entry's matrix as the exploded view moves it.
   const shifts = explosionShifts(space.entries, solids, space.explode);
+  // How joints turn each anchored part in its holder's solid.
+  const turns = partMotionsOf(space.entries);
+  /** What turns a part of a jointed holder's solid: the turn of the nearest anchored part holding it. */
+  const turnOf = (holder: SpaceDrawnEntry, solid: BuiltSolid) => {
+    const anchored = partsOf.get(holder.element);
+    if (!holder.jointed || !anchored || turns.size === 0) return undefined;
+    return (part: number): Matrix4 | undefined => {
+      for (let at: number | undefined = part; at !== undefined && at >= 0;) {
+        const standing = anchored.get(at);
+        if (standing) return turns.get(standing.element);
+        at = holderOf(solid, at);
+      }
+      return undefined;
+    };
+  };
   const placedOf = (entry: SpaceDrawnEntry): Matrix4 => {
     const placed = new Matrix4().fromArray(entry.matrix);
     const shift = shifts.get(entry.element);
@@ -484,9 +535,17 @@ export function placeOut(space: PlacedSpace): SpacePlacement {
     const matrix = placedOf(entry);
     if (solid) {
       placedSolids.push(
-        placeSolid(entry, matrix, solid, partsOf.get(entry.element), space.explode),
+        placeSolid(
+          entry,
+          matrix,
+          solid,
+          partsOf.get(entry.element),
+          space.explode,
+          turnOf(entry, solid),
+        ),
       );
-      structure.push(`${entry.element}\u0000${solid.hash}`);
+      // A jointed solid is drawn piece by piece (`scene.ts`), so being jointed is what it is made of.
+      structure.push(`${entry.element}\u0000${solid.hash}${entry.jointed ? '\u0000jointed' : ''}`);
     }
     if (entry.marker) {
       markers.push({ entry, at: originOf(matrix.elements) });
@@ -516,6 +575,8 @@ export function placeOut(space: PlacedSpace): SpacePlacement {
       const held = solidOf(holder);
       if (holder && held && entry.part.index < held.description.parts.length) {
         const middle = middleOf(held.partBounds(entry.part.index));
+        const turn = turnOf(holder, held)?.(entry.part.index);
+        if (turn) middle.applyMatrix4(turn);
         const moved = explosionOf(held, space.explode)[entry.part.index];
         if (moved) middle.add(moved);
         return toPoint(middle.applyMatrix4(placedOf(holder)));
@@ -531,6 +592,7 @@ function placeSolid(
   solid: BuiltSolid,
   anchored: ReadonlyMap<number, SpaceDrawnEntry> | undefined,
   explode: number,
+  turnOf?: (part: number) => Matrix4 | undefined,
 ): PlacedSolid {
   const own = entry.bounds ?? solid.description.bounds;
   const offsets = explosionOf(solid, explode);
@@ -541,6 +603,9 @@ function placeSolid(
     if (moved && moved.lengthSq() > 0) {
       placed.multiply(new Matrix4().makeTranslation(moved.x, moved.y, moved.z));
     }
+    // Turned in its solid as joints turn the anchored part holding it (ADR 0090).
+    const turn = piece.part >= 0 ? turnOf?.(piece.part) : undefined;
+    if (turn) placed.multiply(turn);
     placed.multiply(rest[index] as Matrix4);
     return { piece, index, matrix: placed };
   });
