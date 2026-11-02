@@ -9,6 +9,8 @@ import {
 import type { Element as ModelElement, Overlay, ViewFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { textWidth } from './measure';
+import { BASE_DRAWING } from '../canvas/drawing';
+import { RELATION_TYPES_LEGEND } from '../canvas/overlays/relationLegend';
 import type { Rect } from '../canvas/geometry';
 import { TAG_PADDING, drawnBoundsOf, nameTagOf, nameTagOn } from '../canvas/nameTags';
 import { nameLinesInside, writesNameBelow } from '../canvas/outlined';
@@ -136,8 +138,17 @@ describe('writeSvg', () => {
         width: covered.width + 2 * SVG_MARGIN,
         height: covered.height + 2 * SVG_MARGIN,
       };
-      expectSameRect(viewBoxOf(document), margin);
-      expectSameRect(drawing.viewBox, margin);
+      // Below it, the legend of its relation types, where it has one (ADR 0086).
+      const { legend } = drawing;
+      const shown = legend
+        ? {
+            ...margin,
+            width: Math.max(margin.width, legend.width),
+            height: margin.height + legend.height,
+          }
+        : margin;
+      expectSameRect(viewBoxOf(document), shown);
+      expectSameRect(drawing.viewBox, shown);
     });
 
     it('names each shape’s element and each line’s relations, in the order the canvas draws them', () => {
@@ -456,7 +467,12 @@ describe('the legend of an SVG', () => {
     // In front of everything, after the free shapes.
     expect(legend?.previousElementSibling?.getAttribute('data-part')).toBe('free-shapes');
     const parts = [...(legend?.querySelectorAll(':scope > g[data-overlay]') ?? [])];
-    expect(parts.map((part) => part.getAttribute('data-overlay'))).toEqual(['team', 'rate']);
+    // The overlays' parts, then the relation types' (ADR 0086).
+    expect(parts.map((part) => part.getAttribute('data-overlay'))).toEqual([
+      'team',
+      'rate',
+      RELATION_TYPES_LEGEND,
+    ]);
     expect(textsIn(parts[0] ?? null)).toEqual(
       expect.arrayContaining([
         'Team',
@@ -535,9 +551,23 @@ describe('the legend of an SVG', () => {
     );
   });
 
-  it('writes none while no overlay is on, and keeps the view box to the drawing', () => {
+  it('writes none while no overlay is on and lines are drawn by type, and keeps the view box to the drawing', () => {
     for (const overlays of [[], [{ ...team, off: true }]]) {
-      const drawing = writeSvg(withOverlays(overlays), SAMPLE_VIEW);
+      // Lines by type, of one type: no relation types' part either (ADR 0086).
+      const project = withOverlays(overlays);
+      const one = {
+        ...project,
+        project: { ...project.project, drawing: { lines: { color: 'by-type' as const } } },
+        model: {
+          ...project.model,
+          relations: project.model.relations.map((relation) =>
+            relation.relationType === 'systems.is-part-of'
+              ? relation
+              : { ...relation, relationType: 'systems.communicates-with' },
+          ),
+        },
+      };
+      const drawing = writeSvg(one, SAMPLE_VIEW);
       expect(readSvg(drawing.text).querySelector('g[data-part="legend"]')).toBeNull();
       expect(drawing.legend).toBeUndefined();
     }
@@ -650,7 +680,7 @@ describe('writeSvg beyond boxes', () => {
     expect(paths[0]?.getAttribute('d')?.match(/M/g)).toHaveLength(2);
     expect(use.getAttribute('fill')).toBe(framed.fill);
     expect(use.getAttribute('stroke')).toMatch(/^#[0-9A-F]{6}$/i);
-    expect(Number(use.getAttribute('stroke-width'))).toBe(1.5);
+    expect(Number(use.getAttribute('stroke-width'))).toBe(BASE_DRAWING.shapes.borderWidth);
     expectSameRect(usedOutlineBounds(document, group), outlineBounds(framed), 0.6);
     // Its name whole: in its label area, a side of the frame, where its words fit; under it otherwise.
     const texts = [...group.querySelectorAll(':scope > text')];
@@ -779,7 +809,12 @@ describe('writeSvg beyond boxes', () => {
       (placed?.y ?? 0) + (area?.y ?? 0) + (area?.height ?? 0) / 2,
     );
 
-    const collapsed = holding(true);
+    // Collapsed on its sheet, as `stack` draws it (ADR 0086).
+    const held = holding(true);
+    const collapsed = {
+      ...held,
+      project: { ...held.project, drawing: { containers: { collapsed: 'stack' as const } } },
+    };
     const folded = shapeIn(collapsed, 'framed');
     expect(folded.collapsed).toBeDefined();
     const drawn = readSvg(writeSvg(collapsed, BEYOND_VIEW).text);

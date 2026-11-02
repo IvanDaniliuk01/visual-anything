@@ -41,7 +41,12 @@ interface Inside {
 }
 
 const VIEW = 'system-overview';
-const sample = loadSample();
+// Containers drawn as their kind, in their built-in colors; regions are `clean.test.ts`'s (A5.2).
+const loaded = loadSample();
+const sample = {
+  ...loaded,
+  project: { ...loaded.project, drawing: { containers: { drawn: 'as-kind' as const } } },
+};
 const DARK = THEMES.dark.canvas;
 const LIGHT = THEMES.light.canvas;
 

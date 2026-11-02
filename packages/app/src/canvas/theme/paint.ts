@@ -46,10 +46,11 @@ export function arrowStroke(arrow: ArrowShape, theme: CanvasTheme): Color {
 
 /**
  * Whether a shape is drawn in other colors in the dark theme than in the light one: in built-in
- * colors, or as a row or a shape that draws rows, whose body and separators are the theme's.
+ * colors, as a row or a shape that draws rows, whose body and separators are the theme's, or as a
+ * region, whose fill, border and tab are laid over the theme's canvas (ADR 0086).
  */
 export function shapeFollowsTheme(shape: ElementShape): boolean {
-  return shape.dark !== undefined || rowsFollowTheme(shape);
+  return shape.dark !== undefined || rowsFollowTheme(shape) || shape.region === true;
 }
 
 export function lineFollowsTheme(line: RelationLine): boolean {
@@ -119,7 +120,7 @@ export function paintedArrow(arrow: ArrowShape, theme: CanvasTheme): ArrowShape 
 
 /** The fields of each item that hold its colors; every other field says where and what it draws. */
 export const SHAPE_PAINT: readonly string[] = ['fill', 'stroke', 'dark'];
-export const LINE_PAINT: readonly string[] = ['stroke', 'darkStroke'];
+export const LINE_PAINT: readonly string[] = ['stroke', 'darkStroke', 'typeStroke'];
 export const NOTE_PAINT: readonly string[] = ['fill', 'stroke'];
 export const ARROW_PAINT: readonly string[] = ['stroke'];
 

@@ -34,7 +34,7 @@ import {
   cylinderCap,
   grow,
   holdsPoint,
-  personHead,
+  personLabelTop,
   type Point,
   type Rect,
   type ShapeKind,
@@ -355,7 +355,7 @@ function fitted(width: number, height: number, box: Rect): Rect {
 export function labelAreaOf(kind: ShapeKind, rect: Rect): Rect {
   const { x, y, width, height } = rect;
   if (kind === 'person') {
-    const top = personHead(rect) * 1.6;
+    const top = personLabelTop(rect);
     return { x, y: y + top, width, height: height - top };
   }
   if (kind === 'cylinder') {

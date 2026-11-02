@@ -5,7 +5,7 @@
  * the canvas's own pointer handling (`gestures.ts`, ADR 0074). `pnpm bench` builds this page for production and serves it on 127.0.0.1:47707, at
  * `/bench.html`; the official numbers come from that build, in work mode. `?elements=N` changes the
  * size, `?overlap=stairs`, `grid` or `cascade` makes shapes overlap (see `synthetic.ts`), and
- * `?theme=dark` runs it in the dark theme. It also switches the theme back and forth at three scales,
+ * `?theme=dark` runs it in the dark theme, and `?preset=expressive` from that drawing preset (ADR 0086). It also switches the theme back and forth at three scales,
  * pans and zooms after a switch, selects everything in the dark theme, and recolors every Service;
  * it colors and sizes every shape by an overlay, and zooms across a level of detail (ADR 0055).
  * `?grid=on` runs every phase with the grid and the rulers shown (A3); otherwise the pan and zoom of
@@ -49,13 +49,14 @@
  * percentile, but never more than two frames either.
  */
 import {
+  DRAWING_PRESET_IDS,
   applyOperations,
   executeCommand,
   type Command,
   type ProjectSnapshot,
   type ThemeName,
 } from '@visual-anything/core';
-import type { Id } from '@visual-anything/schema';
+import type { DrawingPreset, Id } from '@visual-anything/schema';
 import { EMPTY_SELECTION, selectionOf, type Selectable, type Selection } from '../editor/selection';
 import { ImageError, type ImageRequest } from '../export/image';
 import { panBy, screenToWorld, zoomAt, type Camera } from '../canvas/camera';
@@ -168,6 +169,10 @@ const images = search.has('images');
 const geometry = search.has('geometry');
 const curves = search.has('curves');
 const startTheme: ThemeName = search.get('theme') === 'dark' ? 'dark' : 'light';
+// `?preset=expressive` (or `clean`, `dense`, `high-contrast`) draws the project from that drawing
+// preset (ADR 0086); without it the project names none, and draws as such a project does.
+const presetAsked = search.get('preset');
+const preset = DRAWING_PRESET_IDS.find((id) => id === presetAsked);
 // The page's panel follows the canvas's theme, as the app's do.
 document.documentElement.setAttribute('data-theme', startTheme);
 const host = document.getElementById('canvas') as HTMLElement;
@@ -237,7 +242,8 @@ const synthetic = solidsMade
       : geometry
         ? syntheticGeometry({ elements: size })
         : syntheticProject({ elements: size, overlap, tables, images });
-let project: ProjectSnapshot = curves ? withCurves(synthetic) : synthetic;
+const drawnFrom = preset === undefined ? synthetic : withPreset(synthetic, preset);
+let project: ProjectSnapshot = curves ? withCurves(drawnFrom) : drawnFrom;
 const VIEW = project.views[0]?.id ?? 'everything';
 // What the recolor phase recolors: every Service, or in a view of tables every Column.
 const RECOLORED = tables ? 'Column' : 'Service';
@@ -1539,4 +1545,9 @@ function report(phases: Phase[], timed: Timed[], latency: number[], themeNotes: 
       passed,
     }),
   );
+}
+
+/** The project drawn from a drawing preset it names (ADR 0086). */
+function withPreset(project: ProjectSnapshot, preset: DrawingPreset): ProjectSnapshot {
+  return { ...project, project: { ...project.project, drawing: { preset } } };
 }

@@ -13,7 +13,7 @@
 import { robotoWidth, type EmphasisRun, type ResolvedDrawing } from '@visual-anything/core';
 import { BASE_DRAWING, nameVariantOf } from './drawing';
 import { SYSTEM_FONT_MARGIN } from '../export/measure';
-import { LINE_HEIGHT, layOutRuns, type LaidText, type Measure } from '../text/layout';
+import { layOutRuns, type LaidText, type Measure } from '../text/layout';
 import type { Rect } from './geometry';
 
 /**
@@ -22,9 +22,9 @@ import type { Rect } from './geometry';
  */
 export const NAME_SIZE = BASE_DRAWING.text.nameSize;
 export const DETAIL_SIZE = BASE_DRAWING.text.detailSize;
-/** How tall a line of each is, as the block is placed. */
-export const NAME_LINE_HEIGHT = NAME_SIZE * LINE_HEIGHT;
-export const DETAIL_LINE_HEIGHT = DETAIL_SIZE * LINE_HEIGHT;
+/** How tall a line of each is, as the block is placed, at the drawing's line height. */
+export const NAME_LINE_HEIGHT = NAME_SIZE * BASE_DRAWING.text.lineHeight;
+export const DETAIL_LINE_HEIGHT = DETAIL_SIZE * BASE_DRAWING.text.lineHeight;
 /**
  * How far in from its label area's top or bottom a block placed there starts or ends: the drawing
  * defaults' `text.padding`.

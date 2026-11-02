@@ -245,7 +245,7 @@ describe('relations that end on rows', () => {
   it('attach beside the header of a collapsed table, aggregated there', () => {
     const collapsed = buildScene(usersAndOrders({ collapsed: ['users'] }), VIEW);
     const table = shapeOf(collapsed, 'users');
-    expect(table.collapsed).toEqual({ contents: 3 });
+    expect(table.collapsed).toMatchObject({ contents: 3 });
     expect(table.rowCount).toBe(0);
     expect(table.rect.height).toBe(collapsedRowsHeight());
     expect(table.fitted?.detail).toBe('3 × Column');

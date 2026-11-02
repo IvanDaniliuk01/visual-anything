@@ -4,6 +4,8 @@
  * The SVG writer writes the same band as SVG, and the PDF draws that.
  */
 import type { Legend, ThemeName } from '@visual-anything/core';
+import { DASH_PATTERNS } from '../canvas/drawing';
+import { entryDash } from '../canvas/overlays/relationLegend';
 import type { Translator } from '../i18n';
 import { THEMES } from '../theme/themes';
 import { ImageError, MAX_IMAGE_PIXELS, MAX_IMAGE_SIDE } from './image';
@@ -92,6 +94,12 @@ function drawSwatch(
     context.strokeStyle = entry.color ?? colors.text;
     context.globalAlpha = entry.opacity ?? 1;
     context.lineWidth = width;
+    // A relation type's line keeps its dash (ADR 0086).
+    const dash = entryDash(entry);
+    if (dash !== 'solid') {
+      const { on, period } = DASH_PATTERNS[dash];
+      context.setLineDash([on * width, (period - on) * width]);
+    }
     context.beginPath();
     context.moveTo(x + 2 * scale, middle.y);
     context.lineTo(x + room - 2 * scale, middle.y);

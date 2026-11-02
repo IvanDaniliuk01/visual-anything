@@ -17,7 +17,13 @@ import { outlineAt } from '../outlines';
 import { headerMiddle } from '../rows';
 import { laidOutRect } from '../overlays/decorate';
 import { innerPointOf } from '../routing/outline-ends';
-import { CONTENTS_ORIGIN, drawingOfScene, type ElementShape, type Scene } from '../scene';
+import {
+  CONTENTS_ORIGIN,
+  containerHeaderOf,
+  drawingOfScene,
+  type ElementShape,
+  type Scene,
+} from '../scene';
 import { connectionPointsOf, handPortsOf } from './ports';
 import {
   LAYOUT_STEP,
@@ -75,6 +81,8 @@ export function layoutInput(
   const all = scene.shapes;
   // Containers leave the drawing defaults' room around their contents (ADR 0086).
   const padding = drawingOfScene(scene).containers.padding;
+  // And start them under their header, a region's shorter than a box's.
+  const header = containerHeaderOf(drawingOfScene(scene));
   let shapes: readonly ElementShape[] = all;
   let free: (shape: ElementShape) => boolean;
   switch (scope.kind) {
@@ -213,6 +221,7 @@ export function layoutInput(
     obstacles,
     ...(scope.kind === 'new' ? {} : { onePass: true as const }),
     ...(padding === CONTENTS_ORIGIN.x ? {} : { padding }),
+    ...(header === CONTENTS_ORIGIN.y ? {} : { header }),
   };
 }
 

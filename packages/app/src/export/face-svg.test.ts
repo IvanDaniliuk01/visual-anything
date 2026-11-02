@@ -11,6 +11,7 @@ import {
   type FaceDrawing,
   type ProjectSnapshot,
 } from '@visual-anything/core';
+import { BASE_DRAWING } from '../canvas/drawing';
 import type { Face, LevelOfDetail } from '@visual-anything/schema';
 import {
   BitmapFont,
@@ -179,15 +180,17 @@ describe('faces in the SVG (ADR 0083)', () => {
   });
 
   it('gives a table the header its face makes, its band as tall', () => {
+    // The rule is as wide as the drawing's borders.
+    const BORDER = BASE_DRAWING.shapes.borderWidth;
     const project = withFaces(usersAndOrders(), { 'data-modeling.table': TABLE_FACE });
     const users = shapeOf(buildScene(project, VIEW), 'users');
     expect(users.header).toBeGreaterThan(32);
     const group = groupOf(readSvg(writeSvg(project, VIEW).text), 'users');
     // The rule under the header lies at its foot.
     const rule = [...group.querySelectorAll(':scope > rect')].find(
-      (rect) => number(rect, 'height') === 1.5 && rect.getAttribute('fill') !== 'none',
+      (rect) => number(rect, 'height') === BORDER && rect.getAttribute('fill') !== 'none',
     ) as Element;
-    expect(number(rule, 'y')).toBeCloseTo(users.rect.y + (users.header ?? 0) - 1.5, 1);
+    expect(number(rule, 'y')).toBeCloseTo(users.rect.y + (users.header ?? 0) - BORDER, 1);
   });
 
   it('draws dashed borders as the canvas’s dashes', () => {

@@ -329,6 +329,7 @@ function sameColumns(a: RowColumns | undefined, b: RowColumns | undefined): bool
     a.type === b.type &&
     a.badges === b.badges &&
     a.typeX === b.typeX &&
+    a.typeEnd === b.typeEnd &&
     a.badgesX === b.badgesX
   );
 }

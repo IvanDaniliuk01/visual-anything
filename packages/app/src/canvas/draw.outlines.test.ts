@@ -27,6 +27,7 @@ import { geometrySource, outlineIn, type ShapeOutline } from './outlines';
 import { buildScene, type ElementShape } from './scene';
 import { painterOf } from './theme/painter';
 import { placeImage } from './shape-images';
+import { BASE_DRAWING } from './drawing';
 import { DETAIL_LINE_HEIGHT } from './textBlock';
 import { readGeometry } from '@visual-anything/core';
 
@@ -108,7 +109,12 @@ describe('plain blocks and silhouettes', () => {
     drawShapeBlocks(graphics, [pale]);
     const all = drawn(graphics);
     const rim = all.find((each) => each.action === 'stroke' && !each.pixelLine);
-    expect(rim).toMatchObject({ color: pale.stroke, width: 6, alignment: 1 });
+    // Four of the drawing's borders wide.
+    expect(rim).toMatchObject({
+      color: pale.stroke,
+      width: 4 * BASE_DRAWING.shapes.borderWidth,
+      alignment: 1,
+    });
     const hairline = all.find((each) => each.pixelLine);
     expect(hairline?.color).toBe(pale.stroke);
     // Kept to the triangle, centred in the wide rectangle as its proportions are kept.

@@ -7,6 +7,7 @@ import type { Legend, LegendEntry, LegendOverlay } from '@visual-anything/core';
 import { useId, type CSSProperties } from 'react';
 import { useT } from '../../i18n';
 import { entryAmount, entryLabel, legendSubtitle } from './legendText';
+import { RELATION_TYPES_LEGEND, entryDash } from './relationLegend';
 import './legend.css';
 
 /** The swatch of an entry: a color, a size, a badge or a fade, drawn as the overlay draws it. */
@@ -42,7 +43,13 @@ function Swatch({ entry, part }: { entry: LegendEntry; part: LegendOverlay }) {
 function swatchStyle(entry: LegendEntry, part: LegendOverlay): CSSProperties {
   const lines = part.of === 'relations';
   if (entry.color !== undefined) {
-    if (lines) return { borderTopColor: entry.color };
+    if (lines) {
+      // A relation type's line keeps its dash (ADR 0086).
+      const dash = entryDash(entry);
+      return dash === 'solid'
+        ? { borderTopColor: entry.color }
+        : { borderTopColor: entry.color, borderTopStyle: dash };
+    }
     return part.channel === 'stroke'
       ? { borderColor: entry.color }
       : { backgroundColor: entry.color };
@@ -97,7 +104,11 @@ export function LegendPanel({ legend, className }: { legend: Legend; className?:
   const t = useT();
   if (legend.overlays.length === 0) return null;
   return (
-    <details className={className ? `canvas-legend ${className}` : 'canvas-legend'} open>
+    // Open at first while it shows an overlay; the relation types alone wait to be opened (ADR 0086).
+    <details
+      className={className ? `canvas-legend ${className}` : 'canvas-legend'}
+      open={legend.overlays.some((part) => part.id !== RELATION_TYPES_LEGEND)}
+    >
       <summary>{t('Legend')}</summary>
       <div className="canvas-legend-body">
         {legend.overlays.map((part) => (

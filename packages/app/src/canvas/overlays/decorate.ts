@@ -950,6 +950,7 @@ function sameLine(a: RelationLine, b: RelationLine): boolean {
     a === b ||
     (a.stroke === b.stroke &&
       a.darkStroke === b.darkStroke &&
+      a.typeStroke === b.typeStroke &&
       a.width === b.width &&
       a.label === b.label &&
       a.arrowhead?.tip.x === b.arrowhead?.tip.x &&
@@ -977,6 +978,8 @@ function lineWithLook(
   next.stroke = stroke;
   if (darkStroke !== stroke) next.darkStroke = darkStroke;
   else delete next.darkStroke;
+  // A color an overlay gives is the line's own, which hover and selection keep (ADR 0086).
+  if (look.stroke !== undefined) delete next.typeStroke;
   if (look.size !== undefined && look.size !== 1) {
     next.width = line.width * look.size;
     const end = line.route.at(-1) as Point;

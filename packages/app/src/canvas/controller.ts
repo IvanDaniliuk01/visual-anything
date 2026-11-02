@@ -1028,6 +1028,11 @@ export class CanvasController {
           this.hovered = shape;
           this.refreshMarks();
         }
+        // The line under the pointer takes its type's color, and with `fadeOthers` the rest fade
+        // (ADR 0086).
+        this.renderer.setHoveredLine(
+          hit?.kind === 'relation' && !shape ? hit.line.relation : undefined,
+        );
         const routeCursor = this.routes.cursorAt(world) ?? this.shapes.cursorAt(world);
         this.host.style.cursor = routeCursor
           ? routeCursor
@@ -1138,6 +1143,7 @@ export class CanvasController {
   private readonly onPointerLeave = (): void => {
     this.markPointer(undefined);
     if (this.gesture.kind === 'idle') this.renderer.showContainerGrid(undefined);
+    this.renderer.setHoveredLine(undefined);
     if (this.gesture.kind === 'idle' && this.hovered) {
       this.hovered = undefined;
       this.refreshMarks();
@@ -1442,6 +1448,7 @@ export class CanvasController {
   private begin(event: PointerEvent, gesture: Exclude<Gesture, { kind: 'idle' }>): void {
     this.gesture = gesture;
     this.host.setPointerCapture?.(event.pointerId);
+    this.renderer.setHoveredLine(undefined);
     if (gesture.kind === 'box' || gesture.kind === 'connect') this.hovered = undefined;
     this.refreshMarks();
   }
@@ -2252,6 +2259,7 @@ export class CanvasController {
     this.renderer.showContainerGrid(undefined);
     this.host.style.cursor = 'default';
     if (this.host.title !== '') this.host.title = '';
+    this.renderer.setHoveredLine(undefined);
     if (this.hovered) {
       this.hovered = undefined;
       this.refreshMarks();

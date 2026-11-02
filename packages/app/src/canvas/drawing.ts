@@ -3,14 +3,14 @@
  * resolved values for a project and a view, cached by the identity of their `drawing` objects, so
  * that resolving them costs nothing a frame and a change gives another object, which draws again.
  *
- * This is the one place the app chooses how a project that names no preset is drawn. Until A5.2
- * makes Clean the look of such a project, it is drawn as the canvas drew before drawing defaults
- * (`DRAWING_BEFORE_A5`), with whatever the project and the view set laid over it; a project or a
- * view that names a preset is drawn from that preset, as the core resolves it.
+ * This is the one place the app chooses how a project that names no preset is drawn: from Clean, the
+ * default preset (A5.2), with whatever the project and the view set laid over it; a project or a
+ * view that names a preset is drawn from that preset, as the core resolves it. `DRAWING_BEFORE_A5`,
+ * how the canvas drew before drawing defaults, stays for the tests that need the old pictures.
  */
 import {
-  DRAWING_BEFORE_A5,
   DRAWING_GROUPS,
+  DRAWING_PRESETS,
   resolveDrawing,
   type ProjectSnapshot,
   type ResolvedDrawing,
@@ -18,8 +18,8 @@ import {
 import type { DrawingDefaults, Id } from '@visual-anything/schema';
 import { ROBOTO, SANS_FAMILY } from './fontFamilies';
 
-/** What a project that names no preset is drawn from. A5.2 changes this line to Clean. */
-const NO_PRESET: ResolvedDrawing | undefined = DRAWING_BEFORE_A5;
+/** What a project that names no preset is drawn from: Clean (A5.2). */
+const NO_PRESET: ResolvedDrawing | undefined = DRAWING_PRESETS.clean;
 
 /** The drawing of a project and a view that set nothing. */
 export const BASE_DRAWING: ResolvedDrawing = resolveCanvasDrawing(undefined, undefined);
@@ -143,6 +143,20 @@ export const DASH_PATTERNS: Readonly<Record<'dashed' | 'dotted', { on: number; p
     // As a dash one line width long with round caps reads: two widths on, one off.
     dotted: { on: 2, period: 3 },
   };
+
+/**
+ * A soft shadow (ADR 0086): one copy of a shape offset 2 down, 12 % dark at its middle, blurred by
+ * three layers each a unit wider than the next, which cost three fills rather than a filter.
+ */
+export const SOFT_SHADOW = { offset: 2, alpha: 0.12, layers: 3 } as const;
+/** How far a count badge's pill reaches past its count, across and down, and its border's width. */
+export const BADGE_PADDING = { x: 5, y: 2, border: 1 } as const;
+
+/** How large a count badge's pill is around a count this large: never narrower than tall. */
+export function badgeSize(width: number, height: number): { width: number; height: number } {
+  const tall = height + 2 * BADGE_PADDING.y;
+  return { width: Math.max(tall, width + 2 * BADGE_PADDING.x), height: tall };
+}
 
 /** The bundled Roboto first, then the system's fonts until it is loaded (`robotoFonts.ts`). */
 const ROBOTO_FIRST: string[] = [...SANS_FAMILY];

@@ -11,8 +11,16 @@
 import { Container, Graphics } from 'pixi.js';
 import { THEMES, type CanvasTheme } from '../theme/themes';
 import type { Camera } from './camera';
-import { cylinderCap, personHead, type Point, type Rect, type Size } from './geometry';
-import { ZOOM_SLACK, containerGridLines, familyAlpha, gridLines, gridPlacement } from './grid';
+import { cylinderCap, personLabelTop, type Point, type Rect, type Size } from './geometry';
+import {
+  ZOOM_SLACK,
+  containerGridLines,
+  familyAlpha,
+  gridLines,
+  gridPlacement,
+  type DrawnFamily,
+  type GridLine,
+} from './grid';
 import type { ElementShape } from './scene';
 
 /** What the grid draws: whether it shows, and whether shapes snap to it. */
@@ -29,6 +37,7 @@ interface Drawn {
   resolution: number;
   snapping: boolean;
   theme: CanvasTheme;
+  look: GridLook;
   period: number;
   /** Whether it was drawn for a camera at rest, with lines of exact widths. */
   exact: boolean;
@@ -43,7 +52,23 @@ interface DrawnInside {
   resolution: number;
   snapping: boolean;
   theme: CanvasTheme;
+  look: GridLook;
 }
+
+/** How the grid draws, by the drawing defaults (ADR 0086): lines, or a dot where its lines cross. */
+export type GridLook = 'lines' | 'dots';
+
+/**
+ * The most dots the canvas's grid draws, and a container's; above it, the finest family is left out.
+ * A dot is one device pixel, so the finest family drawn is far enough apart to be seen anyway.
+ */
+export const MAX_GRID_DOTS = 30000;
+const MAX_CONTAINER_DOTS = 8000;
+/**
+ * How much stronger than a line of its family a dot is drawn: a dot of one pixel at a line's
+ * strength would not be seen, so the dots read as faintly as the lines do.
+ */
+export const DOT_STRENGTH = 2;
 
 /** The container a grid is drawn in: its shape, and the drawing it goes last in. */
 export interface GridTarget {
@@ -60,6 +85,7 @@ export class GridMarks {
   private readonly insideLines = new Graphics();
   private state: GridState = { shown: false, snapping: false };
   private theme: CanvasTheme = THEMES.light.canvas;
+  private look: GridLook = 'lines';
   private drawn: Drawn | undefined;
   private drawnInside: DrawnInside | undefined;
   /** How many lines each grid drew last, and how many times the canvas's grid was drawn, for tests. */
@@ -85,6 +111,11 @@ export class GridMarks {
   set(state: GridState): void {
     this.state = state;
     this.whole.visible = state.shown;
+  }
+
+  /** Draws lines or dots from now on (ADR 0086); a change draws the grid again when it next follows. */
+  setLook(look: GridLook): void {
+    this.look = look;
   }
 
   /** Draws in a theme from now on: only a retint, unless the theme's strengths differ. */
@@ -115,6 +146,7 @@ export class GridMarks {
       was.height !== viewport.height ||
       was.resolution !== resolution ||
       was.snapping !== this.state.snapping ||
+      was.look !== this.look ||
       was.theme.gridStrength !== this.theme.gridStrength ||
       was.theme.gridSnapAlpha !== this.theme.gridSnapAlpha
     ) {
@@ -137,6 +169,22 @@ export class GridMarks {
     // While the camera moves, the lines are a little wider, so that none falls between two pixels
     // when a zoom shrinks them.
     const widen = exact ? 1 : ZOOM_SLACK;
+    if (this.look === 'dots') {
+      this.lineCount = drawDots(graphics, planned.families, MAX_GRID_DOTS, widen, (family) =>
+        Math.min(1, DOT_STRENGTH * familyAlpha(family, this.theme, this.state.snapping)),
+      );
+      return {
+        scale,
+        width: viewport.width,
+        height: viewport.height,
+        resolution,
+        snapping: this.state.snapping,
+        theme: this.theme,
+        look: this.look,
+        period: planned.period,
+        exact,
+      };
+    }
     for (const family of planned.families) {
       if (family.xs.length + family.ys.length === 0) continue;
       for (const { start, width } of family.xs) {
@@ -158,6 +206,7 @@ export class GridMarks {
       resolution,
       snapping: this.state.snapping,
       theme: this.theme,
+      look: this.look,
       period: planned.period,
       exact,
     };
@@ -185,6 +234,7 @@ export class GridMarks {
       was.scale === camera.scale &&
       was.resolution === resolution &&
       was.snapping === this.state.snapping &&
+      was.look === this.look &&
       was.theme.gridStrength === this.theme.gridStrength &&
       sameRect(was.area, area) &&
       was.origin.x === origin.x &&
@@ -201,6 +251,7 @@ export class GridMarks {
       resolution,
       snapping: this.state.snapping,
       theme: this.theme,
+      look: this.look,
     };
   }
 
@@ -221,6 +272,17 @@ export class GridMarks {
     // One device pixel or more, as the canvas's grid, in canvas units.
     const width = Math.max(1, Math.round(resolution)) / resolution / scale;
     const families = containerGridLines(area, origin, scale);
+    if (this.look === 'dots') {
+      const lines = families.map((family) => ({
+        ...family,
+        xs: family.xs.map((x) => ({ start: x - width / 2, width })),
+        ys: family.ys.map((y) => ({ start: y - width / 2, width })),
+      }));
+      this.insideLineCount = drawDots(graphics, lines, MAX_CONTAINER_DOTS, 1, (family) =>
+        Math.min(1, DOT_STRENGTH * familyAlpha(family, this.theme, this.state.snapping)),
+      );
+      return;
+    }
     for (const family of families) {
       if (family.xs.length + family.ys.length === 0) continue;
       for (const x of family.xs) graphics.rect(x - width / 2, area.y, width, area.height);
@@ -238,6 +300,53 @@ export class GridMarks {
 }
 
 /**
+ * Draws a grid as dots (ADR 0086): a square of a line's width where two of its lines cross, each in
+ * the coarsest family both its lines belong to, by that family's alpha. Past `cap` dots the finest
+ * families are left out. Gives how many dots it drew.
+ */
+function drawDots(
+  graphics: Graphics,
+  families: readonly (DrawnFamily & { xs: readonly GridLine[]; ys: readonly GridLine[] })[],
+  cap: number,
+  widen: number,
+  alphaOf: (family: DrawnFamily) => number,
+): number {
+  const countFrom = (from: number): number => {
+    let count = 0;
+    for (let at = from; at < families.length; at++) {
+      const family = families[at] as (typeof families)[number];
+      let coarserXs = 0;
+      let coarserYs = 0;
+      for (let up = at + 1; up < families.length; up++) {
+        coarserXs += (families[up] as (typeof families)[number]).xs.length;
+        coarserYs += (families[up] as (typeof families)[number]).ys.length;
+      }
+      count += family.xs.length * (family.ys.length + coarserYs) + coarserXs * family.ys.length;
+    }
+    return count;
+  };
+  let from = 0;
+  while (from < families.length - 1 && countFrom(from) > cap) from += 1;
+  let drawn = 0;
+  for (let at = from; at < families.length; at++) {
+    const family = families[at] as (typeof families)[number];
+    const coarserXs = families.slice(at + 1).flatMap((each) => each.xs);
+    const coarserYs = families.slice(at + 1).flatMap((each) => each.ys);
+    const dot = (x: GridLine, y: GridLine) => {
+      graphics.rect(x.start, y.start, x.width * widen, y.width * widen);
+      drawn += 1;
+    };
+    for (const x of family.xs) {
+      for (const y of family.ys) dot(x, y);
+      for (const y of coarserYs) dot(x, y);
+    }
+    for (const x of coarserXs) for (const y of family.ys) dot(x, y);
+    if (drawn > 0) graphics.fill({ color: 0xffffff, alpha: alphaOf(family) });
+  }
+  return drawn;
+}
+
+/**
  * Where a container's grid is drawn: inside its outline, a little in from its border, so that it never
  * crosses the border or spills out of a shape that is not a rectangle.
  */
@@ -252,7 +361,7 @@ export function gridAreaOf(shape: ElementShape): Rect {
       break;
     }
     case 'person': {
-      const top = personHead(shape.rect) * 2;
+      const top = personLabelTop(shape.rect);
       area = { x, y: y + top, width, height: height - top };
       break;
     }

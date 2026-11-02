@@ -106,6 +106,7 @@ import { showInSpace, showInSpaceOf } from '../space/show';
 import { PlacedHoverCard } from './HoverCard';
 import { useHoverCard } from './useHoverCard';
 import { LegendPanel } from './overlays/LegendPanel';
+import { relationTypesLegend, withRelationTypes } from './overlays/relationLegend';
 import { ZoomExpansionContext, withoutZoomExpanded } from './overlays/useZoomExpansion';
 import { restackCommand, stackingActions, stackingShortcut, type StackingMove } from './stacking';
 
@@ -609,10 +610,21 @@ export function CanvasArea({
     controllerRef.current?.renderer.setCodeDrawings(codeDrawings);
   }, [codeDrawings]);
   // The legend of the view's overlays, on the canvas and below its images (ADR 0055).
-  const legend = useMemo(
+  const overlaysLegend = useMemo(
     () => legendOf(view, definitionsIn(project), theme),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the definitions follow the packages and the project appearances only
     [view, project.packages, project.project.appearances, theme],
+  );
+  // After them, the relation types the lines are drawn as, where lines are neutral or of several
+  // types (ADR 0086).
+  const relationTypes = useMemo(
+    () => relationTypesLegend(drawn, project, definitionsIn(project), theme, t('Relation types')),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the definitions follow the packages and the project appearances only
+    [drawn.relations, project.model, project.packages, project.project.appearances, theme, t],
+  );
+  const legend = useMemo(
+    () => withRelationTypes(overlaysLegend, relationTypes),
+    [overlaysLegend, relationTypes],
   );
   useEffect(() => {
     controllerRef.current?.renderer.setLegend(legend.overlays.length > 0 ? legend : undefined);

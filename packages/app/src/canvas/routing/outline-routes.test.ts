@@ -28,10 +28,13 @@ import {
   type Scene,
 } from '../scene';
 import { avoidedScene } from './avoided';
+import { BASE_DRAWING } from '../drawing';
 import { STUB } from './hand';
 import { endOutline, nearestOnOutline } from './outline-ends';
 import { rerouted } from './scene-routes';
 
+/** The gap between parallel lines in the drawing a project that sets nothing is drawn with. */
+const GAP = BASE_DRAWING.lines.parallelGap;
 const VIEW = 'anatomy';
 const NS = 'xmlns="http://www.w3.org/2000/svg"';
 /** A picture of one nerve, a line 4 wide across it. */
@@ -303,15 +306,15 @@ describe('automatic straight and curved lines on outlines', () => {
     expect(offOutline(scene, 'framed', tie.to)).toBeLessThan(1e-6);
   });
 
-  it('fan lines between the same two ends 24 apart, whichever way each runs', () => {
+  it('fan lines between the same two ends the drawing’s gap apart, whichever way each runs', () => {
     const scene = buildScene(styled(project(), 'straight'), VIEW);
     const t1 = lineOf(scene, 't1');
     const t2 = lineOf(scene, 't2');
     expect(offOutline(scene, 'tri', t1.from)).toBeLessThan(1e-6);
     expect(offOutline(scene, 'tri', t2.to)).toBeLessThan(1e-6);
-    // Parallel, 24 apart.
-    expect(fromLine(t2.from, t1.from, t1.to)).toBeCloseTo(24, 6);
-    expect(fromLine(t2.to, t1.from, t1.to)).toBeCloseTo(24, 6);
+    // Parallel, the drawing's gap apart.
+    expect(fromLine(t2.from, t1.from, t1.to)).toBeCloseTo(GAP, 6);
+    expect(fromLine(t2.to, t1.from, t1.to)).toBeCloseTo(GAP, 6);
   });
 
   it('curve in one span from where the orthogonal route attaches, along the sides', () => {
@@ -329,8 +332,8 @@ describe('automatic straight and curved lines on outlines', () => {
     expect(span.to.x).toBe(400);
     expect(span.c2.y).toBe(span.to.y);
     expect(span.c2.x).toBeLessThan(span.to.x);
-    // At the box, the two lines attach 24 apart, so their curves fan apart.
-    expect(Math.abs(t1.to.y - t2.from.y)).toBeCloseTo(24, 6);
+    // At the box, the two lines attach the drawing's gap apart, so their curves fan apart.
+    expect(Math.abs(t1.to.y - t2.from.y)).toBeCloseTo(GAP, 6);
     expect(scene).toEqual(buildSceneAfresh(styled(project(), 'curved'), VIEW));
   });
 

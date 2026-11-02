@@ -167,11 +167,36 @@ export const SHEET = 5;
  */
 export function bodyOf(shape: { rect: Rect; collapsed?: unknown }): Rect {
   const { rect } = shape;
-  if (shape.collapsed === undefined || rect.width <= 2 * SHEET || rect.height <= 2 * SHEET) {
+  if (!showsSheet(shape.collapsed) || rect.width <= 2 * SHEET || rect.height <= 2 * SHEET) {
     return rect;
   }
   return { ...rect, width: rect.width - SHEET, height: rect.height - SHEET };
 }
+
+/**
+ * Whether a container collapsed so shows a sheet behind it: unless the drawing defaults count what it
+ * holds instead (`look: 'count'`, ADR 0086), which draws a second border inside it.
+ */
+export function showsSheet(collapsed: unknown): boolean {
+  if (collapsed === undefined || collapsed === false) return false;
+  return !(
+    typeof collapsed === 'object' &&
+    collapsed !== null &&
+    (collapsed as { look?: unknown }).look === 'count'
+  );
+}
+
+/** Whether a container collapsed so draws a second border inside it (ADR 0086). */
+export function showsInnerBorder(collapsed: unknown): boolean {
+  const look =
+    typeof collapsed === 'object' && collapsed !== null
+      ? (collapsed as { look?: unknown }).look
+      : undefined;
+  return look === 'count' || look === 'stack-and-count';
+}
+
+/** How far inside a collapsed container its second border runs (ADR 0086). */
+export const INNER_BORDER = 3;
 
 /**
  * Where the toggle that collapses or expands a container sits: in the top right corner of its body.
@@ -193,14 +218,69 @@ export function toggleRect(shape: {
   };
 }
 
-/** How tall the ellipse is that closes a cylinder at the top and at the bottom, halved. */
+/**
+ * How tall the ellipse is that closes a cylinder at the top and at the bottom, halved: at most 10, at
+ * any width (ADR 0086), so that a wide cylinder never curves across the view.
+ */
 export function cylinderCap(rect: Rect): number {
-  return Math.min(12, rect.height * 0.15);
+  return Math.min(10, rect.height * 0.15);
 }
 
-/** The radius of a person's head; the body starts below it. */
+/** The radius of a person's head, at the middle of its top; its shoulders start below it. */
 export function personHead(rect: Rect): number {
-  return Math.min(rect.height * 0.22, rect.width * 0.2);
+  return Math.min(rect.height * 0.16, rect.width * 0.2);
+}
+
+/**
+ * A person drawn as common diagram sets draw one (ADR 0086): a head's circle, and under it a body
+ * whose top corners are rounded by `shoulder` into one arc, the shoulders.
+ */
+export interface PersonFigure {
+  head: { x: number; y: number; radius: number };
+  body: Rect;
+  shoulder: number;
+}
+
+/** A person's figure in its rectangle. */
+export function personFigure(rect: Rect): PersonFigure {
+  const radius = personHead(rect);
+  const top = rect.y + radius * 2.15;
+  const body = {
+    x: rect.x,
+    y: top,
+    width: rect.width,
+    height: Math.max(0, rect.y + rect.height - top),
+  };
+  const shoulder = Math.max(0, Math.min(body.width / 2, body.height / 2, radius * 1.6));
+  return { head: { x: rect.x + rect.width / 2, y: rect.y + radius, radius }, body, shoulder };
+}
+
+/** How far below a person's top its label area starts: under the curve of its shoulders. */
+export function personLabelTop(rect: Rect): number {
+  const { body, shoulder } = personFigure(rect);
+  return body.y + shoulder * 0.15 - rect.y;
+}
+
+/**
+ * A person's body as a polygon, flat numbers: its shoulders' arc at the top corners, and corners of
+ * `bottom` at its foot, each arc in `steps` straight pieces.
+ */
+export function personBodyPoints(figure: PersonFigure, bottom: number, steps = 8): number[] {
+  const { body, shoulder } = figure;
+  const { x, y, width, height } = body;
+  const low = Math.max(0, Math.min(bottom, width / 2, height - shoulder));
+  const points: number[] = [];
+  const arc = (cx: number, cy: number, radius: number, from: number, to: number) => {
+    for (let at = 0; at <= steps; at++) {
+      const angle = from + ((to - from) * at) / steps;
+      points.push(cx + radius * Math.cos(angle), cy + radius * Math.sin(angle));
+    }
+  };
+  arc(x + shoulder, y + shoulder, shoulder, Math.PI, 1.5 * Math.PI);
+  arc(x + width - shoulder, y + shoulder, shoulder, 1.5 * Math.PI, 2 * Math.PI);
+  arc(x + width - low, y + height - low, low, 0, 0.5 * Math.PI);
+  arc(x + low, y + height - low, low, 0.5 * Math.PI, Math.PI);
+  return points;
 }
 
 /**
@@ -232,10 +312,17 @@ export function holdsPoint(kind: ShapeKind, rect: Rect, point: Point): boolean {
       );
     }
     case 'person': {
-      const head = personHead(rect);
-      const top = rect.y + head * 1.6;
-      const body = { x: rect.x, y: top, width: rect.width, height: rect.y + rect.height - top };
-      return inRect(body) || inEllipse(point, centerX, rect.y + head, head, head);
+      const { head, body, shoulder } = personFigure(rect);
+      if (inEllipse(point, head.x, head.y, head.radius, head.radius)) return true;
+      if (!inRect(body)) return false;
+      // Above the shoulders' arc, at either top corner, lies outside.
+      const top = body.y + shoulder;
+      if (point.y >= top || shoulder <= 0) return true;
+      const left = body.x + shoulder;
+      const right = body.x + body.width - shoulder;
+      if (point.x < left) return inEllipse(point, left, top, shoulder, shoulder);
+      if (point.x > right) return inEllipse(point, right, top, shoulder, shoulder);
+      return true;
     }
   }
 }

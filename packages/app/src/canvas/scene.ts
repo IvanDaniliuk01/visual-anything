@@ -45,7 +45,8 @@ import type {
   ShapePosition,
   ViewFile,
 } from '@visual-anything/schema';
-import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
+import { ESSENCE_ID } from '@visual-anything/schema';
+import { THEMES } from '../theme/themes';
 import {
   appearanceOf,
   componentOrEssence,
@@ -279,7 +280,14 @@ export interface ElementShape {
    * it, `contents` of them, and is drawn at its component's size, its stored size kept for when it
    * expands.
    */
-  collapsed?: { contents: number };
+  collapsed?: CollapsedLook;
+  /**
+   * Present when the drawing defaults draw this container as a quiet region (ADR 0086): its stroke's
+   * color, faint, as its fill, a thin border, and a name tab with its kind's icon at its top left,
+   * whatever its kind. A collapsed container, one that draws rows, one with its own outline, a face
+   * or a picture is never one.
+   */
+  region?: true;
   /** The connection points its appearance sets, where relations attach; absent when it sets none. */
   points?: readonly ConnectionPlace[];
   /**
@@ -376,6 +384,18 @@ export interface ElementShape {
   header?: number;
 }
 
+/**
+ * How a collapsed container shows that it holds more (ADR 0086): `contents` shapes would sit directly
+ * in it. With no `look`, a sheet shows behind it (`stack`); `count` draws a second border inside it
+ * instead, and `stack-and-count` both. `component` names the component every one of them comes from,
+ * when they all come from one, which its count names.
+ */
+export interface CollapsedLook {
+  contents: number;
+  look?: 'count' | 'stack-and-count';
+  component?: string;
+}
+
 /** A relation drawn along an orthogonal route, or an aggregated relation standing for several. */
 export interface RelationLine {
   /**
@@ -402,8 +422,19 @@ export interface RelationLine {
   stroke: Color;
   /** The stroke drawn on the dark canvas, when it differs from `stroke` (core's `relationDarkStrokeOf`). */
   darkStroke?: Color;
+  /**
+   * Present on a line drawn in the theme's neutral color, as drawing defaults with neutral lines draw
+   * a relation type's built-in color (ADR 0086): that color in each theme, which the line takes on
+   * hover and selection, and which the legend names its type by.
+   */
+  typeStroke?: { light: Color; dark?: Color };
   width: number;
   dash: Dash;
+  /**
+   * Present on an aggregated relation drawn with a count badge (ADR 0086): a pill at its middle that
+   * writes how many relations it stands for, its `label`.
+   */
+  badge?: true;
   /**
    * What the route runs between, so that it can be routed again while one end is dragged: each end's
    * shape or relation, and how far the route runs beside others between the same ends.
@@ -486,14 +517,39 @@ export function arrowWidthOf(drawing: ResolvedDrawing): number {
  */
 let laying: ResolvedDrawing = BASE_DRAWING;
 
-/** Where the first row of contents starts inside a container, below the container's name. */
-const CONTAINER_HEADER = 48;
+/**
+ * How tall a container's header is, where its first row of contents starts, below its name: under
+ * its name and detail for a container drawn as its kind, under its name tab for one drawn as a region
+ * (ADR 0086); never less than the 48 the canvas drew before drawing defaults, so that a view laid out
+ * then stays where it is, and more where the drawing's container names and details need it.
+ */
+export function containerHeaderOf(drawing: ResolvedDrawing): number {
+  const { containerNameSize, lineHeight, padding } = drawing.text;
+  if (drawing.containers.drawn === 'region') {
+    return Math.max(LEAST_HEADER, Math.round(2 * padding + containerNameSize * lineHeight));
+  }
+  return kindHeaderOf(drawing);
+}
+
+/** The least header a container has: the canvas's before drawing defaults. */
+const LEAST_HEADER = 48;
+
+/** How tall the header of a container drawn as its kind is: its name, its detail and their gaps. */
+function kindHeaderOf(drawing: ResolvedDrawing): number {
+  const { containerNameSize, detailSize, lineHeight } = drawing.text;
+  return Math.max(
+    LEAST_HEADER,
+    Math.round(8 + containerNameSize + 6 + detailSize * lineHeight + 6),
+  );
+}
+
 /**
  * What a container leaves around its contents, which a drawing with parts leaves around its picture:
- * the drawing's `containers.padding` round them, and its header above.
+ * the drawing's `containers.padding` round them, and its header above, as a container drawn as its
+ * kind has it, since a drawing with parts never is a region.
  */
 function roomOf(drawing: ResolvedDrawing): { padding: number; header: number } {
-  return { padding: drawing.containers.padding, header: CONTAINER_HEADER };
+  return { padding: drawing.containers.padding, header: kindHeaderOf(drawing) };
 }
 const origins = new WeakMap<ResolvedDrawing, Readonly<Point>>();
 /**
@@ -506,7 +562,7 @@ export const CONTENTS_ORIGIN: Readonly<Point> = contentsOriginOf(BASE_DRAWING);
 export function contentsOriginOf(drawing: ResolvedDrawing): Readonly<Point> {
   let origin = origins.get(drawing);
   if (origin === undefined) {
-    origin = { x: drawing.containers.padding, y: CONTAINER_HEADER };
+    origin = { x: drawing.containers.padding, y: containerHeaderOf(drawing) };
     origins.set(drawing, origin);
   }
   return origin;
@@ -1153,8 +1209,28 @@ function laidOutFrom(kept: Built, project: ProjectSnapshot, view: ViewFile): boo
 function sceneOf(layout: Layout, drawing: readonly number[], defaults: ResolvedDrawing): Scene {
   const { shapes, relations, notes, arrows, bounds } = layout;
   const scene: Scene = { shapes, drawing, relations, notes, arrows, bounds };
-  if (defaults !== BASE_DRAWING) scene.drawingDefaults = defaults;
+  const drawn = withinShadows(defaults, shapes.length);
+  if (drawn !== BASE_DRAWING) scene.drawingDefaults = drawn;
   return scene;
+}
+
+/** Soft shadows are drawn only while a view shows fewer shapes than this (ADR 0086). */
+export const MOST_SHADOWED = 2000;
+const unshadowed = new WeakMap<ResolvedDrawing, ResolvedDrawing>();
+
+/**
+ * The drawing a scene of so many shapes is drawn with: its own, or, past `MOST_SHADOWED` shapes, the
+ * same without soft shadows, so that they never cost the frame budget of a large view. It lays out
+ * the same; only what draws differs, and the same object comes back for the same drawing.
+ */
+export function withinShadows(drawing: ResolvedDrawing, shapes: number): ResolvedDrawing {
+  if (drawing.shapes.shadow !== 'soft' || shapes < MOST_SHADOWED) return drawing;
+  let plain = unshadowed.get(drawing);
+  if (plain === undefined) {
+    plain = { ...drawing, shapes: { ...drawing.shapes, shadow: 'none' } };
+    unshadowed.set(drawing, plain);
+  }
+  return plain;
 }
 
 /**
@@ -1620,6 +1696,8 @@ export interface Measured {
   contents: Box[];
   /** For a collapsed container: how many shapes would sit directly in it. */
   folded?: number;
+  /** For a collapsed container whose contents all come from one component: that component's name. */
+  foldedComponent?: string;
   /** For a shape that draws its contents as rows, and for a row (`rowShapes.ts`). */
   rows?: RowParts;
   /** The relations that leave the view from its element (`scope.ts`). */
@@ -1649,6 +1727,35 @@ interface Shaping {
   drawnAsKind: ReadonlySet<FreeGeometry>;
   /** The named part a content's appearance names, if any. */
   partOf: (content: Placement) => ResolvedAppearance['part'];
+  /** The component a content's element comes from. */
+  componentOf: (content: Placement) => Id;
+}
+
+/** How a collapsed container shows what it holds, by the drawing defaults it is laid out with. */
+function collapsedLookOf(
+  contents: number,
+  parts: Pick<Measured, 'foldedComponent'>,
+): CollapsedLook {
+  const shows = laying.containers.collapsed;
+  return {
+    contents,
+    ...(shows === 'stack' ? {} : { look: shows }),
+    ...(parts.foldedComponent === undefined ? {} : { component: parts.foldedComponent }),
+  };
+}
+
+/**
+ * The name of the component every content of a collapsed container comes from, when they come from
+ * one and the drawing defaults count what it holds (ADR 0086).
+ */
+function foldedComponentOf(
+  contents: readonly Placement[],
+  shaping: Shaping,
+): Pick<Measured, 'foldedComponent'> {
+  if (laying.containers.collapsed === 'stack' || contents.length === 0) return {};
+  const first = shaping.componentOf(contents[0] as Placement);
+  if (contents.some((content) => shaping.componentOf(content) !== first)) return {};
+  return { foldedComponent: componentOrEssence(shaping.definitions, first).name };
 }
 
 /** The outline and part a shape of its own takes from its look: its part's, or its free geometry's. */
@@ -1784,6 +1891,8 @@ function measured(
       },
       appearance.height,
       collapsedHeaderWrap(appearance.width, look.image !== undefined || look.solid !== undefined),
+      undefined,
+      laying,
     );
     // A face of size `content` gives the sheet its height, its collapsed variant laid out (ADR 0083).
     const sized =
@@ -1803,6 +1912,7 @@ function measured(
         position,
         contents: [],
         folded: placement.contents.length,
+        ...foldedComponentOf(placement.contents, shaping),
         ...shapedBy(look, shaping),
         ...(face ? { face } : {}),
       },
@@ -1832,7 +1942,7 @@ function measured(
   const shaped = shapedBy(look, shaping);
   // A face over contents is their container's header, which they are arranged under (ADR 0083).
   const header =
-    face && contents.length > 0 ? faceHeader(face, width, CONTAINER_HEADER) : undefined;
+    face && contents.length > 0 ? faceHeader(face, width, kindHeaderOf(laying)) : undefined;
   if (header !== undefined) arrangeContents(contents, header);
   let bottom: number | undefined;
   for (const box of contents) {
@@ -2119,6 +2229,7 @@ function shapingOf(
     definitions,
     drawnAsKind: geometryFindings(project).drawnAsKind,
     partOf: (content) => lookOf(elementAt(elements, content), definitions, kept).appearance.part,
+    componentOf: (content) => elementAt(elements, content).component,
   };
 }
 
@@ -2506,10 +2617,11 @@ function shapeFor(
   const face =
     before?.face && parts.face && sameFace(before.face, parts.face) ? before.face : parts.face;
   const { appearance } = look;
+  const collapsed = folded === undefined ? undefined : collapsedLookOf(folded, parts);
   const body =
-    folded === undefined
+    collapsed === undefined
       ? { width, height }
-      : bodyOf({ rect: { x, y, width, height }, collapsed: true });
+      : bodyOf({ rect: { x, y, width, height }, collapsed });
   const fitted = parts.outline && outlineIn(parts.outline, body.width, body.height);
   // Equal geometry read again, as after a command, keeps the outline drawn before.
   const outline = before?.outline && sameOutline(before.outline, fitted) ? before.outline : fitted;
@@ -2543,7 +2655,7 @@ function shapeFor(
     kind: appearance.shape,
     rect: { x, y, width, height },
     holdsContents,
-    ...(folded === undefined ? {} : { collapsed: true }),
+    ...(collapsed === undefined ? {} : { collapsed }),
     rows: appearance.contentsAsRows,
     ...(rowish.row === undefined ? {} : { row: true }),
     ...(picture ? { picture: picture.rect } : {}),
@@ -2557,9 +2669,23 @@ function shapeFor(
   // Its extent is its rectangle, exactly, when nothing inside it sticks out: (x + width) - x need not
   // be width again in floating point.
   const holdsOnlyItself = x1 === x && y1 === y && x2 === x + width && y2 === y + height;
+  // A container the drawing defaults draw as a quiet region (ADR 0086), but one drawn otherwise.
+  const region =
+    laying.containers.drawn === 'region' &&
+    holdsContents &&
+    collapsed === undefined &&
+    !appearance.contentsAsRows &&
+    rowish.row === undefined &&
+    outline === undefined &&
+    part === undefined &&
+    picture === undefined &&
+    plate === undefined &&
+    face === undefined;
   if (
     before &&
     sameRowFields(before, rowish) &&
+    (before.region === true) === region &&
+    before.collapsed?.component === collapsed?.component &&
     before.key === key &&
     before.element === element.id &&
     before.container === container &&
@@ -2627,7 +2753,8 @@ function shapeFor(
     if (position.width !== undefined) shape.storedSize.width = position.width;
     if (position.height !== undefined) shape.storedSize.height = position.height;
   }
-  if (folded !== undefined) shape.collapsed = { contents: folded };
+  if (collapsed !== undefined) shape.collapsed = collapsed;
+  if (region) shape.region = true;
   withRowFields(shape, rowish);
   if (look.dark) shape.dark = look.dark;
   if (points) shape.points = points;
@@ -2676,7 +2803,7 @@ function withLeaving(box: Box, leaving: ReadonlyMap<Id, readonly Id[]>): Box {
  * Gives contents without a stored position a place in a row below the contents that have one, and
  * below the container's name, even when those stick out of its top.
  */
-function arrangeContents(contents: Box[], top = CONTAINER_HEADER): void {
+function arrangeContents(contents: Box[], top = containerHeaderOf(laying)): void {
   let below: number | undefined;
   for (const box of contents) {
     if (!box.stored || !box.offset) continue;
@@ -3349,15 +3476,25 @@ function lineBetween(
     relation === undefined || members
       ? relationType.appearance
       : relationAppearanceOf(relation, definitions);
-  const { stroke, dash } = appearance;
-  // A width no appearance sets but "relates to"'s own is the drawing defaults' (ADR 0086).
-  const origin =
+  const { dash } = appearance;
+  // A width or a color that comes from a built-in package's definition is the drawing defaults'
+  // (ADR 0086); a project appearance, a project's own package or the relation's own still wins.
+  const origins =
     relation === undefined || members
-      ? relationType.origins.width
-      : relationAppearanceOriginsOf(relation, definitions).width;
-  const own = setsWidth(origin) ? appearance.width : laying.lines.width;
+      ? relationType.origins
+      : relationAppearanceOriginsOf(relation, definitions);
+  const own = builtInTrait(origins.width) ? laying.lines.width : appearance.width;
+  const badge = members !== undefined && laying.aggregated.count === 'badge';
   const width = own + (members ? aggregatedExtraWidth(members.length, laying) : 0);
-  const label = members ? `×${members.length}` : relation?.name;
+  const label = members ? (badge ? `${members.length}` : `×${members.length}`) : relation?.name;
+  // A relation's own stroke is drawn as stored; an aggregated relation takes its relation type's.
+  const typeDark =
+    relation === undefined || members
+      ? relationType.darkStroke
+      : relationDarkStrokeOf(relation, definitions);
+  const neutral = laying.lines.color === 'neutral' && builtInTrait(origins.stroke);
+  const stroke = neutral ? NEUTRAL_LINES.light : appearance.stroke;
+  const darkStroke = neutral ? NEUTRAL_LINES.dark : typeDark;
   const line: RelationLine = {
     relation: spec.key,
     route,
@@ -3370,12 +3507,9 @@ function lineBetween(
     ends: { from: drawnEnd(spec.from), to: drawnEnd(spec.to), offset },
   };
   if (label) line.label = label;
-  // A relation's own stroke is drawn as stored; an aggregated relation takes its relation type's.
-  const darkStroke =
-    relation === undefined || members
-      ? relationType.darkStroke
-      : relationDarkStrokeOf(relation, definitions);
+  if (badge) line.badge = true;
   if (darkStroke !== stroke) line.darkStroke = darkStroke;
+  if (neutral) line.typeStroke = typeStrokeOf(appearance.stroke, typeDark);
   if (routed?.style) line.style = routed.style;
   if (routed?.hand) line.hand = routed.hand;
   if (routed?.curve) line.curve = routed.curve;
@@ -3395,16 +3529,31 @@ function lineBetween(
 }
 
 /**
- * Whether a trait comes from an appearance: the line's own, a definition's other than "relates to",
- * or a project appearance. Where "relates to" gives it as built in, the drawing defaults' value
- * stands instead.
+ * Whether a trait of a line comes from a built-in definition itself: "relates to", or a relation type
+ * of a built-in package, not through a project appearance. Its width and color are then the drawing
+ * defaults' (ADR 0086), and the line's own, a project appearance or a project's own package come first.
  */
-function setsWidth(origin: TraitOrigin): boolean {
-  return !(
-    origin.kind === 'definition' &&
-    origin.id === RELATES_TO_ID &&
-    origin.via === 'definition'
-  );
+function builtInTrait(origin: TraitOrigin): boolean {
+  return origin.kind === 'definition' && origin.via === 'definition' && origin.builtIn;
+}
+
+/** The neutral line color of each theme (ADR 0086), which the scene writes as a line's two strokes. */
+const NEUTRAL_LINES = {
+  light: THEMES.light.canvas.neutralLine,
+  dark: THEMES.dark.canvas.neutralLine,
+} as const;
+
+const typeStrokes = new Map<string, NonNullable<RelationLine['typeStroke']>>();
+
+/** A relation type's colors, one object for each pair, as a neutral line keeps them. */
+function typeStrokeOf(light: Color, dark: Color): NonNullable<RelationLine['typeStroke']> {
+  const key = `${light} ${dark}`;
+  let colors = typeStrokes.get(key);
+  if (colors === undefined) {
+    colors = dark === light ? { light } : { light, dark };
+    typeStrokes.set(key, colors);
+  }
+  return colors;
 }
 
 /** The notes and arrows of the view: those of `before` while its free shapes are the same. */

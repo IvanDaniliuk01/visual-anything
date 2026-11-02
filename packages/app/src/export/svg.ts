@@ -90,11 +90,14 @@ import {
   type RowColumns,
 } from '../canvas/fit';
 import {
+  BADGE_PADDING,
   CASING_EXTRA,
   DASH_PATTERNS,
   NAME_LINE,
   PLATE_RADIUS,
   RELATION_LABEL_BACK,
+  SOFT_SHADOW,
+  badgeSize,
   fontFamilyOf,
   personCornerRadius,
   roundedCornerRadius,
@@ -103,19 +106,38 @@ import {
 } from '../canvas/drawing';
 import { MONO_FAMILY, ROBOTO } from '../canvas/fontFamilies';
 import {
+  INNER_BORDER,
   SHEET,
   bodyOf,
   cylinderCap,
   grow,
-  personHead,
+  personBodyPoints,
+  personFigure,
+  showsInnerBorder,
   toggleRect,
   untilArrowhead,
   type Arrowhead,
   type Point,
   type Rect,
 } from '../canvas/geometry';
-import { COUNT_LINE_TOP, headerLines } from '../canvas/collapse';
+import { countLineTopOf, countText, headerLines } from '../canvas/collapse';
+
+import {
+  REGION_BORDER,
+  iconStrokeIn,
+  regionColorsOf,
+  regionFillOf,
+  regionIconOf,
+  regionRadius,
+  regionTabOf,
+} from '../canvas/regionDraw';
+
 import { facePaints, facePictureRect, faceRect, shapeFaceDrawing } from '../canvas/faces';
+import {
+  entryDash,
+  relationTypesLegend,
+  withRelationTypes,
+} from '../canvas/overlays/relationLegend';
 import { avoidedScene } from '../canvas/routing/avoided';
 import { drawnCurve } from '../canvas/routing/curves';
 import { ROWS_HEADER } from '../canvas/rows';
@@ -502,7 +524,12 @@ class Writer {
   backdropOf(shape: ElementShape): Color {
     const holder =
       shape.containerShape === undefined ? undefined : this.#byKey.get(shape.containerShape);
-    return holder ? shapeColors(holder, this.theme.name).fill : this.theme.background;
+    if (!holder) return this.theme.background;
+    // A region's contents sit on its faint fill as it comes out over the canvas (ADR 0086).
+    if (holder.region) {
+      return regionFillOf(shapeColors(holder, this.theme.name).stroke, regionColorsOf(this.theme));
+    }
+    return shapeColors(holder, this.theme.name).fill;
   }
 
   /**
@@ -838,7 +865,11 @@ export function svgOfScene(
   ];
 
   // The legend of the view's overlays goes below the drawing, so that it never covers it (ADR 0055).
-  const legend = legendOf(view, definitions, theme.name);
+  // After them, the view's relation types, where lines are neutral or of several types (ADR 0086).
+  const legend = withRelationTypes(
+    legendOf(view, definitions, theme.name),
+    relationTypesLegend(scene, project, definitions, theme.name, t('Relation types')),
+  );
   const band = legendShows(legend)
     ? layOutBand(legend, t, textWidth, drawn.width, 1, theme.name, writer.drawing)
     : undefined;
@@ -1062,11 +1093,14 @@ function swatchOf(writer: Writer, item: Extract<BandItem, { kind: 'swatch' }>, a
     );
   }
   if (part.of === 'relations') {
+    const width = (entry.size ?? 1) * writer.drawing.lines.width;
     return empty('path', {
       d: `M${num(x + 2)} ${num(middle.y)}H${num(x + room - 2)}`,
       fill: 'none',
       stroke: entry.color ?? colors.text,
-      'stroke-width': (entry.size ?? 1) * writer.drawing.lines.width,
+      'stroke-width': width,
+      // A relation type's line keeps its dash (ADR 0086).
+      'stroke-dasharray': dashArray({ dash: entryDash(entry), width }),
       opacity: entry.opacity,
     });
   }
@@ -1142,6 +1176,8 @@ function shapeParts(writer: Writer, shape: ElementShape): string {
       ? writer.picture(shape.image, shape.image.rect)
       : solidParts(writer, shape, colors.stroke);
   };
+  // A region is its faint fill, its thin border and its name tab (ADR 0086).
+  if (shape.region) return regionParts(writer, shape, painted.stroke) + ownPicture();
   if (isRow(shape)) return rowParts(writer, shape, colors.fill, face?.svg, ownPicture);
   if (outline) return outlineParts(writer, shape, outline, colors, face?.svg, ownPicture);
   if (drawsRows(shape)) {
@@ -1157,6 +1193,10 @@ function shapeParts(writer: Writer, shape: ElementShape): string {
   // A solid without its picture is its placeholder: its outline just inside its plate, as the canvas
   // draws it until its picture comes (ADR 0075).
   const placeholder = shape.solid !== undefined && !writer.solidPicture(shape);
+  // With soft shadows, a shape that holds nothing lays its shadow first (ADR 0086).
+  if (writer.drawing.shapes.shadow === 'soft' && !isContainer(shape)) {
+    body += shadowMarkup(shape.kind, bodyRectOf(shape), writer.drawing);
+  }
   if (shape.collapsed !== undefined) {
     const inner = bodyOf(shape);
     if (inner !== shape.rect) {
@@ -1168,6 +1208,21 @@ function shapeParts(writer: Writer, shape: ElementShape): string {
       );
     }
     body += bodyMarkup(shape.kind, inner, colors, writer.drawing);
+    // A second border inside, where the drawing defaults count what it holds.
+    if (showsInnerBorder(shape.collapsed)) {
+      const within = grow(inner, -INNER_BORDER);
+      if (within.width > 0 && within.height > 0) {
+        body += bodyMarkup(
+          shape.kind,
+          within,
+          { fill: 'none', stroke: colors.stroke },
+          {
+            ...writer.drawing,
+            shapes: { ...writer.drawing.shapes, borderWidth: 1 },
+          },
+        );
+      }
+    }
   } else if (!drawing) {
     body += bodyMarkup(shape.kind, shape.rect, colors, writer.drawing);
   } else if (placeholder) {
@@ -1291,17 +1346,14 @@ function bodyMarkup(
       );
     }
     case 'person': {
-      const head = personHead(rect);
-      const top = y + head * 1.6;
+      // A head over shoulders drawn as one rounded arc (ADR 0086).
+      const figure = personFigure(rect);
+      const { head } = figure;
       return (
-        empty('rect', {
-          x,
-          y: top,
-          width,
-          height: height - head * 1.6,
-          rx: personCornerRadius(drawing, width),
+        empty('path', {
+          d: polygonPath(personBodyPoints(figure, personCornerRadius(drawing, width))),
           ...paint,
-        }) + empty('circle', { cx: x + width / 2, cy: y + head, r: head, ...paint })
+        }) + empty('circle', { cx: head.x, cy: head.y, r: head.radius, ...paint })
       );
     }
   }
@@ -1374,6 +1426,191 @@ function toggleOf(shape: ElementShape, colors: { fill: Color; stroke: Color }): 
   );
 }
 
+/** A closed polygon of flat points as path data. */
+function polygonPath(points: readonly number[]): string {
+  let d = '';
+  for (let at = 0; at + 1 < points.length; at += 2) {
+    d += `${at === 0 ? 'M' : 'L'}${num(points[at] as number)} ${num(points[at + 1] as number)}`;
+  }
+  return d === '' ? '' : `${d}Z`;
+}
+
+/**
+ * A shape's soft shadow, as the canvas lays it (ADR 0086): one copy offset down, in layers each a
+ * unit wider than the next, black at a part of its alpha each.
+ */
+function shadowMarkup(kind: ElementShape['kind'], rect: Rect, drawing: ResolvedDrawing): string {
+  const { offset, alpha, layers } = SOFT_SHADOW;
+  let markup = '';
+  for (let layer = layers - 1; layer >= 0; layer--) {
+    const at = grow({ ...rect, y: rect.y + offset }, layer);
+    const paint = { fill: '#000000', 'fill-opacity': num(alpha / layers) };
+    const { x, y, width, height } = at;
+    switch (kind) {
+      case 'rectangle':
+        markup += empty('rect', { x, y, width, height, ...paint });
+        break;
+      case 'ellipse':
+        markup += empty('ellipse', {
+          cx: x + width / 2,
+          cy: y + height / 2,
+          rx: width / 2,
+          ry: height / 2,
+          ...paint,
+        });
+        break;
+      case 'person':
+        markup += empty('path', {
+          d: polygonPath(personBodyPoints(personFigure(at), personCornerRadius(drawing, width))),
+          ...paint,
+        });
+        break;
+      case 'cylinder':
+        markup += empty('rect', {
+          x,
+          y,
+          width,
+          height,
+          rx: Math.min(width / 2, cylinderCap(at) * 2),
+          ...paint,
+        });
+        break;
+      default:
+        markup += empty('rect', {
+          x,
+          y,
+          width,
+          height,
+          rx: roundedCornerRadius(drawing, width, height),
+          ...paint,
+        });
+    }
+  }
+  return markup;
+}
+
+/**
+ * A container drawn as a region, as the canvas draws it (ADR 0086): its stroke's color, faint, as its
+ * fill, a thin border at a part of that color, then its kind's icon, its name and its toggle.
+ */
+function regionParts(writer: Writer, shape: ElementShape, stroke: Color): string {
+  const colors = regionColorsOf(writer.theme);
+  const { x, y, width, height } = shape.rect;
+  let markup = empty('rect', {
+    x,
+    y,
+    width,
+    height,
+    rx: regionRadius(shape.rect, writer.drawing),
+    fill: stroke,
+    'fill-opacity': num(colors.fillAlpha),
+    stroke,
+    'stroke-opacity': num(colors.borderAlpha),
+    'stroke-width': REGION_BORDER,
+  });
+  const tab = regionTabOf(shape, writer.drawing);
+  if (tab.icon) markup += regionIconMarkup(shape.kind, tab.icon, colors.text);
+  const toggle = toggleRect(shape);
+  if (toggle) {
+    const middleX = toggle.x + toggle.width / 2;
+    const middleY = toggle.y + toggle.height / 2;
+    const arm = toggle.width * 0.28;
+    markup +=
+      empty('rect', {
+        'data-part': 'toggle',
+        x: toggle.x,
+        y: toggle.y,
+        width: toggle.width,
+        height: toggle.height,
+        rx: 3,
+        fill: 'none',
+        stroke,
+        'stroke-opacity': num(colors.borderAlpha),
+        'stroke-width': REGION_BORDER,
+      }) +
+      empty('path', {
+        d: `M${num(middleX - arm)} ${num(middleY)}H${num(middleX + arm)}`,
+        fill: 'none',
+        stroke: colors.text,
+        'stroke-width': 1.5,
+      });
+  }
+  const { name, detail } = tab;
+  if (detail && name.y + name.height <= y + height) {
+    markup += writer.text({
+      // Without the markers of its text emphasis, as every detail the SVG writes (ADR 0082).
+      text: detailPlainText(shape),
+      size: writer.drawing.text.detailSize,
+      fill: colors.text,
+      x: detail.rect.x,
+      align: 'start',
+      y: detail.rect.y,
+      anchor: 'top',
+      wrap: detail.rect.width,
+      room: detail.rect.height + 1,
+    });
+  }
+  if (name.y + name.height <= y + height) {
+    markup += writer.text({
+      text: shape.name,
+      size: writer.drawing.text.containerNameSize,
+      bold: true,
+      weight: 500,
+      fill: colors.text,
+      x: name.x,
+      align: 'start',
+      y: name.y,
+      anchor: 'top',
+      wrap: name.width,
+      room: name.height + 1,
+    });
+  }
+  return markup;
+}
+
+/** A region's icon, stroked as the canvas strokes it, Lucide's in its box of 24. */
+function regionIconMarkup(kind: ElementShape['kind'], box: Rect, color: Color): string {
+  const scale = box.width / 24;
+  const at = (value: number, origin: number) => origin + value * scale;
+  const parts = regionIconOf(kind).map((part) => {
+    switch (part.kind) {
+      case 'ellipse':
+        return empty('ellipse', {
+          cx: at(part.cx, box.x),
+          cy: at(part.cy, box.y),
+          rx: part.rx * scale,
+          ry: part.ry * scale,
+        });
+      case 'rect':
+        return empty('rect', {
+          x: at(part.x, box.x),
+          y: at(part.y, box.y),
+          width: part.width * scale,
+          height: part.height * scale,
+          rx: part.radius * scale,
+        });
+      case 'line':
+        return empty('polyline', {
+          points: part.points
+            .map((value, index) => num(at(value, index % 2 === 0 ? box.x : box.y)))
+            .join(' '),
+        });
+    }
+  });
+  return element(
+    'g',
+    {
+      'data-part': 'region-icon',
+      fill: 'none',
+      stroke: color,
+      'stroke-width': num(iconStrokeIn(box)),
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
+    },
+    parts.join(''),
+  );
+}
+
 /** A drawing's plate: a rounded rectangle in its shape's fill, with no stroke. */
 function plateOf(box: Rect, fill: Color): string {
   return empty('rect', {
@@ -1394,7 +1631,7 @@ function detailOf(shape: ElementShape): string {
   // Without the markers of its text emphasis where it is not drawn with them (ADR 0082).
   const detail = detailPlainText(shape);
   if (shape.collapsed === undefined) return detail;
-  const inside = t('{count} inside', { count: shape.collapsed.contents });
+  const inside = countText(shape.collapsed);
   return detail === '' ? inside : `${detail} · ${inside}`;
 }
 
@@ -1465,7 +1702,7 @@ function headerText(
   const { detailSize, containerNameSize } = writer.drawing.text;
   const wrap = Math.max(1, width - 2 * inset - beside - shift);
   const rooms = { name: Math.min(20, height - 12), detail: Math.min(16, height - 32) };
-  const header = headerLines(shape, height, wrap, robotoMeasure);
+  const header = headerLines(shape, height, wrap, robotoMeasure, writer.drawing);
   return (
     (rooms.name > 0
       ? writer.text({
@@ -1500,7 +1737,7 @@ function headerText(
           fill: colors.detail,
           x: x + inset + shift,
           align: 'start',
-          y: y + (header.countTop ?? COUNT_LINE_TOP),
+          y: y + (header.countTop ?? countLineTopOf(writer.drawing)),
           anchor: 'top',
           wrap: Math.max(1, width - 2 * inset),
           room: header.countRoom,
@@ -2195,7 +2432,8 @@ function rowColumnsParts(
           size,
           fill: color,
           x: left,
-          align: 'start',
+          // A type ends at its column's right edge, one x for every row (ADR 0086).
+          align: mono ? 'end' : 'start',
           y: y + height / 2,
           anchor: 'middle',
           room: height,
@@ -2203,7 +2441,7 @@ function rowColumnsParts(
         });
   return (
     at(columns.name, x + ROW_INSET + (showsPicture(shape) ? ROW_ICON : 0), sizes.rowName) +
-    at(columns.type, x + columns.typeX, sizes.rowDetail, true) +
+    at(columns.type, x + columns.typeEnd, sizes.rowDetail, true) +
     at(columns.badges, x + columns.badgesX, sizes.rowDetail)
   );
 }
@@ -2324,6 +2562,23 @@ function relationLabel(writer: Writer, line: RelationLine): string {
   const laidOut = layOutText(spec);
   const [first] = laidOut.lines;
   if (!first) return '';
+  // An aggregated relation's count badge: a pill bordered in its line's color (ADR 0086).
+  if (line.badge) {
+    const pill = badgeSize(textWidth(first.text, size), laidOut.lineHeight);
+    return (
+      empty('rect', {
+        'data-part': 'count-badge',
+        x: line.middle.x - pill.width / 2,
+        y: line.middle.y - pill.height / 2,
+        width: pill.width,
+        height: pill.height,
+        rx: pill.height / 2,
+        fill: back,
+        stroke: lineStroke(line, writer.theme.name),
+        'stroke-width': BADGE_PADDING.border,
+      }) + writer.text({ ...spec, fill: text })
+    );
+  }
   // As wide as its text, by the estimate the scene fits rows with, which leans wide.
   const width = textWidth(first.text, size) + 2 * RELATION_LABEL_BACK.x;
   const height = laidOut.lineHeight + 2 * RELATION_LABEL_BACK.y;

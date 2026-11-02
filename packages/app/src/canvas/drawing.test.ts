@@ -102,11 +102,12 @@ const recording: TextFactory = (options, kind) => {
 };
 
 describe('the drawing a project that sets nothing is drawn with (A5.1)', () => {
-  it('is how the canvas drew before drawing defaults, until A5.2 makes Clean the default', () => {
-    expect(BASE_DRAWING).toEqual(DRAWING_BEFORE_A5);
+  it('is Clean, since A5.2 made it the default', () => {
+    expect(BASE_DRAWING).toEqual(DRAWING_PRESETS.clean);
+    expect(BASE_DRAWING).not.toEqual(DRAWING_BEFORE_A5);
     expect(drawingOfView(loadSample(), SAMPLE_VIEW)).toBe(BASE_DRAWING);
-    // Names ask for a weight the canvas loads: 700, which the old 600 drew as.
-    expect(nameWeightOf(BASE_DRAWING)).toBe('700');
+    // Names ask for a weight the canvas loads: Medium, 500.
+    expect(nameWeightOf(BASE_DRAWING)).toBe('500');
   });
 
   it('draws a project that sets an empty drawing as one that sets none', () => {
@@ -124,8 +125,8 @@ describe('the drawing a project that sets nothing is drawn with (A5.1)', () => {
     expect(canvasDrawing({ lines: { width: 3 } }, view)).not.toBe(resolved);
     expect(resolved.lines.width).toBe(3);
     expect(resolved.shapes.borderWidth).toBe(2);
-    // Laid over the base, which A5.2 changes, every other value as before.
-    expect(resolved.text).toEqual(DRAWING_BEFORE_A5.text);
+    // Laid over the base, Clean, every other value as it is there.
+    expect(resolved.text).toEqual(DRAWING_PRESETS.clean.text);
   });
 
   it('starts a project or view that names a preset from that preset', () => {
@@ -162,7 +163,7 @@ describe('each group of drawing defaults changes what is drawn (A5.1)', () => {
     for (const line of widened) expect(line.width).toBe(4);
     const pointed = scene.relations.find((line) => line.arrowhead);
     expect(pointed?.arrowhead?.open).toBe(true);
-    // The arrow of a free shape too: max(10, 5 × 4) long, twice.
+    // The arrow of a free shape too: Clean's max(7, 4 × 4) long, twice.
     const arrow = scene.arrows[0];
     const length = arrow
       ? Math.hypot(
@@ -170,7 +171,7 @@ describe('each group of drawing defaults changes what is drawn (A5.1)', () => {
           arrow.arrowhead.tip.y - (arrow.arrowhead.left.y + arrow.arrowhead.right.y) / 2,
         )
       : 0;
-    expect(length).toBeCloseTo(40);
+    expect(length).toBeCloseTo(32);
     const svg = readSvg(writeSvg(project, SAMPLE_VIEW).text);
     const strokes = [...svg.querySelectorAll('[data-part="relations"] path')].map((path) =>
       path.getAttribute('stroke-width'),
@@ -263,7 +264,8 @@ describe('each group of drawing defaults changes what is drawn (A5.1)', () => {
       writeShapeLabels([shape], true, recording, undefined, undefined, drawingOfScene(scene));
       return (written.find((each) => each.kind === 'name')?.options.y ?? 0) - shape.rect.y;
     };
-    expect(top(16) - top(8)).toBeCloseTo(8);
+    // By the padding, within the rounding of Clean's line height.
+    expect(top(16) - top(8)).toBeCloseTo(8, 0);
   });
 
   it('containers: the padding around contents, in the scene and the SVG', () => {
@@ -283,17 +285,19 @@ describe('each group of drawing defaults changes what is drawn (A5.1)', () => {
 
   it('aggregated: lines that do not grow with their count, in the scene and the SVG', () => {
     const sample = collapsedSample();
-    const base = buildSceneAfresh(sample, SAMPLE_VIEW).relations.filter((line) => line.aggregate);
+    const growing = drawn(sample, { aggregated: { growsWithCount: true } });
+    const base = buildSceneAfresh(growing, SAMPLE_VIEW).relations.filter((line) => line.aggregate);
     expect(base.length).toBeGreaterThan(0);
     const project = drawn(sample, { aggregated: { growsWithCount: false } });
     const lines = buildSceneAfresh(project, SAMPLE_VIEW).relations.filter((line) => line.aggregate);
     lines.forEach((line, at) => {
       expect(line.width).toBeLessThan(base[at]?.width ?? 0);
-      expect(line.width).toBe(2);
+      // A built-in type's width yields to Clean's (ADR 0086).
+      expect(line.width).toBe(BASE_DRAWING.lines.width);
     });
     const svg = readSvg(writeSvg(project, SAMPLE_VIEW).text);
     const path = svg.querySelector(`[data-part="relations"] g[data-relations] path`);
-    expect(path?.getAttribute('stroke-width')).toBe('2');
+    expect(path?.getAttribute('stroke-width')).toBe(String(BASE_DRAWING.lines.width));
   });
 
   it('reading: the scales names far out and rows show from, and the size far names are written at', () => {
@@ -342,11 +346,12 @@ describe('the SVG’s fonts (A5.1)', () => {
     const svg = readSvg(writeSvg(loadSample(), SAMPLE_VIEW).text);
     expect(svg.documentElement.getAttribute('font-family')?.startsWith(`'${ROBOTO}'`)).toBe(true);
     const weights = new Set(
-      [...svg.querySelectorAll('text[font-weight]')].map((text) =>
+      [...svg.querySelectorAll('[data-part="shapes"] text[font-weight]')].map((text) =>
         text.getAttribute('font-weight'),
       ),
     );
-    expect([...weights]).toEqual(['700']);
+    // Clean writes names, and a region's tab, in Roboto Medium.
+    expect([...weights]).toEqual(['500']);
   });
 
   it('writes a table’s rows in columns, each type from one x in Roboto Mono', () => {

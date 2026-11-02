@@ -1646,6 +1646,7 @@ export const ui: Catalog = {
 
   // What the canvas writes on a collapsed container.
   '{count} inside': '{count} dentro',
+  '{count} × {component}': '{count} × {component}',
 
   // The shape menu.
   'Draws none of what it holds; their relations become aggregated relations. Alt+−':
@@ -2544,6 +2545,7 @@ export const ui: Catalog = {
   'Badge by {attribute}': 'Insignia según {attribute}',
   'Opacity by {attribute}': 'Opacidad según {attribute}',
   'Line color by {attribute}': 'Color de línea según {attribute}',
+  'Line color and dash by relation type': 'Color y trazo de línea según el tipo de relación',
   'Line width by {attribute}': 'Grosor según {attribute}',
   'Label by {attribute}': 'Etiqueta según {attribute}',
   'Line opacity by {attribute}': 'Opacidad de línea según {attribute}',

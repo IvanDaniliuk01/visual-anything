@@ -6,9 +6,12 @@
  */
 import type { LegendEntry, LegendOverlay } from '@visual-anything/core';
 import type { Translator } from '../../i18n';
+import { RELATION_TYPES_LEGEND } from './relationLegend';
 
 /** What an overlay changes, by which attribute: "Fill by owner", "Line width by rate". */
 export function legendSubtitle(t: Translator, part: LegendOverlay): string {
+  // The relation types' part names each type's line (ADR 0086).
+  if (part.id === RELATION_TYPES_LEGEND) return t('Line color and dash by relation type');
   const attribute = part.attribute;
   if (part.of === 'relations') {
     switch (part.channel) {

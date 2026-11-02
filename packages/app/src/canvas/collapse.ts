@@ -5,12 +5,18 @@
  * expands through one command, `set-collapsed`, from the shape menu, the toggle on a container's
  * shape and the keys, so that each is one undoable action.
  */
-import type { EmphasisRun, ProjectSnapshot, SetCollapsedCommand } from '@visual-anything/core';
+import type {
+  EmphasisRun,
+  ProjectSnapshot,
+  ResolvedDrawing,
+  SetCollapsedCommand,
+} from '@visual-anything/core';
 import { modelIndexOf } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
 import { t } from '../i18n';
-import { LINE_HEIGHT, layOutRuns, type Measure } from '../text/layout';
+import { layOutRuns, type Measure } from '../text/layout';
+import { BASE_DRAWING } from './drawing';
 import { SHEET, TOGGLE_SIZE } from './geometry';
 import type { IndexedScene } from './hit';
 import type { ElementShape, Scene } from './scene';
@@ -147,19 +153,51 @@ export function collapseDone(action: CollapseAction, collapsed: boolean): string
 
 /** How a collapsed container's contents are told: `3 inside`. */
 export function insideCount(shape: ElementShape): string | undefined {
-  return shape.collapsed === undefined
-    ? undefined
-    : t('{count} inside', { count: shape.collapsed.contents });
+  return shape.collapsed === undefined ? undefined : countText(shape.collapsed);
 }
 
-/** Where a container's header writes its third line, below its top: under its name and detail. */
-export const COUNT_LINE_TOP = 44;
+/**
+ * What a collapsed container's count says: `3 inside`, or, where the drawing defaults count what it
+ * holds and every content comes from one component, `12 × Table` (ADR 0086), which names them
+ * without a plural no component's name has.
+ */
+export function countText(collapsed: NonNullable<ElementShape['collapsed']>): string {
+  const { contents, component } = collapsed;
+  return component === undefined
+    ? t('{count} inside', { count: contents })
+    : t('{count} × {component}', { count: contents, component });
+}
+
+/** How far below a container's top its name is written, and the gap between its name and detail. */
+const NAME_TOP = 8;
+const NAME_GAP = 6;
+/** The least that line is below the top: where the canvas wrote it before drawing defaults. */
+const LEAST_COUNT_TOP = 44;
+
+/**
+ * Where a container's header writes its third line, below its top, under its name and detail: from
+ * the sizes and line height the drawing gives, and never above the 44 the canvas wrote it at before
+ * drawing defaults, so that a collapsed container keeps its height.
+ */
+export function countLineTopOf(drawing: ResolvedDrawing): number {
+  const { containerNameSize, detailSize, lineHeight } = drawing.text;
+  return Math.max(
+    LEAST_COUNT_TOP,
+    Math.round(NAME_TOP + containerNameSize + NAME_GAP + detailSize * lineHeight + 2),
+  );
+}
+
+/** Where a container's header writes its third line, as the drawing that names nothing places it. */
+export const COUNT_LINE_TOP = countLineTopOf(BASE_DRAWING);
 /** How tall the third line of a container's header is at most, and how tall it must be to show. */
 const COUNT_ROOM = 16;
 const COUNT_LEAST = 14;
-/** How tall the first line of a header's detail may be, and each line after it. */
+/** How tall the first line of a header's detail may be. */
 const DETAIL_ROOM = 16;
-const DETAIL_LINE = DETAIL_SIZE * LINE_HEIGHT;
+/** How tall each line of a header's detail after its first is. */
+function detailLineOf(drawing: ResolvedDrawing): number {
+  return drawing.text.detailSize * drawing.text.lineHeight;
+}
 /** How far in from its sides a container's header writes, and the room its toggle takes beside it. */
 const HEADER_INSET = 12;
 const BESIDE_TOGGLE = TOGGLE_SIZE + 4;
@@ -207,22 +245,25 @@ export function headerLines(
   bodyHeight: number,
   wrap = Infinity,
   measure: Measure = robotoMeasure,
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): HeaderLines {
   const detail = shape.detail ?? shape.componentName;
   const oneLine = { detailRoom: Math.min(DETAIL_ROOM, bodyHeight - 32), detailCut: false };
   if (shape.collapsed === undefined) return { detail, ...oneLine };
-  const count = t('{count} inside', { count: shape.collapsed.contents });
+  const count = countText(shape.collapsed);
   if (detail === '') return { detail: count, ...oneLine };
   const laid = detailLinesOf(shape, detail, wrap, measure);
   // As many lines as the body holds with the count's line under them.
-  const holds = Math.floor((bodyHeight - COUNT_LINE_TOP - COUNT_LEAST) / DETAIL_LINE + 1e-6) + 1;
+  const top = countLineTopOf(drawing);
+  const line = detailLineOf(drawing);
+  const holds = Math.floor((bodyHeight - top - COUNT_LEAST) / line + 1e-6) + 1;
   const lines = Math.max(1, Math.min(laid.lines, holds));
-  const countTop = COUNT_LINE_TOP + (lines - 1) * DETAIL_LINE;
+  const countTop = top + (lines - 1) * line;
   const room = Math.min(COUNT_ROOM, bodyHeight - countTop);
   if (room >= COUNT_LEAST) {
     return {
       detail,
-      detailRoom: DETAIL_ROOM + (lines - 1) * DETAIL_LINE,
+      detailRoom: DETAIL_ROOM + (lines - 1) * line,
       detailCut: laid.cut || lines < laid.lines,
       count,
       countTop,
@@ -241,12 +282,13 @@ export function collapsedHeight(
   height: number,
   wrap: number,
   measure: Measure = robotoMeasure,
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): number {
   const detail = shape.detail ?? shape.componentName;
   if (detail === '') return height;
   const { lines } = detailLinesOf(shape, detail, wrap, measure);
   if (lines <= 1) return height;
-  const needed = COUNT_LINE_TOP + (lines - 1) * DETAIL_LINE + COUNT_ROOM + SHEET;
+  const needed = countLineTopOf(drawing) + (lines - 1) * detailLineOf(drawing) + COUNT_ROOM + SHEET;
   return Math.max(height, Math.ceil(needed));
 }
 

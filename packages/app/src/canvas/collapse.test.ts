@@ -11,6 +11,7 @@ import {
   insideCount,
   setCollapsedCommand,
 } from './collapse';
+import { BASE_DRAWING } from './drawing';
 import { bodyOf } from './geometry';
 import { indexScene } from './hit';
 import {
@@ -166,7 +167,8 @@ describe('a collapsed container', () => {
     expect(system.extent).toEqual(system.rect);
     expect(system.storedSize).toEqual({ width: 600, height: 400 });
     expect(system.holdsContents).toBe(false);
-    expect(system.collapsed).toEqual({ contents: 2 });
+    // Clean counts what it holds with a second border inside, and no sheet (ADR 0086).
+    expect(system.collapsed).toEqual({ contents: 2, look: 'count' });
     expect(insideCount(system)).toBe('2 inside');
   });
 
@@ -244,7 +246,9 @@ describe('a collapsed container', () => {
       from: { kind: 'shape', key: 'client' },
       to: { kind: 'shape', key: 'system' },
     });
-    expect(calling?.label).toBe('×2');
+    // A count badge in Clean, at its type's own width, which grows with no count (ADR 0086).
+    expect(calling?.label).toBe('2');
+    expect(calling?.badge).toBe(true);
     expect(calling?.width).toBe(2 + aggregatedExtraWidth(2));
     expect(calling?.arrowhead).toBeDefined();
     expect(calling?.relation.startsWith(AGGREGATED)).toBe(true);
@@ -263,7 +267,9 @@ describe('a collapsed container', () => {
         (end) => end?.kind === 'shape' && (end.key === 'client' || end.key === 'system'),
       ),
     );
-    expect(between.map((line) => line.ends?.offset)).toEqual([-24, 0, 24]);
+    // Clean's gap between parallel lines.
+    const gap = BASE_DRAWING.lines.parallelGap;
+    expect(between.map((line) => line.ends?.offset)).toEqual([-gap, 0, gap]);
     expect(between.at(-1)).toBe(own);
   });
 
@@ -441,7 +447,7 @@ describe('copies of an element in several containers', () => {
       'circuit/cell',
       'probe',
     ]);
-    expect(shapeOf(scene, 'region').collapsed).toEqual({ contents: 1 });
+    expect(shapeOf(scene, 'region').collapsed).toMatchObject({ contents: 1 });
     const line = scene.relations.find((each) => each.relation === 'm');
     expect(line?.ends?.to).toEqual({ kind: 'shape', key: 'circuit/cell' });
     expect(aggregates(scene)).toEqual([]);

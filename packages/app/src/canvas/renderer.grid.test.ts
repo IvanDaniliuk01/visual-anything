@@ -32,7 +32,12 @@ interface Inside {
   resolution: number;
 }
 
-const sample = loadSample();
+// The grid's lines, which these tests count; Clean's dots are `clean.test.ts`'s (A5.2).
+const loaded = loadSample();
+const sample = {
+  ...loaded,
+  project: { ...loaded.project, drawing: { grid: { look: 'lines' as const } } },
+};
 const VIEW = 'system-overview';
 const SCHEDULING = 'clinic-booking/scheduling';
 const API = 'clinic-booking/scheduling/appointments-api';

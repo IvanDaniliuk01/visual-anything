@@ -19,11 +19,12 @@ describe('text emphasis in the PDF (ADR 0082)', () => {
     expect(embedded.some((name) => name?.startsWith('RobotoMono'))).toBe(true);
   }, 60_000);
 
-  it('embeds only Regular and Bold when no text uses the others', async () => {
+  it('embeds only Regular, Medium and Bold when no text uses the others', async () => {
     const embedded = fonts(
       (await writePdf(withEmphasis('plain'), EMPHASIS_VIEW, { date: DATE })).bytes,
     );
-    expect(new Set(embedded)).toEqual(new Set(['Roboto-Regular', 'Roboto-Bold']));
+    // Clean writes names in Medium (ADR 0086).
+    expect(new Set(embedded)).toEqual(new Set(['Roboto-Regular', 'Roboto-Medium', 'Roboto-Bold']));
   }, 60_000);
 
   it('picks the font for a family, a weight and a style', () => {

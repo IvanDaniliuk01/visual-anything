@@ -8,6 +8,8 @@ import { executeCommand, type Command, type ProjectSnapshot } from '@visual-anyt
 import type { FreeShape, Relation, RelationType } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
+import { THEMES } from '../theme/themes';
+import { BASE_DRAWING } from './drawing';
 import { buildScene, buildSceneAfresh, type RelationLine, type Scene } from './scene';
 
 const sample = loadSample();
@@ -47,7 +49,12 @@ describe('the scene’s relation lines', () => {
       width: 4,
       dash: 'dashed',
     });
-    expect(lineOf(scene, 'api-writes-db')).toMatchObject({ stroke: '#3D4651', width: 2 });
+    // The rest of a built-in type's look is Clean's: neutral, at its width (ADR 0086).
+    expect(lineOf(scene, 'api-writes-db')).toMatchObject({
+      stroke: THEMES.light.canvas.neutralLine,
+      typeStroke: { light: '#3D4651' },
+      width: BASE_DRAWING.lines.width,
+    });
     expect(scene).toEqual(buildSceneAfresh(project, VIEW));
   });
 
@@ -98,7 +105,7 @@ describe('the scene’s relation lines', () => {
     expect(lineOf(scene, 'api-reads-db').stroke).toBe('#1D4F91');
     expect(scene).toEqual(buildSceneAfresh(both, VIEW));
     expect(buildScene(sample, VIEW)).toEqual(first);
-    expect(lineOf(buildScene(sample, VIEW), 'api-reads-db').stroke).toBe('#3D4651');
+    expect(lineOf(buildScene(sample, VIEW), 'api-reads-db').typeStroke?.light).toBe('#3D4651');
   });
 
   it('make again only the line of the relation whose appearance changed', () => {
@@ -174,8 +181,14 @@ describe('the scene’s relation lines', () => {
     expect(aggregated?.aggregate?.relations).toEqual(['a-far', 'b-far']);
     expect(aggregated?.stroke).toBe('#3D4651');
     expect(aggregated?.dash).toBe('solid');
-    expect(aggregated?.width).toBeGreaterThan(2);
-    expect(aggregated?.width).toBeLessThan(5 + 2);
+    // Clean's count badge keeps its type's width; Expressive's grows with its count.
+    expect(aggregated?.width).toBe(2);
+    const growing = buildScene(
+      { ...project, project: { ...project.project, drawing: { preset: 'expressive' } } },
+      'v',
+    ).relations.find((line) => line.aggregate !== undefined);
+    expect(growing?.width).toBeGreaterThan(2);
+    expect(growing?.width).toBeLessThan(5 + 2);
   });
 });
 

@@ -104,8 +104,9 @@ describe('writing a table and its rows', () => {
     expect(name?.kind).toBe('detail');
     expect(name?.options.x).toBe(id.rect.x + 10);
     expect(name?.options.anchor).toEqual({ x: 0, y: 0.5 });
-    expect(type?.options.x).toBe(id.rect.x + (columns?.typeX ?? 0));
-    expect(type?.options.anchor).toEqual({ x: 0, y: 0.5 });
+    // Each type ends at its column's right edge, one x for every row (A5.2).
+    expect(type?.options.x).toBe(id.rect.x + (columns?.typeEnd ?? 0));
+    expect(type?.options.anchor).toEqual({ x: 1, y: 0.5 });
     // The badges' column ends at the row's right inset.
     expect(badges?.options.x).toBe(id.rect.x + (columns?.badgesX ?? 0));
     expect(name?.options.style).toMatchObject({ fontSize: 12, wordWrap: false });

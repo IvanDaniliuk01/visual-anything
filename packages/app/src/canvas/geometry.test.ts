@@ -106,7 +106,8 @@ describe('holdsPoint', () => {
   });
 
   it('holds a cylinder by its body and its two caps', () => {
-    expect(cylinderCap(rect)).toBe(12);
+    // At most 10 high, at any width (ADR 0086).
+    expect(cylinderCap(rect)).toBe(10);
     expect(holdsPoint('cylinder', rect, { x: 2, y: 50 })).toBe(true);
     expect(holdsPoint('cylinder', rect, { x: 100, y: 2 })).toBe(true);
     expect(holdsPoint('cylinder', rect, { x: 100, y: 98 })).toBe(true);
@@ -114,9 +115,9 @@ describe('holdsPoint', () => {
     expect(holdsPoint('cylinder', rect, { x: 198, y: 98 })).toBe(false);
   });
 
-  it('holds a person by its body and its head', () => {
+  it('holds a person by its shoulders, its body and its head', () => {
     const head = personHead(rect);
-    expect(head).toBe(22);
+    expect(head).toBe(16);
     expect(holdsPoint('person', rect, { x: 100, y: head })).toBe(true);
     expect(holdsPoint('person', rect, { x: 5, y: 50 })).toBe(true);
     expect(holdsPoint('person', rect, { x: 5, y: 5 })).toBe(false);

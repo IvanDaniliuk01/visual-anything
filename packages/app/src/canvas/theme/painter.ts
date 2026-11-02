@@ -24,6 +24,7 @@ import {
   drawShapeBlocks,
   drawShapeOutlines,
   fillOf,
+  paintBadgeBorder,
   writeNoteTexts,
   writeRelationLabels,
   writeShapeLabels,
@@ -34,6 +35,7 @@ import { tintLabel } from '../emphasisLabels';
 import { FaceLabel, faceLabel, type FacePictures } from '../faceDraw';
 import type { FaceShow } from '../faces';
 import { RelationLabel } from '../labels';
+import { regionColorsOf, regionFillOf, type RegionColors } from '../regionDraw';
 import { rowColorsOf } from '../rowsDraw';
 import {
   arrowWidthOf,
@@ -45,6 +47,7 @@ import {
 import { nameBandOf } from '../shape-images';
 import type { RoutePiece } from '../tiles';
 import {
+  lineStroke,
   noteColors,
   paintedArrow,
   paintedLine,
@@ -61,7 +64,7 @@ import {
 export type LabelPaint =
   | { label: Container; role: 'name' | 'detail'; shape: string }
   | { label: FaceLabel; role: 'face'; shape: string }
-  | { label: Container; role: 'relation' }
+  | { label: Container; role: 'relation'; line?: RelationLine }
   | { label: Container; role: 'note'; note: Id };
 
 /** Where the items a retint looks up are now, as the scene shown holds them. */
@@ -84,18 +87,38 @@ export class Painter {
     readonly drawing: ResolvedDrawing = BASE_DRAWING,
   ) {}
 
+  /** What this theme draws regions with (ADR 0086). */
+  get region(): RegionColors {
+    return (this.regionColors ??= regionColorsOf(this.theme));
+  }
+
+  private regionColors: RegionColors | undefined;
+
   get name(): ThemeName {
     return this.theme.name;
   }
 
   /** Element shapes as plain blocks. */
   shapeBlocks(graphics: Graphics, shapes: readonly ElementShape[], inOrder = false): void {
-    drawShapeBlocks(graphics, this.shapes(shapes), inOrder, rowColorsOf(this.theme), this.drawing);
+    drawShapeBlocks(
+      graphics,
+      this.shapes(shapes),
+      inOrder,
+      rowColorsOf(this.theme),
+      this.drawing,
+      this.region,
+    );
   }
 
   /** Element shapes in full; rows and the shapes that draw them in the theme's row colors. */
   shapeOutlines(graphics: Graphics, shapes: readonly ElementShape[]): void {
-    drawShapeOutlines(graphics, this.shapes(shapes), rowColorsOf(this.theme), this.drawing);
+    drawShapeOutlines(
+      graphics,
+      this.shapes(shapes),
+      rowColorsOf(this.theme),
+      this.drawing,
+      this.region,
+    );
   }
 
   /** Relations as plain lines. */
@@ -221,6 +244,7 @@ export class Painter {
           () => this.backdropOf(shape, lookups),
           shape.face ? face : undefined,
           this.drawing,
+          this.region,
         ),
       );
     }
@@ -234,9 +258,12 @@ export class Painter {
     records?: LabelPaint[],
   ): Container[] {
     const { relationLabelText: text, relationLabelBack: back } = this.theme;
-    const written = writeRelationLabels(lines, make, { text, back }, this.drawing);
-    if (records) for (const label of written) records.push({ label, role: 'relation' });
-    return written;
+    // Written from the lines as this theme draws them, so that a count badge takes its line's color.
+    const painted = this.lines(lines);
+    return writeRelationLabels(painted, make, { text, back }, this.drawing, (label, line) => {
+      const at = painted.indexOf(line);
+      records?.push({ label, role: 'relation', line: lines[at] ?? line });
+    });
   }
 
   /** The text of notes, tinted to read on the fill each note is drawn in. */
@@ -260,6 +287,7 @@ export class Painter {
         if (label instanceof RelationLabel)
           label.paint(theme.relationLabelText, theme.relationLabelBack);
         else tintLabel(label, theme.relationLabelText);
+        if (record.line) paintBadgeBorder(label, lineStroke(record.line, this.name));
         continue;
       }
       if (record.role === 'note') {
@@ -269,6 +297,11 @@ export class Painter {
       }
       const shape = lookups.shape(record.shape);
       if (!shape) continue;
+      // A region's tab writes in the theme's muted text (ADR 0086).
+      if (shape.region) {
+        tintLabel(label, this.region.text);
+        continue;
+      }
       if (record.role === 'face') {
         const painted = paintedShape(shape, this.name);
         record.label.paint(this.name, fillOf(painted), painted.stroke);
@@ -291,7 +324,10 @@ export class Painter {
   private backdropOf(shape: ElementShape, lookups: PaintLookups | undefined): Color {
     const holder =
       shape.containerShape === undefined ? undefined : lookups?.shape(shape.containerShape);
-    return holder ? shapeColors(holder, this.name).fill : this.theme.background;
+    if (!holder) return this.theme.background;
+    // A region's contents sit on its faint fill as it comes out over the canvas (ADR 0086).
+    if (holder.region) return regionFillOf(shapeColors(holder, this.name).stroke, this.region);
+    return shapeColors(holder, this.name).fill;
   }
 
   private shapes(shapes: readonly ElementShape[]): readonly ElementShape[] {

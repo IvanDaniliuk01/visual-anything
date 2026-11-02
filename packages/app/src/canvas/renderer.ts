@@ -68,7 +68,8 @@ import {
   type Hidden,
   type Lit,
 } from './emphasize';
-import { traceMark, type MarkTarget, type TextFactory } from './draw';
+import { drawRelationRoutes, traceMark, type MarkTarget, type TextFactory } from './draw';
+import { accentsOf } from './lineAccents';
 import { MOST_NAMES_BESIDE, NamesBeside, namedBeside } from './namesBeside';
 import { FarNames, farNameOrder, farOut, placeFarNames } from './farNames';
 import {
@@ -527,6 +528,13 @@ export class CanvasRenderer {
   private readonly marks = new Container({ isRenderGroup: true });
   private readonly hoverMark = new Graphics();
   /**
+   * The lines the pointer and the selection give their type's color, and with `fadeOthers` the lines
+   * the pointer touches over the faded rest (ADR 0086, `lineAccents.ts`), drawn again over the tiles.
+   */
+  private readonly accentLines = new Graphics();
+  /** The line under the pointer, by its key. */
+  private hoveredLine: string | undefined;
+  /**
    * What the emphasis highlights, under the hover mark: its shapes and notes, then its lines and
    * arrows, each drawn again only when what it draws changed (`emphasisMarks.ts`). Its markers go
    * above the selection's marks.
@@ -765,6 +773,7 @@ export class CanvasRenderer {
     this.selectionMarks.addChild(this.lineMarks);
     this.arriving.addChild(this.arrivingMarks);
     this.marks.addChild(
+      this.accentLines,
       this.emphasisShapeMarks,
       this.litLines.container,
       this.arriving,
@@ -821,6 +830,8 @@ export class CanvasRenderer {
     this.indexed = indexed;
     const drawing = drawingOfScene(indexed.scene);
     if (drawing !== this.painter.drawing) this.painter = painterOf(this.painter.theme, drawing);
+    // The grid draws lines or dots, as the drawing says (ADR 0086).
+    this.gridMarks.setLook(drawing.grid.look);
     this.pictures.show(indexed.scene.shapes);
     if (this.status !== 'ready') return;
     try {
@@ -953,6 +964,7 @@ export class CanvasRenderer {
       this.selection = selection;
       this.drawSelection();
       this.markExtent();
+      this.drawAccents();
     }
     if (hovered !== this.hovered) {
       this.hovered = hovered;
@@ -972,6 +984,58 @@ export class CanvasRenderer {
     this.linkedHover = element;
     this.drawHover();
     this.requestRender();
+  }
+
+  /** Gives the line under the pointer its type's color, and fades the rest when the drawing says so. */
+  setHoveredLine(key: string | undefined): void {
+    if (key === this.hoveredLine) return;
+    this.hoveredLine = key;
+    this.noteActivity();
+    this.drawAccents();
+    this.requestRender();
+  }
+
+  /**
+   * Draws again over the tiles the lines the pointer and the selection give their type's color, and
+   * fades the tiles' lines while the pointer is on something and the drawing fades the others
+   * (ADR 0086): a few lines a change, never a tile.
+   */
+  private drawAccents(): void {
+    const graphics = this.accentLines;
+    graphics.clear();
+    const indexed = this.indexed;
+    if (!indexed) {
+      this.relations.container.alpha = 1;
+      return;
+    }
+    const selectedShapes = new Set<string>();
+    for (const id of this.selection.elements) {
+      for (const shape of indexed.byElement.get(id) ?? []) selectedShapes.add(shape.key);
+    }
+    const hidden = this.hiddenNow().relations;
+    const unseen = this.emphasized.hidden.relations;
+    const accents = accentsOf(
+      indexed.scene,
+      {
+        ...(this.hovered === undefined ? {} : { shape: this.hovered }),
+        ...(this.hoveredLine === undefined ? {} : { line: this.hoveredLine }),
+        selectedShapes,
+        selectedRelations: this.selection.relations,
+      },
+      {
+        fadeOthers: this.painter.drawing.lines.fadeOthers,
+        theme: this.painter.name,
+        hidden: unseen.size === 0 ? hidden : unite(hidden, unseen),
+      },
+    );
+    this.relations.container.alpha = accents.othersAlpha;
+    if (accents.lines.length === 0) return;
+    drawRelationRoutes(
+      graphics,
+      accents.lines.map(({ line, stroke }) =>
+        line.stroke === stroke ? line : { ...line, stroke },
+      ),
+    );
   }
 
   /** The shapes the hover marks: the one under the pointer, and each of the element hovered elsewhere. */
@@ -3817,6 +3881,7 @@ export class CanvasRenderer {
    * along its own outline, with its name written beside it when it writes none inside (ADR 0066).
    */
   private drawHover(): void {
+    this.drawAccents();
     const mark = this.hoverMark;
     mark.clear();
     const shape = this.hovered === undefined ? undefined : this.indexed?.byKey.get(this.hovered);

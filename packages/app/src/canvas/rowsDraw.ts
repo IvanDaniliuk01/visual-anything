@@ -278,8 +278,9 @@ export function writeRowsText(
 
 /**
  * Writes a row's texts in its table's columns (A5.1): its name at the left, after its picture; its
- * column's type in Roboto Mono, one size under the row's name, from the type column's left edge, the
- * same x for every row of the table; its badges from the badges column's, at the right. A face keeps
+ * column's type in Roboto Mono, one size under the row's name, right-aligned to the type column's
+ * right edge, the same x for every row of the table (ADR 0086); its badges from the badges column's,
+ * at the right. A face keeps
  * its own layout (ADR 0083), and draws in place of all three.
  */
 function writeRowColumns(
@@ -292,19 +293,21 @@ function writeRowColumns(
   const { x, y, height } = shape.rect;
   const middle = y + height / 2;
   const sizes = rowTextSizesOf(drawing);
-  const at = (text: string, left: number, style: TextStyleOptions) => {
+  const at = (text: string, left: number, style: TextStyleOptions, end = false) => {
     if (text === '') return;
-    write({ text, anchor: { x: 0, y: 0.5 }, x: left, y: middle, style }, true, height);
+    write({ text, anchor: { x: end ? 1 : 0, y: 0.5 }, x: left, y: middle, style }, true, height);
   };
   at(
     columns.name,
     x + ROW_INSET + (showsPicture(shape) ? ROW_ICON : 0),
     lineStyle(sizes.rowName, color, 'normal', drawing),
   );
-  at(columns.type, x + columns.typeX, {
-    ...lineStyle(sizes.rowDetail, color, 'normal', drawing),
-    fontFamily: [...MONO_FAMILY],
-  });
+  at(
+    columns.type,
+    x + columns.typeEnd,
+    { ...lineStyle(sizes.rowDetail, color, 'normal', drawing), fontFamily: [...MONO_FAMILY] },
+    true,
+  );
   at(columns.badges, x + columns.badgesX, lineStyle(sizes.rowDetail, color, 'normal', drawing));
 }
 

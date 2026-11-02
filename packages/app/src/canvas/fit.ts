@@ -192,14 +192,16 @@ function fitLine(
 
 /**
  * What a row of a table writes in columns: its name at the left; its column's type in Roboto Mono, in
- * a column of its own whose left edge is one x for every row of its table; and its badges in a column
- * after it, at the right. `typeX` and `badgesX` are from the row's left side.
+ * a column of its own, right-aligned so that every type of its table ends at one x, `typeEnd`, as the
+ * data-modeling face writes them (ADR 0086); and its badges in a column after it, at the right.
+ * `typeX`, `typeEnd` and `badgesX` are from the row's left side.
  */
 export interface RowColumns {
   name: string;
   type: string;
   badges: string;
   typeX: number;
+  typeEnd: number;
   badgesX: number;
 }
 
@@ -281,6 +283,7 @@ export function fitRowColumns(
     type: type === '' ? '' : fitMono(type, widths.type, sizes.rowDetail),
     badges: badges === '' ? '' : fitText(badges, widths.badges, sizes.rowDetail),
     typeX,
+    typeEnd,
     badgesX,
   };
 }

@@ -2,6 +2,8 @@ import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Component, Element, Relation, RelationType, ViewFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
+import { THEMES } from '../theme/themes';
+import { BASE_DRAWING } from './drawing';
 import { distance, type Point, type Rect } from './geometry';
 import {
   buildScene,
@@ -262,10 +264,12 @@ describe('buildScene with the sample project', () => {
     }
   });
 
-  it('draws each relation with its relation type’s stroke, width and dash', () => {
+  it('draws each relation with its relation type’s dash, its built-in color and width the drawing’s', () => {
+    // Clean draws a built-in color in the neutral color, keeping the type's for hover (ADR 0086).
     expect(lineOf(overview, 'api-reads-db')).toMatchObject({
-      stroke: '#3D4651',
-      width: 2,
+      stroke: THEMES.light.canvas.neutralLine,
+      typeStroke: { light: '#3D4651' },
+      width: BASE_DRAWING.lines.width,
       dash: 'dashed',
     });
     expect(lineOf(overview, 'api-writes-db')).toMatchObject({ dash: 'solid' });

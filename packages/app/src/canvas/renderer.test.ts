@@ -243,8 +243,9 @@ describe('CanvasRenderer bands', () => {
     renderer.show(withCalendar({ world: ['calendar'] }));
     expect(keys.every((key) => renderer.showsOutline(key))).toBe(true);
     for (const tile of shapeTiles(renderer)) expect(tile.labelled).toBe(tile.shapes.length);
-    // Calendar, Patient and Clinic booking, each with its name and its component's name.
-    expect(labels).toBe(6);
+    // Calendar and Patient, each with its name and its component's name, and Clinic booking, a
+    // region, with its name alone (ADR 0086).
+    expect(labels).toBe(5);
   });
 
   it('says a shape shows its outline only once its tile draws it in full, and not far out', async () => {

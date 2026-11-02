@@ -35,7 +35,7 @@ import {
   type ResolvedFace,
 } from '@visual-anything/core';
 import type { LevelOfDetail } from '@visual-anything/schema';
-import { bodyOf, cylinderCap, personHead, type Rect, type ShapeKind } from './geometry';
+import { bodyOf, cylinderCap, personLabelTop, type Rect, type ShapeKind } from './geometry';
 import { levelDetail } from './levels';
 import { labelAreaOn } from './outlined';
 import type { ElementShape } from './scene';
@@ -179,7 +179,7 @@ export function faceWidthIn(kind: ShapeKind, width: number): number {
 function areaOfKind(kind: ShapeKind, rect: Rect): Rect {
   const { x, y, width, height } = rect;
   if (kind === 'person') {
-    const top = personHead(rect) * 1.6;
+    const top = personLabelTop(rect);
     return { x, y: y + top, width, height: height - top };
   }
   if (kind === 'cylinder') {

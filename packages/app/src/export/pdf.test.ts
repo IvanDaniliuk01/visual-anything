@@ -45,7 +45,8 @@ describe('writePdf', () => {
     // Filled and stroked paths, curves, text set in a font, and pictures.
     expect(content).toMatch(/\bB\n/);
     expect(content).toMatch(/ c\n/);
-    expect(content).toMatch(/BT\n\/F\d+ 14 Tf/);
+    // Names at Clean's size (ADR 0086).
+    expect(content).toMatch(/BT\n\/F\d+ 13 Tf/);
     expect(content).toMatch(/\/I\d+ Do/);
     expect(content).toMatch(/\[\d+(\.\d+)? \d+(\.\d+)?\] 0 d/);
   }, 60_000);
@@ -59,7 +60,9 @@ describe('writePdf', () => {
     expect(text.trimEnd().endsWith('%%EOF')).toBe(true);
     const bounds = scene.bounds as NonNullable<typeof scene.bounds>;
     expect(pdf.page.width).toBeCloseTo((bounds.width + 2 * SVG_MARGIN) * 0.75);
-    expect(pdf.page.height).toBeCloseTo((bounds.height + 2 * SVG_MARGIN) * 0.75);
+    // And below it the legend of its relation types (ADR 0086).
+    const legend = writeSvg(project, SAMPLE_VIEW).legend?.height ?? 0;
+    expect(pdf.page.height).toBeCloseTo((bounds.height + 2 * SVG_MARGIN + legend) * 0.75);
     expect(text.match(/\/Type \/Page\b/g)).toHaveLength(1);
     expect(pdf.lost).toEqual([]);
   }, 60_000);
@@ -158,13 +161,20 @@ describe('writePdf', () => {
     const legend = drawing.legend as NonNullable<typeof drawing.legend>;
     // The page holds the drawing as before, and the legend below it.
     expect(pdf.page.width).toBeCloseTo(plain.page.width);
-    expect(pdf.page.height).toBeCloseTo(plain.page.height + legend.height * 0.75);
+    // The plain drawing's legend holds its relation types alone (ADR 0086).
+    const types = writeSvg(project, SAMPLE_VIEW, {
+      bitmaps: ['png', 'jpeg'],
+      filters: false,
+    }).legend;
+    expect(pdf.page.height).toBeCloseTo(
+      plain.page.height + (legend.height - (types?.height ?? 0)) * 0.75,
+    );
     const count = (text: string, pattern: RegExp) => text.match(pattern)?.length ?? 0;
     const content = pageContent(pdf.bytes);
     const before = pageContent(plain.bytes);
-    // The legend's title, subtitle and two entries, each set as text; its title at 13.
+    // The legend's title, subtitle and two entries, each set as text. Its title is at 13, as Clean's
+    // names are, so the count of texts says it.
     expect(count(content, /\bBT\n/g)).toBeGreaterThanOrEqual(count(before, /\bBT\n/g) + 4);
-    expect(count(content, /BT\n\/F\d+ 13 Tf/g)).toBe(count(before, /BT\n\/F\d+ 13 Tf/g) + 1);
     expect(pdf.lost).toEqual([]);
   }, 60_000);
 

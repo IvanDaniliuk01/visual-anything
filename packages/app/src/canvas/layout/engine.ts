@@ -190,7 +190,10 @@ export async function layOut(
   const engines = Array.isArray(elk) ? (elk as readonly ElkEngine[]) : [elk as ElkEngine];
   const tree = new Tree(input);
   // Containers keep the drawing defaults' room around their contents (ADR 0086).
-  const roomInside = { x: input.padding ?? CONTENTS_ORIGIN.x, y: CONTENTS_ORIGIN.y };
+  const roomInside = {
+    x: input.padding ?? CONTENTS_ORIGIN.x,
+    y: input.header ?? CONTENTS_ORIGIN.y,
+  };
   const compound = compoundPaddingOf(roomInside.x);
   /** Where a container's contents start from its top: under its face's header, when it has one. */
   const topOf = (level: number): number =>

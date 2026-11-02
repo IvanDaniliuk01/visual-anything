@@ -13,16 +13,19 @@ import {
   type FlatContour,
 } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
-import { t } from '../i18n';
 import type { Dash } from './geometry';
 import {
+  INNER_BORDER,
   SHEET,
   bodyOf,
   cylinderCap,
   grow,
   directionOf,
   distance,
-  personHead,
+  personBodyPoints,
+  personFigure,
+  personLabelTop,
+  showsInnerBorder,
   toggleRect,
   untilArrowhead,
   type Arrowhead,
@@ -42,7 +45,7 @@ import {
   outlineColorOf,
   readableTextColors,
 } from './colors';
-import { COUNT_LINE_TOP, headerLines } from './collapse';
+import { countLineTopOf, countText, headerLines } from './collapse';
 import { drawLeavingMark, writeLeavingMark } from './leavingMark';
 import {
   TAG_DETAIL_LINE,
@@ -77,6 +80,14 @@ import { patternMatrix, patternTexture } from './patterns';
 import { drawnAsCurve, drawnCurve, strokeCurve } from './routing/curves';
 import { LIGHT_ROWS, drawRowsShape, rowsBlocks, writeRowsText, type RowColors } from './rowsDraw';
 import {
+  LIGHT_REGION,
+  drawRegion,
+  regionBorderOf,
+  regionFillOf,
+  regionTabOf,
+  type RegionColors,
+} from './regionDraw';
+import {
   arrowWidthOf,
   type ArrowShape,
   type ElementShape,
@@ -96,6 +107,7 @@ import type { EmphasisRun, ResolvedDrawing } from '@visual-anything/core';
 import {
   BASE_DRAWING,
   NAME_LINE,
+  SOFT_SHADOW,
   fontFamilyOf,
   nameWeightOf,
   personCornerRadius,
@@ -113,8 +125,8 @@ import { SANS_FAMILY } from './robotoFonts';
  */
 export const FONT_FAMILY = [...SANS_FAMILY];
 
-/** What a label names: an element, its component, or a relation. */
-export type LabelKind = 'name' | 'detail' | 'relation';
+/** What a label names: an element, its component, a relation, or how many an aggregated one stands for. */
+export type LabelKind = 'name' | 'detail' | 'relation' | 'badge';
 
 /**
  * Makes what a label is drawn with, from text laid out by this module. `room` is the height the label
@@ -219,6 +231,7 @@ export function drawShapeBlocks(
   inOrder = false,
   rowColors: RowColors = LIGHT_ROWS,
   drawing: ResolvedDrawing = BASE_DRAWING,
+  region: RegionColors = LIGHT_REGION,
 ): void {
   const outlines = new Map<Color, Rect[]>();
   const fills = new Map<Color, Rect[]>();
@@ -265,6 +278,12 @@ export function drawShapeBlocks(
         if (inOrder) fillRects(graphics, color, [rect]);
         else addRect(fills, color, rect);
       }
+      if (inOrder) hairlines.stroke(graphics);
+      continue;
+    }
+    // A region is a block of its faint fill, outlined in its border as it comes out over the canvas.
+    if (shape.region) {
+      block(shape.rect, regionFillOf(shape.stroke, region), regionBorderOf(shape.stroke, region));
       if (inOrder) hairlines.stroke(graphics);
       continue;
     }
@@ -371,18 +390,31 @@ export function drawRelationLines(graphics: Graphics, lines: readonly RelationLi
 /**
  * Draws element shapes in full, in order, so that containers come under their contents: each body by
  * its kind, or by its own outline with its holes cut (ADR 0066), a collapsed container on a sheet that
- * shows behind it, and on every container the toggle that collapses or expands it.
+ * shows behind it or with a second border inside it, and on every container the toggle that collapses
+ * or expands it. A container the drawing defaults draw as a region is drawn as one (ADR 0086), and
+ * with soft shadows each shape that holds nothing first lays its shadow.
  */
 export function drawShapeOutlines(
   graphics: Graphics,
   shapes: readonly ElementShape[],
   rowColors: RowColors = LIGHT_ROWS,
   drawing: ResolvedDrawing = BASE_DRAWING,
+  region: RegionColors = LIGHT_REGION,
 ): void {
   const hairlines = new Hairlines(drawing);
+  const shadows = drawing.shapes.shadow === 'soft';
   for (const shape of shapes) {
     // An anchored part of a solid is drawn by its drawing's picture (ADR 0075).
     if (isAnchoredSolidPart(shape)) continue;
+    if (shape.region) {
+      drawRegion(graphics, shape, region, drawing);
+      drawLeavingMark(graphics, shape);
+      drawDestinationMark(graphics, shape);
+      continue;
+    }
+    if (shadows && !isContainer(shape) && shape.row === undefined) {
+      drawShadow(graphics, shape.kind, bodyRectOf(shape), drawing);
+    }
     if (drawRowsShape(graphics, shape, rowColors, drawing)) {
       drawToggle(graphics, shape);
       drawLeavingMark(graphics, shape);
@@ -419,6 +451,9 @@ export function drawShapeOutlines(
     }
     drawBody(graphics, shape.kind, body, colors, drawing);
     hairlines.add(colors.stroke, shape.kind, body);
+    // A collapsed container whose drawing defaults count what it holds shows a second border.
+    if (showsInnerBorder(shape.collapsed))
+      drawInnerBorder(graphics, shape.kind, body, colors, drawing);
     // A solid's placeholder until its picture covers it (ADR 0075).
     drawSolidMark(graphics, shape, colors.stroke);
     drawNameTag(graphics, shape, colors, hairlines, drawing);
@@ -514,6 +549,7 @@ export function writeShapeLabels(
   backdrop: (shape: ElementShape) => Color = () => CANVAS_BACKGROUND,
   faceOf?: (shape: ElementShape) => Container | undefined,
   drawing: ResolvedDrawing = BASE_DRAWING,
+  region: RegionColors = LIGHT_REGION,
 ): Container[] {
   const texts: Container[] = [];
   for (const shape of shapes) {
@@ -525,6 +561,12 @@ export function writeShapeLabels(
       if (text) texts.push(text);
       return text;
     };
+    // A region writes its name alone in its tab, in the theme's muted text (ADR 0086).
+    if (shape.region) {
+      writeRegionName(shape, write, region, drawing);
+      writeLeavingMark(shape, write);
+      continue;
+    }
     const face = faceOf?.(shape);
     if (face) {
       texts.push(face);
@@ -536,6 +578,56 @@ export function writeShapeLabels(
     writeLeavingMark(shape, write);
   }
   return texts;
+}
+
+/** Writes a region's name in its tab, after its icon, on one line, at 500 in the muted text. */
+function writeRegionName(
+  shape: ElementShape,
+  write: Write,
+  region: RegionColors,
+  drawing: ResolvedDrawing,
+): void {
+  const { name, detail } = regionTabOf(shape, drawing);
+  if (name.y + name.height > shape.rect.y + shape.rect.height) return;
+  // Its detail, where it says more than its component's name, on the line under it.
+  if (detail) {
+    write(
+      {
+        text: detail.text,
+        x: detail.rect.x,
+        y: detail.rect.y,
+        style: textStyle(
+          drawing.text.detailSize,
+          region.text,
+          detail.rect.width,
+          'left',
+          'normal',
+          drawing,
+        ),
+      },
+      true,
+      detail.rect.height + 1,
+      shape.detailRuns,
+    );
+  }
+  write(
+    {
+      text: shape.name,
+      x: name.x,
+      y: name.y,
+      // Wrapped to its width, and cut to its one line with "…" when it runs longer.
+      style: textStyle(
+        drawing.text.containerNameSize,
+        region.text,
+        name.width,
+        'left',
+        '500',
+        drawing,
+      ),
+    },
+    false,
+    name.height + 1,
+  );
 }
 
 /** Draws relations along their routes, with an arrowhead at the end of directed ones. */
@@ -631,8 +723,11 @@ export function writeRelationLabels(
   make: TextFactory = canvasText,
   colors: { text: Color; back: Color } = { text: RELATION_LABEL_TEXT, back: RELATION_LABEL_HALO },
   drawing: ResolvedDrawing = BASE_DRAWING,
+  written?: (label: Container, line: RelationLine) => void,
 ): Container[] {
   return lines.flatMap((line) => {
+    // An aggregated relation's count badge (ADR 0086): a pill bordered in its line's color.
+    const badge = line.badge === true;
     const text =
       line.label &&
       make(
@@ -648,10 +743,23 @@ export function writeRelationLabels(
             stroke: { color: colors.back, width: 4, join: 'round' },
           },
         },
-        'relation',
+        badge ? 'badge' : 'relation',
       );
-    return text ? [text] : [];
+    if (!text) return [];
+    if (badge) paintBadgeBorder(text, line.stroke);
+    written?.(text, line);
+    return [text];
   });
+}
+
+/** A label that draws a border of its own, as a count badge does, and the color it draws it in. */
+interface Bordered {
+  paintBorder(color: Color): void;
+}
+
+/** Draws a count badge's border in a color: its line's, in the theme the label is drawn in. */
+export function paintBadgeBorder(label: Container, color: Color): void {
+  if ('paintBorder' in label) (label as Container & Bordered).paintBorder(color);
 }
 
 /** Draws notes and free arrows, in their own colors or else the light theme's. */
@@ -761,18 +869,69 @@ function traceOutline(
       return;
     }
     case 'person': {
-      const head = personHead(rect);
-      graphics.roundRect(
-        x,
-        y + head * 1.6,
-        width,
-        height - head * 1.6,
-        personCornerRadius(drawing, width),
-      );
-      graphics.circle(x + width / 2, y + head, head);
+      const figure = personFigure(rect);
+      graphics.poly(personBodyPoints(figure, personCornerRadius(drawing, width)), true);
+      graphics.circle(figure.head.x, figure.head.y, figure.head.radius);
       return;
     }
   }
+}
+
+/** Lays a shape's soft shadow, under where its body is then drawn. */
+function drawShadow(
+  graphics: Graphics,
+  kind: ShapeKind,
+  rect: Rect,
+  drawing: ResolvedDrawing,
+): void {
+  const { offset, alpha, layers } = SOFT_SHADOW;
+  for (let layer = layers - 1; layer >= 0; layer--) {
+    const at = grow({ ...rect, y: rect.y + offset }, layer);
+    traceSilhouette(graphics, kind, at, drawing);
+    graphics.fill({ color: 0x000000, alpha: alpha / layers });
+  }
+}
+
+/** Traces the closed outline a shape's shadow fills: its body, without a cylinder's front cap. */
+function traceSilhouette(
+  graphics: Graphics,
+  kind: ShapeKind,
+  rect: Rect,
+  drawing: ResolvedDrawing,
+): void {
+  const { x, y, width, height } = rect;
+  switch (kind) {
+    case 'rectangle':
+      graphics.rect(x, y, width, height);
+      return;
+    case 'ellipse':
+      graphics.ellipse(x + width / 2, y + height / 2, width / 2, height / 2);
+      return;
+    case 'cylinder':
+      graphics.roundRect(x, y, width, height, Math.min(width / 2, cylinderCap(rect) * 2));
+      return;
+    case 'person': {
+      const figure = personFigure(rect);
+      graphics.poly(personBodyPoints(figure, personCornerRadius(drawing, width)), true);
+      return;
+    }
+    default:
+      graphics.roundRect(x, y, width, height, roundedCornerRadius(drawing, width, height));
+  }
+}
+
+/** A collapsed container's second border, `INNER_BORDER` inside its body, 1 wide (ADR 0086). */
+function drawInnerBorder(
+  graphics: Graphics,
+  kind: ShapeKind,
+  body: Rect,
+  colors: { stroke: Color },
+  drawing: ResolvedDrawing,
+): void {
+  const inner = grow(body, -INNER_BORDER);
+  if (inner.width <= 0 || inner.height <= 0) return;
+  traceOutline(graphics, kind, inner, drawing);
+  graphics.stroke({ color: colors.stroke, width: 1 });
 }
 
 /**
@@ -979,19 +1138,14 @@ function drawBody(
       return;
     }
     case 'person': {
-      const head = personHead(shape.rect);
+      // A head over shoulders drawn as one rounded arc (ADR 0086).
+      const figure = personFigure(shape.rect);
       graphics
-        .roundRect(
-          x,
-          y + head * 1.6,
-          width,
-          height - head * 1.6,
-          personCornerRadius(drawing, width),
-        )
+        .poly(personBodyPoints(figure, personCornerRadius(drawing, width)), true)
         .fill(shape.fill)
         .stroke(stroke);
       graphics
-        .circle(x + width / 2, y + head, head)
+        .circle(figure.head.x, figure.head.y, figure.head.radius)
         .fill(shape.fill)
         .stroke(stroke);
       return;
@@ -1006,7 +1160,7 @@ function drawBody(
 export function detailOf(shape: ElementShape): string {
   const detail = shape.detail ?? shape.componentName;
   if (shape.collapsed === undefined) return detail;
-  const inside = t('{count} inside', { count: shape.collapsed.contents });
+  const inside = countText(shape.collapsed);
   return detail === '' ? inside : `${detail} · ${inside}`;
 }
 
@@ -1062,6 +1216,7 @@ function writeShapeText(
       height,
       wrap,
       make?.measure,
+      drawing,
     );
     if (rooms.detail > 0 && detail !== '') {
       write(
@@ -1082,7 +1237,7 @@ function writeShapeText(
         {
           text: count,
           x: x + inset + shift,
-          y: y + (countTop ?? COUNT_LINE_TOP),
+          y: y + (countTop ?? countLineTopOf(drawing)),
           style: textStyle(
             detailSize,
             colors.detail,
@@ -1458,7 +1613,7 @@ export function labelRooms(
 export function labelArea(shape: ElementShape): Rect {
   const { x, y, width, height } = shape.rect;
   if (shape.kind === 'person') {
-    const top = personHead(shape.rect) * 1.6;
+    const top = personLabelTop(shape.rect);
     return { x, y: y + top, width, height: height - top };
   }
   if (shape.kind === 'cylinder') {

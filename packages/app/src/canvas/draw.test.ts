@@ -21,10 +21,16 @@ import { arrowheadAt, toggleRect, type Point, type Rect } from './geometry';
 import { outlineAt, type PlacedOutline } from './outlines';
 import { midpointOf } from './route';
 import { DETAIL_LINE_HEIGHT, NAME_LINE_HEIGHT } from './textBlock';
+import { BASE_DRAWING } from './drawing';
 import { buildScene, type ElementShape, type RelationLine } from './scene';
 import { routePieces } from './tiles';
 
-const scene = buildScene(loadSample(), 'system-overview');
+// Containers drawn as their kind, as these tests read a box's header; regions are Clean's (A5.2).
+const sample = loadSample();
+const scene = buildScene(
+  { ...sample, project: { ...sample.project, drawing: { containers: { drawn: 'as-kind' } } } },
+  'system-overview',
+);
 const textOf = (label: unknown) => (label as { text: string }).text;
 
 describe('writeShapeLabels', () => {
@@ -264,10 +270,10 @@ describe('drawShapeBlocks', () => {
     // The fill sits inside the outline, so that nothing is drawn beyond the shape.
     expect(outlined.get(pale.fill)).toMatchObject([
       {
-        x: pale.rect.x + 6,
-        y: pale.rect.y + 6,
-        width: pale.rect.width - 12,
-        height: pale.rect.height - 12,
+        x: pale.rect.x + RIM,
+        y: pale.rect.y + RIM,
+        width: pale.rect.width - 2 * RIM,
+        height: pale.rect.height - 2 * RIM,
       },
     ]);
     const clinic = shapeOf('clinic-booking');
@@ -275,6 +281,9 @@ describe('drawShapeBlocks', () => {
     expect(all.get(clinic.stroke)).toHaveLength(clinic.stroke === pale.stroke ? 2 : 1);
   });
 });
+
+/** How wide a plain block's outline is: four of the drawing's borders. */
+const RIM = 4 * BASE_DRAWING.shapes.borderWidth;
 
 describe('containers, collapsed or not', () => {
   const container = scene.shapes.find((shape) => shape.key === 'clinic-booking') as ElementShape;

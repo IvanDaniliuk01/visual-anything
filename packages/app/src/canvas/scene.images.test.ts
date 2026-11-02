@@ -9,6 +9,8 @@ import { Container, Graphics } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
 import { drawShapeBlocks, drawShapeOutlines, labelRooms, writeShapeLabels } from './draw';
+import { HEADER_TEXT_SHIFT } from './shape-images';
+import { BASE_DRAWING, textSideInset } from './drawing';
 import { grow, type Point, type Rect } from './geometry';
 import { hitAt, indexScene } from './hit';
 import { buildScene, buildSceneAfresh, type ElementShape, type Scene } from './scene';
@@ -236,7 +238,13 @@ describe('the drawing of a shape with a picture', () => {
     const scheduling = shapeOf(scene, 'scheduling');
     const bare = { ...scheduling };
     delete bare.image;
-    expect(at(scheduling) - at(bare)).toBe(22);
+    // A region writes after its header's picture, which takes its kind's icon's place (ADR 0086).
+    expect(at(scheduling) - scheduling.rect.x).toBe(
+      textSideInset(BASE_DRAWING) + HEADER_TEXT_SHIFT,
+    );
+    expect(at(bare) - bare.rect.x).toBe(
+      textSideInset(BASE_DRAWING) + BASE_DRAWING.text.containerNameSize + 6,
+    );
   });
 });
 

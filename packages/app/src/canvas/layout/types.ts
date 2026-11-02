@@ -118,6 +118,11 @@ export interface LayoutInput {
    * (ADR 0086); absent, `CONTENTS_ORIGIN`'s.
    */
   padding?: number;
+  /**
+   * Where containers start their contents below their top, the drawing defaults' header (ADR 0086):
+   * a region's, under its name tab, or a box's; absent, `CONTENTS_ORIGIN`'s.
+   */
+  header?: number;
 }
 
 /** Where one shape that layout moved goes. */

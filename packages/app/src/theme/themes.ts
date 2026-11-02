@@ -142,6 +142,20 @@ export interface CanvasTheme {
   changeRemoved: Color;
   changeChanged: Color;
   changeMoved: Color;
+  /**
+   * The one color of lines whose relation type takes a built-in color, when the drawing defaults ask
+   * for neutral lines (ADR 0086): 3:1 or more on the canvas. A line takes its type's color on hover
+   * and selection.
+   */
+  neutralLine: Color;
+  /**
+   * A container drawn as a region (ADR 0086): its stroke's color at `regionFillAlpha` as its fill,
+   * its border at `regionBorderAlpha`, and its name tab's text in `regionText`, which reads at 4.5:1
+   * on any such fill.
+   */
+  regionFillAlpha: number;
+  regionBorderAlpha: number;
+  regionText: Color;
 }
 
 const LIGHT: ShellTheme = {
@@ -247,6 +261,8 @@ function canvasTheme(
     | 'noteText'
     | 'freeArrow'
     | 'rowSeparator'
+    | 'neutralLine'
+    | 'regionFillAlpha'
   >,
 ): CanvasTheme {
   return {
@@ -265,6 +281,8 @@ function canvasTheme(
     changeRemoved: colors.changeRemoved,
     changeChanged: colors.changeChanged,
     changeMoved: colors.changeMoved,
+    regionBorderAlpha: 0.4,
+    regionText: colors.textMuted,
     ...own,
   };
 }
@@ -284,6 +302,9 @@ export const THEMES: Readonly<Record<ThemeName, { shell: ShellTheme; canvas: Can
       noteText: '#3D3000',
       freeArrow: '#3E4C59',
       rowSeparator: '#D9E2EC',
+      // The design's #98A2B3 reads at 2.6:1 on the canvas; this is its hue at 3:1 (ADR 0086).
+      neutralLine: '#8B95A7',
+      regionFillAlpha: 0.06,
     }),
   },
   dark: {
@@ -300,6 +321,9 @@ export const THEMES: Readonly<Record<ThemeName, { shell: ShellTheme; canvas: Can
       noteText: '#FFF3C4',
       freeArrow: '#AEB8C4',
       rowSeparator: DARK.colors.border,
+      // The design's #5B6472 reads at 2.9:1 on the canvas; this is its hue at 3:1 (ADR 0086).
+      neutralLine: '#5D6674',
+      regionFillAlpha: 0.08,
     }),
   },
 };
