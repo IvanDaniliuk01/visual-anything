@@ -10,37 +10,8 @@ import {
   numberProblem,
   percentOf,
   type Dash,
-  type LineStyleTrait,
-  type ShapeStyleTrait,
+  type StyleInputKind,
 } from './styleTraits';
-
-/** A row of the Style tab: its trait, what it is called and how it is edited. */
-export interface StyleRowSpec<T extends string> {
-  trait: T;
-  label: string;
-  kind: StyleInputKind;
-  range?: { least: number; most: number };
-}
-
-/** The Style rows of a shape that ADR 0088 adds, after its fill and stroke. */
-export const SHAPE_STYLE_ROWS: readonly StyleRowSpec<ShapeStyleTrait>[] = [
-  { trait: 'gradient', label: 'Gradient', kind: 'gradient' },
-  { trait: 'borderWidth', label: 'Border width', kind: 'number', range: RANGES.borderWidth },
-  { trait: 'dash', label: 'Border dash', kind: 'dash' },
-  { trait: 'cornerRadius', label: 'Corner radius', kind: 'number', range: RANGES.cornerRadius },
-  { trait: 'opacity', label: 'Opacity (%)', kind: 'percent', range: RANGES.opacity },
-  { trait: 'shadow', label: 'Shadow', kind: 'shadow' },
-];
-
-/** The Style rows of a line, after its stroke. */
-export const LINE_STYLE_ROWS: readonly StyleRowSpec<LineStyleTrait>[] = [
-  { trait: 'width', label: 'Width', kind: 'number', range: RANGES.width },
-  { trait: 'dash', label: 'Dash', kind: 'dash' },
-  { trait: 'opacity', label: 'Opacity (%)', kind: 'percent', range: RANGES.opacity },
-];
-
-/** How a Style trait is edited: a number, a percent, a dash, a shadow, or a gradient. */
-export type StyleInputKind = 'number' | 'percent' | 'dash' | 'shadow' | 'gradient';
 
 interface StyleTraitInputProps {
   kind: StyleInputKind;

@@ -17,7 +17,7 @@ import { ESSENCE_ID, type Element, type Id } from '@visual-anything/schema';
 import { useId, useState, type ReactNode } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { t as translate, useT } from '../../i18n';
-import { isTextPlacement, TEXT_PLACEMENTS } from '../definitions/DetailSection';
+import { isTextPlacement, TEXT_PLACEMENTS } from '../definitions/textPlacements';
 import { ElementImageTrait } from '../definitions/ElementImageTrait';
 import { ElementPartTrait } from '../definitions/ElementPartTrait';
 import { ElementFaceTrait } from '../definitions/FaceSection';
@@ -37,8 +37,9 @@ import {
   storedAtLevel,
 } from './recolor';
 import { SHAPES, isShape } from './shapes';
-import { SHAPE_STYLE_ROWS, StyleTraitInput } from './StyleTraitInput';
+import { StyleTraitInput } from './StyleTraitInput';
 import {
+  SHAPE_STYLE_ROWS,
   borderHints,
   borderlessHints,
   componentStyleCommand,

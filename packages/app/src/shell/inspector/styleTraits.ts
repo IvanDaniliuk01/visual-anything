@@ -78,6 +78,17 @@ export interface LineStyleValues {
   opacity: number;
 }
 
+/** How a Style trait is edited: a number, a percent, a dash, a shadow, or a gradient. */
+export type StyleInputKind = 'number' | 'percent' | 'dash' | 'shadow' | 'gradient';
+
+/** A row of the Style tab: its trait, what it is called and how it is edited. */
+export interface StyleRowSpec<T extends string> {
+  trait: T;
+  label: string;
+  kind: StyleInputKind;
+  range?: { least: number; most: number };
+}
+
 /** The ranges the schema allows (ADR 0088's clarification of A6.0). */
 export const RANGES = {
   borderWidth: { least: 0, most: 16 },
@@ -86,6 +97,23 @@ export const RANGES = {
   opacity: { least: 20, most: 100 },
   width: { least: 0.5, most: 16 },
 } as const;
+
+/** The Style rows of a shape that ADR 0088 adds, after its fill and stroke. */
+export const SHAPE_STYLE_ROWS: readonly StyleRowSpec<ShapeStyleTrait>[] = [
+  { trait: 'gradient', label: 'Gradient', kind: 'gradient' },
+  { trait: 'borderWidth', label: 'Border width', kind: 'number', range: RANGES.borderWidth },
+  { trait: 'dash', label: 'Border dash', kind: 'dash' },
+  { trait: 'cornerRadius', label: 'Corner radius', kind: 'number', range: RANGES.cornerRadius },
+  { trait: 'opacity', label: 'Opacity (%)', kind: 'percent', range: RANGES.opacity },
+  { trait: 'shadow', label: 'Shadow', kind: 'shadow' },
+];
+
+/** The Style rows of a line, after its stroke. */
+export const LINE_STYLE_ROWS: readonly StyleRowSpec<LineStyleTrait>[] = [
+  { trait: 'width', label: 'Width', kind: 'number', range: RANGES.width },
+  { trait: 'dash', label: 'Dash', kind: 'dash' },
+  { trait: 'opacity', label: 'Opacity (%)', kind: 'percent', range: RANGES.opacity },
+];
 
 /** What a resolved appearance draws for each Style trait, read with the drawing defaults. */
 export function shapeStyleValues(

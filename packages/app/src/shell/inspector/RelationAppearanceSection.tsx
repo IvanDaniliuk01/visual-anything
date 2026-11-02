@@ -17,8 +17,9 @@ import { ColorHints, ScopeChoice } from './colorParts';
 import { idsOf, lineHints, originText, savedIn, wayBack } from './colors';
 import { ColorControl, InlineProblem, SelectControl } from './controls';
 import { FormatPanel } from './FormatPanel';
-import { LINE_STYLE_ROWS, StyleTraitInput } from './StyleTraitInput';
+import { StyleTraitInput } from './StyleTraitInput';
 import {
+  LINE_STYLE_ROWS,
   lineStyleValues,
   projectLineDefaultCommand,
   relationTypeStyleCommand,

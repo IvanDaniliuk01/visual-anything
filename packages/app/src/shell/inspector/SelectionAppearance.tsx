@@ -18,14 +18,16 @@ import {
 } from '../../canvas/stacking';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
-import { isTextPlacement, TEXT_PLACEMENTS } from '../definitions/DetailSection';
+import { isTextPlacement, TEXT_PLACEMENTS } from '../definitions/textPlacements';
 import { Field } from '../definitions/Field';
 import type { ColorTrait } from './colors';
 import { ColorControl, SelectControl } from './controls';
 import { FormatPanel } from './FormatPanel';
 import { selectionColorCommand, selectionColors } from './recolor';
-import { LINE_STYLE_ROWS, SHAPE_STYLE_ROWS, StyleTraitInput } from './StyleTraitInput';
+import { StyleTraitInput } from './StyleTraitInput';
 import {
+  LINE_STYLE_ROWS,
+  SHAPE_STYLE_ROWS,
   elementsStyleCommand,
   lineStyleValues,
   relationsStyleCommand,

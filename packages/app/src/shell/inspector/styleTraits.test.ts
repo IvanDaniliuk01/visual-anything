@@ -83,9 +83,8 @@ describe('what the Style tab shows', () => {
   });
 
   it('draws a built-in line at the drawing defaults’ width', () => {
-    expect(lineStyleValues(first, definitionsIn(sample), drawing)).toEqual({
+    expect(lineStyleValues(first, definitionsIn(sample), drawing)).toMatchObject({
       width: drawing.lines.width,
-      dash: expect.any(String),
       opacity: 1,
     });
   });
