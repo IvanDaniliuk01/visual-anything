@@ -72,6 +72,17 @@ const SECOND_PASS: LayoutOptions = {
 /** The room a compound node leaves around its contents, as ADR 0080 sets it. */
 export const COMPOUND_PADDING = { top: 56, left: 24, bottom: 24, right: 24 } as const;
 
+/**
+ * The room ELK leaves inside a container whose contents keep `padding` from its sides and bottom
+ * (the drawing defaults', ADR 0086): `COMPOUND_PADDING` for the canvas's own 24.
+ */
+export function compoundPaddingOf(
+  padding: number = COMPOUND_PADDING.left,
+): typeof COMPOUND_PADDING | { top: number; left: number; bottom: number; right: number } {
+  if (padding === COMPOUND_PADDING.left) return COMPOUND_PADDING;
+  return { top: COMPOUND_PADDING.top, left: padding, bottom: padding, right: padding };
+}
+
 /** The most shapes and relations one run is given (ADR 0080); beyond, layout goes level by level. */
 export const WHOLE_SHAPES = 1500;
 export const WHOLE_RELATIONS = 3000;

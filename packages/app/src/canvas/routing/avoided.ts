@@ -22,7 +22,7 @@
  */
 import type { Side } from '@visual-anything/core';
 import { estimateWidth } from '../fit';
-import { arrowheadAt, type Point, type Rect } from '../geometry';
+import { arrowheadAgain, type Point, type Rect } from '../geometry';
 import type { PlacedOutline } from '../outlines';
 import { midpointOf, routeBetweenEnds } from '../route';
 import { withRelations, type ElementShape, type RelationLine, type Scene } from '../scene';
@@ -36,7 +36,7 @@ import {
   type AvoidShapes,
   type AvoidSide,
 } from './avoid';
-import { withRoundedCorners } from './rounded';
+import { cornerRadiusOf, withRoundedCorners } from './rounded';
 import { spreadChannels, type ChannelInput, type ChannelOutput } from './channels';
 import {
   carriedIn,
@@ -580,8 +580,8 @@ function alongWithBounds(
   const end = route.at(-1) as Point;
   const beforeEnd = route.at(-2) as Point;
   const along: RelationLine = { ...line, route, from: start, to: end, middle: midpointOf(route) };
-  if (line.arrowhead) along.arrowhead = arrowheadAt(beforeEnd, end, line.width);
-  withRoundedCorners(along);
+  if (line.arrowhead) along.arrowhead = arrowheadAgain(line.arrowhead, beforeEnd, end, line.width);
+  withRoundedCorners(along, cornerRadiusOf(line));
   const made = { route: flat, line: along, bounds: routeBounds(route) };
   rerouted.set(line, made);
   return made;
@@ -660,7 +660,7 @@ function lineFollowing(
     to: end,
     middle: midpointOf(route),
   };
-  if (line.arrowhead) moved.arrowhead = arrowheadAt(beforeEnd, end, line.width);
+  if (line.arrowhead) moved.arrowhead = arrowheadAgain(line.arrowhead, beforeEnd, end, line.width);
   following.set(line, { target, line: moved });
   return moved;
 }
@@ -1008,8 +1008,10 @@ function withMovedRoutes(scene: Scene, moved: ReadonlyMap<RelationLine, Point[]>
       to: end,
       middle: midpointOf(route),
     };
-    if (line.arrowhead) along.arrowhead = arrowheadAt(route.at(-2) as Point, end, line.width);
-    withRoundedCorners(along);
+    if (line.arrowhead) {
+      along.arrowhead = arrowheadAgain(line.arrowhead, route.at(-2) as Point, end, line.width);
+    }
+    withRoundedCorners(along, cornerRadiusOf(line));
     bounds = union(bounds, routeBounds(route));
     return along;
   });

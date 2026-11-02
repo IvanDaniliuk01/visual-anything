@@ -24,23 +24,32 @@ import { ROWS_FROM, ROWS_HEADER } from './rows';
 import type { ElementShape } from './scene';
 import { meets } from './spatial';
 
-/** How tall a name written far out is, in screen pixels. */
+/**
+ * How tall a name written far out is, in screen pixels, where the drawing defaults say nothing else:
+ * their `reading.farNameSize` (ADR 0086).
+ */
 export const FAR_NAME_SIZE = 12;
 /** The most names written far out at once. */
 export const MOST_FAR_NAMES = 240;
 /** How far in from its plate's sides a name is written, and the least height of a plate. */
 const INSET = 4;
-const PLATE = Math.ceil(FAR_NAME_SIZE * 1.3) + 4;
+/** The least height of a plate for names of `size`: a line and its room. */
+function plateOf(size: number): number {
+  return Math.ceil(size * 1.3) + 4;
+}
 /** How far apart two plates keep. */
 const GAP = 2;
-/** A shape narrower than this on screen writes no name far out. */
-const LEAST_WIDTH = 3 * FAR_NAME_SIZE;
+/** A shape narrower than three of its names' ems on screen writes no name far out. */
+const LEAST_EMS = 3;
 /** How tall a container's header is, where it writes its name: its name's line and the room above. */
 const CONTAINER_HEADER = 28;
 
-/** Whether names are written far out at this scale: below the one rows write their texts from. */
-export function farOut(scale: number): boolean {
-  return scale < ROWS_FROM;
+/**
+ * Whether names are written far out at this scale: below the one rows write their texts from, the
+ * drawing defaults' `reading.rowsFrom`.
+ */
+export function farOut(scale: number, rowsFrom = ROWS_FROM): boolean {
+  return scale < rowsFrom;
 }
 
 /** Whether a shape writes its name far out: a table, or a container open or collapsed, with a name. */
@@ -93,6 +102,10 @@ export interface FarNameOptions {
   /** Whether the canvas is dark, whose shapes take their dark fills. */
   dark?: boolean;
   most?: number;
+  /** The size names are written at, in screen pixels: the drawing defaults' `reading.farNameSize`. */
+  size?: number;
+  /** The scale rows write their texts from, below which names are written far out. */
+  rowsFrom?: number;
 }
 
 /**
@@ -107,7 +120,8 @@ export function placeFarNames(
   options: FarNameOptions = {},
 ): FarName[] {
   const { scale } = camera;
-  if (!farOut(scale) || scale <= 0) return [];
+  if (!farOut(scale, options.rowsFrom) || scale <= 0) return [];
+  const size = options.size ?? FAR_NAME_SIZE;
   const most = options.most ?? MOST_FAR_NAMES;
   const shown: Rect = {
     x: -camera.x / scale,
@@ -123,8 +137,8 @@ export function placeFarNames(
     const header = shape.header ?? (shape.rowCount !== undefined ? ROWS_HEADER : CONTAINER_HEADER);
     if (!meets({ ...body, height: Math.min(body.height, header) }, shown)) continue;
     const width = body.width * scale;
-    if (width < LEAST_WIDTH) continue;
-    const text = fitText(shape.name, width - 2 * INSET, FAR_NAME_SIZE, true);
+    if (width < LEAST_EMS * size) continue;
+    const text = fitText(shape.name, width - 2 * INSET, size, true);
     if (text === '' || (text !== shape.name && text.length < 4)) continue;
     // A table's and a collapsed container's header across their width; an open container's name
     // at its top left, so that it covers no more of what it holds than it must.
@@ -132,8 +146,8 @@ export function placeFarNames(
     const plate: Rect = {
       x: body.x * scale + camera.x,
       y: body.y * scale + camera.y,
-      width: across ? width : Math.min(width, estimateWidth(text, FAR_NAME_SIZE, true) + 2 * INSET),
-      height: Math.max(PLATE, Math.min(body.height, header) * scale),
+      width: across ? width : Math.min(width, estimateWidth(text, size, true) + 2 * INSET),
+      height: Math.max(plateOf(size), Math.min(body.height, header) * scale),
     };
     if (placed.some((other) => overlap(other.plate, plate))) continue;
     const fill = options.dark && shape.dark ? shape.dark.fill : shape.fill;
@@ -142,7 +156,7 @@ export function placeFarNames(
       text,
       plate,
       x: plate.x + INSET,
-      y: plate.y + (plate.height - FAR_NAME_SIZE * 1.2) / 2,
+      y: plate.y + (plate.height - size * 1.2) / 2,
       fill,
       color: readableTextColors(fill).name,
     });
@@ -182,11 +196,17 @@ export class FarNames {
   private readonly texts: (FarText | undefined)[] = [];
   /** How many names show, for tests and the benchmark. */
   shown = 0;
+  /** The size the names are written at, in screen pixels. */
+  private size = FAR_NAME_SIZE;
 
   constructor(private readonly makeText: () => FarText | undefined = bitmapFarText) {}
 
-  /** Shows these names, and hides the rest of the pool. */
-  show(names: readonly FarName[]): void {
+  /** Shows these names, written at `size`, and hides the rest of the pool. */
+  show(names: readonly FarName[], size = FAR_NAME_SIZE): void {
+    if (size !== this.size) {
+      this.size = size;
+      for (const text of this.texts) if (text) sizeText(text, size);
+    }
     for (let at = 0; at < names.length; at++) {
       const name = names[at] as FarName;
       let plate = this.plates[at];
@@ -194,6 +214,7 @@ export class FarNames {
         plate = new Sprite(Texture.WHITE);
         this.plates.push(plate);
         const text = this.makeText();
+        if (text && size !== FAR_NAME_SIZE) sizeText(text, size);
         this.texts.push(text);
         this.container.addChild(plate);
         if (text) this.container.addChild(text);
@@ -219,4 +240,9 @@ export class FarNames {
     this.shown = names.length;
     this.container.visible = names.length > 0;
   }
+}
+
+/** Writes a far name's label at another size: a bitmap label's font size; a stand-in keeps its own. */
+function sizeText(text: FarText, size: number): void {
+  if (text instanceof BitmapText) text.style.fontSize = size;
 }

@@ -5,10 +5,11 @@
  * a shape leaves by. `scene.ts` calls these at its few seams; the sizes come from `rows.ts`.
  */
 import type { Element, Id, ShapePosition } from '@visual-anything/schema';
-import type { Placement } from '@visual-anything/core';
+import type { Placement, ResolvedDrawing } from '@visual-anything/core';
+import { BASE_DRAWING } from './drawing';
 import { t } from '../i18n';
 import { centerOf, type Point, type Rect, type ShapeKind } from './geometry';
-import { fitHeader, fitRow, type FittedLine } from './fit';
+import { fitHeader, fitRow, rowTextSizesOf, type FittedLine } from './fit';
 import { overlapHorizontally, sideToward, type AnyEnd, type SideEnd } from './rowRoutes';
 import type { RouteEnd } from './route';
 import {
@@ -177,7 +178,12 @@ export interface RowFields {
 }
 
 /** The fields a measured box gives its shape: its kind, and on rows and their containers, the rest. */
-export function rowFieldsOf(parts: Measured, width: number, holdsContents: boolean): RowFields {
+export function rowFieldsOf(
+  parts: Measured,
+  width: number,
+  holdsContents: boolean,
+  drawing: ResolvedDrawing = BASE_DRAWING,
+): RowFields {
   const { rows, look, element, detail } = parts;
   if (!rows) return { kind: look.appearance.shape };
   // A picture takes room before the name: at a row's left, in a header after its inset.
@@ -187,7 +193,7 @@ export function rowFieldsOf(parts: Measured, width: number, holdsContents: boole
       kind: 'rectangle',
       row: rows.index,
       ...(rows.undrawn.length > 0 ? { undrawn: rows.undrawn } : {}),
-      fitted: fittedOnce('row', element.name, detail, width, false, icon),
+      fitted: fittedOnce('row', element.name, detail, width, false, icon, drawing),
     };
   }
   const collapsed = parts.folded !== undefined;
@@ -200,7 +206,15 @@ export function rowFieldsOf(parts: Measured, width: number, holdsContents: boole
     kind: rowsShapeKind(look.appearance.shape),
     rowCount: rows.count,
     ...(left > 0 ? { rowsLeft: left } : {}),
-    fitted: fittedOnce('header', element.name, said, width, holdsContents || collapsed, icon),
+    fitted: fittedOnce(
+      'header',
+      element.name,
+      said,
+      width,
+      holdsContents || collapsed,
+      icon,
+      drawing,
+    ),
   };
 }
 
@@ -216,14 +230,18 @@ function fittedOnce(
   width: number,
   toggle: boolean,
   icon: boolean,
+  drawing: ResolvedDrawing,
 ): FittedLine {
-  const key = `${kind}\u0000${width}\u0000${toggle ? 1 : 0}${icon ? 1 : 0}\u0000${name}\u0000${detail}`;
+  // Fitted to the sizes the drawing defaults write them at, which the key holds.
+  const sizes = rowTextSizesOf(drawing);
+  const at = `${sizes.headerName} ${sizes.headerNameBold ? 1 : 0} ${sizes.headerDetail} ${sizes.rowName} ${sizes.rowDetail}`;
+  const key = `${kind}\u0000${width}\u0000${toggle ? 1 : 0}${icon ? 1 : 0}\u0000${at}\u0000${name}\u0000${detail}`;
   let fitted = fittedTexts.get(key);
   if (!fitted) {
     fitted =
       kind === 'row'
-        ? fitRow(name, detail, width, { icon })
-        : fitHeader(name, detail, width, { toggle, icon });
+        ? fitRow(name, detail, width, { icon }, drawing)
+        : fitHeader(name, detail, width, { toggle, icon }, drawing);
     if (fittedTexts.size >= MOST_FITTED) fittedTexts.clear();
     fittedTexts.set(key, fitted);
   }

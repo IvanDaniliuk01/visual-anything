@@ -40,6 +40,7 @@ import {
   relationTypeOrRelatesTo,
   type Definitions,
   type OverlayLook,
+  type ResolvedDrawing,
 } from '@visual-anything/core';
 import type {
   Color,
@@ -90,6 +91,8 @@ export interface DecorationInputs {
   allElements: readonly Element[];
   /** How overlays read attributes; absent, as stored. */
   values?: OverlayValues | undefined;
+  /** The drawing defaults a badge's row or header is fitted again with (ADR 0086). */
+  drawing?: ResolvedDrawing;
 }
 
 /** The shapes after the pass, and which of them it moved or grew, by their indexes. */
@@ -245,7 +248,7 @@ export function decorateShape(
       : element
         ? levelsOf(element, inputs.definitions)
         : undefined;
-  const made = withLook(shape, look, levels, holder, element, inputs.definitions);
+  const made = withLook(shape, look, levels, holder, element, inputs.definitions, inputs.drawing);
   // Made again for other inputs, as after a change of definitions, it is the same if it draws alike.
   const decorated =
     stored && sameDecoration(stored.shape, made)
@@ -586,6 +589,7 @@ function withLook(
   holder: ElementShape | undefined,
   element: Element | undefined,
   definitions: Definitions,
+  drawing: ResolvedDrawing | undefined,
 ): ElementShape {
   if (look === undefined && levels === shape.levels) return shape;
   const next: ElementShape = { ...shape };
@@ -593,7 +597,7 @@ function withLook(
   else next.levels = levels;
   if (look === undefined) return next;
   paint(next, look, backdropOf(holder));
-  if (look.badge !== undefined) badge(next, look.badge);
+  if (look.badge !== undefined) badge(next, look.badge, drawing);
   if (look.size !== undefined && look.size !== 1 && sizable(shape)) {
     resize(next, shape, look.size, element, definitions);
   }
@@ -649,7 +653,7 @@ function withBadge(face: ShapeFace, text: string): ShapeFace {
 }
 
 /** Writes an overlay's badge after the shape's detail, on its fitted line too when it has one. */
-function badge(shape: ElementShape, text: string): void {
+function badge(shape: ElementShape, text: string, drawing: ResolvedDrawing | undefined): void {
   // A face writes it among its badges (ADR 0083).
   if (shape.face) shape.face = withBadge(shape.face, text);
   const detail = shape.detail ?? shape.componentName;
@@ -660,15 +664,18 @@ function badge(shape: ElementShape, text: string): void {
   if (!fitted) return;
   const icon = showsPicture(shape);
   if (shape.row !== undefined) {
-    shape.fitted = fitRow(shape.name, shape.detail, shape.rect.width, { icon });
+    shape.fitted = fitRow(shape.name, shape.detail, shape.rect.width, { icon }, drawing);
     return;
   }
   // What a header already cut shows no more of its detail.
   if (fitted.detail.endsWith('…')) return;
-  shape.fitted = fitHeader(shape.name, joined(fitted.detail, text), shape.rect.width, {
-    toggle: shape.holdsContents || shape.collapsed !== undefined,
-    icon,
-  });
+  shape.fitted = fitHeader(
+    shape.name,
+    joined(fitted.detail, text),
+    shape.rect.width,
+    { toggle: shape.holdsContents || shape.collapsed !== undefined, icon },
+    drawing,
+  );
 }
 
 function joined(detail: string, text: string): string {
@@ -828,6 +835,8 @@ export interface LineInputs {
   relations: ReadonlyMap<Id, Relation>;
   /** How overlays read attributes; absent, as stored. */
   values?: OverlayValues | undefined;
+  /** The drawing defaults an arrowhead is sized again with, for a line an overlay widens (ADR 0086). */
+  drawing?: ResolvedDrawing;
 }
 
 interface LineMade {
@@ -916,7 +925,7 @@ export function decorateLine(line: RelationLine, inputs: LineInputs): RelationLi
   const cache = inputs.values === undefined ? madeLines : liveLines;
   const known = cache === madeLines ? stored : cache.get(line);
   if (known && lineMadeFrom(known, inputs, relation, look)) return known.line;
-  const made = look === undefined ? line : lineWithLook(line, look, relation?.name);
+  const made = look === undefined ? line : lineWithLook(line, look, relation?.name, inputs.drawing);
   const decorated =
     stored && sameLine(stored.line, made)
       ? stored.line
@@ -954,6 +963,7 @@ function lineWithLook(
   line: RelationLine,
   look: OverlayLook,
   name: string | undefined,
+  drawing: ResolvedDrawing | undefined,
 ): RelationLine {
   const next: RelationLine = { ...line };
   let stroke = look.stroke ?? line.stroke;
@@ -969,7 +979,7 @@ function lineWithLook(
     next.width = line.width * look.size;
     const end = line.route.at(-1) as Point;
     const beforeEnd = line.route.at(-2) as Point;
-    if (line.arrowhead) next.arrowhead = arrowheadAt(beforeEnd, end, next.width);
+    if (line.arrowhead) next.arrowhead = arrowheadAt(beforeEnd, end, next.width, drawing);
   }
   if (look.badge !== undefined)
     next.label = name === undefined ? look.badge : `${name} · ${look.badge}`;

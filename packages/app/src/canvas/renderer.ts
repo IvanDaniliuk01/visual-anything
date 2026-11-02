@@ -32,8 +32,10 @@ import {
   fitSolidCamera,
   placeSolidPoint,
   type Legend,
+  type ResolvedDrawing,
   type ThemeName,
 } from '@visual-anything/core';
+import { BASE_DRAWING } from './drawing';
 import type {
   Id,
   LevelOfDetail,
@@ -118,6 +120,7 @@ import {
 } from './emphasisMarks';
 import { nameBandOf } from './shape-images';
 import {
+  drawingOfScene,
   relationLinesOf,
   type ArrowShape,
   type DrawnEnd,
@@ -179,9 +182,12 @@ import {
   type RestyleStats,
 } from './theme/restyle';
 
-/** Names show from this scale on, and component names and relation labels from the next. */
-export const NAMES_FROM = 0.45;
-export const DETAILS_FROM = 0.9;
+/**
+ * Names show from this scale on, and component names and relation labels from the next, where the
+ * drawing defaults say nothing else: their `reading` levels (ADR 0086).
+ */
+export const NAMES_FROM = BASE_DRAWING.reading.namesFrom;
+export const DETAILS_FROM = BASE_DRAWING.reading.detailsFrom;
 /** Below this scale shapes are drawn as plain blocks and relations as plain lines. */
 export const COARSE_BELOW = 0.25;
 /** With this many shapes on screen or fewer, component names show from the scale names show at. */
@@ -800,10 +806,21 @@ export class CanvasRenderer {
     return { width: this.host.clientWidth, height: this.host.clientHeight };
   }
 
-  /** Draws this scene from now on, redrawing only the tiles that changed. */
+  /** The zoom levels at which what shapes say shows, by the drawing defaults of the scene shown. */
+  private get reading(): ResolvedDrawing['reading'] {
+    return this.painter.drawing.reading;
+  }
+
+  /**
+   * Draws this scene from now on, redrawing only the tiles that changed. A scene with other drawing
+   * defaults (ADR 0086) is drawn by a painter of its own, in the theme shown; every shape and line of
+   * it is another object, so every tile is planned again, near the screen first, as for another view.
+   */
   show(indexed: IndexedScene): void {
     this.noteActivity();
     this.indexed = indexed;
+    const drawing = drawingOfScene(indexed.scene);
+    if (drawing !== this.painter.drawing) this.painter = painterOf(this.painter.theme, drawing);
     this.pictures.show(indexed.scene.shapes);
     if (this.status !== 'ready') return;
     try {
@@ -1331,7 +1348,7 @@ export class CanvasRenderer {
       this.requestRender();
     }, SETTLE_AFTER);
     this.followGrid();
-    this.codeDrawings.setCamera(camera, this.viewport, NAMES_FROM);
+    this.codeDrawings.setCamera(camera, this.viewport, this.reading.namesFrom);
     this.partLayer.setScale(camera.scale);
     this.solidLayer.setScale(camera.scale);
     this.callbacks.onCamera?.(camera);
@@ -1353,7 +1370,7 @@ export class CanvasRenderer {
       this.emphasized.hidden.shapes,
       this.emphasized.dimmed.shapes,
     );
-    this.codeDrawings.setCamera(this.camera, this.viewport, NAMES_FROM);
+    this.codeDrawings.setCamera(this.camera, this.viewport, this.reading.namesFrom);
   }
 
   /**
@@ -1371,7 +1388,7 @@ export class CanvasRenderer {
         bounds ?? this.indexed.scene.bounds,
         { width, height },
         FIT_MARGIN,
-        namesFromOf(this.indexed.scene.shapes, NAMES_FROM),
+        namesFromOf(this.indexed.scene.shapes, this.reading.namesFrom),
         this.rulersInset,
       ),
     );
@@ -1656,7 +1673,7 @@ export class CanvasRenderer {
       ? this.detailNow()
       : {
           coarse: scale < COARSE_BELOW,
-          wanted: scale >= DETAILS_FROM ? 2 : scale >= NAMES_FROM ? 1 : 0,
+          wanted: scale >= this.reading.detailsFrom ? 2 : scale >= this.reading.namesFrom ? 1 : 0,
         };
     const { coarse, wanted } = detail;
     // What is changed for the image, to put back once it is drawn, the last change first.
@@ -1716,7 +1733,7 @@ export class CanvasRenderer {
             ? how.asShown && tile.levelDetail
               ? tile.levelDetail
               : this.detailOf(tile, detail, scale, false)
-            : { coarse, wanted: wantedFor(tile.kind, wanted) };
+            : { coarse, wanted: wantedFor(tile.kind, wanted, scale, this.reading) };
         if (!own.coarse && !tile.full) this.drawFully(tile);
         const full = !own.coarse && tile.full !== undefined;
         showPlain(tile, !full);
@@ -2637,7 +2654,9 @@ export class CanvasRenderer {
         budget.left -= next.pieces.length;
         this.drawAtOnce(
           tile,
-          existing.level === wantedFor('relations', detail) ? existing.level : 0,
+          existing.level === wantedFor('relations', detail, this.camera.scale, this.reading)
+            ? existing.level
+            : 0,
         );
       }
       touched.push(tile);
@@ -2919,7 +2938,7 @@ export class CanvasRenderer {
   private drawAtOnce(tile: Tile, shown: Tile['level']): void {
     this.drawFully(tile);
     this.pictures.drawAtOnce(tile, this.imageView(0));
-    const wanted = wantedFor(tile.kind, shown);
+    const wanted = wantedFor(tile.kind, shown, this.camera.scale, this.reading);
     if (wanted === 0) return;
     try {
       this.labelUpTo(tile, wanted, labelCount(tile));
@@ -2984,7 +3003,12 @@ export class CanvasRenderer {
     if (tile.kind !== 'shapes' || tile.levels === undefined) {
       return {
         coarse: detail.coarse,
-        wanted: levelWithRows(tile.shapes, wantedFor(tile.kind, detail.wanted), scale),
+        wanted: levelWithRows(
+          tile.shapes,
+          wantedFor(tile.kind, detail.wanted, scale, this.reading),
+          scale,
+          this.reading.rowsFrom,
+        ),
       };
     }
     const { at, detail: own } = levelDetail(
@@ -3023,14 +3047,15 @@ export class CanvasRenderer {
     const { scale } = this.camera;
     // Component names show once they are large enough to read, or earlier when few shapes are on
     // screen, which is when they cost little.
+    const { namesFrom, detailsFrom } = this.reading;
     const few =
-      scale >= NAMES_FROM &&
-      scale < DETAILS_FROM &&
+      scale >= namesFrom &&
+      scale < detailsFrom &&
       (this.indexed?.shapes.query(visibleRect(this.camera, this.viewport)).length ?? 0) <=
         FEW_SHAPES;
     return {
       coarse: scale < COARSE_BELOW,
-      wanted: scale >= DETAILS_FROM || few ? 2 : scale >= NAMES_FROM ? 1 : 0,
+      wanted: scale >= detailsFrom || few ? 2 : scale >= namesFrom ? 1 : 0,
     };
   }
 
@@ -3184,8 +3209,8 @@ export class CanvasRenderer {
     const hidden = this.hidden;
     const { scale } = this.camera;
     const coarse = scale < COARSE_BELOW;
-    const named = scale >= NAMES_FROM;
-    const details = scale >= DETAILS_FROM;
+    const named = scale >= this.reading.namesFrom;
+    const details = scale >= this.reading.detailsFrom;
     const shown = visibleRect(this.camera, this.viewport);
     const near = grow(shown, Math.max(shown.width, shown.height) / 2);
 
@@ -3441,7 +3466,9 @@ export class CanvasRenderer {
             from: route[0] as Point,
             to: end,
             middle: midpointOf(route),
-            ...(line.arrowhead ? { arrowhead: arrowheadAt(beforeEnd, end, line.width) } : {}),
+            ...(line.arrowhead
+              ? { arrowhead: arrowheadAt(beforeEnd, end, line.width, this.painter.drawing) }
+              : {}),
           };
         }
       }
@@ -4002,14 +4029,21 @@ export class CanvasRenderer {
     ) {
       return;
     }
-    if (!scene || !farOut(scale)) {
+    if (!scene || !farOut(scale, this.reading.rowsFrom)) {
       this.farNamesFor = undefined;
       if (this.farNames.shown > 0) this.farNames.show([]);
       return;
     }
     this.farNamesFor = { scene, x, y, scale, width, height, hidden, dark };
+    const { farNameSize: size, rowsFrom } = this.reading;
     this.farNames.show(
-      placeFarNames(farNameOrder(scene.shapes), this.camera, { width, height }, { hidden, dark }),
+      placeFarNames(
+        farNameOrder(scene.shapes),
+        this.camera,
+        { width, height },
+        { hidden, dark, size, rowsFrom },
+      ),
+      size,
     );
   }
 
@@ -4165,7 +4199,7 @@ export class CanvasRenderer {
     if (theme === target) return;
     this.codeDrawings.setDark(theme.name === 'dark');
     if (this.status !== 'ready') {
-      this.painter = painterOf(theme);
+      this.painter = painterOf(theme, this.painter.drawing);
       this.partLayer.setTheme(theme.name);
       this.themeSolids();
       this.pending = undefined;
@@ -4232,7 +4266,7 @@ export class CanvasRenderer {
       RESTYLE_BUDGET;
     this.restyleFrames += 1;
     const opened = this.pending;
-    const painter = opened ? painterOf(opened.theme) : this.painter;
+    const painter = opened ? painterOf(opened.theme, this.painter.drawing) : this.painter;
     const coarse = this.camera.scale < COARSE_BELOW;
     const screen = visibleRect(this.camera, this.viewport);
     const near = grow(
@@ -4313,7 +4347,7 @@ export class CanvasRenderer {
       const later: Tile[] = [];
       // Labels show only from the scale names show at, and casings with the full drawings: far out,
       // tinting them again waits for the camera to rest, or to come close enough.
-      const named = this.camera.scale >= NAMES_FROM;
+      const named = this.camera.scale >= this.reading.namesFrom;
       for (const tile of this.tiles.values()) {
         if (!this.tilePlanned(tile)) continue;
         const casing = tile.casing !== undefined && tile.casingTheme !== theme;
@@ -5283,9 +5317,22 @@ function isReady(readiness: Readiness | undefined, wanted: Tile['level']): boole
 }
 
 /** The detail a tile of this kind shows when shapes show `wanted`: relations and notes have only one. */
-function wantedFor(kind: Tile['kind'], wanted: Tile['level']): Tile['level'] {
+/**
+ * The level a tile of `kind` is drawn at when the canvas asks for `wanted` at `scale`: shapes at
+ * it; relations with their labels from the drawing's `labelsFrom` on, or wherever the canvas writes
+ * details sooner for want of shapes on screen, and plain otherwise; free shapes whole once named.
+ */
+function wantedFor(
+  kind: Tile['kind'],
+  wanted: Tile['level'],
+  scale: number,
+  reading: ResolvedDrawing['reading'],
+): Tile['level'] {
   if (kind === 'shapes') return wanted;
-  if (kind === 'relations') return wanted === 2 ? 2 : 0;
+  if (kind === 'relations') {
+    if (wanted === 0) return 0;
+    return scale >= reading.labelsFrom || (wanted === 2 && scale < reading.detailsFrom) ? 2 : 0;
+  }
   return wanted === 0 ? 0 : 2;
 }
 

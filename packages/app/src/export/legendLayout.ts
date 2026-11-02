@@ -8,7 +8,14 @@
  * exports carry the same legend, laid out alike. Pure, with no DOM, as the SVG writer is, so that the
  * command line and Claude's tools lay it out the same way.
  */
-import type { Legend, LegendEntry, LegendOverlay, ThemeName } from '@visual-anything/core';
+import type {
+  Legend,
+  LegendEntry,
+  LegendOverlay,
+  ResolvedDrawing,
+  ThemeName,
+} from '@visual-anything/core';
+import { BASE_DRAWING } from '../canvas/drawing';
 import type { Color } from '@visual-anything/schema';
 import { entryAmount, entryLabel, legendSubtitle } from '../canvas/overlays/legendText';
 import type { Translator } from '../i18n';
@@ -85,7 +92,9 @@ function wrapped(text: string, width: number, measure: (line: string) => number)
 /**
  * Lays the band out for a drawing `width` pixels wide, at `scale` pixels for each pixel of the
  * screen: each overlay's title and subtitle, its entries one after another, wrapping before the edge,
- * then its warnings, translated, each wrapped to the band's width.
+ * then its warnings, translated, each wrapped to the band's width. Its entries are written at the
+ * drawing defaults' `text.labelSize`, as relations' names are, and its titles one size larger
+ * (ADR 0086).
  */
 export function layOutBand(
   legend: Legend,
@@ -94,14 +103,16 @@ export function layOutBand(
   width: number,
   scale: number,
   theme: ThemeName,
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): BandLayout {
   const { colors } = THEMES[theme].shell;
   const pad = 16 * scale;
   const room = 26 * scale;
   const gap = 6 * scale;
   const spacing = 18 * scale;
-  const titleSize = 13 * scale;
-  const bodySize = 12 * scale;
+  const { labelSize } = drawing.text;
+  const titleSize = (labelSize + 1) * scale;
+  const bodySize = labelSize * scale;
   const line = 18 * scale;
   const bandWidth = Math.max(width, NARROWEST_BAND * scale);
   const right = bandWidth - pad;

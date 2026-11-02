@@ -124,7 +124,7 @@ export function noticeText(packages: readonly BundledPackage[], nodeVersion: str
     '  License: MIT, with the licenses of what it bundles in its LICENSE file',
     `  Source: https://github.com/nodejs/node/tree/v${nodeVersion}`,
     '',
-    'Roboto 2.137 Regular, Bold, Italic and Bold Italic, which drawings of HTML and the PDF export are written in',
+    'Roboto 2.137 Regular, Medium, Bold, Italic and Bold Italic, which the canvas, drawings of HTML and the PDF export are written in',
     '  License: Apache-2.0',
     '  Source: the npm package roboto-fontface 0.10.0, https://registry.npmjs.org/roboto-fontface/-/roboto-fontface-0.10.0.tgz',
     '',

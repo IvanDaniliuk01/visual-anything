@@ -30,7 +30,7 @@ import type { EndAttachment, Id } from '@visual-anything/schema';
 import type { Selection } from '../../editor/selection';
 import { t } from '../../i18n';
 import { IS_APPLE } from '../../live/platform';
-import { arrowheadAt, distance, type Point } from '../geometry';
+import { arrowheadAgain, distance, type Point } from '../geometry';
 import { GRID_STEP, nudgedOffset, snap } from '../grid';
 import type { IndexedScene, Skipped } from '../hit';
 import { midpointOf, type RouteEnd } from '../route';
@@ -1126,7 +1126,9 @@ function lineAlong(
     middle: midpointOf(route),
     curve,
     hand,
-    ...(line.arrowhead ? { arrowhead: arrowheadAt(before, end, line.width) } : {}),
+    ...(line.arrowhead
+      ? { arrowhead: arrowheadAgain(line.arrowhead, before, end, line.width) }
+      : {}),
   };
 }
 

@@ -18,10 +18,10 @@ describe("PixiJS's kerning pairs (A5.1)", () => {
       _measureCache: {} as Record<string, number>,
       _currentChars: current,
       chars: Object.fromEntries(
-        [...new Set([...newChars, ...current])].map((each) => [
-          each,
-          { kerning: {} as Record<string, number> },
-        ]),
+        [...new Set([...newChars, ...current])].map((each) => {
+          const kerning: Record<string, number> = {};
+          return [each, { kerning }];
+        }),
       ),
     };
     (

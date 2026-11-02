@@ -117,42 +117,46 @@ function topOf(level: BlockLevel): number {
  *   lead into the block, to its left in World when they lead out of it), and below it otherwise. In a
  *   container, never above or left of the contents origin.
  * `flow` counts the relations from kept shapes into the block, and from the block out to kept shapes.
+ * `padding` is the room a container leaves at its sides, the drawing defaults' (ADR 0086).
  */
 export function placeBlock(
   block: Size,
   level: BlockLevel,
   kept: readonly Rect[],
   flow: { into: number; out: number },
+  padding = CONTENTS_PADDING,
 ): Point {
   const inContainer = level.kind === 'container';
   const bounds = boundsOf(kept);
   if (!bounds) {
-    if (inContainer) return { x: CONTENTS_ORIGIN.x, y: topOf(level) };
+    if (inContainer) return { x: padding, y: topOf(level) };
     return { x: roundToStep(level.now?.x ?? 0), y: roundToStep(level.now?.y ?? 0) };
   }
   const top = inContainer ? Math.max(topOf(level), ceilToStep(bounds.y)) : ceilToStep(bounds.y);
   if (flow.into > flow.out) {
     const beside = ceilToStep(bounds.x + bounds.width + GAP_BESIDE);
-    return { x: inContainer ? Math.max(CONTENTS_ORIGIN.x, beside) : beside, y: top };
+    return { x: inContainer ? Math.max(padding, beside) : beside, y: top };
   }
   if (!inContainer && flow.out > flow.into) {
     return { x: floorToStep(bounds.x - GAP_BESIDE - block.width), y: top };
   }
   const below = ceilToStep(bounds.y + bounds.height + GAP_BELOW);
   return inContainer
-    ? { x: CONTENTS_ORIGIN.x, y: Math.max(topOf(level), below) }
+    ? { x: padding, y: Math.max(topOf(level), below) }
     : { x: roundToStep(bounds.x), y: below };
 }
 
 /**
  * The size of a shape that holds `contents`, as the scene gives it: a stored size grows to hold them,
  * and without one, the appearance's size grows to hold them with room to spare. A shape that holds
- * nothing keeps its stored size, or else its appearance's.
+ * nothing keeps its stored size, or else its appearance's. The room to spare is `padding`, the
+ * drawing defaults' (ADR 0086).
  */
 export function measuredSize(
   contents: readonly Rect[],
   base: Size,
   stored: { width?: number | undefined; height?: number | undefined },
+  padding = CONTENTS_PADDING,
 ): Size {
   if (contents.length === 0) {
     return { width: stored.width ?? base.width, height: stored.height ?? base.height };
@@ -160,11 +164,11 @@ export function measuredSize(
   const right = Math.max(...contents.map((rect) => rect.x + rect.width));
   const bottom = Math.max(...contents.map((rect) => rect.y + rect.height));
   return {
-    width: grownTo(stored.width, base.width, right),
-    height: grownTo(stored.height, base.height, bottom),
+    width: grownTo(stored.width, base.width, right, padding),
+    height: grownTo(stored.height, base.height, bottom, padding),
   };
 }
 
-function grownTo(stored: number | undefined, base: number, end: number): number {
-  return stored === undefined ? Math.max(base, end + CONTENTS_PADDING) : Math.max(stored, end);
+function grownTo(stored: number | undefined, base: number, end: number, padding: number): number {
+  return stored === undefined ? Math.max(base, end + padding) : Math.max(stored, end);
 }

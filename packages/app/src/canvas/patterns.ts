@@ -4,16 +4,13 @@
  * hundreds, which stalled the frames that first showed a part of a large view.
  */
 import { BufferImageSource, Matrix, Texture } from 'pixi.js';
+import { DASH_PATTERNS } from './drawing';
 import type { Dash, Point } from './geometry';
 
 export type Pattern = Exclude<Dash, 'solid'>;
 
-/** The length of a dash and the gap after it, in line widths. */
-const PATTERNS: Record<Pattern, { on: number; period: number }> = {
-  dashed: { on: 4, period: 7 },
-  // As a dash one line width long with round caps reads: two widths on, one off.
-  dotted: { on: 2, period: 3 },
-};
+/** The length of a dash and the gap after it, in line widths, as the exports draw them too. */
+const PATTERNS: Readonly<Record<Pattern, { on: number; period: number }>> = DASH_PATTERNS;
 
 /**
  * Texels along one period. A power of two, so that the texture repeats and has the smaller copies

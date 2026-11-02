@@ -5,11 +5,49 @@
  * one line each; their name and detail share it and never overlap.
  */
 
-/** The sizes texts are written at in the header of a shape that draws rows, and in a row. */
-export const HEADER_NAME_SIZE = 14;
-export const HEADER_DETAIL_SIZE = 11;
-export const ROW_NAME_SIZE = 12;
-export const ROW_DETAIL_SIZE = 11;
+import type { ResolvedDrawing } from '@visual-anything/core';
+import { BASE_DRAWING } from './drawing';
+
+/**
+ * The sizes texts are written at in the header of a shape that draws rows, and in a row, where the
+ * drawing defaults say nothing else (`textSizesOf`, ADR 0086).
+ */
+export const HEADER_NAME_SIZE = BASE_DRAWING.text.nameSize;
+export const HEADER_DETAIL_SIZE = BASE_DRAWING.text.detailSize;
+export const ROW_NAME_SIZE = BASE_DRAWING.text.rowSize;
+export const ROW_DETAIL_SIZE = BASE_DRAWING.text.rowSize - 1;
+
+/** The sizes a header's and a row's texts are written at, and whether a header's name is bold. */
+export interface RowTextSizes {
+  headerName: number;
+  headerNameBold: boolean;
+  headerDetail: number;
+  rowName: number;
+  /** A row's detail, its column's type, one size under its name. */
+  rowDetail: number;
+}
+
+const sizes = new WeakMap<ResolvedDrawing, RowTextSizes>();
+
+/**
+ * The sizes in a drawing: a header's name at `text.nameSize` in the name's weight, its detail at
+ * `text.detailSize`, a row's name at `text.rowSize` and its detail one under.
+ */
+export function rowTextSizesOf(drawing: ResolvedDrawing = BASE_DRAWING): RowTextSizes {
+  let known = sizes.get(drawing);
+  if (known === undefined) {
+    const { nameSize, nameWeight, detailSize, rowSize } = drawing.text;
+    known = {
+      headerName: nameSize,
+      headerNameBold: nameWeight !== 400,
+      headerDetail: detailSize,
+      rowName: rowSize,
+      rowDetail: rowSize - 1,
+    };
+    sizes.set(drawing, known);
+  }
+  return known;
+}
 
 /** Where a header's and a row's texts start and end, inside the shape's rectangle. */
 export const HEADER_INSET = 12;
@@ -102,10 +140,12 @@ export function fitHeader(
   detail: string,
   width: number,
   room: FitRoom = {},
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): FittedLine {
+  const text = rowTextSizesOf(drawing);
   return fitLine(name, detail, headerRoom(width, room), 0.4, {
-    name: [HEADER_NAME_SIZE, true],
-    detail: [HEADER_DETAIL_SIZE, false],
+    name: [text.headerName, text.headerNameBold],
+    detail: [text.headerDetail, false],
   });
 }
 
@@ -118,10 +158,12 @@ export function fitRow(
   detail: string,
   width: number,
   room: FitRoom = {},
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): FittedLine {
+  const text = rowTextSizesOf(drawing);
   return fitLine(name, detail, rowRoom(width, room), 0.45, {
-    name: [ROW_NAME_SIZE, false],
-    detail: [ROW_DETAIL_SIZE, false],
+    name: [text.rowName, false],
+    detail: [text.rowDetail, false],
   });
 }
 

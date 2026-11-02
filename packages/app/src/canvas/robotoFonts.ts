@@ -1,6 +1,6 @@
 /**
  * Roboto on the canvas (ADR 0083, F0's canvas half): the fonts the PDF embeds, Roboto 2.137 Regular,
- * Bold, Italic and Bold Italic and Roboto Mono 3.000, loaded with `FontFace` from the bytes the app
+ * Medium, Bold, Italic and Bold Italic and Roboto Mono 3.000, loaded with `FontFace` from the bytes the app
  * already ships (`export/fonts/`), so that nothing is fetched and the page needs no new source. They
  * are registered under families of their own, so that a Roboto installed on the computer, of another
  * version and other widths, is never drawn in their place.
@@ -9,10 +9,13 @@
  * core's tables of the same fonts (`robotoWidth`), so that the canvas, the exports and faces break
  * lines alike. Where `FontFace` is missing, as in a test, nothing is loaded and the fonts the canvas
  * names after these, the system's, are drawn instead, still measured in Roboto's widths.
+ *
+ * Medium (500) is the weight a drawing's names may ask for besides Regular and Bold (ADR 0086), so
+ * that no weight the canvas asks for is one it has not loaded, which the browser would draw as Bold.
  */
 import { decodeBase64 } from '@visual-anything/core';
 
-/** The family Roboto's four styles are registered under. */
+/** The family Roboto's five styles are registered under. */
 export const ROBOTO = 'Visual Anything Roboto';
 /** The family Roboto Mono is registered under. */
 export const ROBOTO_MONO = 'Visual Anything Roboto Mono';
@@ -45,7 +48,7 @@ let loading: Promise<boolean> | undefined;
 let loaded = false;
 
 /**
- * Loads the five fonts once, and says whether they are ready to draw. It never rejects: a font that
+ * Loads the six fonts once, and says whether they are ready to draw. It never rejects: a font that
  * cannot be read leaves the canvas drawing in the system's fonts.
  */
 export function loadRobotoFonts(): Promise<boolean> {
@@ -64,12 +67,14 @@ export function robotoLoaded(): boolean {
 async function load(): Promise<boolean> {
   const fonts = (globalThis.document as { fonts?: FontSet } | undefined)?.fonts;
   if (typeof FontFace === 'undefined' || !fonts) return false;
-  const [upright, emphasis] = await Promise.all([
+  const [upright, medium, emphasis] = await Promise.all([
     import('../export/fonts/roboto.json'),
+    import('../export/fonts/roboto-medium.json'),
     import('../export/fonts/roboto-emphasis.json'),
   ]);
   const sources: [string, string, FontFaceDescriptors][] = [
     [ROBOTO, upright.default.regular, { weight: '400', style: 'normal' }],
+    [ROBOTO, medium.default.medium, { weight: '500', style: 'normal' }],
     [ROBOTO, upright.default.bold, { weight: '700', style: 'normal' }],
     [ROBOTO, emphasis.default.italic, { weight: '400', style: 'italic' }],
     [ROBOTO, emphasis.default.boldItalic, { weight: '700', style: 'italic' }],

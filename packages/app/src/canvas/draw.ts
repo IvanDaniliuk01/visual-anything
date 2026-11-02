@@ -77,7 +77,7 @@ import { patternMatrix, patternTexture } from './patterns';
 import { drawnAsCurve, drawnCurve, strokeCurve } from './routing/curves';
 import { LIGHT_ROWS, drawRowsShape, rowsBlocks, writeRowsText, type RowColors } from './rowsDraw';
 import {
-  ARROW_WIDTH,
+  arrowWidthOf,
   type ArrowShape,
   type ElementShape,
   type NoteShape,
@@ -92,14 +92,20 @@ import {
   nameBandOf,
 } from './shape-images';
 import type { RoutePiece } from './tiles';
-import type { EmphasisRun } from '@visual-anything/core';
+import type { EmphasisRun, ResolvedDrawing } from '@visual-anything/core';
+import {
+  BASE_DRAWING,
+  NAME_LINE,
+  fontFamilyOf,
+  nameWeightOf,
+  personCornerRadius,
+  roundedCornerRadius,
+  textSideInset,
+} from './drawing';
 import type { Measure } from '../text/layout';
 import { outlinedTextBlock } from './outlinedText';
-import { DETAIL_SIZE, NAME_SIZE, placeTextBlock, type TextBlock } from './textBlock';
+import { placeTextBlock, type TextBlock } from './textBlock';
 import { SANS_FAMILY } from './robotoFonts';
-
-/** How big a note's text is written. */
-const NOTE_SIZE = 13;
 
 /**
  * The fonts text is drawn in, first available first: Roboto, loaded from the app's own bytes
@@ -127,7 +133,7 @@ export interface TextFactory {
   /** How it measures a name. */
   measureName?: (text: string) => number;
   /** How it draws a note's text, as canvas text otherwise. */
-  note?: (note: NoteShape, color: Color) => Container;
+  note?: (note: NoteShape, color: Color, drawing?: ResolvedDrawing) => Container;
 }
 
 /** How a label is written: where, in what room, and with what text emphasis. */
@@ -140,12 +146,15 @@ type Write = (
 
 /** Labels as canvas text: sharp at any resolution, but slow to make by the thousand. */
 export const canvasText: TextFactory = (options) => new Text(options);
-const SHAPE_STROKE_WIDTH = 1.5;
-/** How wide the outlines of plain blocks are, inside them, so that they show far out. */
-const BLOCK_OUTLINE = SHAPE_STROKE_WIDTH * 4;
+/**
+ * How wide the outlines of plain blocks are, inside them, so that they show far out: four of the
+ * drawing's borders.
+ */
+function blockOutlineOf(drawing: ResolvedDrawing): number {
+  return drawing.shapes.borderWidth * 4;
+}
 /** The contrast below which a block's fill needs an outline to stand out from the canvas, from WCAG 1.4.11. */
 const BLOCK_CONTRAST = 3;
-const TEXT_INSET = 12;
 
 /** A label that can be shortened: its text, and how tall it comes out. */
 export interface FittingText {
@@ -209,15 +218,17 @@ export function drawShapeBlocks(
   shapes: readonly ElementShape[],
   inOrder = false,
   rowColors: RowColors = LIGHT_ROWS,
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): void {
   const outlines = new Map<Color, Rect[]>();
   const fills = new Map<Color, Rect[]>();
-  const silhouettes = new Silhouettes();
+  const blockOutline = blockOutlineOf(drawing);
+  const silhouettes = new Silhouettes(blockOutline);
   // An outline of plain blocks is a few canvas units wide, far less than a pixel far out.
-  const hairlines = new Hairlines();
+  const hairlines = new Hairlines(drawing);
   /** A block of `fill`, outlined inside in `stroke` when given; drawn at once when in order. */
   const block = (rect: Rect, fill: Color, stroke: Color | undefined) => {
-    const inner = stroke === undefined ? rect : grow(rect, -BLOCK_OUTLINE);
+    const inner = stroke === undefined ? rect : grow(rect, -blockOutline);
     const filled = inner.width > 0 && inner.height > 0;
     if (stroke !== undefined) hairlines.add(stroke, 'block', rect);
     if (inOrder) {
@@ -243,7 +254,7 @@ export function drawShapeBlocks(
       continue;
     }
     // A table is its body and its header, and its rows draw nothing (ADR 0023).
-    const rows = rowsBlocks(shape, BLOCK_OUTLINE, rowColors);
+    const rows = rowsBlocks(shape, blockOutline, rowColors);
     if (rows) {
       if (rows.outline) {
         if (inOrder) fillRects(graphics, rows.outline.color, [rows.outline.rect]);
@@ -285,6 +296,8 @@ export function fillOf(shape: { fill: Color; part?: { color: Color } }): Color {
  * the rims may come after every fill.
  */
 class Silhouettes {
+  constructor(private readonly outline: number) {}
+
   private readonly fills = new Map<Color, number[][]>();
   private readonly rims = new Map<Color, number[][]>();
   private readonly lines: { color: Color; width: number; points: number[] }[] = [];
@@ -316,7 +329,7 @@ class Silhouettes {
     }
     for (const [color, polygons] of this.rims) {
       for (const points of polygons) graphics.poly(points, true);
-      graphics.stroke({ color, width: BLOCK_OUTLINE, alignment: 1 });
+      graphics.stroke({ color, width: this.outline, alignment: 1 });
     }
     for (const { color, width, points } of this.lines) {
       graphics.poly(points, false).stroke({ color, width, cap: 'round', join: 'round' });
@@ -364,18 +377,19 @@ export function drawShapeOutlines(
   graphics: Graphics,
   shapes: readonly ElementShape[],
   rowColors: RowColors = LIGHT_ROWS,
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): void {
-  const hairlines = new Hairlines();
+  const hairlines = new Hairlines(drawing);
   for (const shape of shapes) {
     // An anchored part of a solid is drawn by its drawing's picture (ADR 0075).
     if (isAnchoredSolidPart(shape)) continue;
-    if (drawRowsShape(graphics, shape, rowColors)) {
+    if (drawRowsShape(graphics, shape, rowColors, drawing)) {
       drawToggle(graphics, shape);
       drawLeavingMark(graphics, shape);
       continue;
     }
     if (shape.outline) {
-      drawOutlinedBody(graphics, shape, shape.outline, hairlines);
+      drawOutlinedBody(graphics, shape, shape.outline, hairlines, drawing);
       // A solid's placeholder until its picture covers it (ADR 0075).
       drawSolidMark(graphics, shape, outlineColorOf(shape));
       drawNameTag(
@@ -383,6 +397,7 @@ export function drawShapeOutlines(
         shape,
         { fill: fillOf(shape), stroke: outlineColorOf(shape) },
         hairlines,
+        drawing,
       );
       drawToggle(graphics, shape);
       drawLeavingMark(graphics, shape);
@@ -394,13 +409,19 @@ export function drawShapeOutlines(
     const body = shape.collapsed === undefined ? bodyRectOf(shape) : bodyOf(shape);
     if (shape.collapsed !== undefined && body !== shape.rect) {
       // The sheet behind a collapsed container; the body covers most of its outline.
-      drawBody(graphics, shape.kind, { ...body, x: body.x + SHEET, y: body.y + SHEET }, colors);
+      drawBody(
+        graphics,
+        shape.kind,
+        { ...body, x: body.x + SHEET, y: body.y + SHEET },
+        colors,
+        drawing,
+      );
     }
-    drawBody(graphics, shape.kind, body, colors);
+    drawBody(graphics, shape.kind, body, colors, drawing);
     hairlines.add(colors.stroke, shape.kind, body);
     // A solid's placeholder until its picture covers it (ADR 0075).
     drawSolidMark(graphics, shape, colors.stroke);
-    drawNameTag(graphics, shape, colors, hairlines);
+    drawNameTag(graphics, shape, colors, hairlines, drawing);
     drawToggle(graphics, shape);
     drawLeavingMark(graphics, shape);
     drawDestinationMark(graphics, shape);
@@ -419,14 +440,15 @@ function drawOutlinedBody(
   shape: ElementShape,
   outline: ShapeOutline,
   hairlines: Hairlines,
+  drawing: ResolvedDrawing,
 ): void {
   if (shape.part?.inDrawing) return;
   const colors = { fill: fillOf(shape), stroke: outlineColorOf(shape) };
   const placed = outlineAt({ rect: shape.rect, outline }) as PlacedOutline;
   if (shape.collapsed !== undefined && bodyOf(shape) !== shape.rect) {
-    drawOutline(graphics, { ...placed, x: placed.x + SHEET, y: placed.y + SHEET }, colors);
+    drawOutline(graphics, { ...placed, x: placed.x + SHEET, y: placed.y + SHEET }, colors, drawing);
   }
-  drawOutline(graphics, placed, colors);
+  drawOutline(graphics, placed, colors, drawing);
   hairlines.addOutline(colors.stroke, placed);
 }
 
@@ -439,14 +461,15 @@ function drawNameTag(
   shape: ElementShape,
   colors: { fill: Color; stroke: Color },
   hairlines: Hairlines,
+  drawing: ResolvedDrawing,
 ): void {
   const tag = nameTagOf(shape);
   if (!tag) return;
   const placed = placedTag(tag, shape.rect);
   graphics
-    .roundRect(placed.x, placed.y, placed.width, placed.height, tagRadius(tag))
+    .roundRect(placed.x, placed.y, placed.width, placed.height, tagRadius(tag, drawing))
     .fill(colors.fill)
-    .stroke({ color: colors.stroke, width: SHAPE_STROKE_WIDTH });
+    .stroke({ color: colors.stroke, width: drawing.shapes.borderWidth });
   hairlines.add(colors.stroke, 'rounded-rectangle', placed);
 }
 
@@ -490,6 +513,7 @@ export function writeShapeLabels(
   make: TextFactory = canvasText,
   backdrop: (shape: ElementShape) => Color = () => CANVAS_BACKGROUND,
   faceOf?: (shape: ElementShape) => Container | undefined,
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): Container[] {
   const texts: Container[] = [];
   for (const shape of shapes) {
@@ -505,8 +529,10 @@ export function writeShapeLabels(
     if (face) {
       texts.push(face);
       // A face that does not write the name leaves it to the shape's name tag (ADR 0083).
-      if (writesNameBelow(shape)) writeNameTag(shape, readableTextColors(fillOf(shape)), write);
-    } else writeShapeText(shape, write, backdrop, make);
+      if (writesNameBelow(shape)) {
+        writeNameTag(shape, readableTextColors(fillOf(shape)), write, drawing);
+      }
+    } else writeShapeText(shape, write, backdrop, make, drawing);
     writeLeavingMark(shape, write);
   }
   return texts;
@@ -514,6 +540,7 @@ export function writeShapeLabels(
 
 /** Draws relations along their routes, with an arrowhead at the end of directed ones. */
 export function drawRelationRoutes(graphics: Graphics, lines: readonly RelationLine[]): void {
+  // An open arrowhead is stroked at its line's width, a filled one filled.
   for (const line of lines) {
     if (drawnAsCurve(line)) {
       strokeCurve(graphics, drawnCurve(line), { color: line.stroke, width: line.width });
@@ -524,7 +551,7 @@ export function drawRelationRoutes(graphics: Graphics, lines: readonly RelationL
         dash: line.dash,
       });
     }
-    if (line.arrowhead) fillArrowhead(graphics, line.arrowhead, line.stroke);
+    if (line.arrowhead) fillArrowhead(graphics, line.arrowhead, line.stroke, line.width);
   }
 }
 
@@ -550,7 +577,9 @@ export function drawRoutePieces(
       piece,
     );
   }
-  for (const line of ends) if (line.arrowhead) fillArrowhead(graphics, line.arrowhead, line.stroke);
+  for (const line of ends) {
+    if (line.arrowhead) fillArrowhead(graphics, line.arrowhead, line.stroke, line.width);
+  }
 }
 
 /**
@@ -601,6 +630,7 @@ export function writeRelationLabels(
   lines: readonly RelationLine[],
   make: TextFactory = canvasText,
   colors: { text: Color; back: Color } = { text: RELATION_LABEL_TEXT, back: RELATION_LABEL_HALO },
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): Container[] {
   return lines.flatMap((line) => {
     const text =
@@ -612,8 +642,8 @@ export function writeRelationLabels(
           x: line.middle.x,
           y: line.middle.y,
           style: {
-            fontFamily: FONT_FAMILY,
-            fontSize: 12,
+            fontFamily: fontFamilyOf(drawing),
+            fontSize: drawing.text.labelSize,
             fill: colors.text,
             stroke: { color: colors.back, width: 4, join: 'round' },
           },
@@ -629,7 +659,9 @@ export function drawFreeShapes(
   graphics: Graphics,
   notes: readonly NoteShape[],
   arrows: readonly ArrowShape[],
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): void {
+  const width = arrowWidthOf(drawing);
   for (const note of notes) {
     const { x, y, width, height } = note.rect;
     graphics
@@ -641,10 +673,10 @@ export function drawFreeShapes(
     const color = arrow.stroke ?? ARROW_STROKE;
     strokeRoute(graphics, [arrow.from, arrow.to], arrow.arrowhead, {
       color,
-      width: ARROW_WIDTH,
+      width,
       dash: 'solid',
     });
-    fillArrowhead(graphics, arrow.arrowhead, color);
+    fillArrowhead(graphics, arrow.arrowhead, color, width);
   }
 }
 
@@ -652,35 +684,47 @@ export function drawFreeShapes(
  * Writes the text of notes: in white, tinted to the color that reads on the note's fill, so that a new
  * theme or a new fill only tints it again.
  */
-export function writeNoteTexts(notes: readonly NoteShape[], make?: TextFactory): Container[] {
+export function writeNoteTexts(
+  notes: readonly NoteShape[],
+  make?: TextFactory,
+  drawing: ResolvedDrawing = BASE_DRAWING,
+): Container[] {
   return notes.map((note) => {
     const color = note.fill === undefined ? NOTE_TEXT : readableTextColors(note.fill).name;
-    if (make?.note) return make.note(note, color);
+    if (make?.note) return make.note(note, color, drawing);
+    const place = noteTextPlace(note, drawing);
     const text = new Text({
       text: note.text,
-      x: note.rect.x + TEXT_INSET,
-      y: note.rect.y + 10,
-      style: textStyle(NOTE_SIZE, '#FFFFFF', Math.max(1, note.rect.width - 2 * TEXT_INSET), 'left'),
+      x: place.x,
+      y: place.y,
+      style: textStyle(place.size, '#FFFFFF', place.width, 'left', 'normal', drawing),
     });
     text.tint = color;
     return text;
   });
 }
 
-/** Where a note writes its text, and at what size: inside it, 12 units in at the sides. */
-export function noteTextPlace(note: NoteShape): {
+/**
+ * Where a note writes its text, and at what size: inside it, the drawing's side inset in at the sides
+ * (12 units unless it says otherwise), at its `text.noteSize`.
+ */
+export function noteTextPlace(
+  note: NoteShape,
+  drawing: ResolvedDrawing = BASE_DRAWING,
+): {
   x: number;
   y: number;
   width: number;
   height: number;
   size: number;
 } {
+  const inset = textSideInset(drawing);
   return {
-    x: note.rect.x + TEXT_INSET,
+    x: note.rect.x + inset,
     y: note.rect.y + 10,
-    width: Math.max(1, note.rect.width - 2 * TEXT_INSET),
+    width: Math.max(1, note.rect.width - 2 * inset),
     height: Math.max(0, note.rect.height - 18),
-    size: NOTE_SIZE,
+    size: drawing.text.noteSize,
   };
 }
 
@@ -688,14 +732,19 @@ export function noteTextPlace(note: NoteShape): {
  * Traces the outline of a shape's body in a rectangle, as `drawBody` strokes it, for a stroke of
  * its own: every part of it in the current path.
  */
-function traceOutline(graphics: Graphics, kind: ShapeKind, rect: Rect): void {
+function traceOutline(
+  graphics: Graphics,
+  kind: ShapeKind,
+  rect: Rect,
+  drawing: ResolvedDrawing,
+): void {
   const { x, y, width, height } = rect;
   switch (kind) {
     case 'rectangle':
       graphics.rect(x, y, width, height);
       return;
     case 'rounded-rectangle':
-      graphics.roundRect(x, y, width, height, Math.min(10, width / 4, height / 4));
+      graphics.roundRect(x, y, width, height, roundedCornerRadius(drawing, width, height));
       return;
     case 'ellipse':
       graphics.ellipse(x + width / 2, y + height / 2, width / 2, height / 2);
@@ -713,7 +762,13 @@ function traceOutline(graphics: Graphics, kind: ShapeKind, rect: Rect): void {
     }
     case 'person': {
       const head = personHead(rect);
-      graphics.roundRect(x, y + head * 1.6, width, height - head * 1.6, Math.min(12, width / 4));
+      graphics.roundRect(
+        x,
+        y + head * 1.6,
+        width,
+        height - head * 1.6,
+        personCornerRadius(drawing, width),
+      );
       graphics.circle(x + width / 2, y + head, head);
       return;
     }
@@ -728,6 +783,8 @@ function traceOutline(graphics: Graphics, kind: ShapeKind, rect: Rect): void {
  * that they cost one more batch, not one per shape.
  */
 class Hairlines {
+  constructor(private readonly drawing: ResolvedDrawing) {}
+
   private readonly byColor = new Map<
     Color,
     ({ kind: ShapeKind | 'block'; rect: Rect } | { points: number[]; closed: boolean })[]
@@ -760,7 +817,7 @@ class Hairlines {
         else if (outline.kind === 'block') {
           const { rect } = outline;
           graphics.rect(rect.x, rect.y, rect.width, rect.height);
-        } else traceOutline(graphics, outline.kind, outline.rect);
+        } else traceOutline(graphics, outline.kind, outline.rect, this.drawing);
       }
       graphics.stroke({ color, width: 1, pixelLine: true });
     }
@@ -777,7 +834,9 @@ export function drawOutline(
   graphics: Graphics,
   outline: PlacedOutline,
   colors: { fill: Color; stroke: Color },
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): void {
+  const border = drawing.shapes.borderWidth;
   const flat = flattenOutline(outline.fitted);
   const { contours } = outline.fitted;
   const shifted = (contour: FlatContour) => placedPoints(contour.points, outline.x, outline.y);
@@ -804,14 +863,14 @@ export function drawOutline(
     graphics.poly(shifted(fill)).fill(colors.fill);
     for (const hole of holesIn.get(fill) ?? []) graphics.poly(shifted(hole)).cut();
   }
-  const stroke = { color: colors.stroke, width: SHAPE_STROKE_WIDTH };
+  const stroke = { color: colors.stroke, width: border };
   flat.forEach((contour, at) => {
     if (contour.points.length < 4) return;
     if (contour.role !== 'line') {
       graphics.poly(shifted(contour), true).stroke(stroke);
       return;
     }
-    const width = Math.max(SHAPE_STROKE_WIDTH, contours[at]?.width ?? 0);
+    const width = Math.max(border, contours[at]?.width ?? 0);
     graphics
       .poly(shifted(contour), false)
       .stroke({ color: colors.stroke, width, cap: 'round', join: 'round' });
@@ -883,17 +942,18 @@ function drawBody(
   kind: ShapeKind,
   rect: Rect,
   colors: { fill: Color; stroke: Color },
+  drawing: ResolvedDrawing,
 ): void {
   const { x, y, width, height } = rect;
   const shape = { ...colors, rect };
-  const stroke = { color: shape.stroke, width: SHAPE_STROKE_WIDTH };
+  const stroke = { color: shape.stroke, width: drawing.shapes.borderWidth };
   switch (kind) {
     case 'rectangle':
       graphics.rect(x, y, width, height).fill(shape.fill).stroke(stroke);
       return;
     case 'rounded-rectangle':
       graphics
-        .roundRect(x, y, width, height, Math.min(10, width / 4, height / 4))
+        .roundRect(x, y, width, height, roundedCornerRadius(drawing, width, height))
         .fill(shape.fill)
         .stroke(stroke);
       return;
@@ -921,7 +981,13 @@ function drawBody(
     case 'person': {
       const head = personHead(shape.rect);
       graphics
-        .roundRect(x, y + head * 1.6, width, height - head * 1.6, Math.min(12, width / 4))
+        .roundRect(
+          x,
+          y + head * 1.6,
+          width,
+          height - head * 1.6,
+          personCornerRadius(drawing, width),
+        )
         .fill(shape.fill)
         .stroke(stroke);
       graphics
@@ -953,33 +1019,37 @@ function writeShapeText(
   shape: ElementShape,
   write: Write,
   backdrop: (shape: ElementShape) => Color = () => CANVAS_BACKGROUND,
-  make?: TextFactory,
+  make: TextFactory | undefined,
+  drawing: ResolvedDrawing,
 ): void {
-  if (writeRowsText(shape, write)) return;
+  if (writeRowsText(shape, write, drawing)) return;
   if (writesNameBelow(shape)) {
-    writeNameTag(shape, readableTextColors(fillOf(shape)), write);
+    writeNameTag(shape, readableTextColors(fillOf(shape)), write, drawing);
     return;
   }
   if (shape.outline) {
-    writeOutlinedText(shape, shape.outline, write, make);
+    writeOutlinedText(shape, shape.outline, write, make, drawing);
     return;
   }
   const colors = readableTextColors(shape.fill);
-  const rooms = labelRooms(shape);
+  const rooms = labelRooms(shape, drawing);
+  const inset = textSideInset(drawing);
+  const { nameSize, detailSize, containerNameSize } = drawing.text;
+  const weight = nameWeightOf(drawing);
   if (isContainer(shape)) {
     const { x, y, width, height } = bodyOf(shape);
     const toggle = toggleRect(shape);
     const beside = toggle ? toggle.width + 4 : 0;
     // Right of the icon its header may show.
     const shift = headerShift(shape);
-    const wrap = Math.max(1, width - 2 * TEXT_INSET - beside - shift);
+    const wrap = Math.max(1, width - 2 * inset - beside - shift);
     if (rooms.name > 0) {
       write(
         {
           text: shape.name,
-          x: x + TEXT_INSET + shift,
+          x: x + inset + shift,
           y: y + 8,
-          style: textStyle(NAME_SIZE, colors.name, wrap, 'left', '600'),
+          style: textStyle(containerNameSize, colors.name, wrap, 'left', weight, drawing),
         },
         false,
         rooms.name,
@@ -997,9 +1067,9 @@ function writeShapeText(
       write(
         {
           text: detail,
-          x: x + TEXT_INSET + shift,
-          y: y + 8 + NAME_SIZE + 6,
-          style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'left'),
+          x: x + inset + shift,
+          y: y + 8 + containerNameSize + 6,
+          style: textStyle(detailSize, colors.detail, wrap, 'left', 'normal', drawing),
         },
         true,
         shape.collapsed === undefined ? rooms.detail : detailRoom,
@@ -1011,9 +1081,16 @@ function writeShapeText(
       write(
         {
           text: count,
-          x: x + TEXT_INSET + shift,
+          x: x + inset + shift,
           y: y + (countTop ?? COUNT_LINE_TOP),
-          style: textStyle(DETAIL_SIZE, colors.detail, Math.max(1, width - 2 * TEXT_INSET), 'left'),
+          style: textStyle(
+            detailSize,
+            colors.detail,
+            Math.max(1, width - 2 * inset),
+            'left',
+            'normal',
+            drawing,
+          ),
         },
         true,
         countRoom,
@@ -1023,22 +1100,22 @@ function writeShapeText(
   }
   const band = nameBandOf(shape);
   if (band) {
-    writeBandText(shape, band, rooms, readableTextColors(backdrop(shape)), write);
+    writeBandText(shape, band, rooms, readableTextColors(backdrop(shape)), write, drawing);
     return;
   }
   // Right of the icon beside its name, when it shows one.
   const area = besideImage(shape, labelArea(shape));
   if (area.height <= 0) return;
   const centerX = area.x + area.width / 2;
-  const wrap = Math.max(1, area.width - TEXT_INSET);
-  const block = textBlockOf(shape, area, wrap, make);
+  const wrap = Math.max(1, area.width - inset);
+  const block = textBlockOf(shape, area, wrap, make, drawing);
   write(
     {
       text: shape.name,
       anchor: { x: 0.5, y: 0 },
       x: centerX,
       y: block.nameTop,
-      style: textStyle(NAME_SIZE, colors.name, wrap, 'center', '600'),
+      style: textStyle(nameSize, colors.name, wrap, 'center', weight, drawing),
     },
     false,
     block.nameRoom,
@@ -1050,7 +1127,7 @@ function writeShapeText(
       anchor: { x: 0.5, y: 0 },
       x: centerX,
       y: block.detailTop,
-      style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'center'),
+      style: textStyle(detailSize, colors.detail, wrap, 'center', 'normal', drawing),
     },
     true,
     block.detailRoom,
@@ -1067,8 +1144,10 @@ export function textBlockOf(
   area: Rect,
   wrap: number,
   make?: Pick<TextFactory, 'measure' | 'measureName'>,
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): TextBlock {
   return placeTextBlock({
+    drawing,
     area,
     wrap,
     name: shape.name,
@@ -1080,9 +1159,6 @@ export function textBlockOf(
     ...(make?.measureName ? { measureName: make.measureName } : {}),
   });
 }
-
-/** The height a name takes on one line, which a shape with its own outline gives it at least. */
-const NAME_LINE = 20;
 
 /**
  * Writes the name and detail of a shape with its own outline (ADR 0066, ADR 0067), in colours that
@@ -1103,9 +1179,11 @@ function writeOutlinedText(
   shape: ElementShape,
   outline: ShapeOutline,
   write: Write,
-  make?: TextFactory,
+  make: TextFactory | undefined,
+  drawing: ResolvedDrawing,
 ): void {
   const colors = readableTextColors(fillOf(shape));
+  const { containerNameSize, detailSize } = drawing.text;
   if (shape.part?.inDrawing === true) {
     writePartName(shape, outline, colors.name, write);
     return;
@@ -1123,7 +1201,14 @@ function writeOutlinedText(
           text: shape.name,
           x: left,
           y: y + 8,
-          style: textStyle(NAME_SIZE, colors.name, wrap, 'left', '600'),
+          style: textStyle(
+            containerNameSize,
+            colors.name,
+            wrap,
+            'left',
+            nameWeightOf(drawing),
+            drawing,
+          ),
         },
         false,
         rooms.name,
@@ -1135,8 +1220,8 @@ function writeOutlinedText(
         {
           text: detail,
           x: left,
-          y: y + 8 + NAME_SIZE + 6,
-          style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'left'),
+          y: y + 8 + containerNameSize + 6,
+          style: textStyle(detailSize, colors.detail, wrap, 'left', 'normal', drawing),
         },
         true,
         rooms.detail,
@@ -1155,7 +1240,7 @@ function writeOutlinedText(
       anchor: { x: 0.5, y: 0 },
       x: centerX,
       y: block.nameTop,
-      style: wholeLines(colors.name, wrap),
+      style: wholeLines(colors.name, wrap, drawing),
     },
     false,
     Math.max(area.height, block.nameHeight) + PART_NAME_LINE / 2,
@@ -1167,7 +1252,7 @@ function writeOutlinedText(
       anchor: { x: 0.5, y: 0 },
       x: centerX,
       y: block.detailTop,
-      style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'center'),
+      style: textStyle(detailSize, colors.detail, wrap, 'center', 'normal', drawing),
     },
     true,
     block.detailRoom,
@@ -1175,10 +1260,10 @@ function writeOutlinedText(
   );
 }
 
-/** The style of a name written on lines already broken, each whole: bold, at the name's size. */
-function wholeLines(fill: Color, width: number): TextStyleOptions {
+/** The style of a name written on lines already broken, each whole: in its weight, at its size. */
+function wholeLines(fill: Color, width: number, drawing: ResolvedDrawing): TextStyleOptions {
   return {
-    ...textStyle(NAME_SIZE, fill, width, 'center', '600'),
+    ...textStyle(drawing.text.nameSize, fill, width, 'center', nameWeightOf(drawing), drawing),
     wordWrap: false,
     lineHeight: PART_NAME_LINE,
   };
@@ -1193,6 +1278,7 @@ function writeNameTag(
   shape: ElementShape,
   colors: { name: Color; detail: Color },
   write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+  drawing: ResolvedDrawing,
 ): void {
   const tag = nameTagOf(shape);
   if (!tag) return;
@@ -1206,7 +1292,7 @@ function writeNameTag(
       anchor: { x: 0.5, y: 0 },
       x,
       y: top,
-      style: wholeLines(colors.name, placed.width),
+      style: wholeLines(colors.name, placed.width, drawing),
     },
     false,
     height + PART_NAME_LINE / 2,
@@ -1218,7 +1304,14 @@ function writeNameTag(
       anchor: { x: 0.5, y: 0 },
       x,
       y: top + height + 1,
-      style: textStyle(DETAIL_SIZE, colors.detail, placed.width, 'center'),
+      style: textStyle(
+        drawing.text.detailSize,
+        colors.detail,
+        placed.width,
+        'center',
+        'normal',
+        drawing,
+      ),
     },
     true,
     TAG_DETAIL_LINE,
@@ -1260,7 +1353,7 @@ export function partNameText(
       x: area.x + area.width / 2,
       y: area.y + area.height / 2,
       style: {
-        ...textStyle(PART_NAME_SIZE, color, area.width, 'center', '600'),
+        ...textStyle(PART_NAME_SIZE, color, area.width, 'center', '700'),
         wordWrap: false,
         lineHeight: PART_NAME_LINE,
       },
@@ -1297,9 +1390,11 @@ function writeBandText(
   rooms: { name: number; detail: number },
   colors: { name: Color; detail: Color },
   write: Write,
+  drawing: ResolvedDrawing,
 ): void {
   const centerX = band.x + band.width / 2;
-  const wrap = Math.max(1, band.width - TEXT_INSET);
+  const wrap = Math.max(1, band.width - textSideInset(drawing));
+  const { nameSize, detailSize } = drawing.text;
   if (rooms.name > 0) {
     write(
       {
@@ -1307,7 +1402,7 @@ function writeBandText(
         anchor: { x: 0.5, y: 0 },
         x: centerX,
         y: band.y + 1,
-        style: textStyle(NAME_SIZE, colors.name, wrap, 'center', '600'),
+        style: textStyle(nameSize, colors.name, wrap, 'center', nameWeightOf(drawing), drawing),
       },
       false,
       rooms.name,
@@ -1321,7 +1416,7 @@ function writeBandText(
         anchor: { x: 0.5, y: 0 },
         x: centerX,
         y: band.y + 19,
-        style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'center'),
+        style: textStyle(detailSize, colors.detail, wrap, 'center', 'normal', drawing),
       },
       true,
       rooms.detail,
@@ -1335,7 +1430,10 @@ function writeBandText(
  * container, one line each in its header; elsewhere, the lines its text block gives the name and then
  * the detail (`textBlock.ts`, ADR 0082), in Roboto's widths.
  */
-export function labelRooms(shape: ElementShape): { name: number; detail: number } {
+export function labelRooms(
+  shape: ElementShape,
+  drawing: ResolvedDrawing = BASE_DRAWING,
+): { name: number; detail: number } {
   if (shape.outline && shape.rowCount === undefined && shape.row === undefined) {
     return outlinedRooms(shape, shape.outline);
   }
@@ -1346,7 +1444,13 @@ export function labelRooms(shape: ElementShape): { name: number; detail: number 
     return { name: Math.min(20, height - 12), detail: Math.min(16, height - 32) };
   }
   const area = besideImage(shape, labelArea(shape));
-  const block = textBlockOf(shape, area, Math.max(1, area.width - TEXT_INSET));
+  const block = textBlockOf(
+    shape,
+    area,
+    Math.max(1, area.width - textSideInset(drawing)),
+    undefined,
+    drawing,
+  );
   return { name: block.nameRoom, detail: block.detailRoom };
 }
 
@@ -1379,9 +1483,10 @@ function textStyle(
   wordWrapWidth: number,
   align: 'left' | 'center',
   fontWeight: TextStyleOptions['fontWeight'] = 'normal',
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): TextStyleOptions {
   return {
-    fontFamily: FONT_FAMILY,
+    fontFamily: fontFamilyOf(drawing),
     fontSize,
     fontWeight,
     fill,
@@ -1498,11 +1603,19 @@ function reachedPast(from: Point, to: Point, by: number): Point {
   return direction ? { x: to.x + direction.x * by, y: to.y + direction.y * by } : to;
 }
 
+/** Draws an arrowhead: filled, or for an open one, its two sides stroked at the line's width. */
 function fillArrowhead(
   graphics: Graphics,
-  arrowhead: { tip: Point; left: Point; right: Point },
+  arrowhead: Arrowhead,
   color: Color,
+  width: number,
 ): void {
   const { tip, left, right } = arrowhead;
+  if (arrowhead.open) {
+    graphics
+      .poly([left.x, left.y, tip.x, tip.y, right.x, right.y], false)
+      .stroke({ color, width, cap: 'round', join: 'round' });
+    return;
+  }
   graphics.poly([tip.x, tip.y, left.x, left.y, right.x, right.y]).fill(color);
 }
