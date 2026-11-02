@@ -108,7 +108,7 @@ _Avoid_: tooltip, popover
 
 **Badge**:
 A short text, such as "PK" or "FK", that a shape writes in its detail while its element meets the badge's condition: a boolean attribute is true, or the element is the `from` end of a relation of a given relation type.
-_Avoid_: chip, pill
+_Avoid_: chip, pill; badge alone for the count on an aggregated relation, which is a count badge
 
 **Name tag**:
 The rounded box hung under a shape whose own outline cannot hold its name whole, and under a drawing with parts that is no container: in the shape's colors, touching it, holding its name, whole, and its detail. It is part of the shape, which is pointed at, marked, related, laid out and exported with it (ADR 0066).
@@ -218,7 +218,7 @@ A picture a package defines, in SVG or as a small PNG, JPEG or WebP bitmap, that
 
 **Named part**:
 A piece of an SVG image with an id of its own, such as the left ventricle in a picture of a heart, read only from the image's cleaned view; or a piece of a solid with a name of its own in its file, such as an arm's elbow, read only from its cleaned file. Its id or name is its name. It is what an anchored part is drawn as (ADR 0067, ADR 0075), and a part for short where no nesting is meant, since "is part of" names nesting.
-_Avoid_: layer, region, hotspot, sub-image, mesh
+_Avoid_: layer, region (a region is a container drawn as an area), hotspot, sub-image, mesh
 
 **Drawing with parts**:
 A shape that shows an image or a solid with its named parts: the picture fills its body under its name, and those of its contents anchored to its named parts are drawn as those parts, in place, as a page of an anatomical atlas names the organs it shows. Its other contents sit below the picture. Layout takes it as one block.
@@ -226,7 +226,7 @@ _Avoid_: plate, atlas, map, background
 
 **Anchored part**:
 An element's shape drawn as a named part, because its appearance names that part: inside a drawing with parts, in the part's place and at its size, with no position of its own in the view, as a row has none; elsewhere on its own, with the part's outline as its free geometry and the part's picture inside it. A part of a solid is drawn in the solid's picture, where relations end at its point, and in the physical-space panel in its place in the solid. It is selected, related, focused, filtered and colored as any shape of its element.
-_Avoid_: hotspot, mapped area, region, overlay (an overlay is a rule of a view)
+_Avoid_: hotspot, mapped area, region (a region is a container drawn as an area), overlay (an overlay is a rule of a view)
 
 **Solid**:
 The form of something in three dimensions, as a package defines it: a glTF file the local program cleaned of anything that runs or names anything outside it, kept in the project's `solids/` folder under its hash, with its description, its named parts and the camera its pictures are drawn from. An appearance shows it as an icon, as the shape's drawing or with its named parts. The canvas draws it as a picture, and live only while it is turned (ADR 0075).
@@ -406,6 +406,14 @@ _Avoid_: style, settings, theme (for these values)
 **Drawing preset**:
 A named, built-in set of drawing defaults: Clean (the default), Dense, Expressive and High contrast.
 _Avoid_: template, skin
+
+**Region**:
+A container drawn, by the drawing defaults, as a quiet area rather than as its kind: a faint fill of its color, a thin border, and a name tab at its top left with its kind's icon (ADR 0086). It is how a container looks, never a part of a picture.
+_Avoid_: group, frame, zone, area (as a term)
+
+**Count badge**:
+The small pill on the one line drawn for several relations, writing how many it stands for (ADR 0086).
+_Avoid_: badge alone (a badge is a short text in a shape's detail), chip
 
 ### Preferences
 

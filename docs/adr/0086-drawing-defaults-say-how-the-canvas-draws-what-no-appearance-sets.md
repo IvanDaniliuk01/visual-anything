@@ -25,7 +25,7 @@ An appearance (ADR 0034, 0035) says how one definition's or one element's shapes
   - **reading:** the zoom levels at which names, details, rows and relation labels show, and the size of names far out;
   - **the grid:** lines or dots.
 - **A preset is a named, built-in set of drawing defaults:**
-  - **Clean** is the default for every project. It has thin neutral lines with small arrowheads, 1-wide borders, a radius of 8, no shadow, names at 13 in a real semibold, containers as quiet regions with a name tab, collapsed containers with a count, aggregated relations as one line with a count badge, and dots for the grid.
+  - **Clean** is the default for every project. It has thin neutral lines with small arrowheads, 1-wide borders, a radius of 8, no shadow, names at 13 in Roboto Medium (500), a weight the canvas loads, containers as quiet regions with a name tab, collapsed containers with a count, aggregated relations as one line with a count badge, and dots for the grid.
   - **Dense** packs more in: smaller text, tighter padding, rows shown sooner, lines colored by their type.
   - **Expressive** is rounder and bolder: larger radii, colored lines by type, soft shadows, larger names.
   - **High contrast** has thicker lines and borders, darker text, and no faint colors.
@@ -60,13 +60,14 @@ The overhaul also takes the app's own panels and toolbars to the Clean look, thr
 
 ## Consequences
 
-- `ProjectFile` and `ViewFile` gain `drawing?: DrawingDefaults`. The schema is regenerated, and an older program refuses nothing new, since the field is optional.
+- `ProjectFile` and `ViewFile` gain `drawing?: DrawingDefaults`. The schema is regenerated. A file that sets `drawing` is refused by a program older than A5, whose schemas allow no unknown field, as the protocol notes; files that set none open in both.
 - The core gains `core/src/drawing.ts`: the presets, `drawingOf(project, view)`, and the command `set-drawing-defaults` with its checks (ranges and kinds) and property tests.
 - CONTEXT.md gains **Drawing defaults** and **Drawing preset**.
 - The canvas, the page and the exports read the resolved drawing defaults, and the SVG export stops repeating the canvas's values.
 - Clean becomes the look of every project that sets nothing. The built-in packages' samples and the screenshots in the README change with it, and the release notes say so.
 - The guidance protocol is unchanged. The Claude tools gain `get_drawing` and `set_drawing`.
 - The frame budget holds for every preset, measured with the 10,000-element benchmark.
+- The release notes of the first public release (R1) say that Clean is the look of every project that sets nothing, and the README's pictures are taken in it.
 
 ## Clarifications
 
@@ -157,3 +158,13 @@ The overhaul also takes the app's own panels and toolbars to the Clean look, thr
   | Switch theme, names shown | 9.5 / 15.1 / 15.1 | 17.1 / 34.7 / 34.7 |
 
   Every pan, zoom and select phase is within 16.7 ms at the 95th percentile in both. Expressive's "shapes in full" switch, 25 to 30 ms in A5.2's runs on a shared machine, is 13.3 here, so that was noise; its "whole view" and "names shown" switches miss the restyle budget, as they did before A5. The dot grid costs 0.95 ms a frame zooming in Clean, over its 0.5 ms; recorded, not held.
+
+<!-- Decided by Claude on 2026-11-02 under the user's standing delegation of design decisions, after A5's spec review. -->
+
+- 2026-11-02 (A5's spec review, the main session): **what the review changed.**
+  - **Region and count badge are terms.** `containers.drawn: 'region'` and `aggregated.count: 'badge'` stay as they are in the file format; CONTEXT.md now defines **Region** (a container drawn as a quiet area with a name tab) and **Count badge** (the pill on an aggregated relation), and narrows the Avoid lists of Named part, Anchored part and Badge so the words keep one meaning each.
+  - **High contrast means what this ADR says:** darker text and no faint colors. Its regions are drawn with a full-strength border and the theme's own text, and the contrast tests check every preset's lines and region borders, not only neutral lines (A5.6).
+  - **The dot grid keeps A3's budget**, at most 0.5 ms a frame at the median, rather than a looser one of its own (A5.6).
+  - **Every preset is measured**, Dense and High contrast included, with the benchmark's "names shown" and "details shown" phases placed at each preset's own reading levels, and judged by the benchmark's own pass rule (A5.6).
+  - **No copied constants**: the measures the review found still fixed, in the hover card's cut, names beside shapes, a collapsed header's detail, the routing's estimates, the drop's origin, the PNG legend band, the SVG's header rooms, note offsets and toggles, and the tour's glide layer, read the resolved drawing or move to `canvas/drawing.ts`; a container's name and detail rooms grow with their sizes, so that no value the panel or Claude allows can make a name disappear (A5.7).
+  - The Drawing panel's heading is "Drawing defaults" ("Valores de dibujo"), apart from the comparison's "Drawing" (ADR 0068).

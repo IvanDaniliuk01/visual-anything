@@ -1,7 +1,7 @@
 /**
  * What the Drawing panel calls each preset, group, value and choice, in plain words and in English;
  * they show translated. Every value `DRAWING_VALUES` holds has a name here, and every choice a name
- * (`drawingNames.test.ts`).
+ * (`drawingEdits.test.ts`).
  */
 import type { DrawingGroup } from '@visual-anything/core';
 import type { DrawingPreset } from '@visual-anything/schema';

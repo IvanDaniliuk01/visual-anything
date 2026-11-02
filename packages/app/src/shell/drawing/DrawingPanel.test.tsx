@@ -239,7 +239,7 @@ describe('the Drawing panel', () => {
 
   it('reads in Spanish', () => {
     panelFor(layered, { language: 'es' });
-    expect(screen.getByRole('heading', { name: 'Dibujo' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Valores de dibujo' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Este proyecto' })).toBeChecked();
     expect(screen.getByRole('radio', { name: 'Solo esta vista' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Alto contraste' })).toBeInTheDocument();

@@ -3053,6 +3053,7 @@ export const ui: Catalog = {
   'Change {place} of {count}. {sentence}': 'Cambio {place} de {count}. {sentence}',
   'This view changed: {what}': 'Esta vista cambió: {what}',
   Drawing: 'Dibujo',
+  'Drawing defaults': 'Valores de dibujo',
   'Fade what is unchanged': 'Atenuar lo que no cambió',
   'Previous change ([)': 'Cambio anterior ([)',
   'Next change (])': 'Cambio siguiente (])',

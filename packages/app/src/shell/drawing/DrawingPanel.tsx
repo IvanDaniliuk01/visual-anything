@@ -112,7 +112,7 @@ export function DrawingPanel() {
 
   return (
     <section className="panel-section drawing-panel" aria-labelledby={headingId}>
-      <h3 id={headingId}>{t('Drawing')}</h3>
+      <h3 id={headingId}>{t('Drawing defaults')}</h3>
       <p className="inspector-notes">
         {t(
           'How the canvas, the read-only page and the exports draw what no appearance sets. Each change is one action you can undo.',
