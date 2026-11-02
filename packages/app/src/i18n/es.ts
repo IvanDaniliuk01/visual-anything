@@ -323,6 +323,8 @@ export const ui: Catalog = {
     'No se pudo copiar: la lista está seleccionada, para copiarla con Ctrl+C o ⌘C.',
   'Your theme applies to this tab only: Visual Anything is not connected.':
     'El tema se aplica solo a esta pestaña: Visual Anything no está conectado.',
+  'Turning package code on or off applies to this tab only: Visual Anything is not connected.':
+    'Activar o desactivar el código de un paquete se aplica solo a esta pestaña: Visual Anything no está conectado.',
   'Your approval of package code applies to this tab only: Visual Anything is not connected.':
     'La aprobación del código del paquete se aplica solo a esta pestaña: Visual Anything no está conectado.',
   'Your name for comments applies to this tab only: Visual Anything is not connected.':
@@ -2371,6 +2373,57 @@ export const ui: Catalog = {
   'Review and approve the code…': 'Revisar y aprobar el código…',
   'The package “{name}” holds code that is not approved, so it does not run. Review it from one of its elements in the inspector, or from the package in the Components tab.':
     'El paquete “{name}” tiene código que no está aprobado, así que no se ejecuta. Revisarlo desde uno de sus elementos en el inspector, o desde el paquete en la pestaña Componentes.',
+
+  // Packages… (ADR 0089): the project's packages, their code, and adding or updating one from a file.
+  'Packages…': 'Paquetes…',
+  'What each package adds to the project, and its code. Package code runs only once you approve it, and you can turn it off on this computer.':
+    'Lo que cada paquete agrega al proyecto, y su código. El código de un paquete se ejecuta solo después de aprobarlo, y se puede desactivar en esta computadora.',
+  'This project uses no package yet. Add one from a package file or a folder below.':
+    'Este proyecto todavía no usa ningún paquete. Agregar uno desde un archivo de paquete o una carpeta, aquí abajo.',
+  'Packages of the project': 'Paquetes del proyecto',
+  'The project’s own': 'Propio del proyecto',
+  'Version {version}': 'Versión {version}',
+  '{components} and {relationTypes}': '{components} y {relationTypes}',
+  Actions: 'Acciones',
+  Importers: 'Importadores',
+  Exporters: 'Exportadores',
+  Panels: 'Paneles',
+  'What its code may reach': 'A qué puede llegar su código',
+  'No code.': 'Sin código.',
+  'Turned off on this computer: its code does not run.':
+    'Desactivado en esta computadora: su código no se ejecuta.',
+  'Its code waits for approval, so it does not run.':
+    'Su código espera una aprobación, así que no se ejecuta.',
+  'Run its code on this computer': 'Ejecutar su código en esta computadora',
+  'Add or update from a file': 'Agregar o actualizar desde un archivo',
+  'Choose a package file, or a folder that holds some. A package with the id of one of the project’s own updates it, after showing what changes; any other is added. Nothing it holds runs until you approve its code.':
+    'Elegir un archivo de paquete, o una carpeta que tenga alguno. Un paquete con el id de uno propio del proyecto lo actualiza, después de mostrar qué cambia; cualquier otro se agrega. Nada de lo que contiene se ejecuta hasta que se apruebe su código.',
+  'Choose a package file…': 'Elegir un archivo de paquete…',
+  'Choose a folder…': 'Elegir una carpeta…',
+  'Reading the file…': 'Leyendo el archivo…',
+  'The file {name} is over 2 MiB.': 'El archivo {name} pasa de 2 MiB.',
+  '{name} cannot be added:': '{name} no se puede agregar:',
+  'The folder {name} holds no package file, at its top or in its packages folder.':
+    'La carpeta {name} no tiene ningún archivo de paquete, ni en su primer nivel ni en su carpeta packages.',
+  'Package files in {name}': 'Archivos de paquete en {name}',
+  'Add “{name}”': 'Agregar “{name}”',
+  'Update “{name}”': 'Actualizar “{name}”',
+  'Added “{name}”.': 'Se agregó “{name}”.',
+  'Updated “{name}”.': 'Se actualizó “{name}”.',
+  'It holds code, which runs only once you approve it, after reading it.':
+    'Contiene código, que se ejecuta solo después de leerlo y aprobarlo.',
+  'It adds code, which runs only once you approve it.':
+    'Agrega código, que se ejecuta solo después de aprobarlo.',
+  'Its code is removed.': 'Se quita su código.',
+  'Its code stays the same, and so does its approval.':
+    'Su código no cambia, y su aprobación tampoco.',
+  'Its code stays the same.': 'Su código no cambia.',
+  'Its code changed, so it asks for your approval again before it runs.':
+    'Su código cambió, así que vuelve a pedir aprobación antes de ejecutarse.',
+  'The file’s version, {there}, is older than this one, {here}.':
+    'La versión del archivo, {there}, es anterior a esta, {here}.',
+  'Its components, relation types and images stay as they are.':
+    'Sus componentes, tipos de relación e imágenes quedan como están.',
 
   // Tours (ADR 0058): the tours panel and full-screen playback.
   'These {count} tour steps name what goes. They are kept, flagged, and play without it:': {
@@ -5527,6 +5580,8 @@ export const messages: Catalog = {
     'El código del paquete "{name}" se detuvo al cargarse: ocupó más de 32 MiB.',
   'The code of the package "{name}" is off until the project opens again: its calls stopped {n} times in a row.':
     'El código del paquete "{name}" queda apagado hasta que el proyecto se vuelva a abrir: sus llamadas se detuvieron {n} veces seguidas.',
+  'The code of the package "{name}" is turned off on this computer: it runs again once it is turned on in Packages….':
+    'El código del paquete "{name}" está desactivado en esta computadora: vuelve a ejecutarse cuando se activa en Paquetes….',
   'The code of the package "{name}" is not approved: the person approves it in the app before it runs.':
     'El código del paquete "{name}" no está aprobado: la persona lo aprueba en la app antes de que se ejecute.',
   'The code of the package "{name}" was stopped: it kept the worker that runs package code from answering, so the worker started again.':
@@ -5652,6 +5707,27 @@ export const messages: Catalog = {
   '"codeApprovals" approves {hash} twice.': '"codeApprovals" aprueba {hash} dos veces.',
   '"codeApprovals" holds {n} approvals, more than {m}.':
     '"codeApprovals" tiene {n} aprobaciones, más de {m}.',
+  // The packages whose code this computer does not run, and reading a package file (ADR 0089).
+  '"codeTurnedOff" must be a list of package ids.':
+    '"codeTurnedOff" debe ser una lista de ids de paquetes.',
+  '"codeTurnedOff" names {id} twice.': '"codeTurnedOff" nombra {id} dos veces.',
+  '"codeTurnedOff" holds {n} packages, more than {m}.':
+    '"codeTurnedOff" tiene {n} paquetes, más de {m}.',
+  'Reading a package file names it, in 1 to 1000 characters.':
+    'Leer un archivo de paquete requiere su nombre, de 1 a 1000 caracteres.',
+  'Reading a package file needs its text, of at most 2 MiB.':
+    'Leer un archivo de paquete requiere su texto, de 2 MiB como máximo.',
+  'The package file Visual Anything read cannot be read.':
+    'No se puede leer el archivo de paquete que leyó Visual Anything.',
+  'The package file {why}.': 'El archivo del paquete {why}.',
+  'In the package file, {path} {why}.': 'En el archivo del paquete, {path} {why}.',
+  'And {n} more problems.': 'Y {n} problemas más.',
+  'The package "{name}" holds solids, whose files a package file does not carry: add it from its project’s folder instead.':
+    'El paquete "{name}" tiene sólidos, cuyos archivos no viajan en un archivo de paquete: agregarlo desde la carpeta de su proyecto.',
+  'The package "{name}" holds crosswalks, which cannot be added from a file yet.':
+    'El paquete "{name}" tiene tablas de correspondencias, que todavía no se pueden agregar desde un archivo.',
+  'The package "{name}" holds conflicts from a merge: resolve them in its own project first.':
+    'El paquete "{name}" tiene conflictos de una fusión: resolverlos antes en su propio proyecto.',
   // Drawing defaults (ADR 0086).
   'Set the drawing defaults of the project': 'Definir los valores de dibujo del proyecto',
   'Reset the drawing defaults of the project': 'Restablecer los valores de dibujo del proyecto',

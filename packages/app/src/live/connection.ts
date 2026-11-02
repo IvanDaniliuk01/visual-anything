@@ -24,6 +24,7 @@ import {
   type HistorySummary,
   type ListedAction,
   type DrawingMadeMessage,
+  type PackageReadAnswerMessage,
   type LiveFetchedMessage,
   type LiveKeptMessage,
   type OfferedSample,
@@ -261,6 +262,7 @@ type Waiting =
   | { kind: 'live-fetch'; resolve: (result: LiveResult<LiveFetchedMessage>) => void }
   | { kind: 'live-set'; resolve: (result: LiveResult<LiveKeptMessage>) => void }
   | { kind: 'drawing'; resolve: (result: LiveResult<DrawingMadeMessage>) => void }
+  | { kind: 'package-read'; resolve: (result: LiveResult<PackageReadAnswerMessage>) => void }
   | { kind: 'versions'; resolve: (result: LiveResult<VersionsListedMessage>) => void }
   | { kind: 'compare'; resolve: (result: ComparedResult) => void }
   | { kind: 'solid-prepare'; resolve: (result: LiveResult<SolidPreparedMessage>) => void }
@@ -574,6 +576,27 @@ export class LiveConnection {
     return new Promise((resolve) => {
       this.waiting.set(requestId, { kind: 'drawing', resolve });
       this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
+    });
+  };
+
+  /**
+   * Asks the local program to read a package file the person chose (ADR 0089): resolves with the
+   * package, which the schema found valid and of which nothing ran, or with what the schema found.
+   * Nothing in the project changes; adding or updating the package is sent afterwards, as commands.
+   */
+  readonly readPackageFile = (
+    name: string,
+    text: string,
+  ): Promise<LiveResult<PackageReadAnswerMessage>> => {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') {
+      return Promise.resolve(closedResult(NOT_CONNECTED));
+    }
+    const requestId = nextRequestId();
+    const message = encodeMessage({ type: 'package/read', requestId, name, text });
+    return new Promise((resolve) => {
+      this.waiting.set(requestId, { kind: 'package-read', resolve });
+      this.sendOn(socket, message, requestId, () => resolve(closedResult(NOT_CONNECTED)));
     });
   };
 
@@ -1012,6 +1035,11 @@ export class LiveConnection {
         if (answered?.kind === 'drawing') answered.resolve({ ok: true, answer: message });
         break;
       }
+      case 'package/read-answer': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'package-read') answered.resolve({ ok: true, answer: message });
+        break;
+      }
       case 'live/kept': {
         const answered = this.take(message.requestId);
         if (answered?.kind === 'live-set') answered.resolve({ ok: true, answer: message });
@@ -1109,6 +1137,7 @@ export class LiveConnection {
       taken.kind === 'live-fetch' ||
       taken.kind === 'live-set' ||
       taken.kind === 'drawing' ||
+      taken.kind === 'package-read' ||
       taken.kind === 'versions' ||
       taken.kind === 'compare' ||
       taken.kind === 'proposal' ||

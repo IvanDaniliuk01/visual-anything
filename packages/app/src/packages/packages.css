@@ -1,0 +1,189 @@
+/* Packages… (ADR 0089): the header's button, and the dialog of the project's packages. */
+.packages-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-50);
+  min-height: var(--control-sm);
+  padding: var(--space-25) var(--space-75);
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.packages-button:hover:not([aria-disabled='true']) {
+  background: var(--surface-hover);
+}
+
+.packages-button:active:not([aria-disabled='true']) {
+  background: var(--surface-pressed);
+}
+
+.packages-button[aria-disabled='true'] {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.packages-button:focus-visible {
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thin);
+}
+
+.dialog.packages-dialog {
+  width: min(var(--size-4400), calc(100vw - var(--space-200)));
+}
+
+.dialog .packages-list {
+  margin: var(--space-75) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.packages-list > li + li {
+  margin-top: var(--space-50);
+}
+
+.packages-item,
+.packages-preview {
+  padding: var(--space-50) var(--space-75);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+}
+
+.packages-name,
+.packages-add h3,
+.packages-preview h4 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.packages-add {
+  margin-top: var(--space-100);
+}
+
+.packages-preview {
+  margin-top: var(--space-75);
+}
+
+.packages-preview h5 {
+  margin: var(--space-50) 0 0;
+  font-size: var(--text-sm);
+}
+
+.packages-adds {
+  margin: var(--space-30) 0;
+  font-size: var(--text-sm);
+}
+
+.packages-adds > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-50);
+}
+
+.packages-adds dt {
+  color: var(--text-muted);
+}
+
+.packages-adds dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.dialog ul.packages-capabilities,
+.dialog ul.packages-changes {
+  margin: var(--space-30) 0;
+  padding-left: var(--space-120);
+  font-size: var(--text-sm);
+}
+
+.packages-mark {
+  margin-left: var(--space-50);
+  padding: 0 var(--space-25);
+  border: var(--stroke-thin) solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: var(--text-xs);
+}
+
+.dialog .packages-standing {
+  padding: var(--space-35) var(--space-55);
+  border-left: var(--stroke-mark) solid var(--warning);
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: var(--text-sm);
+}
+
+.packages-problem {
+  margin: var(--space-50) 0;
+  padding: var(--space-50) var(--space-75);
+  border-radius: var(--radius-sm);
+  background: var(--problem-soft);
+  color: var(--problem);
+}
+
+.dialog .packages-problem p,
+.dialog .packages-problem ul {
+  margin: 0;
+}
+
+.packages-empty {
+  color: var(--text-muted);
+}
+
+.packages-controls,
+.packages-choose {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-50) var(--space-100);
+  align-items: center;
+  margin-top: var(--space-50);
+}
+
+.packages-check {
+  display: inline-flex;
+  gap: var(--space-40);
+  align-items: center;
+}
+
+.packages-files {
+  display: grid;
+  gap: var(--space-25);
+  margin: var(--space-50) 0 0;
+  padding: var(--space-50) var(--space-75);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.packages-action {
+  min-height: var(--control-sm);
+  padding: var(--space-25) var(--space-75);
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.packages-action:hover:not([aria-disabled='true']) {
+  background: var(--surface-hover);
+}
+
+.packages-action:active:not([aria-disabled='true']) {
+  background: var(--surface-pressed);
+}
+
+.packages-action[aria-disabled='true'] {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.packages-action:focus-visible {
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thin);
+}

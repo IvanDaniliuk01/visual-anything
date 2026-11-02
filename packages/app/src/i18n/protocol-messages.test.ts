@@ -251,6 +251,13 @@ const UNREADABLE: readonly [string, () => unknown][] = [
   ['a drawing of no name', app({ type: 'drawing/make', name: '', html: '<p>x</p>', width: 800 })],
   ['a drawing of no HTML', app({ type: 'drawing/make', name: 'a.html', html: 1, width: 800 })],
   ['a drawing too narrow', app({ type: 'drawing/make', name: 'a.html', html: 'x', width: 10 })],
+  // Reading a package file the person chose (ADR 0089).
+  ['a package file of no name', app({ type: 'package/read', name: '', text: '{}' })],
+  ['a package file of no text', app({ type: 'package/read', name: 'a.vapackage', text: 1 })],
+  [
+    'a package file read that is none',
+    server({ type: 'package/read-answer', requestId: 'r1', package: 'gauges' }),
+  ],
   ['a drawing that is not one', server({ type: 'drawing/made', requestId: 'r1', svg: '<p/>' })],
   ['open no project', app({ type: 'project/open-other', project: '' })],
   ['open no view there', app({ type: 'project/open-other', project: '/p', view: 1 })],
@@ -340,6 +347,13 @@ function said(): { name: string; message: string }[] {
     // How tours and scenarios move (ADR 0077).
     ['a motion there is not', { motion: 'slow' }],
     ['fades that are not true or false', { fades: 'on' }],
+    // The packages whose code this computer does not run (ADR 0089).
+    ['packages turned off that are not ids', { codeTurnedOff: ['not an id'] }],
+    ['a package turned off twice', { codeTurnedOff: ['gauges', 'gauges'] }],
+    [
+      'too many packages turned off',
+      { codeTurnedOff: Array.from({ length: 300 }, (_, n) => `p${n}`) },
+    ],
     // The side panels' widths and strips (ADR 0032's clarification of 2026-10-30).
     ['side panels that are not an object', { sidePanels: 'wide' }],
     [

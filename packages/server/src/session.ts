@@ -43,7 +43,9 @@ import {
   type CaptureReport,
   type ListedAction,
   MAX_DRAWING_REPORT,
+  packageFileProblems,
   type DrawingMakeMessage,
+  type PackageReadMessage,
   type SolidImportOptions,
   type SolidPrepareMessage,
   type LiveFetchMessage,
@@ -64,7 +66,7 @@ import {
 } from '@visual-anything/core';
 import type { FileKind, Id } from '@visual-anything/schema';
 import { formatFile } from '@visual-anything/schema/format';
-import { validateFile, type ValidationError } from '@visual-anything/schema/validate';
+import { parseFile, validateFile, type ValidationError } from '@visual-anything/schema/validate';
 import { errorReason } from './errors';
 import {
   affectedFiles,
@@ -772,6 +774,9 @@ export class Session implements LiveSession {
       case 'drawing/make':
         await this.#makeDrawing(client, message);
         return;
+      case 'package/read':
+        this.#readPackageFile(client, message);
+        return;
       case 'versions/list':
         await this.listVersions(origin);
         return;
@@ -1352,6 +1357,29 @@ export class Session implements LiveSession {
               .map((line) => line.slice(0, MAX_DRAWING_REPORT.length)),
           }
         : { type: 'command/rejected', requestId, problems: made.problems },
+    );
+  }
+
+  /**
+   * Reads the text of a package file the person chose in an app (ADR 0089's M14.2 clarification):
+   * parses it and checks it against the package file's schema, running nothing it holds, and answers
+   * with the package or with what the schema found. It is never a command: it changes nothing, and
+   * never waits behind the project's own work; the app sends the commands that add or update it.
+   */
+  #readPackageFile(client: SessionClient, message: PackageReadMessage): void {
+    const { requestId } = message;
+    const parsed = parseFile('package', message.text);
+    this.#send(
+      client,
+      parsed.ok
+        ? { type: 'package/read-answer', requestId, package: parsed.value }
+        : {
+            type: 'command/rejected',
+            requestId,
+            problems: packageFileProblems(parsed.errors).map((said) =>
+              refusal('invalid-command', said),
+            ),
+          },
     );
   }
 

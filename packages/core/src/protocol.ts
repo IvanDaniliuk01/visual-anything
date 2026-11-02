@@ -86,6 +86,13 @@ import {
   type SolidPreparedMessage,
   type SolidRefusedMessage,
 } from './solids/messages';
+import {
+  readPackageRead,
+  readPackageReadAnswer,
+  type PackageMessageRead,
+  type PackageReadAnswerMessage,
+  type PackageReadMessage,
+} from './package-file-messages';
 import { readSolidCamera } from './solids/camera';
 import { readSpaceCamera } from './space/camera';
 
@@ -124,6 +131,8 @@ import { readSpaceCamera } from './space/camera';
  *    element's simulation at a tick with parameters and a seed, plays or pauses it, or closes it.
  *    And drawing defaults (A5, ADR 0086), in 7 too: `drawing` in the project file and view files,
  *    which an older app of 7 would refuse when it opens them.
+ *    And reading a package file the person chose (M14.2, ADR 0089), `package/read` and its answer
+ *    `package/read-answer`, in 7 too, since no build of 7 shipped.
  */
 export const PROTOCOL_VERSION = 7;
 
@@ -176,7 +185,8 @@ export type ServerMessage =
   | SolidPreparedMessage
   | SolidPieceMessage
   | SolidRefusedMessage
-  | SolidFilesListedMessage;
+  | SolidFilesListedMessage
+  | PackageReadAnswerMessage;
 
 /**
  * Sent in place of `project/opened` while the local program runs on a folder that holds no project yet
@@ -877,7 +887,8 @@ export type AppMessage =
   | SolidPrepareMessage
   | SolidGetMessage
   | SolidFilesListMessage
-  | SolidFilesRemoveMessage;
+  | SolidFilesRemoveMessage
+  | PackageReadMessage;
 
 /** The longest name the start screen may give a new project or its first view. */
 export const MAX_START_NAME = 200;
@@ -971,6 +982,7 @@ const SERVER_TYPES = new Set<string>([
   'solid/piece',
   'solid/refused',
   'solid-files/listed',
+  'package/read-answer',
 ]);
 
 /**
@@ -1058,6 +1070,13 @@ export function decodeServerMessage(text: string): ServerMessage {
       return readSolidMessage(readSolidRefused(message));
     case 'solid-files/listed':
       return readSolidMessage(readSolidFilesListed(message));
+    case 'package/read-answer': {
+      const { requestId } = message;
+      if (typeof requestId !== 'string' || requestId === '' || requestId.length > MAX_REQUEST_ID) {
+        throw new ProtocolError('The answer has no valid request id.');
+      }
+      return readPackageMessage(readPackageReadAnswer(message, requestId));
+    }
   }
   return message as unknown as ServerMessage;
 }
@@ -1155,9 +1174,17 @@ export function decodeAppMessage(text: string): AppMessage {
       return readSolidMessage(readSolidFilesList(message));
     case 'solid-files/remove':
       return readSolidMessage(readSolidFilesRemove(message));
+    case 'package/read':
+      return readPackageMessage(readPackageRead(message, message.requestId));
     default:
       throw new ProtocolError(`Unknown message type: ${JSON.stringify(message.type)}.`);
   }
+}
+
+/** A message about a package file (ADR 0089), or the {@link ProtocolError} of why it cannot be read. */
+function readPackageMessage<T>(read: PackageMessageRead<T>): T {
+  if (!read.ok) throw new ProtocolError(read.reason);
+  return read.message;
 }
 
 /** A message about solids (ADR 0075), or the {@link ProtocolError} of why it cannot be read. */

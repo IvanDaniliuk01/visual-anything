@@ -75,6 +75,7 @@ export function LiveProvider({
       fetchForPackage: connection.fetchForPackage,
       sendLiveValues: connection.sendLiveValues,
       makeDrawing: connection.makeDrawing,
+      readPackageFile: connection.readPackageFile,
       listVersions: connection.listVersions,
       compareVersion: connection.compareVersion,
       acceptProposal: connection.acceptProposal,

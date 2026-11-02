@@ -83,6 +83,7 @@
  */
 .shell-header .shell-actions .copy-address,
 .shell-header .shell-actions .import-button,
+.shell-header .shell-actions .packages-button,
 .shell-header .shell-actions .compare-button,
 .shell-header .shell-actions .export-button,
 .shell-header .shell-actions .element-list-toggle,
@@ -100,6 +101,7 @@
 
 .shell-header .shell-actions .copy-address:hover:not(:disabled),
 .shell-header .shell-actions .import-button:hover:not([aria-disabled='true']),
+.shell-header .shell-actions .packages-button:hover:not([aria-disabled='true']),
 .shell-header .shell-actions .compare-button:hover:not([aria-disabled='true']),
 .shell-header .shell-actions .export-button:hover:not([aria-disabled='true']),
 .shell-header .shell-actions .element-list-toggle:hover:not(:disabled),
@@ -110,6 +112,7 @@
 
 .shell-header .shell-actions .copy-address:active:not(:disabled),
 .shell-header .shell-actions .import-button:active:not([aria-disabled='true']),
+.shell-header .shell-actions .packages-button:active:not([aria-disabled='true']),
 .shell-header .shell-actions .compare-button:active:not([aria-disabled='true']),
 .shell-header .shell-actions .export-button:active:not([aria-disabled='true']),
 .shell-header .shell-actions .element-list-toggle:active:not(:disabled),
@@ -120,6 +123,7 @@
 
 .shell-header .shell-actions .copy-address:disabled,
 .shell-header .shell-actions .import-button[aria-disabled='true'],
+.shell-header .shell-actions .packages-button[aria-disabled='true'],
 .shell-header .shell-actions .compare-button[aria-disabled='true'],
 .shell-header .shell-actions .export-button[aria-disabled='true'],
 .shell-header .shell-actions .element-list-toggle:disabled,
@@ -131,6 +135,7 @@
 
 .shell-header .shell-actions .copy-address:focus-visible,
 .shell-header .shell-actions .import-button:focus-visible,
+.shell-header .shell-actions .packages-button:focus-visible,
 .shell-header .shell-actions .compare-button:focus-visible,
 .shell-header .shell-actions .export-button:focus-visible,
 .shell-header .shell-actions .element-list-toggle:focus-visible,
@@ -149,10 +154,11 @@
 }
 
 /*
- * Copy address, Compare with… and the element list show their icons alone: each keeps its name for
+ * Copy address, Compare with…, Packages… and the element list show their icons alone: each keeps its name for
  * screen readers and says what it does in its tooltip.
  */
-.shell-header :is(.copy-address > span, .compare-label, .element-list-toggle > span) {
+.shell-header
+  :is(.copy-address > span, .compare-label, .element-list-toggle > span, .packages-label) {
   position: absolute;
   width: var(--size-hidden);
   height: var(--size-hidden);
