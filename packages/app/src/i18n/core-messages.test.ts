@@ -711,10 +711,126 @@ const COMMANDS: readonly [string, Command][] = [
         capabilities: Array.from({ length: 17 }, (_, i) => `network:https://h${i}.example.com`),
       },
     ],
+    [
+      'code adds',
+      {
+        type: 'set-package-code',
+        package: 'clinic',
+        extensions: { panels: [{ id: 'health', label: 'Health' }] },
+      },
+    ],
+    ['code adds no object', { type: 'set-package-code', package: 'clinic', extensions: 5 }],
+    [
+      'code adds a kind there is not',
+      { type: 'set-package-code', package: 'clinic', extensions: { menus: [] } },
+    ],
+    [
+      'code adds no list',
+      { type: 'set-package-code', package: 'clinic', extensions: { panels: 5 } },
+    ],
+    [
+      'code adds too many',
+      {
+        type: 'set-package-code',
+        package: 'clinic',
+        extensions: { panels: Array.from({ length: 9 }, (_, i) => ({ id: `p${i}`, label: 'P' })) },
+      },
+    ],
+    [
+      'code adds no object in a list',
+      { type: 'set-package-code', package: 'clinic', extensions: { panels: [5] } },
+    ],
+    [
+      'code adds an id in capitals',
+      {
+        type: 'set-package-code',
+        package: 'clinic',
+        extensions: { panels: [{ id: 'Health', label: 'H' }] },
+      },
+    ],
+    [
+      'code adds two alike',
+      {
+        type: 'set-package-code',
+        package: 'clinic',
+        extensions: {
+          panels: [
+            { id: 'a', label: 'A' },
+            { id: 'a', label: 'B' },
+          ],
+        },
+      },
+    ],
+    [
+      'code adds no label',
+      {
+        type: 'set-package-code',
+        package: 'clinic',
+        extensions: { panels: [{ id: 'a', label: ' ' }] },
+      },
+    ],
+    [
+      'code adds more',
+      {
+        type: 'set-package-code',
+        package: 'clinic',
+        extensions: { panels: [{ id: 'a', label: 'A', run: 1 }] },
+      },
+    ],
+    [
+      'code adds a long description',
+      {
+        type: 'set-package-code',
+        package: 'clinic',
+        extensions: {
+          actions: [{ id: 'a', label: 'A', where: ['selection'], description: 'x'.repeat(301) }],
+        },
+      },
+    ],
+    [
+      'code adds an action offered nowhere',
+      {
+        type: 'set-package-code',
+        package: 'clinic',
+        extensions: { actions: [{ id: 'a', label: 'A', where: [] }] },
+      },
+    ],
+    [
+      'code adds for no components',
+      {
+        type: 'set-package-code',
+        package: 'clinic',
+        extensions: { panels: [{ id: 'a', label: 'A', components: [] }] },
+      },
+    ],
+    [
+      'code adds an importer of no extension',
+      {
+        type: 'set-package-code',
+        package: 'clinic',
+        extensions: { importers: [{ id: 'a', label: 'A', extensions: ['sql'] }] },
+      },
+    ],
+    [
+      'code adds an exporter of no extension',
+      {
+        type: 'set-package-code',
+        package: 'clinic',
+        extensions: { exporters: [{ id: 'a', label: 'A', extension: 'sql' }] },
+      },
+    ],
     ['remove code', { type: 'set-package-code', package: 'clinic', code: null }],
     [
       'capabilities without code',
       { type: 'set-package-code', package: 'clinic', capabilities: ['time'] },
+    ],
+    [
+      'what code adds without code',
+      {
+        type: 'set-package-code',
+        package: 'clinic',
+        extensions: { panels: [{ id: 'health', label: 'Health' }] },
+      },
     ],
     ['image without one', { type: 'define-image', package: 'clinic' }],
     ['add no package', { type: 'add-package' }],

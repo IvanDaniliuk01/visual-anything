@@ -166,7 +166,7 @@ describe('set-package-code', () => {
       'nothing to change',
       { type: 'set-package-code', package: 'test' },
       'invalid-command',
-      'set-package-code needs the code, the capabilities, or both.',
+      'set-package-code needs the code, the capabilities, what the code adds, or some of them.',
     ],
   ])('refuses %s', (_, command, code, message) => {
     expect(refused(command)).toEqual([[code, message]]);

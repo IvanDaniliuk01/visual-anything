@@ -4227,6 +4227,55 @@ export const messages: Catalog = {
   'The detail of {of} takes 1 to 6 lines.': 'El detalle de {of} ocupa de 1 a 6 líneas.',
   'The text of {of} is placed at the "top", in the "middle" or at the "bottom".':
     'El texto de {of} se ubica arriba ("top"), en el medio ("middle") o abajo ("bottom").',
+  // The format panel's traits (ADR 0088).
+  'The border width of {of} is a number from {min} to {max}.':
+    'El grosor del borde de {of} es un número de {min} a {max}.',
+  'The corner radius of {of} is a number from {min} to {max}.':
+    'El radio de las esquinas de {of} es un número de {min} a {max}.',
+  'The opacity of {of} is a number from {min} to {max}.':
+    'La opacidad de {of} es un número de {min} a {max}.',
+  'The text size of {of} is a number from {min} to {max}.':
+    'El tamaño del texto de {of} es un número de {min} a {max}.',
+  'The text padding of {of} is a number from {min} to {max}.':
+    'El margen interno del texto de {of} es un número de {min} a {max}.',
+  'The border of {of} is "solid", "dashed" or "dotted".':
+    'El borde de {of} es "solid", "dashed" o "dotted".',
+  'The shadow of {of} is "none" or "soft".': 'La sombra de {of} es "none" o "soft".',
+  'The gradient of {of} must be "none" or a color and a direction.':
+    'El degradado de {of} debe ser "none" o un color y una dirección.',
+  'The gradient of {of} has no "{key}".': 'El degradado de {of} no tiene "{key}".',
+  'The gradient of {of} runs "down" or to the "right".':
+    'El degradado de {of} va hacia abajo ("down") o hacia la derecha ("right").',
+  'The gradient of {of} must be a color written as #RRGGBB, not {value}.':
+    'El degradado de {of} debe ser un color escrito como #RRGGBB, no {value}.',
+  'The text color of {of} must be a color written as #RRGGBB, not {value}.':
+    'El color del texto de {of} debe ser un color escrito como #RRGGBB, no {value}.',
+  'The text background of {of} must be a color written as #RRGGBB, not {value}.':
+    'El relleno detrás del texto de {of} debe ser un color escrito como #RRGGBB, no {value}.',
+  'The text border of {of} must be a color written as #RRGGBB, not {value}.':
+    'El borde del texto de {of} debe ser un color escrito como #RRGGBB, no {value}.',
+  'The text of {of} must be an object.': 'El texto de {of} debe ser un objeto JSON.',
+  'The changes to the text of {of} must be an object.':
+    'Los cambios al texto de {of} deben ser un objeto JSON.',
+  'The text of {of} has no "{key}".': 'El texto de {of} no tiene "{key}".',
+  'The text of {of} is written in "roboto", "system" or "mono".':
+    'El texto de {of} se escribe en "roboto", "system" o "mono".',
+  'Whether {of} writes its name in bold is true or false.':
+    'Si {of} escribe su nombre en negrita es verdadero o falso.',
+  'Whether {of} writes its name in italics is true or false.':
+    'Si {of} escribe su nombre en cursiva es verdadero o falso.',
+  'Whether {of} underlines its name is true or false.':
+    'Si {of} subraya su nombre es verdadero o falso.',
+  'Whether {of} wraps its name is true or false.':
+    'Si {of} parte su nombre en varias líneas es verdadero o falso.',
+  'The text of {of} is aligned "left", "center" or "right".':
+    'El texto de {of} se alinea a la izquierda ("left"), al centro ("center") o a la derecha ("right").',
+  'The text of {of} is written "inside", "above", "below", to the "left" or to the "right".':
+    'El texto de {of} se escribe dentro ("inside"), arriba ("above"), abajo ("below"), a la izquierda ("left") o a la derecha ("right").',
+  'A rotation is a number of degrees from -3,600 to 3,600.':
+    'Una rotación es un número de grados de -3.600 a 3.600.',
+  'A shape is flipped "horizontal", "vertical", "both" or "none".':
+    'Una forma se voltea en "horizontal", "vertical", "both" o "none".',
   '{Of} has at most 32 connection points.': '{Of} tiene como máximo 32 puntos de conexión.',
   'A connection point of {of} has no "{key}".': 'Un punto de conexión de {of} no tiene "{key}".',
   'A connection point of {of} has a name of 1 to 32 characters.':
@@ -5388,8 +5437,41 @@ export const messages: Catalog = {
   'Remove the code of the package "{name}"': 'Quitar el código del paquete "{name}"',
   'Change what the code of the package "{name}" may reach':
     'Cambiar a qué puede llegar el código del paquete "{name}"',
-  'set-package-code needs the code, the capabilities, or both.':
-    'set-package-code necesita el código, las capacidades o ambos.',
+  'Change what the code of the package "{name}" adds':
+    'Cambiar lo que agrega el código del paquete "{name}"',
+  // What package code adds to the app (ADR 0089).
+  'The package declares what its code adds as an object of lists.':
+    'El paquete debe declarar lo que agrega su código como un objeto JSON de listas.',
+  'The package declares "{key}", which is not actions, importers, exporters or panels.':
+    'El paquete declara "{key}", que no es actions, importers, exporters ni panels.',
+  'The package declares a kind of what its code adds that is not a list.':
+    'El paquete declara un tipo de lo que agrega su código que no es una lista.',
+  'The package declares more of one kind than it may: 32 actions, and 8 importers, exporters or panels.':
+    'El paquete declara más de un tipo de lo que puede: 32 acciones, y 8 importadores, exportadores o paneles.',
+  'The package declares something its code adds that is not an object.':
+    'El paquete declara algo que agrega su código que no es un objeto JSON.',
+  'The package declares something its code adds whose id is not lower case letters, digits and -.':
+    'El paquete declara algo que agrega su código cuyo id no está hecho de minúsculas, dígitos y -.',
+  'The package declares two of one kind with the id "{id}".':
+    'El paquete declara dos del mismo tipo con el id "{id}".',
+  'The package declares "{id}" with a label that is not 1 to 60 characters.':
+    'El paquete declara "{id}" con una etiqueta que no tiene de 1 a 60 caracteres.',
+  'The package declares "{id}" with "{key}", which it does not have.':
+    'El paquete declara "{id}" con "{key}", que no le corresponde.',
+  'The package declares "{id}" with a description over 300 characters.':
+    'El paquete declara "{id}" con una descripción de más de 300 caracteres.',
+  'The package declares "{id}" offered somewhere other than "selection" and "packages-menu".':
+    'El paquete declara "{id}" ofrecido en otro lugar que "selection" y "packages-menu".',
+  'The package declares "{id}" for components that are not 1 to 32 different ids.':
+    'El paquete declara "{id}" para componentes que no son de 1 a 32 ids distintos.',
+  'The package declares "{id}" reading extensions that are not 1 to 8 different ones such as ".sql".':
+    'El paquete declara "{id}" leyendo extensiones que no son de 1 a 8 distintas, como ".sql".',
+  'The package declares "{id}" writing an extension that is not one such as ".sql".':
+    'El paquete declara "{id}" escribiendo una extensión que no es como ".sql".',
+  'The package "{name}" has no code to add anything to the app.':
+    'El paquete "{name}" no tiene código con el que agregar algo a la app.',
+  'set-package-code needs the code, the capabilities, what the code adds, or some of them.':
+    'set-package-code necesita el código, las capacidades, lo que agrega el código o algunos de ellos.',
   "A package's code is JavaScript text, or its lines as a list of texts.":
     'El código de un paquete es texto en JavaScript, o sus líneas como una lista de textos.',
   'The code has nothing in it; to remove it, set it to null.':

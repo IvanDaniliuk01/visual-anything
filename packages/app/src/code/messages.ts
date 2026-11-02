@@ -10,7 +10,7 @@ import type {
   Problem,
   ProjectSnapshot,
 } from '@visual-anything/core';
-import type { Capability, Id } from '@visual-anything/schema';
+import type { Capability, Id, PackageExtensions } from '@visual-anything/schema';
 import type { SimulationReply, SimulationRequest } from '../simulation/messages';
 
 /** A package whose code the person approved, to run. */
@@ -27,6 +27,8 @@ export interface RunPackage {
   granted: Capability[];
   /** How many of its calls stopped in a row before this, as the app counts them. */
   stops: number;
+  /** What it adds to the app (ADR 0089), as its file declares it: part of what the hash is of. */
+  extensions?: PackageExtensions;
 }
 
 /** What the app asks of the worker. */

@@ -3,7 +3,7 @@
  * created from its components, and from components derived from them in any package; an element
  * whose components come from several packages with code runs each, nearest first.
  */
-import type { Capability, Id, PackageFile } from '@visual-anything/schema';
+import type { Capability, Id, PackageExtensions, PackageFile } from '@visual-anything/schema';
 import { componentOrEssence } from '../definitions';
 import type { ProjectSnapshot } from '../snapshot';
 import { definitionsIn, modelIndexOf } from '../state';
@@ -26,6 +26,8 @@ export interface PackageCode {
   declared: string[];
   /** Whether it is over 256 KiB, so that it never runs. */
   tooLarge: boolean;
+  /** What it adds to the app (ADR 0089), part of what the hash is made of; absent when nothing. */
+  extensions?: PackageExtensions;
 }
 
 /** A package's code; undefined for a package without any. */
@@ -38,13 +40,14 @@ export function packageCodeOf(file: PackageFile): PackageCode | undefined {
     package: file.id,
     name: file.name,
     text,
-    hash: codeHash(code, declared),
+    hash: codeHash(code, declared, file.extensions),
     capabilities: sortedCapabilities(declared.filter(isCapability)),
     declared: [...declared],
     tooLarge:
       text.length > CODE_LIMITS.codeText ||
       code.length > CODE_LIMITS.lines ||
       code.some((line) => line.length > CODE_LIMITS.lineLength),
+    ...(file.extensions === undefined ? {} : { extensions: file.extensions }),
   };
 }
 

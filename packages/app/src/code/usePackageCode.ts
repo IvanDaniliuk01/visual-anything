@@ -119,6 +119,7 @@ export function usePackageCode({
                 hash: code.hash,
                 code: code.text,
                 declared: code.declared,
+                ...(code.extensions === undefined ? {} : { extensions: code.extensions }),
                 granted: status.granted,
               },
             ]

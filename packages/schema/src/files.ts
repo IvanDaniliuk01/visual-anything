@@ -287,6 +287,13 @@ export interface PackageFile {
    */
   capabilities?: Capability[];
   /**
+   * What its code adds to the app beyond its components (ADR 0089): actions, importers, exporters and
+   * panels, declared here so that the app lists them before the code is approved or runs. Each runs
+   * through a hook of the code: `act`, `importFile`, `exportFile` or `panel`. Left out when it adds
+   * none.
+   */
+  extensions?: PackageExtensions;
+  /**
    * What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what
    * the file keeps in place, and the other choice. Written only by a merge; the person resolves them.
    *
@@ -328,6 +335,120 @@ export type CodeLine = string;
  * @pattern ^(model:read|time|network:https?://[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?(:[0-9]{1,5})?)$
  */
 export type Capability = string;
+
+/** What a package's code adds to the app (ADR 0089), each list left out when empty. */
+export interface PackageExtensions {
+  /**
+   * Its actions, which answer changes the person reviews before they apply.
+   *
+   * @minItems 1
+   * @maxItems 32
+   */
+  actions?: PackageActionDeclaration[];
+  /**
+   * Its importers, which read a file into changes the person reviews.
+   *
+   * @minItems 1
+   * @maxItems 8
+   */
+  importers?: PackageImporterDeclaration[];
+  /**
+   * Its exporters, which write the model and a view as a text file.
+   *
+   * @minItems 1
+   * @maxItems 8
+   */
+  exporters?: PackageExporterDeclaration[];
+  /**
+   * Its panels, which the inspector shows for a selection.
+   *
+   * @minItems 1
+   * @maxItems 8
+   */
+  panels?: PackagePanelDeclaration[];
+}
+
+/**
+ * The id of something a package adds, unique among the package's ones of its kind.
+ *
+ * @pattern ^[a-z][a-z0-9-]{0,47}$
+ */
+export type ExtensionId = string;
+
+/**
+ * What the app names something a package adds, in the package's own words.
+ *
+ * @minLength 1
+ * @maxLength 60
+ */
+export type ExtensionLabel = string;
+
+/** A named action, run with the selection and, with `model:read`, the model (ADR 0089). */
+export interface PackageActionDeclaration {
+  id: ExtensionId;
+  label: ExtensionLabel;
+  /** @maxLength 300 */
+  description?: string;
+  /**
+   * Where it is offered: the canvas menu for a selection, the Packages menu, or both.
+   *
+   * @minItems 1
+   * @uniqueItems true
+   */
+  where: ('selection' | 'packages-menu')[];
+  /**
+   * The components whose elements, or those of components derived from them, it is offered for in
+   * the canvas menu; left out, it is offered for any selection.
+   *
+   * @minItems 1
+   * @maxItems 32
+   * @uniqueItems true
+   */
+  components?: Id[];
+}
+
+/** An importer: it reads files with these extensions into changes (ADR 0089). */
+export interface PackageImporterDeclaration {
+  id: ExtensionId;
+  label: ExtensionLabel;
+  /**
+   * The extensions it reads, each with its dot, in lower case, such as ".sql".
+   *
+   * @minItems 1
+   * @maxItems 8
+   * @uniqueItems true
+   */
+  extensions: FileExtension[];
+}
+
+/** An exporter: it writes the model and a view as a text file with this extension (ADR 0089). */
+export interface PackageExporterDeclaration {
+  id: ExtensionId;
+  label: ExtensionLabel;
+  extension: FileExtension;
+}
+
+/** A panel the inspector shows for a selection of these components' elements (ADR 0089). */
+export interface PackagePanelDeclaration {
+  id: ExtensionId;
+  label: ExtensionLabel;
+  /**
+   * The components whose elements, or those of components derived from them, it shows for; left
+   * out, it shows for any one selected element.
+   *
+   * @minItems 1
+   * @maxItems 32
+   * @uniqueItems true
+   */
+  components?: Id[];
+}
+
+/**
+ * A file's extension, with its dot, in lower case.
+ *
+ * @pattern ^\.[a-z0-9]{1,16}$
+ */
+export type FileExtension = string;
 
 /** The reusable definition of a kind of element. It inherits everything it does not redefine. */
 export interface Component {
