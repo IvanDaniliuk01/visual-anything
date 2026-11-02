@@ -1,0 +1,140 @@
+{
+  "id": "a-claim",
+  "name": "A claim, from visit to payment",
+  "description": "Jordan’s knee MRI is authorized, done and billed; Harbor’s review then decides whether every line is paid, or the contrast agent, which no authorization covers, is denied.",
+  "view": "claim-journey",
+  "steps": [
+    {
+      "id": "visit",
+      "description": "Dr. Ortiz sees Jordan Reyes about her left knee, and suspects a torn meniscus.",
+      "relations": [
+        "ortiz-treats-jordan",
+        "visit-for-jordan"
+      ]
+    },
+    {
+      "id": "covered",
+      "description": "Jordan’s plan, Harbor Silver, pays for an MRI only with an authorization first.",
+      "relations": [
+        "jordan-covered"
+      ],
+      "dataIn": {
+        "memberId": "HMH-482113"
+      }
+    },
+    {
+      "id": "request",
+      "description": "Dr. Ortiz orders an MRI of the knee and requests the authorization.",
+      "relations": [
+        "ortiz-requests-auth"
+      ],
+      "dataOut": {
+        "service": "MRI, left knee"
+      }
+    },
+    {
+      "id": "send-request",
+      "description": "The request goes to Harbor Mutual Health.",
+      "relations": [
+        "auth-to-harbor"
+      ]
+    },
+    {
+      "id": "authorize",
+      "description": "Harbor approves one MRI of the knee, without contrast, until 30 April.",
+      "relations": [
+        "auth-for-mri"
+      ],
+      "dataOut": {
+        "authorization": "PA-20417",
+        "quantity": 1
+      }
+    },
+    {
+      "id": "scan",
+      "description": "On 12 March Dr. Haddad does the MRI, and gives a contrast agent with it.",
+      "relations": [
+        "haddad-treats-jordan",
+        "appointment-for-jordan"
+      ]
+    },
+    {
+      "id": "bill",
+      "description": "The clinic bills the visit, the MRI and the contrast agent, each on a line of claim C-1001.",
+      "relations": [
+        "visit-line-bills",
+        "mri-line-bills",
+        "contrast-line-bills"
+      ],
+      "dataOut": {
+        "claim": "C-1001",
+        "total": 1250
+      }
+    },
+    {
+      "id": "submit",
+      "description": "The claim goes to Harbor, which checks each line against the plan and the authorization.",
+      "relations": [
+        "claim-to-harbor"
+      ],
+      "dataIn": {
+        "claim": "C-1001"
+      }
+    },
+    {
+      "id": "pay-in-full",
+      "description": "Every line passes, and Harbor pays the claim in full.",
+      "relations": [
+        "harbor-pays-claim"
+      ],
+      "dataOut": {
+        "paid": 1250
+      }
+    },
+    {
+      "id": "deny-contrast",
+      "description": "No authorization covers the contrast agent, so Harbor denies its line.",
+      "relations": [
+        "harbor-denies-contrast"
+      ],
+      "dataOut": {
+        "denied": 120,
+        "reason": "no authorization covers it"
+      }
+    },
+    {
+      "id": "pay-the-rest",
+      "description": "Harbor pays the visit and the MRI.",
+      "relations": [
+        "harbor-pays-claim"
+      ],
+      "dataOut": {
+        "paid": 1130
+      }
+    }
+  ],
+  "blocks": [
+    {
+      "id": "review",
+      "kind": "decision",
+      "question": "Does every line pass Harbor’s review?",
+      "alternatives": [
+        {
+          "id": "passes",
+          "label": "Yes",
+          "steps": [
+            "pay-in-full"
+          ]
+        },
+        {
+          "id": "contrast-denied",
+          "label": "No, the contrast is not authorized",
+          "steps": [
+            "deny-contrast",
+            "pay-the-rest"
+          ]
+        }
+      ]
+    }
+  ]
+}

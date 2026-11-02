@@ -1,0 +1,115 @@
+{
+  "id": "a-claim-and-its-audit",
+  "name": "A claim and its audit",
+  "description": "Who is who, the claim line by line, the claim played to payment and to denial, and the audit that finds what the review let pass.",
+  "steps": [
+    {
+      "id": "who-is-who",
+      "viewState": {
+        "view": "claim-journey"
+      },
+      "caption": {
+        "title": "Who is who",
+        "text": "Jordan Reyes is a patient of Northside Family Clinic, where Dr. Ortiz is her family doctor. Her plan, Harbor Silver, is offered by Harbor Mutual Health.\n\nEvery person and organization here is invented.",
+        "pointTo": "jordan"
+      },
+      "marks": [
+        "jordan",
+        "clinic",
+        "dr-ortiz",
+        "harbor",
+        "silver-plan",
+        "jordan-covered"
+      ]
+    },
+    {
+      "id": "line-by-line",
+      "viewState": {
+        "view": "claim-journey",
+        "select": [
+          "claim"
+        ]
+      },
+      "caption": {
+        "title": "A claim, line by line",
+        "text": "Claim C-1001 bills each service on a line of its own: the visit, the MRI and the contrast agent given with it.",
+        "pointTo": "claim"
+      },
+      "marks": [
+        "claim",
+        "line-visit",
+        "line-mri",
+        "line-contrast"
+      ],
+      "reveal": [
+        {
+          "marks": [
+            "auth",
+            "auth-for-mri"
+          ],
+          "text": "The authorization, though, covers the MRI alone."
+        }
+      ]
+    },
+    {
+      "id": "to-payment",
+      "viewState": {
+        "view": "claim-journey",
+        "scenario": "a-claim",
+        "step": "visit"
+      },
+      "caption": {
+        "title": "From the visit to payment",
+        "text": "Follow the claim:\n\n1. the visit, and the plan that asks for an authorization;\n2. the authorization, requested and approved;\n3. the scan, and the claim that bills it;\n4. Harbor’s review, which this time passes every line."
+      },
+      "play": {
+        "scenario": "a-claim"
+      },
+      "advance": "after-scenario"
+    },
+    {
+      "id": "to-denial",
+      "viewState": {
+        "view": "claim-journey",
+        "scenario": "a-claim",
+        "step": "submit",
+        "choices": {
+          "review": "contrast-denied"
+        }
+      },
+      "caption": {
+        "title": "When the review catches it",
+        "text": "Had the review compared each line with the authorization, it would have denied the contrast agent and paid the rest.",
+        "pointTo": "harbor-denies-contrast"
+      },
+      "marks": [
+        "harbor-denies-contrast"
+      ],
+      "play": {
+        "scenario": "a-claim",
+        "from": "submit",
+        "choices": {
+          "review": "contrast-denied"
+        }
+      }
+    },
+    {
+      "id": "the-audit",
+      "viewState": {
+        "view": "claim-audit"
+      },
+      "caption": {
+        "title": "The audit finds it later",
+        "text": "Harbor’s imaging audit of the quarter reviews the claim it paid in full, and finds the contrast agent billed without an authorization: 120 to recover.",
+        "pointTo": "contrast-finding"
+      },
+      "marks": [
+        "imaging-audit",
+        "contrast-finding",
+        "finding-in-contrast-line",
+        "line-contrast"
+      ],
+      "dimRest": true
+    }
+  ]
+}

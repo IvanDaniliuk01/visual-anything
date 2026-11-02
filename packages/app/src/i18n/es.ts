@@ -172,6 +172,10 @@ export const ui: Catalog = {
     'Procesos y máquinas de estados: un pedido en línea',
   'An online shop’s order, from the customer’s order through a stock check to shipping, and the states it goes through, with a scenario of an order that ships.':
     'El pedido de una tienda en línea, desde que el cliente lo hace, pasando por el control de stock, hasta el envío, y los estados por los que pasa, con un escenario de un pedido que se envía.',
+  // P5: the sample of Healthcare.
+  'Healthcare: a clinic’s claim': 'Salud: la reclamación de una clínica',
+  'An invented clinic bills an invented insurer for a knee MRI, from the visit through its authorization to payment or denial, with the audit that reviews the claim and the patient’s care plan.':
+    'Una clínica inventada le factura a una aseguradora inventada una resonancia de rodilla, desde la consulta, pasando por su autorización, hasta el pago o el rechazo, con la auditoría que revisa la reclamación y el plan de cuidados de la paciente.',
   'Start from the sample “{name}”': 'Empezar a partir del proyecto de muestra “{name}”',
   'Start from this sample': 'Empezar a partir de este proyecto de muestra',
   'Starting…': 'Empezando…',
@@ -7771,5 +7775,238 @@ export const builtins: Readonly<
     name: 'es parte de',
     description:
       'Ubica un carril en su pool, el trabajo en su carril o su subproceso, o un estado en el estado que lo contiene.',
+  },
+  // P5: Healthcare. A payer is "Financiador", as Spanish-speaking health systems name who pays.
+  healthcare: {
+    name: 'Salud',
+    description:
+      'Pacientes, encuentros y los prestadores que los atienden; financiadores y planes, reclamaciones y sus líneas, autorizaciones, auditorías y sus hallazgos; planes de cuidados y sus objetivos; y registros clínicos.',
+  },
+  'healthcare.patient': {
+    name: 'Paciente',
+    description: 'Una persona que recibe atención.',
+    attributes: {
+      birthYear: 'El año en que nació, que suele ser todo lo que un modelo necesita de su edad.',
+      recordNumber: 'El número con el que su prestador lo registra, como "HC-000117".',
+    },
+  },
+  'healthcare.encounter': {
+    name: 'Encuentro',
+    description:
+      'Un encuentro entre un paciente y sus prestadores en el que se da atención, como una consulta, una internación o una llamada; contiene los registros clínicos que deja.',
+    attributes: {
+      class:
+        'Dónde y cómo ocurre: en un consultorio, en una guardia, durante una internación, a distancia o en el domicilio.',
+      date: 'Cuándo ocurre, o cuándo empieza, como "2026-03-04".',
+    },
+  },
+  'healthcare.provider': {
+    name: 'Prestador',
+    description: 'Quien da atención, o la factura: una persona o una organización.',
+  },
+  'healthcare.practitioner': {
+    name: 'Profesional de la salud',
+    description: 'Una persona que da atención, como un médico, una enfermera o un terapeuta.',
+    attributes: { specialty: 'Lo que ejerce, como "medicina familiar" o "radiología".' },
+  },
+  'healthcare.provider-organization': {
+    name: 'Organización prestadora',
+    description:
+      'Una organización que da atención, como una clínica, un hospital, un laboratorio o una farmacia; contiene a los profesionales que trabajan en ella.',
+    attributes: { kind: 'Qué tipo de organización es.' },
+  },
+  'healthcare.payer': {
+    name: 'Financiador',
+    description:
+      'Quien paga la atención en nombre de un paciente, como una aseguradora, una obra social o un programa público; contiene los planes que ofrece.',
+    attributes: { kind: 'Qué tipo de financiador es.' },
+  },
+  'healthcare.plan': {
+    name: 'Plan',
+    description:
+      'Lo que un financiador cubre y en qué condiciones: la atención que paga, lo que necesita una autorización previa y lo que paga el propio paciente.',
+    attributes: {
+      level: 'Su nivel entre los planes del financiador, como "Básico", "Plata" u "Oro".',
+    },
+  },
+  'healthcare.claim': {
+    name: 'Reclamación',
+    description:
+      'El pedido de un prestador a un financiador para que pague la atención dada, línea por línea. Dibuja sus líneas como sus filas.',
+    attributes: {
+      number: 'El número con el que se la registra, como "C-1001".',
+      status: 'En qué estado está: escrita, enviada, en revisión o decidida.',
+      total: 'Lo que suman sus líneas, en su moneda.',
+    },
+  },
+  'healthcare.claim-line': {
+    name: 'Línea de reclamación',
+    description:
+      'Un servicio que factura una reclamación, como una consulta, un estudio, un procedimiento o un medicamento, con su código y su importe.',
+    attributes: {
+      code: 'El código con el que se factura el servicio, en la codificación que pide el financiador.',
+      quantity: 'Cuántas unidades del servicio factura.',
+      amount: 'Cuánto suma, en la moneda de su reclamación.',
+    },
+  },
+  'healthcare.authorization': {
+    name: 'Autorización',
+    description:
+      'La aprobación de un financiador, dada antes de la atención, de que pagará un servicio: cuántas unidades y hasta cuándo.',
+    attributes: {
+      number: 'El número que le dio el financiador, que la reclamación luego cita.',
+      status: 'En qué estado está: pedida, otorgada, rechazada o vencida.',
+      quantity: 'Cuántas unidades del servicio aprueba.',
+      validUntil: 'El último día en que se puede usar, como "2026-04-30".',
+    },
+  },
+  'healthcare.audit': {
+    name: 'Auditoría',
+    description:
+      'Una revisión de reclamaciones o registros según las reglas que les corresponden, hecha por un financiador, un prestador o alguien en su nombre; contiene los hallazgos que hace.',
+    attributes: {
+      timing: 'Si revisa las reclamaciones antes de que se paguen o después.',
+      period: 'El período que abarca, como "abril a junio de 2026".',
+    },
+  },
+  'healthcare.audit-finding': {
+    name: 'Hallazgo de auditoría',
+    description:
+      'Algo que una auditoría encuentra mal o faltante, como un servicio facturado sin la autorización que necesita.',
+    attributes: {
+      severity: 'Cuánto importa.',
+      amount: 'Cuánto dinero pone en duda, en la moneda de la reclamación.',
+      status:
+        'En qué estado está: recién encontrado, aceptado o discutido por quien corresponde, o resuelto.',
+    },
+  },
+  'healthcare.care-plan': {
+    name: 'Plan de cuidados',
+    description:
+      'Lo que un paciente y sus prestadores piensan hacer por su salud, y los objetivos que persigue. Dibuja sus objetivos como sus filas.',
+    attributes: {
+      status: 'Si se está escribiendo, se está siguiendo o ya se cumplió.',
+      period: 'El período que abarca, como "2026".',
+    },
+  },
+  'healthcare.goal': {
+    name: 'Objetivo',
+    description:
+      'Un resultado que persigue un plan de cuidados, como mantener la glucemia por debajo de una meta.',
+    attributes: {
+      target: 'Qué cuenta como alcanzarlo, como "menos de 7%".',
+      due: 'Para cuándo debería alcanzarse, como "2026-09".',
+    },
+  },
+  'healthcare.clinical-record': {
+    name: 'Registro clínico',
+    description:
+      'Algo escrito en la historia de un paciente sobre su salud o su atención, tal como lo deja un encuentro.',
+    attributes: {
+      date: 'Cuándo se registró, o cuándo ocurrió lo que registra.',
+      code: 'El código con el que se registra, en la codificación que usa el prestador.',
+    },
+  },
+  'healthcare.observation': {
+    name: 'Observación',
+    description:
+      'Algo que se midió o se vio, como una presión arterial, un resultado de laboratorio o una escala de dolor.',
+    attributes: {
+      value: 'Lo que se midió o se vio, con su unidad, como "132/84 mmHg".',
+    },
+  },
+  'healthcare.condition': {
+    name: 'Afección',
+    description: 'Un diagnóstico o un problema de salud, como un ligamento roto o la diabetes.',
+    attributes: {
+      clinicalStatus:
+        'Si todavía hay que confirmarla, si está presente, si está tranquila por ahora o si terminó.',
+    },
+  },
+  'healthcare.procedure': {
+    name: 'Procedimiento',
+    description:
+      'Algo que se hace por un paciente, como una cirugía, un estudio por imágenes o una vacuna.',
+  },
+  'healthcare.medication': {
+    name: 'Medicación',
+    description: 'Un medicamento recetado a un paciente o que se le administra.',
+    attributes: { dose: 'Cuánto y cada cuánto, como "500 mg dos veces por día".' },
+  },
+  'healthcare.treats': {
+    name: 'trata',
+    description:
+      'Da atención: un prestador a un paciente, o un procedimiento o una medicación a una afección.',
+  },
+  'healthcare.is-for': {
+    name: 'corresponde a',
+    description:
+      'Dice de qué paciente trata un encuentro, una reclamación, una autorización, un plan de cuidados o un registro clínico.',
+  },
+  'healthcare.is-covered-by': {
+    name: 'tiene cobertura de',
+    description:
+      'Hace que un plan, o un financiador, pague la atención de un paciente, como su afiliado.',
+    attributes: {
+      memberId: 'El número de afiliado del paciente, tal como lo muestra su credencial.',
+    },
+  },
+  'healthcare.requests': {
+    name: 'solicita',
+    description:
+      'Le pide una autorización a un financiador: un prestador, antes de dar la atención que cubre.',
+  },
+  'healthcare.is-submitted-to': {
+    name: 'se presenta a',
+    description:
+      'Envía una reclamación, o el pedido de una autorización, al financiador que la decide.',
+    attributes: { date: 'Cuándo se envió, como "2026-03-14".' },
+  },
+  'healthcare.authorizes': {
+    name: 'autoriza',
+    description:
+      'Aprueba atención antes de que se dé: una autorización para un procedimiento, una medicación, un encuentro o una línea de reclamación.',
+  },
+  'healthcare.bills': {
+    name: 'factura',
+    description:
+      'Cobra la atención dada: una reclamación, o una de sus líneas, por un encuentro o un registro clínico, como un procedimiento, un estudio o un medicamento.',
+  },
+  'healthcare.pays': {
+    name: 'paga',
+    description:
+      'Paga lo que pide una reclamación, o una de sus líneas: un financiador, una vez que decide.',
+  },
+  'healthcare.denies': {
+    name: 'rechaza',
+    description:
+      'Se niega a pagar una reclamación o una de sus líneas, o rechaza una autorización: un financiador, por un motivo que da.',
+    attributes: {
+      reason: 'Por qué, tal como lo dice el financiador, como "ninguna autorización lo cubre".',
+    },
+  },
+  'healthcare.audits': {
+    name: 'audita',
+    description:
+      'Revisa lo que abarca una auditoría: reclamaciones y sus líneas, encuentros, registros clínicos, autorizaciones o el trabajo de un prestador.',
+  },
+  'healthcare.is-found-in': {
+    name: 'se encuentra en',
+    description:
+      'Señala dónde se encontró un hallazgo de auditoría: una reclamación o una de sus líneas, un encuentro, un registro clínico o una autorización.',
+  },
+  'healthcare.addresses': {
+    name: 'aborda',
+    description: 'Dirige un plan de cuidados, o uno de sus objetivos, a una afección.',
+  },
+  'healthcare.measures': {
+    name: 'mide',
+    description:
+      'Dice cómo va un objetivo o una afección: una observación, como una medición de glucemia para un objetivo de diabetes.',
+  },
+  'healthcare.is-part-of': {
+    name: 'es parte de',
+    description:
+      'Ubica a un profesional en su organización, un plan o una auditoría en su financiador, una línea en su reclamación, un hallazgo en su auditoría, un objetivo en su plan de cuidados o un registro clínico en su encuentro.',
   },
 };

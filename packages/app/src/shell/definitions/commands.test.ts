@@ -142,12 +142,13 @@ describe('unusedBuiltInPackages', () => {
       'machine-learning',
       'physical-ai',
       'process',
+      'healthcare',
     ]);
     expect(
       unusedBuiltInPackages(
         after(project, startUsingPackageCommand(project, 'data-modeling')!),
       ).map((file) => file.id),
-    ).toEqual(['c4', 'data-science', 'machine-learning', 'physical-ai', 'process']);
+    ).toEqual(['c4', 'data-science', 'machine-learning', 'physical-ai', 'process', 'healthcare']);
   });
 });
 

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "name": "Clinic claim",
+  "description": "A sample of the healthcare package: an invented clinic bills an invented insurer for a patient’s knee MRI, from the visit through its authorization to payment or denial, with the audit that reviews the claim afterwards and the patient’s care plan. Every person and organization in it is invented.",
+  "packages": [
+    "healthcare"
+  ]
+}

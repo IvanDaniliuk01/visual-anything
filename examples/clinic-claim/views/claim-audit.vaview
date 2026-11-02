@@ -1,0 +1,78 @@
+{
+  "id": "claim-audit",
+  "name": "Claim audit",
+  "description": "Harbor’s imaging audit of the quarter, and what it finds in the claim it paid in full.",
+  "perspective": {
+    "name": "Audit"
+  },
+  "nestingRelationTypes": [
+    "healthcare.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "contrast-finding",
+      "container": "imaging-audit",
+      "x": 24,
+      "y": 56
+    },
+    {
+      "element": "knee-mri",
+      "container": "mri-visit",
+      "x": 24,
+      "y": 56
+    },
+    {
+      "element": "imaging-audit",
+      "container": "harbor",
+      "x": 24,
+      "y": 56
+    },
+    {
+      "element": "harbor",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "mri-visit",
+      "x": 736,
+      "y": 104
+    },
+    {
+      "element": "auth",
+      "x": 496,
+      "y": 16
+    },
+    {
+      "element": "claim",
+      "x": 416,
+      "y": 128
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "leftOut": [
+      "a1c-reading",
+      "clinic",
+      "diabetes-plan",
+      "dr-haddad",
+      "dr-ortiz",
+      "goal-a1c",
+      "goal-walk",
+      "jordan",
+      "knee-pain",
+      "knee-visit",
+      "meniscus-tear",
+      "metformin",
+      "silver-plan",
+      "type-2-diabetes"
+    ]
+  },
+  "relationTypesLeftOut": [
+    {
+      "relationType": "healthcare.denies"
+    },
+    {
+      "relationType": "healthcare.is-submitted-to"
+    }
+  ]
+}
