@@ -133,13 +133,15 @@ export class GridDots implements DotSink {
 
   /**
    * Draws the first `count` dots of a layer: those past them, up to the last drawing's, are folded
-   * to a point, so that they draw nothing, and the buffer is sent again.
+   * to a point, so that they draw nothing, and only what changed of the buffer is sent again: a
+   * family's buffer keeps the room its most dots needed, far more than the whole view draws.
    */
   private close(layer: Layer, count: number): void {
     const positions = layer.geometry.positions;
+    const changed = Math.max(layer.used, count);
     if (layer.used > count) positions.fill(0, count * 8, layer.used * 8);
     layer.used = count;
-    layer.geometry.getBuffer('aPosition').update();
+    layer.geometry.getBuffer('aPosition').update(changed * 8 * Float32Array.BYTES_PER_ELEMENT);
   }
 }
 
