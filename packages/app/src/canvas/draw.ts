@@ -130,7 +130,7 @@ import {
 } from './drawing';
 import type { Measure } from '../text/layout';
 import { outlinedTextBlock } from './outlinedText';
-import { placeTextBlock, type TextBlock, type TextBlockInput } from './textBlock';
+import { canvasMeasure, placeTextBlock, type TextBlock, type TextBlockInput } from './textBlock';
 import { labelColorsOf, writesStyledInside } from './labelColors';
 import {
   LABEL_BACK,
@@ -614,7 +614,8 @@ function drawNameTag(
 function drawLabelBack(graphics: Graphics, shape: ElementShape, drawing: ResolvedDrawing): void {
   const text = shape.text;
   if (text?.background === undefined && text?.border === undefined) return;
-  const back = styledBlockInside(shape, undefined, drawing)?.back;
+  // Measured as the canvas writes its text, in Roboto's own widths.
+  const back = styledBlockInside(shape, { measure: canvasMeasure }, drawing)?.back;
   if (!back) return;
   graphics.roundRect(back.x, back.y, back.width, back.height, LABEL_BACK.radius);
   if (text.background !== undefined) graphics.fill(text.background);
