@@ -7,7 +7,7 @@ import { CONTENTS_ORIGIN } from '../scene';
 import { carried, layOut, type ElkEngine } from './engine';
 import { segmentThrough } from './quality';
 import { LAYOUT_STEP, type LaidOutShape, type LayoutInput, type LayoutShape } from './types';
-import { WHOLE_SHAPES, facingSides, type WholeEdge } from './whole';
+import { WHOLE_SHAPES, WHOLE_SPACINGS, facingSides, type WholeEdge } from './whole';
 
 const elk: ElkEngine = new ELK();
 
@@ -186,6 +186,59 @@ describe('layOut in one pass', () => {
     for (const [key, rect] of loose) {
       for (const other of related) expect(overlaps(rect, other), key).toBe(false);
     }
+  });
+
+  it("spaces a container's contents as World's, 64 between layers and 40 within one (A4)", async () => {
+    const shapes = [shape('a', -1, container), shape('a/x', 0), shape('a/y', 0), shape('a/z', 0)];
+    const graphs: ElkNode[] = [];
+    const watching: ElkEngine = {
+      layout: (graph) => {
+        graphs.push(structuredClone(graph));
+        return elk.layout(graph);
+      },
+    };
+    const given = onePass(shapes, [
+      [1, 2],
+      [1, 3],
+    ]);
+    const result = await layOut(given, watching);
+    // ELK reads a compound's spacings from the compound itself, not from the root.
+    for (const graph of graphs) {
+      const options = graph.children?.[0]?.layoutOptions ?? {};
+      for (const [key, value] of Object.entries(WHOLE_SPACINGS)) expect(options[key]).toBe(value);
+    }
+    const rects = placedRects(given, result.shapes);
+    const x = rects.get('a/x') as Rect;
+    const y = rects.get('a/y') as Rect;
+    const z = rects.get('a/z') as Rect;
+    // y and z follow x in the next layer, one above the other.
+    expect(y.x - (x.x + x.width)).toBeGreaterThanOrEqual(64);
+    const [upper, lower] = y.y < z.y ? [y, z] : [z, y];
+    expect(lower.y - (upper.y + upper.height)).toBeGreaterThanOrEqual(40);
+  });
+
+  it('packs what the run leaves out beside a tall block as narrow as its height allows (A4)', async () => {
+    // A star: x in one layer, six shapes in the next, a block 6 × 72 + 5 × 40 = 632 tall.
+    const shapes = [
+      shape('a', -1, container),
+      shape('a/x', 0),
+      ...Array.from({ length: 6 }, (_, at) => shape(`a/y${at}`, 0)),
+      ...Array.from({ length: 4 }, (_, at) => shape(`a/loose${at}`, 0)),
+    ];
+    const given = onePass(
+      shapes,
+      Array.from({ length: 6 }, (_, at): [number, number] => [1, 2 + at]),
+    );
+    const result = await layOut(given, elk);
+    const rects = placedRects(given, result.shapes);
+    const related = [...rects.entries()].filter(([key]) => /a\/(x|y)/.test(key));
+    const right = Math.max(...related.map(([, rect]) => rect.x + rect.width));
+    const bottom = Math.max(...related.map(([, rect]) => rect.y + rect.height));
+    const loose = [...rects.entries()].filter(([key]) => key.includes('loose'));
+    // Beside it, in one column no taller than it, rather than two rows that leave a hole below them.
+    for (const [, rect] of loose) expect(rect.x).toBeGreaterThanOrEqual(right + 40);
+    expect(new Set(loose.map(([, rect]) => rect.x)).size).toBe(1);
+    for (const [, rect] of loose) expect(rect.y + rect.height).toBeLessThanOrEqual(bottom);
   });
 
   it('never moves a pinned shape, and places the rest clear of it', async () => {

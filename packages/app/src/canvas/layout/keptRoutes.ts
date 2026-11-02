@@ -11,9 +11,15 @@
 import type { Id } from '@visual-anything/schema';
 import { arrowheadAt, type Point, type Rect } from '../geometry';
 import { midpointOf } from '../route';
-import { channelledScene, routedAroundScene, type LineRouter } from '../routing/avoided';
+import {
+  channelledScene,
+  routedAroundScene,
+  routedFlagsOf,
+  type LineRouter,
+} from '../routing/avoided';
 import { shapeChanges, type ShapeChange } from '../routing/useAvoidedRoutes';
 import { withRelations, type ElementShape, type RelationLine, type Scene } from '../scene';
+import { keptApart, type RouteWithEnds } from './sharedRuns';
 import type { LaidOutRoute } from './types';
 
 /** ELK's routes, and the scene they were drawn in first, which later scenes are compared with. */
@@ -53,7 +59,51 @@ export function keepRoutes(
     }
     kept.set(relation, points);
   }
-  return kept.size === 0 ? undefined : { base: scene, routes: kept };
+  const held = kept.size === 0 ? kept : apart(scene, kept);
+  return held.size === 0 ? undefined : { base: scene, routes: held };
+}
+
+/**
+ * The kept routes that lie on no other line (`sharedRuns.ts`): first the lines that keep the route
+ * the scene gives them, which the router does not move, as a route by hand or a row's short C to its
+ * own table; then ELK's routes in their order. One that runs on a line before it, without a common
+ * end, is left to the router, which keeps it apart.
+ */
+function apart(scene: Scene, kept: Map<Id, readonly Point[]>): Map<Id, readonly Point[]> {
+  const flags = routedFlagsOf(scene);
+  const byKey = new Map(scene.shapes.map((shape) => [shape.key, shape]));
+  // The block a line's end is drawn on: a row's table, which a row's short C leaves and enters.
+  const blockOf = (key: string | undefined) => {
+    const shape = key === undefined ? undefined : byKey.get(key);
+    return shape?.row !== undefined ? shape.containerShape : key;
+  };
+  const fixed: RouteWithEnds[] = [];
+  scene.relations.forEach((line, at) => {
+    if (kept.has(line.relation) || line.route.length < 2) return;
+    const from = line.ends?.from.kind === 'shape' ? blockOf(line.ends.from.key) : undefined;
+    const to = line.ends?.to.kind === 'shape' ? blockOf(line.ends.to.key) : undefined;
+    if (flags[at] === 1 && (from === undefined || from !== to)) return;
+    fixed.push({ points: line.route, ends: endKeysOf(line) });
+  });
+  const lines = new Map(scene.relations.map((line) => [line.relation, line]));
+  const ids = [...kept.keys()];
+  const candidates = ids.map((id) => ({
+    points: kept.get(id) as readonly Point[],
+    ends: endKeysOf(lines.get(id) as RelationLine),
+  }));
+  const keep = keptApart([...fixed, ...candidates], fixed.length).slice(fixed.length);
+  const result = new Map<Id, readonly Point[]>();
+  ids.forEach((id, at) => {
+    if (keep[at] === true) result.set(id, kept.get(id) as readonly Point[]);
+  });
+  return result;
+}
+
+/** The keys a line's ends count by for sharing, as the quality measures count them. */
+function endKeysOf(line: RelationLine): string[] {
+  return [line.ends?.from, line.ends?.to].map((end) =>
+    end?.kind === 'shape' ? end.key : `relation ${end?.relation ?? line.relation}`,
+  );
 }
 
 const composed = new WeakMap<Scene, { kept: KeptRoutes; scene: Scene }>();

@@ -8,7 +8,7 @@
  * read, and carries the spans the renderer and the exports draw: each straight run a span of its own,
  * each corner a quarter of a circle, smaller where the runs beside it are short.
  */
-import type { Point } from '../geometry';
+import type { Point, Rect } from '../geometry';
 import type { ElementShape, RelationLine } from '../scene';
 import type { CurveSpan } from './hand';
 
@@ -143,6 +143,8 @@ class Blocks {
 const NONE: readonly ElementShape[] = [];
 
 const CELL = 256;
+/** How far apart the points a piece of a curve is looked along lie: half a cell, so none is missed. */
+const STEP = CELL / 2;
 const blockIndexes = new WeakMap<readonly ElementShape[], Blocks>();
 
 /**
@@ -162,22 +164,64 @@ export function curveCrosses(
   }
   const holds = (key: string) =>
     ends.some((end) => end === key || end.startsWith(`${key}/`) || key.startsWith(`${end}/`));
-  const crosses = (point: Point, shapes: readonly ElementShape[]) => {
+  const crosses = (a: Point, b: Point, shapes: readonly ElementShape[]) => {
     for (const shape of shapes) {
-      const rect = shape.plate ?? shape.rect;
-      const inside =
-        point.x > rect.x + 2 &&
-        point.x < rect.x + rect.width - 2 &&
-        point.y > rect.y + 2 &&
-        point.y < rect.y + rect.height - 2;
-      if (inside && !holds(shape.key)) return true;
+      if (pieceThrough(a, b, shape.plate ?? shape.rect) && !holds(shape.key)) return true;
     }
     return false;
   };
-  for (const point of route) {
-    if (crosses(point, blocks.near(point)) || crosses(point, blocks.largeOnes)) return true;
+  // Each piece of the flattened curve, against the blocks of the cells it passes, found from points
+  // along it less than a cell apart: a block standing between two of the curve's points, which a
+  // check of the points alone missed, counts too (A4).
+  for (let at = 0; at < route.length; at++) {
+    const b = route[at] as Point;
+    const a = route[at - 1] ?? b;
+    if (crosses(a, b, blocks.largeOnes)) return true;
+    const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / STEP));
+    let last: readonly ElementShape[] | undefined;
+    for (let step = 0; step <= steps; step++) {
+      const t = step / steps;
+      const near = blocks.near({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+      if (near === last) continue;
+      last = near;
+      if (crosses(a, b, near)) return true;
+    }
   }
   return false;
+}
+
+/**
+ * Whether the piece from `a` to `b` runs through a rectangle, 2 units in from its sides: the piece
+ * clipped to it (Liang and Barsky) keeps some length, or a point of it lies inside.
+ */
+function pieceThrough(a: Point, b: Point, rect: Rect): boolean {
+  const left = rect.x + 2;
+  const top = rect.y + 2;
+  const right = rect.x + rect.width - 2;
+  const bottom = rect.y + rect.height - 2;
+  if (right <= left || bottom <= top) return false;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  let enter = 0;
+  let leave = 1;
+  const edges: [number, number][] = [
+    [-dx, a.x - left],
+    [dx, right - a.x],
+    [-dy, a.y - top],
+    [dy, bottom - a.y],
+  ];
+  for (const [p, q] of edges) {
+    if (p === 0) {
+      if (q <= 0) return false;
+      continue;
+    }
+    const t = q / p;
+    if (p < 0) enter = Math.max(enter, t);
+    else leave = Math.min(leave, t);
+    if (enter > leave) return false;
+  }
+  // A point alone, as the first piece of a route is, counts when it lies inside.
+  return dx === 0 && dy === 0 ? true : leave > enter;
 }
 
 /**

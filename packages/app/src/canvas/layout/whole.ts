@@ -47,6 +47,17 @@ export const WHOLE_OPTIONS: LayoutOptions = {
 };
 
 /**
+ * The spacings of `WHOLE_OPTIONS`, which every compound node carries too: in a hierarchical run ELK
+ * reads the spacings between a compound's contents from that compound, not from the root, so without
+ * them the contents of every container and community were spaced by ELK's defaults, 20 between layers
+ * rather than 64, and left corridors too narrow for the lines between them (A4, from the user's
+ * notes; ADR 0080's clarification of 2026-10-31).
+ */
+export const WHOLE_SPACINGS: LayoutOptions = Object.fromEntries(
+  Object.entries(WHOLE_OPTIONS).filter(([key]) => key.includes('.spacing.')),
+);
+
+/**
  * The second pass, semi-interactive, as Stage 0a set it. ELK's semi-interactive crossing minimization
  * keeps the order of the nodes that carry `elk.position`, and only theirs; the second pass gives its
  * nodes the first pass's places as their `x` and `y`, which it does not read, so it minimizes
@@ -262,6 +273,7 @@ export function wholeGraph(
         id: `s${node.shape}`,
         ...placed,
         layoutOptions: {
+          ...WHOLE_SPACINGS,
           'elk.padding': `[top=${room.top},left=${room.left},bottom=${room.bottom},right=${room.right}]`,
         },
         children: (children.get(node.shape) ?? []).map(build),

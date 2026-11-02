@@ -114,4 +114,30 @@ describe('kept routes', () => {
     }));
     expect(keepRoutes(scene, shifted)).toBeUndefined();
   });
+
+  it('leaves to the router a route that lies on another kept before it, with no common end (A4)', async () => {
+    const { scene, routes } = await laidOut();
+    const given = (relation: string) => routes?.find((each) => each.relation === relation);
+    const user = given('user-fk');
+    const product = given('product-fk');
+    if (!user || !product) throw new Error('No routes.');
+    // Both run along y = 9000, from 1,200 to 2,000 together, as ELK draws lines that leave containers.
+    const through = (route: typeof user, from: number, to: number, y = 9000): typeof user => ({
+      relation: route.relation,
+      points: [
+        route.points[0] as (typeof route.points)[number],
+        { x: from, y },
+        { x: to, y },
+        route.points.at(-1) as (typeof route.points)[number],
+      ],
+    });
+    const together = keepRoutes(scene, [through(user, 1000, 2000), through(product, 1200, 2400)]);
+    expect([...(together?.routes.keys() ?? [])]).toEqual(['user-fk']);
+    // Twelve apart, both are kept.
+    const apart = keepRoutes(scene, [
+      through(user, 1000, 2000),
+      through(product, 1200, 2400, 9012),
+    ]);
+    expect([...(apart?.routes.keys() ?? [])].sort()).toEqual(['product-fk', 'user-fk']);
+  });
 });

@@ -123,32 +123,33 @@ interface Held {
  * one, recorded in ADR 0083's clarification of F5.
  */
 const HELD: Record<string, Held> = {
-  // Stage 0a's 23, and the short C of the relation from a row to its own table, as without faces.
+  // A4's spacings (ADR 0080's clarification of 2026-10-31): 29 crossings where Stage 0a's 23 and the
+  // short C gave 24, as without faces; `processing`, drawn with curves, 57 where it gave 38.
   'schema-view': {
-    crossings: 23 + 1,
-    crossingsPerLine: 0.67,
-    fill: 0.24,
+    crossings: 29,
+    crossingsPerLine: 0.81,
+    fill: 0.21,
     sharedSegments: 0,
     bendsPerLine: 2,
   },
   'overview expanded': {
     crossings: 2083,
     crossingsPerLine: 11.17,
-    fill: 0.15,
+    fill: 0.14,
     sharedSegments: 30,
     bendsPerLine: 4.1,
   },
   'overview expanded, unpinned': {
     crossings: 1825,
     crossingsPerLine: 10.31,
-    fill: 0.15,
+    fill: 0.14,
     sharedSegments: 1,
     bendsPerLine: 4.1,
   },
   'processing with its tables open': {
-    crossings: 39,
-    crossingsPerLine: 1.36,
-    fill: 0.13,
+    crossings: 57,
+    crossingsPerLine: 2.04,
+    fill: 0.12,
     sharedSegments: 0,
     bendsPerLine: 2,
   },

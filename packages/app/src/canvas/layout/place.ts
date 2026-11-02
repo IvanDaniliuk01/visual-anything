@@ -33,11 +33,10 @@ function floorToStep(value: number): number {
  * Places boxes in rows, in the order given, from (0, 0): left to right, and a new row below once a row
  * is about `ROWS_ASPECT` times wider than the rows are tall in all.
  */
-export function packInRows(sizes: readonly Size[], gap = NODE_GAP): Point[] {
+export function packInRows(sizes: readonly Size[], gap = NODE_GAP, width?: number): Point[] {
   if (sizes.length === 0) return [];
-  const area = sizes.reduce((sum, size) => sum + (size.width + gap) * (size.height + gap), 0);
   const widest = Math.max(...sizes.map((size) => size.width));
-  const rowWidth = Math.max(widest, Math.sqrt(area * ROWS_ASPECT));
+  const rowWidth = Math.max(widest, width ?? rowsWidth(sizes, gap));
   const places: Point[] = [];
   let x = 0;
   let y = 0;
@@ -53,6 +52,49 @@ export function packInRows(sizes: readonly Size[], gap = NODE_GAP): Point[] {
     rowHeight = Math.max(rowHeight, size.height);
   }
   return places;
+}
+
+/** How wide `packInRows` makes its rows by default: about `ROWS_ASPECT` times their height in all. */
+function rowsWidth(sizes: readonly Size[], gap: number): number {
+  const area = sizes.reduce((sum, size) => sum + (size.width + gap) * (size.height + gap), 0);
+  return Math.sqrt(area * ROWS_ASPECT);
+}
+
+/** A block of shapes packed in rows: the width its rows wrap at, and the size it takes. */
+export interface PackedRows {
+  width: number;
+  size: Size;
+}
+
+/**
+ * The rows of a block left out of a layout's run, packed into the room beside or below the block the
+ * run arranged, so that it leaves no hole beside it (A4, from the user's notes; ADR 0080's
+ * clarification of 2026-10-31):
+ *
+ * - **below**, its rows wrap at the arranged block's width, so that they run under the whole of it,
+ *   or at their own width when that is wider;
+ * - **beside**, at the narrowest width, in steps of its widest shape, that keeps the block no taller
+ *   than the arranged one, or at their own width when none does.
+ */
+export function packedInto(
+  sizes: readonly Size[],
+  arranged: Size,
+  side: 'beside' | 'below',
+  gap = NODE_GAP,
+): PackedRows {
+  const own = rowsWidth(sizes, gap);
+  const widest = Math.max(0, ...sizes.map((size) => size.width));
+  const sized = (width: number): PackedRows => {
+    const places = packInRows(sizes, gap, width);
+    const box = boundsOf(sizes.map((size, at) => ({ ...(places[at] as Point), ...size })));
+    return { width, size: { width: box?.width ?? 0, height: box?.height ?? 0 } };
+  };
+  if (side === 'below') return sized(Math.max(own, arranged.width));
+  for (let width = widest; width < own; width += widest + gap) {
+    const packed = sized(width);
+    if (packed.size.height <= arranged.height) return packed;
+  }
+  return sized(own);
 }
 
 /** The container or World whose contents a block is placed among. */
