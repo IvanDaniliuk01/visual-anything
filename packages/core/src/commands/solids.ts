@@ -140,7 +140,7 @@ export function removeSolid(draft: Draft, command: RemoveSolidCommand): string {
 }
 
 /** A solid's definition as a command gives it, checked field by field; refused as `invalid-solid`. */
-function checkedDefinition(given: unknown): SolidDefinition {
+export function checkedDefinition(given: unknown): SolidDefinition {
   if (typeof given !== 'object' || given === null || Array.isArray(given)) {
     reject('invalid-command', 'define-solid needs the solid to define.');
   }

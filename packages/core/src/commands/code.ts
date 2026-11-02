@@ -93,7 +93,7 @@ export function setPackageCode(draft: Draft, command: SetPackageCodeCommand): st
 }
 
 /** The code's lines, checked: one text split at its line endings, or a list of lines. */
-function linesOf(code: unknown, file: PackageFile): string[] {
+export function linesOf(code: unknown, file: PackageFile): string[] {
   let lines: string[];
   if (typeof code === 'string') {
     lines = code.split(/\r\n|\r|\n/);
@@ -141,7 +141,7 @@ function linesOf(code: unknown, file: PackageFile): string[] {
   return lines;
 }
 
-function checkedCapabilities(capabilities: unknown): Capability[] {
+export function checkedCapabilities(capabilities: unknown): Capability[] {
   if (!Array.isArray(capabilities)) {
     reject('invalid-command', 'The capabilities are a list, such as ["model:read", "time"].');
   }
@@ -159,7 +159,7 @@ function checkedCapabilities(capabilities: unknown): Capability[] {
   return sorted;
 }
 
-function checkedPackageExtensions(
+export function checkedPackageExtensions(
   value: unknown,
   file: PackageFile,
 ): PackageExtensions | undefined {

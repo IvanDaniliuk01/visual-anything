@@ -9,10 +9,8 @@ import {
   MAX_PACKAGE_FILE_TEXT,
   builtinPackage,
   packageCodeOf,
-  type BatchCommand,
   type Command,
   type ProjectSnapshot,
-  type SetPackageCodeCommand,
 } from '@visual-anything/core';
 import type { PackageFile } from '@visual-anything/schema';
 import type { ChosenFile } from '../shell/definitions/sharedPackages';
@@ -64,25 +62,12 @@ export type PackagePlan =
   /** What a file holds that cannot come in this way, in English. */
   | { ok: false; message: string };
 
-/** The keys `add-package` and `replace-package` take of a package file. */
-const DEFINITION_KEYS = [
-  'id',
-  'name',
-  'description',
-  'version',
-  'license',
-  'attribution',
-  'components',
-  'relationTypes',
-  'images',
-] as const satisfies readonly (keyof PackageFile)[];
-
 /**
- * The commands a package file sends: `add-package`, or `replace-package` for a package the project
- * has of its own with the same id, then `set-package-code` with its code, capabilities and what the
- * code adds, as one action. A file with solids, crosswalks or conflicts from a merge cannot come this
- * way: solids need their files beside the project, crosswalks have no command yet, and conflicts are
- * resolved where the file was merged.
+ * The command a package file sends, as one action: `add-package`, or `replace-package` for a package
+ * the project has of its own with the same id. Each takes the whole file, its code, capabilities, what
+ * the code adds and its crosswalks included (ADR 0089's M14.3 clarification). A file with solids or
+ * with conflicts from a merge cannot come this way: solids need their files beside the project, and
+ * conflicts are resolved where the file was merged.
  */
 export function packagePlanOf(project: ProjectSnapshot, file: PackageFile): PackagePlan {
   const name = JSON.stringify(file.name);
@@ -92,66 +77,27 @@ export function packagePlanOf(project: ProjectSnapshot, file: PackageFile): Pack
       message: `The package ${name} holds solids, whose files a package file does not carry: add it from its project’s folder instead.`,
     };
   }
-  if (file.crosswalks !== undefined) {
-    return {
-      ok: false,
-      message: `The package ${name} holds crosswalks, which cannot be added from a file yet.`,
-    };
-  }
   if (file.conflicts !== undefined) {
     return {
       ok: false,
       message: `The package ${name} holds conflicts from a merge: resolve them in its own project first.`,
     };
   }
-  const definitions = Object.fromEntries(
-    DEFINITION_KEYS.filter((key) => file[key] !== undefined).map((key) => [key, file[key]]),
-  ) as unknown as PackageFile;
   const current =
     builtinPackage(file.id) === undefined
       ? project.packages.find((each) => each.id === file.id)
       : undefined;
   if (current === undefined) {
-    const commands: Command[] = [{ type: 'add-package', package: definitions }];
-    if (file.code !== undefined) commands.push(codeCommand(file));
-    return {
-      ok: true,
-      kind: 'add',
-      file,
-      command: oneAction(commands, `Add the package ${name}`),
-    };
+    return { ok: true, kind: 'add', file, command: { type: 'add-package', package: file } };
   }
-  // replace-package keeps none of the code, so the code is set again even when it is the same.
-  const commands: Command[] = [{ type: 'replace-package', package: definitions }];
-  if (file.code !== undefined) commands.push(codeCommand(file));
-  else if (current.code !== undefined)
-    commands.push({ type: 'set-package-code', package: file.id, code: null });
   return {
     ok: true,
     kind: 'update',
     file,
     current,
-    command: oneAction(commands, `Update the package ${JSON.stringify(current.name)}`),
+    command: { type: 'replace-package', package: file },
     code: codeChange(current, file),
   };
-}
-
-/** Sets the code a file holds, with its capabilities and what it adds, or none of them. */
-function codeCommand(file: PackageFile): SetPackageCodeCommand {
-  return {
-    type: 'set-package-code',
-    package: file.id,
-    code: file.code ?? null,
-    capabilities: file.capabilities ?? null,
-    extensions: file.extensions ?? null,
-  };
-}
-
-function oneAction(commands: Command[], label: string): Command {
-  const [only] = commands;
-  if (commands.length === 1 && only !== undefined) return only;
-  const batch: BatchCommand = { type: 'batch', label, commands };
-  return batch;
 }
 
 /** How updating a package changes its code, by the hash an approval is given to. */

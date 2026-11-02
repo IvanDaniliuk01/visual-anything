@@ -53,8 +53,10 @@ describe('packagePlanOf', () => {
   });
 
   it('adds a package without code as add-package alone', () => {
-    const plan = packagePlanOf(codeProject(), { ...METERS, code: undefined });
+    const plain = { ...METERS, code: undefined, capabilities: undefined, extensions: undefined };
+    const plan = packagePlanOf(codeProject(), plain);
     expect(plan).toMatchObject({ ok: true, command: { type: 'add-package' } });
+    expect(applied(codeProject(), plan).packages.at(-1)?.code).toBeUndefined();
   });
 
   it('updates the project’s own package of the same id, asking approval again when its code changed', () => {
@@ -112,16 +114,29 @@ describe('packagePlanOf', () => {
     expect(executeCommand(codeProject(), plan.command)).toMatchObject({ ok: false });
   });
 
-  it('refuses a file with solids, crosswalks or conflicts, naming the package', () => {
+  it('sends one command, which keeps the whole file', () => {
+    const project = codeProject();
+    expect(packagePlanOf(project, METERS)).toMatchObject({
+      command: { type: 'add-package', package: METERS },
+    });
+    expect(packagePlanOf(project, gaugesPackage())).toMatchObject({
+      command: { type: 'replace-package', package: gaugesPackage() },
+    });
+  });
+
+  it('adds and updates crosswalks, which the commands now carry', () => {
+    const project = codeProject();
+    const crosswalks = [{ from: 'uberon', to: 'fma', entries: { 'UBERON:1': 'FMA:1' } }];
+    const after = applied(project, packagePlanOf(project, { ...METERS, crosswalks }));
+    expect(after.packages.find((each) => each.id === 'meters')?.crosswalks).toEqual(crosswalks);
+  });
+
+  it('refuses a file with solids or conflicts, naming the package', () => {
     const project = codeProject();
     expect(packagePlanOf(project, { ...METERS, solids: [] })).toEqual({
       ok: false,
       message:
         'The package "Meters" holds solids, whose files a package file does not carry: add it from its project’s folder instead.',
-    });
-    expect(packagePlanOf(project, { ...METERS, crosswalks: [] })).toEqual({
-      ok: false,
-      message: 'The package "Meters" holds crosswalks, which cannot be added from a file yet.',
     });
     expect(packagePlanOf(project, { ...METERS, conflicts: [] })).toEqual({
       ok: false,

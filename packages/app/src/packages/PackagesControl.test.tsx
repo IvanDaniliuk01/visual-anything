@@ -203,13 +203,8 @@ describe('Packages…', () => {
     });
     expect(send).toHaveBeenCalledTimes(1);
     const command = send.mock.calls[0]![0];
-    expect(command).toMatchObject({
-      type: 'batch',
-      commands: [
-        { type: 'add-package', package: { id: 'meters' } },
-        { type: 'set-package-code', package: 'meters', code: METERS.code },
-      ],
-    });
+    // One command, which keeps the whole file, its code included (ADR 0089's M14.3 clarification).
+    expect(command).toEqual({ type: 'add-package', package: METERS });
     await waitFor(() => expect(dialog.textContent).toContain('Added “Meters”.'));
   });
 
@@ -260,7 +255,7 @@ describe('Packages…', () => {
       await Promise.resolve();
     });
     const command = send.mock.calls[0]![0];
-    expect(command).toMatchObject({ type: 'batch', commands: [{ type: 'replace-package' }, {}] });
+    expect(command).toEqual({ type: 'replace-package', package: newer });
 
     // The program applies it; the project comes back with the new code, which waits again.
     const outcome = executeCommand(project, command);
