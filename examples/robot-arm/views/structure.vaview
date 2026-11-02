@@ -85,12 +85,6 @@
       "container": "arm",
       "x": 224,
       "y": 832
-    },
-    {
-      "element": "wrist-camera",
-      "container": "arm",
-      "x": 424,
-      "y": 392
     }
   ],
   "freeShapes": [],

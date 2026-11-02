@@ -48,7 +48,12 @@ export function describeSolid(document: SolidDocument): SolidDescription {
     let part = holder;
     if (data.name !== undefined) {
       part = parts.length;
-      parts.push({ name: data.name, ...(holder >= 0 ? { parent: holder } : {}) });
+      const matrix = world[node] as Matrix;
+      parts.push({
+        name: data.name,
+        ...(holder >= 0 ? { parent: holder } : {}),
+        origin: roundPoint([matrix[12] as number, matrix[13] as number, matrix[14] as number]),
+      });
     }
     partOf[node] = part;
     for (const child of data.children) visit(child, part);

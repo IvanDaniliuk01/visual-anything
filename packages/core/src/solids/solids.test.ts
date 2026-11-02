@@ -74,6 +74,13 @@ describe('readSolid', () => {
     expect(shoulder?.point?.y).toBeLessThanOrEqual(0.82);
   });
 
+  it("keeps each part's node origin at rest, which a joint anchored to it turns about", () => {
+    const [base, shoulder] = described(readSolid(writeTestSolid(arm()))).parts;
+    expect(base?.origin).toEqual({ x: 0, y: 0, z: 0 });
+    // The shoulder's node stands 0.5 up from the base's.
+    expect(shoulder?.origin).toEqual({ x: 0, y: 0.5, z: 0 });
+  });
+
   it('reads an empty solid, and one whose parts draw nothing of their own', () => {
     const empty = described(readSolid(writeTestSolid({ nodes: [], meshes: [] })));
     expect(empty.counts).toEqual({ triangles: 0, vertices: 0, nodes: 0, textures: 0 });

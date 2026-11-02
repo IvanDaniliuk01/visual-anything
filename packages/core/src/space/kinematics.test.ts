@@ -227,3 +227,92 @@ describe('forward kinematics', () => {
     );
   });
 });
+
+describe('a joint anchored to a part of a solid', () => {
+  const SOLID = 'robotics.arm-k3f9q2';
+  const ROBOTICS: PackageFile = {
+    id: 'robotics',
+    name: 'Robotics',
+    components: [
+      {
+        id: 'robotics.robot',
+        name: 'Robot',
+        derivesFrom: 'physical-ai.robot',
+        appearance: { solid: { solid: SOLID, placement: 'parts' } },
+      },
+    ],
+    relationTypes: [],
+    solids: [
+      {
+        id: SOLID,
+        name: 'Arm',
+        hash: 'a'.repeat(64),
+        bytes: 1000,
+        bounds: { min: { x: -1, y: 0, z: -1 }, max: { x: 1, y: 2, z: 1 } },
+        counts: { triangles: 60, vertices: 40, nodes: 3, textures: 0 },
+        parts: [
+          // The joint's point is on its surface, a little off its axis; its node's origin is on it.
+          { name: 'joint', point: { x: 0.1, y: 1, z: 0 }, origin: { x: 0, y: 1, z: 0 } },
+          { name: 'link', point: { x: 1, y: 1, z: 0 }, origin: { x: 0, y: 1, z: 0 } },
+        ],
+        camera: { azimuth: 30, elevation: 20 },
+      },
+    ],
+  };
+
+  function anchored(origins = true): ProjectSnapshot {
+    const robotics: PackageFile = origins
+      ? ROBOTICS
+      : {
+          ...ROBOTICS,
+          solids: (ROBOTICS.solids ?? []).map((solid) => ({
+            ...solid,
+            parts: solid.parts.map(({ name, point }) => ({ name, ...(point ? { point } : {}) })),
+          })),
+        };
+    const anchor = (part: string) => ({ appearance: { part: { part, solid: SOLID } } });
+    return {
+      project: { schemaVersion: 1, name: 'Arm', packages: ['physical-ai', 'robotics'] },
+      model: {
+        world: { id: 'world', component: 'essence', name: 'World' },
+        elements: [
+          {
+            id: 'robot',
+            component: 'robotics.robot',
+            name: 'Robot',
+            pose: { at: { x: 0, y: 0, z: 0 } },
+          },
+          {
+            id: 'j',
+            component: 'physical-ai.joint',
+            name: 'Joint',
+            attributes: { kind: 'revolute', axis: '0 0 1', position: 90 },
+            ...anchor('joint'),
+          },
+          { id: 'l', component: 'physical-ai.link', name: 'Link', ...anchor('link') },
+        ],
+        relations: [
+          { id: 'j-in', relationType: 'physical-ai.is-part-of', from: 'j', to: 'robot' },
+          { id: 'l-in', relationType: 'physical-ai.is-part-of', from: 'l', to: 'robot' },
+          { id: 'l-on-j', relationType: 'physical-ai.is-attached-to', from: 'l', to: 'j' },
+        ],
+      },
+      packages: [PHYSICAL_AI, robotics],
+      views: [],
+      scenarios: [],
+      tours: [],
+      comments: [],
+    };
+  }
+
+  it('turns what it carries about its node’s origin, while relations end at its point', () => {
+    const project = anchored();
+    // The link's point, 1 m along +X from the joint's axis, turns a quarter about +Z to 1 m up.
+    expect(at(project, 'l')).toEqual({ x: 0, y: 2, z: 0 });
+    expect(at(project, 'j')).toEqual({ x: 0.1, y: 1, z: 0 });
+  });
+
+  it('turns about its point where its solid keeps no origins, as definitions before them did', () => {
+    expect(at(anchored(false), 'l')).toEqual({ x: 0.1, y: 1.9, z: 0 });
+  });
+});

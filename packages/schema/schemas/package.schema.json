@@ -1884,6 +1884,10 @@
         "point": {
           "$ref": "#/definitions/SpacePoint",
           "description": "The vertex of its own geometry nearest the middle of its bounds: where relations end and its name is written. Left out for a part that draws nothing of its own."
+        },
+        "origin": {
+          "$ref": "#/definitions/SpacePoint",
+          "description": "Where the node's origin is at rest, in the solid's coordinates: what a joint anchored to it turns about (ADR 0090). Left out in a definition written before it was kept, where its point stands in."
         }
       },
       "required": [

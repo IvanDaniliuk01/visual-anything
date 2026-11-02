@@ -3,8 +3,9 @@
  * since M9 (ADR 0075): its arm is a drawing with parts that shows the arm's solid, each of its links,
  * joints and its gripper is drawn as the solid's part it names, the relations that drive and sense a
  * joint end at that part's point, and the kinematic chain and the control loop draw each part on its
- * own as the solid's picture of that part alone. Since M10 (ADR 0076) its wrist camera is posed on
- * link 6 rather than anchored to the solid's camera, and its workcell has a view of its own.
+ * own as the solid's picture of that part alone. Since M10 (ADR 0076) its workcell has a view of its
+ * own; since M15 (ADR 0090) its wrist camera is anchored to the solid's camera again, so that it
+ * follows link 6 as the joints move.
  */
 import {
   builtinPackage,
@@ -36,11 +37,11 @@ const PARTS = [
   'gripper',
   'camera',
 ];
-/**
- * The parts an element of the same name is anchored to: all but the camera, where the wrist camera is
- * posed in physical space instead (ADR 0076).
- */
-const ANCHORED = PARTS.filter((part) => part !== 'camera');
+/** The parts an element is anchored to: every one, the wrist camera to the camera's (ADR 0090). */
+const ANCHORED = PARTS;
+
+/** The element anchored to a part: of the same name, but the camera's, which is the wrist camera. */
+const elementOf = (part: string) => (part === 'camera' ? 'wrist-camera' : part);
 
 function shapeOf(scene: Scene, key: string): ElementShape {
   const found = scene.shapes.find((shape) => shape.key === key);
@@ -76,7 +77,7 @@ describe('the physical-ai sample', () => {
     );
     const points = new Set<string>();
     for (const part of ANCHORED) {
-      const shape = shapeOf(scene, `arm/${part}`);
+      const shape = shapeOf(scene, `arm/${elementOf(part)}`);
       expect(shape.part, part).toMatchObject({ solid: ARM_SOLID, part, inDrawing: true });
       const index = solidPartIndex(definition, part) as number;
       const at = placeSolidPoint(camera, solidPartPoint(definition, index)!, picture);
@@ -91,18 +92,15 @@ describe('the physical-ai sample', () => {
       points.add(`${point?.x} ${point?.y}`);
     }
     expect(points.size).toBe(ANCHORED.length);
-    // The motors, the encoders and the wrist camera sit below the picture, clear of it.
-    for (const key of [
-      ...[1, 2, 3, 4, 5, 6].flatMap((n) => [`arm/motor-${n}`, `arm/encoder-${n}`]),
-      'arm/wrist-camera',
-    ]) {
+    // The motors and the encoders sit below the picture, clear of it.
+    for (const key of [1, 2, 3, 4, 5, 6].flatMap((n) => [`arm/motor-${n}`, `arm/encoder-${n}`])) {
       const shape = shapeOf(scene, key);
       expect(shape.part, key).toBeUndefined();
       expect(shape.rect.y, key).toBeGreaterThanOrEqual(picture.y + picture.height);
     }
     // An anchored part has no place of its own in the view.
     const view = project.views.find((each) => each.id === 'structure');
-    const anchored = new Set(ANCHORED);
+    const anchored = new Set(ANCHORED.map(elementOf));
     expect(view?.positions.filter((each) => anchored.has(each.element))).toEqual([]);
   });
 
@@ -122,7 +120,7 @@ describe('the physical-ai sample', () => {
     const scene = buildScene(project, 'kinematic-chain');
     expect(scene.relations.length).toBe(14);
     for (const part of ANCHORED) {
-      const shape = shapeOf(scene, part);
+      const shape = shapeOf(scene, elementOf(part));
       expect(shape.part, part).toMatchObject({ solid: ARM_SOLID, part, inDrawing: false });
       expect(shape.solid, part).toMatchObject({
         id: ARM_SOLID,
