@@ -2,7 +2,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { Rect } from '../geometry';
 import { CONTENTS_ORIGIN } from '../scene';
-import { ceilToStep, measuredSize, packInRows, placeBlock, roundToStep } from './place';
+import { ceilToStep, measuredSize, packInRows, packedInto, placeBlock, roundToStep } from './place';
 import { GAP_BELOW, GAP_BESIDE, LAYOUT_STEP, NODE_GAP } from './types';
 
 const overlaps = (a: Rect, b: Rect) =>
@@ -52,6 +52,67 @@ describe('packInRows', () => {
             width: (sizes[at]?.width ?? 0) + NODE_GAP,
             height: (sizes[at]?.height ?? 0) + NODE_GAP,
           }));
+          for (let a = 0; a < rects.length; a++) {
+            for (let b = a + 1; b < rects.length; b++) {
+              expect(overlaps(rects[a] as Rect, rects[b] as Rect)).toBe(false);
+            }
+          }
+        },
+      ),
+    );
+  });
+});
+
+describe('packedInto (A4)', () => {
+  const tables = Array.from({ length: 6 }, () => ({ width: 320, height: 200 }));
+
+  it('below a wide block, runs its rows under the whole of it', () => {
+    const own = packedInto(tables, { width: 0, height: 0 }, 'below');
+    const below = packedInto(tables, { width: 2400, height: 600 }, 'below');
+    expect(below.size.height).toBeLessThan(own.size.height);
+    expect(below.size.width).toBeLessThanOrEqual(2400);
+    // Six tables of 320 with gaps of 40 fit one row of 2,120.
+    expect(below.size.height).toBe(200);
+  });
+
+  it('beside a tall block, packs as narrow as keeps it no taller', () => {
+    const beside = packedInto(tables, { width: 800, height: 1400 }, 'beside');
+    // One column of six: 6 × 200 + 5 × 40 = 1,400.
+    expect(beside.size).toEqual({ width: 320, height: 1400 });
+    const shorter = packedInto(tables, { width: 800, height: 700 }, 'beside');
+    expect(shorter.size.width).toBe(320 * 2 + NODE_GAP);
+    expect(shorter.size.height).toBeLessThanOrEqual(700);
+  });
+
+  it('packs at its own width when nothing fits the room', () => {
+    const own = packInRows(tables);
+    const packed = packedInto(tables, { width: 100, height: 10 }, 'beside');
+    expect(packInRows(tables, NODE_GAP, packed.width)).toEqual(own);
+  });
+
+  it('packs what packInRows places at its width, overlapping nothing, within its size', () => {
+    fc.assert(
+      fc.property(
+        fc.array(
+          fc.record({
+            width: fc.integer({ min: 1, max: 400 }),
+            height: fc.integer({ min: 1, max: 300 }),
+          }),
+          { minLength: 1, maxLength: 30 },
+        ),
+        fc.record({
+          width: fc.integer({ min: 0, max: 3000 }),
+          height: fc.integer({ min: 0, max: 3000 }),
+        }),
+        fc.constantFrom('beside' as const, 'below' as const),
+        (sizes, arranged, side) => {
+          const packed = packedInto(sizes, arranged, side);
+          const places = packInRows(sizes, NODE_GAP, packed.width);
+          const rects = places.map((place, at) => ({ ...place, ...(sizes[at] as Rect) }));
+          for (const rect of rects) {
+            expect(rect.x + rect.width).toBeLessThanOrEqual(packed.size.width);
+            expect(rect.y + rect.height).toBeLessThanOrEqual(packed.size.height);
+          }
           for (let a = 0; a < rects.length; a++) {
             for (let b = a + 1; b < rects.length; b++) {
               expect(overlaps(rects[a] as Rect, rects[b] as Rect)).toBe(false);

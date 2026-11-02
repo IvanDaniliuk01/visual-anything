@@ -26,6 +26,7 @@ import {
   ceilToStep,
   measuredSize,
   packInRows,
+  packedInto,
   placeBlock,
   ROWS_ASPECT,
   roundToStep,
@@ -596,16 +597,10 @@ export async function layOut(
       }
     }
 
-    // What each level the run reaches leaves out, packed in rows into one block, at the sizes
-    // `sizeOf` gives its shapes.
+    // What each level the run reaches leaves out: its shapes, at the sizes `sizeOf` gives them.
     const looseAt = (level: number, sizeOf: (node: number) => Size) => {
       const nodes = freeAt(level).filter((node) => !plan.related.has(node));
-      if (nodes.length === 0) return undefined;
-      const places = packInRows(nodes.map(sizeOf));
-      const size = boundsOf(
-        nodes.map((node, at) => ({ ...(places[at] as Point), ...sizeOf(node) })),
-      ) as Rect;
-      return { nodes, places, size: { width: size.width, height: size.height } };
+      return nodes.length === 0 ? undefined : { nodes, sizes: nodes.map(sizeOf) };
     };
     /**
      * The size a shape left out of the run will have once the run is placed, from the first pass's
@@ -623,7 +618,19 @@ export async function layOut(
           ? { width: rect.width, height: rect.height }
           : tree.sizeOf(node);
       };
-    const beside = new Map<number, boolean>();
+    /**
+     * Where each level packs what the run leaves out: beside what it arranged or below, and the
+     * width its rows wrap at, packed into that room (`packedInto`).
+     */
+    const loosePlaces = new Map<number, { beside: boolean; width: number }>();
+    const choose = (level: number, arranged: Size, sizes: readonly Size[]) => {
+      const right = packedInto(sizes, arranged, 'beside');
+      const under = packedInto(sizes, arranged, 'below');
+      const beside = besideIsNearer(arranged, right.size, under.size);
+      const chosen = beside ? right : under;
+      loosePlaces.set(level, { beside, width: chosen.width });
+      return { beside, size: chosen.size };
+    };
     const paddingOf = (first: ReadonlyMap<number, Rect>): Map<number, Padding> => {
       const padding = new Map<number, Padding>();
       const sizeOf = sizeAfterRun(first);
@@ -641,14 +648,13 @@ export async function layOut(
         const height = rect.height - room.top - room.bottom;
         const block = looseAt(level, sizeOf);
         if (block) {
-          const side = besideIsNearer({ width, height }, block.size);
-          beside.set(level, side);
-          if (side) {
-            room.right += NODE_GAP + block.size.width;
-            room.bottom += Math.max(0, block.size.height - height);
+          const { beside, size } = choose(level, { width, height }, block.sizes);
+          if (beside) {
+            room.right += NODE_GAP + size.width;
+            room.bottom += Math.max(0, size.height - height);
           } else {
-            room.bottom += NODE_GAP + block.size.height;
-            room.right += Math.max(0, block.size.width - width);
+            room.bottom += NODE_GAP + size.height;
+            room.right += Math.max(0, size.width - width);
           }
         }
         // A container is never smaller than its appearance, nor than the size the view stores.
@@ -705,17 +711,22 @@ export async function layOut(
             places.set(node, place);
             arranged.push({ ...place, ...tree.sizeOf(node) });
           }
-          // Packed again at the sizes its shapes have now that the levels inside are placed.
+          // Packed again at the sizes its shapes have now that the levels inside are placed, into
+          // the room the second pass left for them.
           const block = looseAt(level, (node) => tree.sizeOf(node));
           if (block) {
             const around = boundsOf(arranged);
+            // World, which the second pass gives no room, chooses its way here.
+            if (around && !loosePlaces.has(level)) choose(level, around, block.sizes);
+            const way = loosePlaces.get(level);
+            const packed = packInRows(block.sizes, NODE_GAP, way?.width);
             const start = !around
               ? { x: 0, y: 0 }
-              : (beside.get(level) ?? besideIsNearer(around, block.size))
+              : way?.beside === true
                 ? { x: around.x + around.width + NODE_GAP, y: around.y }
                 : { x: around.x, y: around.y + around.height + NODE_GAP };
             block.nodes.forEach((node, at) => {
-              const offset = block.places[at] as Point;
+              const offset = packed[at] as Point;
               places.set(node, { x: start.x + offset.x, y: start.y + offset.y });
             });
           }
@@ -750,16 +761,16 @@ export async function layOut(
  * Whether a block left out of the run goes beside what the run arranged, rather than below it: the
  * way that keeps the two nearer 1.6 times wider than tall, as rows are packed (ADR 0080).
  */
-function besideIsNearer(arranged: Size, block: Size): boolean {
+function besideIsNearer(arranged: Size, right: Size, under: Size = right): boolean {
   const off = (width: number, height: number) =>
     Math.abs(Math.log(width / Math.max(1, height) / ROWS_ASPECT));
   const beside = off(
-    arranged.width + NODE_GAP + block.width,
-    Math.max(arranged.height, block.height),
+    arranged.width + NODE_GAP + right.width,
+    Math.max(arranged.height, right.height),
   );
   const below = off(
-    Math.max(arranged.width, block.width),
-    arranged.height + NODE_GAP + block.height,
+    Math.max(arranged.width, under.width),
+    arranged.height + NODE_GAP + under.height,
   );
   return beside < below;
 }
