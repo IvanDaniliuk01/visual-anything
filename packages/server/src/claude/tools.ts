@@ -64,6 +64,7 @@ import { PROPOSAL_TOOLS, proposalNoteOf } from './proposal-tools';
 import { VERSION_TOOLS } from './version-tools';
 import { CONFLICT_TOOLS } from './conflict-tools';
 import { OVERLAY_TOOLS } from './overlay-tools';
+import { DRAWING_DEFAULTS_TOOLS } from './drawing-defaults-tools';
 import { IMPORT_TOOLS } from './import-tools';
 import { DRAWING_TOOLS } from './drawing-tools';
 import { TAKES_MARKDOWN, escapeTextInput, escapeTexts, escapeTextsIf, escapedIf } from './emphasis';
@@ -1796,6 +1797,8 @@ export const TOOLS: readonly Tool[] = [
   ...SCOPE_TOOLS,
   ...EXPORT_TOOLS,
   ...OVERLAY_TOOLS,
+  // How the canvas draws what no appearance sets (ADR 0086).
+  ...DRAWING_DEFAULTS_TOOLS,
   // Live values, never saved (ADR 0057).
   ...LIVE_TOOLS,
   // Claude's proposal, which the person reviews (ADR 0073).

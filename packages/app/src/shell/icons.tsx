@@ -660,3 +660,12 @@ export const CopyIcon = icon(
 
 /** Lucide's "check": the choice made, in a list of choices (A5). */
 export const CheckIcon = icon('Check', <path d="M20 6 9 17l-5-5" />);
+
+/** Lucide's "rotate-ccw": a value back to the one under it, in the Drawing panel (A5.4). */
+export const ResetIcon = icon(
+  'Reset',
+  <>
+    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+    <path d="M3 3v5h5" />
+  </>,
+);
