@@ -126,7 +126,6 @@ import {
 import { countLineTopOf, countText, headerLines } from '../canvas/collapse';
 
 import {
-  REGION_BORDER,
   iconStrokeIn,
   regionColorsOf,
   regionFillOf,
@@ -1532,7 +1531,7 @@ function regionParts(writer: Writer, shape: ElementShape, stroke: Color): string
         fill: 'none',
         stroke,
         'stroke-opacity': num(colors.borderAlpha),
-        'stroke-width': REGION_BORDER,
+        'stroke-width': TOGGLE_LOOK.border,
       }) +
       empty('path', {
         d: `M${num(middleX - arm)} ${num(middleY)}H${num(middleX + arm)}`,

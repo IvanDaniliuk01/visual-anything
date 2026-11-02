@@ -103,7 +103,7 @@ export const CHOICE_NAMES: Readonly<
     nameWeight: { '400': 'Regular', '500': 'Medium', '700': 'Bold' },
   },
   containers: {
-    drawn: { 'as-kind': 'As their kind', region: 'As an area with a name tab' },
+    drawn: { 'as-kind': 'As their kind', region: 'As regions, with a name tab' },
     collapsed: {
       stack: 'A stack',
       count: 'How many it holds',

@@ -182,7 +182,7 @@ export function drawRegion(
     const { x: left, y: top, width: side, height: tall } = toggle;
     graphics
       .roundRect(left, top, side, tall, TOGGLE_LOOK.radius)
-      .stroke({ color: shape.stroke, alpha: colors.borderAlpha, width: REGION_BORDER });
+      .stroke({ color: shape.stroke, alpha: colors.borderAlpha, width: TOGGLE_LOOK.border });
     const middleX = left + side / 2;
     const middleY = top + tall / 2;
     const arm = side * TOGGLE_LOOK.arm;

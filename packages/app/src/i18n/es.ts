@@ -3624,7 +3624,7 @@ export const ui: Catalog = {
   Medium: 'Media',
   Bold: 'Negrita',
   'As their kind': 'Según su tipo de forma',
-  'As an area with a name tab': 'Como un área con una pestaña con su nombre',
+  'As regions, with a name tab': 'Como regiones, con una pestaña con su nombre',
   'A stack': 'Una pila',
   'How many it holds': 'Cuántos contiene',
   'A stack, and how many it holds': 'Una pila, y cuántos contiene',

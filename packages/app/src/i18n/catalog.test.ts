@@ -422,7 +422,7 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   { word: /\bformas? personalizadas?\b/i },
   { word: /\best[eé]nciles?\b|\bestarcidos?\b/i },
   { word: /\bformas? vectoriales?\b/i },
-  { word: /\bregi[oó]n(es)?\b/i },
+  // "Región" is a term since A5: a container drawn as a quiet area (CONTEXT.md, ADR 0086).
   { word: /\bzonas? activas?\b|\bpuntos? calientes?\b/i },
   { word: /\bsubim[aá]gen(es)?\b/i },
   { word: /\bl[aá]minas?\b|\bplacas?\b/i },
