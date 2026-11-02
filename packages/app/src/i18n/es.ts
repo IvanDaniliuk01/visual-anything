@@ -173,9 +173,9 @@ export const ui: Catalog = {
   'An online shop’s order, from the customer’s order through a stock check to shipping, and the states it goes through, with a scenario of an order that ships.':
     'El pedido de una tienda en línea, desde que el cliente lo hace, pasando por el control de stock, hasta el envío, y los estados por los que pasa, con un escenario de un pedido que se envía.',
   // P5: the sample of Healthcare.
-  'Healthcare: a clinic’s claim': 'Salud: la reclamación de una clínica',
+  'Healthcare: a clinic’s claim': 'Salud: la factura de una clínica',
   'An invented clinic bills an invented insurer for a knee MRI, from the visit through its authorization to payment or denial, with the audit that reviews the claim and the patient’s care plan.':
-    'Una clínica inventada le factura a una aseguradora inventada una resonancia de rodilla, desde la consulta, pasando por su autorización, hasta el pago o el rechazo, con la auditoría que revisa la reclamación y el plan de cuidados de la paciente.',
+    'Una clínica inventada le factura a una aseguradora inventada una resonancia de rodilla, desde la consulta, pasando por su autorización, hasta el pago o el rechazo, con la auditoría que revisa la factura y el plan de cuidados de la paciente.',
   // P6: the sample of Finance.
   'Finance: a workshop’s books': 'Finanzas: los libros de un taller',
   'An invented furniture workshop’s books, from an invoice through its payment to the general ledger by double entry, and the small portfolio that holds its reserve, with a scenario that decides how a payment is recorded.':
@@ -7895,11 +7895,12 @@ export const builtins: Readonly<
     description:
       'Ubica un carril en su pool, el trabajo en su carril o su subproceso, o un estado en el estado que lo contiene.',
   },
-  // P5: Healthcare. A payer is "Financiador", as Spanish-speaking health systems name who pays.
+  // P5: Healthcare, in the words of Argentine medical audit: a payer is "Financiador", a claim a
+  // "Factura" with its "ítems", an encounter an "Atención" and a condition a "Diagnóstico".
   healthcare: {
     name: 'Salud',
     description:
-      'Pacientes, encuentros y los prestadores que los atienden; financiadores y planes, reclamaciones y sus líneas, autorizaciones, auditorías y sus hallazgos; planes de cuidados y sus objetivos; y registros clínicos.',
+      'Pacientes, sus atenciones y los prestadores que las dan; financiadores y planes, facturas y sus ítems, autorizaciones, auditorías y sus hallazgos; planes de cuidados y sus objetivos; y registros clínicos.',
   },
   'healthcare.patient': {
     name: 'Paciente',
@@ -7910,9 +7911,9 @@ export const builtins: Readonly<
     },
   },
   'healthcare.encounter': {
-    name: 'Encuentro',
+    name: 'Atención',
     description:
-      'Un encuentro entre un paciente y sus prestadores en el que se da atención, como una consulta, una internación o una llamada; contiene los registros clínicos que deja.',
+      'La atención que sus prestadores le dan a un paciente, como una consulta, una internación o una llamada; contiene los registros clínicos que deja.',
     attributes: {
       setting:
         'Dónde y cómo ocurre: en un consultorio, en una guardia, durante una internación, a distancia o en el domicilio.',
@@ -7949,23 +7950,23 @@ export const builtins: Readonly<
     },
   },
   'healthcare.claim': {
-    name: 'Reclamación',
+    name: 'Factura',
     description:
-      'El pedido de un prestador a un financiador para que pague la atención dada, línea por línea. Dibuja sus líneas como sus filas.',
+      'El cobro que un prestador le presenta a un financiador por la atención dada, ítem por ítem. Dibuja sus ítems como sus filas.',
     attributes: {
       number: 'El número con el que se la registra, como "C-1001".',
       status: 'En qué estado está: escrita, enviada, en revisión o decidida.',
-      total: 'Lo que suman sus líneas, en su moneda.',
+      total: 'Lo que suman sus ítems, en su moneda.',
     },
   },
   'healthcare.claim-line': {
-    name: 'Línea de reclamación',
+    name: 'Ítem de factura',
     description:
-      'Un servicio que factura una reclamación, como una consulta, un estudio, un procedimiento o un medicamento, con su código y su importe.',
+      'Un servicio que cobra una factura, como una consulta, un estudio, un procedimiento o un medicamento, con su código y su importe.',
     attributes: {
       code: 'El código con el que se factura el servicio, en la codificación que pide el financiador.',
       quantity: 'Cuántas unidades del servicio factura.',
-      amount: 'Cuánto suma, en la moneda de su reclamación.',
+      amount: 'Cuánto suma, en la moneda de su factura.',
     },
   },
   'healthcare.authorization': {
@@ -7973,7 +7974,7 @@ export const builtins: Readonly<
     description:
       'La aprobación de un financiador, dada antes de la atención, de que pagará un servicio: cuántas unidades y hasta cuándo.',
     attributes: {
-      number: 'El número que le dio el financiador, que la reclamación luego cita.',
+      number: 'El número que le dio el financiador, que la factura luego cita.',
       status: 'En qué estado está: pedida, otorgada, rechazada o vencida.',
       quantity: 'Cuántas unidades del servicio aprueba.',
       validUntil: 'El último día en que se puede usar, como "2026-04-30".',
@@ -7982,9 +7983,9 @@ export const builtins: Readonly<
   'healthcare.audit': {
     name: 'Auditoría',
     description:
-      'Una revisión de reclamaciones o registros según las reglas que les corresponden, hecha por un financiador, un prestador o alguien en su nombre; contiene los hallazgos que hace.',
+      'Una revisión de facturas o registros según las reglas que les corresponden, hecha por un financiador, un prestador o alguien en su nombre; contiene los hallazgos que hace.',
     attributes: {
-      timing: 'Si revisa las reclamaciones antes de que se paguen o después.',
+      timing: 'Si revisa las facturas antes de que se paguen o después.',
       period: 'El período que abarca, como "abril a junio de 2026".',
     },
   },
@@ -7994,7 +7995,7 @@ export const builtins: Readonly<
       'Algo que una auditoría encuentra mal o faltante, como un servicio facturado sin la autorización que necesita.',
     attributes: {
       severity: 'Cuánto importa.',
-      amount: 'Cuánto dinero pone en duda, en la moneda de la reclamación.',
+      amount: 'Cuánto dinero pone en duda, en la moneda de la factura.',
       status:
         'En qué estado está: recién encontrado, aceptado o discutido por quien corresponde, o resuelto.',
     },
@@ -8020,7 +8021,7 @@ export const builtins: Readonly<
   'healthcare.clinical-record': {
     name: 'Registro clínico',
     description:
-      'Algo escrito en la historia de un paciente sobre su salud o su atención, tal como lo deja un encuentro.',
+      'Algo escrito en la historia de un paciente sobre su salud o su atención, tal como lo deja una atención.',
     attributes: {
       date: 'Cuándo se registró, o cuándo ocurrió lo que registra.',
       code: 'El código con el que se registra, en la codificación que usa el prestador.',
@@ -8035,11 +8036,12 @@ export const builtins: Readonly<
     },
   },
   'healthcare.condition': {
-    name: 'Afección',
-    description: 'Un diagnóstico o un problema de salud, como un ligamento roto o la diabetes.',
+    name: 'Diagnóstico',
+    description:
+      'Un problema de salud, confirmado o por confirmar, como un ligamento roto o la diabetes.',
     attributes: {
       clinicalStatus:
-        'Si todavía hay que confirmarla, si está presente, si está en remisión o si terminó.',
+        'Si todavía hay que confirmarlo, si está presente, si está en remisión o si terminó.',
     },
   },
   'healthcare.procedure': {
@@ -8055,12 +8057,12 @@ export const builtins: Readonly<
   'healthcare.treats': {
     name: 'trata',
     description:
-      'Da atención: un prestador a un paciente, o un procedimiento o una medicación a una afección.',
+      'Da atención: un prestador a un paciente, o un procedimiento o una medicación a un diagnóstico.',
   },
   'healthcare.is-for': {
     name: 'corresponde a',
     description:
-      'Dice de qué paciente es un encuentro, una reclamación, una autorización, un plan de cuidados o un registro clínico.',
+      'Dice de qué paciente es una atención, una factura, una autorización, un plan de cuidados o un registro clínico.',
   },
   'healthcare.is-covered-by': {
     name: 'tiene cobertura de',
@@ -8078,28 +8080,28 @@ export const builtins: Readonly<
   'healthcare.is-submitted-to': {
     name: 'se presenta ante',
     description:
-      'Envía una reclamación, o el pedido de una autorización, al financiador que la decide.',
+      'Envía una factura, o el pedido de una autorización, al financiador que la decide.',
     attributes: { date: 'Cuándo se envió, como "2026-03-14".' },
   },
   'healthcare.authorizes': {
     name: 'autoriza',
     description:
-      'Aprueba atención antes de que se dé: una autorización para un procedimiento, una medicación, un encuentro o una línea de reclamación.',
+      'Aprueba atención antes de que se dé: una autorización para un procedimiento, una medicación, una atención o un ítem de factura.',
   },
   'healthcare.bills': {
     name: 'factura',
     description:
-      'Cobra la atención dada: una reclamación, o una de sus líneas, por un encuentro o un registro clínico, como un procedimiento, un estudio o un medicamento.',
+      'Cobra la atención dada: una factura, o uno de sus ítems, por una atención o un registro clínico, como un procedimiento, un estudio o un medicamento.',
   },
   'healthcare.pays': {
     name: 'paga',
     description:
-      'Paga lo que pide una reclamación, o una de sus líneas: un financiador, una vez que decide.',
+      'Paga lo que pide una factura, o uno de sus ítems: un financiador, una vez que decide.',
   },
   'healthcare.denies': {
     name: 'rechaza',
     description:
-      'Se niega a pagar una reclamación o una de sus líneas, o rechaza una autorización: un financiador, por un motivo que da.',
+      'Se niega a pagar una factura o uno de sus ítems, o rechaza una autorización: un financiador, por un motivo que da.',
     attributes: {
       reason: 'Por qué, tal como lo dice el financiador, como "ninguna autorización lo cubre".',
     },
@@ -8107,26 +8109,26 @@ export const builtins: Readonly<
   'healthcare.audits': {
     name: 'audita',
     description:
-      'Revisa lo que abarca una auditoría: reclamaciones y sus líneas, encuentros, registros clínicos, autorizaciones o el trabajo de un prestador.',
+      'Revisa lo que abarca una auditoría: facturas y sus ítems, atenciones, registros clínicos, autorizaciones o el trabajo de un prestador.',
   },
   'healthcare.is-found-in': {
     name: 'se encuentra en',
     description:
-      'Señala dónde se encontró un hallazgo de auditoría: una reclamación o una de sus líneas, un encuentro, un registro clínico o una autorización.',
+      'Señala dónde se encontró un hallazgo de auditoría: una factura o uno de sus ítems, una atención, un registro clínico o una autorización.',
   },
   'healthcare.addresses': {
     name: 'aborda',
-    description: 'Dirige un plan de cuidados, o uno de sus objetivos, a una afección.',
+    description: 'Dirige un plan de cuidados, o uno de sus objetivos, a un diagnóstico.',
   },
   'healthcare.measures': {
     name: 'mide',
     description:
-      'Dice cómo va un objetivo o una afección: una observación, como una medición de glucemia para un objetivo de diabetes.',
+      'Dice cómo va un objetivo o un diagnóstico: una observación, como una medición de glucemia para un objetivo de diabetes.',
   },
   'healthcare.is-part-of': {
     name: 'es parte de',
     description:
-      'Ubica a un profesional en su organización, un plan o una auditoría en su financiador, una línea en su reclamación, un hallazgo en su auditoría, un objetivo en su plan de cuidados o un registro clínico en su encuentro.',
+      'Ubica a un profesional en su organización, un plan o una auditoría en su financiador, un ítem en su factura, un hallazgo en su auditoría, un objetivo en su plan de cuidados o un registro clínico en su atención.',
   },
   // P6: Finance (ADR 0079). A transaction is an "operación", since "transacción" is the word the
   // glossary avoids for an action, and a party an "interviniente", since a "parte" is a drawing's.
