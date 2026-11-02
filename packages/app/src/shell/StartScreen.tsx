@@ -31,6 +31,11 @@ const SAMPLE_TEXTS: Readonly<Record<string, { title: string; description: string
     description:
       'An online shop’s order, from the customer’s order through a stock check to shipping, and the states it goes through, with a scenario of an order that ships.',
   },
+  'clinic-claim': {
+    title: 'Healthcare: a clinic’s claim',
+    description:
+      'An invented clinic bills an invented insurer for a knee MRI, from the visit through its authorization to payment or denial, with the audit that reviews the claim and the patient’s care plan.',
+  },
 };
 
 interface StartScreenProps {

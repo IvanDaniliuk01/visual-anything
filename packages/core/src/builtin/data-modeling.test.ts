@@ -513,6 +513,7 @@ describe('the built-in Data modeling package', () => {
       'kubernetes',
       'control-and-circuits',
       'anatomy',
+      'healthcare',
     ]);
     for (const builtin of BUILTIN_PACKAGES) expect(RESERVED_PACKAGE_IDS.has(builtin.id)).toBe(true);
   });

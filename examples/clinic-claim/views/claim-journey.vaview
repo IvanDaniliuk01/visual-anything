@@ -1,0 +1,97 @@
+{
+  "id": "claim-journey",
+  "name": "Claim journey",
+  "description": "Jordan’s knee, from the visit through the authorization and the claim to Harbor’s decision.",
+  "perspective": {
+    "name": "Billing"
+  },
+  "nestingRelationTypes": [
+    "healthcare.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "dr-ortiz",
+      "container": "clinic",
+      "x": 24,
+      "y": 168
+    },
+    {
+      "element": "dr-haddad",
+      "container": "clinic",
+      "x": 24,
+      "y": 56
+    },
+    {
+      "element": "silver-plan",
+      "container": "harbor",
+      "x": 24,
+      "y": 56
+    },
+    {
+      "element": "knee-pain",
+      "container": "knee-visit",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "meniscus-tear",
+      "container": "knee-visit",
+      "x": 24,
+      "y": 160
+    },
+    {
+      "element": "knee-mri",
+      "container": "mri-visit",
+      "x": 24,
+      "y": 56
+    },
+    {
+      "element": "jordan",
+      "x": 328,
+      "y": 72
+    },
+    {
+      "element": "clinic",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "harbor",
+      "x": 592,
+      "y": 128
+    },
+    {
+      "element": "knee-visit",
+      "x": 1168,
+      "y": 104
+    },
+    {
+      "element": "mri-visit",
+      "x": 1448,
+      "y": 144
+    },
+    {
+      "element": "auth",
+      "x": 312,
+      "y": 208
+    },
+    {
+      "element": "claim",
+      "x": 880,
+      "y": 128
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "leftOut": [
+      "a1c-reading",
+      "contrast-finding",
+      "diabetes-plan",
+      "goal-a1c",
+      "goal-walk",
+      "imaging-audit",
+      "metformin",
+      "type-2-diabetes"
+    ]
+  }
+}

@@ -1,0 +1,462 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "World"
+  },
+  "elements": [
+    {
+      "id": "jordan",
+      "component": "healthcare.patient",
+      "name": "Jordan Reyes",
+      "description": "An invented patient: a teacher with a painful left knee, and type 2 diabetes.",
+      "attributes": {
+        "birthYear": 1979,
+        "recordNumber": "NFC-000117"
+      }
+    },
+    {
+      "id": "clinic",
+      "component": "healthcare.provider-organization",
+      "name": "Northside Family Clinic",
+      "description": "An invented family clinic, with an imaging room of its own.",
+      "attributes": {
+        "kind": "clinic"
+      }
+    },
+    {
+      "id": "dr-ortiz",
+      "component": "healthcare.practitioner",
+      "name": "Dr. Lena Ortiz",
+      "description": "Jordan’s family doctor.",
+      "attributes": {
+        "specialty": "family medicine"
+      }
+    },
+    {
+      "id": "dr-haddad",
+      "component": "healthcare.practitioner",
+      "name": "Dr. Omar Haddad",
+      "description": "The clinic’s radiologist.",
+      "attributes": {
+        "specialty": "radiology"
+      }
+    },
+    {
+      "id": "harbor",
+      "component": "healthcare.payer",
+      "name": "Harbor Mutual Health",
+      "description": "An invented health insurer.",
+      "attributes": {
+        "kind": "insurer"
+      }
+    },
+    {
+      "id": "silver-plan",
+      "component": "healthcare.plan",
+      "name": "Harbor Silver",
+      "description": "Covers visits; imaging needs an authorization first.",
+      "attributes": {
+        "level": "Silver"
+      }
+    },
+    {
+      "id": "imaging-audit",
+      "component": "healthcare.audit",
+      "name": "Imaging audit, Q2",
+      "description": "Harbor’s review of the imaging it paid for between April and June.",
+      "attributes": {
+        "period": "April to June 2026",
+        "timing": "postpayment"
+      }
+    },
+    {
+      "id": "contrast-finding",
+      "component": "healthcare.audit-finding",
+      "name": "Contrast not authorized",
+      "description": "The contrast agent was billed and paid, but the authorization covered the MRI alone.",
+      "attributes": {
+        "amount": 120,
+        "severity": "medium",
+        "status": "open"
+      }
+    },
+    {
+      "id": "knee-visit",
+      "component": "healthcare.encounter",
+      "name": "Knee pain visit",
+      "description": "Jordan sees Dr. Ortiz about her left knee.",
+      "attributes": {
+        "class": "ambulatory",
+        "date": "2026-03-04"
+      }
+    },
+    {
+      "id": "knee-pain",
+      "component": "healthcare.observation",
+      "name": "Knee pain score",
+      "description": "How much the knee hurts, as Jordan rates it.",
+      "attributes": {
+        "date": "2026-03-04",
+        "value": "6 of 10"
+      }
+    },
+    {
+      "id": "meniscus-tear",
+      "component": "healthcare.condition",
+      "name": "Torn meniscus",
+      "description": "A tear in the cartilage of the left knee, which the MRI is to confirm.",
+      "attributes": {
+        "clinicalStatus": "suspected",
+        "date": "2026-03-04"
+      }
+    },
+    {
+      "id": "mri-visit",
+      "component": "healthcare.encounter",
+      "name": "MRI appointment",
+      "description": "Jordan comes back for the scan.",
+      "attributes": {
+        "class": "ambulatory",
+        "date": "2026-03-12"
+      }
+    },
+    {
+      "id": "knee-mri",
+      "component": "healthcare.procedure",
+      "name": "MRI of the knee",
+      "description": "A scan of the left knee, done with a contrast agent.",
+      "attributes": {
+        "date": "2026-03-12"
+      }
+    },
+    {
+      "id": "auth",
+      "component": "healthcare.authorization",
+      "name": "Authorization PA-20417",
+      "description": "One MRI of the left knee, without contrast.",
+      "attributes": {
+        "number": "PA-20417",
+        "quantity": 1,
+        "status": "approved",
+        "validUntil": "2026-04-30"
+      }
+    },
+    {
+      "id": "claim",
+      "component": "healthcare.claim",
+      "name": "Claim C-1001",
+      "description": "What the clinic asks Harbor to pay for the visit and the scan.",
+      "attributes": {
+        "number": "C-1001",
+        "status": "paid",
+        "total": 1250
+      }
+    },
+    {
+      "id": "line-visit",
+      "component": "healthcare.claim-line",
+      "name": "Office visit",
+      "description": "The visit of 4 March.",
+      "attributes": {
+        "amount": 180,
+        "quantity": 1
+      }
+    },
+    {
+      "id": "line-mri",
+      "component": "healthcare.claim-line",
+      "name": "MRI, left knee",
+      "description": "The scan of 12 March.",
+      "attributes": {
+        "amount": 950,
+        "quantity": 1
+      }
+    },
+    {
+      "id": "line-contrast",
+      "component": "healthcare.claim-line",
+      "name": "Contrast agent",
+      "description": "The contrast agent given with the scan.",
+      "attributes": {
+        "amount": 120,
+        "quantity": 1
+      }
+    },
+    {
+      "id": "diabetes-plan",
+      "component": "healthcare.care-plan",
+      "name": "Diabetes care plan",
+      "description": "What Jordan and Dr. Ortiz agreed to do about her diabetes this year.",
+      "attributes": {
+        "period": "2026",
+        "status": "active"
+      }
+    },
+    {
+      "id": "goal-a1c",
+      "component": "healthcare.goal",
+      "name": "HbA1c",
+      "description": "Her long-term blood sugar, kept under its target.",
+      "attributes": {
+        "due": "2026-09",
+        "target": "under 7%"
+      }
+    },
+    {
+      "id": "goal-walk",
+      "component": "healthcare.goal",
+      "name": "Daily walk",
+      "description": "Thirty minutes of walking, once the knee allows it.",
+      "attributes": {
+        "target": "30 min a day"
+      }
+    },
+    {
+      "id": "type-2-diabetes",
+      "component": "healthcare.condition",
+      "name": "Type 2 diabetes",
+      "description": "Diagnosed in 2021.",
+      "attributes": {
+        "clinicalStatus": "active"
+      }
+    },
+    {
+      "id": "a1c-reading",
+      "component": "healthcare.observation",
+      "name": "HbA1c reading",
+      "description": "Her last result, from the visit of 4 March.",
+      "attributes": {
+        "date": "2026-03-04",
+        "value": "7.8%"
+      }
+    },
+    {
+      "id": "metformin",
+      "component": "healthcare.medication",
+      "name": "Metformin",
+      "description": "Taken with meals.",
+      "attributes": {
+        "dose": "500 mg twice a day"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "ortiz-in-clinic",
+      "relationType": "healthcare.is-part-of",
+      "from": "dr-ortiz",
+      "to": "clinic"
+    },
+    {
+      "id": "haddad-in-clinic",
+      "relationType": "healthcare.is-part-of",
+      "from": "dr-haddad",
+      "to": "clinic"
+    },
+    {
+      "id": "silver-in-harbor",
+      "relationType": "healthcare.is-part-of",
+      "from": "silver-plan",
+      "to": "harbor"
+    },
+    {
+      "id": "audit-in-harbor",
+      "relationType": "healthcare.is-part-of",
+      "from": "imaging-audit",
+      "to": "harbor"
+    },
+    {
+      "id": "finding-in-audit",
+      "relationType": "healthcare.is-part-of",
+      "from": "contrast-finding",
+      "to": "imaging-audit"
+    },
+    {
+      "id": "pain-in-visit",
+      "relationType": "healthcare.is-part-of",
+      "from": "knee-pain",
+      "to": "knee-visit"
+    },
+    {
+      "id": "tear-in-visit",
+      "relationType": "healthcare.is-part-of",
+      "from": "meniscus-tear",
+      "to": "knee-visit"
+    },
+    {
+      "id": "mri-in-appointment",
+      "relationType": "healthcare.is-part-of",
+      "from": "knee-mri",
+      "to": "mri-visit"
+    },
+    {
+      "id": "visit-line-in-claim",
+      "relationType": "healthcare.is-part-of",
+      "from": "line-visit",
+      "to": "claim"
+    },
+    {
+      "id": "mri-line-in-claim",
+      "relationType": "healthcare.is-part-of",
+      "from": "line-mri",
+      "to": "claim"
+    },
+    {
+      "id": "contrast-line-in-claim",
+      "relationType": "healthcare.is-part-of",
+      "from": "line-contrast",
+      "to": "claim"
+    },
+    {
+      "id": "a1c-goal-in-plan",
+      "relationType": "healthcare.is-part-of",
+      "from": "goal-a1c",
+      "to": "diabetes-plan"
+    },
+    {
+      "id": "walk-goal-in-plan",
+      "relationType": "healthcare.is-part-of",
+      "from": "goal-walk",
+      "to": "diabetes-plan"
+    },
+    {
+      "id": "jordan-covered",
+      "relationType": "healthcare.is-covered-by",
+      "from": "jordan",
+      "to": "silver-plan",
+      "attributes": {
+        "memberId": "HMH-482113"
+      }
+    },
+    {
+      "id": "ortiz-treats-jordan",
+      "relationType": "healthcare.treats",
+      "from": "dr-ortiz",
+      "to": "jordan"
+    },
+    {
+      "id": "haddad-treats-jordan",
+      "relationType": "healthcare.treats",
+      "from": "dr-haddad",
+      "to": "jordan"
+    },
+    {
+      "id": "visit-for-jordan",
+      "relationType": "healthcare.is-for",
+      "from": "knee-visit",
+      "to": "jordan"
+    },
+    {
+      "id": "appointment-for-jordan",
+      "relationType": "healthcare.is-for",
+      "from": "mri-visit",
+      "to": "jordan"
+    },
+    {
+      "id": "ortiz-requests-auth",
+      "relationType": "healthcare.requests",
+      "from": "dr-ortiz",
+      "to": "auth"
+    },
+    {
+      "id": "auth-to-harbor",
+      "relationType": "healthcare.is-submitted-to",
+      "from": "auth",
+      "to": "harbor",
+      "attributes": {
+        "date": "2026-03-04"
+      }
+    },
+    {
+      "id": "auth-for-mri",
+      "relationType": "healthcare.authorizes",
+      "from": "auth",
+      "to": "knee-mri"
+    },
+    {
+      "id": "visit-line-bills",
+      "relationType": "healthcare.bills",
+      "from": "line-visit",
+      "to": "knee-visit"
+    },
+    {
+      "id": "mri-line-bills",
+      "relationType": "healthcare.bills",
+      "from": "line-mri",
+      "to": "knee-mri"
+    },
+    {
+      "id": "contrast-line-bills",
+      "relationType": "healthcare.bills",
+      "from": "line-contrast",
+      "to": "knee-mri"
+    },
+    {
+      "id": "claim-to-harbor",
+      "relationType": "healthcare.is-submitted-to",
+      "from": "claim",
+      "to": "harbor",
+      "attributes": {
+        "date": "2026-03-14"
+      }
+    },
+    {
+      "id": "harbor-pays-claim",
+      "relationType": "healthcare.pays",
+      "from": "harbor",
+      "to": "claim"
+    },
+    {
+      "id": "harbor-denies-contrast",
+      "relationType": "healthcare.denies",
+      "from": "harbor",
+      "to": "line-contrast",
+      "attributes": {
+        "reason": "no authorization covers it"
+      }
+    },
+    {
+      "id": "audit-reviews-claim",
+      "relationType": "healthcare.audits",
+      "from": "imaging-audit",
+      "to": "claim"
+    },
+    {
+      "id": "finding-in-contrast-line",
+      "relationType": "healthcare.is-found-in",
+      "from": "contrast-finding",
+      "to": "line-contrast"
+    },
+    {
+      "id": "plan-for-jordan",
+      "relationType": "healthcare.is-for",
+      "from": "diabetes-plan",
+      "to": "jordan"
+    },
+    {
+      "id": "diabetes-for-jordan",
+      "relationType": "healthcare.is-for",
+      "from": "type-2-diabetes",
+      "to": "jordan"
+    },
+    {
+      "id": "plan-addresses-diabetes",
+      "relationType": "healthcare.addresses",
+      "from": "diabetes-plan",
+      "to": "type-2-diabetes"
+    },
+    {
+      "id": "reading-measures-goal",
+      "relationType": "healthcare.measures",
+      "from": "a1c-reading",
+      "to": "goal-a1c"
+    },
+    {
+      "id": "metformin-treats-diabetes",
+      "relationType": "healthcare.treats",
+      "from": "metformin",
+      "to": "type-2-diabetes"
+    }
+  ]
+}
