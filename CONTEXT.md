@@ -111,7 +111,7 @@ A short text, such as "PK" or "FK", that a shape writes in its detail while its 
 _Avoid_: chip, pill; badge alone for the count on an aggregated relation, which is a count badge
 
 **Name tag**:
-The rounded box hung under a shape whose own outline cannot hold its name whole, and under a drawing with parts that is no container: in the shape's colors, touching it, holding its name, whole, and its detail. It is part of the shape, which is pointed at, marked, related, laid out and exported with it (ADR 0066).
+The rounded box hung under a shape whose own outline cannot hold its name whole, and under a drawing with parts that is no container: in the shape's colors, touching it, holding its name, whole, and its detail. It is part of the shape, which is pointed at, marked, related, laid out and exported with it (ADR 0066). A shape whose text names a side writes its name in a name tag attached there, above, below, left or right, in its text's font and back (ADR 0088).
 _Avoid_: label, caption (a caption is shown over the canvas), name below
 
 **Stacking order**:

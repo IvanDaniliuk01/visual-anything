@@ -16,7 +16,9 @@ import { writeSvg } from '../export/svg';
 import { loadSample } from '../test/sample';
 import { drawShapeOutlines, writeShapeLabels, type LabelDecor, type TextFactory } from './draw';
 import { BASE_DRAWING } from './drawing';
+import { placeFarNames } from './farNames';
 import { selectedBoxOf, holdsAsDrawn } from './hit';
+import { cutOnCanvas } from './hoverCut';
 import { tagReachOf } from './layout/input';
 import { nameTagOf, nameTagOn } from './nameTags';
 import { shapeBorderPoint } from './outlines';
@@ -448,5 +450,30 @@ describe('shapeTextOf', () => {
   it('gives nothing for an empty text', () => {
     expect(shapeTextOf({ text: {} } as never, 'as-stored')).toBeUndefined();
     expect(shapeTextOf({ text: { size: 9 } } as never, 'as-stored')).toEqual({ size: 9 });
+  });
+});
+
+describe('what else reads the text', () => {
+  const plain = shapeIn(sample);
+  const long = { ...plain, name: 'A name far too long to be written whole on one line here' };
+
+  it('gives back in the hover card a name cut on one line', () => {
+    expect(cutOnCanvas({ ...long, text: { wrap: false } })).toBe(true);
+    expect(cutOnCanvas({ ...plain, text: { size: 14 } })).toBe(cutOnCanvas(plain));
+    expect(cutOnCanvas(shapeIn(written({ position: 'right' })))).toBe(false);
+  });
+
+  it('writes a container’s name far out in its text color, a table’s as always', () => {
+    const camera = { scale: 0.05, x: -plain.rect.x * 0.05, y: -plain.rect.y * 0.05 };
+    const viewport = { width: 1600, height: 1000 };
+    const big = {
+      ...plain,
+      holdsContents: true,
+      text: { color: '#E5484D' },
+      rect: { ...plain.rect, width: 4000, height: 2000 },
+    };
+    expect(placeFarNames([big], camera, viewport)[0]?.color).toBe('#E5484D');
+    const [table] = placeFarNames([{ ...big, rowCount: 3 }], camera, viewport);
+    expect(table?.color).not.toBe('#E5484D');
   });
 });
