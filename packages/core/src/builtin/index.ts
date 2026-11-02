@@ -6,6 +6,7 @@ import { MACHINE_LEARNING } from './machine-learning';
 import { PHYSICAL_AI } from './physical-ai';
 import { PROCESS } from './process';
 import { SYSTEMS } from './systems';
+import { FINANCE } from './finance';
 
 export { C4 } from './c4';
 export { DATA_MODELING } from './data-modeling';
@@ -15,6 +16,7 @@ export { MACHINE_LEARNING } from './machine-learning';
 export { PHYSICAL_AI } from './physical-ai';
 export { PROCESS } from './process';
 export { SYSTEMS } from './systems';
+export { FINANCE } from './finance';
 
 /**
  * The packages built into Visual Anything. A project uses one by listing its id; the package is not
@@ -28,6 +30,7 @@ export const BUILTIN_PACKAGES: readonly PackageFile[] = [
   MACHINE_LEARNING,
   PHYSICAL_AI,
   PROCESS,
+  FINANCE,
 ];
 
 /** The built-in package with this id, if there is one. */
@@ -54,4 +57,6 @@ export const RESERVED_PACKAGE_IDS: ReadonlySet<Id> = new Set([
   'kubernetes',
   'control-and-circuits',
   'anatomy',
+  // Finance (P6).
+  'finance',
 ]);
