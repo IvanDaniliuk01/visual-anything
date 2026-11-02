@@ -561,8 +561,16 @@ What package code may reach beyond its element, declared by its package and appr
 _Avoid_: permission (alone), scope (a view's)
 
 **Hook**:
-One of the three functions package code may export, each called with a frozen copy of an element and what lies around it, and answering plain data: `attributes` computes values, `check` finds problems, and `draw` says what to draw inside the element's shapes. It runs on the elements created from its package's components, and from components derived from them.
+One of the three functions package code may export, each called with a frozen copy of an element and what lies around it, and answering plain data: `attributes` computes values, `check` finds problems, and `draw` says what to draw inside the element's shapes. It runs on the elements created from its package's components, and from components derived from them. Package code may also export `actions`, `import`, `export` and `panel`, which answer a proposal, a file's text or a panel's data (ADR 0089).
 _Avoid_: callback, handler, script
+
+**Package action**:
+A named action package code offers in the canvas menu or the Packages menu, which answers a proposal the person reviews and never changes the model by itself (ADR 0089).
+_Avoid_: plugin command, macro, script
+
+**Format panel**:
+The inspector's tabs for the selection, Style, Text and Arrange, which set appearance as particularities of each selected element or relation and arrangement in the view (ADR 0088).
+_Avoid_: style panel, properties panel
 
 **Computed value**:
 An attribute's value that a hook of package code computed: shown with a mark naming its package, and never saved, put in the history or sent to a file.
