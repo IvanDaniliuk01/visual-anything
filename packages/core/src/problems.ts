@@ -103,6 +103,8 @@ export type ProblemCode =
   // Overlays (ADR 0055): one a view does not have, and a value outside what an overlay allows.
   | 'unknown-overlay'
   | 'invalid-overlay'
+  // Drawing defaults (ADR 0086): a group, value or preset a drawing does not have, or out of range.
+  | 'invalid-drawing'
   // External identifiers and destinations (ADR 0056): an identifier or a destination a command sets
   // that is not one; and, only as warnings, elements sharing an identifier in one scheme and
   // destinations that name what is missing or are not ones, kept and flagged.

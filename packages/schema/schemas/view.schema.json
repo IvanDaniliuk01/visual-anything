@@ -83,6 +83,10 @@
       "$ref": "#/definitions/Overlays",
       "description": "How this view colors, sizes, marks or fades its shapes by their attributes, in order (ADR 0055): each channel of a shape is set by the first overlay that sets it. Left out when it has none."
     },
+    "drawing": {
+      "$ref": "#/definitions/DrawingDefaults",
+      "description": "How this view draws what no appearance sets, changing the project's drawing defaults for it alone (ADR 0086). Left out, the project's."
+    },
     "conflicts": {
       "type": "array",
       "items": {
@@ -1731,6 +1735,280 @@
       ],
       "additionalProperties": false,
       "description": "A number and its opacity."
+    },
+    "DrawingDefaults": {
+      "type": "object",
+      "properties": {
+        "preset": {
+          "$ref": "#/definitions/DrawingPreset",
+          "description": "The preset the values below change; in a view, a preset of its own. Left out: Clean."
+        },
+        "lines": {
+          "$ref": "#/definitions/DrawingLines"
+        },
+        "shapes": {
+          "$ref": "#/definitions/DrawingShapes"
+        },
+        "text": {
+          "$ref": "#/definitions/DrawingText"
+        },
+        "containers": {
+          "$ref": "#/definitions/DrawingContainers"
+        },
+        "aggregated": {
+          "$ref": "#/definitions/DrawingAggregated"
+        },
+        "reading": {
+          "$ref": "#/definitions/DrawingReading"
+        },
+        "grid": {
+          "$ref": "#/definitions/DrawingGrid"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Drawing defaults, by group; whatever is left out is the layer's under it."
+    },
+    "DrawingPreset": {
+      "type": "string",
+      "enum": [
+        "clean",
+        "dense",
+        "expressive",
+        "high-contrast"
+      ],
+      "description": "A named, built-in set of drawing defaults."
+    },
+    "DrawingLines": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 8
+        },
+        "arrowhead": {
+          "type": "string",
+          "enum": [
+            "filled",
+            "open",
+            "none"
+          ]
+        },
+        "arrowSize": {
+          "type": "number",
+          "description": "The arrowhead's size as a multiple of the preset's.",
+          "minimum": 0.5,
+          "maximum": 3
+        },
+        "cornerRadius": {
+          "type": "number",
+          "description": "The radius of a rounded route's corners.",
+          "minimum": 0,
+          "maximum": 48
+        },
+        "parallelGap": {
+          "type": "number",
+          "description": "How far apart parallel lines between the same shapes run.",
+          "minimum": 8,
+          "maximum": 64
+        },
+        "color": {
+          "type": "string",
+          "enum": [
+            "by-type",
+            "neutral"
+          ],
+          "description": "A relation type's built-in color, or one neutral color, with the type's on hover and selection."
+        },
+        "fadeOthers": {
+          "type": "boolean",
+          "description": "Whether the lines that touch nothing hovered or selected fade."
+        }
+      },
+      "additionalProperties": false,
+      "description": "How a relation's lines are drawn where its appearance sets nothing."
+    },
+    "DrawingShapes": {
+      "type": "object",
+      "properties": {
+        "borderWidth": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 6
+        },
+        "cornerRadius": {
+          "type": "number",
+          "description": "The corner radius of rounded kinds.",
+          "minimum": 0,
+          "maximum": 32
+        },
+        "shadow": {
+          "type": "string",
+          "enum": [
+            "none",
+            "soft"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "How shapes are drawn where their appearance sets nothing."
+    },
+    "DrawingText": {
+      "type": "object",
+      "properties": {
+        "font": {
+          "type": "string",
+          "enum": [
+            "roboto",
+            "system"
+          ]
+        },
+        "nameSize": {
+          "type": "number",
+          "minimum": 9,
+          "maximum": 32
+        },
+        "nameWeight": {
+          "type": "number",
+          "enum": [
+            400,
+            500,
+            700
+          ]
+        },
+        "detailSize": {
+          "type": "number",
+          "minimum": 8,
+          "maximum": 24
+        },
+        "rowSize": {
+          "type": "number",
+          "minimum": 8,
+          "maximum": 24
+        },
+        "containerNameSize": {
+          "type": "number",
+          "minimum": 8,
+          "maximum": 32
+        },
+        "labelSize": {
+          "type": "number",
+          "minimum": 8,
+          "maximum": 24
+        },
+        "noteSize": {
+          "type": "number",
+          "minimum": 8,
+          "maximum": 32
+        },
+        "lineHeight": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "padding": {
+          "type": "number",
+          "description": "The inset of a shape's text block.",
+          "minimum": 2,
+          "maximum": 32
+        }
+      },
+      "additionalProperties": false,
+      "description": "The type the canvas writes in."
+    },
+    "DrawingContainers": {
+      "type": "object",
+      "properties": {
+        "drawn": {
+          "type": "string",
+          "enum": [
+            "as-kind",
+            "region"
+          ],
+          "description": "As their kind, or as a region with a name tab and their kind's icon."
+        },
+        "padding": {
+          "type": "number",
+          "description": "The room between a container's border and its contents.",
+          "minimum": 8,
+          "maximum": 96
+        },
+        "collapsed": {
+          "type": "string",
+          "enum": [
+            "stack",
+            "count",
+            "stack-and-count"
+          ],
+          "description": "How a collapsed container shows that it holds more."
+        }
+      },
+      "additionalProperties": false,
+      "description": "How containers are drawn."
+    },
+    "DrawingAggregated": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "type": "string",
+          "enum": [
+            "label",
+            "badge"
+          ]
+        },
+        "growsWithCount": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "description": "How the one line drawn for several relations shows how many it stands for."
+    },
+    "DrawingReading": {
+      "type": "object",
+      "properties": {
+        "namesFrom": {
+          "type": "number",
+          "minimum": 0.05,
+          "maximum": 2
+        },
+        "detailsFrom": {
+          "type": "number",
+          "minimum": 0.05,
+          "maximum": 2
+        },
+        "rowsFrom": {
+          "type": "number",
+          "minimum": 0.05,
+          "maximum": 2
+        },
+        "labelsFrom": {
+          "type": "number",
+          "minimum": 0.05,
+          "maximum": 2
+        },
+        "farNameSize": {
+          "type": "number",
+          "description": "The size, in screen pixels, of the names written over shapes too small to hold them.",
+          "minimum": 9,
+          "maximum": 24
+        }
+      },
+      "additionalProperties": false,
+      "description": "The zoom levels at which what a shape says shows."
+    },
+    "DrawingGrid": {
+      "type": "object",
+      "properties": {
+        "look": {
+          "type": "string",
+          "enum": [
+            "lines",
+            "dots"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "How the grid is drawn when it shows."
     },
     "FileConflict": {
       "type": "object",

@@ -399,6 +399,14 @@ _Avoid_: transaction, change set
 The actions of the open project since it was opened or last reloaded from disk, the ones undone among them, which the local program keeps in its memory (ADR 0028). The history panel lists them, newest first, and undoes or redoes up to any one of them.
 _Avoid_: log, timeline, version history
 
+**Drawing defaults**:
+The values the canvas, the read-only page and every export draw with wherever no appearance sets them: line widths and arrowheads, borders and corner radii, the font and its sizes and weights, padding, how containers, collapsed containers and aggregated relations are drawn, the zoom at which names, details and rows show, and the grid's look. A project names a preset and changes any of its values, and a view changes them again for itself; both are stored in their files, so everyone opening the project and every export see the same. An appearance still comes first for what it sets (ADR 0086).
+_Avoid_: style, settings, theme (for these values)
+
+**Drawing preset**:
+A named, built-in set of drawing defaults: Clean (the default), Dense, Expressive and High contrast.
+_Avoid_: template, skin
+
 ### Preferences
 
 **Preference**:

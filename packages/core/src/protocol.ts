@@ -122,6 +122,8 @@ import { readSpaceCamera } from './space/camera';
  *    And simulations (M12, ADR 0085), in 7 too, since no build of 7 shipped: a package's components
  *    may declare `simulation`, view states may carry one, and the guidance `simulation` opens an
  *    element's simulation at a tick with parameters and a seed, plays or pauses it, or closes it.
+ *    And drawing defaults (A5, ADR 0086), in 7 too: `drawing` in the project file and view files,
+ *    which an older app of 7 would refuse when it opens them.
  */
 export const PROTOCOL_VERSION = 7;
 

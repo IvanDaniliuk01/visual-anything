@@ -5371,6 +5371,11 @@ export const messages: Catalog = {
   '"codeApprovals" approves {hash} twice.': '"codeApprovals" aprueba {hash} dos veces.',
   '"codeApprovals" holds {n} approvals, more than {m}.':
     '"codeApprovals" tiene {n} aprobaciones, más de {m}.',
+  // Drawing defaults (ADR 0086).
+  'Set the drawing defaults of the project': 'Definir los valores de dibujo del proyecto',
+  'Reset the drawing defaults of the project': 'Restablecer los valores de dibujo del proyecto',
+  'Set the drawing defaults of "{view}"': 'Definir los valores de dibujo de "{view}"',
+  'Reset the drawing defaults of "{view}"': 'Restablecer los valores de dibujo de "{view}"',
   // Overlays, their legend, and levels of detail (ADR 0055).
   'Set the overlays of "{view}"': 'Definir las superposiciones de "{view}"',
   'Remove the overlays of "{view}"': 'Quitar las superposiciones de "{view}"',

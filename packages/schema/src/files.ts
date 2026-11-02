@@ -8,6 +8,18 @@ import type { AppearanceImage, ImageDefinition } from './images';
 export type { AppearanceImage, BitmapImage, ImageDefinition, SvgImage } from './images';
 import type { AppearanceSolid, SolidDefinition } from './solids';
 import type { SavedSimulation, SimulationDefinition } from './simulation';
+import type { DrawingDefaults } from './drawing';
+export type {
+  DrawingAggregated,
+  DrawingContainers,
+  DrawingDefaults,
+  DrawingGrid,
+  DrawingLines,
+  DrawingPreset,
+  DrawingReading,
+  DrawingShapes,
+  DrawingText,
+} from './drawing';
 import type { Pose, SavedSpace } from './space';
 export type {
   ParameterChoice,
@@ -95,6 +107,11 @@ export interface ProjectFile {
    * built-in packages, Essence and "relates to". Absent when it gives none an appearance.
    */
   appearances?: ProjectAppearances;
+  /**
+   * How the project draws what no appearance sets (ADR 0086): a preset and the values it changes.
+   * Left out, the Clean preset as built in.
+   */
+  drawing?: DrawingDefaults;
   /**
    * What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what
    * the file keeps in place, and the other choice. Written only by a merge; the person resolves them.
@@ -821,6 +838,11 @@ export interface ViewFile {
    * each channel of a shape is set by the first overlay that sets it. Left out when it has none.
    */
   overlays?: Overlays;
+  /**
+   * How this view draws what no appearance sets, changing the project's drawing defaults for it alone
+   * (ADR 0086). Left out, the project's.
+   */
+  drawing?: DrawingDefaults;
   /**
    * What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what
    * the file keeps in place, and the other choice. Written only by a merge; the person resolves them.

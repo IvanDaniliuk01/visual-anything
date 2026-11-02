@@ -357,6 +357,7 @@ export { ROBOTO_VARIANTS, robotoEms, robotoWidth, unmeasuredEms } from './text/r
 export * from './faces';
 // Overlays, their legend, and levels of detail (ADR 0055).
 export * from './overlays';
+export * from './drawing';
 export { MAX_OVERLAY_CASES, MAX_OVERLAY_STOPS } from './commands/overlays';
 export {
   LEVEL_EXIT,

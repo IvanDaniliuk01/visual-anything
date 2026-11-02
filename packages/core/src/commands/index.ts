@@ -35,6 +35,7 @@ import {
   updateRelation,
 } from './model';
 import { updateProject } from './project';
+import { setDrawingDefaults } from './drawing';
 import { setComponentAppearance, setRelationTypeAppearance } from './appearance';
 import { resetRoute, setRoute, settleRoutes } from './routes';
 import { addOverlay, moveOverlay, removeOverlays, setOverlays, updateOverlay } from './overlays';
@@ -306,6 +307,8 @@ function dispatch(draft: Draft, command: Command): string {
       return deleteTour(draft, command);
     case 'set-overlays':
       return setOverlays(draft, command);
+    case 'set-drawing-defaults':
+      return setDrawingDefaults(draft, command);
     case 'add-overlay':
       return addOverlay(draft, command);
     case 'update-overlay':

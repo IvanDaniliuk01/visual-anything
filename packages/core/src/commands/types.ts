@@ -102,6 +102,7 @@ export type Command =
   | UpdateTourCommand
   | DeleteTourCommand
   | SetOverlaysCommand
+  | SetDrawingDefaultsCommand
   | AddOverlayCommand
   | UpdateOverlayCommand
   | RemoveOverlaysCommand
@@ -837,7 +838,7 @@ export interface RemoveSolidCommand {
 
 /** How a relation's line runs through its bend points: orthogonal, straight or curved (ADR 0069). */
 export type { RouteStyle } from '@visual-anything/schema';
-import type { RouteStyle } from '@visual-anything/schema';
+import type { DrawingDefaults, RouteStyle } from '@visual-anything/schema';
 
 /**
  * Routes a relation by hand in a view, as one action (ADR 0039). It changes only what it names, and
@@ -911,6 +912,18 @@ export type NewOverlay = Overlay extends infer O
     ? Omit<O, 'id'> & { id?: Id }
     : never
   : never;
+
+/**
+ * Sets the drawing defaults of the project, or of one view, whole (ADR 0086): what it gives replaces
+ * what was there, and `null` goes back to the preset as built in, or, for a view, to the project's.
+ * It changes only the project file or that view's file.
+ */
+export interface SetDrawingDefaultsCommand {
+  type: 'set-drawing-defaults';
+  /** The view whose drawing defaults change; left out, the project's. */
+  view?: Id;
+  drawing: DrawingDefaults | null;
+}
 
 /**
  * Replaces a view's overlays, in order, as one action: the first that sets a channel of a shape sets
