@@ -4,7 +4,7 @@
  * row cannot take.
  */
 import { definitionsIn, type ProjectSnapshot } from '@visual-anything/core';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { useMemo } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { SendCommand } from '../../canvas/CanvasArea';
@@ -56,6 +56,7 @@ describe('the inspector of a row', () => {
 
   it('leaves out the stacking order, Take out and Move to, and says where it sits', () => {
     render(<Harness project={usersAndOrders()} selected="users-email" />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Arrange' }));
     const view = screen.getByRole('region', { name: 'In this view' });
     expect(
       within(view).getByText('In "users": row 2 of 3, in the model’s order'),
@@ -73,6 +74,7 @@ describe('the inspector of a row', () => {
     const appearance = screen.getByRole('region', { name: 'Appearance' });
     expect(within(appearance).queryByText(ROW_NOTE)).not.toBeInTheDocument();
     expect(within(appearance).getByRole('combobox', { name: 'Shape' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('tab', { name: 'Arrange' }));
     const view = screen.getByRole('region', { name: 'In this view' });
     expect(within(view).getByRole('group', { name: 'Stacking order' })).toBeInTheDocument();
   });

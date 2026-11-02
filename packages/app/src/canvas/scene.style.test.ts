@@ -270,7 +270,7 @@ describe('the canvas', () => {
       const graphics = new Graphics();
       drawShapeBlocks(graphics, [shape]);
       return graphics.context.instructions.map((each) => {
-        const { style, path } = each.data as Drawn;
+        const { style, path } = each.data as unknown as Drawn;
         return { action: each.action, style: { ...style }, path: path?.instructions };
       });
     };
@@ -297,7 +297,7 @@ describe('the canvas', () => {
       arrowhead: { tip: { x: 100, y: 0 }, left: { x: 90, y: -4 }, right: { x: 90, y: 4 } },
     };
     const graphics = new Graphics();
-    drawRoutePieces(graphics, routePieces(line, 1000), [line]);
+    drawRoutePieces(graphics, routePieces(line), [line]);
     const styles = graphics.context.instructions.map(
       (each) => (each.data as { style: { alpha: number } }).style.alpha,
     );

@@ -548,3 +548,60 @@
 .inspector-hint p + p {
   margin-top: var(--space-20);
 }
+
+/* The format panel (ADR 0088): its tabs, Style, Text and Arrange, as the side panels' tabs look. */
+
+.format-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-25);
+  margin: 0 0 var(--space-50);
+  border-bottom: var(--stroke-thin) solid var(--border);
+}
+
+.format-tab {
+  margin-bottom: calc(-1 * var(--stroke-thin));
+  padding: var(--space-25) var(--space-60);
+  border: 0;
+  border-bottom: var(--stroke-thick) solid transparent;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
+  cursor: pointer;
+}
+
+.format-tab:hover {
+  color: var(--text);
+}
+
+.format-tab[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.format-tab:focus-visible {
+  border-radius: var(--radius-sm);
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: calc(-1 * var(--stroke-thick));
+}
+
+/* A section moved into a tab keeps its heading, without the room above it. */
+.format-tab-panel > .inspector-section:first-child {
+  margin-top: 0;
+}
+
+/* Rows of buttons, as the selection's stacking order and alignment. */
+.inspector-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-20) var(--space-30);
+}
+
+.inspector-gradient-color {
+  display: grid;
+  gap: var(--space-20);
+  margin-top: var(--space-30);
+  font-size: var(--text-xs);
+}

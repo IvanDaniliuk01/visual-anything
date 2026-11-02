@@ -733,6 +733,8 @@ describe('Inspector', () => {
         },
       }));
       const { inspector } = renderInspector({ project, selected: [element('appointments-db')] });
+      // What it writes is in the format panel's Text tab (ADR 0088).
+      fireEvent.click(within(inspector).getByRole('tab', { name: 'Text' }));
       expect(detail(inspector, 'Detail')).toBe('Calendar · postgres');
       expect(detail(inspector, 'Badges')).toBe('R');
       expect(
@@ -1221,17 +1223,19 @@ describe('Inspector', () => {
     it('shows a note’s text, read-only', () => {
       renderInspector({ selected: [freeShape('calendar-note')] });
       expect(screen.getByRole('heading', { name: 'Note' })).toBeInTheDocument();
+      // Only its colors are written here, as codes.
+      expect(screen.getAllByRole('textbox').map((box) => box.getAttribute('aria-label'))).toEqual([
+        'Fill color code',
+        'Stroke color code',
+      ]);
+      // Its text is in the format panel's Text tab (ADR 0088).
+      fireEvent.click(screen.getByRole('tab', { name: 'Text' }));
       expect(
         screen.getByText(
           'Scheduling owns the calendar: only the Appointments API reads and writes the Appointments DB.',
         ),
       ).toBeInTheDocument();
       expect(screen.getByText('Edit its text on the canvas.')).toBeInTheDocument();
-      // Only its colors are written here, as codes.
-      expect(screen.getAllByRole('textbox').map((box) => box.getAttribute('aria-label'))).toEqual([
-        'Fill color code',
-        'Stroke color code',
-      ]);
     });
 
     it('gives a note colors of its own, and takes them back for the theme’s', async () => {
@@ -1724,7 +1728,10 @@ describe('Inspector, in this view', () => {
     positions: [{ view: 'system-overview', x: 300, y: 380 }],
   });
 
+  /** Where it sits in the view: in the format panel's Arrange tab (ADR 0088), shown first. */
   function section(): HTMLElement {
+    const arrange = screen.queryByRole('tab', { name: 'Arrange' });
+    if (arrange && arrange.getAttribute('aria-selected') !== 'true') fireEvent.click(arrange);
     return screen.getByRole('region', { name: 'In this view' });
   }
 

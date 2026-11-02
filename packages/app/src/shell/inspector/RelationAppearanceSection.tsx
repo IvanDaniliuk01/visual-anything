@@ -1,18 +1,29 @@
 import {
+  drawingOf,
   drawnRelationAppearanceOf,
   relationAppearanceOriginsOf,
   relationTypeOrRelatesTo,
   type Command,
   type Definitions,
+  type RelationAppearanceChanges,
 } from '@visual-anything/core';
 import { RELATES_TO_ID, type Id, type Relation, type RouteStyle } from '@visual-anything/schema';
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
 import { TraitRow } from '../definitions/TraitRow';
+import { useSender } from '../definitions/useSender';
 import { ColorHints, ScopeChoice } from './colorParts';
 import { idsOf, lineHints, originText, savedIn, wayBack } from './colors';
-import { ColorControl, SelectControl } from './controls';
+import { ColorControl, InlineProblem, SelectControl } from './controls';
+import { FormatPanel } from './FormatPanel';
+import { LINE_STYLE_ROWS, StyleTraitInput } from './StyleTraitInput';
+import {
+  lineStyleValues,
+  projectLineDefaultCommand,
+  relationTypeStyleCommand,
+  storedStyleAt,
+} from './styleTraits';
 import { definitionColorCommand, relationColorCommand, storedAtLevel } from './recolor';
 import {
   ROUTE_STYLES,
@@ -30,24 +41,26 @@ interface RelationAppearanceSectionProps {
   relation: Relation;
   definitions: Definitions;
   disabled: boolean;
+  /** What the Arrange tab holds: its route in the open view; none without a view. */
+  arrange?: ReactNode;
 }
 
 /** Where the section makes its changes: the relation's own appearance, or its relation type's. */
 type Scope = 'relation' | 'relation-type';
 
 /**
- * How the relation's line is drawn, and where a change goes: only this relation, as a particularity
- * (ADR-0035), or every relation of its relation type, at the level the project can change it
- * (ADR-0034). Each pick is one undoable action.
+ * The relation's format panel (ADR 0088): how its line is drawn, in the tabs Style and Arrange, and
+ * where a change goes: only this relation, as a particularity (ADR-0035), or every relation of its
+ * relation type, at the level the project can change it (ADR-0034). Each pick is one undoable action.
  */
 export function RelationAppearanceSection({
   relation,
   definitions,
   disabled,
+  arrange,
 }: RelationAppearanceSectionProps) {
   const t = useT();
-  const { project } = useEditor();
-  const headingId = useId();
+  const { project, viewId } = useEditor();
   const hintId = useId();
   const [scope, setScope] = useState<Scope>('relation');
   const theme = useShownTheme();
@@ -85,19 +98,21 @@ export function RelationAppearanceSection({
           }
         : relationColorCommand(relation, color, definitions, { always, theme });
 
-  return (
-    <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>{t('Appearance')}</h4>
-      {known && (
-        <ScopeChoice
-          value={scope}
-          options={[
-            { value: 'relation', label: t('Only this relation') },
-            { value: 'relation-type', label: t('Every {name}', { name: nameOf(id) }) },
-          ]}
-          onChange={setScope}
-        />
-      )}
+  const values = lineStyleValues(
+    ofType ? { ...relation, appearance: {} } : relation,
+    definitions,
+    drawingOf(project, viewId),
+  );
+  const lineOrigins = ofType
+    ? relationType.origins
+    : relationAppearanceOriginsOf(relation, definitions);
+  const changing = (traits: RelationAppearanceChanges): Command =>
+    ofType
+      ? relationTypeStyleCommand(project, id, traits, relation)
+      : { type: 'update-relation', id: relation.id, changes: { appearanceTraits: traits } };
+
+  const style = (
+    <>
       {ofType && (
         <p className="inspector-notes">{savedIn(project.packages, relationType.package)}</p>
       )}
@@ -134,6 +149,42 @@ export function RelationAppearanceSection({
             />
           )}
         </TraitRow>
+        {LINE_STYLE_ROWS.map((row) => (
+          <TraitRow
+            // A new row for each scope, so that a value on its way is not shown in the other.
+            key={`${row.trait}-${scope}`}
+            label={t(row.label)}
+            source={originText(lineOrigins[row.trait], nameOf, ofType ? id : undefined)}
+            own={
+              ofType
+                ? storedStyleAt(project, 'relation-type', id, row.trait) !== undefined
+                : lineOrigins[row.trait].kind === 'own'
+            }
+            readOnly={disabled}
+            inherit={() => changing({ [row.trait]: null })}
+            note={
+              ofType && relation.appearance?.[row.trait] !== undefined
+                ? t(
+                    'This relation has a {what} of its own: a change here takes it back, so that it follows.',
+                    { what: t(row.label).toLowerCase() },
+                  )
+                : undefined
+            }
+          >
+            {({ id: controlId, describedBy, send }) => (
+              <StyleTraitInput
+                kind={row.kind}
+                id={controlId}
+                label={t(row.label)}
+                value={values[row.trait]}
+                {...(row.range ? { range: row.range } : {})}
+                disabled={disabled}
+                describedBy={describedBy}
+                onCommit={(value) => send(changing({ [row.trait]: value }))}
+              />
+            )}
+          </TraitRow>
+        ))}
         <RouteStyleRow
           // A new row for each scope, so that a choice on its way is not shown in the other.
           key={`route-${scope}`}
@@ -144,7 +195,65 @@ export function RelationAppearanceSection({
         />
       </ul>
       <ColorHints id={hintId} hints={hints} />
-    </section>
+      {!ofType && <LineDefault relation={relation} disabled={disabled} />}
+    </>
+  );
+
+  return (
+    <FormatPanel
+      heading={t('Appearance')}
+      lead={
+        known && (
+          <ScopeChoice
+            value={scope}
+            options={[
+              { value: 'relation', label: t('Only this relation') },
+              { value: 'relation-type', label: t('Every {name}', { name: nameOf(id) }) },
+            ]}
+            onChange={setScope}
+          />
+        )
+      }
+      style={style}
+      arrange={arrange}
+    />
+  );
+}
+
+/**
+ * "Set as the project's default" for lines (ADR 0088): the relation's own line becomes a project
+ * appearance of "relates to", so that every relation whose relation type sets none of it draws it.
+ */
+function LineDefault({ relation, disabled }: { relation: Relation; disabled: boolean }) {
+  const t = useT();
+  const noteId = useId();
+  const problemId = useId();
+  const sender = useSender();
+  const command = projectLineDefaultCommand(relation);
+  return (
+    <div className="inspector-control">
+      <button
+        type="button"
+        className="inspector-action"
+        disabled={disabled || command === undefined}
+        aria-describedby={idsOf(noteId, sender.problem === undefined ? undefined : problemId)}
+        onClick={() => {
+          if (command) void sender.send(command);
+        }}
+      >
+        {t('Set as the project’s default')}
+      </button>
+      <p id={noteId} className="inspector-notes">
+        {command === undefined
+          ? t(
+              'Its stroke, width, dash, opacity and route become the project’s default once it sets one of them itself.',
+            )
+          : t(
+              'Gives every line the stroke, width, dash, opacity and route this one sets itself, wherever its relation type sets none.',
+            )}
+      </p>
+      {sender.problem !== undefined && <InlineProblem id={problemId} text={sender.problem} />}
+    </div>
   );
 }
 

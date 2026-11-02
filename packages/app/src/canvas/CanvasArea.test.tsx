@@ -1547,6 +1547,8 @@ describe('The user’s case, end to end', () => {
       within(menu).getByRole('menuitem', { name: 'Put inside "Clinic booking"' }),
     ).toBeInTheDocument();
     fireEvent.keyDown(menu, { key: 'Escape' });
+    // Where it sits is in the format panel's Arrange tab (ADR 0088).
+    fireEvent.click(screen.getByRole('tab', { name: 'Arrange' }));
     const inView = screen.getByRole('region', { name: 'In this view' });
     expect(within(inView).getByText('Directly in World')).toBeInTheDocument();
     expect(within(inView).getByRole('button', { name: 'Put inside…' })).toBeInTheDocument();

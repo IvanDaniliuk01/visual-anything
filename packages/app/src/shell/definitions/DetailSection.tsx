@@ -23,16 +23,16 @@ const BADGE_LENGTH = 4;
 /** How many lines a detail may take, from 1 to 6 (ADR 0082). */
 const DETAIL_LINES = [1, 2, 3, 4, 5, 6] as const;
 
-type TextPlacement = NonNullable<Appearance['textPlacement']>;
+export type TextPlacement = NonNullable<Appearance['textPlacement']>;
 
 /** Where a shape may place its name and detail in its label area, in words (ADR 0082). */
-const TEXT_PLACEMENTS: readonly { placement: TextPlacement; words: string }[] = [
+export const TEXT_PLACEMENTS: readonly { placement: TextPlacement; words: string }[] = [
   { placement: 'top', words: 'At the top' },
   { placement: 'middle', words: 'In the middle' },
   { placement: 'bottom', words: 'At the bottom' },
 ];
 
-function isTextPlacement(value: string): value is TextPlacement {
+export function isTextPlacement(value: string): value is TextPlacement {
   return TEXT_PLACEMENTS.some((each) => each.placement === value);
 }
 
