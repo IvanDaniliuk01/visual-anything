@@ -46,9 +46,9 @@ The overhaul also takes the app's own panels and toolbars to the Clean look, thr
 - **warnings summed up** in one short notice ("29 warnings · Show"), which opens the list in a panel, rather than each warning written out on the canvas;
 - **the page never scrolls as a whole.** Only its panels do.
 
-## Proposed, not built until the user agrees
+## Agreed later
 
-- **Light stored colors adapted on the dark canvas.** ADR 0033 draws every stored color as stored in both themes, so a pale note or a pink trigger from a package glares on the dark canvas. A drawing default, `storedColorsInDark: "as-stored" | "adapted"`, would let a project ask for its stored colors to be drawn with their lightness turned for the dark theme, with the hue and contrast kept. That contradicts ADR 0033 for projects that ask for it, so it waits for the user's answer, and a new ADR would supersede that part of ADR 0033 if they agree. Until then every stored color is drawn as stored.
+- **Light stored colors adapted on the dark canvas**, proposed here, was agreed by the user on 2026-11-02 as an option every preset leaves off: ADR 0087.
 
 ## Considered options
 
