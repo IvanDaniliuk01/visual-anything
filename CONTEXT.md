@@ -568,6 +568,10 @@ _Avoid_: callback, handler, script
 A named action package code offers in the canvas menu or the Packages menu, which answers a proposal the person reviews and never changes the model by itself (ADR 0089).
 _Avoid_: plugin command, macro, script
 
+**Swatch**:
+One of the twelve colors every color field of the format panel offers first, before the project's colors and recent ones, each reading on both canvases (`core/src/palette.ts`, ADR 0088).
+_Avoid_: palette (alone, which is the component palette), preset color
+
 **Format panel**:
 The inspector's tabs for the selection, Style, Text and Arrange, which set appearance as particularities of each selected element or relation and arrangement in the view (ADR 0088).
 _Avoid_: style panel, properties panel
