@@ -59,11 +59,17 @@ interface DrawnInside {
 export type GridLook = 'lines' | 'dots';
 
 /**
- * The most dots the canvas's grid draws, and a container's; above it, the finest family is left out.
- * A dot is one device pixel, so the finest family drawn is far enough apart to be seen anyway.
+ * The most dots the canvas's grid draws, and a container's; above it, the finest family is left out,
+ * so that drawing them again as the camera zooms stays within the frame budget, as `MAX_GRID_LINES`
+ * keeps the lines'.
  */
-export const MAX_GRID_DOTS = 30000;
-const MAX_CONTAINER_DOTS = 8000;
+export const MAX_GRID_DOTS = 6000;
+const MAX_CONTAINER_DOTS = 3000;
+/**
+ * How far apart a family's dots are on screen, at least, for it to be drawn, in CSS pixels: closer,
+ * they read as a texture rather than as points, and cost thousands of drawings.
+ */
+export const DOT_LEAST_GAP = 16;
 /**
  * How much stronger than a line of its family a dot is drawn: a dot of one pixel at a line's
  * strength would not be seen, so the dots read as faintly as the lines do.
@@ -301,8 +307,9 @@ export class GridMarks {
 
 /**
  * Draws a grid as dots (ADR 0086): a square of a line's width where two of its lines cross, each in
- * the coarsest family both its lines belong to, by that family's alpha. Past `cap` dots the finest
- * families are left out. Gives how many dots it drew.
+ * the coarsest family both its lines belong to, by that family's alpha. A family closer than
+ * `DOT_LEAST_GAP` on screen, and past `cap` dots the finest families, are left out. Gives how many
+ * dots it drew.
  */
 function drawDots(
   graphics: Graphics,
@@ -326,7 +333,12 @@ function drawDots(
     return count;
   };
   let from = 0;
-  while (from < families.length - 1 && countFrom(from) > cap) from += 1;
+  while (
+    from < families.length - 1 &&
+    ((families[from] as (typeof families)[number]).pixels < DOT_LEAST_GAP || countFrom(from) > cap)
+  ) {
+    from += 1;
+  }
   let drawn = 0;
   for (let at = from; at < families.length; at++) {
     const family = families[at] as (typeof families)[number];

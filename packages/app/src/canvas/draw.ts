@@ -79,14 +79,7 @@ import { drawSolidMark, isAnchoredSolidPart } from './solidMark';
 import { patternMatrix, patternTexture } from './patterns';
 import { drawnAsCurve, drawnCurve, strokeCurve } from './routing/curves';
 import { LIGHT_ROWS, drawRowsShape, rowsBlocks, writeRowsText, type RowColors } from './rowsDraw';
-import {
-  LIGHT_REGION,
-  drawRegion,
-  regionBorderOf,
-  regionFillOf,
-  regionTabOf,
-  type RegionColors,
-} from './regionDraw';
+import { LIGHT_REGION, drawRegion, regionTabOf, type RegionColors } from './regionDraw';
 import {
   arrowWidthOf,
   type ArrowShape,
@@ -281,10 +274,19 @@ export function drawShapeBlocks(
       if (inOrder) hairlines.stroke(graphics);
       continue;
     }
-    // A region is a block of its faint fill, outlined in its border as it comes out over the canvas.
+    // A region is its faint fill and its border, drawn at once under what the loop draws after it,
+    // as a container lies under its contents, alike in both themes.
     if (shape.region) {
-      block(shape.rect, regionFillOf(shape.stroke, region), regionBorderOf(shape.stroke, region));
-      if (inOrder) hairlines.stroke(graphics);
+      const { x, y, width, height } = shape.rect;
+      graphics
+        .rect(x, y, width, height)
+        .fill({ color: shape.stroke, alpha: region.fillAlpha })
+        .stroke({
+          color: shape.stroke,
+          alpha: region.borderAlpha,
+          width: Math.min(blockOutline, width / 2, height / 2),
+          alignment: 1,
+        });
       continue;
     }
     // A shape drawn by its picture is a block of its plate.

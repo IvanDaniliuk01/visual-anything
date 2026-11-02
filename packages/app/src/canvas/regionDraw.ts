@@ -149,7 +149,8 @@ export function drawRegion(
     .fill({ color: shape.stroke, alpha: colors.fillAlpha })
     .stroke({ color: shape.stroke, alpha: colors.borderAlpha, width: REGION_BORDER });
   const tab = regionTabOf(shape, drawing);
-  if (tab.icon) drawRegionIcon(graphics, shape.kind, tab.icon, colors.text);
+  // In its own color, which draws alike in both themes; its name is tinted to the theme.
+  if (tab.icon) drawRegionIcon(graphics, shape.kind, tab.icon, shape.stroke);
   const toggle = toggleRect(shape);
   if (toggle) {
     const { x: left, y: top, width: side, height: tall } = toggle;
@@ -162,7 +163,7 @@ export function drawRegion(
     graphics
       .moveTo(middleX - arm, middleY)
       .lineTo(middleX + arm, middleY)
-      .stroke({ color: colors.text, width: 1.5 });
+      .stroke({ color: shape.stroke, width: 1.5 });
   }
 }
 

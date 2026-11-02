@@ -46,11 +46,11 @@ export function arrowStroke(arrow: ArrowShape, theme: CanvasTheme): Color {
 
 /**
  * Whether a shape is drawn in other colors in the dark theme than in the light one: in built-in
- * colors, as a row or a shape that draws rows, whose body and separators are the theme's, or as a
- * region, whose fill, border and tab are laid over the theme's canvas (ADR 0086).
+ * colors, or as a row or a shape that draws rows, whose body and separators are the theme's. A region
+ * draws alike in both themes, its name tinted to each (ADR 0086).
  */
 export function shapeFollowsTheme(shape: ElementShape): boolean {
-  return shape.dark !== undefined || rowsFollowTheme(shape) || shape.region === true;
+  return shape.dark !== undefined || rowsFollowTheme(shape);
 }
 
 export function lineFollowsTheme(line: RelationLine): boolean {

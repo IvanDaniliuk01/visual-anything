@@ -174,7 +174,8 @@ describe('a container drawn as a region (A5.2)', () => {
       const svg = readSvg(writeSvg(sample, SAMPLE_VIEW, { theme }).text);
       const group = svg.querySelector(`[data-shape="${CLINIC}"]`);
       const body = group?.querySelector('rect');
-      expect(body?.getAttribute('fill-opacity')).toBe(theme === 'light' ? '0.06' : '0.08');
+      // One alpha in both themes, so that a switch never draws a region again.
+      expect(body?.getAttribute('fill-opacity')).toBe('0.07');
       expect(body?.getAttribute('stroke-opacity')).toBe('0.4');
       expect(body?.getAttribute('stroke-width')).toBe('1');
       expect(group?.querySelector('[data-part="region-icon"]')).not.toBeNull();
@@ -232,7 +233,7 @@ describe('a container drawn as a region (A5.2)', () => {
     const graphics = new Graphics();
     drawShapeOutlines(graphics, [region], undefined, BASE_DRAWING, LIGHT_REGION);
     expect(graphics.bounds.width).toBeGreaterThanOrEqual(region.rect.width);
-    expect(regionColorsOf(DARK).fillAlpha).toBe(0.08);
+    expect(regionColorsOf(DARK).fillAlpha).toBe(LIGHT_REGION.fillAlpha);
   });
 });
 
@@ -486,7 +487,7 @@ describe('the dot grid (A5.2)', () => {
 });
 
 describe('a region’s fill under what it holds', () => {
-  it('is its stroke at 6 % over the light canvas', () => {
-    expect(regionFillOf('#000000', LIGHT_REGION)).toBe('#F0F0F0');
+  it('is its stroke at 7 % over the light canvas', () => {
+    expect(regionFillOf('#000000', LIGHT_REGION)).toBe('#EDEDED');
   });
 });

@@ -1509,7 +1509,7 @@ function regionParts(writer: Writer, shape: ElementShape, stroke: Color): string
     'stroke-width': REGION_BORDER,
   });
   const tab = regionTabOf(shape, writer.drawing);
-  if (tab.icon) markup += regionIconMarkup(shape.kind, tab.icon, colors.text);
+  if (tab.icon) markup += regionIconMarkup(shape.kind, tab.icon, stroke);
   const toggle = toggleRect(shape);
   if (toggle) {
     const middleX = toggle.x + toggle.width / 2;
@@ -1531,7 +1531,7 @@ function regionParts(writer: Writer, shape: ElementShape, stroke: Color): string
       empty('path', {
         d: `M${num(middleX - arm)} ${num(middleY)}H${num(middleX + arm)}`,
         fill: 'none',
-        stroke: colors.text,
+        stroke,
         'stroke-width': 1.5,
       });
   }

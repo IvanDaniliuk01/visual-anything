@@ -262,7 +262,6 @@ function canvasTheme(
     | 'freeArrow'
     | 'rowSeparator'
     | 'neutralLine'
-    | 'regionFillAlpha'
   >,
 ): CanvasTheme {
   return {
@@ -281,6 +280,9 @@ function canvasTheme(
     changeRemoved: colors.changeRemoved,
     changeChanged: colors.changeChanged,
     changeMoved: colors.changeMoved,
+    // One alpha in both themes, between the design's 6 % and 8 %, so that a region draws alike in
+    // both and a theme switch only tints its name (ADR 0086).
+    regionFillAlpha: 0.07,
     regionBorderAlpha: 0.4,
     regionText: colors.textMuted,
     ...own,
@@ -304,7 +306,6 @@ export const THEMES: Readonly<Record<ThemeName, { shell: ShellTheme; canvas: Can
       rowSeparator: '#D9E2EC',
       // The design's #98A2B3 reads at 2.6:1 on the canvas; this is its hue at 3:1 (ADR 0086).
       neutralLine: '#8B95A7',
-      regionFillAlpha: 0.06,
     }),
   },
   dark: {
@@ -323,7 +324,6 @@ export const THEMES: Readonly<Record<ThemeName, { shell: ShellTheme; canvas: Can
       rowSeparator: DARK.colors.border,
       // The design's #5B6472 reads at 2.9:1 on the canvas; this is its hue at 3:1 (ADR 0086).
       neutralLine: '#5D6674',
-      regionFillAlpha: 0.08,
     }),
   },
 };
