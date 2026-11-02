@@ -68,6 +68,7 @@ export class SimulationStore {
   private versionNumber = 0;
   private simulatedCache: ReadonlyMap<Id, ReadonlyMap<string, ComputedReading>> | undefined;
   private marksCache: ReadonlyMap<Id, readonly Id[]> | undefined;
+  private jointsCache: ReadonlyMap<Id, number> | undefined;
   /** The values of each tick last read, by the tick, as `simulated` gives them. */
   private readonly byTick = new WeakMap<
     SimulatedTick,
@@ -151,6 +152,22 @@ export class SimulationStore {
       if (marks && marks.length > 0) made.set(shown.element, marks);
     }
     this.marksCache = made;
+    return made;
+  }
+
+  /**
+   * The joints' positions the runs' ticks shown answer (ADR 0090), by joint, a run opened later over
+   * one opened before: the same map while no tick shown changes, which the physical-space panel
+   * follows.
+   */
+  joints(): ReadonlyMap<Id, number> {
+    if (this.jointsCache) return this.jointsCache;
+    const made = new Map<Id, number>();
+    for (const shown of this.runs.values()) {
+      const joints = shown.ticks[shown.shown]?.joints;
+      for (const [joint, position] of Object.entries(joints ?? {})) made.set(joint, position);
+    }
+    this.jointsCache = made;
     return made;
   }
 
@@ -489,6 +506,7 @@ export class SimulationStore {
   private shownChanged(): void {
     this.simulatedCache = undefined;
     this.marksCache = undefined;
+    this.jointsCache = undefined;
     this.changed();
   }
 

@@ -1,7 +1,8 @@
 /**
  * The check of what `simulate` answers for one tick (ADR 0085). The answer comes from code nobody
  * trusts: it is kept only when it is plain data within its caps, naming only declared values of
- * their types and marking only what lies around the element. A number past its limits, a string not
+ * their types and marking only what lies around the element. It may also answer joints' positions
+ * (ADR 0090), by joint among what it may mark, which the physical-space panel follows. A number past its limits, a string not
  * among its choices or a number that is not finite stops the run cleanly; anything else wrong drops
  * the answer as a failure of the code.
  */
@@ -18,6 +19,11 @@ export interface SimulatedTick {
   values: Readonly<Record<string, SimulatedValue>>;
   /** The element, relations and elements around it it marks, each once, in the order answered. */
   marks: readonly Id[];
+  /**
+   * Joints' positions it answered (ADR 0090), by joint: degrees for a joint that turns, meters for
+   * one that slides. Left out when it answered none.
+   */
+  joints?: Readonly<Record<Id, number>>;
 }
 
 /** Which limit a value went past. */
@@ -45,7 +51,7 @@ export type CheckedTick =
     }
   | { kind: 'dropped'; reason: string };
 
-const ANSWER_KEYS = new Set(['values', 'state', 'marks', 'done']);
+const ANSWER_KEYS = new Set(['values', 'state', 'marks', 'done', 'joints']);
 
 /**
  * Checks what `simulate` answered for one tick of a run of `definition` on an element, where
@@ -131,6 +137,30 @@ export function checkSimulateAnswer(
     }
   }
 
+  let joints: Record<Id, number> | undefined;
+  if (answer.joints !== undefined) {
+    if (!isRecord(answer.joints)) return dropped('its joints are not an object of positions');
+    const entries = Object.entries(answer.joints);
+    if (entries.length > SIMULATION_LIMITS.joints) {
+      return dropped(`it gives more than ${SIMULATION_LIMITS.joints} joints positions`);
+    }
+    if (entries.length > 0) joints = {};
+    for (const [joint, position] of entries) {
+      if (!markable.has(joint)) {
+        return dropped(`it moves ${JSON.stringify(joint)}, which is not the element or around it`);
+      }
+      if (typeof position !== 'number' || !Number.isFinite(position)) {
+        return dropped(`the position of ${JSON.stringify(joint)} is not a finite number`);
+      }
+      Object.defineProperty(joints, joint, {
+        value: position,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+  }
+
   let state: JsonValue | undefined;
   let stateSize = 0;
   if (answer.state !== undefined) {
@@ -158,7 +188,7 @@ export function checkSimulateAnswer(
 
   return {
     kind: 'tick',
-    tick: { values, marks },
+    tick: { values, marks, ...(joints === undefined ? {} : { joints }) },
     state,
     stateSize,
     ...(done === undefined ? {} : { done }),

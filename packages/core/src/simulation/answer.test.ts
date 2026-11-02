@@ -106,6 +106,26 @@ describe('checkSimulateAnswer', () => {
     });
   });
 
+  it('keeps joints’ positions by joint around the element, and drops any other (ADR 0090)', () => {
+    expect(check({ values: {}, joints: { e1: 40, q1: -0.2 } })).toMatchObject({
+      kind: 'tick',
+      tick: { values: {}, marks: [], joints: { e1: 40, q1: -0.2 } },
+    });
+    expect(check({ values: {}, joints: {} })).toMatchObject({ tick: { values: {}, marks: [] } });
+    if (check({ values: {}, joints: {} }).kind === 'tick') {
+      expect(check({ values: {}, joints: {} })).not.toHaveProperty('tick.joints');
+    }
+    expect(check({ values: {}, joints: { far: 1 } })).toEqual({
+      kind: 'dropped',
+      reason: 'it moves "far", which is not the element or around it',
+    });
+    expect(check({ values: {}, joints: { e1: Number.NaN } })).toEqual({
+      kind: 'dropped',
+      reason: 'the position of "e1" is not a finite number',
+    });
+    expect(check({ values: {}, joints: [1] })).toMatchObject({ kind: 'dropped' });
+  });
+
   it('keeps a copy of the state, sharing nothing with what was answered', () => {
     const state = { list: [1] };
     const checked = check({ values: {}, state });

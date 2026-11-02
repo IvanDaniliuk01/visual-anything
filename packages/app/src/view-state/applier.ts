@@ -21,6 +21,7 @@ import {
   knownChoices,
   modelIndexOf,
   simulationOf,
+  tourEase,
   viewStateProblems,
   type ProjectSnapshot,
   type ViewSimulation,
@@ -42,6 +43,7 @@ import { FOLLOW_MARGIN } from '../scenarios/follow';
 import type { ScenarioSession } from '../scenarios/session';
 import type { SimulationStore } from '../simulation/store';
 import type { SpacePanelStore } from '../space/store';
+import { jointStepGlide, sameSavedJoints, storedPosition } from '../space/joints';
 import { sameSpaceCamera } from '../space/travel';
 import type { CanvasCamera, GlideOptions } from './canvas';
 import { cameraFor, focusFrom, selectionFrom } from './state';
@@ -333,8 +335,10 @@ function playScenario(
 /**
  * Opens the view's physical-space panel as a view state's `space` says, or closes it when it has
  * none. A tour's step that keeps showing the same element moves the panel's camera as a tour does,
- * eased or cut (`space/travel.ts`); an address, a step into another element and a step without a
- * camera put it there at once.
+ * eased or cut (`space/travel.ts`), and glides its joints from the step before to its own positions,
+ * or to their stored ones when it gives none, over {@link jointStepGlide}'s time on the tour's ease,
+ * jumping while motion is reduced or the step always cuts (ADR 0090); an address, a step into another
+ * element and a step without a camera put the camera there at once, and an address the joints.
  */
 function applySpace(
   context: ApplyContext,
@@ -352,17 +356,30 @@ function applySpace(
   const world = context.project.model.world.id;
   if (was && sameSpace(was, space, world)) return;
   const sameRoot = was !== undefined && rootOf(was, world) === rootOf(space, world);
-  const { camera, ...rest } = space;
-  if (!travel || !was || !sameRoot || camera === undefined) {
-    store.moves.stop(viewId);
-    store.set(viewId, space);
-    return;
+  const { camera, joints, ...rest } = space;
+  const moving = travel !== undefined && was !== undefined && sameRoot;
+  const cameraMoves = moving && camera !== undefined;
+  const jointsGlide = moving && !sameSavedJoints(was.joints, joints);
+  store.joints.stop(viewId);
+  if (!cameraMoves) store.moves.stop(viewId);
+  // The rest changes at once; the camera moves, and the joints glide, from where they are.
+  const next: ViewSpace = { ...rest };
+  const cameraNow = cameraMoves ? was?.camera : camera;
+  if (cameraNow) next.camera = cameraNow;
+  const jointsNow = jointsGlide ? was?.joints : joints;
+  if (jointsNow) next.joints = jointsNow;
+  store.set(viewId, next);
+  const cuts = context.reduced || (travel?.cutsSpace?.() ?? false);
+  if (cameraMoves) store.moves.move(viewId, camera, { reducedMotion: cuts });
+  if (jointsGlide) {
+    // A tour's step glides its joints from the step before (ADR 0090), or jumps there.
+    const project = context.project;
+    store.joints.glide(viewId, joints, {
+      duration: cuts ? 0 : jointStepGlide(project, was?.joints, joints),
+      ease: tourEase,
+      stored: (joint) => storedPosition(project, joint),
+    });
   }
-  // The rest changes at once; the camera moves from where it is.
-  store.set(viewId, was.camera ? { ...rest, camera: was.camera } : rest);
-  store.moves.move(viewId, camera, {
-    reducedMotion: context.reduced || (travel.cutsSpace?.() ?? false),
-  });
 }
 
 /**
@@ -426,7 +443,8 @@ function sameSpace(a: ViewSpace, b: ViewSpace, world: Id): boolean {
     sameCut &&
     (a.explode ?? 0) === (b.explode ?? 0) &&
     (a.relations ?? false) === (b.relations ?? false) &&
-    (a.names ?? false) === (b.names ?? false)
+    (a.names ?? false) === (b.names ?? false) &&
+    sameSavedJoints(a.joints, b.joints)
   );
 }
 

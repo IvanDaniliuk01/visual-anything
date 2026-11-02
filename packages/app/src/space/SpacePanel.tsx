@@ -22,7 +22,8 @@
  * (`useFramingRequests.ts`); and keeps where each frame was drawn from, which moves of its camera
  * start from (`moves.ts`).
  *
- * Its joints' sliders (`SpaceJoints`, ADR 0090) give positions over the joints' own, which `spaceOf`
+ * Its joints' sliders (`SpaceJoints`, ADR 0090), a tour's step, an address and the simulations shown
+ * give positions over the joints' own (`useJointPositions`), which `spaceOf`
  * composes down the chain: what joints carry is drawn moved, its relations and markers follow, and
  * the worker turns each anchored part's node of its holder's solid by its motion.
  */
@@ -79,7 +80,8 @@ import { selectionRelationsOf, spaceLinesOf, type SelectionRelation } from './li
 import { EXPLODE_EASE, explodeBetween, showingWorld } from './reading';
 import { SpaceReading } from './SpaceReading';
 import { SpaceJoints } from './SpaceJoints';
-import { jointsShown } from './joints';
+import { NO_POSITIONS, jointsShown } from './joints';
+import { useSimulations, useSimulationVersion } from '../simulation/context';
 import { useJointPositions } from './useJointPositions';
 import { SpacePanelEdge } from './SpacePanelEdge';
 import { shapeEmphasisOf, spaceStateList, spaceStates, type SpaceOverlayLook } from './states';
@@ -151,8 +153,12 @@ function OpenSpacePanel({
 }: SpacePanelProps & { shown: ViewSpace }) {
   const t = useT();
   const heading = useId();
-  // The positions the joints' sliders give, over the joints' own, which move the chain drawn.
-  const jointPositions = useJointPositions(store, useReducedMotion());
+  // The positions the panel's state gives, from its sliders, a tour's step or an address, over those
+  // the simulations shown answer, over the joints' own: they move the chain drawn.
+  const simulations = useSimulations();
+  useSimulationVersion(simulations);
+  const simulated = simulations?.joints() ?? NO_POSITIONS;
+  const jointPositions = useJointPositions(store, view.id, useReducedMotion(), simulated);
   const given = jointPositions.positions;
   const space = useMemo(
     () => spaceOf(project, view, shown.root, given.size > 0 ? given : undefined),
