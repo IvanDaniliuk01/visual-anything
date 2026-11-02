@@ -3579,8 +3579,8 @@ export const ui: Catalog = {
   'Times the preset’s size.': 'Veces el tamaño del predefinido.',
   'Rounding of line corners': 'Redondeo de las esquinas de las líneas',
   'Gap between parallel lines': 'Separación entre líneas paralelas',
-  'Fade the lines away from what is pointed at or selected':
-    'Atenuar las líneas alejadas de lo señalado o seleccionado',
+  'Fade the other lines while pointing at a shape or a line':
+    'Atenuar las demás líneas al señalar una forma o una línea',
   'Border width': 'Grosor del borde',
   'Rounding of corners': 'Redondeo de las esquinas',
   Shadow: 'Sombra',

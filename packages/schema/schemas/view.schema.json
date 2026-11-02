@@ -1822,7 +1822,7 @@
         },
         "fadeOthers": {
           "type": "boolean",
-          "description": "Whether the lines that touch nothing hovered or selected fade."
+          "description": "Whether the lines that do not touch what the pointer is on fade; selecting fades by the view's `selectionFadesLines`."
         }
       },
       "additionalProperties": false,

@@ -38,7 +38,7 @@ export interface DrawingLines {
   parallelGap?: number;
   /** A relation type's built-in color, or one neutral color, with the type's on hover and selection. */
   color?: 'by-type' | 'neutral';
-  /** Whether the lines that touch nothing hovered or selected fade. */
+  /** Whether the lines that do not touch what the pointer is on fade; selecting fades by the view's `selectionFadesLines`. */
   fadeOthers?: boolean;
 }
 

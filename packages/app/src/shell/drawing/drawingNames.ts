@@ -49,7 +49,7 @@ export const VALUE_NAMES: Readonly<Record<DrawingGroup, Readonly<Record<string, 
     cornerRadius: { name: 'Rounding of line corners', note: CANVAS_UNITS },
     parallelGap: { name: 'Gap between parallel lines', note: CANVAS_UNITS },
     color: { name: 'Line color' },
-    fadeOthers: { name: 'Fade the lines away from what is pointed at or selected' },
+    fadeOthers: { name: 'Fade the other lines while pointing at a shape or a line' },
   },
   shapes: {
     borderWidth: { name: 'Border width', note: CANVAS_UNITS },
