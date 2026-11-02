@@ -46,6 +46,8 @@ const CHARACTERS: (string | string[])[] = [[' ', '~'], 'áéíóúüñÁÉÍÓÚ
 /** What drawing reads of a bitmap font: PixiJS's own, or nothing where fonts cannot be drawn. */
 interface GlyphFont {
   chars?: BitmapFont['chars'];
+  /** The size its glyphs and offsets are measured at, which PixiJS scales them from. */
+  baseMeasurementFontSize?: number;
   fontMetrics?: { fontSize: number; ascent: number };
   ensureCharacters?: (chars: string) => void;
 }
@@ -151,7 +153,9 @@ export function drawGlyphs(
 ): void {
   const font = fontOf(variant);
   const chars = font?.chars;
-  const drawn = font?.fontMetrics?.fontSize;
+  // Glyphs are measured at the font's measurement size, as PixiJS lays them out; the metrics' size is
+  // its ascent and descent together, larger than an em, and drew each glyph narrower than its advance.
+  const drawn = font?.baseMeasurementFontSize ?? font?.fontMetrics?.fontSize;
   if (!chars || !drawn) return;
   font.ensureCharacters?.(text);
   const scale = size / drawn;

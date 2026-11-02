@@ -73,6 +73,27 @@ describe('text emphasis on the canvas (ADR 0082)', () => {
     expect(xs[1]).toBeCloseTo(10 + robotoWidth('i', 'regular', 16));
   });
 
+  it('scales each glyph from the size the font measures at, not its ascent and descent', () => {
+    // PixiJS measures a dynamic font at 100, where Roboto's ascent and descent come to about 117.
+    const font = { ...fakeFont(), baseMeasurementFontSize: 100 } as unknown as BitmapFont;
+    font.fontMetrics.fontSize = 117;
+    font.fontMetrics.ascent = 93;
+    const key = 'visual-anything-text-bitmap';
+    const kept = Cache.get<BitmapFont>(key);
+    Cache.remove(key);
+    Cache.set(key, font);
+    try {
+      const graphics = new Graphics();
+      drawGlyphs(graphics, 'W', 'regular', 10, 0, 20, 0xffffff);
+      const glyph = graphics.context.instructions[0]?.data as { dw: number; dy: number };
+      expect(glyph.dw).toBeCloseTo((Texture.WHITE.orig.width * 10) / 100);
+      expect(glyph.dy).toBeCloseTo(20 - 9.3);
+    } finally {
+      Cache.remove(key);
+      Cache.set(key, kept);
+    }
+  });
+
   it('draws a quad for each glyph, highlights and code behind, lines with the glyphs', () => {
     const laid = laidOutRuns(emphasisRuns('==hi== `co` ++un++'), 16, 400, 'left', 1);
     const label = new EmphasisLabel(laid);
