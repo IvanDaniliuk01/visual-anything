@@ -56,6 +56,7 @@ import {
   routeBoxOf,
   type OutlinedEnd,
 } from './outline-ends';
+import { isTurned } from '../turn';
 
 /** What the avoider is given for a scene: its shapes, and the lines it may route with their lines. */
 export interface AvoidBatch {
@@ -98,13 +99,15 @@ function besideRows(shape: ElementShape): boolean {
  */
 function outlinedEnd(shape: ElementShape | undefined): OutlinedEnd | undefined {
   if (!shape) return undefined;
-  const rect = shape.plate ?? shape.rect;
+  // A turned shape's outline is placed from its rectangle (ADR 0088).
+  const rect = isTurned(shape) ? shape.rect : (shape.plate ?? shape.rect);
   const outline = endOutline(shape, rect);
   return outline && { rect: routeBoxOf(shape, rect), outline };
 }
 
 /** The box the avoider reads of a shape: its plate, or its rectangle with its name tag. */
 function avoidedBoxOf(shape: ElementShape): Rect {
+  if (isTurned(shape)) return routeBoxOf(shape, shape.rect);
   return shape.plate ?? routeBoxOf(shape, shape.rect);
 }
 
@@ -527,7 +530,7 @@ function pointSideOf(
   point: Point | undefined,
 ): AvoidSide | undefined {
   if (!shape || !point || !atPoints(shape)) return undefined;
-  const box = shape.plate ?? shape.rect;
+  const box = isTurned(shape) ? shape.rect : (shape.plate ?? shape.rect);
   const outline = endOutline(shape, box);
   if (outline || shape.plate) {
     // The connection point the end lies at, carried in to the outline: it leaves its box's place.

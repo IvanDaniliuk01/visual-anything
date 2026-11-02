@@ -57,6 +57,7 @@ import type { SolidClient } from '../solids/solid-client';
 import { solidBucketFor } from '../solids/protocol';
 import { SolidPictures } from './solids/pictures';
 import type { ShapeSolid } from './shape-solids';
+import { withTurn } from './turn';
 
 /** What the image drawings need of one of the renderer's tiles. */
 export interface ImageTile {
@@ -438,7 +439,10 @@ export class TileImages<
       middle,
       DRAGGED,
       // Drawn again for the new theme when a switch shows, as the rest of the drag is.
-      (shape, box) => plate(graphics, box, shapeColors(shape, view.theme).fill),
+      (shape, box) =>
+        withTurn(graphics, shape, (turned) =>
+          plate(turned, box, shapeColors(shape, view.theme).fill),
+        ),
       true,
     );
     for (const key of keys) this.#dragged.keys.add(key);
@@ -563,7 +567,8 @@ export class TileImages<
           group.addChildAt(under.graphics, 0);
           plates.set(pair, under);
         }
-        plate(under.graphics, box, WHITE);
+        // Turned and mirrored as its shape is (ADR 0088).
+        withTurn(under.graphics, shape, (graphics) => plate(graphics, box, WHITE));
       },
     );
     tintPlates(plates, view.theme);
@@ -724,12 +729,12 @@ function plate(graphics: Graphics, box: Rect, fill: Color): void {
 function faded(into: Graphics, shape: ElementShape, draw: (graphics: Graphics) => void): void {
   const alpha = opacityOf(shape);
   if (alpha === 1) {
-    draw(into);
+    withTurn(into, shape, draw);
     return;
   }
   const kept = into.fillStyle;
   into.fillStyle = { ...kept, alpha };
-  draw(into);
+  withTurn(into, shape, draw);
   into.fillStyle = kept;
 }
 

@@ -170,7 +170,8 @@ export class ShapeEditor {
       const shapes = element === undefined ? [] : (indexed.byElement.get(element) ?? []);
       const current = shapes.find((shape) => shape.key === state.current) ?? shapes[0];
       if (!current || hidden.has(current.key)) return undefined;
-      const taken = sizeTakenBy(current);
+      // A turned shape shows no handles: the Arrange tab sizes it in its own axes (ADR 0088).
+      const taken = current.rotation === undefined ? sizeTakenBy(current) : undefined;
       return taken
         ? { kind: 'shape', shape: current, rect: current.rect, taken, key: current.key }
         : undefined;

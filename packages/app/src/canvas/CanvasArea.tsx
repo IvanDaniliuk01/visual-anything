@@ -111,6 +111,8 @@ import { LegendPanel } from './overlays/LegendPanel';
 import { relationTypesLegend, withRelationTypes } from './overlays/relationLegend';
 import { ZoomExpansionContext, withoutZoomExpanded } from './overlays/useZoomExpansion';
 import { restackCommand, stackingActions, stackingShortcut, type StackingMove } from './stacking';
+import { appearanceShortcut } from './appearanceCopy';
+import { copyAppearanceOf, pasteAppearanceOnto } from './useAppearanceCopy';
 
 /**
  * Sends a command to the local program; resolves with what it created, or `ok: false` when refused.
@@ -846,6 +848,20 @@ export function CanvasArea({
   };
 
   /**
+   * Copies the appearance of the one element or relation selected, or pastes the one copied last onto
+   * the selection as one action (ADR 0088), and says what it did or why it did nothing.
+   */
+  const copyOrPasteAppearance = (how: 'copy' | 'paste') => {
+    if (how === 'copy') {
+      announce(copyAppearanceOf(project, selection).said);
+      return;
+    }
+    void pasteAppearanceOnto(project, selection, editable ? send : undefined).then(({ said }) => {
+      if (said !== '') announce(said);
+    });
+  };
+
+  /**
    * Aligns, distributes or sizes alike the selected shapes, as one action, and says what it did; a
    * way that would change nothing says why instead (ADR 0074).
    */
@@ -868,6 +884,17 @@ export function CanvasArea({
   // The stacking keys, wherever the focus is: never while typing, nor for a key something else took.
   const onWindowKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (event.defaultPrevented || event.isComposing || isTextEntry(event.target)) return;
+    // Copy appearance and paste appearance (ADR 0088), wherever the focus is but in text.
+    const appearance = appearanceShortcut(event);
+    if (appearance !== undefined) {
+      event.preventDefault();
+      const open = relating || deletion || changing || choosing || menu || routeMenu;
+      const inDialog =
+        event.target instanceof Element && event.target.closest('[role="dialog"]') !== null;
+      if (open || inDialog) return;
+      copyOrPasteAppearance(appearance);
+      return;
+    }
     const move = stackingShortcut({
       key: event.key,
       code: event.code,
@@ -1183,6 +1210,10 @@ export function CanvasArea({
               }
             : {})}
           editable={editable}
+          onAppearance={(how) => {
+            closeMenu();
+            copyOrPasteAppearance(how);
+          }}
           onRestack={(move) => {
             // A move that would change nothing says why, and leaves the menu open for another.
             if (stacking[move].enabled) closeMenu();

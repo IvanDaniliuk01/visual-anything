@@ -89,6 +89,10 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
     keys: 'Alt while dragging (⌥ on macOS)',
     does: 'Move without putting shapes inside a container or taking them out, and place them freely, without snapping to the grid',
   },
+  {
+    keys: 'Ctrl+Alt+C and Ctrl+Alt+V (⌥⌘C and ⌥⌘V on macOS)',
+    does: 'Copy the appearance of the selected element or relation, and paste it onto the selection',
+  },
   { keys: 'Delete', does: 'Delete the selection, after showing what goes with it' },
   { keys: 'Escape', does: 'Clear the selection' },
   { keys: 'Ctrl+A or ⌘A', does: 'Select everything' },

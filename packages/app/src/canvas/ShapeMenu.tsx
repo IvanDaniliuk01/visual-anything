@@ -21,6 +21,13 @@ import { scopeActions, type ScopeAction, type ScopeActions } from './scopeAction
 import { describeDestination, elementDestinations } from '../destinations/follow';
 import type { OfferedAction } from '../packages/offered';
 import { STACKING_MOVES, STACKING_NAMES, type StackingAction, type StackingMove } from './stacking';
+import { APPEARANCE_KEYS } from './appearanceCopy';
+import { useCopiedAppearance } from './useAppearanceCopy';
+
+/** How many items a selection holds. */
+function selectionCount(selection: Selection): number {
+  return selection.elements.size + selection.relations.size + selection.freeShapes.size;
+}
 
 export interface ShapeMenuProps {
   indexed: IndexedScene;
@@ -42,6 +49,11 @@ export interface ShapeMenuProps {
   editable: boolean;
   /** Called on every press of a stacking item, also of one that would change nothing, to say why. */
   onRestack: (move: StackingMove) => void;
+  /**
+   * Copy appearance and Paste appearance (ADR 0088): what pressing each does. Absent, the menu
+   * offers neither.
+   */
+  onAppearance?: (how: 'copy' | 'paste') => void;
   /** Put inside "T", Move into "T" or Take out of "A": the change of container to confirm and send. */
   onChange: (change: ChangeContainerCommand) => void;
   /** Put inside… (`put`, for a shape directly in World) or Move to… (`move`): opens the chooser. */
@@ -113,6 +125,7 @@ export function ShapeMenu({
   stacking,
   editable,
   onRestack,
+  onAppearance,
   onChange,
   onChooseContainer,
   onAddInside,
@@ -135,6 +148,7 @@ export function ShapeMenu({
   onPackageAction,
 }: ShapeMenuProps) {
   const t = useT();
+  const copied = useCopiedAppearance();
   const menu = useMenuInsideFrame<HTMLDivElement>(at);
   const underId = useId();
   const packagesId = useId();
@@ -272,6 +286,28 @@ export function ShapeMenu({
               />
             ))}
           </div>
+          <div role="separator" className="canvas-menu-separator" />
+        </>
+      )}
+      {onAppearance && (
+        <>
+          <Item
+            label={t('Copy appearance')}
+            title={`${t('Copy every Style and Text trait of this item')} (${APPEARANCE_KEYS.copy.shown})`}
+            disabled={selectionCount(selection) !== 1}
+            onPress={() => onAppearance('copy')}
+          />
+          <Item
+            label={t('Paste appearance')}
+            title={
+              copied === undefined
+                ? t('Copy the appearance of an element or a relation first.')
+                : `${t('Paste the appearance of "{name}" onto the selection', { name: copied.name })} (${APPEARANCE_KEYS.paste.shown})`
+            }
+            disabled={copied === undefined}
+            readOnly={!editable}
+            onPress={() => onAppearance('paste')}
+          />
           <div role="separator" className="canvas-menu-separator" />
         </>
       )}

@@ -141,6 +141,14 @@ import {
   type StyledBlock,
 } from './shapeText';
 import { SANS_FAMILY } from './robotoFonts';
+import {
+  isTurned,
+  levelShapeOf,
+  turnedOutlineOf,
+  withTurn,
+  type Outlinable,
+  type Turned,
+} from './turn';
 
 /**
  * The fonts text is drawn in, first available first: Roboto, loaded from the app's own bytes
@@ -292,6 +300,17 @@ export function drawShapeBlocks(
     // An anchored part of a solid is drawn by its drawing's picture (ADR 0075).
     if (isAnchoredSolidPart(shape)) continue;
     const tag = nameTagOn(shape);
+    if (isTurned(shape)) {
+      // Turned or mirrored, drawn at once through its turn (ADR 0088); its tag stays level.
+      drawTurnedBlock(graphics, shape, blockOutline, hairlines);
+      if (tag) {
+        const fill = shape.outline ? fillOf(shape) : shape.fill;
+        const rim = isContainer(shape) || needsOutline(fill) ? outlineColorOf(shape) : undefined;
+        block(tag, shape.text?.background ?? fill, shape.text?.border ?? rim);
+      }
+      if (inOrder) hairlines.stroke(graphics);
+      continue;
+    }
     if (shape.outline) {
       const fill = fillOf(shape);
       const outlined = isContainer(shape) || needsOutline(fill);
@@ -351,6 +370,31 @@ export function drawShapeBlocks(
   for (const [color, rects] of fills) fillRects(graphics, color, rects);
   silhouettes.draw(graphics);
   hairlines.stroke(graphics);
+}
+
+/**
+ * The plain block of a turned or mirrored shape (ADR 0088), drawn at once through its turn: its
+ * simplified outline, or its box as opaque as it is, its fill running to its gradient's color.
+ */
+function drawTurnedBlock(
+  graphics: Graphics,
+  shape: ElementShape,
+  blockOutline: number,
+  hairlines: Hairlines,
+): void {
+  const fill = shape.outline ? fillOf(shape) : shape.fill;
+  const rim = isContainer(shape) || needsOutline(fill) ? outlineColorOf(shape) : undefined;
+  withTurn(graphics, shape, (turned) => {
+    if (shape.outline) {
+      const silhouettes = new Silhouettes(blockOutline);
+      const lines = new Hairlines(hairlines.drawing);
+      silhouettes.add({ rect: shape.rect, outline: shape.outline }, fill, rim, lines);
+      silhouettes.draw(turned);
+      lines.stroke(turned);
+      return;
+    }
+    styledBlock(turned, blockRectOf(shape), shape, rim, blockOutline);
+  });
 }
 
 /** Whether a shape's own style shows far out: an opacity below 1 or a gradient (ADR 0088). */
@@ -502,6 +546,10 @@ export function drawShapeOutlines(
       drawDestinationMark(graphics, shape);
       continue;
     }
+    if (isTurned(shape)) {
+      drawTurnedShape(graphics, shape, hairlines, drawing);
+      continue;
+    }
     // A soft shadow, the drawing defaults' under a shape that holds nothing, or its own (ADR 0088).
     if (shape.row === undefined && castsShadow(shape, drawing, isContainer(shape))) {
       drawShadow(graphics, shape, bodyRectOf(shape), drawing);
@@ -548,6 +596,41 @@ export function drawShapeOutlines(
     drawDestinationMark(graphics, shape);
   }
   hairlines.stroke(graphics);
+}
+
+/**
+ * Draws a turned or mirrored shape in full (ADR 0088): its shadow, its body or its own outline and
+ * its solid's placeholder through its turn, each with the line a pixel wide that outlines it; then,
+ * level, the back of its name, its name tag and its marks. Turned shapes hold nothing and draw no
+ * rows, so they take no toggle and no sheet.
+ */
+function drawTurnedShape(
+  graphics: Graphics,
+  shape: ElementShape,
+  hairlines: Hairlines,
+  drawing: ResolvedDrawing,
+): void {
+  const colors = {
+    fill: shape.outline ? fillOf(shape) : shape.fill,
+    stroke: outlineColorOf(shape),
+  };
+  withTurn(graphics, shape, (turned) => {
+    const lines = new Hairlines(drawing);
+    if (castsShadow(shape, drawing, false)) drawShadow(turned, shape, bodyRectOf(shape), drawing);
+    if (shape.outline) drawOutlinedBody(turned, shape, shape.outline, lines, drawing);
+    else {
+      const body = bodyRectOf(shape);
+      drawBody(turned, shape, body, colors, drawing);
+      lines.addBody(colors.stroke, shape, body);
+    }
+    drawSolidMark(turned, shape, colors.stroke);
+    lines.stroke(turned);
+  });
+  const level = levelShapeOf(shape);
+  if (!shape.outline && !nameTagOf(shape)) drawLabelBack(graphics, level, drawing);
+  drawNameTag(graphics, shape, colors, hairlines, drawing);
+  drawLeavingMark(graphics, level);
+  drawDestinationMark(graphics, level);
 }
 
 /**
@@ -688,8 +771,12 @@ export function writeShapeLabels(
       if (nameTagOf(shape)) {
         writeNameTag(shape, nameColorsOf(shape, fillOf(shape)), write, drawing);
       }
-    } else writeShapeText(shape, write, backdrop, make, drawing);
-    writeLeavingMark(shape, write);
+    } else {
+      // A turned shape writes its name level, in its level box, but in its name tag (ADR 0088).
+      const writing = isTurned(shape) && !nameTagOf(shape) ? levelShapeOf(shape) : shape;
+      writeShapeText(writing, write, backdrop, make, drawing);
+    }
+    writeLeavingMark(isTurned(shape) ? levelShapeOf(shape) : shape, write);
   }
   return texts;
 }
@@ -1066,7 +1153,7 @@ function drawInnerBorder(
  * that they cost one more batch, not one per shape.
  */
 class Hairlines {
-  constructor(private readonly drawing: ResolvedDrawing) {}
+  constructor(readonly drawing: ResolvedDrawing) {}
 
   /** By color, and for those of shapes less than opaque, by color and opacity (ADR 0088). */
   private readonly byColor = new Map<
@@ -1210,7 +1297,11 @@ export type MarkTarget = Rect | { rect: Rect; outline?: ShapeOutline; plate?: Re
  */
 export function traceMark(graphics: Graphics, target: MarkTarget, gap: number): void {
   if ('rect' in target) {
-    const { outline, rect, plate } = target;
+    // A turned shape is marked along its outline as drawn (ADR 0088).
+    const turned = isTurned(target as Turned) ? turnedOutlineOf(target as Outlinable) : undefined;
+    const { rect } = target;
+    const outline = turned ?? target.outline;
+    const plate = turned ? undefined : target.plate;
     const tag = target.tag ?? tagOfShape(target);
     if (tag && !plate) {
       const lines = markLinesWithTag(

@@ -3825,10 +3825,10 @@ export const ui: Catalog = {
   'Write a number from {least} to {most}.': 'Escribir un número de {least} a {most}.',
   'from the drawing defaults': 'de los valores de dibujo',
   'Set as the project’s default': 'Definir como predeterminado del proyecto',
-  'Its gradient, border, corner radius, opacity and shadow become the project’s default once it sets one of them itself.':
-    'Su degradado, borde, radio de las esquinas, opacidad y sombra pasan a ser los predeterminados del proyecto una vez que define alguno de ellos.',
-  'Gives every shape the gradient, border, corner radius, opacity and shadow this one sets itself, wherever its component sets none.':
-    'Da a cada forma el degradado, el borde, el radio de las esquinas, la opacidad y la sombra que define esta, donde su componente no define ninguno.',
+  'Its gradient, border, corner radius, opacity, shadow and text become the project’s default once it sets one of them itself.':
+    'Su degradado, borde, radio de las esquinas, opacidad, sombra y texto pasan a ser los predeterminados del proyecto una vez que define alguno de ellos.',
+  'Gives every shape the gradient, border, corner radius, opacity, shadow and parts of its text this one sets itself, wherever its component sets none.':
+    'Da a cada forma el degradado, el borde, el radio de las esquinas, la opacidad, la sombra y las partes de su texto que define esta, donde su componente no define ninguno.',
   'Its stroke, width, dash, opacity and route become the project’s default once it sets one of them itself.':
     'Su trazo, grosor, patrón, opacidad y recorrido pasan a ser los predeterminados del proyecto una vez que define alguno de ellos.',
   'Gives every line the stroke, width, dash, opacity and route this one sets itself, wherever its relation type sets none.':
@@ -3862,6 +3862,48 @@ export const ui: Catalog = {
     'Se confunde con el lienzo claro: no dibuja borde, y su relleno no llega a 3:1 sobre él.',
   'Blends into the dark canvas: it draws no border, and its fill does not reach 3:1 on it.':
     'Se confunde con el lienzo oscuro: no dibuja borde, y su relleno no llega a 3:1 sobre él.',
+  // The Arrange tab (A6.3).
+  'Size and place': 'Tamaño y posición',
+  'From the left': 'Desde la izquierda',
+  'From the top': 'Desde arriba',
+  'Turn and mirror': 'Girar y reflejar',
+  'Turn (degrees)': 'Giro (grados)',
+  'Turn 90°': 'Girar 90°',
+  'Mirror horizontally': 'Reflejar horizontalmente',
+  'Mirror vertically': 'Reflejar verticalmente',
+  'Some are pinned: layout leaves those where they are.':
+    'Algunas están fijadas: la organización las deja donde están.',
+  'Pinned: layout leaves it where it is.': 'Fijada: la organización la deja donde está.',
+  'Not pinned: layout may move it.': 'Sin fijar: la organización puede moverla.',
+  'A row is never turned or mirrored.': 'Una fila nunca se gira ni se refleja.',
+  'A container drawn as a region is never turned or mirrored.':
+    'Un contenedor dibujado como región nunca se gira ni se refleja.',
+  'A container is never turned or mirrored: what it holds is laid out in its own axes.':
+    'Un contenedor nunca se gira ni se refleja: lo que contiene se organiza en sus propios ejes.',
+  'A shape that draws rows is never turned or mirrored.':
+    'Una forma que dibuja filas nunca se gira ni se refleja.',
+  'An anchored part lies in its part’s place, and is never turned or mirrored.':
+    'Una parte anclada está en el lugar de su parte, y nunca se gira ni se refleja.',
+  'Nothing selected is drawn in this view.': 'Nada de lo seleccionado se dibuja en esta vista.',
+  // Copy and paste appearance (A6.4).
+  'Copy appearance': 'Copiar apariencia',
+  'Paste appearance': 'Pegar apariencia',
+  'Copy every Style and Text trait of this item':
+    'Copiar cada rasgo de Estilo y de Texto de este elemento',
+  'Paste the appearance of "{name}" onto the selection':
+    'Pegar la apariencia de "{name}" en la selección',
+  'Copied the appearance.': 'Se copió la apariencia.',
+  'Copied the appearance of "{name}".': 'Se copió la apariencia de "{name}".',
+  'Select one element or one relation to copy its appearance.':
+    'Seleccione un elemento o una relación para copiar su apariencia.',
+  'Copy the appearance of an element or a relation first.':
+    'Copie primero la apariencia de un elemento o de una relación.',
+  'Select the elements or relations to paste the appearance onto.':
+    'Seleccione los elementos o las relaciones en los que pegar la apariencia.',
+  'Ctrl+Alt+C and Ctrl+Alt+V (⌥⌘C and ⌥⌘V on macOS)':
+    'Ctrl+Alt+C y Ctrl+Alt+V (⌥⌘C y ⌥⌘V en macOS)',
+  'Copy the appearance of the selected element or relation, and paste it onto the selection':
+    'Copiar la apariencia del elemento o la relación seleccionados, y pegarla en la selección',
 };
 
 /**
@@ -7519,6 +7561,18 @@ export const messages: Catalog = {
     'una cara completa como máximo {n} partes de su marcado.',
   'a face lays out at most {n} boxes.': 'una cara organiza como máximo {n} cajas.',
   'the face has no markup.': 'la cara no tiene marcado.',
+  // The Arrange tab's and copy and paste appearance's actions (A6.3, A6.4).
+  'Resize {n} shapes': 'Cambiar el tamaño de {n} formas',
+  'Place "{name}"': 'Colocar "{name}"',
+  'Place {n} shapes': 'Colocar {n} formas',
+  'Turn "{name}"': 'Girar "{name}"',
+  'Turn {n} shapes': 'Girar {n} formas',
+  'Mirror "{name}"': 'Reflejar "{name}"',
+  'Mirror {n} shapes': 'Reflejar {n} formas',
+  'Pin "{name}"': 'Fijar "{name}"',
+  'Pin {n} shapes': 'Fijar {n} formas',
+  'Paste the appearance onto "{name}"': 'Pegar la apariencia en "{name}"',
+  'Paste the appearance onto {n} items': 'Pegar la apariencia en {n} elementos',
 };
 
 /**

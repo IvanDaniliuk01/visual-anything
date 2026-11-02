@@ -355,8 +355,9 @@ function OwnTraits({
 }
 
 /**
- * "Set as the project's default" (ADR 0088): the element's own style becomes a project appearance of
- * Essence, so that every shape whose component sets none of it draws it, in one action.
+ * "Set as the project's default" (ADR 0088): the element's own style and the parts of its text become
+ * a project appearance of Essence, so that every shape whose component sets none of them draws them,
+ * in one action.
  */
 function ProjectDefault({ element, disabled }: { element: Element; disabled: boolean }) {
   const t = useT();
@@ -380,10 +381,10 @@ function ProjectDefault({ element, disabled }: { element: Element; disabled: boo
       <p id={noteId} className="inspector-notes">
         {command === undefined
           ? t(
-              'Its gradient, border, corner radius, opacity and shadow become the project’s default once it sets one of them itself.',
+              'Its gradient, border, corner radius, opacity, shadow and text become the project’s default once it sets one of them itself.',
             )
           : t(
-              'Gives every shape the gradient, border, corner radius, opacity and shadow this one sets itself, wherever its component sets none.',
+              'Gives every shape the gradient, border, corner radius, opacity, shadow and parts of its text this one sets itself, wherever its component sets none.',
             )}
       </p>
       {sender.problem !== undefined && <InlineProblem id={problemId} text={sender.problem} />}

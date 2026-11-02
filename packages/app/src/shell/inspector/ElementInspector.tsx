@@ -33,6 +33,7 @@ import { ViewSection } from './ViewSection';
 import { DestinationsSection } from '../../destinations/DestinationsSection';
 import { PackagePanels } from '../../packages/PackagePanels';
 import { ExternalIdsSection } from '../../destinations/ExternalIdsSection';
+import { ShapeArrange } from './ShapeArrange';
 
 interface ElementInspectorProps {
   element: Element;
@@ -136,7 +137,14 @@ export function ElementInspector({
         definitions={definitions}
         disabled={disabled}
         update={update}
-        arrange={drawn ? <ViewSection element={element} /> : undefined}
+        arrange={
+          drawn ? (
+            <>
+              <ShapeArrange elements={[element.id]} />
+              <ViewSection element={element} />
+            </>
+          ) : undefined
+        }
       />
       <PackagePanels element={element} />
     </>

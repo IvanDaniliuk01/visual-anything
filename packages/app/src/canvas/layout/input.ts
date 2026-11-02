@@ -32,6 +32,7 @@ import {
   type LayoutRelation,
   type LayoutShape,
 } from './types';
+import { isTurned, turnedBounds } from '../turn';
 
 /**
  * Which shapes one layout may move; pinned shapes never move (ADR-0009):
@@ -238,13 +239,17 @@ export function tagReachOf(
   laidOut: Rect = laidOutRect(shape),
 ): { left: number; right: number; top: number; bottom: number } {
   const tag = nameTagOn(shape);
-  if (!tag) return NO_REACH;
+  // A turned shape is spaced by the bounds it is drawn in (ADR 0088), with its tag.
+  const turned = isTurned(shape) ? turnedBounds({ ...shape, rect: laidOut }) : undefined;
+  if (!tag && !turned) return NO_REACH;
+  const covered = turned && tag ? boundsOf([turned, tag]) : (turned ?? tag);
+  if (!covered) return NO_REACH;
   const up = (room: number) => (room > 0 ? Math.ceil(room / LAYOUT_STEP - 1e-9) * LAYOUT_STEP : 0);
   return {
-    left: up(laidOut.x - tag.x),
-    right: up(tag.x + tag.width - (laidOut.x + laidOut.width)),
-    top: up(laidOut.y - tag.y),
-    bottom: up(tag.y + tag.height - (laidOut.y + laidOut.height)),
+    left: up(laidOut.x - covered.x),
+    right: up(covered.x + covered.width - (laidOut.x + laidOut.width)),
+    top: up(laidOut.y - covered.y),
+    bottom: up(covered.y + covered.height - (laidOut.y + laidOut.height)),
   };
 }
 

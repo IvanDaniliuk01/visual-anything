@@ -1096,10 +1096,32 @@ const setPositions = tool({
   title: 'Place shapes in a view',
   description: `Sets where element shapes sit in a view, as one undoable action. A position is keyed by the element and the container its shape sits in (left out for World), and is relative to that container's shape; every copy of a container shares its inner layout. Positions are left for layout to change unless pinned. Your positions are not snapped to the grid. Routes chosen by hand follow their ends: their bend points move with both ends when you move both together, and only those next to an end you move alone follow it; the answer names those whose ends you moved apart, which reset_route sends back to automatic routes.
 
-Example: { "view": "system-overview", "positions": [{ "element": "scheduling", "container": "clinic-booking", "x": 520, "y": 64, "width": 440, "height": 384 }, { "element": "patient", "x": 40, "y": 200 }] }`,
+A position may turn a shape (rotation, in degrees) and mirror it (flip), as the format panel's Arrange tab does; its name stays level, lines attach to its turned outline, and layout spaces it by its turned bounds.
+
+Example: { "view": "system-overview", "positions": [{ "element": "scheduling", "container": "clinic-booking", "x": 520, "y": 64, "width": 440, "height": 384 }, { "element": "patient", "x": 40, "y": 200, "rotation": 90, "flip": "horizontal" }] }`,
   input: {
     view: id(),
-    positions: z.array(z.object({ element: id(), container: id().optional(), ...place() })).min(1),
+    positions: z
+      .array(
+        z.object({
+          element: id(),
+          container: id().optional(),
+          ...place(),
+          rotation: z
+            .number()
+            .min(-3600)
+            .max(3600)
+            .optional()
+            .describe(
+              'Degrees it turns clockwise about its middle, kept from 0 up to 360; 0 takes a turn away. Left out, kept. Containers and rows never turn.',
+            ),
+          flip: z
+            .enum(['horizontal', 'vertical', 'both', 'none'])
+            .optional()
+            .describe('How it is mirrored; none takes it away. Left out, kept. Its name never is.'),
+        }),
+      )
+      .min(1),
   },
   hints: WRITE,
   run: async (args, program) => {

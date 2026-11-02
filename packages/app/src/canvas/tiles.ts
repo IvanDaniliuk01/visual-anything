@@ -459,6 +459,9 @@ export function shapeSignature(shape: ElementShape): string {
       shape.destinations ?? 0,
       // Its own outline and the part it is drawn as (ADR 0066, ADR 0067).
       outlineSignature(shape),
+      // Its turn and mirroring (ADR 0088).
+      shape.rotation ?? 0,
+      shape.flip ?? '',
     ].join(' ');
     signatures.set(shape, signature);
   }

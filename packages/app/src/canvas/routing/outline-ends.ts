@@ -39,6 +39,7 @@ import {
 import type { Point, Rect } from '../geometry';
 import { boundsWithTag, tagOfShape, type NameTag } from '../nameTags';
 import type { PlacedOutline, ShapeOutline } from '../outlines';
+import { isTurned, turnedBounds, turnedOutlineOf, type Outlinable } from '../turn';
 
 /** A side and a place along it, from 0 at its left or top end to 1 at the other. */
 export interface SidePlace {
@@ -72,9 +73,16 @@ export function endOutline(
   shape: { outline?: ShapeOutline; plate?: Rect } | undefined,
   rect: Rect,
 ): PlacedOutline | undefined {
-  if (!shape || shape.plate) return undefined;
+  if (!shape) return undefined;
+  // A turned or mirrored shape is attached on its outline as drawn (ADR 0088), its plate's too.
+  const turned =
+    'rect' in shape && isTurned(shape as Outlinable)
+      ? turnedOutlineOf(shape as Outlinable)
+      : undefined;
+  if (!turned && shape.plate) return undefined;
+  const own = turned ?? shape.outline;
   const tag = tagOfShape(shape);
-  const outline = tag ? taggedOutline(shape.outline, rect, tag) : shape.outline;
+  const outline = tag ? taggedOutline(own, rect, tag) : own;
   if (!outline) return undefined;
   return { fitted: outline.fitted, x: rect.x + outline.x, y: rect.y + outline.y };
 }
@@ -85,6 +93,19 @@ export function endOutline(
  * (ADR 0066's clarification of 2026-10-27).
  */
 export function routeBoxOf(shape: { plate?: Rect } | undefined, rect: Rect): Rect {
+  if (shape && 'rect' in shape && isTurned(shape as Outlinable)) {
+    // A turned shape is reached by the box it is drawn in, moved as `rect` is (ADR 0088).
+    const turned = shape as Outlinable;
+    const box = turnedBounds(turned);
+    const at = {
+      x: box.x + rect.x - turned.rect.x,
+      y: box.y + rect.y - turned.rect.y,
+      width: box.width,
+      height: box.height,
+    };
+    const tag = tagOfShape(shape);
+    return tag ? boundsWithTag(at, tag, rect) : at;
+  }
   const tag = shape?.plate ? undefined : tagOfShape(shape);
   return tag ? boundsWithTag(rect, tag, rect) : rect;
 }

@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useT } from '../../i18n';
+import { AppearanceClipboard } from './AppearanceClipboard';
 
 /** A tab of the format panel (ADR 0088). */
 export type FormatTab = 'style' | 'text' | 'arrange';
@@ -88,6 +89,7 @@ export function FormatPanel({ heading, lead, style, text, arrange }: FormatPanel
     <section className="inspector-section format-panel" aria-labelledby={headingId}>
       <h4 id={headingId}>{heading}</h4>
       {lead}
+      <AppearanceClipboard />
       <div role="tablist" className="format-tabs" aria-label={t('Format')}>
         {shown.map((tab, at) => (
           <button

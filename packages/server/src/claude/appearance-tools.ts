@@ -33,6 +33,10 @@ import type { Tool, ToolOutcome } from './tools';
 
 const color = () => z.string().describe('A color written as #RRGGBB, such as "#2F855A".');
 
+/** How opaque a shape or a line is drawn (ADR 0088); its text stays whole. */
+const opacity = () =>
+  z.number().min(0.2).max(1).describe('From 0.2 to 1; 1 unless set. Text stays whole.');
+
 /** The style of a relation's automatic routes (ADR 0069). */
 const routeStyle = () =>
   z
@@ -47,11 +51,12 @@ export const relationAppearance = () =>
       width: z.number().positive().optional().describe('The line width, in canvas units.'),
       dash: z.enum(['solid', 'dashed', 'dotted']).optional(),
       route: routeStyle().optional(),
+      opacity: opacity().optional(),
     })
     // Anything else goes to the core, which refuses it and says why.
     .catchall(z.unknown())
     .describe(
-      'How the line looks: stroke, width, dash and route. What it leaves out is inherited.',
+      'How the line looks: stroke, width, dash, route and opacity. What it leaves out is inherited.',
     );
 
 /** Changes to a relation's own appearance, trait by trait: a value sets one, null inherits it again. */
@@ -62,9 +67,10 @@ export const relationAppearanceTraits = () =>
       width: z.number().positive().nullable().optional(),
       dash: z.enum(['solid', 'dashed', 'dotted']).nullable().optional(),
       route: routeStyle().nullable().optional(),
+      opacity: opacity().nullable().optional(),
     })
     .catchall(z.unknown())
-    .describe('Traits to set, or null to inherit again: stroke, width, dash, route.');
+    .describe('Traits to set, or null to inherit again: stroke, width, dash, route, opacity.');
 
 /** The fill and the stroke a change of appearance stores, as colors; what it does not set is absent. */
 export function colorsSet(...changes: readonly unknown[]): { fill?: string; stroke?: string } {
@@ -240,7 +246,9 @@ const setAppearance = tool({
 
 Give appearanceTraits to change some traits and keep the others: a value sets a trait, null makes it inherited again. Or give appearance to replace the appearance at that level whole; null removes it.
 
-Shapes' traits: shape (rectangle, rounded-rectangle, ellipse, cylinder or person), fill, stroke, width and height (canvas units), detail ({ componentName, attributes, badges, lines }, each part inherited on its own; lines, from 1 to 6, is how many lines it wraps to, 3 unless set), textPlacement (top, middle or bottom: where the block of the name and the detail sits in the shape; Essence sets middle), contentsAsRows, connectionPoints, image (from list_images), solid, geometry, part, levels and expandFrom (set_levels explains those). Lines' traits: stroke, width, dash (solid, dashed or dotted) and route.
+Shapes' traits: shape (rectangle, rounded-rectangle, ellipse, cylinder or person), fill, stroke, width and height (canvas units), detail ({ componentName, attributes, badges, lines }, each part inherited on its own; lines, from 1 to 6, is how many lines it wraps to, 3 unless set), textPlacement (top, middle or bottom: where the block of the name and the detail sits in the shape; Essence sets middle), contentsAsRows, connectionPoints, image (from list_images), solid, geometry, part, levels and expandFrom (set_levels explains those). Lines' traits: stroke, width, dash (solid, dashed or dotted), route and opacity.
+
+Style (the format panel's): borderWidth (0 to 16; 0 draws no border), dash (the border's), cornerRadius (0 to 64, rectangles), opacity (0.2 to 1, text whole), shadow (none or soft), gradient ({ to: "#RRGGBB", direction: "down" | "right" }, or "none"). Text: text { font (roboto, system or mono), size (8 to 48), bold, italic, underline, align (left, center, right), position (inside, above, below, left, right: a tag at that side), color, background, border, wrap, padding (0 to 48) }, each part inherited on its own (null inherits it again). Left unset, they come from the drawing defaults. A shape's turn and mirroring are the view's: set_positions takes rotation and flip.
 
 - geometry: the shapes' own outline, drawn in place of their kind: { width, height, outline, keepProportions?, label? }. width and height are the box its coordinates are written in, from its top left; outline holds 1 to 64 contours, { "kind": "path", "d" } in SVG path data (M L H V C S Q T A Z), { "kind": "polygon", "points": "x,y x,y …" } or { "kind": "ellipse", cx, cy, rx, ry }. A contour inside another is a hole. label is where the name goes, in the box. At most 2,000 segments and 32 KiB of path data. "none" takes an inherited one away.
 - solid: { solid, placement, camera, lighting }, from list_solids: placement icon, drawing or parts; lighting studio or flat. "none" takes it away.
@@ -256,6 +264,7 @@ Example, a ring with a hole: { "component": "physics.ring", "appearanceTraits": 
 Example, a part of an atlas: { "element": "left-lung", "appearanceTraits": { "part": { "part": "lung-left", "image": "anatomy.body-atlas" } } }
 Example: { "element": "arm", "appearanceTraits": { "solid": { "solid": "robot.arm-k3f9" } } }
 Example: { "relationType": "neuro.nerve", "appearanceTraits": { "route": "curved", "dash": "dashed" } }
+Example: { "element": "billing", "appearanceTraits": { "borderWidth": 3, "shadow": "soft", "gradient": { "to": "#3E63DD", "direction": "right" }, "text": { "bold": true, "size": 16, "position": "below" } } }
 Example: { "component": "systems.service", "appearance": null }`,
   input: {
     component: id().optional().describe('The component, as list_definitions gives it.'),

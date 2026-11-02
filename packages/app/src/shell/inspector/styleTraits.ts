@@ -312,9 +312,10 @@ const DEFAULT_SHAPE_TRAITS: readonly ShapeStyleTrait[] = SHAPE_STYLE_TRAITS;
 const DEFAULT_LINE_TRAITS = ['stroke', 'width', 'dash', 'opacity', 'route'] as const;
 
 /**
- * The action that makes an element's own Style traits the project's default (ADR 0088): a project
- * appearance of Essence, which every component derives from, so that every shape whose component sets
- * none of them draws them. None when the element sets none of them itself.
+ * The action that makes an element's own Style traits and the parts of its text the project's default
+ * (ADR 0088): a project appearance of Essence, which every component derives from, so that every
+ * shape whose component sets none of them draws them; each part of the text goes on its own, and the
+ * project's other parts stay. None when the element sets none of them itself.
  */
 export function projectDefaultCommand(element: Element): Command | undefined {
   const own = element.appearance ?? {};
@@ -323,6 +324,7 @@ export function projectDefaultCommand(element: Element): Command | undefined {
       own[trait] === undefined ? [] : [[trait, own[trait]]],
     ),
   ) as AppearanceChanges;
+  if (own.text !== undefined && Object.keys(own.text).length > 0) traits.text = { ...own.text };
   if (Object.keys(traits).length === 0) return undefined;
   return { type: 'set-component-appearance', component: ESSENCE_ID, appearanceTraits: traits };
 }
