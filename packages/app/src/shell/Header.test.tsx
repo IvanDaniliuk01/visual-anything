@@ -275,13 +275,21 @@ describe('the product and the tab', () => {
   });
 });
 
+/** Opens the header's Language and theme, unless it is open already. */
+function openPreferences(): void {
+  const button = screen.getByRole('button', { name: 'Language and theme' });
+  if (button.getAttribute('aria-expanded') !== 'true') fireEvent.click(button);
+}
+
 describe('the Theme control', () => {
   function themeRadio(name: string): HTMLInputElement {
+    openPreferences();
     return within(screen.getByRole('radiogroup', { name: 'Theme' })).getByRole('radio', { name });
   }
 
   it('offers Match the system, Light and Dark, matching the system at first', () => {
     renderHeader(fakeLive());
+    openPreferences();
     const group = screen.getByRole('radiogroup', { name: 'Theme' });
     expect(
       within(group)
@@ -374,6 +382,68 @@ describe('the Theme control', () => {
   });
 });
 
+describe('Language and theme (A5)', () => {
+  function menuButton(): HTMLElement {
+    return screen.getByRole('button', { name: 'Language and theme' });
+  }
+
+  it('is one icon button at the header’s end, with no select of languages in the header', () => {
+    renderHeader(fakeLive());
+    const banner = screen.getByRole('banner');
+    expect(within(banner).queryByRole('combobox')).not.toBeInTheDocument();
+    expect(menuButton()).toHaveAttribute('aria-expanded', 'false');
+    expect(menuButton()).toHaveAttribute('title', 'Language and theme');
+    expect(menuButton().querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    const actions = banner.querySelector('.shell-actions');
+    expect(actions?.lastElementChild).toContainElement(menuButton());
+  });
+
+  it('opens on the theme chosen, with the same choices of theme and language as before', () => {
+    renderHeader(fakeLive());
+    fireEvent.click(menuButton());
+    expect(menuButton()).toHaveAttribute('aria-expanded', 'true');
+    const panel = screen.getByRole('group', { name: 'Language and theme' });
+    expect(menuButton()).toHaveAttribute('aria-controls', panel.id);
+    expect(within(panel).getByRole('radio', { name: 'Match the system' })).toHaveFocus();
+    const languages = within(panel).getByRole('radiogroup', { name: 'Language' });
+    expect(
+      within(languages)
+        .getAllByRole('radio')
+        .map((radio) => radio.getAttribute('value')),
+    ).toEqual(['system', 'en', 'es']);
+    expect(within(languages).getByRole('radio', { name: /^Match the browser/ })).toBeChecked();
+    expect(within(languages).getByRole('radio', { name: 'Español' })).not.toBeChecked();
+  });
+
+  it('keeps the language chosen, which language.test.tsx sees applied', () => {
+    renderHeader(fakeLive());
+    fireEvent.click(menuButton());
+    fireEvent.click(screen.getByRole('radio', { name: 'Español' }));
+    expect(screen.getByRole('radio', { name: 'Español' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /^Match the browser/ })).not.toBeChecked();
+  });
+
+  it('closes with Escape, giving the focus back to its button, and on a press outside', () => {
+    render(
+      <>
+        <Header projectName="My systems" />
+        <button type="button">Elsewhere</button>
+      </>,
+    );
+    fireEvent.click(menuButton());
+    const dark = screen.getByRole('radio', { name: 'Dark' });
+    dark.focus();
+    fireEvent.keyDown(dark, { key: 'Escape' });
+    expect(screen.queryByRole('group', { name: 'Language and theme' })).not.toBeInTheDocument();
+    expect(menuButton()).toHaveFocus();
+    expect(menuButton()).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(menuButton());
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Elsewhere' }));
+    expect(screen.queryByRole('group', { name: 'Language and theme' })).not.toBeInTheDocument();
+  });
+});
+
 describe('the header’s one row (A4)', () => {
   const LONG_VIEW = 'How one gesture becomes a command and comes back to every app';
   const LONG_UNDO = {
@@ -394,6 +464,27 @@ describe('the header’s one row (A4)', () => {
     expect(banner.getByText('My systems')).toHaveAttribute('title', 'My systems');
     expect(undoButton()).toHaveAccessibleName(`Undo: ${LONG_UNDO.label}`);
     expect(undoButton().getAttribute('title')).toContain(LONG_UNDO.label);
+  });
+
+  it('shows the project and the view as a path, naming each for screen readers', () => {
+    renderHeader(null);
+    expect(screen.getAllByRole('definition').map((value) => value.textContent)).toEqual([
+      'My systems',
+      'System overview',
+    ]);
+    for (const term of screen.getAllByRole('term')) expect(term).toHaveClass('visually-hidden');
+    expect(screen.getAllByRole('term').map((term) => term.textContent)).toEqual([
+      'Project',
+      'View',
+    ]);
+    expect(readSource('shell/header.css')).toMatch(
+      /\.shell-context > div \+ div::before\s*\{[^}]*content: '\/'/,
+    );
+  });
+
+  it('never widens the page past the window, which never scrolls as a whole (A5)', () => {
+    // A grid's item is as wide as its content at least, unless told otherwise.
+    expect(readSource('styles.css')).toMatch(/\.shell > \*\s*\{\s*min-width: 0;\s*min-height: 0;/);
   });
 
   it('never wraps: the row cuts the view’s name and the undo label with an ellipsis instead', () => {

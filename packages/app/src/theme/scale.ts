@@ -125,9 +125,18 @@ export const SCALE = {
   tracking: { title: '0.01em', caps: '0.05em' },
   /**
    * Notices stay visible over a modal's backdrop, and never take its focus. Marks over the canvas,
-   * such as comment pins, lie under its toolbar.
+   * such as comment pins, lie under its toolbar. `behind` puts a box's own backdrop, such as the
+   * canvas toolbar's bar, behind what the box holds (A5).
    */
-  z: { marks: '1', toolbar: '2', editor: '3', menu: '4', dialog: '10', notices: '20' },
+  z: {
+    behind: '-1',
+    marks: '1',
+    toolbar: '2',
+    editor: '3',
+    menu: '4',
+    dialog: '10',
+    notices: '20',
+  },
   /** Control heights; the small one still gives a hit target of at least 24 px. */
   control: { sm: '1.75rem', md: '2.25rem' },
   /** The icons of `shell/icons.tsx`, 16 px by default, and pictures drawn at an icon's place. */

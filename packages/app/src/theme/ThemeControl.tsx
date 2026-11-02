@@ -10,17 +10,29 @@ const OPTIONS: readonly { choice: ThemeChoice; label: string; Icon: ComponentTyp
   { choice: 'dark', label: 'Dark', Icon: MoonIcon },
 ];
 
+/** The shorter name an option shows beside its icon in the header's menu, whole in its tooltip. */
+const SHOWN: Readonly<Record<ThemeChoice, string>> = {
+  system: 'System',
+  light: 'Light',
+  dark: 'Dark',
+};
+
 /**
- * The Theme control in the header: three native radios, Match the system, Light and Dark, each shown
- * as an icon. The arrow keys move the choice as in any radio group, each choice applies in the tab at
- * once, and the local program keeps the latest one as the person's preference.
+ * The Theme control: three native radios, Match the system, Light and Dark, each shown as an icon, and
+ * in the header's Language and theme with a short name beside it (`labelled`, A5). The arrow keys move
+ * the choice as in any radio group, each choice applies in the tab at once, and the local program
+ * keeps the latest one as the person's preference.
  */
-export function ThemeControl() {
+export function ThemeControl({ labelled = false }: { labelled?: boolean }) {
   const t = useT();
   const { preferences, systemTheme, change } = usePreferences();
   const name = useId();
   return (
-    <div className="theme-control" role="radiogroup" aria-label={t('Theme')}>
+    <div
+      className={labelled ? 'theme-control theme-control-labelled' : 'theme-control'}
+      role="radiogroup"
+      aria-label={t('Theme')}
+    >
       {OPTIONS.map(({ choice, label, Icon }) => (
         <label
           key={choice}
@@ -45,6 +57,11 @@ export function ThemeControl() {
           />
           <Icon />
           <span className="visually-hidden">{t(label)}</span>
+          {labelled && (
+            <span className="theme-option-name" aria-hidden="true">
+              {t(SHOWN[choice])}
+            </span>
+          )}
         </label>
       ))}
     </div>

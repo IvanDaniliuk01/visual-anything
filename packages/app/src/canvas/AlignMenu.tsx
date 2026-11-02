@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../i18n';
+import { AlignIcon } from '../shell/icons';
 import type { AlignHow } from './align';
 import { ALIGN_GROUPS, ALIGN_NAMES, ALIGN_SHORTCUTS, type AlignAction } from './alignActions';
 import './align.css';
@@ -47,7 +48,8 @@ export function AlignMenu({ actions, onAlign }: AlignMenuProps) {
           setOpen(true);
         }}
       >
-        {t('Align')}
+        <AlignIcon />
+        <span className="canvas-toolbar-label">{t('Align')}</span>
       </button>
       {open && <AlignItems id={menuId} states={actions()} onAlign={onAlign} onClose={close} />}
     </span>

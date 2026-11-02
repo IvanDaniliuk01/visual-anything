@@ -1,12 +1,16 @@
 /**
  * What of the canvas toolbar goes under More (W26): the toolbar keeps one row, and when its row has no
  * room for everything, groups of controls go under the More menu, one at a time in a fixed order,
- * until the row fits; as the row gets wider, they come back in the reverse order. Adding elements and
- * zooming always stay in the row.
+ * until the row fits; as the row gets wider, they come back in the reverse order. Adding elements, the
+ * view and zooming always stay in the row.
  */
 
-/** The groups that go under More, the first to go first. */
+/**
+ * The groups that go under More, the first to go first: the keyboard help, which is read once in a
+ * while, before the grid's toggles and the rest (A5).
+ */
 export const OVERFLOW_ORDER = [
+  'keys',
   'grid',
   'stacking',
   'layout',
@@ -23,10 +27,11 @@ export type OverflowGroup = (typeof OVERFLOW_ORDER)[number];
 export const MORE_ORDER: readonly OverflowGroup[] = [
   'shapes',
   'stacking',
-  'explore',
   'layout',
+  'explore',
   'grid',
   'space',
+  'keys',
   'fit',
 ];
 

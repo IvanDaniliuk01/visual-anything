@@ -1,12 +1,12 @@
 /*
- * The header in narrow windows (W26): it keeps to fewer lines, so that the canvas keeps its height.
- * Undo and redo first leave out the action they name, then Copy address, Compare with…, Export, Undo
- * and Redo show only their icons. Each keeps its name for screen readers, and undo and redo say the
- * action in their tooltips.
+ * The header (A5): the product, then the project and the view as "My systems / System overview", then
+ * quiet actions in groups, undo and redo, and Language and theme at its end.
  *
- * At every width it keeps one row (A4), so that the canvas never moves down while you work: the
- * project's and the view's names and the action Undo and Redo name give up their width first, cut
- * with "…", and stay whole in their tooltips and for screen readers; the other controls keep theirs.
+ * It keeps one row at every width (A4), so that the canvas never moves down while you work. The
+ * actions are icons, or an icon and a short name, so the project's and the view's names take the room
+ * they need; only when the window is too narrow do the action Undo and Redo name and then the names
+ * give up their width, cut with "…", whole in their tooltips and for screen readers. Undo and redo
+ * show only their icons in narrow windows (W26).
  */
 
 .shell-header > .shell-product {
@@ -17,6 +17,7 @@
 .shell-header .shell-context {
   flex: 0 1 auto;
   flex-wrap: nowrap;
+  align-items: baseline;
   min-width: 0;
 }
 
@@ -30,8 +31,12 @@
   flex-shrink: 4;
 }
 
-.shell-header .shell-context dt {
+/* "/" between the project and the view, as a path reads. */
+.shell-header .shell-context > div + div::before {
   flex: none;
+  color: var(--text-muted);
+  font-weight: var(--weight-normal);
+  content: '/';
 }
 
 .shell-context-value {
@@ -41,9 +46,16 @@
   white-space: nowrap;
 }
 
+/* The project's name reads as where you are; the view's, as what you look at. */
+.shell-header .shell-context > div:first-child .shell-context-value {
+  color: var(--text-muted);
+  font-weight: var(--weight-medium);
+}
+
 .shell-header .shell-actions {
   flex: 0 1 auto;
   flex-wrap: nowrap;
+  gap: var(--space-25);
   min-width: 0;
 }
 
@@ -54,6 +66,99 @@
 .shell-header .shell-actions > .shell-history {
   flex: 0 4 auto;
   min-width: 0;
+}
+
+/* A thin line between two groups of actions. */
+.shell-separator {
+  align-self: center;
+  width: var(--stroke-thin);
+  height: var(--icon-sm);
+  margin: 0 var(--space-40);
+  background: var(--border);
+}
+
+/*
+ * Every action is quiet: no boundary or fill until the pointer is on it (A5), as each control's own
+ * stylesheet would give it elsewhere. Pressed in, it takes the accent's soft fill.
+ */
+.shell-header .shell-actions .copy-address,
+.shell-header .shell-actions .import-button,
+.shell-header .shell-actions .compare-button,
+.shell-header .shell-actions .export-button,
+.shell-header .shell-actions .element-list-toggle,
+.shell-header .shell-actions .history-button,
+.shell-header .preferences-button {
+  gap: var(--space-40);
+  min-height: var(--control-sm);
+  padding: var(--space-20) var(--space-50);
+  border: var(--stroke-thin) solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+}
+
+.shell-header .shell-actions .copy-address:hover:not(:disabled),
+.shell-header .shell-actions .import-button:hover:not([aria-disabled='true']),
+.shell-header .shell-actions .compare-button:hover:not([aria-disabled='true']),
+.shell-header .shell-actions .export-button:hover:not([aria-disabled='true']),
+.shell-header .shell-actions .element-list-toggle:hover:not(:disabled),
+.shell-header .shell-actions .history-button:hover:not([aria-disabled='true']),
+.shell-header .preferences-button:hover {
+  background: var(--surface-hover);
+}
+
+.shell-header .shell-actions .copy-address:active:not(:disabled),
+.shell-header .shell-actions .import-button:active:not([aria-disabled='true']),
+.shell-header .shell-actions .compare-button:active:not([aria-disabled='true']),
+.shell-header .shell-actions .export-button:active:not([aria-disabled='true']),
+.shell-header .shell-actions .element-list-toggle:active:not(:disabled),
+.shell-header .shell-actions .history-button:active:not([aria-disabled='true']),
+.shell-header .preferences-button:active {
+  background: var(--surface-pressed);
+}
+
+.shell-header .shell-actions .copy-address:disabled,
+.shell-header .shell-actions .import-button[aria-disabled='true'],
+.shell-header .shell-actions .compare-button[aria-disabled='true'],
+.shell-header .shell-actions .export-button[aria-disabled='true'],
+.shell-header .shell-actions .element-list-toggle:disabled,
+.shell-header .shell-actions .history-button[aria-disabled='true'],
+.shell-header .preferences-button:disabled {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.shell-header .shell-actions .copy-address:focus-visible,
+.shell-header .shell-actions .import-button:focus-visible,
+.shell-header .shell-actions .compare-button:focus-visible,
+.shell-header .shell-actions .export-button:focus-visible,
+.shell-header .shell-actions .element-list-toggle:focus-visible,
+.shell-header .shell-actions .history-button:focus-visible,
+.shell-header .preferences-button:focus-visible {
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thin);
+}
+
+/* Pressed in: the element list open, or the panel of the language and the theme. */
+.shell-header .shell-actions .element-list-toggle[aria-pressed='true'],
+.shell-header .preferences-button[aria-expanded='true'] {
+  border-color: var(--control-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/*
+ * Copy address, Compare with… and the element list show their icons alone: each keeps its name for
+ * screen readers and says what it does in its tooltip.
+ */
+.shell-header :is(.copy-address > span, .compare-label, .element-list-toggle > span) {
+  position: absolute;
+  width: var(--size-hidden);
+  height: var(--size-hidden);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* Only a button that names its action gives up width, and only that name's. */
@@ -77,7 +182,7 @@
 }
 
 @media (max-width: 1100px) {
-  .shell-header :is(.copy-address > span, .compare-label, .export-label, .history-verb) {
+  .shell-header .history-verb {
     position: absolute;
     width: var(--size-hidden);
     height: var(--size-hidden);
@@ -85,9 +190,101 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
+}
 
-  .shell-header .language-control select {
-    max-width: var(--size-1000);
-    text-overflow: ellipsis;
+/* Language and theme: the button, and the panel it opens under it, at the header's end. */
+
+.preferences {
+  position: relative;
+}
+
+.preferences-button {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--control-sm);
+  font: inherit;
+  cursor: pointer;
+}
+
+.preferences-panel {
+  position: absolute;
+  top: calc(100% + var(--space-40));
+  right: 0;
+  z-index: var(--z-menu);
+  display: grid;
+  gap: var(--space-40);
+  width: var(--size-1800);
+  max-width: calc(100vw - var(--space-200));
+  padding: var(--space-60);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-2);
+}
+
+.preferences-heading {
+  margin-top: var(--space-20);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
+}
+
+/* The theme as three equal parts of one control, each its icon and its short name. */
+.preferences-panel .theme-control-labelled {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.preferences-panel .theme-control-labelled .theme-option {
+  display: inline-flex;
+  justify-content: center;
+  gap: var(--space-30);
+  width: auto;
+  padding: 0 var(--space-40);
+  font-size: var(--text-xs);
+}
+
+/* The languages as a list, the one chosen checked. */
+.language-choices {
+  display: grid;
+  gap: var(--space-10);
+}
+
+.language-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-50);
+  min-height: var(--control-sm);
+  padding: 0 var(--space-50);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.language-choice:hover {
+  background: var(--surface-hover);
+}
+
+.language-choice:active {
+  background: var(--surface-pressed);
+}
+
+.language-choice:has(:checked) {
+  font-weight: var(--weight-strong);
+}
+
+.language-choice:not(:has(:checked)) .language-check {
+  visibility: hidden;
+}
+
+/* The radio is hidden, so a ring drawn on it would be clipped: the choice draws it. */
+.language-choice:has(:focus-visible) {
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: calc(-1 * var(--stroke-thick));
+}
+
+@media (forced-colors: active) {
+  .language-choice:has(:focus-visible) {
+    outline-color: Highlight;
   }
 }

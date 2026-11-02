@@ -83,7 +83,6 @@ import type { GridOptions } from './renderer';
 import { addRowCommand } from './rowCommands';
 import { indexScene, withoutShapes, type IndexedScene } from './hit';
 import { InlineEditor } from './InlineEditor';
-import { KeyboardHelp } from './KeyboardHelp';
 import { CANVAS_KEYS_HINT } from './keys';
 import { forThisTab } from '../guidance/tabs';
 import type { LayoutScope } from './layout/input';
@@ -1115,7 +1114,6 @@ export function CanvasArea({
         {announcement.text}
         {announcement.count % 2 === 1 ? ' ' : ''}
       </div>
-      <KeyboardHelp />
       <LegendPanel legend={legend} />
       {recording && <RecordingCue />}
       {relating && (

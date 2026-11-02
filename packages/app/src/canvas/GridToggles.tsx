@@ -26,7 +26,7 @@ export function GridToggles({ grid, onGrid }: GridTogglesProps) {
         onClick={() => onGrid({ grid: !grid.grid })}
       >
         <GridIcon />
-        <span className="visually-hidden">{t('Grid')}</span>
+        <span className="canvas-toolbar-label">{t('Grid')}</span>
       </button>
       <button
         type="button"
@@ -40,7 +40,7 @@ export function GridToggles({ grid, onGrid }: GridTogglesProps) {
         onClick={() => onGrid({ snapToGrid: !grid.snapToGrid })}
       >
         <SnapIcon />
-        <span className="visually-hidden">{t('Snap to grid')}</span>
+        <span className="canvas-toolbar-label">{t('Snap to grid')}</span>
       </button>
       <button
         type="button"
@@ -50,7 +50,7 @@ export function GridToggles({ grid, onGrid }: GridTogglesProps) {
         onClick={() => onGrid({ rulers: !grid.rulers })}
       >
         <RulerIcon />
-        <span className="visually-hidden">{t('Rulers')}</span>
+        <span className="canvas-toolbar-label">{t('Rulers')}</span>
       </button>
     </div>
   );

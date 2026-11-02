@@ -1,4 +1,5 @@
 import { useT } from '../i18n';
+import { KeyboardIcon } from '../shell/icons';
 import { CANVAS_KEYS } from './keys';
 import './keyboard.css';
 
@@ -8,12 +9,18 @@ import './keyboard.css';
  */
 const KEY_NAMES: Readonly<Record<string, string>> = { Delete: 'the Delete key' };
 
-/** The canvas's keyboard help: a disclosure in a corner of the canvas, listing every key. */
+/**
+ * The canvas's keyboard help: a disclosure in the toolbar's group for viewing and reading, or under
+ * More when the row has no room (A5), listing every key in a panel under it.
+ */
 export function KeyboardHelp() {
   const t = useT();
   return (
     <details className="canvas-keys">
-      <summary>{t('Keyboard')}</summary>
+      <summary title={t('Keyboard')}>
+        <KeyboardIcon />
+        <span className="canvas-toolbar-label">{t('Keyboard')}</span>
+      </summary>
       <dl className="canvas-keys-list">
         {CANVAS_KEYS.map(({ keys, does }) => (
           <div key={keys}>
