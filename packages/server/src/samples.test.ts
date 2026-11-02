@@ -86,12 +86,18 @@ describe('the sample projects the program holds', () => {
           'robot-arm.workcell',
           'robot-arm.table',
           'robot-arm.bin',
+          'robot-arm.workpiece',
         ]);
         expect(arm?.relationTypes.map((each) => [each.id, each.nests])).toEqual([
           ['robot-arm.is-in', true],
           ['robot-arm.is-mounted-on', true],
         ]);
-        expect(arm?.solids?.map((each) => each.id)).toEqual(['robot-arm.six-axis-arm']);
+        expect(arm?.solids?.map((each) => each.id)).toEqual([
+          'robot-arm.six-axis-arm',
+          'robot-arm.work-table',
+          'robot-arm.parts-bin',
+          'robot-arm.machined-block',
+        ]);
       } else {
         expect(own).toEqual([]);
       }

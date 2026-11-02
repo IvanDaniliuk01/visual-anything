@@ -493,14 +493,14 @@
     },
     {
       "id": "workpiece",
-      "component": "essence",
+      "component": "robot-arm.workpiece",
       "name": "Workpiece",
       "description": "The part to pick, in bin A.",
       "pose": {
         "in": "bin-a",
         "at": {
           "x": 0,
-          "y": 0.04,
+          "y": 0.021,
           "z": 0
         }
       }

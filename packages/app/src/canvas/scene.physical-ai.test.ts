@@ -186,9 +186,24 @@ describe('the physical-ai sample', () => {
         'workcell/bin-a/workpiece',
         'workcell/bin-b',
         'workcell/workcell-camera',
+        // Since M15 (ADR 0090) the arm's chain is drawn on its picture, so that its joints move it.
+        ...ANCHORED.map((part) => `workcell/arm/${elementOf(part)}`),
       ].sort(),
     );
     expect(shapeOf(scene, 'workcell/arm').solid).toMatchObject({ id: ARM_SOLID });
+    for (const part of ANCHORED) {
+      expect(shapeOf(scene, `workcell/arm/${elementOf(part)}`).part, part).toMatchObject({
+        solid: ARM_SOLID,
+        part,
+        inDrawing: true,
+      });
+    }
+    // The table, the bins and the workpiece show solids of their own, beside their names.
+    expect(shapeOf(scene, 'workcell/table').solid).toMatchObject({ id: 'robot-arm.work-table' });
+    expect(shapeOf(scene, 'workcell/bin-a').solid).toMatchObject({ id: 'robot-arm.parts-bin' });
+    expect(shapeOf(scene, 'workcell/bin-a/workpiece').solid).toMatchObject({
+      id: 'robot-arm.machined-block',
+    });
     const inside = (key: string) => {
       const rect = shapeOf(scene, key).rect;
       const holder = shapeOf(scene, key.slice(0, key.lastIndexOf('/'))).rect;

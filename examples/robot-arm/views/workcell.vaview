@@ -1,12 +1,13 @@
 {
   "id": "workcell",
   "name": "Workcell",
-  "description": "Where the arm works: its table, the bin it picks from, the bin it places in, and the camera above them. Open Physical space to see each where it is.",
+  "description": "Where the arm works: its table, the bin it picks from, the bin it places in, and the camera above them, with the arm’s links and joints drawn on its picture. Open Physical space to see each where it is, and move its joints.",
   "perspective": {
     "name": "Workcell"
   },
   "nestingRelationTypes": [
-    "robot-arm.is-in"
+    "robot-arm.is-in",
+    "physical-ai.is-part-of"
   ],
   "positions": [
     {
@@ -57,6 +58,10 @@
       {
         "kind": "relation-type",
         "relationType": "robot-arm.is-in"
+      },
+      {
+        "kind": "relation-type",
+        "relationType": "physical-ai.is-attached-to"
       }
     ]
   }

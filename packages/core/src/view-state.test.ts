@@ -369,6 +369,7 @@ const space: fc.Arbitrary<ViewSpace> = fc.record(
     explode: fc.double({ min: Number.MIN_VALUE, max: 2, noNaN: true }),
     relations: fc.constant(true),
     names: fc.constant(true),
+    joints: fc.dictionary(anId, spaceNumber(-1e5, 1e5), { minKeys: 1, maxKeys: 5 }),
   },
   { requiredKeys: [] },
 );
@@ -618,6 +619,14 @@ describe('viewStateProblems', () => {
     expect(viewStateProblems(project, { view: 'overview', space: { root: 'api' } })).toEqual([]);
   });
 
+  it('says when joints’ positions are given to what is not a joint', () => {
+    expect(
+      viewStateProblems(project, { view: 'overview', space: { joints: { api: 10, ghost: 1 } } }),
+    ).toEqual([
+      'The physical-space panel gives positions to "api", "ghost", which are not joints of the project; they are left out.',
+    ]);
+  });
+
   it('finds nothing wrong with choices of the scenario’s decisions that play its step', () => {
     expect(
       viewStateProblems(project, {
@@ -852,7 +861,7 @@ describe('the physical-space panel in a view state', () => {
   it.each<[string, string]>([
     [
       'open;names',
-      'The physical-space panel holds root, camera, cut, explode, relations and names, or is open alone, not "open".',
+      'The physical-space panel holds root, camera, cut, explode, relations, names and joints, or is open alone, not "open".',
     ],
     ['names;names', 'The physical-space panel holds "names" twice.'],
     ['names:yes', '"names" in the physical-space panel takes no value.'],
@@ -891,5 +900,43 @@ describe('the physical-space panel in a view state', () => {
     ],
   ])('checkViewState refuses the space %j', (given, message) => {
     expect(checkViewState({ view: 'v', space: given })).toEqual({ ok: false, message });
+  });
+
+  it('carries joints’ positions by joint, written in the order of their ids (ADR 0090)', () => {
+    const state: ViewState = { view: 'v', space: { joints: { 'joint-2': -30.5, 'joint-1': 40 } } };
+    expect(writeViewState(state)).toBe('view=v&space=joints:joint-1=40,joint-2=-30.5');
+    expect(read(writeViewState(state))).toEqual(state);
+    expect(checkViewState({ view: 'v', space: { joints: {} } })).toEqual({
+      ok: true,
+      state: { view: 'v', space: {} },
+    });
+  });
+
+  it.each<[string, string]>([
+    [
+      'joints:joint-1',
+      "The joints' positions are joints:<id>=<position>,…: each joint's id and a number.",
+    ],
+    [
+      'joints:joint-1=far',
+      "The joints' positions are joints:<id>=<position>,…: each joint's id and a number.",
+    ],
+    ['joints:a=1,a=2', 'The joints\' positions name "a" twice.'],
+  ])('refuses space=%s', (clause, message) => {
+    expect(read(`view=v&space=${encodeURIComponent(clause)}`)).toBe(message);
+  });
+
+  it.each<[unknown, string]>([
+    [[1], "The joints' positions map each joint's id to a number."],
+    [
+      { 'joint-1': 'far' },
+      'The position of "joint-1" is a number from -100000 to 100000: degrees for a joint that turns, meters for one that slides.',
+    ],
+    [
+      Object.fromEntries(Array.from({ length: 201 }, (_, at) => [`j${at}`, 0])),
+      "A view state gives at most 200 joints' positions.",
+    ],
+  ])('checkViewState refuses the joints %j', (joints, message) => {
+    expect(checkViewState({ view: 'v', space: { joints } })).toEqual({ ok: false, message });
   });
 });

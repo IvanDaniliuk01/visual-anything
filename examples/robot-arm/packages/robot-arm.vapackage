@@ -1,7 +1,7 @@
 {
   "id": "robot-arm",
   "name": "Pick-and-place arm",
-  "description": "The sample’s own package: the arm’s solid, which its links, joints and gripper are anchored to, and the workcell it works in, with its table and bins.",
+  "description": "The sample’s own package: the arm’s solid, which its links, joints, gripper and wrist camera are anchored to, and the workcell it works in, with its table, its bins and the workpiece, each with a solid of its own.",
   "version": "1.0.0",
   "license": "CC0-1.0",
   "attribution": "Visual Anything contributors",
@@ -42,6 +42,10 @@
           "attributes": [
             "height"
           ]
+        },
+        "solid": {
+          "solid": "robot-arm.work-table",
+          "placement": "icon"
         }
       }
     },
@@ -55,7 +59,28 @@
         "fill": "#FFF4E0",
         "stroke": "#8A5A00",
         "width": 176,
-        "height": 72
+        "height": 72,
+        "solid": {
+          "solid": "robot-arm.parts-bin",
+          "placement": "icon"
+        }
+      }
+    },
+    {
+      "id": "robot-arm.workpiece",
+      "name": "Workpiece",
+      "derivesFrom": "essence",
+      "description": "A part the arm picks from one bin and places in another.",
+      "appearance": {
+        "shape": "rounded-rectangle",
+        "fill": "#FBE9E5",
+        "stroke": "#8E2F1D",
+        "width": 144,
+        "height": 56,
+        "solid": {
+          "solid": "robot-arm.machined-block",
+          "placement": "icon"
+        }
       }
     }
   ],
@@ -309,6 +334,102 @@
           "duration": 6
         }
       ]
+    },
+    {
+      "id": "robot-arm.work-table",
+      "name": "Table",
+      "description": "A table with a pale wooden top on four grey steel legs, 1.2 m across and 75 cm high, seen from the front right, a little above.",
+      "source": "Made for Visual Anything by packages/server/scripts/workcell-solids.ts",
+      "license": "CC0-1.0",
+      "hash": "af326683edc26aec053d622e1f0ddabe34bf0d5996d955840c54e7acd2aa5bc6",
+      "bytes": 4876,
+      "bounds": {
+        "min": {
+          "x": -0.6,
+          "y": -0.75,
+          "z": -0.5
+        },
+        "max": {
+          "x": 0.6,
+          "y": 0,
+          "z": 0.35
+        }
+      },
+      "counts": {
+        "triangles": 120,
+        "vertices": 150,
+        "nodes": 1,
+        "textures": 0
+      },
+      "parts": [],
+      "camera": {
+        "azimuth": 40,
+        "elevation": 25
+      }
+    },
+    {
+      "id": "robot-arm.parts-bin",
+      "name": "Bin",
+      "description": "An open blue plastic bin, 20 cm across and 8 cm high, seen from the front right, a little above.",
+      "source": "Made for Visual Anything by packages/server/scripts/workcell-solids.ts",
+      "license": "CC0-1.0",
+      "hash": "fdac174d7ea9c3a22874fd1bb083524203c7f129a43938b563173b1d6b71d187",
+      "bytes": 4160,
+      "bounds": {
+        "min": {
+          "x": -0.1,
+          "y": 0,
+          "z": -0.08
+        },
+        "max": {
+          "x": 0.1,
+          "y": 0.08,
+          "z": 0.08
+        }
+      },
+      "counts": {
+        "triangles": 120,
+        "vertices": 150,
+        "nodes": 1,
+        "textures": 0
+      },
+      "parts": [],
+      "camera": {
+        "azimuth": 40,
+        "elevation": 25
+      }
+    },
+    {
+      "id": "robot-arm.machined-block",
+      "name": "Workpiece",
+      "description": "A small red machined block, 4 cm by 3 cm by 4 cm, seen from the front right, a little above.",
+      "source": "Made for Visual Anything by packages/server/scripts/workcell-solids.ts",
+      "license": "CC0-1.0",
+      "hash": "7b79e97ab248c3f38e2206815181154312747c1aacff8e58d697d70f61d3a9a6",
+      "bytes": 1684,
+      "bounds": {
+        "min": {
+          "x": -0.02,
+          "y": -0.015,
+          "z": -0.02
+        },
+        "max": {
+          "x": 0.02,
+          "y": 0.015,
+          "z": 0.02
+        }
+      },
+      "counts": {
+        "triangles": 24,
+        "vertices": 30,
+        "nodes": 1,
+        "textures": 0
+      },
+      "parts": [],
+      "camera": {
+        "azimuth": 40,
+        "elevation": 25
+      }
     }
   ]
 }

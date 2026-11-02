@@ -29,6 +29,7 @@ import { loadProject } from '../src/project';
 import { cleanSolid } from '../src/solids/clean';
 import { hashOf, solidFileWarnings } from '../src/solids/files';
 import { ROBOT_ARM_SOLID, robotArmDefinition, robotArmFile } from './robot-arm-solid';
+import { WORKCELL_SOLIDS, workcellDefinition, workcellFile } from './workcell-solids';
 
 const FOLDER = resolve(import.meta.dirname, '../../../examples/robot-arm');
 
@@ -49,10 +50,14 @@ function packageFile(): PackageFile {
   ) as PackageFile;
 }
 
-function committed(): { name: string; bytes: Uint8Array } {
+/** The committed file of a solid, the arm's when none is named, found by its definition's hash. */
+function committed(id: string = ROBOT_ARM_SOLID): { name: string; bytes: Uint8Array } {
   const names = readdirSync(join(FOLDER, 'solids'));
-  expect(names).toHaveLength(1);
-  const [name] = names as [string];
+  // The arm's file and its workcell's three, and nothing else.
+  expect(names).toHaveLength(1 + WORKCELL_SOLIDS.length);
+  const hash = packageFile().solids?.find((each) => each.id === id)?.hash;
+  const name = `${hash}.glb`;
+  expect(names).toContain(name);
   return { name, bytes: new Uint8Array(readFileSync(join(FOLDER, 'solids', name))) };
 }
 
@@ -78,7 +83,7 @@ describe('the robot arm’s solid', () => {
   it('is defined in the sample’s package as the core reads it, with its six links as parts', () => {
     const file = packageFile();
     const definition = robotArmDefinition(committed().bytes);
-    expect(file.solids).toEqual([definition]);
+    expect(file.solids?.[0]).toEqual(definition);
     expect(formatFile('package', file)).toBe(
       readFileSync(join(FOLDER, 'packages', 'robot-arm.vapackage'), 'utf8'),
     );
@@ -101,6 +106,35 @@ describe('the robot arm’s solid', () => {
     expect(solid).toMatchObject({ id: ROBOT_ARM_SOLID, license: 'CC0-1.0' });
     expect(solid?.source).toContain('Visual Anything');
     expect(solid?.description?.length).toBeGreaterThan(40);
+  });
+});
+
+describe('the workcell’s solids', () => {
+  it.each(WORKCELL_SOLIDS.map((solid) => [solid.id, solid] as const))(
+    '%s is made by its script byte for byte, canonical, defined as the core reads it and shipping',
+    async (id, solid) => {
+      const { name, bytes } = committed(id);
+      expect(
+        Buffer.compare(Buffer.from(workcellFile(solid)), Buffer.from(bytes)),
+        'A workcell solid changed: run `pnpm --filter @visual-anything/server robot-arm` and commit what it writes.',
+      ).toBe(0);
+      expect(name).toBe(`${hashOf(bytes)}.glb`);
+      const cleaned = await cleanSolid(bytes);
+      if (!cleaned.ok) throw new Error(cleaned.problems.map((each) => each.message).join(' '));
+      expect(Buffer.compare(Buffer.from(cleaned.bytes), Buffer.from(bytes))).toBe(0);
+      const defined = packageFile().solids?.find((each) => each.id === id);
+      expect(defined).toEqual(workcellDefinition(solid, bytes));
+      expect(defined).toMatchObject({ license: 'CC0-1.0' });
+      expect(defined?.description?.length).toBeGreaterThan(40);
+    },
+  );
+
+  it('are shown by the table’s, the bins’ and the workpiece’s components', () => {
+    const shown = (component: string) =>
+      packageFile().components.find((each) => each.id === component)?.appearance?.solid;
+    expect(shown('robot-arm.table')).toMatchObject({ solid: 'robot-arm.work-table' });
+    expect(shown('robot-arm.bin')).toMatchObject({ solid: 'robot-arm.parts-bin' });
+    expect(shown('robot-arm.workpiece')).toMatchObject({ solid: 'robot-arm.machined-block' });
   });
 });
 

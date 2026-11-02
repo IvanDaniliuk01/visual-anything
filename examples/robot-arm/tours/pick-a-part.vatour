@@ -1,7 +1,7 @@
 {
   "id": "pick-a-part",
   "name": "Pick a part",
-  "description": "The arm in its workcell, and one pick from bin A, followed on the control loop and in physical space side by side.",
+  "description": "The arm in its workcell, and one pick from bin A, followed on the control loop and in physical space, where the joints move the arm from bin A to bin B.",
   "steps": [
     {
       "id": "the-workcell",
@@ -55,7 +55,7 @@
       },
       "caption": {
         "title": "The wrist camera",
-        "text": "The wrist camera is mounted on link 6, the tool flange, just above the gripper. It is posed in link 6, so it goes wherever the arm takes the flange, and looks past the gripper at the part it is about to pick.",
+        "text": "The wrist camera is mounted on link 6, the tool flange, just above the gripper. It is drawn as the solid’s camera, and link 6 carries it, so it goes wherever the joints take the flange and looks past the gripper at the part it is about to pick.",
         "pointTo": "wrist-camera"
       },
       "marks": [
@@ -90,6 +90,195 @@
       "play": {
         "scenario": "pick-a-part"
       }
+    },
+    {
+      "id": "reach-bin-a",
+      "viewState": {
+        "view": "workcell",
+        "space": {
+          "camera": {
+            "target": {
+              "x": 0,
+              "y": 0.95,
+              "z": 0
+            },
+            "azimuth": 35,
+            "elevation": 25,
+            "distance": 2.1
+          },
+          "joints": {
+            "joint-1": -34,
+            "joint-2": 28,
+            "joint-3": 18,
+            "joint-5": 36
+          }
+        }
+      },
+      "caption": {
+        "title": "Reach over bin A",
+        "text": "Joint 1 turns the arm toward bin A, about the vertical through its base. The shoulder, the elbow and the wrist bend in the arm’s plane until the gripper hangs over the part, pointing down.",
+        "pointTo": "bin-a"
+      },
+      "marks": [
+        "bin-a",
+        "workpiece"
+      ]
+    },
+    {
+      "id": "grip",
+      "viewState": {
+        "view": "workcell",
+        "space": {
+          "camera": {
+            "target": {
+              "x": 0,
+              "y": 0.95,
+              "z": 0
+            },
+            "azimuth": 35,
+            "elevation": 25,
+            "distance": 2.1
+          },
+          "joints": {
+            "joint-1": -34,
+            "joint-2": 47,
+            "joint-3": 11,
+            "joint-5": 38
+          }
+        }
+      },
+      "caption": {
+        "title": "Down to the part, and grip",
+        "text": "The shoulder leans further and the elbow opens, so the gripper comes straight down around the part; then it closes on it.",
+        "pointTo": "workpiece"
+      },
+      "marks": [
+        "gripper",
+        "workpiece"
+      ]
+    },
+    {
+      "id": "lift",
+      "viewState": {
+        "view": "workcell",
+        "space": {
+          "camera": {
+            "target": {
+              "x": 0,
+              "y": 0.95,
+              "z": 0
+            },
+            "azimuth": 35,
+            "elevation": 25,
+            "distance": 2.1
+          },
+          "joints": {
+            "joint-1": -34,
+            "joint-2": 28,
+            "joint-3": 18,
+            "joint-5": 36
+          }
+        }
+      },
+      "caption": {
+        "title": "Lift",
+        "text": "The shoulder and the elbow take the gripper back up over bin A, the part held in it, clear of the bin’s walls.",
+        "pointTo": "gripper"
+      },
+      "marks": [
+        "gripper"
+      ]
+    },
+    {
+      "id": "over-bin-b",
+      "viewState": {
+        "view": "workcell",
+        "space": {
+          "camera": {
+            "target": {
+              "x": 0,
+              "y": 0.95,
+              "z": 0
+            },
+            "azimuth": 35,
+            "elevation": 25,
+            "distance": 2.1
+          },
+          "joints": {
+            "joint-1": 34,
+            "joint-2": 28,
+            "joint-3": 18,
+            "joint-5": 36
+          }
+        }
+      },
+      "caption": {
+        "title": "Over to bin B",
+        "text": "Joint 1 turns the whole arm across, to the other side of the table, while the shoulder, the elbow and the wrist keep their bends: the gripper stays level over bin B.",
+        "pointTo": "bin-b"
+      },
+      "marks": [
+        "bin-b"
+      ]
+    },
+    {
+      "id": "place",
+      "viewState": {
+        "view": "workcell",
+        "space": {
+          "camera": {
+            "target": {
+              "x": 0,
+              "y": 0.95,
+              "z": 0
+            },
+            "azimuth": 35,
+            "elevation": 25,
+            "distance": 2.1
+          },
+          "joints": {
+            "joint-1": 34,
+            "joint-2": 47,
+            "joint-3": 11,
+            "joint-5": 38
+          }
+        }
+      },
+      "caption": {
+        "title": "Place it in bin B",
+        "text": "The gripper comes down into bin B and opens, leaving the part there.\n\nA tour only moves the joints; the part itself stays drawn in bin A, where the model poses it.",
+        "pointTo": "bin-b"
+      },
+      "marks": [
+        "gripper",
+        "bin-b"
+      ]
+    },
+    {
+      "id": "back-to-rest",
+      "viewState": {
+        "view": "workcell",
+        "space": {
+          "camera": {
+            "target": {
+              "x": 0,
+              "y": 0.95,
+              "z": 0
+            },
+            "azimuth": 35,
+            "elevation": 25,
+            "distance": 2.1
+          }
+        }
+      },
+      "caption": {
+        "title": "Back to rest",
+        "text": "With no positions of its own, the step glides every joint back to the position it keeps, ready for the next part.",
+        "pointTo": "arm"
+      },
+      "marks": [
+        "arm"
+      ]
     }
   ]
 }
