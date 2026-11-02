@@ -8012,6 +8012,7 @@ export const builtins: Readonly<
     name: 'es parte de',
     description:
       'Ubica a un profesional en su organización, un plan o una auditoría en su financiador, una línea en su reclamación, un hallazgo en su auditoría, un objetivo en su plan de cuidados o un registro clínico en su encuentro.',
+  },
   // P6: Finance (ADR 0079). A transaction is an "operación", since "transacción" is the word the
   // glossary avoids for an action, and a party an "interviniente", since a "parte" is a drawing's.
   finance: {
