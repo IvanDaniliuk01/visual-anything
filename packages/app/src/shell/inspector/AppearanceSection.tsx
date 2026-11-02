@@ -3,26 +3,32 @@ import {
   appearanceOriginsOf,
   componentOrEssence,
   detailText,
+  drawingOf,
   drawnColorsOf,
   type AppearanceChanges,
   type Command,
   type Definitions,
   type ModelIndex,
+  type ResolvedAppearance,
+  type TraitOrigin,
   type UpdateElementCommand,
 } from '@visual-anything/core';
 import { ESSENCE_ID, type Element, type Id } from '@visual-anything/schema';
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { useEditor } from '../../editor/EditorContext';
-import { useT } from '../../i18n';
+import { t as translate, useT } from '../../i18n';
+import { isTextPlacement, TEXT_PLACEMENTS } from '../definitions/textPlacements';
 import { ElementImageTrait } from '../definitions/ElementImageTrait';
 import { ElementPartTrait } from '../definitions/ElementPartTrait';
 import { ElementFaceTrait } from '../definitions/FaceSection';
 import { TraitRow } from '../definitions/TraitRow';
+import { useSender } from '../definitions/useSender';
 import { drawnOnlyAsRows } from './asRow';
 import { ColorHints, ScopeChoice } from './colorParts';
 import { idsOf, originText, savedIn, shapeHints, wayBack, type ColorTrait } from './colors';
-import { ColorControl, SelectControl } from './controls';
+import { ColorControl, InlineProblem, SelectControl } from './controls';
 import { detailOf } from './detail';
+import { FormatPanel } from './FormatPanel';
 import { Detail } from './parts';
 import {
   definitionColorCommand,
@@ -31,6 +37,18 @@ import {
   storedAtLevel,
 } from './recolor';
 import { SHAPES, isShape } from './shapes';
+import { StyleTraitInput } from './StyleTraitInput';
+import {
+  SHAPE_STYLE_ROWS,
+  borderHints,
+  borderlessHints,
+  componentStyleCommand,
+  projectDefaultCommand,
+  shapeStyleValues,
+  storedStyleAt,
+  type ShapeStyleTrait,
+  type ShapeStyleValues,
+} from './styleTraits';
 import { useShownTheme, useStoredColorsInDark, useStoredColorsShown } from './useShownTheme';
 
 interface AppearanceSectionProps {
@@ -40,16 +58,19 @@ interface AppearanceSectionProps {
   disabled: boolean;
   /** Changes the element with one command; resolves to whether it was done. */
   update: (changes: UpdateElementCommand['changes']) => Promise<boolean>;
+  /** What the Arrange tab holds: where the element sits in the open view; none when it draws none. */
+  arrange?: ReactNode;
 }
 
-/** Where the appearance section makes its changes: the element's own appearance, or its component's. */
+/** Where the format panel makes its changes: the element's own appearance, or its component's. */
 type Scope = 'element' | 'component';
 
 /**
- * How the element is drawn, and where a change goes: only this element, as a particularity, or every
- * element of its component, at the level the project can change it (ADR-0034). Each trait says where
- * its value comes from, each change is one undoable action, and each sends only the trait it changes,
- * so it never undoes a change to another trait made meanwhile, here or by Claude.
+ * The element's format panel (ADR 0088): how it is drawn, in the tabs Style, Text and Arrange, and
+ * where a change of style or text goes: only this element, as a particularity, or every element of
+ * its component, at the level the project can change it (ADR-0034). Each trait says where its value
+ * comes from, each change is one undoable action, and each sends only the trait it changes, so it
+ * never undoes a change to another trait made meanwhile, here or by Claude.
  */
 export function AppearanceSection({
   element,
@@ -57,49 +78,69 @@ export function AppearanceSection({
   definitions,
   disabled,
   update,
+  arrange,
 }: AppearanceSectionProps) {
   const t = useT();
-  const headingId = useId();
   const [scope, setScope] = useState<Scope>('element');
   const component = componentOrEssence(definitions, element.component);
   // A component no package defines cannot be given an appearance.
   const known =
     element.component === ESSENCE_ID || definitions.component(element.component) !== undefined;
+  const ofComponent = scope === 'component' && known;
   const parts = detailOf(element, index, definitions);
   const written = detailText(parts.filter((part) => part.kind !== 'badge'));
   const badges = parts.filter((part) => part.kind === 'badge').map((part) => part.text);
 
   return (
-    <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>{t('Appearance')}</h4>
-      {known && (
-        <ScopeChoice
-          value={scope}
-          options={[
-            { value: 'element', label: t('Only this element') },
-            {
-              value: 'component',
-              label: t('Every {name}', { name: t.definition(component.id, component.name) }),
-            },
-          ]}
-          onChange={setScope}
-        />
-      )}
-      {scope === 'component' && known ? (
-        <ComponentTraits element={element} definitions={definitions} disabled={disabled} />
-      ) : (
-        <OwnTraits
-          element={element}
-          definitions={definitions}
-          disabled={disabled}
-          update={update}
-        />
-      )}
-      <dl className="details inspector-detail">
-        <Detail term={t('Detail')}>{written === '' ? t('Nothing under its name') : written}</Detail>
-        {badges.length > 0 && <Detail term={t('Badges')}>{badges.join(', ')}</Detail>}
-      </dl>
-    </section>
+    <FormatPanel
+      heading={t('Appearance')}
+      lead={
+        known && (
+          <ScopeChoice
+            value={scope}
+            options={[
+              { value: 'element', label: t('Only this element') },
+              {
+                value: 'component',
+                label: t('Every {name}', { name: t.definition(component.id, component.name) }),
+              },
+            ]}
+            onChange={setScope}
+          />
+        )
+      }
+      style={
+        ofComponent ? (
+          <ComponentTraits element={element} definitions={definitions} disabled={disabled} />
+        ) : (
+          <OwnTraits
+            element={element}
+            definitions={definitions}
+            disabled={disabled}
+            update={update}
+          />
+        )
+      }
+      text={
+        <>
+          <TextPlacementRow
+            // A new row for each scope, so that a choice on its way is not shown in the other.
+            key={scope}
+            element={element}
+            definitions={definitions}
+            disabled={disabled}
+            ofComponent={ofComponent}
+          />
+          <dl className="details inspector-detail">
+            <Detail term={t('Detail')}>
+              {written === '' ? t('Nothing under its name') : written}
+            </Detail>
+            {badges.length > 0 && <Detail term={t('Badges')}>{badges.join(', ')}</Detail>}
+          </dl>
+        </>
+      }
+      arrange={arrange}
+    />
   );
 }
 
@@ -109,7 +150,29 @@ interface TraitsProps {
   disabled: boolean;
 }
 
-/** The element's own appearance: shape, fill and stroke, each with where it comes from. */
+/** Where a Style trait's value comes from: an appearance, or, where none sets it, drawing defaults. */
+function styleSource(
+  trait: ShapeStyleTrait,
+  appearance: ResolvedAppearance,
+  origin: TraitOrigin,
+  nameOf: (id: Id) => string,
+  self?: Id,
+): string {
+  const fromDefaults =
+    (trait === 'borderWidth' || trait === 'cornerRadius' || trait === 'shadow') &&
+    appearance[trait] === undefined;
+  return fromDefaults ? translate('from the drawing defaults') : originText(origin, nameOf, self);
+}
+
+/** The contrast hints of a shape's colors and style: blending in, and a border no one sees. */
+function styleHints(colors: Parameters<typeof shapeHints>[0], values: ShapeStyleValues): string[] {
+  const gradientTo = values.gradient === 'none' ? undefined : values.gradient.to;
+  const blending =
+    values.borderWidth <= 0 ? borderlessHints(colors, gradientTo) : shapeHints(colors);
+  return [...blending, ...borderHints(colors, values.borderWidth)];
+}
+
+/** The element's own appearance: shape, fill, stroke and style, each with where it comes from. */
 function OwnTraits({
   element,
   definitions,
@@ -121,10 +184,12 @@ function OwnTraits({
   const rowId = useId();
   const [focusShape, setFocusShape] = useState(0);
   const theme = useShownTheme();
-  // A row is a band of its container, in its fill: its shape, stroke and size do not show here.
-  const asRow = drawnOnlyAsRows(useEditor().scene, element.id);
+  const { project, viewId, scene } = useEditor();
+  // A row is a band of its container, in its fill: its shape, stroke, style and size do not show here.
+  const asRow = drawnOnlyAsRows(scene, element.id);
   const own = element.appearance ?? {};
   const shown = appearanceOf(element, definitions);
+  const values = shapeStyleValues(shown, drawingOf(project, viewId));
   // The colors the canvas draws in the theme shown, stored colors as stored: what a pick changes.
   const drawn = drawnColorsOf(element, definitions, theme);
   // Stored colors adapted on the dark canvas, where the view asks for it (ADR 0087).
@@ -133,10 +198,13 @@ function OwnTraits({
   const origins = appearanceOriginsOf(element, definitions);
   const nameOf = (id: Id) => t.definition(id, componentOrEssence(definitions, id).name);
   const ownTraits = Object.entries(own).filter(([, value]) => value !== undefined);
-  const hints = shapeHints({
-    light: drawnColorsOf(element, definitions, 'light'),
-    dark: drawnColorsOf(element, definitions, 'dark', storedInDark),
-  });
+  const hints = styleHints(
+    {
+      light: drawnColorsOf(element, definitions, 'light'),
+      dark: drawnColorsOf(element, definitions, 'dark', storedInDark),
+    },
+    values,
+  );
   const changing = (traits: AppearanceChanges): Command => ({
     type: 'update-element',
     id: element.id,
@@ -220,6 +288,35 @@ function OwnTraits({
         </TraitRow>
         {colorRow('fill', t('Fill'))}
         {colorRow('stroke', t('Stroke'))}
+        {SHAPE_STYLE_ROWS.map((row) => (
+          <TraitRow
+            key={row.trait}
+            label={t(row.label)}
+            source={styleSource(row.trait, shown, origins[row.trait], nameOf)}
+            own={origins[row.trait].kind === 'own'}
+            readOnly={disabled}
+            inherit={() => changing({ [row.trait]: null })}
+            group={row.kind === 'gradient'}
+          >
+            {({ id, describedBy, send }) => (
+              <StyleTraitInput
+                kind={row.kind}
+                id={id}
+                label={t(row.label)}
+                value={values[row.trait]}
+                fill={drawn.fill}
+                {...(row.range ? { range: row.range } : {})}
+                disabled={disabled || asRow}
+                describedBy={idsOf(
+                  describedBy,
+                  asRow ? rowId : undefined,
+                  hints.length > 0 ? hintId : undefined,
+                )}
+                onCommit={(value) => send(changing({ [row.trait]: value }))}
+              />
+            )}
+          </TraitRow>
+        ))}
         <ElementImageTrait element={element} disabled={disabled} />
         <ElementPartTrait element={element} disabled={disabled} />
         <ElementFaceTrait element={element} disabled={disabled} />
@@ -233,6 +330,7 @@ function OwnTraits({
           })}
         </p>
       )}
+      <ProjectDefault element={element} disabled={disabled} />
       {ownTraits.length > 0 && (
         <button
           type="button"
@@ -248,6 +346,43 @@ function OwnTraits({
 }
 
 /**
+ * "Set as the project's default" (ADR 0088): the element's own style becomes a project appearance of
+ * Essence, so that every shape whose component sets none of it draws it, in one action.
+ */
+function ProjectDefault({ element, disabled }: { element: Element; disabled: boolean }) {
+  const t = useT();
+  const noteId = useId();
+  const problemId = useId();
+  const sender = useSender();
+  const command = projectDefaultCommand(element);
+  return (
+    <div className="inspector-control">
+      <button
+        type="button"
+        className="inspector-action"
+        disabled={disabled || command === undefined}
+        aria-describedby={idsOf(noteId, sender.problem === undefined ? undefined : problemId)}
+        onClick={() => {
+          if (command) void sender.send(command);
+        }}
+      >
+        {t('Set as the project’s default')}
+      </button>
+      <p id={noteId} className="inspector-notes">
+        {command === undefined
+          ? t(
+              'Its gradient, border, corner radius, opacity and shadow become the project’s default once it sets one of them itself.',
+            )
+          : t(
+              'Gives every shape the gradient, border, corner radius, opacity and shadow this one sets itself, wherever its component sets none.',
+            )}
+      </p>
+      {sender.problem !== undefined && <InlineProblem id={problemId} text={sender.problem} />}
+    </div>
+  );
+}
+
+/**
  * The appearance of every element of the element's component, at the level the project can change
  * it: the project appearance of a built-in component, kept in the project file, or the component
  * itself, in its package. A change also takes back the element's own value of that trait, so that it
@@ -255,12 +390,13 @@ function OwnTraits({
  */
 function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
   const t = useT();
-  const { project } = useEditor();
+  const { project, viewId } = useEditor();
   const hintId = useId();
   const theme = useShownTheme();
   const id = element.component;
   const component = componentOrEssence(definitions, id);
   const shown = component.appearance;
+  const values = shapeStyleValues(shown, drawingOf(project, viewId));
   // The component's colors as the canvas draws them in the theme shown: its dark colors in the dark,
   // stored colors as stored; and as drawn there, where the view adapts them (ADR 0087).
   const drawn = drawnColorsOf({ component: id }, definitions, theme);
@@ -269,11 +405,14 @@ function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
   const stored = (trait: 'shape' | ColorTrait) => storedAtLevel(project, 'component', id, trait);
   const nameOf = (each: Id) => t.definition(each, componentOrEssence(definitions, each).name);
   const own = element.appearance ?? {};
-  const hints = shapeHints({
-    light: drawnColorsOf({ component: id }, definitions, 'light'),
-    dark: drawnColorsOf({ component: id }, definitions, 'dark', storedInDark),
-  });
-  const keeps = (trait: 'shape' | ColorTrait, what: string) =>
+  const hints = styleHints(
+    {
+      light: drawnColorsOf({ component: id }, definitions, 'light'),
+      dark: drawnColorsOf({ component: id }, definitions, 'dark', storedInDark),
+    },
+    values,
+  );
+  const keeps = (trait: 'shape' | ColorTrait | ShapeStyleTrait, what: string) =>
     own[trait] === undefined
       ? undefined
       : t(
@@ -350,8 +489,110 @@ function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
         </TraitRow>
         {colorRow('fill', t('Fill'))}
         {colorRow('stroke', t('Stroke'))}
+        {SHAPE_STYLE_ROWS.map((row) => (
+          <TraitRow
+            key={row.trait}
+            label={t(row.label)}
+            source={styleSource(row.trait, shown, component.origins[row.trait], nameOf, id)}
+            own={storedStyleAt(project, 'component', id, row.trait) !== undefined}
+            readOnly={disabled}
+            inherit={() => componentStyleCommand(project, id, { [row.trait]: null }, element)}
+            note={keeps(row.trait, t(row.label).toLowerCase())}
+            group={row.kind === 'gradient'}
+          >
+            {({ id: controlId, describedBy, send }) => (
+              <StyleTraitInput
+                kind={row.kind}
+                id={controlId}
+                label={t(row.label)}
+                value={values[row.trait]}
+                fill={drawn.fill}
+                {...(row.range ? { range: row.range } : {})}
+                disabled={disabled}
+                describedBy={idsOf(describedBy, hints.length > 0 ? hintId : undefined)}
+                onCommit={(value) =>
+                  send(componentStyleCommand(project, id, { [row.trait]: value }, element))
+                }
+              />
+            )}
+          </TraitRow>
+        ))}
       </ul>
       <ColorHints id={hintId} hints={hints} />
     </>
+  );
+}
+
+interface TextPlacementRowProps extends TraitsProps {
+  /** Whether a change goes to every element of the component. */
+  ofComponent: boolean;
+}
+
+/**
+ * Where the element's shapes place their name and detail (ADR 0082): its own, or its component's at
+ * the level the project can change it, which takes back the element's own in the same action.
+ */
+function TextPlacementRow({ element, definitions, disabled, ofComponent }: TextPlacementRowProps) {
+  const t = useT();
+  const { project } = useEditor();
+  const id = element.component;
+  const component = componentOrEssence(definitions, id);
+  const nameOf = (each: Id) => t.definition(each, componentOrEssence(definitions, each).name);
+  const origins = appearanceOriginsOf(element, definitions);
+  const shown = ofComponent
+    ? component.appearance.textPlacement
+    : appearanceOf(element, definitions).textPlacement;
+  const commandFor = (placement: string | null): Command =>
+    ofComponent
+      ? componentStyleCommand(project, id, { textPlacement: placement as never }, element)
+      : {
+          type: 'update-element',
+          id: element.id,
+          changes: { appearanceTraits: { textPlacement: placement as never } },
+        };
+  return (
+    <ul className="definition-traits">
+      <TraitRow
+        label={t('Where its text sits')}
+        source={
+          ofComponent
+            ? originText(component.origins.textPlacement, nameOf, id)
+            : originText(origins.textPlacement, nameOf)
+        }
+        own={
+          ofComponent
+            ? storedStyleAt(project, 'component', id, 'textPlacement') !== undefined
+            : origins.textPlacement.kind === 'own'
+        }
+        readOnly={disabled}
+        inherit={() => commandFor(null)}
+        note={
+          ofComponent && element.appearance?.textPlacement !== undefined
+            ? t(
+                'This element has a {what} of its own: a change here takes it back, so that it follows.',
+                { what: t('Where its text sits').toLowerCase() },
+              )
+            : undefined
+        }
+      >
+        {({ id: controlId, describedBy, send }) => (
+          <SelectControl
+            id={controlId}
+            value={shown}
+            disabled={disabled}
+            describedBy={describedBy}
+            onCommit={async (placement) => {
+              if (isTextPlacement(placement)) await send(commandFor(placement));
+            }}
+          >
+            {TEXT_PLACEMENTS.map(({ placement, words }) => (
+              <option key={placement} value={placement}>
+                {t(words)}
+              </option>
+            ))}
+          </SelectControl>
+        )}
+      </TraitRow>
+    </ul>
   );
 }

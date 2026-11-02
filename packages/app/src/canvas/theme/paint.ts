@@ -55,7 +55,11 @@ function adaptedIn(shape: NoteShape | ArrowShape, theme: CanvasTheme): boolean {
  * draws alike in both themes, its name tinted to each (ADR 0086).
  */
 export function shapeFollowsTheme(shape: ElementShape): boolean {
-  return shape.dark !== undefined || rowsFollowTheme(shape);
+  return (
+    shape.dark !== undefined ||
+    shape.style?.gradient?.darkTo !== undefined ||
+    rowsFollowTheme(shape)
+  );
 }
 
 export function lineFollowsTheme(line: RelationLine): boolean {
@@ -85,11 +89,19 @@ const darkPieces = new WeakMap<RoutePiece, RoutePiece>();
 
 /** A shape with the colors it is drawn in, in a theme: itself, when they are its `fill` and `stroke`. */
 export function paintedShape(shape: ElementShape, theme: ThemeName): ElementShape {
-  const { dark } = shape;
-  if (theme !== 'dark' || !dark) return shape;
+  const { dark, style } = shape;
+  const gradient = style?.gradient;
+  if (theme !== 'dark' || (!dark && gradient?.darkTo === undefined)) return shape;
   let painted = darkShapes.get(shape);
   if (!painted) {
-    painted = { ...shape, fill: dark.fill, stroke: dark.stroke };
+    painted = dark ? { ...shape, fill: dark.fill, stroke: dark.stroke } : { ...shape };
+    // Its gradient runs to its color on the dark canvas, which the copy holds as drawn (ADR 0087).
+    if (style && gradient?.darkTo !== undefined) {
+      painted.style = {
+        ...style,
+        gradient: { to: gradient.darkTo, direction: gradient.direction },
+      };
+    }
     darkShapes.set(shape, painted);
   }
   return painted;

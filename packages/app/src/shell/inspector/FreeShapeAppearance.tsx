@@ -1,6 +1,6 @@
 import { arrowColorOf, noteColorsOf, type ThemeName } from '@visual-anything/core';
 import type { Arrow, Color, Note } from '@visual-anything/schema';
-import { useId } from 'react';
+import { useId, type ReactNode } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
 import { THEMES } from '../../theme/themes';
@@ -8,6 +8,7 @@ import { TraitRow } from '../definitions/TraitRow';
 import { ColorHints } from './colorParts';
 import { idsOf, lineHints, shapeHints, wayBack, type ColorTrait } from './colors';
 import { ColorControl } from './controls';
+import { FormatPanel } from './FormatPanel';
 import { freeShapeColorCommand } from './recolor';
 import { useShownTheme, useStoredColorsInDark, useStoredColorsShown } from './useShownTheme';
 
@@ -21,11 +22,11 @@ function noteColors(note: Note, theme: ThemeName, adapted = false) {
  * The colors of a note or a free arrow in the open view: a note's fill and stroke, an arrow's stroke.
  * Without colors of its own, a free shape takes the theme's, in each theme; a color of its own is drawn
  * as stored in both (ADR-0035). Each pick is one `update-free-shape`, and so one undoable action.
+ * They are the Style tab of its format panel (ADR 0088); a note's text is its Text tab.
  */
-export function FreeShapeAppearance({ shape }: { shape: Note | Arrow }) {
+export function FreeShapeAppearance({ shape, text }: { shape: Note | Arrow; text?: ReactNode }) {
   const t = useT();
   const { viewId, send } = useEditor();
-  const headingId = useId();
   const hintId = useId();
   const SHOWN = THEMES[useShownTheme()].canvas;
   // Its own colors adapted on the dark canvas, where the view asks for it (ADR 0087): the inspector
@@ -74,9 +75,8 @@ export function FreeShapeAppearance({ shape }: { shape: Note | Arrow }) {
           },
         ];
 
-  return (
-    <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>{t('Appearance')}</h4>
+  const style = (
+    <>
       <ul className="definition-traits">
         {traits.map(({ trait, label, own, shown, drawn }) => (
           <TraitRow
@@ -115,6 +115,7 @@ export function FreeShapeAppearance({ shape }: { shape: Note | Arrow }) {
         ))}
       </ul>
       <ColorHints id={hintId} hints={hints} />
-    </section>
+    </>
   );
+  return <FormatPanel heading={t('Appearance')} style={style} text={text} />;
 }

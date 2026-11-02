@@ -51,6 +51,7 @@ import { partImageOf, type ShapePart } from './partShapes';
 import type { ElementShape } from './scene';
 import { IMAGE_SCALES, tintIn, type ShapeImage } from './shape-images';
 import { meets } from './spatial';
+import { opacityOf } from './shapeStyle';
 import { shapeColors } from './theme/paint';
 import type { SolidClient } from '../solids/solid-client';
 import { solidBucketFor } from '../solids/protocol';
@@ -602,13 +603,8 @@ export class TileImages<
         keys.push(made.key);
         plateOf(shape, solid.placement === 'drawing' ? solid.box : solid.rect);
         const { rect } = solid;
-        (isDrawing ? drawings : icons).texture(
-          made.texture,
-          undefined,
-          rect.x,
-          rect.y,
-          rect.width,
-          rect.height,
+        faded(isDrawing ? drawings : icons, shape, (into) =>
+          into.texture(made.texture, undefined, rect.x, rect.y, rect.width, rect.height),
         );
         continue;
       }
@@ -635,13 +631,15 @@ export class TileImages<
       keys.push(made.key);
       const into = isDrawing ? drawings : icons;
       if (image.placement === 'drawing') plateOf(shape, image.box);
-      into.texture(
-        made.texture,
-        tintIn(image, view.theme),
-        rect.x,
-        rect.y,
-        rect.width,
-        rect.height,
+      faded(into, shape, (graphics) =>
+        graphics.texture(
+          made.texture,
+          tintIn(image, view.theme),
+          rect.x,
+          rect.y,
+          rect.width,
+          rect.height,
+        ),
       );
     }
     return keys;
@@ -719,6 +717,22 @@ function plate(graphics: Graphics, box: Rect, fill: Color): void {
 }
 
 /** Whether a picture is drawn as a whole drawing, which shows at the drawings' scales rather than the icons'. */
+/**
+ * Draws a shape's picture as opaque as the shape (ADR 0088): a texture takes the alpha of the fill
+ * style it is drawn with, which goes back to what it was.
+ */
+function faded(into: Graphics, shape: ElementShape, draw: (graphics: Graphics) => void): void {
+  const alpha = opacityOf(shape);
+  if (alpha === 1) {
+    draw(into);
+    return;
+  }
+  const kept = into.fillStyle;
+  into.fillStyle = { ...kept, alpha };
+  draw(into);
+  into.fillStyle = kept;
+}
+
 function drawnWhole(image: ShapeImage): boolean {
   return image.placement === 'drawing' || image.placement === 'parts';
 }

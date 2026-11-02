@@ -54,7 +54,9 @@ export function ElementInspector({
   onSelect,
 }: ElementInspectorProps) {
   const t = useT();
-  const { project, send } = useEditor();
+  const { project, scene, send } = useEditor();
+  // Where it sits in the open view goes in the format panel's Arrange tab (ADR 0088).
+  const drawn = scene?.shapes.some((shape) => shape.element === element.id) === true;
   const disabled = send === undefined;
   const index = modelIndexOf(project);
   const component = componentOrEssence(definitions, element.component);
@@ -109,7 +111,6 @@ export function ElementInspector({
         definitions={definitions}
         onSelect={onSelect}
       />
-      <ViewSection element={element} />
       <ScopeSection element={element} />
       <RowsSection element={element} />
       <PartsSection element={element} onSelect={onSelect} />
@@ -134,6 +135,7 @@ export function ElementInspector({
         definitions={definitions}
         disabled={disabled}
         update={update}
+        arrange={drawn ? <ViewSection element={element} /> : undefined}
       />
     </>
   );

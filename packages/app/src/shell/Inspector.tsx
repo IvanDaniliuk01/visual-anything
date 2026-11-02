@@ -101,9 +101,16 @@ export function Inspector({ view, scene, definitions, id, hidden }: InspectorPro
         {inspected.kind === 'note' && (
           <>
             <h3 className="inspector-title">{t('Note')}</h3>
-            <EmphasisBlocks className="inspector-note-text" text={inspected.note.text} />
-            <p className="inspector-notes">{t('Edit its text on the canvas.')}</p>
-            <FreeShapeAppearance key={inspected.note.id} shape={inspected.note} />
+            <FreeShapeAppearance
+              key={inspected.note.id}
+              shape={inspected.note}
+              text={
+                <>
+                  <EmphasisBlocks className="inspector-note-text" text={inspected.note.text} />
+                  <p className="inspector-notes">{t('Edit its text on the canvas.')}</p>
+                </>
+              }
+            />
           </>
         )}
         {inspected.kind === 'arrow' && (

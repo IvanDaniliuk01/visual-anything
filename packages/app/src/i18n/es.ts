@@ -3640,6 +3640,59 @@ export const ui: Catalog = {
   'As picked': 'Tal como se eligieron',
   'Adapted to the dark canvas': 'Adaptados al lienzo oscuro',
   'Drawn {color} on the dark canvas': 'Se dibuja {color} en el lienzo oscuro',
+  // A6.1: the format panel and its Style tab (ADR 0088).
+  Arrange: 'Disposición',
+  Gradient: 'Degradado',
+  'Gradient color': 'Color del degradado',
+  'No gradient': 'Sin degradado',
+  'Top to bottom': 'De arriba hacia abajo',
+  'Left to right': 'De izquierda a derecha',
+  'Border dash': 'Patrón del borde',
+  'Corner radius': 'Radio de las esquinas',
+  'Opacity (%)': 'Opacidad (%)',
+  'Soft shadow': 'Sombra suave',
+  'Line dash': 'Patrón de la línea',
+  'Line opacity (%)': 'Opacidad de la línea (%)',
+  'Write a number from {least} to {most}.': 'Escribir un número de {least} a {most}.',
+  'from the drawing defaults': 'de los valores de dibujo',
+  'Set as the project’s default': 'Definir como predeterminado del proyecto',
+  'Its gradient, border, corner radius, opacity and shadow become the project’s default once it sets one of them itself.':
+    'Su degradado, borde, radio de las esquinas, opacidad y sombra pasan a ser los predeterminados del proyecto una vez que define alguno de ellos.',
+  'Gives every shape the gradient, border, corner radius, opacity and shadow this one sets itself, wherever its component sets none.':
+    'Da a cada forma el degradado, el borde, el radio de las esquinas, la opacidad y la sombra que define esta, donde su componente no define ninguno.',
+  'Its stroke, width, dash, opacity and route become the project’s default once it sets one of them itself.':
+    'Su trazo, grosor, patrón, opacidad y recorrido pasan a ser los predeterminados del proyecto una vez que define alguno de ellos.',
+  'Gives every line the stroke, width, dash, opacity and route this one sets itself, wherever its relation type sets none.':
+    'Da a cada línea el trazo, el grosor, el patrón, la opacidad y el recorrido que define esta, donde su tipo de relación no define ninguno.',
+  'This relation has a {what} of its own: a change here takes it back, so that it follows.':
+    'Esta relación tiene {what} propio: un cambio aquí lo quita, para que lo siga.',
+  'For the {count} elements selected.': {
+    one: 'Para el elemento seleccionado.',
+    other: 'Para los {count} elementos seleccionados.',
+  },
+  'Align and size': 'Alinear y ajustar el tamaño',
+  'Swatches for {label}': 'Muestras para {label}',
+  'Use {name}, {color}': 'Usar {name}, {color}',
+  Red: 'Rojo',
+  Orange: 'Naranja',
+  Amber: 'Ámbar',
+  Green: 'Verde',
+  Teal: 'Verde azulado',
+  Cyan: 'Cian',
+  Blue: 'Azul',
+  Purple: 'Púrpura',
+  Magenta: 'Magenta',
+  Pink: 'Rosa',
+  Gray: 'Gris',
+  Brown: 'Marrón',
+  'Its border hardly shows on the light canvas: it reaches 3:1 neither on the canvas ({canvas}) nor on its fill ({fill}).':
+    'Su borde apenas se ve en el lienzo claro: no llega a 3:1 ni sobre el lienzo ({canvas}) ni sobre su relleno ({fill}).',
+  'Its border hardly shows on the dark canvas: it reaches 3:1 neither on the canvas ({canvas}) nor on its fill ({fill}).':
+    'Su borde apenas se ve en el lienzo oscuro: no llega a 3:1 ni sobre el lienzo ({canvas}) ni sobre su relleno ({fill}).',
+  'Blends into the light canvas: it draws no border, and its fill does not reach 3:1 on it.':
+    'Se confunde con el lienzo claro: no dibuja borde, y su relleno no llega a 3:1 sobre él.',
+  'Blends into the dark canvas: it draws no border, and its fill does not reach 3:1 on it.':
+    'Se confunde con el lienzo oscuro: no dibuja borde, y su relleno no llega a 3:1 sobre él.',
 };
 
 /**
@@ -3938,6 +3991,8 @@ export const messages: Catalog = {
   // The labels of what the inspector changes.
   'Change the appearance of {of}': 'Cambiar la apariencia de {of}',
   'Change the appearance of {n} shapes': 'Cambiar la apariencia de {n} formas',
+  'Change the style of {n} shapes': 'Cambiar el estilo de {n} formas',
+  'Change the style of {n} lines': 'Cambiar el estilo de {n} líneas',
 
   // The labels of what the component editor and the Components tab change.
   'Use the package "{name}"': 'Usar el paquete "{name}"',

@@ -7,7 +7,7 @@
  * committed while an earlier commit is on its way is compared with that one, not with the value the
  * project still shows.
  */
-import { sameColor } from '@visual-anything/core';
+import { PALETTE, sameColor } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import {
   useEffect,
@@ -115,6 +115,8 @@ interface TextControlProps extends ControlProps {
   emphasis?: boolean;
   /** `number` asks for a number. */
   inputType?: 'text' | 'number';
+  /** What the empty box says, such as "Mixed" for items whose values differ. */
+  placeholder?: string | undefined;
   /** Why typed text cannot be committed; the control then keeps it and says why. */
   problemOf?: (text: string) => string | undefined;
   /**
@@ -140,6 +142,7 @@ export function TextControl({
   multiline = false,
   emphasis = false,
   inputType = 'text',
+  placeholder,
   problemOf,
   same,
   onCommit,
@@ -183,6 +186,7 @@ export function TextControl({
     id,
     value: draft?.text ?? value,
     disabled,
+    placeholder,
     'aria-describedby': describedByOf(describedBy, problem === undefined ? undefined : problemId),
     'aria-invalid': problem === undefined ? undefined : true,
     onChange: (event: { target: { value: string } }) => {
@@ -260,6 +264,8 @@ interface SelectControlProps extends ControlProps {
   value: string;
   /** Names the select by what labels it, when it has no label of its own. */
   labelledBy?: string;
+  /** Names the select, when nothing labels it. */
+  label?: string;
   onCommit: (value: string) => Promise<unknown>;
   /** The options. */
   children: ReactNode;
@@ -291,6 +297,7 @@ export function SelectControl({
   focusKeeper,
   value,
   labelledBy,
+  label,
   onCommit,
   children,
 }: SelectControlProps) {
@@ -324,6 +331,7 @@ export function SelectControl({
       value={shown}
       disabled={disabled}
       aria-labelledby={labelledBy}
+      aria-label={label}
       aria-describedby={describedBy}
       onKeyDown={(event) => {
         if (event.key === 'Enter' && reached !== undefined) {
@@ -525,6 +533,14 @@ export function ColorControl({
           {t('Drawn {color} on the dark canvas', { color: drawnShown })}
         </span>
       )}
+      <Swatches
+        label={label}
+        colors={PALETTE.map((swatch) => swatch.color)}
+        names={PALETTE.map((swatch) => t(swatch.name))}
+        group={t('Swatches for {label}', { label: label.toLowerCase() })}
+        disabled={disabled}
+        onPick={(color) => choose(color)}
+      />
       {suggestions.length > 0 && (
         <Swatches
           label={label}
@@ -540,6 +556,10 @@ export function ColorControl({
 interface SwatchesProps {
   label: string;
   colors: readonly Color[];
+  /** The colors' names, as the palette's swatches have them (ADR 0088). */
+  names?: readonly string[];
+  /** What the group is called; the recent and project colors by default. */
+  group?: string;
   disabled: boolean;
   onPick: (color: Color) => void;
 }
@@ -548,7 +568,7 @@ interface SwatchesProps {
  * The colors offered for a trait, as buttons named like "Use #DCEBFF": one Tab stop, and the arrow
  * keys, Home and End move between them. No `<datalist>`, which Firefox does not show for colors.
  */
-function Swatches({ label, colors, disabled, onPick }: SwatchesProps) {
+function Swatches({ label, colors, names, group, disabled, onPick }: SwatchesProps) {
   const t = useT();
   const [active, setActive] = useState(0);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
@@ -576,7 +596,9 @@ function Swatches({ label, colors, disabled, onPick }: SwatchesProps) {
     <span
       role="group"
       className="inspector-swatches"
-      aria-label={t('Recent and project colors for {label}', { label: label.toLowerCase() })}
+      aria-label={
+        group ?? t('Recent and project colors for {label}', { label: label.toLowerCase() })
+      }
     >
       {colors.map((color, at) => (
         <button
@@ -589,8 +611,12 @@ function Swatches({ label, colors, disabled, onPick }: SwatchesProps) {
           style={{ backgroundColor: color }}
           tabIndex={at === current ? 0 : -1}
           disabled={disabled}
-          aria-label={t('Use {color}', { color })}
-          title={color}
+          aria-label={
+            names?.[at] === undefined
+              ? t('Use {color}', { color })
+              : t('Use {name}, {color}', { name: names[at], color })
+          }
+          title={names?.[at] === undefined ? color : `${names[at]} ${color}`}
           onFocus={() => setActive(at)}
           onKeyDown={(event) => move(event, at)}
           onClick={() => onPick(color)}

@@ -4,7 +4,16 @@
  * take inside its shape, so that a label never leaves its shape; drawing does not depend on font
  * metrics beyond that. The canvas draws a scene in tiles with these building blocks.
  */
-import { Container, Graphics, Text, type CanvasTextOptions, type TextStyleOptions } from 'pixi.js';
+import {
+  Container,
+  FillGradient,
+  Graphics,
+  Text,
+  type CanvasTextOptions,
+  type FillInput,
+  type StrokeInput,
+  type TextStyleOptions,
+} from 'pixi.js';
 import {
   CANVAS_BACKGROUNDS,
   evenOddHolds,
@@ -96,6 +105,15 @@ import {
   nameBandOf,
 } from './shape-images';
 import type { RoutePiece } from './tiles';
+import {
+  borderWidthOf,
+  castsShadow,
+  cornerRadiusOf,
+  drawnKindOf,
+  opacityOf,
+  type ShapeGradient,
+  type Styled,
+} from './shapeStyle';
 import type { EmphasisRun, ResolvedDrawing } from '@visual-anything/core';
 import {
   BASE_DRAWING,
@@ -109,7 +127,6 @@ import {
   nameWeightOf,
   noteTextPlaceIn,
   personCornerRadius,
-  roundedCornerRadius,
   textSideInset,
 } from './drawing';
 import type { Measure } from '../text/layout';
@@ -297,6 +314,14 @@ export function drawShapeBlocks(
     // A shape drawn by its picture is a block of its plate.
     const outlined = isContainer(shape) || needsOutline(shape.fill);
     const rim = outlined ? outlineColorOf(shape) : undefined;
+    if (fadedOrRunning(shape)) {
+      // Its opacity and gradient show far out too (ADR 0088), drawn at once: blocks out of order
+      // never overlap, so where it is drawn among them shows not.
+      styledBlock(graphics, blockRectOf(shape), shape, rim, blockOutline);
+      if (tag) block(tag, shape.fill, rim);
+      if (inOrder) hairlines.stroke(graphics);
+      continue;
+    }
     block(blockRectOf(shape), shape.fill, rim);
     if (tag) block(tag, shape.fill, rim);
     if (inOrder) hairlines.stroke(graphics);
@@ -305,6 +330,40 @@ export function drawShapeBlocks(
   for (const [color, rects] of fills) fillRects(graphics, color, rects);
   silhouettes.draw(graphics);
   hairlines.stroke(graphics);
+}
+
+/** Whether a shape's own style shows far out: an opacity below 1 or a gradient (ADR 0088). */
+function fadedOrRunning(shape: ElementShape): boolean {
+  return shape.style?.opacity !== undefined || shape.style?.gradient !== undefined;
+}
+
+/**
+ * A plain block of a shape whose opacity or gradient shows far out: outlined inside in `rim` when
+ * given, as other blocks are, both as opaque as the shape, its fill running to its gradient's color.
+ */
+function styledBlock(
+  graphics: Graphics,
+  rect: Rect,
+  shape: ElementShape,
+  rim: Color | undefined,
+  outline: number,
+): void {
+  const alpha = opacityOf(shape);
+  const inner = rim === undefined ? rect : grow(rect, -outline);
+  if (rim !== undefined) {
+    // A frame inside it, which the fill does not cover, so that neither shows through the other.
+    graphics.rect(rect.x, rect.y, rect.width, rect.height).stroke({
+      color: rim,
+      alpha,
+      width: Math.min(outline, rect.width / 2, rect.height / 2),
+      alignment: 1,
+    });
+  }
+  if (inner.width <= 0 || inner.height <= 0) return;
+  const running = shape.style?.gradient && gradientFill(shape.fill, shape.style.gradient);
+  graphics
+    .rect(inner.x, inner.y, inner.width, inner.height)
+    .fill(running ? { fill: running, alpha } : { color: shape.fill, alpha });
 }
 
 /**
@@ -390,7 +449,11 @@ export function drawRelationLines(graphics: Graphics, lines: readonly RelationLi
     if (!first) continue;
     graphics.moveTo(first.x, first.y);
     for (const point of rest) graphics.lineTo(point.x, point.y);
-    graphics.stroke({ color: line.stroke, width: line.width });
+    graphics.stroke(
+      line.opacity === undefined
+        ? { color: line.stroke, width: line.width }
+        : { color: line.stroke, alpha: line.opacity, width: line.width },
+    );
   }
 }
 
@@ -409,7 +472,6 @@ export function drawShapeOutlines(
   region: RegionColors = LIGHT_REGION,
 ): void {
   const hairlines = new Hairlines(drawing);
-  const shadows = drawing.shapes.shadow === 'soft';
   for (const shape of shapes) {
     // An anchored part of a solid is drawn by its drawing's picture (ADR 0075).
     if (isAnchoredSolidPart(shape)) continue;
@@ -419,8 +481,9 @@ export function drawShapeOutlines(
       drawDestinationMark(graphics, shape);
       continue;
     }
-    if (shadows && !isContainer(shape) && shape.row === undefined) {
-      drawShadow(graphics, shape.kind, bodyRectOf(shape), drawing);
+    // A soft shadow, the drawing defaults' under a shape that holds nothing, or its own (ADR 0088).
+    if (shape.row === undefined && castsShadow(shape, drawing, isContainer(shape))) {
+      drawShadow(graphics, shape, bodyRectOf(shape), drawing);
     }
     if (drawRowsShape(graphics, shape, rowColors, drawing)) {
       drawToggle(graphics, shape);
@@ -448,16 +511,10 @@ export function drawShapeOutlines(
     const body = shape.collapsed === undefined ? bodyRectOf(shape) : bodyOf(shape);
     if (shape.collapsed !== undefined && body !== shape.rect) {
       // The sheet behind a collapsed container; the body covers most of its outline.
-      drawBody(
-        graphics,
-        shape.kind,
-        { ...body, x: body.x + SHEET, y: body.y + SHEET },
-        colors,
-        drawing,
-      );
+      drawBody(graphics, shape, { ...body, x: body.x + SHEET, y: body.y + SHEET }, colors, drawing);
     }
-    drawBody(graphics, shape.kind, body, colors, drawing);
-    hairlines.add(colors.stroke, shape.kind, body);
+    drawBody(graphics, shape, body, colors, drawing);
+    hairlines.addBody(colors.stroke, shape, body);
     // A collapsed container whose drawing defaults count what it holds shows a second border.
     if (showsInnerBorder(shape.collapsed))
       drawInnerBorder(graphics, shape.kind, body, colors, drawing);
@@ -488,10 +545,19 @@ function drawOutlinedBody(
   const colors = { fill: fillOf(shape), stroke: outlineColorOf(shape) };
   const placed = outlineAt({ rect: shape.rect, outline }) as PlacedOutline;
   if (shape.collapsed !== undefined && bodyOf(shape) !== shape.rect) {
-    drawOutline(graphics, { ...placed, x: placed.x + SHEET, y: placed.y + SHEET }, colors, drawing);
+    drawOutline(
+      graphics,
+      { ...placed, x: placed.x + SHEET, y: placed.y + SHEET },
+      colors,
+      drawing,
+      shape,
+    );
   }
-  drawOutline(graphics, placed, colors, drawing);
-  hairlines.addOutline(colors.stroke, placed);
+  drawOutline(graphics, placed, colors, drawing, shape);
+  // A border of its own that is dashed, dotted or none draws no line a pixel wide over it.
+  if (bodyLook(shape, colors, drawing).pixelLine) {
+    hairlines.addOutline(colors.stroke, placed, opacityOf(shape));
+  }
 }
 
 /**
@@ -642,16 +708,18 @@ function writeRegionName(
 export function drawRelationRoutes(graphics: Graphics, lines: readonly RelationLine[]): void {
   // An open arrowhead is stroked at its line's width, a filled one filled.
   for (const line of lines) {
+    const alpha = line.opacity ?? 1;
     if (drawnAsCurve(line)) {
-      strokeCurve(graphics, drawnCurve(line), { color: line.stroke, width: line.width });
+      strokeCurve(graphics, drawnCurve(line), { color: line.stroke, width: line.width, alpha });
     } else {
       strokeRoute(graphics, line.route, line.arrowhead, {
         color: line.stroke,
         width: line.width,
         dash: line.dash,
+        alpha,
       });
     }
-    if (line.arrowhead) fillArrowhead(graphics, line.arrowhead, line.stroke, line.width);
+    if (line.arrowhead) fillArrowhead(graphics, line.arrowhead, line.stroke, line.width, alpha);
   }
 }
 
@@ -666,19 +734,23 @@ export function drawRoutePieces(
 ): void {
   for (const piece of pieces) {
     const { line } = piece;
+    // A relation's opacity fades its line and arrowhead, never its label (ADR 0088).
+    const alpha = line.opacity ?? 1;
     if (piece.curve && line.dash === 'solid') {
-      strokeCurve(graphics, piece.curve, { color: line.stroke, width: line.width });
+      strokeCurve(graphics, piece.curve, { color: line.stroke, width: line.width, alpha });
       continue;
     }
     strokeLine(
       graphics,
       piece.points,
-      { color: line.stroke, width: line.width, dash: line.dash },
+      { color: line.stroke, width: line.width, dash: line.dash, alpha },
       piece,
     );
   }
   for (const line of ends) {
-    if (line.arrowhead) fillArrowhead(graphics, line.arrowhead, line.stroke, line.width);
+    if (line.arrowhead) {
+      fillArrowhead(graphics, line.arrowhead, line.stroke, line.width, line.opacity ?? 1);
+    }
   }
 }
 
@@ -690,7 +762,12 @@ export function drawPieceLines(graphics: Graphics, pieces: readonly RoutePiece[]
   for (const piece of pieces) {
     const { line } = piece;
     const points = piece.last && line.arrowhead ? [...piece.points, line.to] : piece.points;
-    strokeLine(graphics, points, { color: line.stroke, width: line.width, dash: 'solid' }, piece);
+    strokeLine(
+      graphics,
+      points,
+      { color: line.stroke, width: line.width, dash: 'solid', alpha: line.opacity ?? 1 },
+      piece,
+    );
   }
 }
 
@@ -844,17 +921,17 @@ export function noteTextPlace(
  */
 function traceOutline(
   graphics: Graphics,
-  kind: ShapeKind,
+  styled: Styled,
   rect: Rect,
   drawing: ResolvedDrawing,
 ): void {
   const { x, y, width, height } = rect;
-  switch (kind) {
+  switch (drawnKindOf(styled)) {
     case 'rectangle':
       graphics.rect(x, y, width, height);
       return;
     case 'rounded-rectangle':
-      graphics.roundRect(x, y, width, height, roundedCornerRadius(drawing, width, height));
+      graphics.roundRect(x, y, width, height, cornerRadiusOf(styled, drawing, width, height));
       return;
     case 'ellipse':
       graphics.ellipse(x + width / 2, y + height / 2, width / 2, height / 2);
@@ -879,30 +956,34 @@ function traceOutline(
   }
 }
 
-/** Lays a shape's soft shadow, under where its body is then drawn. */
+/**
+ * Lays a shape's soft shadow, under where its body is then drawn: as faint as the shape is opaque
+ * (ADR 0088).
+ */
 function drawShadow(
   graphics: Graphics,
-  kind: ShapeKind,
+  styled: Styled,
   rect: Rect,
   drawing: ResolvedDrawing,
 ): void {
   const { offset, alpha, layers } = SOFT_SHADOW;
+  const opacity = opacityOf(styled);
   for (let layer = layers - 1; layer >= 0; layer--) {
     const at = grow({ ...rect, y: rect.y + offset }, layer);
-    traceSilhouette(graphics, kind, at, drawing);
-    graphics.fill({ color: 0x000000, alpha: alpha / layers });
+    traceSilhouette(graphics, styled, at, drawing);
+    graphics.fill({ color: 0x000000, alpha: (alpha / layers) * opacity });
   }
 }
 
 /** Traces the closed outline a shape's shadow fills: its body, without a cylinder's front cap. */
 function traceSilhouette(
   graphics: Graphics,
-  kind: ShapeKind,
+  styled: Styled,
   rect: Rect,
   drawing: ResolvedDrawing,
 ): void {
   const { x, y, width, height } = rect;
-  switch (kind) {
+  switch (drawnKindOf(styled)) {
     case 'rectangle':
       graphics.rect(x, y, width, height);
       return;
@@ -918,7 +999,7 @@ function traceSilhouette(
       return;
     }
     default:
-      graphics.roundRect(x, y, width, height, roundedCornerRadius(drawing, width, height));
+      graphics.roundRect(x, y, width, height, cornerRadiusOf(styled, drawing, width, height));
   }
 }
 
@@ -932,7 +1013,7 @@ function drawInnerBorder(
 ): void {
   const inner = grow(body, -INNER_BORDER);
   if (inner.width <= 0 || inner.height <= 0) return;
-  traceOutline(graphics, kind, inner, drawing);
+  traceOutline(graphics, { kind }, inner, drawing);
   graphics.stroke({ color: colors.stroke, width: 1 });
 }
 
@@ -946,41 +1027,64 @@ function drawInnerBorder(
 class Hairlines {
   constructor(private readonly drawing: ResolvedDrawing) {}
 
+  /** By color, and for those of shapes less than opaque, by color and opacity (ADR 0088). */
   private readonly byColor = new Map<
-    Color,
-    ({ kind: ShapeKind | 'block'; rect: Rect } | { points: number[]; closed: boolean })[]
+    string,
+    (
+      | { kind: ShapeKind | 'block'; rect: Rect }
+      | { styled: Styled; rect: Rect }
+      | { points: number[]; closed: boolean }
+    )[]
   >();
 
   add(color: Color, kind: ShapeKind | 'block', rect: Rect): void {
     append(this.byColor, color, { kind, rect });
   }
 
+  /**
+   * A shape's body, traced as it is drawn, when its border is a solid line: a dashed, dotted or
+   * missing border of its own draws no line a pixel wide over it (ADR 0088).
+   */
+  addBody(color: Color, styled: Styled, rect: Rect): void {
+    if (!bodyLook(styled, { fill: color, stroke: color }, this.drawing).pixelLine) return;
+    if (styled.style === undefined) append(this.byColor, color, { kind: styled.kind, rect });
+    else append(this.byColor, hairlineKey(color, opacityOf(styled)), { styled, rect });
+  }
+
   /** A polygon or a polyline, as points on the canvas. */
-  addPolygon(color: Color, points: number[], closed: boolean): void {
-    if (points.length >= 4) append(this.byColor, color, { points, closed });
+  addPolygon(color: Color, points: number[], closed: boolean, alpha = 1): void {
+    if (points.length >= 4) append(this.byColor, hairlineKey(color, alpha), { points, closed });
   }
 
   /** Every contour of an outline placed on the canvas: its fills and holes closed, its lines open. */
-  addOutline(color: Color, placed: PlacedOutline): void {
+  addOutline(color: Color, placed: PlacedOutline, alpha = 1): void {
     for (const contour of flattenOutline(placed.fitted)) {
       this.addPolygon(
         color,
         placedPoints(contour.points, placed.x, placed.y),
         contour.role !== 'line',
+        alpha,
       );
     }
   }
 
   stroke(graphics: Graphics): void {
-    for (const [color, outlines] of this.byColor) {
+    for (const [key, outlines] of this.byColor) {
       for (const outline of outlines) {
         if ('points' in outline) graphics.poly(outline.points, outline.closed);
-        else if (outline.kind === 'block') {
+        else if ('styled' in outline) {
+          traceOutline(graphics, outline.styled, outline.rect, this.drawing);
+        } else if (outline.kind === 'block') {
           const { rect } = outline;
           graphics.rect(rect.x, rect.y, rect.width, rect.height);
-        } else traceOutline(graphics, outline.kind, outline.rect, this.drawing);
+        } else traceOutline(graphics, { kind: outline.kind }, outline.rect, this.drawing);
       }
-      graphics.stroke({ color, width: 1, pixelLine: true });
+      const [color, alpha] = hairlineColorOf(key);
+      graphics.stroke(
+        alpha === 1
+          ? { color, width: 1, pixelLine: true }
+          : { color, alpha, width: 1, pixelLine: true },
+      );
     }
     this.byColor.clear();
   }
@@ -996,8 +1100,11 @@ export function drawOutline(
   outline: PlacedOutline,
   colors: { fill: Color; stroke: Color },
   drawing: ResolvedDrawing = BASE_DRAWING,
+  styled?: Styled,
 ): void {
-  const border = drawing.shapes.borderWidth;
+  // Its own border, opacity and gradient (ADR 0088); a corner radius does not apply to it.
+  const look = styled?.style ? bodyLook(styled, colors, drawing) : undefined;
+  const border = styled ? borderWidthOf(styled, drawing) : drawing.shapes.borderWidth;
   const flat = flattenOutline(outline.fitted);
   const { contours } = outline.fitted;
   const shifted = (contour: FlatContour) => placedPoints(contour.points, outline.x, outline.y);
@@ -1021,20 +1128,29 @@ export function drawOutline(
   }
   for (const fill of fills) {
     if (fill.points.length < 6) continue;
-    graphics.poly(shifted(fill)).fill(colors.fill);
+    graphics.poly(shifted(fill)).fill(look ? look.fill : colors.fill);
     for (const hole of holesIn.get(fill) ?? []) graphics.poly(shifted(hole)).cut();
   }
-  const stroke = { color: colors.stroke, width: border };
+  const alpha = styled ? opacityOf(styled) : 1;
+  const stroke = look ? look.stroke : { color: colors.stroke, width: border };
   flat.forEach((contour, at) => {
     if (contour.points.length < 4) return;
     if (contour.role !== 'line') {
-      graphics.poly(shifted(contour), true).stroke(stroke);
+      if (stroke) graphics.poly(shifted(contour), true).stroke(stroke);
+      else if (look?.dashed) {
+        strokeDashedPolyline(graphics, pointsOf(shifted(contour)), true, look.dashed);
+      }
       return;
     }
+    // Its lines are what the outline draws, at their own width, whatever its border.
     const width = Math.max(border, contours[at]?.width ?? 0);
     graphics
       .poly(shifted(contour), false)
-      .stroke({ color: colors.stroke, width, cap: 'round', join: 'round' });
+      .stroke(
+        alpha === 1
+          ? { color: colors.stroke, width, cap: 'round', join: 'round' }
+          : { color: colors.stroke, alpha, width, cap: 'round', join: 'round' },
+      );
   });
 }
 
@@ -1097,62 +1213,257 @@ function boxAround(rect: Rect, gap: number): Float64Array {
   return Float64Array.from([-gap, -gap, right, -gap, right, bottom, -gap, bottom]);
 }
 
-/** Draws a shape's body in a rectangle, filled and stroked, approximating each kind of shape. */
+/**
+ * Draws a shape's body in a rectangle, filled and stroked, approximating each kind of shape, with its
+ * own style where it has one (ADR 0088): a rectangle of either kind at its own corner radius, its
+ * border at its own width, dashed or dotted, or none at 0, its fill running to a gradient's color, and
+ * all of it as opaque as it is.
+ */
 function drawBody(
   graphics: Graphics,
-  kind: ShapeKind,
+  styled: Styled,
   rect: Rect,
   colors: { fill: Color; stroke: Color },
   drawing: ResolvedDrawing,
 ): void {
   const { x, y, width, height } = rect;
-  const shape = { ...colors, rect };
-  const stroke = { color: shape.stroke, width: drawing.shapes.borderWidth };
-  switch (kind) {
+  const look = bodyLook(styled, colors, drawing);
+  const paint = () => {
+    graphics.fill(look.fill);
+    if (look.stroke) graphics.stroke(look.stroke);
+  };
+  switch (drawnKindOf(styled)) {
     case 'rectangle':
-      graphics.rect(x, y, width, height).fill(shape.fill).stroke(stroke);
-      return;
+      graphics.rect(x, y, width, height);
+      paint();
+      break;
     case 'rounded-rectangle':
-      graphics
-        .roundRect(x, y, width, height, roundedCornerRadius(drawing, width, height))
-        .fill(shape.fill)
-        .stroke(stroke);
-      return;
+      graphics.roundRect(x, y, width, height, cornerRadiusOf(styled, drawing, width, height));
+      paint();
+      break;
     case 'ellipse':
-      graphics
-        .ellipse(x + width / 2, y + height / 2, width / 2, height / 2)
-        .fill(shape.fill)
-        .stroke(stroke);
-      return;
+      graphics.ellipse(x + width / 2, y + height / 2, width / 2, height / 2);
+      paint();
+      break;
     case 'cylinder': {
-      const cap = cylinderCap(shape.rect);
+      const cap = cylinderCap(rect);
       const centerX = x + width / 2;
       const radiusX = width / 2;
       // The body, closed along the back of the top cap; then the front of the top cap.
-      graphics
-        .poly([
-          ...arcPoints(centerX, y + height - cap, radiusX, cap, Math.PI, 0),
-          ...arcPoints(centerX, y + cap, radiusX, cap, 0, -Math.PI),
-        ])
-        .fill(shape.fill)
-        .stroke(stroke);
-      graphics.poly(arcPoints(centerX, y + cap, radiusX, cap, Math.PI, 0), false).stroke(stroke);
-      return;
+      graphics.poly([
+        ...arcPoints(centerX, y + height - cap, radiusX, cap, Math.PI, 0),
+        ...arcPoints(centerX, y + cap, radiusX, cap, 0, -Math.PI),
+      ]);
+      paint();
+      if (look.stroke) {
+        graphics.poly(arcPoints(centerX, y + cap, radiusX, cap, Math.PI, 0), false);
+        graphics.stroke(look.stroke);
+      }
+      break;
     }
     case 'person': {
       // A head over shoulders drawn as one rounded arc (ADR 0086).
-      const figure = personFigure(shape.rect);
-      graphics
-        .poly(personBodyPoints(figure, personCornerRadius(drawing, width)), true)
-        .fill(shape.fill)
-        .stroke(stroke);
-      graphics
-        .circle(figure.head.x, figure.head.y, figure.head.radius)
-        .fill(shape.fill)
-        .stroke(stroke);
-      return;
+      const figure = personFigure(rect);
+      graphics.poly(personBodyPoints(figure, personCornerRadius(drawing, width)), true);
+      paint();
+      graphics.circle(figure.head.x, figure.head.y, figure.head.radius);
+      paint();
+      break;
     }
   }
+  if (look.dashed) {
+    for (const { points, closed } of outlinePolylines(styled, rect, drawing)) {
+      strokeDashedPolyline(graphics, points, closed, look.dashed);
+    }
+  }
+}
+
+/** How a shape's body is painted: its fill, and its border, solid, dashed or none. */
+interface BodyLook {
+  fill: FillInput;
+  /** Its border, when solid and wider than 0. */
+  stroke?: StrokeInput;
+  /** Its border, when dashed or dotted and wider than 0. */
+  dashed?: DashedStroke;
+  /** Whether a line a pixel wide outlines it too, as every solid border is (`Hairlines`). */
+  pixelLine: boolean;
+}
+
+interface DashedStroke {
+  color: Color;
+  width: number;
+  dash: Exclude<Dash, 'solid'>;
+  alpha: number;
+}
+
+/**
+ * How a shape's body is painted: in exactly the styles drawn before ADR 0088 when it has no style of
+ * its own.
+ */
+function bodyLook(
+  styled: Pick<Styled, 'style'>,
+  colors: { fill: Color; stroke: Color },
+  drawing: ResolvedDrawing,
+): BodyLook {
+  const width = borderWidthOf(styled, drawing);
+  const alpha = opacityOf(styled);
+  const gradient = styled.style?.gradient;
+  const dash = styled.style?.dash;
+  const running = gradient ? gradientFill(colors.fill, gradient) : undefined;
+  let fill: FillInput;
+  if (running) fill = alpha === 1 ? running : { fill: running, alpha };
+  else fill = alpha === 1 ? colors.fill : { color: colors.fill, alpha };
+  if (width <= 0) return { fill, pixelLine: false };
+  if (dash !== undefined) {
+    return { fill, dashed: { color: colors.stroke, width, dash, alpha }, pixelLine: false };
+  }
+  const stroke =
+    alpha === 1 ? { color: colors.stroke, width } : { color: colors.stroke, width, alpha };
+  return { fill, stroke, pixelLine: true };
+}
+
+/** The gradients made so far, by their colors and direction; null where none can be made. */
+const gradients = new Map<string, FillGradient | null>();
+
+/**
+ * The fill of a gradient from a shape's fill to its second color, made once for each pair and
+ * direction and laid over the bounds of what it fills; none where the page cannot draw one, such as a
+ * page without a 2D canvas, which then fills in the shape's fill.
+ */
+export function gradientFill(from: Color, gradient: ShapeGradient): FillGradient | undefined {
+  const key = `${from} ${gradient.to} ${gradient.direction}`;
+  let made = gradients.get(key);
+  if (made === undefined) {
+    try {
+      made = new FillGradient({
+        type: 'linear',
+        start: { x: 0, y: 0 },
+        end: gradient.direction === 'down' ? { x: 0, y: 1 } : { x: 1, y: 0 },
+        colorStops: [
+          { offset: 0, color: from },
+          { offset: 1, color: gradient.to },
+        ],
+        textureSpace: 'local',
+      });
+      made.buildGradient();
+    } catch {
+      made = null;
+    }
+    gradients.set(key, made);
+  }
+  return made ?? undefined;
+}
+
+/**
+ * The lines a shape's body is outlined with, as points on the canvas, for a dashed or dotted border:
+ * its kind's outline, closed, and a cylinder's front cap and a person's head as lines of their own.
+ */
+function outlinePolylines(
+  styled: Styled,
+  rect: Rect,
+  drawing: ResolvedDrawing,
+): { points: Point[]; closed: boolean }[] {
+  const { x, y, width, height } = rect;
+  switch (drawnKindOf(styled)) {
+    case 'rectangle':
+      return [
+        {
+          points: [
+            { x, y },
+            { x: x + width, y },
+            { x: x + width, y: y + height },
+            { x, y: y + height },
+          ],
+          closed: true,
+        },
+      ];
+    case 'rounded-rectangle': {
+      const r = cornerRadiusOf(styled, drawing, width, height);
+      const corner = (cx: number, cy: number, from: number) =>
+        arcPoints(cx, cy, r, r, from, from + Math.PI / 2, 6);
+      return [
+        {
+          points: pointsOf([
+            ...corner(x + width - r, y + r, -Math.PI / 2),
+            ...corner(x + width - r, y + height - r, 0),
+            ...corner(x + r, y + height - r, Math.PI / 2),
+            ...corner(x + r, y + r, Math.PI),
+          ]),
+          closed: true,
+        },
+      ];
+    }
+    case 'ellipse': {
+      const around = arcPoints(x + width / 2, y + height / 2, width / 2, height / 2, 0, TURN, 48);
+      return [{ points: pointsOf(around).slice(0, -1), closed: true }];
+    }
+    case 'cylinder': {
+      const cap = cylinderCap(rect);
+      const centerX = x + width / 2;
+      const radiusX = width / 2;
+      return [
+        {
+          points: pointsOf([
+            ...arcPoints(centerX, y + height - cap, radiusX, cap, Math.PI, 0, 16),
+            ...arcPoints(centerX, y + cap, radiusX, cap, 0, -Math.PI, 16),
+          ]),
+          closed: true,
+        },
+        {
+          points: pointsOf(arcPoints(centerX, y + cap, radiusX, cap, Math.PI, 0, 16)),
+          closed: false,
+        },
+      ];
+    }
+    case 'person': {
+      const figure = personFigure(rect);
+      const { head } = figure;
+      const around = arcPoints(head.x, head.y, head.radius, head.radius, 0, TURN, 24);
+      return [
+        {
+          points: pointsOf(personBodyPoints(figure, personCornerRadius(drawing, width))),
+          closed: true,
+        },
+        { points: pointsOf(around).slice(0, -1), closed: true },
+      ];
+    }
+  }
+}
+
+const TURN = Math.PI * 2;
+
+/** Strokes a polyline dashed or dotted, as a line of that pattern is; closed back to its first point. */
+function strokeDashedPolyline(
+  graphics: Graphics,
+  points: readonly Point[],
+  closed: boolean,
+  style: DashedStroke,
+): void {
+  const first = points[0];
+  if (first === undefined || points.length < 2) return;
+  strokeLine(graphics, closed ? [...points, first] : points, style, {
+    bendAtStart: closed,
+    bendAtEnd: closed,
+  });
+}
+
+/** Flat points, as `poly` takes them, as points. */
+function pointsOf(flat: readonly number[]): Point[] {
+  const points: Point[] = [];
+  for (let at = 0; at + 1 < flat.length; at += 2) {
+    points.push({ x: flat[at] as number, y: flat[at + 1] as number });
+  }
+  return points;
+}
+
+/** The key hairlines are gathered by: their color, and their opacity below 1. */
+function hairlineKey(color: Color, alpha: number): string {
+  return alpha === 1 ? color : `${color} ${alpha}`;
+}
+
+function hairlineColorOf(key: string): [Color, number] {
+  const [color, alpha] = key.split(' ');
+  return [color as Color, alpha === undefined ? 1 : Number(alpha)];
 }
 
 /**
@@ -1677,7 +1988,7 @@ function strokeRoute(
   graphics: Graphics,
   route: readonly Point[],
   arrowhead: Arrowhead | undefined,
-  style: { color: Color; width: number; dash: Dash },
+  style: { color: Color; width: number; dash: Dash; alpha?: number },
 ): void {
   strokeLine(graphics, untilArrowhead(route, arrowhead), style);
 }
@@ -1690,15 +2001,17 @@ function strokeRoute(
 function strokeLine(
   graphics: Graphics,
   points: readonly Point[],
-  style: { color: Color; width: number; dash: Dash },
+  style: { color: Color; width: number; dash: Dash; alpha?: number },
   { travelled: start = 0, bendAtStart = false, bendAtEnd = false } = {},
 ): void {
   const [first, ...rest] = points;
   if (!first || rest.length === 0) return;
   const { color, width, dash } = style;
+  // Faded only where an opacity says so (ADR 0088), so that every other line strokes as before.
+  const faded = style.alpha === undefined || style.alpha === 1 ? {} : { alpha: style.alpha };
   if (dash === 'solid') {
     traceSolid(graphics, points, width, { bendAtStart, bendAtEnd });
-    graphics.stroke({ color, width, cap: 'butt', join: 'miter' });
+    graphics.stroke({ color, ...faded, width, cap: 'butt', join: 'miter' });
     return;
   }
   const texture = patternTexture(dash);
@@ -1717,6 +2030,7 @@ function strokeLine(
       .lineTo(to.x + direction.x * after, to.y + direction.y * after)
       .stroke({
         color,
+        ...faded,
         width,
         cap: 'butt',
         texture,
@@ -1763,13 +2077,17 @@ function fillArrowhead(
   arrowhead: Arrowhead,
   color: Color,
   width: number,
+  alpha = 1,
 ): void {
   const { tip, left, right } = arrowhead;
+  const faded = alpha === 1 ? {} : { alpha };
   if (arrowhead.open) {
     graphics
       .poly([left.x, left.y, tip.x, tip.y, right.x, right.y], false)
-      .stroke({ color, width, cap: 'round', join: 'round' });
+      .stroke({ color, ...faded, width, cap: 'round', join: 'round' });
     return;
   }
-  graphics.poly([tip.x, tip.y, left.x, left.y, right.x, right.y]).fill(color);
+  graphics
+    .poly([tip.x, tip.y, left.x, left.y, right.x, right.y])
+    .fill(alpha === 1 ? color : { color, alpha });
 }

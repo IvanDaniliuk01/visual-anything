@@ -46,7 +46,7 @@ export function RelationInspector({
   onSelect,
 }: RelationInspectorProps) {
   const t = useT();
-  const { project, send } = useEditor();
+  const { project, viewId, send } = useEditor();
   const disabled = send === undefined;
   const index = modelIndexOf(project);
   const relationType = relationTypeOrRelatesTo(definitions, relation.relationType);
@@ -108,7 +108,6 @@ export function RelationInspector({
           </Detail>
         </dl>
       </section>
-      <RouteSection relation={relation.id} />
       <DestinationsSection item={relation} definitions={relationType.attributes} />
       <AttributesSection
         of="relation"
@@ -123,6 +122,8 @@ export function RelationInspector({
         relation={relation}
         definitions={definitions}
         disabled={disabled}
+        // Its route in the open view goes in the format panel's Arrange tab (ADR 0088).
+        arrange={viewId === undefined ? undefined : <RouteSection relation={relation.id} />}
       />
     </>
   );
