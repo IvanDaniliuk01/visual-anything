@@ -6,7 +6,9 @@
       "ClaudeInChromeDomain(127.0.0.1:63425)",
       "ClaudeInChromeDomain(127.0.0.1:52405)",
       "ClaudeInChromeDomain(127.0.0.1:47700)",
-      "mcp__claude-in-chrome__tabs_create_mcp"
+      "mcp__claude-in-chrome__tabs_create_mcp",
+      "ClaudeInChromeDomain(sparxsystems.com)",
+      "ClaudeInChromeDomain(docs.nomagic.com)"
     ]
   },
   "worktree": {
