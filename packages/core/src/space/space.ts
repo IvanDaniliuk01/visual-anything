@@ -273,9 +273,10 @@ function place(project: ProjectSnapshot, rootId: Id): Map<Id, Placed> {
     },
     through: [],
   });
+  // Walked by an index rather than shifted, so that a large model is placed in linear time.
   const queue: Id[] = [rootId];
-  while (queue.length > 0) {
-    const holderId = queue.shift() as Id;
+  for (let next = 0; next < queue.length; next += 1) {
+    const holderId = queue[next] as Id;
     const holder = result.get(holderId) as Placed;
     const through = [...holder.through, holderId];
     // Its solid's anchored parts, drawn as their nodes in it.
