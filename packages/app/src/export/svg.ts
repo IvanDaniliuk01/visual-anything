@@ -93,12 +93,15 @@ import {
   BADGE_PADDING,
   CASING_EXTRA,
   DASH_PATTERNS,
-  NAME_LINE,
   PLATE_RADIUS,
   RELATION_LABEL_BACK,
   SOFT_SHADOW,
+  TOGGLE_LOOK,
   badgeSize,
   fontFamilyOf,
+  headerPlacesOf,
+  headerRoomsOf,
+  noteTextPlaceIn,
   personCornerRadius,
   roundedCornerRadius,
   rowsCornerRadius,
@@ -1400,7 +1403,7 @@ function toggleOf(shape: ElementShape, colors: { fill: Color; stroke: Color }): 
   const { x, y, width, height } = toggle;
   const middleX = x + width / 2;
   const middleY = y + height / 2;
-  const arm = width * 0.28;
+  const arm = width * TOGGLE_LOOK.arm;
   let sign = `M${num(middleX - arm)} ${num(middleY)}H${num(middleX + arm)}`;
   if (shape.collapsed !== undefined) {
     sign += `M${num(middleX)} ${num(middleY - arm)}V${num(middleY + arm)}`;
@@ -1412,16 +1415,16 @@ function toggleOf(shape: ElementShape, colors: { fill: Color; stroke: Color }): 
       y,
       width,
       height,
-      rx: 3,
+      rx: TOGGLE_LOOK.radius,
       fill: colors.fill,
       stroke: colors.stroke,
-      'stroke-width': 1,
+      'stroke-width': TOGGLE_LOOK.border,
     }) +
     empty('path', {
       d: sign,
       fill: 'none',
       stroke: readableTextColors(colors.fill).name,
-      'stroke-width': 1.5,
+      'stroke-width': TOGGLE_LOOK.sign,
     })
   );
 }
@@ -1514,7 +1517,7 @@ function regionParts(writer: Writer, shape: ElementShape, stroke: Color): string
   if (toggle) {
     const middleX = toggle.x + toggle.width / 2;
     const middleY = toggle.y + toggle.height / 2;
-    const arm = toggle.width * 0.28;
+    const arm = toggle.width * TOGGLE_LOOK.arm;
     markup +=
       empty('rect', {
         'data-part': 'toggle',
@@ -1522,7 +1525,7 @@ function regionParts(writer: Writer, shape: ElementShape, stroke: Color): string
         y: toggle.y,
         width: toggle.width,
         height: toggle.height,
-        rx: 3,
+        rx: TOGGLE_LOOK.radius,
         fill: 'none',
         stroke,
         'stroke-opacity': num(colors.borderAlpha),
@@ -1532,7 +1535,7 @@ function regionParts(writer: Writer, shape: ElementShape, stroke: Color): string
         d: `M${num(middleX - arm)} ${num(middleY)}H${num(middleX + arm)}`,
         fill: 'none',
         stroke,
-        'stroke-width': 1.5,
+        'stroke-width': TOGGLE_LOOK.sign,
       });
   }
   const { name, detail } = tab;
@@ -1699,9 +1702,10 @@ function headerText(
   const { x, y, width, height } = area;
   const { shift, beside } = room;
   const inset = writer.inset;
-  const { detailSize, containerNameSize } = writer.drawing.text;
+  const { detailSize } = writer.drawing.text;
   const wrap = Math.max(1, width - 2 * inset - beside - shift);
-  const rooms = { name: Math.min(20, height - 12), detail: Math.min(16, height - 32) };
+  const rooms = headerRoomsOf(writer.drawing, height);
+  const { nameTop, detailTop } = headerPlacesOf(writer.drawing);
   const header = headerLines(shape, height, wrap, robotoMeasure, writer.drawing);
   return (
     (rooms.name > 0
@@ -1711,7 +1715,7 @@ function headerText(
           fill: colors.name,
           x: x + inset + shift,
           align: 'start',
-          y: y + 8,
+          y: y + nameTop,
           anchor: 'top',
           wrap,
           room: rooms.name,
@@ -1724,7 +1728,7 @@ function headerText(
           fill: colors.detail,
           x: x + inset + shift,
           align: 'start',
-          y: y + 8 + containerNameSize + 6,
+          y: y + detailTop,
           anchor: 'top',
           wrap,
           room: shape.collapsed === undefined ? rooms.detail : header.detailRoom,
@@ -2024,7 +2028,8 @@ function outlinedText(
     const stretch = headerStretch(outlined);
     if (!stretch || stretch.width < LEAST_HEADER_WIDTH) return '';
     const { y, height } = shape.rect;
-    const rooms = { name: Math.min(NAME_LINE, height - 12), detail: Math.min(16, height - 32) };
+    const rooms = headerRoomsOf(writer.drawing, height);
+    const { nameTop, detailTop } = headerPlacesOf(writer.drawing);
     const left = stretch.x + 2 + headerShift(shape);
     const wrap = Math.max(1, stretch.x + stretch.width - left);
     const detail = detailOf(shape);
@@ -2036,7 +2041,7 @@ function outlinedText(
             fill: colors.name,
             x: left,
             align: 'start',
-            y: y + 8,
+            y: y + nameTop,
             anchor: 'top',
             wrap,
             room: rooms.name,
@@ -2049,7 +2054,7 @@ function outlinedText(
             fill: colors.detail,
             x: left,
             align: 'start',
-            y: y + 8 + writer.drawing.text.containerNameSize + 6,
+            y: y + detailTop,
             anchor: 'top',
             wrap,
             room: rooms.detail,
@@ -2598,8 +2603,9 @@ function relationLabel(writer: Writer, line: RelationLine): string {
 function noteParts(writer: Writer, note: NoteShape): string {
   const colors = noteColors(note, writer.theme);
   const { x, y, width, height } = note.rect;
-  const inset = writer.inset;
-  const size = writer.drawing.text.noteSize;
+  // Where the canvas writes it (`noteTextPlaceIn`).
+  const place = noteTextPlaceIn(note.rect, writer.drawing);
+  const { size } = place;
   return element(
     'g',
     { 'data-free-shape': note.id },
@@ -2617,11 +2623,11 @@ function noteParts(writer: Writer, note: NoteShape): string {
             layOutBlocks(parseEmphasis(note.text, { blocks: true }), {
               measure: robotoMeasure,
               size,
-              width: Math.max(1, width - 2 * inset),
+              width: place.width,
               align: 'left',
-              maxHeight: height - 16,
+              maxHeight: place.height,
             }),
-            { x: x + inset, y: y + 10 },
+            { x: place.x, y: place.y },
             colors.text,
             robotoMeasure,
             writer.texts,
@@ -2630,13 +2636,13 @@ function noteParts(writer: Writer, note: NoteShape): string {
             text: note.text,
             size,
             fill: colors.text,
-            x: x + inset,
+            x: place.x,
             align: 'start',
-            y: y + 10,
+            y: place.y,
             anchor: 'top',
-            wrap: Math.max(1, width - 2 * inset),
+            wrap: place.width,
             // The canvas stops a long text at the note's bottom, and so does this.
-            room: height - 16,
+            room: place.height,
           })),
   );
 }

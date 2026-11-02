@@ -9,10 +9,15 @@
  *
  * An anchored part of a solid (ADR 0075) has no outline, since its drawing's picture draws it: the
  * marks write its name beside its point, to its right, and nowhere else on the canvas.
+ *
+ * They are written as the drawing defaults write names on screen (ADR 0086): in the drawing's fonts
+ * and name weight, one the canvas loads, at its `reading.farNameSize`, the size of names written at
+ * one size on screen.
  */
+import type { ResolvedDrawing } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import { Container, Text } from 'pixi.js';
-import { FONT_FAMILY } from './draw';
+import { BASE_DRAWING, fontFamilyOf, nameWeightOf } from './drawing';
 import { outlineBoundsOn, writesNameBelow, writesNameInside } from './outlined';
 import type { ElementShape } from './scene';
 import { SOLID_POINT_RADIUS } from './shape-solids';
@@ -22,7 +27,6 @@ import { isAnchoredSolidPart } from './solidMark';
 export const MOST_NAMES_BESIDE = 64;
 /** How far below its shape's outline a name is written, in screen pixels. */
 const GAP = 4;
-const SIZE = 12;
 
 /** Whether the marks write a shape's name beside it: a shape with its own outline that writes it neither inside nor in a name tag. */
 export function namedBeside(shape: ElementShape): boolean {
@@ -35,17 +39,26 @@ export class NamesBeside {
   readonly container = new Container();
   private readonly texts: Text[] = [];
   private colors: { text: Color; back: Color } | undefined;
+  private drawing: ResolvedDrawing = BASE_DRAWING;
 
   /**
    * Writes beside each of these shapes that the marks name beside it, at most 64, for a camera of
-   * this scale, in these colors; the names written before and not now are hidden.
+   * this scale, in these colors, as this drawing writes names; the names written before and not now
+   * are hidden.
    */
-  show(shapes: readonly ElementShape[], scale: number, colors: { text: Color; back: Color }): void {
+  show(
+    shapes: readonly ElementShape[],
+    scale: number,
+    colors: { text: Color; back: Color },
+    drawing: ResolvedDrawing = BASE_DRAWING,
+  ): void {
     const restyle =
       this.colors === undefined ||
       this.colors.text !== colors.text ||
-      this.colors.back !== colors.back;
+      this.colors.back !== colors.back ||
+      this.drawing !== drawing;
     this.colors = colors;
+    this.drawing = drawing;
     if (restyle) for (const text of this.texts) this.paint(text, colors);
     let used = 0;
     const seen = new Set<string>();
@@ -90,10 +103,11 @@ export class NamesBeside {
   }
 
   private paint(text: Text, colors: { text: Color; back: Color }): void {
+    const { drawing } = this;
     text.style = {
-      fontFamily: FONT_FAMILY,
-      fontSize: SIZE,
-      fontWeight: '600',
+      fontFamily: fontFamilyOf(drawing),
+      fontSize: drawing.reading.farNameSize,
+      fontWeight: nameWeightOf(drawing),
       fill: colors.text,
       stroke: { color: colors.back, width: 4, join: 'round' },
     };

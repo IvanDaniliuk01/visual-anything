@@ -745,7 +745,7 @@ function plateAt(shapes: AvoidShapes, at: number): Rect | undefined {
     x: rect.x,
     y: rect.y,
     width: Math.min(width, rect.width),
-    height: Math.min(PLATE_HEIGHT, rect.height),
+    height: Math.min(shapes.plateHeight ?? PLATE_HEIGHT, rect.height),
   };
 }
 

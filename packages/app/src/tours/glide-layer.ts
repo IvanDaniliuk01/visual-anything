@@ -6,12 +6,23 @@
  * step after; once the shapes arrive the layer fades out over the in stage, and the full drawing
  * replaces them. Drawing a box and a name for each of at most 400 shapes keeps a frame within budget
  * whatever the shapes hold.
+ *
+ * The shapes glide as the drawing defaults of the step after draw them (ADR 0086), simply and on
+ * screen: their borders at its border width and its corner radius, their names in its fonts and name
+ * weight at its `reading.farNameSize`, the size names written at one size on screen take.
  */
-import { simplifyOutline, tourEase, type GlideRect, type GlideShape } from '@visual-anything/core';
+import {
+  simplifyOutline,
+  tourEase,
+  type GlideRect,
+  type GlideShape,
+  type ResolvedDrawing,
+} from '@visual-anything/core';
 import type { Camera } from '../canvas/camera';
+import { BASE_DRAWING, fontFamilyOf, nameWeightOf } from '../canvas/drawing';
 import type { Rect, ShapeKind, Size } from '../canvas/geometry';
 import { cssFontFamily, SANS_FAMILY } from '../canvas/robotoFonts';
-import type { ElementShape, Scene } from '../canvas/scene';
+import { drawingOfScene, type ElementShape, type Scene } from '../canvas/scene';
 
 /** How a shape is drawn while it glides. */
 export interface GlideLook {
@@ -24,6 +35,35 @@ export interface GlideLook {
   /** Its free geometry's contours, as x, y pairs in a box of `size`, when it has its own outline. */
   contours?: readonly Float64Array[];
   size?: Size;
+  /** How its drawing draws it, one object for every shape of a drawing; absent, the base's. */
+  type?: GlideType;
+}
+
+/** How a drawing's shapes glide, on screen: their border, its corners, and their names. */
+export interface GlideType {
+  border: number;
+  radius: number;
+  /** The CSS font names are written in, and its size in pixels. */
+  font: string;
+  nameSize: number;
+}
+
+const glideTypes = new WeakMap<ResolvedDrawing, GlideType>();
+
+/** How a drawing's shapes glide, the same object for the same drawing. */
+export function glideTypeOf(drawing: ResolvedDrawing): GlideType {
+  let type = glideTypes.get(drawing);
+  if (!type) {
+    const nameSize = drawing.reading.farNameSize;
+    type = {
+      border: drawing.shapes.borderWidth,
+      radius: drawing.shapes.cornerRadius,
+      font: `${nameWeightOf(drawing)} ${nameSize}px ${cssFontFamily(fontFamilyOf(drawing))}`,
+      nameSize,
+    };
+    glideTypes.set(drawing, type);
+  }
+  return type;
 }
 
 /** The shapes of one side of a glide, on screen, and how each is drawn. */
@@ -63,13 +103,14 @@ export function glideSideOf(
 ): GlideSide {
   const shapes: GlideShape[] = [];
   const looks: GlideLook[] = [];
+  const type = glideTypeOf(drawingOfScene(scene));
   for (const shape of scene.shapes) {
     if (shape.row !== undefined || shape.part?.inDrawing === true) continue;
     if (options.hidden?.has(shape.key)) continue;
     const rect = onScreen(shape.rect, camera);
     if (!meets(rect, screen)) continue;
     shapes.push({ element: shape.element, path: shape.key, rect });
-    looks.push(lookOf(shape));
+    looks.push(lookOf(shape, type));
   }
   return { shapes, looks };
 }
@@ -93,12 +134,13 @@ function meets(rect: Rect, screen: Size): boolean {
   );
 }
 
-function lookOf(shape: ElementShape): GlideLook {
+function lookOf(shape: ElementShape, type: GlideType): GlideLook {
   const look: GlideLook = {
     kind: shape.kind,
     fill: shape.fill,
     stroke: shape.stroke,
     name: shape.name,
+    type,
   };
   if (shape.dark) look.dark = { ...shape.dark };
   if (shape.outline) {
@@ -142,15 +184,17 @@ export type GlideContext = Pick<
   textBaseline: CanvasTextBaseline;
 };
 
-/** The size names are written at while shapes glide, in pixels, and the least height that holds one. */
-const NAME_SIZE = 12;
-const NAME_ROOM = 16;
+/** How much taller than a name a shape must be on screen to write it, in pixels. */
+const NAME_ROOM_OVER = 4;
 /** Names are written in the canvas's own Roboto, with the system's fonts after it until it loads. */
 export const NAME_FAMILY = cssFontFamily(SANS_FAMILY);
+/** How shapes that name no drawing glide: as the base draws them. */
+const BASE_TYPE = glideTypeOf(BASE_DRAWING);
 
 /**
  * Draws one frame of a glide, a part of the way from 0 to 1 already eased: the background over the
- * whole screen, then each shape at its place between before and after, simply.
+ * whole screen, then each shape at its place between before and after, simply, as its drawing draws
+ * it (`GlideType`).
  */
 export function drawGlideFrame(
   context: GlideContext,
@@ -162,21 +206,28 @@ export function drawGlideFrame(
   context.setTransform(resolution, 0, 0, resolution, 0, 0);
   context.fillStyle = surface.background;
   context.fillRect(0, 0, size.width, size.height);
-  context.lineWidth = 1.5;
-  context.font = `${NAME_SIZE}px ${NAME_FAMILY}`;
   context.textAlign = 'center';
   context.textBaseline = 'middle';
+  let typed: GlideType | undefined;
   for (const item of items) {
     const at = between(item.from, item.to, part);
     const { look } = item;
+    const type = look.type ?? BASE_TYPE;
+    if (type !== typed) {
+      // Set once for each drawing, which is once a frame: every shape of a glide shares one.
+      context.lineWidth = type.border;
+      context.font = type.font;
+      typed = type;
+    }
     const colors = surface.dark === true && look.dark ? look.dark : look;
     context.beginPath();
-    traceShape(context, look, at);
+    traceShape(context, look, at, type);
     context.fillStyle = colors.fill;
     context.fill();
     context.strokeStyle = colors.stroke;
     context.stroke();
-    if (at.height >= NAME_ROOM && at.width >= NAME_ROOM * 2) {
+    const room = type.nameSize + NAME_ROOM_OVER;
+    if (at.height >= room && at.width >= room * 2) {
       context.fillStyle = readableOn(colors.fill);
       context.fillText(
         cut(context, look.name, at.width - 8),
@@ -196,7 +247,7 @@ function between(from: GlideRect, to: GlideRect, part: number): GlideRect {
   };
 }
 
-function traceShape(context: GlideContext, look: GlideLook, at: GlideRect): void {
+function traceShape(context: GlideContext, look: GlideLook, at: GlideRect, type: GlideType): void {
   const { x, y, width, height } = at;
   if (look.contours && look.size && look.size.width > 0 && look.size.height > 0) {
     const sx = width / look.size.width;
@@ -218,7 +269,7 @@ function traceShape(context: GlideContext, look: GlideLook, at: GlideRect): void
       context.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
       return;
     case 'rounded-rectangle':
-      context.roundRect(x, y, width, height, Math.min(8, width / 4, height / 4));
+      context.roundRect(x, y, width, height, Math.min(type.radius, width / 4, height / 4));
       return;
     case 'cylinder':
       context.roundRect(x, y, width, height, [Math.min(width / 2, height / 6)]);

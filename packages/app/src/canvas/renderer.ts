@@ -1864,7 +1864,7 @@ export class CanvasRenderer {
     // The legend of the view's overlays goes in a band below the drawing (ADR 0055).
     const legend = this.legend;
     const image = legend
-      ? withLegendBand(canvas, legend, t, this.painter.name, how.legendScale)
+      ? withLegendBand(canvas, legend, t, this.painter.name, how.legendScale, this.painter.drawing)
       : canvas;
     return { blob: await toPng(image), width: image.width, height: image.height };
   }
@@ -2052,9 +2052,9 @@ export class CanvasRenderer {
 
   /** Draws once, out of sight, one of each kind of drawing and label the canvas makes. */
   private warmUp(): void {
-    const { shapes, lines, notes } = SAMPLE_DRAWINGS;
-    const sample = new Container();
     const { painter } = this;
+    const { shapes, lines, notes } = sampleDrawingsOf(painter.drawing);
+    const sample = new Container();
     const outlines = new Graphics();
     painter.shapeOutlines(outlines, shapes);
     painter.relationRoutes(outlines, lines);
@@ -3904,10 +3904,12 @@ export class CanvasRenderer {
   /** Writes the names the hover and selection marks write beside their shapes, the hovered first. */
   private showNamesBeside(): void {
     const { relationLabelText: text, relationLabelBack: back } = this.painter.theme;
-    this.namesBeside.show([...this.besideHovered, ...this.besideSelected], this.camera.scale, {
-      text,
-      back,
-    });
+    this.namesBeside.show(
+      [...this.besideHovered, ...this.besideSelected],
+      this.camera.scale,
+      { text, back },
+      this.painter.drawing,
+    );
   }
 
   private drawGesture(): void {
@@ -4914,50 +4916,66 @@ function dropPrepared(tile: Tile): void {
   tile.prepared = undefined;
 }
 
-/** One drawing of each kind: a shape of each kind, a container, relations of each dash, a note. */
-const SAMPLE_DRAWINGS: { shapes: ElementShape[]; lines: RelationLine[]; notes: NoteShape[] } =
-  (() => {
-    const kinds = ['rectangle', 'rounded-rectangle', 'ellipse', 'cylinder', 'person'] as const;
-    const shapes = kinds.map((kind, at): ElementShape => {
-      const rect = { x: at * 200, y: 0, width: 180, height: 80 };
-      return {
-        key: `sample-${kind}`,
-        element: `sample-${kind}`,
-        offset: { x: rect.x, y: rect.y },
-        positioned: 'placed',
-        name: 'Sample',
-        componentName: 'Sample',
-        kind,
-        fill: '#F3F5F8',
-        stroke: '#3E4C59',
-        rect,
-        extent: rect,
-        holdsContents: at === 0,
-        ...(at === 1 ? { collapsed: { contents: 3 } } : {}),
-      };
-    });
-    const dashes = ['solid', 'dashed', 'dotted'] as const;
-    const lines = dashes.map((dash, at): RelationLine => {
-      const from = { x: 0, y: 200 + at * 40 };
-      const to = { x: 400, y: 200 + at * 40 };
-      return {
-        relation: `sample-${dash}`,
-        label: 'Sample',
-        route: [from, to],
-        from,
-        to,
-        middle: { x: 200, y: from.y },
-        arrowhead: arrowheadAt(from, to, 2),
-        stroke: '#3E4C59',
-        width: 2,
-        dash,
-      };
-    });
-    const notes: NoteShape[] = [
-      { id: 'sample-note', rect: { x: 0, y: 400, width: 200, height: 60 }, text: 'Sample' },
-    ];
-    return { shapes, lines, notes };
-  })();
+/** One drawing of each kind, as a drawing draws it, made once for each drawing. */
+type SampleDrawings = { shapes: ElementShape[]; lines: RelationLine[]; notes: NoteShape[] };
+const sampleDrawings = new WeakMap<ResolvedDrawing, SampleDrawings>();
+
+/**
+ * One drawing of each kind: a shape of each kind, a container, relations of each dash at the
+ * drawing's line width with its arrowhead, a note.
+ */
+function sampleDrawingsOf(drawing: ResolvedDrawing): SampleDrawings {
+  let made = sampleDrawings.get(drawing);
+  if (!made) {
+    made = sampleDrawingsFor(drawing);
+    sampleDrawings.set(drawing, made);
+  }
+  return made;
+}
+
+function sampleDrawingsFor(drawing: ResolvedDrawing): SampleDrawings {
+  const width = drawing.lines.width;
+  const kinds = ['rectangle', 'rounded-rectangle', 'ellipse', 'cylinder', 'person'] as const;
+  const shapes = kinds.map((kind, at): ElementShape => {
+    const rect = { x: at * 200, y: 0, width: 180, height: 80 };
+    return {
+      key: `sample-${kind}`,
+      element: `sample-${kind}`,
+      offset: { x: rect.x, y: rect.y },
+      positioned: 'placed',
+      name: 'Sample',
+      componentName: 'Sample',
+      kind,
+      fill: '#F3F5F8',
+      stroke: '#3E4C59',
+      rect,
+      extent: rect,
+      holdsContents: at === 0,
+      ...(at === 1 ? { collapsed: { contents: 3 } } : {}),
+    };
+  });
+  const dashes = ['solid', 'dashed', 'dotted'] as const;
+  const lines = dashes.map((dash, at): RelationLine => {
+    const from = { x: 0, y: 200 + at * 40 };
+    const to = { x: 400, y: 200 + at * 40 };
+    return {
+      relation: `sample-${dash}`,
+      label: 'Sample',
+      route: [from, to],
+      from,
+      to,
+      middle: { x: 200, y: from.y },
+      arrowhead: arrowheadAt(from, to, width, drawing),
+      stroke: '#3E4C59',
+      width,
+      dash,
+    };
+  });
+  const notes: NoteShape[] = [
+    { id: 'sample-note', rect: { x: 0, y: 400, width: 200, height: 60 }, text: 'Sample' },
+  ];
+  return { shapes, lines, notes };
+}
 
 /** Runs at the next frame; where frames are not drawn, as in tests, soon after. */
 function nextFrame(run: () => void): number {

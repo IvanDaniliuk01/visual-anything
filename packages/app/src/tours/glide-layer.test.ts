@@ -1,10 +1,13 @@
+import { resolveDrawing } from '@visual-anything/core';
 import { describe, expect, it, vi } from 'vitest';
+import { BASE_DRAWING } from '../canvas/drawing';
 import { ROBOTO } from '../canvas/robotoFonts';
 import type { ElementShape, Scene } from '../canvas/scene';
 import {
   GlideLayer,
   drawGlideFrame,
   glideSideOf,
+  glideTypeOf,
   readableOn,
   type GlideContext,
   type GlideItem,
@@ -109,10 +112,33 @@ describe('drawGlideFrame', () => {
       'stroke()',
       'fillText("Case",175,80)',
     ]);
-    // In the canvas's own Roboto, as F2 registered it, with the system's fonts after it.
+    // In the canvas's own Roboto, as F2 registered it, with the system's fonts after it, as Clean
+    // writes names on screen: at 500, at its size for names far out (ADR 0086).
     expect(context.font).toBe(
-      `12px "${ROBOTO}", system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`,
+      `500 13px "${ROBOTO}", system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`,
     );
+    expect(context.lineWidth).toBe(BASE_DRAWING.shapes.borderWidth);
+  });
+
+  it('draws the shapes of a scene as its drawing defaults draw them (A5.7)', () => {
+    const expressive = resolveDrawing({ preset: 'expressive' }, undefined);
+    const scene = {
+      shapes: [shape('world/case', { kind: 'rounded-rectangle' })],
+      drawingDefaults: expressive,
+    } as unknown as Scene;
+    const side = glideSideOf(scene, { x: 0, y: 0, scale: 1 }, SCREEN);
+    expect(side.looks[0]?.type).toBe(glideTypeOf(expressive));
+    const context = recorder();
+    const look = side.looks[0] as GlideItem['look'];
+    drawGlideFrame(context, [{ ...ITEM, look }], 1, {
+      background: '#fafafa',
+      resolution: 1,
+      size: SCREEN,
+    });
+    // Its border, its corners and its names: 1.5 wide, 14 round, at 700 and 14 pixels.
+    expect(context.lineWidth).toBe(expressive.shapes.borderWidth);
+    expect(context.font.startsWith(`700 ${expressive.reading.farNameSize}px `)).toBe(true);
+    expect(context.calls).toContain(`roundRect(200,100,200,80,${expressive.shapes.cornerRadius})`);
   });
 
   it('cuts a name too long for its shape, and writes none in a shape too small', () => {

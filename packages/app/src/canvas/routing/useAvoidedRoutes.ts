@@ -12,10 +12,12 @@
  * come, the worker spreads the lines drawn into channels (`channels.ts`); a line whose route changes
  * after is drawn as routed until the next pass.
  */
+import type { ResolvedDrawing } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useContext, useEffect, useRef, useState } from 'react';
+import { BASE_DRAWING } from '../drawing';
 import type { Point, Rect } from '../geometry';
-import type { ElementShape, RelationLine, Scene } from '../scene';
+import { drawingOfScene, type ElementShape, type RelationLine, type Scene } from '../scene';
 import { alongKeptRoute, withKeptRoutes, type KeptRoutes } from '../layout/keptRoutes';
 import { CLEARANCE, type Avoided } from './avoid';
 import {
@@ -299,7 +301,7 @@ export class RoutesAround {
    * one inside an end not at all; a line that gave up stays as it is.
    */
   private invalidate(view: Id, before: Scene, after: Scene): void {
-    const changes = shapeChanges(before.shapes, after.shapes);
+    const changes = shapeChanges(before.shapes, after.shapes, drawingOfScene(after));
     if (changes.length === 0) return;
     const stale: RelationLine[] = [];
     for (const line of routedLinesOf(after)) {
@@ -438,11 +440,13 @@ function sameGeometry(was: ElementShape, now: ElementShape): boolean {
 /**
  * The shapes that stand otherwise between two lists: moved, resized, with another name plate, added
  * or taken away, each with where it was and is. None for the same list, nor for shapes that changed
- * only what routes do not go around, as a detail or a color.
+ * only what routes do not go around, as a detail or a color. Name plates are measured in `drawing`,
+ * the one the shapes after are drawn with.
  */
 export function shapeChanges(
   before: readonly ElementShape[],
   after: readonly ElementShape[],
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): ShapeChange[] {
   if (before === after) return [];
   const changes: ShapeChange[] = [];
@@ -452,7 +456,7 @@ export function shapeChanges(
       const was = before[at] as ElementShape;
       const now = after[at] as ElementShape;
       if (was.key !== now.key) same = false;
-      else if (!sameGeometry(was, now)) changes.push(changeOf(now.key, [was, now]));
+      else if (!sameGeometry(was, now)) changes.push(changeOf(now.key, [was, now], drawing));
     }
     if (same) return changes;
   }
@@ -463,15 +467,17 @@ export function shapeChanges(
     keys.add(shape.key);
     const old = was.get(shape.key);
     if (old && sameGeometry(old, shape)) continue;
-    found.push(changeOf(shape.key, old ? [old, shape] : [shape]));
+    found.push(changeOf(shape.key, old ? [old, shape] : [shape], drawing));
   }
-  for (const shape of before) if (!keys.has(shape.key)) found.push(changeOf(shape.key, [shape]));
+  for (const shape of before) {
+    if (!keys.has(shape.key)) found.push(changeOf(shape.key, [shape], drawing));
+  }
   return found;
 }
 
-function changeOf(key: string, shapes: ElementShape[]): ShapeChange {
+function changeOf(key: string, shapes: ElementShape[], drawing: ResolvedDrawing): ShapeChange {
   const rects = shapes.map((shape) => shape.plate ?? shape.rect);
-  let plates = shapes.flatMap((shape) => namePlateOf(shape) ?? []);
+  let plates = shapes.flatMap((shape) => namePlateOf(shape, drawing) ?? []);
   // A container that grew or shrank around a plate that stayed changes nothing for what it holds.
   const [was, now] = plates;
   if (plates.length === 2 && was && now && sameRect(was, now)) plates = [];

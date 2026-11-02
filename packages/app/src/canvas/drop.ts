@@ -43,7 +43,7 @@ import {
   type RowSlot,
 } from './rowDrop';
 import { carriedRouteCommands, droppedInto } from './routing/commands';
-import { CONTENTS_ORIGIN, type ElementShape } from './scene';
+import { contentsOriginOf, drawingOfScene, type ElementShape } from './scene';
 import { overlaps } from './spatial';
 import { laidOutRect } from './overlays/decorate';
 import { coversRect, drawingRank } from './stacking';
@@ -271,12 +271,13 @@ export function landingCover(
   if (settled.kind === 'into') {
     place = settled.target;
     const target = settled.target.rect;
+    const origin = originIn(indexed);
     const left = shape.rect.x + plan.reach.x + delta.x - target.x;
     const top = shape.rect.y + plan.reach.y + delta.y - target.y;
     landing = {
       ...shape.rect,
-      x: shape.rect.x + delta.x + Math.max(0, CONTENTS_ORIGIN.x - left),
-      y: shape.rect.y + delta.y + Math.max(0, CONTENTS_ORIGIN.y - top),
+      x: shape.rect.x + delta.x + Math.max(0, origin.x - left),
+      y: shape.rect.y + delta.y + Math.max(0, origin.y - top),
     };
   } else {
     place = shape;
@@ -390,7 +391,8 @@ export function dropCommand(
     );
   }
   let change: ChangeContainerCommand | undefined;
-  if (settled.kind === 'into') change = intoChange(plan, settled.target, delta, viewId);
+  if (settled.kind === 'into')
+    change = intoChange(plan, settled.target, delta, viewId, originIn(indexed));
   else if (settled.kind === 'out') change = outChange(indexed, plan, delta, viewId);
   if (!change || change.shapes.length === 0) return undefined;
 
@@ -447,7 +449,7 @@ export function takeOutCommand(
   const to = holder.container;
   const x = holder.offset.x + holder.rect.width + 40;
   const y = holder.offset.y;
-  const at = to === undefined ? { x, y } : clamped({ x, y });
+  const at = to === undefined ? { x, y } : clamped({ x, y }, originIn(indexed));
   return {
     type: 'change-container',
     view: viewId,
@@ -506,10 +508,13 @@ export function putInsideCommand(
   target: ElementShape,
 ): ChangeContainerCommand {
   // Where layout put it, whatever size an overlay draws it at (ADR 0055).
-  const at = clamped({
-    x: Math.round(laidOutRect(shape).x - target.rect.x),
-    y: Math.round(laidOutRect(shape).y - target.rect.y),
-  });
+  const at = clamped(
+    {
+      x: Math.round(laidOutRect(shape).x - target.rect.x),
+      y: Math.round(laidOutRect(shape).y - target.rect.y),
+    },
+    originIn(indexed),
+  );
   return {
     type: 'change-container',
     view: viewId,
@@ -813,6 +818,7 @@ function intoChange(
   target: ElementShape,
   delta: Point,
   viewId: Id,
+  origin: Readonly<Point>,
 ): ChangeContainerCommand {
   const places = plan.moving.map((mover) => ({
     mover,
@@ -820,8 +826,8 @@ function intoChange(
     y: Math.round(laidOutRect(mover.shape).y + delta.y - target.rect.y),
   }));
   const shift = {
-    x: Math.max(0, CONTENTS_ORIGIN.x - lowest(places.map((place) => place.x))),
-    y: Math.max(0, CONTENTS_ORIGIN.y - lowest(places.map((place) => place.y))),
+    x: Math.max(0, origin.x - lowest(places.map((place) => place.x))),
+    y: Math.max(0, origin.y - lowest(places.map((place) => place.y))),
   };
   return {
     type: 'change-container',
@@ -863,9 +869,17 @@ function moved(rect: Rect, delta: Point): Rect {
   return { ...rect, x: rect.x + delta.x, y: rect.y + delta.y };
 }
 
-/** A place inside a container, kept below its name and off its left side. */
-function clamped(at: Point): Point {
-  return { x: Math.max(CONTENTS_ORIGIN.x, at.x), y: Math.max(CONTENTS_ORIGIN.y, at.y) };
+/** A place inside a container, kept below its name and off its left side, from `origin`. */
+function clamped(at: Point, origin: Readonly<Point>): Point {
+  return { x: Math.max(origin.x, at.x), y: Math.max(origin.y, at.y) };
+}
+
+/**
+ * Where contents start in a container of this scene: its drawing's container padding in, under its
+ * header (`contentsOriginOf`, ADR 0086), as layout places them.
+ */
+function originIn(indexed: IndexedScene): Readonly<Point> {
+  return contentsOriginOf(drawingOfScene(indexed.scene));
 }
 
 /** The smallest of some numbers, without spreading thousands of them into arguments. */

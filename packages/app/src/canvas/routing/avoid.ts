@@ -34,6 +34,11 @@ export interface AvoidShapes {
    */
   plates: Float64Array;
   /**
+   * How tall every name plate is: its name and its detail at the drawing's sizes (ADR 0086).
+   * Absent: `PLATE_HEIGHT`.
+   */
+  plateHeight?: number;
+  /**
    * 1 for each shape drawn inside another as a part of it, as a row is inside its table: routes go
    * around its container, never around it alone, so the index leaves it out. Absent: none is.
    */
@@ -426,7 +431,7 @@ function plateAt(shapes: AvoidShapes, at: number): Rect | undefined {
     x: rect.x,
     y: rect.y,
     width: Math.min(width, rect.width),
-    height: Math.min(PLATE_HEIGHT, rect.height),
+    height: Math.min(shapes.plateHeight ?? PLATE_HEIGHT, rect.height),
   };
 }
 

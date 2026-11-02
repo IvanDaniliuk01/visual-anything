@@ -105,7 +105,7 @@ import {
   type Point,
   type Rect,
 } from './geometry';
-import { BASE_DRAWING, drawingOfView } from './drawing';
+import { BASE_DRAWING, drawingOfView, HEADER_NAME_GAP, headerPlacesOf, lineOf } from './drawing';
 import { drawnBoundsOf, nameTagOf } from './nameTags';
 import { ROWS_HEADER } from './rows';
 import { geometryOutline, geometrySource, outlineIn, partSource, sameOutline } from './outlines';
@@ -521,12 +521,14 @@ let laying: ResolvedDrawing = BASE_DRAWING;
  * How tall a container's header is, where its first row of contents starts, below its name: under
  * its name and detail for a container drawn as its kind, under its name tab for one drawn as a region
  * (ADR 0086); never less than the 48 the canvas drew before drawing defaults, so that a view laid out
- * then stays where it is, and more where the drawing's container names and details need it.
+ * then stays where it is, and more where the drawing's container names and details need it. A line
+ * is never counted shorter than a label of one line is drawn (`lineOf`), so that the largest sizes
+ * at the smallest line height still fit.
  */
 export function containerHeaderOf(drawing: ResolvedDrawing): number {
-  const { containerNameSize, lineHeight, padding } = drawing.text;
+  const { containerNameSize, padding } = drawing.text;
   if (drawing.containers.drawn === 'region') {
-    return Math.max(LEAST_HEADER, Math.round(2 * padding + containerNameSize * lineHeight));
+    return Math.max(LEAST_HEADER, Math.round(2 * padding + lineOf(drawing, containerNameSize)));
   }
   return kindHeaderOf(drawing);
 }
@@ -534,12 +536,15 @@ export function containerHeaderOf(drawing: ResolvedDrawing): number {
 /** The least header a container has: the canvas's before drawing defaults. */
 const LEAST_HEADER = 48;
 
-/** How tall the header of a container drawn as its kind is: its name, its detail and their gaps. */
+/**
+ * How tall the header of a container drawn as its kind is: its name and its detail where its header
+ * writes them (`headerPlacesOf`), and the gap of the name's under the detail.
+ */
 function kindHeaderOf(drawing: ResolvedDrawing): number {
-  const { containerNameSize, detailSize, lineHeight } = drawing.text;
+  const { detailTop } = headerPlacesOf(drawing);
   return Math.max(
     LEAST_HEADER,
-    Math.round(8 + containerNameSize + 6 + detailSize * lineHeight + 6),
+    Math.round(detailTop + lineOf(drawing, drawing.text.detailSize) + HEADER_NAME_GAP),
   );
 }
 
@@ -1890,7 +1895,11 @@ function measured(
         ...(lines === undefined ? {} : { detailLines: lines }),
       },
       appearance.height,
-      collapsedHeaderWrap(appearance.width, look.image !== undefined || look.solid !== undefined),
+      collapsedHeaderWrap(
+        appearance.width,
+        look.image !== undefined || look.solid !== undefined,
+        laying,
+      ),
       undefined,
       laying,
     );
