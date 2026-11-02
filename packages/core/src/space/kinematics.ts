@@ -184,27 +184,42 @@ export function motionsOf(
     if (attachedTo !== undefined && rest.has(attachedTo)) return attachedTo;
     return rest.get(id)?.in;
   };
-  const accumulated = new Map<Id, Matrix>();
-  const visiting = new Set<Id>();
-  const accumulate = (id: Id): Matrix => {
-    const kept = accumulated.get(id);
-    if (kept !== undefined) return kept;
-    // An attachment that closes a cycle is not followed.
-    if (visiting.has(id)) return IDENTITY;
-    visiting.add(id);
+  const parentInSpace = (id: Id): Id | undefined => {
     const parent = parentOf(id);
-    let motion: Matrix = IDENTITY;
-    if (parent !== undefined && rest.has(parent)) {
-      motion = accumulate(parent);
-      const joint = motionOfJoint(parent);
-      const frame = rest.get(parent)?.matrix;
-      if (joint !== undefined && frame !== undefined && joint.position !== 0) {
-        motion = multiply(motion, motionMatrix(joint, frame));
-      }
+    return parent !== undefined && rest.has(parent) ? parent : undefined;
+  };
+  // Worked out without recursion and once for each element, so that however long a chain a file
+  // holds, it takes linear time and no deeper a stack.
+  const accumulated = new Map<Id, Matrix>();
+  const accumulate = (id: Id): Matrix => {
+    const path: Id[] = [];
+    const onPath = new Set<Id>();
+    let at: Id | undefined = id;
+    while (at !== undefined && !accumulated.has(at) && !onPath.has(at)) {
+      path.push(at);
+      onPath.add(at);
+      at = parentInSpace(at);
     }
-    visiting.delete(id);
-    accumulated.set(id, motion);
-    return motion;
+    // An attachment that closes a cycle is not followed: the cycle's members move nothing.
+    if (at !== undefined && onPath.has(at)) {
+      for (const each of path.slice(path.indexOf(at))) accumulated.set(each, IDENTITY);
+    }
+    for (let i = path.length - 1; i >= 0; i -= 1) {
+      const each = path[i] as Id;
+      if (accumulated.has(each)) continue;
+      const parent = parentInSpace(each);
+      let motion: Matrix = IDENTITY;
+      if (parent !== undefined) {
+        motion = accumulated.get(parent) ?? IDENTITY;
+        const joint = motionOfJoint(parent);
+        const frame = rest.get(parent)?.matrix;
+        if (joint !== undefined && frame !== undefined && joint.position !== 0) {
+          motion = multiply(motion, motionMatrix(joint, frame));
+        }
+      }
+      accumulated.set(each, motion);
+    }
+    return accumulated.get(id) ?? IDENTITY;
   };
   const motions = new Map<Id, Matrix>();
   for (const id of rest.keys()) {
@@ -221,24 +236,30 @@ export function kinematicsWarnings(project: ProjectSnapshot): Problem[] {
   const attached = attachmentsOf(project);
   const index = modelIndexOf(project);
   const nameOf = (id: Id) => index.element(id)?.name ?? id;
-  const reported = new Set<Id>();
+  // Each element is walked once: on the walk now, or done (linear time, as for any file).
+  const walked = new Map<Id, 'walking' | 'done'>();
   for (const start of attached.keys()) {
-    const seen: Id[] = [];
+    if (walked.has(start)) continue;
+    const walk: Id[] = [];
     let at: Id | undefined = start;
-    while (at !== undefined && !seen.includes(at)) {
-      seen.push(at);
+    while (at !== undefined && !walked.has(at)) {
+      walked.set(at, 'walking');
+      walk.push(at);
       at = attached.get(at);
     }
-    if (at === undefined || reported.has(at)) continue;
-    const cycle = seen.slice(seen.indexOf(at));
-    for (const each of cycle) reported.add(each);
-    warnings.push(
-      problem(
-        'attachment-cycle',
-        `${cycle.map((each) => `"${nameOf(each)}"`).join(', ')} are attached to each other in a cycle, so their joints move none of them.`,
-        cycle,
-      ),
-    );
+    if (at !== undefined && walked.get(at) === 'walking') {
+      const cycle = walk.slice(walk.indexOf(at));
+      const named = cycle.slice(0, 5).map((each) => `"${nameOf(each)}"`);
+      if (cycle.length > 5) named.push(`${cycle.length - 5} more`);
+      warnings.push(
+        problem(
+          'attachment-cycle',
+          `${named.join(', ')} are attached to each other in a cycle, so their joints move none of them.`,
+          cycle,
+        ),
+      );
+    }
+    for (const each of walk) walked.set(each, 'done');
   }
   for (const element of project.model.elements) {
     if (!isJoint(element, definitions)) continue;

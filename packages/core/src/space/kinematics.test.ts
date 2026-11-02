@@ -9,8 +9,8 @@ import { describe, expect, it } from 'vitest';
 import { builtinPackage } from '../builtin';
 import { checkProject } from '../check';
 import type { ProjectSnapshot } from '../snapshot';
-import { kinematicsWarnings, jointMotionOf } from './kinematics';
-import { transformPoint } from './math';
+import { kinematicsWarnings, jointMotionOf, motionsOf } from './kinematics';
+import { matrixOf, transformPoint, type Matrix } from './math';
 import { spaceOf } from './space';
 import { definitionsIn } from '../state';
 
@@ -165,6 +165,44 @@ describe('forward kinematics', () => {
     });
     expect(kinematicsWarnings(project).map((each) => each.code)).toContain('attachment-cycle');
     expect(() => spaceOf(project)).not.toThrow();
+  });
+
+  it('works out a chain of 100,000 joints, and a cycle as long, in linear time and no deep stack', () => {
+    const count = 100_000;
+    const project = robot();
+    const rest = new Map<string, { matrix: Matrix; in?: string }>([
+      ['robot', { matrix: matrixOf({ x: 0, y: 0, z: 0 }) }],
+    ]);
+    for (let i = 0; i < count; i += 1) {
+      const id = `chain-${i}`;
+      project.model.elements.push({
+        id,
+        component: 'physical-ai.joint',
+        name: `Chain ${i}`,
+        attributes: { kind: 'continuous', axis: '0 0 1', position: 1 },
+      });
+      project.model.relations.push({
+        id: `${id}-on`,
+        relationType: 'physical-ai.is-attached-to',
+        from: id,
+        to: i === 0 ? 'robot' : `chain-${i - 1}`,
+      });
+      rest.set(id, { matrix: matrixOf({ x: i + 1, y: 0, z: 0 }), in: 'robot' });
+    }
+    const started = performance.now();
+    const motions = motionsOf(project, rest);
+    expect(motions.size).toBe(count - 1);
+    // The cycle: the first link attached to the last.
+    project.model.relations.unshift({
+      id: 'loop',
+      relationType: 'physical-ai.is-attached-to',
+      from: 'chain-0',
+      to: `chain-${count - 1}`,
+    });
+    const cycle = kinematicsWarnings(project).find((each) => each.code === 'attachment-cycle');
+    expect(motionsOf(project, rest).size).toBe(0);
+    expect(performance.now() - started).toBeLessThan(10_000);
+    expect(cycle?.message).toMatch(/99995 more are attached to each other in a cycle/);
   });
 
   it('keeps the distance between consecutive parts of the chain, whatever the positions', () => {
