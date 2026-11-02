@@ -1,5 +1,10 @@
-import { executeCommand, type Command, type ProjectSnapshot } from '@visual-anything/core';
-import type { Id, ShapePosition } from '@visual-anything/schema';
+import {
+  executeCommand,
+  type Command,
+  type PositionChange,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { selectionOf, type Selectable, type Selection } from '../editor/selection';
 import { ui } from '../i18n/es';
@@ -50,7 +55,7 @@ function rectOf(scene: Scene, key: string) {
   return shape.rect;
 }
 
-function positionsOf(command: Command): ShapePosition[] {
+function positionsOf(command: Command): PositionChange[] {
   if (command.type === 'set-positions') return command.positions;
   if (command.type === 'batch') return command.commands.flatMap(positionsOf);
   return [];

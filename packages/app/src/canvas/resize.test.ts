@@ -1,5 +1,9 @@
-import { executeCommand, type Command, type ProjectSnapshot } from '@visual-anything/core';
-import type { ShapePosition } from '@visual-anything/schema';
+import {
+  executeCommand,
+  type Command,
+  type PositionChange,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { untranslatedParts } from '../i18n/translate';
@@ -223,7 +227,7 @@ function after(state: ProjectSnapshot, command: Command): ProjectSnapshot {
   return outcome.state;
 }
 
-function positionsOf(command: Command | undefined): ShapePosition[] {
+function positionsOf(command: Command | undefined): PositionChange[] {
   if (command?.type === 'set-positions') return command.positions;
   if (command?.type === 'batch') return command.commands.flatMap(positionsOf);
   return [];

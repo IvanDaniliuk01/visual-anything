@@ -26,6 +26,9 @@ export const ESSENCE = {
     textPlacement: 'middle',
     contentsAsRows: false,
     connectionPoints: [],
+    dash: 'solid',
+    opacity: 1,
+    text: {},
   } satisfies ResolvedAppearance as ResolvedAppearance,
 } as const;
 
@@ -37,7 +40,7 @@ export const RELATES_TO = {
   direction: 'undirected' satisfies NonNullable<RelationType['direction']>,
   nests: false,
   // It sets no route's style, which its relations then take from the view (ADR 0069).
-  appearance: { stroke: '#52606D', width: 2, dash: 'solid' } satisfies Required<
+  appearance: { stroke: '#52606D', width: 2, dash: 'solid', opacity: 1 } satisfies Required<
     Omit<RelationAppearance, 'route'>
   >,
 } as const;

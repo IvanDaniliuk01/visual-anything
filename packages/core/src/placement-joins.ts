@@ -13,8 +13,8 @@
  * Anything else is the person's own action, so that a layout that comes late or does more never rides
  * on someone else's action.
  */
-import type { Id, ShapePosition, ViewFile } from '@visual-anything/schema';
-import type { Command } from './commands';
+import type { Id, ViewFile } from '@visual-anything/schema';
+import type { Command, PositionChange } from './commands';
 import { positionKey } from './operations';
 import { shapesInView } from './scope-placement';
 import type { ProjectSnapshot } from './snapshot';
@@ -44,6 +44,9 @@ export function placementJoins(
     const stored = new Map((before?.positions ?? []).map((each) => [positionKey(each), each]));
     for (const position of placement.positions ?? []) {
       if (position.pinned === true) return { ok: false, why: 'it pins a position' };
+      if (position.rotation !== undefined || position.flip !== undefined) {
+        return { ok: false, why: 'it turns or flips a shape' };
+      }
       const key = positionKey(position);
       if (added.has(key)) continue;
       const was = stored.get(key);
@@ -69,10 +72,10 @@ const WORLD = ' world';
 /** The `set-positions` a command is made of, directly or in batches; undefined if it holds more. */
 function setPositionsOf(
   command: Command,
-): { view: Id; positions?: readonly ShapePosition[] }[] | undefined {
+): { view: Id; positions?: readonly PositionChange[] }[] | undefined {
   if (command.type === 'set-positions') return [command];
   if (command.type !== 'batch' || !Array.isArray(command.commands)) return undefined;
-  const found: { view: Id; positions?: readonly ShapePosition[] }[] = [];
+  const found: { view: Id; positions?: readonly PositionChange[] }[] = [];
   for (const each of command.commands) {
     const inner = setPositionsOf(each);
     if (inner === undefined) return undefined;

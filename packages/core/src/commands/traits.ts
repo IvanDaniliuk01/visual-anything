@@ -22,9 +22,10 @@ import type {
   RelationAppearance,
   RelationTypeLimits,
   SolidCamera,
+  TextStyle,
 } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
-import { FACE_PARTS, valueFitsType } from '../appearance';
+import { FACE_PARTS, TEXT_PARTS, valueFitsType } from '../appearance';
 import { compileFace } from '../faces/compile';
 import { FACE_CAPS } from '../faces/limits';
 import { faceMessage } from '../faces/problems';
@@ -367,7 +368,112 @@ const TRAIT_CHECKS: {
   levels: checkedLevels,
   expandFrom: checkedExpandFrom,
   face: checkedFace,
+  borderWidth: (value, of) => checkedRange(value, 0, 16, 'border width', of),
+  dash: (value, of) => {
+    if (!DASHES.includes(value as (typeof DASHES)[number])) {
+      invalid(`The border of ${of} is "solid", "dashed" or "dotted".`);
+    }
+    return value as NonNullable<Appearance['dash']>;
+  },
+  cornerRadius: (value, of) => checkedRange(value, 0, 64, 'corner radius', of),
+  opacity: (value, of) => checkedRange(value, 0.2, 1, 'opacity', of),
+  shadow: (value, of) => {
+    if (value !== 'none' && value !== 'soft') invalid(`The shadow of ${of} is "none" or "soft".`);
+    return value;
+  },
+  gradient: checkedGradient,
+  text: checkedText,
 };
+
+/** A number from `min` to `max`, both included (ADR 0088). */
+function checkedRange(value: unknown, min: number, max: number, what: string, of: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
+    invalid(`The ${what} of ${of} is a number from ${min} to ${max}.`);
+  }
+  return value;
+}
+
+/** A gradient (ADR 0088), or `none`; its color keeps the spelling stored in that place. */
+function checkedGradient(
+  value: unknown,
+  of: string,
+  stored?: Appearance['gradient'],
+): NonNullable<Appearance['gradient']> {
+  if (value === 'none') return 'none';
+  if (!isRecord(value)) invalid(`The gradient of ${of} must be "none" or a color and a direction.`);
+  onlyKeys(value, ['to', 'direction'], (key) => invalid(`The gradient of ${of} has no "${key}".`));
+  if (value.direction !== 'down' && value.direction !== 'right') {
+    invalid(`The gradient of ${of} runs "down" or to the "right".`);
+  }
+  return {
+    to: checkedColor(value.to, 'gradient', of, typeof stored === 'object' ? stored.to : undefined),
+    direction: value.direction,
+  };
+}
+
+const FONTS = ['roboto', 'system', 'mono'] as const;
+const TEXT_ALIGNS = ['left', 'center', 'right'] as const;
+const LABEL_POSITIONS = ['inside', 'above', 'below', 'left', 'right'] as const;
+
+/** How a shape writes the name (ADR 0088), each part checked; colors keep their stored spelling. */
+function checkedText(value: unknown, of: string, stored?: TextStyle): TextStyle {
+  if (!isRecord(value)) invalid(`The text of ${of} must be an object.`);
+  onlyKeys(value, TEXT_PARTS, (key) => invalid(`The text of ${of} has no "${key}".`));
+  const text: TextStyle = {};
+  const choice = <T extends string>(
+    key: keyof TextStyle,
+    choices: readonly T[],
+    message: string,
+  ): T | undefined => {
+    const part = value[key];
+    if (part === undefined) return undefined;
+    if (!choices.includes(part as T)) invalid(`The text of ${of} ${message}.`);
+    return part as T;
+  };
+  const font = choice('font', FONTS, 'is written in "roboto", "system" or "mono"');
+  if (font !== undefined) text.font = font;
+  if (value.size !== undefined) text.size = checkedRange(value.size, 8, 48, 'text size', of);
+  for (const key of ['bold', 'italic', 'underline', 'wrap'] as const) {
+    if (value[key] !== undefined) text[key] = checkedBoolean(value[key], `is ${key}`, of);
+  }
+  const align = choice('align', TEXT_ALIGNS, 'is aligned "left", "center" or "right"');
+  if (align !== undefined) text.align = align;
+  const position = choice(
+    'position',
+    LABEL_POSITIONS,
+    'is written "inside", "above", "below", to the "left" or to the "right"',
+  );
+  if (position !== undefined) text.position = position;
+  for (const key of ['color', 'background', 'border'] as const) {
+    if (value[key] !== undefined) {
+      text[key] = checkedColor(value[key], `text ${key}`, of, stored?.[key]);
+    }
+  }
+  if (value.padding !== undefined) {
+    text.padding = checkedRange(value.padding, 0, 48, 'text padding', of);
+  }
+  return text;
+}
+
+/** How a shape writes the name after changes, part by part; `undefined` when no part is left. */
+function changedText(
+  own: TextStyle | undefined,
+  changes: unknown,
+  of: string,
+): TextStyle | undefined {
+  if (!isRecord(changes)) invalid(`The changes to the text of ${of} must be an object.`);
+  const next: Record<string, unknown> = { ...own };
+  for (const [part, value] of Object.entries(changes)) {
+    if (!(TEXT_PARTS as readonly string[]).includes(part)) {
+      invalid(`The text of ${of} has no "${part}".`);
+    }
+    if (value === undefined) continue;
+    if (value === null) delete next[part];
+    else next[part] = value;
+  }
+  const checked = checkedText(next, of, own);
+  return Object.keys(checked).length === 0 ? undefined : checked;
+}
 
 const VARIANT_ID = /^[a-z][a-z0-9-]{0,31}$/;
 
@@ -667,6 +773,10 @@ export function changedAppearance(
       const face = changedFace(own?.face, value, of);
       if (face === undefined) delete next.face;
       else next.face = face;
+    } else if (trait === 'text') {
+      const text = changedText(own?.text, value, of);
+      if (text === undefined) delete next.text;
+      else next.text = text;
     } else {
       next[trait] = checkedTrait(
         trait as keyof Appearance,
@@ -730,6 +840,7 @@ const RELATION_TRAIT_CHECKS: {
     }
     return value as NonNullable<RelationAppearance['dash']>;
   },
+  opacity: (value, of) => checkedRange(value, 0.2, 1, 'opacity', of),
 };
 
 /** Checks a relation appearance trait's value against its kind, given the value stored for it. */

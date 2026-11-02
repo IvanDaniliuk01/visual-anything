@@ -63,9 +63,32 @@ const appearance: fc.Arbitrary<Appearance> = fc.record(
     textPlacement: fc.constantFrom('top' as const, 'middle' as const, 'bottom' as const),
     contentsAsRows: fc.boolean(),
     connectionPoints: fc.array(connectionPoint, { maxLength: 2 }),
+    borderWidth: fc.integer({ min: 0, max: 16 }),
+    dash: fc.constantFrom('solid' as const, 'dashed' as const, 'dotted' as const),
+    cornerRadius: fc.integer({ min: 0, max: 64 }),
+    opacity: fc.double({ min: 0.2, max: 1, noNaN: true }),
+    shadow: fc.constantFrom('none' as const, 'soft' as const),
+    gradient: fc.oneof(
+      fc.constant('none' as const),
+      fc.record({ to: color, direction: fc.constantFrom('down' as const, 'right' as const) }),
+    ),
+    text: fc.record(
+      {
+        bold: fc.boolean(),
+        size: fc.integer({ min: 8, max: 48 }),
+        align: fc.constantFrom('left' as const, 'center' as const, 'right' as const),
+        color,
+      },
+      { requiredKeys: [] },
+    ),
   },
   { requiredKeys: [] },
 );
+
+/** A key and its value, or nothing when the value is absent or `none`. */
+function optional(key: string, value: unknown, none?: string): Record<string, unknown> {
+  return value === undefined || value === none ? {} : { [key]: value };
+}
 
 describe('resolveAppearance', () => {
   it('takes every trait from the nearest member of the chain that sets it, over the base', () => {
@@ -102,6 +125,33 @@ describe('resolveAppearance', () => {
             contentsAsRows: nearest((each) => each.contentsAsRows, base.contentsAsRows),
             // An empty list is set: relations attach anywhere on the border, whatever is inherited.
             connectionPoints: nearest((each) => each.connectionPoints, base.connectionPoints),
+            ...optional(
+              'borderWidth',
+              nearest((each) => each.borderWidth, base.borderWidth),
+            ),
+            dash: nearest((each) => each.dash, base.dash),
+            ...optional(
+              'cornerRadius',
+              nearest((each) => each.cornerRadius, base.cornerRadius),
+            ),
+            opacity: nearest((each) => each.opacity, base.opacity),
+            ...optional(
+              'shadow',
+              nearest((each) => each.shadow, base.shadow),
+            ),
+            // `none` takes an inherited gradient away.
+            ...optional(
+              'gradient',
+              nearest<Appearance['gradient']>((each) => each.gradient, base.gradient),
+              'none',
+            ),
+            // Each part of the text is inherited on its own (ADR 0088).
+            text: Object.fromEntries(
+              (['bold', 'size', 'align', 'color'] as const).flatMap((key) => {
+                const value = nearest((each) => each.text?.[key], base.text[key]);
+                return value === undefined ? [] : [[key, value]];
+              }),
+            ),
           });
         },
       ),
@@ -126,6 +176,13 @@ describe('resolveAppearance', () => {
       'levels',
       'expandFrom',
       'face',
+      'borderWidth',
+      'dash',
+      'cornerRadius',
+      'opacity',
+      'shadow',
+      'gradient',
+      'text',
     ]);
   });
 
@@ -140,6 +197,9 @@ describe('resolveAppearance', () => {
       textPlacement: 'middle',
       contentsAsRows: false,
       connectionPoints: [],
+      dash: 'solid',
+      opacity: 1,
+      text: {},
     });
   });
 
@@ -223,6 +283,25 @@ describe('traitSources', () => {
       'face.style': 'essence',
       'face.variants': 'essence',
       'face.collapsed': 'essence',
+      // Nor the format panel's traits, each part of the text on its own (ADR 0088).
+      borderWidth: 'essence',
+      dash: 'essence',
+      cornerRadius: 'essence',
+      opacity: 'essence',
+      shadow: 'essence',
+      gradient: 'essence',
+      'text.font': 'essence',
+      'text.size': 'essence',
+      'text.bold': 'essence',
+      'text.italic': 'essence',
+      'text.underline': 'essence',
+      'text.align': 'essence',
+      'text.position': 'essence',
+      'text.color': 'essence',
+      'text.background': 'essence',
+      'text.border': 'essence',
+      'text.wrap': 'essence',
+      'text.padding': 'essence',
     });
     expect(Object.keys(sources.traits)).toEqual([...TRAIT_PATHS]);
     expect([...sources.attributes]).toEqual([
@@ -280,10 +359,14 @@ describe('traitSources', () => {
   });
 });
 
-/** The value an appearance gives a trait path, such as `detail.badges`. */
+/**
+ * The value an appearance gives a trait path, such as `detail.badges`; `none`, which takes an
+ * inherited value away, resolves to nothing.
+ */
 function traitOf(appearance: Appearance | ResolvedAppearance | undefined, path: string): unknown {
   const [first, second] = path.split('.') as [string, string | undefined];
   const value = (appearance as Record<string, unknown> | undefined)?.[first];
+  if (value === 'none') return undefined;
   return second === undefined ? value : (value as Record<string, unknown> | undefined)?.[second];
 }
 

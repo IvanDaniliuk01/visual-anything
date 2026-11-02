@@ -213,6 +213,57 @@
             }
           ],
           "description": "What its shapes show inside their body, written in a subset of HTML and CSS and laid out by Visual Anything itself (ADR 0083); `none` takes an inherited face away. Each of its parts is inherited on its own."
+        },
+        "borderWidth": {
+          "type": "number",
+          "description": "The width of its shapes' border, in canvas units, over the drawing defaults' (ADR 0088); 0 draws no border.",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "dash": {
+          "type": "string",
+          "enum": [
+            "solid",
+            "dashed",
+            "dotted"
+          ],
+          "description": "How its shapes' border is drawn (ADR 0088), as a relation's line is."
+        },
+        "cornerRadius": {
+          "type": "number",
+          "description": "The corner radius of its shapes, in canvas units, over the drawing defaults' (ADR 0088). It rounds rectangles of either kind; ellipses, cylinders, people and free geometry ignore it.",
+          "minimum": 0,
+          "maximum": 64
+        },
+        "opacity": {
+          "type": "number",
+          "description": "How opaque its shapes are, from 0.2 to 1 (ADR 0088). Their text stays whole.",
+          "minimum": 0.2,
+          "maximum": 1
+        },
+        "shadow": {
+          "type": "string",
+          "enum": [
+            "none",
+            "soft"
+          ],
+          "description": "Whether its shapes cast a soft shadow, over the drawing defaults' (ADR 0088)."
+        },
+        "gradient": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Gradient"
+            },
+            {
+              "type": "string",
+              "const": "none"
+            }
+          ],
+          "description": "A fill that runs from the fill to a second color (ADR 0088); `none` takes an inherited one away."
+        },
+        "text": {
+          "$ref": "#/definitions/TextStyle",
+          "description": "How its shapes write the element's name (ADR 0088). Each part is inherited on its own."
         }
       },
       "additionalProperties": false,
@@ -864,6 +915,100 @@
       "additionalProperties": false,
       "description": "Another markup of a face, sharing the face's style."
     },
+    "Gradient": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "$ref": "#/definitions/Color"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "down",
+            "right"
+          ]
+        }
+      },
+      "required": [
+        "to",
+        "direction"
+      ],
+      "additionalProperties": false,
+      "description": "A fill that runs from the shape's fill to `to`, down or to the right (ADR 0088)."
+    },
+    "TextStyle": {
+      "type": "object",
+      "properties": {
+        "font": {
+          "type": "string",
+          "enum": [
+            "roboto",
+            "system",
+            "mono"
+          ],
+          "description": "The typeface: the drawing defaults' two, or Roboto Mono."
+        },
+        "size": {
+          "type": "number",
+          "description": "The name's size, in canvas units.",
+          "minimum": 8,
+          "maximum": 48
+        },
+        "bold": {
+          "type": "boolean"
+        },
+        "italic": {
+          "type": "boolean"
+        },
+        "underline": {
+          "type": "boolean"
+        },
+        "align": {
+          "type": "string",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "description": "How its lines are aligned across the label area."
+        },
+        "position": {
+          "type": "string",
+          "enum": [
+            "inside",
+            "above",
+            "below",
+            "left",
+            "right"
+          ],
+          "description": "Where the name is written: inside the shape, or in a tag beside it, attached above, below, to its left or to its right. A name that does not fit inside still moves to a tag below."
+        },
+        "color": {
+          "$ref": "#/definitions/Color",
+          "description": "The name's color; a color under 4.5:1 on its fill is pointed out, never refused."
+        },
+        "background": {
+          "$ref": "#/definitions/Color",
+          "description": "The fill behind the name."
+        },
+        "border": {
+          "$ref": "#/definitions/Color",
+          "description": "The line around the name's back."
+        },
+        "wrap": {
+          "type": "boolean",
+          "description": "Whether the name wraps onto more lines; otherwise it is cut with \"…\"."
+        },
+        "padding": {
+          "type": "number",
+          "description": "The space between the label area's edge and the text, in canvas units.",
+          "minimum": 0,
+          "maximum": 48
+        }
+      },
+      "additionalProperties": false,
+      "description": "How a shape writes its element's name (ADR 0088). Whatever it leaves out comes from the component, then the drawing defaults. Emphasis inside text stays Markdown (ADR 0082); these apply to the whole name."
+    },
     "RelationTypeAppearances": {
       "type": "object",
       "additionalProperties": {
@@ -898,6 +1043,12 @@
         "route": {
           "$ref": "#/definitions/RouteStyle",
           "description": "The style of its relations' automatic routes (ADR 0069), over the view's; `orthogonal` undoes an inherited one."
+        },
+        "opacity": {
+          "type": "number",
+          "description": "How opaque its lines are, from 0.2 to 1 (ADR 0088). Their labels stay whole.",
+          "minimum": 0.2,
+          "maximum": 1
         }
       },
       "additionalProperties": false,
