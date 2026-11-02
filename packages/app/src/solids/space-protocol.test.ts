@@ -20,8 +20,14 @@ const CAMERA = { target: { x: 0, y: 0.5, z: 0 }, azimuth: 30, elevation: 20, dis
 const SIZE = { width: 640, height: 480 };
 
 const ENTRIES: SpaceDrawnEntry[] = [
-  { element: 'arm', name: 'Arm', matrix: IDENTITY, solid: HASH, bounds: box(1) },
-  { element: 'wrist', name: 'Wrist', matrix: MOVED, part: { of: 'arm', index: 3 } },
+  { element: 'arm', name: 'Arm', matrix: IDENTITY, solid: HASH, bounds: box(1), jointed: true },
+  {
+    element: 'wrist',
+    name: 'Wrist',
+    matrix: MOVED,
+    part: { of: 'arm', index: 3 },
+    motion: MOVED,
+  },
   { element: 'camera', name: 'Wrist camera', matrix: MOVED, marker: true },
 ];
 
@@ -176,6 +182,14 @@ describe('what the app sends the worker for a space', () => {
       [
         show({ entries: [{ ...ENTRIES[0], marker: true }] }),
         'An entry drawn as a marker draws no solid and is no part.',
+      ],
+      [
+        show({ entries: [{ ...ENTRIES[1], jointed: true }] }),
+        'Only an entry that draws a solid is jointed.',
+      ],
+      [
+        show({ entries: [{ ...ENTRIES[1], motion: IDENTITY.slice(1) }] }),
+        'A matrix is 16 numbers.',
       ],
       [
         show({ entries: [{ ...ENTRIES[1], part: { of: 'arm', index: -1 } }] }),

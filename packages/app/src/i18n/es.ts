@@ -1513,6 +1513,16 @@ export const ui: Catalog = {
   'Write the names of the parts nearest the camera':
     'Escribir los nombres de las partes más cercanas a la cámara',
   'Draw the relations of the selection': 'Dibujar las relaciones de la selección',
+  // The joints' sliders (ADR 0090).
+  Joints: 'Articulaciones',
+  '{count} joints': { one: '{count} articulación', other: '{count} articulaciones' },
+  'Keep these positions': 'Conservar estas posiciones',
+  'Back to stored positions': 'Volver a las posiciones guardadas',
+  'Kept the position of “{name}”.': 'Se conservó la posición de “{name}”.',
+  'Kept the positions of {count} joints.':
+    'Se conservaron las posiciones de {count} articulaciones.',
+  'Back to the stored positions.': 'De vuelta en las posiciones guardadas.',
+  'Keep the joints’ positions': 'Conservar las posiciones de las articulaciones',
   'Not cut.': 'Sin corte.',
   'Cut across {axis}, keeping what is below.': 'Corte que cruza {axis}, conservando lo de abajo.',
   'Cut across {axis}, keeping what is above.': 'Corte que cruza {axis}, conservando lo de arriba.',

@@ -50,7 +50,7 @@
       "name": "Joint 1",
       "description": "Turns the whole arm about its base.",
       "attributes": {
-        "axis": "0 0 1",
+        "axis": "0 1 0",
         "kind": "revolute",
         "lowerLimit": -170,
         "upperLimit": 170
@@ -84,7 +84,7 @@
       "name": "Joint 2",
       "description": "The shoulder: lifts the upper arm.",
       "attributes": {
-        "axis": "0 1 0",
+        "axis": "1 0 0",
         "kind": "revolute",
         "lowerLimit": -120,
         "upperLimit": 120
@@ -118,7 +118,7 @@
       "name": "Joint 3",
       "description": "The elbow: bends the forearm.",
       "attributes": {
-        "axis": "0 1 0",
+        "axis": "1 0 0",
         "kind": "revolute",
         "lowerLimit": -150,
         "upperLimit": 150
@@ -152,7 +152,7 @@
       "name": "Joint 4",
       "description": "Rolls the forearm.",
       "attributes": {
-        "axis": "1 0 0",
+        "axis": "0 0 1",
         "kind": "revolute",
         "lowerLimit": -180,
         "upperLimit": 180
@@ -186,7 +186,7 @@
       "name": "Joint 5",
       "description": "Bends the wrist.",
       "attributes": {
-        "axis": "0 1 0",
+        "axis": "1 0 0",
         "kind": "revolute",
         "lowerLimit": -120,
         "upperLimit": 120
@@ -220,7 +220,7 @@
       "name": "Joint 6",
       "description": "Turns the tool without end.",
       "attributes": {
-        "axis": "1 0 0",
+        "axis": "0 0 1",
         "kind": "continuous"
       },
       "appearance": {

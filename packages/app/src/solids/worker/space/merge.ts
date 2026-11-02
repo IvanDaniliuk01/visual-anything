@@ -86,6 +86,26 @@ export function drawGroupsOf(solid: BuiltSolid): readonly DrawGroup[] {
   return found;
 }
 
+const alone = new WeakMap<BuiltSolid, readonly DrawGroup[]>();
+
+/**
+ * The groups a jointed solid's pieces are drawn in (ADR 0090): each piece alone, from its own
+ * geometry, so that joints turn each part on its own; worked out once for each solid.
+ */
+export function pieceGroupsOf(solid: BuiltSolid): readonly DrawGroup[] {
+  const known = alone.get(solid);
+  if (known) return known;
+  const found = solid.pieces.map((piece, index): DrawGroup => ({
+    pieces: [index],
+    geometry: piece.mesh.geometry,
+    merged: false,
+    studio: piece.studio,
+    side: piece.side,
+  }));
+  alone.set(solid, found);
+  return found;
+}
+
 /** Lets go of the geometry merged for a solid, never its own. */
 export function forgetMerged(solid: BuiltSolid): void {
   for (const group of groups.get(solid) ?? []) if (group.merged) group.geometry.dispose();

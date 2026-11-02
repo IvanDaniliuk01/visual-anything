@@ -178,6 +178,17 @@ export interface SpaceDrawnEntry {
   as?: Id;
   /** Its shape's fill on the canvas, which its marker is drawn in unless an overlay fills it. */
   fill?: Color;
+  /**
+   * How joints move it (ADR 0090): the motion its matrix applies to where it is at rest, in the
+   * coordinates of the element the panel shows, as the core's `Space.motions` holds it. Its matrix
+   * already includes it; the worker turns an anchored part's node of its holder's solid by it.
+   */
+  motion?: readonly number[];
+  /**
+   * For an entry drawing a solid: some of its anchored parts are joints, or move, so that its solid is
+   * drawn piece by piece and each part turns on its own (ADR 0090).
+   */
+  jointed?: boolean;
 }
 
 /** How one element in a space looks, from the canvas's emphasis and marks (`space/states.ts`). */
@@ -780,7 +791,20 @@ function entryOf(value: unknown): SpaceDrawnEntry {
   const entry = recordOf(value, 'An entry of a space');
   onlyKeys(
     entry,
-    ['element', 'name', 'matrix', 'solid', 'bounds', 'part', 'in', 'marker', 'as', 'fill'],
+    [
+      'element',
+      'name',
+      'matrix',
+      'solid',
+      'bounds',
+      'part',
+      'in',
+      'marker',
+      'as',
+      'fill',
+      'motion',
+      'jointed',
+    ],
     'An entry of a space',
   );
   const { name } = entry;
@@ -814,6 +838,11 @@ function entryOf(value: unknown): SpaceDrawnEntry {
   }
   if (entry.as !== undefined) read.as = idOf(entry.as, 'The container an entry is drawn as');
   if (entry.fill !== undefined) read.fill = colorOf(entry.fill);
+  if (entry.motion !== undefined) read.motion = matrixOf(entry.motion);
+  if (entry.jointed !== undefined && flag(entry.jointed, 'Whether an entry’s solid is jointed')) {
+    if (read.solid === undefined) refuse('Only an entry that draws a solid is jointed.');
+    read.jointed = true;
+  }
   return read;
 }
 

@@ -9,7 +9,9 @@
  * - a marker, for an element posed with no solid that nothing in the space is posed or anchored in:
  *   a container without a solid is drawn as what is in it; it is drawn in its shape's fill, which
  *   `fillOf` gives;
- * - the collapsed container it is drawn as, which a pick answers and whose marks it takes.
+ * - the collapsed container it is drawn as, which a pick answers and whose marks it takes;
+ * - how joints move it, and for a holder whose anchored parts are joints, that it is jointed
+ *   (ADR 0090).
  *
  * A collapsed container that is not in the space while what it holds is gets an entry of its own
  * that draws nothing, so that its name is written.
@@ -19,22 +21,31 @@ import type { Color, Id, SpaceBounds } from '@visual-anything/schema';
 import { MAX_SPACE_NAME, type SpaceDrawnEntry } from '../solids/protocol';
 import { boundsOfPoint, boundsPlaced } from './camera';
 
-/** The entries of a space, as the worker draws them; names come from `nameOf`, fills from `fillOf`. */
+/**
+ * The entries of a space, as the worker draws them; names come from `nameOf`, fills from `fillOf`.
+ * Each moved entry carries its motion (ADR 0090); a holder whose anchored parts are among `joints`,
+ * or move, is jointed, so that the worker draws its solid piece by piece.
+ */
 export function spaceEntriesOf(
-  space: Pick<Space, 'entries' | 'faint'>,
+  space: Pick<Space, 'entries' | 'faint' | 'motions'>,
   nameOf: (element: Id) => string,
   fillOf?: (element: Id) => Color | undefined,
+  joints?: ReadonlySet<Id>,
 ): SpaceDrawnEntry[] {
   const drawnHere = (element: Id) => space.entries.has(element) || space.faint.has(element);
   const holders = new Set<Id>();
+  const jointed = new Set<Id>();
   for (const entry of [...space.entries.values(), ...space.faint.values()]) {
     if (entry.in !== undefined) holders.add(entry.in);
+    const moves = joints?.has(entry.element) === true || space.motions?.has(entry.element) === true;
+    if (entry.part && entry.in !== undefined && moves) jointed.add(entry.in);
   }
   const drawn = (entry: SpaceEntry): SpaceDrawnEntry => {
     const name = nameOf(entry.element);
     const marker =
       !entry.solid && !entry.part && entry.how === 'posed' && !holders.has(entry.element);
     const fill = marker ? fillOf?.(entry.element) : undefined;
+    const motion = space.motions?.get(entry.element);
     return {
       element: entry.element,
       name: name.length > MAX_SPACE_NAME ? `${name.slice(0, MAX_SPACE_NAME - 1)}…` : name,
@@ -51,6 +62,8 @@ export function spaceEntriesOf(
       ...(marker ? { marker: true } : {}),
       ...(entry.drawnAs !== undefined ? { as: entry.drawnAs } : {}),
       ...(fill !== undefined && /^#[0-9a-fA-F]{6}$/.test(fill) ? { fill } : {}),
+      ...(motion ? { motion: [...motion] } : {}),
+      ...(entry.solid && jointed.has(entry.element) ? { jointed: true } : {}),
     };
   };
   const all = [

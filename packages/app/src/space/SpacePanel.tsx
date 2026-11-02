@@ -21,6 +21,10 @@
  * reduced, and Show World in its bar while it shows an element; takes up the framings it is asked for
  * (`useFramingRequests.ts`); and keeps where each frame was drawn from, which moves of its camera
  * start from (`moves.ts`).
+ *
+ * Its joints' sliders (`SpaceJoints`, ADR 0090) give positions over the joints' own, which `spaceOf`
+ * composes down the chain: what joints carry is drawn moved, its relations and markers follow, and
+ * the worker turns each anchored part's node of its holder's solid by its motion.
  */
 import {
   definitionsIn,
@@ -74,6 +78,9 @@ import { drawsNothing, spaceEntriesOf } from './entries';
 import { selectionRelationsOf, spaceLinesOf, type SelectionRelation } from './lines';
 import { EXPLODE_EASE, explodeBetween, showingWorld } from './reading';
 import { SpaceReading } from './SpaceReading';
+import { SpaceJoints } from './SpaceJoints';
+import { jointsShown } from './joints';
+import { useJointPositions } from './useJointPositions';
 import { SpacePanelEdge } from './SpacePanelEdge';
 import { shapeEmphasisOf, spaceStateList, spaceStates, type SpaceOverlayLook } from './states';
 import type { SpacePanelStore } from './store';
@@ -144,7 +151,15 @@ function OpenSpacePanel({
 }: SpacePanelProps & { shown: ViewSpace }) {
   const t = useT();
   const heading = useId();
-  const space = useMemo(() => spaceOf(project, view, shown.root), [project, view, shown.root]);
+  // The positions the joints' sliders give, over the joints' own, which move the chain drawn.
+  const jointPositions = useJointPositions(store, useReducedMotion());
+  const given = jointPositions.positions;
+  const space = useMemo(
+    () => spaceOf(project, view, shown.root, given.size > 0 ? given : undefined),
+    [project, view, shown.root, given],
+  );
+  const joints = useMemo(() => jointsShown(project, space), [project, space]);
+  const jointIds = useMemo(() => new Set(joints.map((joint) => joint.element)), [joints]);
   const index = modelIndexOf(project);
   const root = index.element(space.root);
   const empty = drawsNothing(space);
@@ -204,6 +219,9 @@ function OpenSpacePanel({
       {drawn && (
         <SpaceReading store={store} viewId={view.id} shown={shown} space={space} say={say} />
       )}
+      {drawn && joints.length > 0 && (
+        <SpaceJoints joints={joints} control={jointPositions} say={say} readOnly={readOnly} />
+      )}
       {empty ? (
         <p className="space-panel-message">
           {t(readOnly ? NOTHING_IN_SPACE_HERE : NOTHING_IN_SPACE)}
@@ -221,6 +239,7 @@ function OpenSpacePanel({
           scene={scene}
           selection={selection}
           space={space}
+          joints={jointIds}
           shown={shown}
           theme={theme ?? 'light'}
           readOnly={readOnly}
@@ -264,6 +283,8 @@ interface SpaceFramesProps {
   scene: Scene;
   selection: Selection;
   space: ReturnType<typeof spaceOf>;
+  /** The joints among what the panel shows, whose holders' solids are drawn piece by piece. */
+  joints: ReadonlySet<Id>;
   shown: ViewSpace;
   theme: ThemeName;
   readOnly: boolean;
@@ -286,6 +307,7 @@ function SpaceFrames({
   scene,
   selection,
   space,
+  joints,
   shown,
   theme,
   readOnly,
@@ -309,8 +331,9 @@ function SpaceFrames({
       space,
       (element) => index.element(element)?.name ?? element,
       (element) => fills.get(element),
+      joints,
     );
-  }, [space, index, scene, theme]);
+  }, [space, index, scene, theme, joints]);
   const pixelRatio = usePixelRatio();
   const emphasis = useEmphasis();
   const { reduced } = useMotion();
