@@ -526,9 +526,11 @@ let laying: ResolvedDrawing = BASE_DRAWING;
  * at the smallest line height still fit.
  */
 export function containerHeaderOf(drawing: ResolvedDrawing): number {
-  const { containerNameSize, padding } = drawing.text;
+  const { containerNameSize, detailSize, padding } = drawing.text;
   if (drawing.containers.drawn === 'region') {
-    return Math.max(LEAST_HEADER, Math.round(2 * padding + lineOf(drawing, containerNameSize)));
+    // Its tab's name, and the detail under it, below the padding.
+    const tab = padding + lineOf(drawing, containerNameSize) + lineOf(drawing, detailSize);
+    return Math.max(LEAST_HEADER, Math.ceil(tab));
   }
   return kindHeaderOf(drawing);
 }

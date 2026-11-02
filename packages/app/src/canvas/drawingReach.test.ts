@@ -39,6 +39,7 @@ import {
   drawingOfScene,
   type ElementShape,
 } from './scene';
+import { regionTabOf } from './regionDraw';
 import { canvasMeasure, robotoMeasure } from './textBlock';
 
 const PRESETS: DrawingPreset[] = ['clean', 'dense', 'expressive', 'high-contrast'];
@@ -164,6 +165,49 @@ describe('a container’s header rooms (A5.7)', () => {
     const clinic = shapeOf(scene.shapes, CLINIC);
     expect(clinic.region).toBe(true);
     expect(keptLabels(clinic, drawingOfScene(scene))[0]?.slice(0, 3)).toBe(clinic.name.slice(0, 3));
+  });
+});
+
+describe('a region’s tab at the largest sizes (A5 review)', () => {
+  /** A C4 container drawn as a region, whose detail says more than its component's name. */
+  function regionWithDetail(lineHeight: number) {
+    const project = drawnWith(loadSample('c4-architecture'), {
+      text: { containerNameSize: 32, detailSize: 24, lineHeight },
+    });
+    const view = 'containers';
+    const scene = buildSceneAfresh(project, view);
+    const region = scene.shapes.find(
+      (shape) =>
+        shape.region === true && shape.detail !== '' && shape.detail !== shape.componentName,
+    );
+    if (!region) throw new Error('No region with a detail of its own.');
+    return { project, view, scene, region };
+  }
+
+  it.each([1, 1.35, 2])(
+    'writes its name and detail at line height %s, on the canvas and in the SVG',
+    (lineHeight) => {
+      const { project, view, scene, region } = regionWithDetail(lineHeight);
+      const drawing = drawingOfScene(scene);
+      const tab = regionTabOf(region, drawing);
+      expect(tab.detail?.text).toBe(region.detail);
+      const kept = keptLabels(region, drawing);
+      expect(kept.some((text) => text.startsWith(region.name.slice(0, 3)))).toBe(true);
+      expect(kept.some((text) => text.startsWith(region.detail.slice(0, 3)))).toBe(true);
+      const svg = new DOMParser().parseFromString(writeSvg(project, view).text, 'image/svg+xml');
+      const texts = [
+        ...(svg.querySelector(`[data-shape="${region.key}"]`)?.querySelectorAll('text') ?? []),
+      ].map((text) => text.textContent ?? '');
+      expect(texts.some((text) => text.startsWith(region.name.slice(0, 3)))).toBe(true);
+      expect(texts.some((text) => text.startsWith(region.detail.slice(0, 3)))).toBe(true);
+    },
+  );
+
+  it('keeps the header of 48 at every preset’s own sizes', () => {
+    for (const preset of PRESETS) {
+      const drawing = resolveDrawing({ preset }, undefined);
+      if (drawing.containers.drawn === 'region') expect(containerHeaderOf(drawing)).toBe(48);
+    }
   });
 });
 

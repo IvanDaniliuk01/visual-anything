@@ -15,7 +15,7 @@ import type { Graphics } from 'pixi.js';
 import { mixColors, type ResolvedDrawing } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import { THEMES, type CanvasTheme } from '../theme/themes';
-import { BASE_DRAWING, roundedCornerRadius, textSideInset, TOGGLE_LOOK } from './drawing';
+import { BASE_DRAWING, lineOf, roundedCornerRadius, textSideInset, TOGGLE_LOOK } from './drawing';
 import { TOGGLE_SIZE, toggleRect, type Rect, type ShapeKind } from './geometry';
 import { containerHeaderOf, type ElementShape } from './scene';
 import { headerShift } from './shape-images';
@@ -131,9 +131,9 @@ export function regionTabOf(
   drawing: ResolvedDrawing = BASE_DRAWING,
 ): RegionTab {
   const { x, y, width } = shape.rect;
-  const { containerNameSize, lineHeight, padding } = drawing.text;
+  const { containerNameSize, padding } = drawing.text;
   const inset = textSideInset(drawing);
-  const line = containerNameSize * lineHeight;
+  const line = lineOf(drawing, containerNameSize);
   const toggle = toggleRect(shape);
   const beside = toggle ? TOGGLE_SIZE + 4 : 0;
   // A picture its appearance shows in the header takes the icon's place (ADR 0082).
@@ -151,7 +151,7 @@ export function regionTabOf(
     height: line,
   };
   const text = regionDetailOf(shape);
-  const below = { ...name, y: name.y + line, height: drawing.text.detailSize * lineHeight };
+  const below = { ...name, y: name.y + line, height: lineOf(drawing, drawing.text.detailSize) };
   const fits =
     below.y + below.height <= y + Math.min(shape.rect.height, containerHeaderOf(drawing));
   return {
