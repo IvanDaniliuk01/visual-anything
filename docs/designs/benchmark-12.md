@@ -147,6 +147,51 @@ Times in milliseconds: average / 95th percentile / worst, before → after.
 - **Ticks a second:** at 60 every run reached 59 at the median, 100 in seven workers and 16 in one (55.6 to 58.8); as fast as it goes about 235 at the median with 100 runs (217 without marks), so drawing the marks no longer slows the runs.
 - **The page's own work** in a frame while the 100 runs played: 1.7 ms at the median and 3.8 ms at the 95th percentile, from 6.3 and 10.2.
 
+## Measured again (A4)
+
+Date: 2026-11-01. Measured by a builder, on `develop` at `98ceb85` with every other A4 task merged, the last task of A4, recorded and not held; nothing was optimized.
+
+- **The same way as above:** the same machine (i9-14900HX, RTX 4060 Laptop, not the reference laptop), on mains power in Windows' balanced plan; Chrome 156.0.8078.74 headless (`--headless=new`) on that GPU through ANGLE and Direct3D 11, in a profile of its own on debugging port 9347, with `--disable-background-timer-throttling`, `--disable-renderer-backgrounding` and `--disable-backgrounding-occluded-windows`, a window of 1600 by 900 pixels (1578 by 802 inside) at a pixel ratio of 1, cross-origin isolated; `pnpm bench`'s build served on 127.0.0.1:47721. No browser window was visible.
+- **Alongside:** the OneDrive sync service (about one processor throughout), the antivirus (`bdservicehost`), Windows Update in the first minutes, and the person's own idle programs (their Visual Anything server on 52927, their browser, their editor). No test run, benchmark or other builder's work ran meanwhile.
+- **The machine ran about twice as fast as on 2026-10-31:** the build of `cf6c8d7`, the commit "After A4" measured, run again today in the same hour, gave 5.5 ms a frame at 60 ticks a second, still, where it gave 10.1 then. So the column to read "now" against is `cf6c8d7` today; "After A4" is kept beside it for the record. Frames came every 4.2 ms at rest, as headless Chrome offers them, so frames mode times frames at about 240 a second, not paced at 60 Hz.
+- **The runs:** work mode twice, frames mode once, and work mode with `&marks=none` once, on `98ceb85`; work and frames mode once on `cf6c8d7`.
+
+Times in milliseconds: average / 95th percentile / worst.
+
+| Work mode | After A4, 2026-10-31 | `cf6c8d7`, today | Now, run 1 | Now, run 2 |
+| --- | --- | --- | --- | --- |
+| 100 runs open, paused: pan, whole view | 7.0 / 15.4 / 89.4 | 5.4 / 10.6 / 62.2 | 6.0 / 11.8 / 52.7 | 5.8 / 11.4 / 63.7 |
+| 100 runs at 60 ticks a second: still, whole view | 10.1 / 15.9 / 19.8 | 5.5 / 8.4 / 12.6 | 7.3 / 10.7 / 18.7 | 5.7 / 8.2 / 10.0 |
+| 100 runs at 60 ticks a second: pan, whole view | 11.5 / 15.8 / 53.2 | 9.5 / 12.5 / 19.1 | 9.7 / 12.6 / 15.2 | 9.2 / 12.8 / 17.8 |
+| 100 runs at 60 ticks a second: pan, names shown | 11.0 / 17.0 / 22.0 | 8.9 / 12.6 / 18.5 | 9.1 / 12.0 / 16.6 | 9.3 / 13.2 / 15.9 |
+| 100 runs as fast as they go: still, whole view | 4.1 / 10.5 / 22.1 | 3.3 / 7.5 / 18.9 | 3.8 / 8.5 / 18.7 | 2.6 / 7.3 / 20.5 |
+| 100 runs as fast as they go: pan, whole view | 6.7 / 9.8 / 11.6 | 3.1 / 5.0 / 6.4 | 2.9 / 4.3 / 5.1 | 3.0 / 4.8 / 6.2 |
+| 100 runs as fast as they go: pan, names shown | 5.6 / 14.7 / 26.7 | 6.1 / 9.8 / 23.8 | 4.8 / 10.4 / 16.3 | 5.6 / 10.5 / 18.7 |
+| 16 runs in one code worker at 60 ticks a second: still, whole view | 5.6 / 6.9 / 34.5 | 3.2 / 6.4 / 29.3 | 3.4 / 7.3 / 28.0 | 2.5 / 3.0 / 21.5 |
+| 16 runs in one code worker as fast as they go: still, whole view | 3.9 / 12.1 / 21.0 | 1.3 / 1.8 / 2.4 | 1.4 / 1.9 / 6.1 | 2.3 / 5.5 / 10.9 |
+| A tick to the canvas at 60 ticks a second (median / p95 / worst) | 23 / 34 / 88 | 17 / 23 / 29 | 18 / 23 / 28 | 17 / 24 / 29 |
+| A tick to the canvas as fast as it goes (median / p95 / worst) | 10 / 20 / 46 | 7 / 12 / 27 | 7 / 14 / 20 | 7 / 13 / 17 |
+
+| Frames mode | After A4, 2026-10-31 | `cf6c8d7`, today | Now |
+| --- | --- | --- | --- |
+| 100 runs open, paused: pan, whole view | 5.3 / 12.0 / 41.0 | 4.8 / 8.3 / 33.5 | 4.8 / 8.9 / 27.7 |
+| 100 runs at 60 ticks a second: still, whole view | 9.7 / 16.6 / 16.8 | 4.3 / 4.4 / 8.5 | 4.6 / 8.3 / 12.6 |
+| 100 runs at 60 ticks a second: pan, whole view | 12.3 / 17.1 / 20.9 | 4.9 / 8.5 / 8.9 | 5.2 / 8.4 / 12.6 |
+| 100 runs at 60 ticks a second: pan, names shown | 10.5 / 16.7 / 25.0 | 4.4 / 4.4 / 8.5 | 4.8 / 8.4 / 8.8 |
+| 100 runs as fast as they go: still, whole view | 4.6 / 8.2 / 9.4 | 4.2 / 4.8 / 5.6 | 4.2 / 4.3 / 4.5 |
+| 100 runs as fast as they go: pan, whole view | 4.8 / 8.4 / 20.8 | 4.2 / 4.6 / 8.8 | 4.2 / 4.3 / 8.2 |
+| 100 runs as fast as they go: pan, names shown | 5.2 / 11.6 / 46.3 | 4.2 / 4.5 / 4.9 | 4.2 / 4.6 / 8.5 |
+| 16 runs in one code worker at 60 ticks a second: still, whole view | 4.4 / 4.4 / 24.9 | 4.2 / 4.3 / 16.6 | 4.2 / 4.3 / 12.5 |
+| 16 runs in one code worker as fast as they go: still, whole view | 4.9 / 8.3 / 100.3 | 4.2 / 4.9 / 6.1 | 4.2 / 4.5 / 5.1 |
+| A tick to the canvas at 60 ticks a second (median / p95 / worst) | 21 / 29 / 41 | 8 / 11 / 14 | 9 / 12 / 19 |
+| A tick to the canvas as fast as it goes (median / p95 / worst) | 10 / 15 / 26 | 7 / 9 / 13 | 7 / 10 / 13 |
+
+- **Against the marks** (work: 10 / 13 / 33.3; frames: 18.1 / 25 / 33.3; a tick within 33.3 ms at the 95th percentile): in frames mode every phase meets them, and a tick shows within 12 ms at the 95th percentile at both speeds. In work mode, every phase with the runs playing meets them in the first run now, and in the second all but panning where names show at 60 ticks a second, by 0.2 ms at the 95th percentile; the paused pan misses by its first frames (53 and 64 ms), as in every run before; a tick shows within 24 ms at the 95th percentile.
+- **Without the marks** (`&marks=none`, work mode, now): 1.6 / 2.5 / 4.4 at 60 ticks a second, still, and 3.0 / 6.5 / 16.2 panning (After A4: 4.1 / 5.5 / 10.1 and 7.5 / 10.2 / 18.2); a tick to the canvas 6 / 14 / 25 at 60 and 4 / 8 / 11 as fast as it goes. The marks cost about 4 to 6 ms a frame at 60 ticks a second, still, on this machine today.
+- **Ticks a second:** at 60, every run reached 56 to 60, 100 runs in seven workers and 16 in one; as fast as it goes, each of 100 runs reached 454 to 477 at the median and 401 to 415 at the slowest, and 16 runs in one worker 418 to 466 at the median (about 235 After A4, on the slower day).
+- **The page's own work** in a frame while the 100 runs played: 0.97 to 1.04 ms at the median and 2.0 to 2.1 ms at the 95th percentile (After A4: 1.7 and 3.8; `cf6c8d7` today: 0.94).
+- **No regression:** now and `cf6c8d7` measured today are within each other's run-to-run spread in every phase; nothing merged since touches the simulation's path but the names of the marks' containers (`canvas/emphasisMarks.ts`). The first work-mode run's 7.3 ms at 60 ticks a second, still, against 5.5, came back to 5.7 in the second.
+
 ## Questions for the main session
 
 - **100 runs at once is more than the app plays.** ADR 0085 and `SIMULATION_LIMITS.runsAtOnce` let a tab play at most 16 runs, and the worker's driver refuses a 17th, while M12's "Done when" asks the benchmark for 100 elements simulating at once. The benchmark shares the 100 runs among 7 code workers, each within the limit, which the app never does. Either the "Done when" means 16, or the limit should rise, which the numbers above allow on the worker's side: 16 runs in one worker go as fast as 100 in seven, and at 60 ticks a second each worker had time to spare.
