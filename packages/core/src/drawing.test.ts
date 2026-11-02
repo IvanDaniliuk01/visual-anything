@@ -121,7 +121,7 @@ describe('checks', () => {
 
   it('refuse groups, values and presets a drawing does not have, and values out of range', () => {
     expect(drawingProblems({ preset: 'loud' })[0]).toMatch(/no drawing preset "loud"/);
-    expect(drawingProblems({ colors: {} })[0]).toMatch(/no group "colors"/);
+    expect(drawingProblems({ palette: {} })[0]).toMatch(/no group "palette"/);
     expect(drawingProblems({ lines: { thickness: 2 } })[0]).toMatch(/no value "thickness"/);
     expect(drawingProblems({ lines: { width: 20 } })).toEqual([
       'lines.width is a number from 0.5 to 8.',

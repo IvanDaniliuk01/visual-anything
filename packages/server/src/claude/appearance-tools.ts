@@ -247,7 +247,7 @@ Shapes' traits: shape (rectangle, rounded-rectangle, ellipse, cylinder or person
 - part: { part, image } or { part, solid }, the named part they are drawn as; image or solid may be left out inside a drawing with parts. "none" takes it away. A part the picture lacks warns unknown-part. list_image_parts and list_solid_parts list parts; anchor_parts anchors a drawing's.
 - route: the style of automatic routes, orthogonal, straight or curved. It comes before a view's routeStyle (update_view).
 
-Colors are #RRGGBB, drawn as stored in both themes unless the drawing defaults adapt them on the dark canvas (the answer then says what it draws). A line needs 3:1 against both canvases: the answer warns about a color under it, and about shapes that blend into a canvas, and never refuses one.
+Colors are #RRGGBB, stored as given. A line needs 3:1 against both canvases: the answer warns about a color under it, and about shapes that blend into a canvas, and never refuses one.
 
 Example: { "component": "systems.service", "appearanceTraits": { "fill": "#E3F2E9", "stroke": "#2F855A" } }
 Example, a heart: { "component": "anatomy.heart", "appearanceTraits": { "geometry": { "width": 120, "height": 110, "keepProportions": true, "outline": [{ "kind": "path", "d": "${HEART_PATH}" }], "label": { "x": 24, "y": 30, "width": 72, "height": 36 } } } }
