@@ -99,11 +99,11 @@ describe('the built-in Healthcare package', () => {
     const attributes = (componentId: string) =>
       definitions.component(id(componentId))?.attributes.map((each) => each.name);
     expect(attributes('patient')).toEqual(['birthYear', 'recordNumber']);
-    expect(attributes('encounter')).toEqual(['class', 'date']);
+    expect(attributes('encounter')).toEqual(['setting', 'date']);
     expect(attributes('practitioner')).toEqual(['specialty']);
     expect(attributes('provider-organization')).toEqual(['kind']);
     expect(attributes('payer')).toEqual(['kind']);
-    expect(attributes('plan')).toEqual(['level']);
+    expect(attributes('plan')).toEqual(['tier']);
     expect(attributes('claim')).toEqual(['number', 'status', 'total']);
     expect(attributes('claim-line')).toEqual(['code', 'quantity', 'amount']);
     expect(attributes('authorization')).toEqual(['number', 'status', 'quantity', 'validUntil']);
@@ -133,7 +133,7 @@ describe('the built-in Healthcare package', () => {
       'expired',
     ]);
     expect(choices('audit', 'timing')).toEqual(['prepayment', 'postpayment']);
-    expect(choices('encounter', 'class')).toEqual([
+    expect(choices('encounter', 'setting')).toEqual([
       'ambulatory',
       'emergency',
       'inpatient',

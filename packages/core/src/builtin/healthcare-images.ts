@@ -1,6 +1,6 @@
 /**
  * The icons of the built-in "Healthcare" package (ADR 0079): drawn for Visual Anything as plain shapes
- * on a 24-unit grid with a 2-unit stroke, each in one colour that reads on its component's fill in both
+ * on a 24-unit grid with a 2-unit stroke, each in one color that reads on its component's fill in both
  * themes, and stored as the core's cleaner writes them, so that cleaning them again changes nothing.
  * The kinds of clinical record share the record's blue. Tests check all of this.
  */

@@ -7799,7 +7799,7 @@ export const builtins: Readonly<
     description:
       'Un encuentro entre un paciente y sus prestadores en el que se da atención, como una consulta, una internación o una llamada; contiene los registros clínicos que deja.',
     attributes: {
-      class:
+      setting:
         'Dónde y cómo ocurre: en un consultorio, en una guardia, durante una internación, a distancia o en el domicilio.',
       date: 'Cuándo ocurre, o cuándo empieza, como "2026-03-04".',
     },
@@ -7830,7 +7830,7 @@ export const builtins: Readonly<
     description:
       'Lo que un financiador cubre y en qué condiciones: la atención que paga, lo que necesita una autorización previa y lo que paga el propio paciente.',
     attributes: {
-      level: 'Su nivel entre los planes del financiador, como "Básico", "Plata" u "Oro".',
+      tier: 'Su categoría entre los planes del financiador, como "Básico", "Plata" u "Oro".',
     },
   },
   'healthcare.claim': {
@@ -7924,7 +7924,7 @@ export const builtins: Readonly<
     description: 'Un diagnóstico o un problema de salud, como un ligamento roto o la diabetes.',
     attributes: {
       clinicalStatus:
-        'Si todavía hay que confirmarla, si está presente, si está tranquila por ahora o si terminó.',
+        'Si todavía hay que confirmarla, si está presente, si está en remisión o si terminó.',
     },
   },
   'healthcare.procedure': {
@@ -7945,7 +7945,7 @@ export const builtins: Readonly<
   'healthcare.is-for': {
     name: 'corresponde a',
     description:
-      'Dice de qué paciente trata un encuentro, una reclamación, una autorización, un plan de cuidados o un registro clínico.',
+      'Dice de qué paciente es un encuentro, una reclamación, una autorización, un plan de cuidados o un registro clínico.',
   },
   'healthcare.is-covered-by': {
     name: 'tiene cobertura de',
@@ -7961,7 +7961,7 @@ export const builtins: Readonly<
       'Le pide una autorización a un financiador: un prestador, antes de dar la atención que cubre.',
   },
   'healthcare.is-submitted-to': {
-    name: 'se presenta a',
+    name: 'se presenta ante',
     description:
       'Envía una reclamación, o el pedido de una autorización, al financiador que la decide.',
     attributes: { date: 'Cuándo se envió, como "2026-03-14".' },

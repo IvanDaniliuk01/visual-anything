@@ -1,6 +1,6 @@
 /**
  * The icons of the built-in Finance package (P6, ADR 0079): drawn for Visual Anything as plain shapes
- * on a 24-unit grid, under CC0-1.0, each in one colour that reads at 3:1 or more on its component's
+ * on a 24-unit grid, under CC0-1.0, each in one color that reads at 3:1 or more on its component's
  * fill in both themes, and stored as the core's cleaner writes them, so that cleaning them again
  * changes nothing. Tests check both.
  */
@@ -21,7 +21,7 @@ function icon(id: string, name: string, svg: string): SvgImage {
   };
 }
 
-/** The strokes every icon of this package is drawn with, in one colour. */
+/** The strokes every icon of this package is drawn with, in one color. */
 function strokes(color: string): string {
   return `fill="none" stroke="${color}" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"`;
 }
@@ -36,7 +36,7 @@ const CLOSE = '</svg>';
 
 /**
  * A T-account, as accountants sketch one: debits written on the left of the stem, credits on the
- * right. Each kind of account draws it in its own colour.
+ * right. Each kind of account draws it in its own color.
  */
 function tAccount(id: string, name: string, color: string): SvgImage {
   return icon(

@@ -92,7 +92,7 @@ export const HEALTHCARE: PackageFile = {
         'A meeting between a patient and their providers in which care is given, such as a visit, an admission or a call; it holds the clinical records it leaves.',
       attributes: [
         {
-          name: 'class',
+          name: 'setting',
           type: 'string',
           choices: ['ambulatory', 'emergency', 'inpatient', 'virtual', 'home'],
           description:
@@ -200,9 +200,9 @@ export const HEALTHCARE: PackageFile = {
         'What a payer covers and on what terms: the care it pays for, what needs an authorization first, and what the patient pays themselves.',
       attributes: [
         {
-          name: 'level',
+          name: 'tier',
           type: 'string',
-          description: 'Its level among the payer’s plans, such as "Basic", "Silver" or "Gold".',
+          description: 'Its tier among the payer’s plans, such as "Basic", "Silver" or "Gold".',
         },
       ],
       appearance: {
@@ -211,7 +211,7 @@ export const HEALTHCARE: PackageFile = {
         stroke: '#8C1F4D',
         width: 176,
         height: 72,
-        detail: { attributes: ['level'] },
+        detail: { attributes: ['tier'] },
         image: { image: PLAN_ICON.id },
       },
     },
@@ -487,7 +487,7 @@ export const HEALTHCARE: PackageFile = {
           name: 'clinicalStatus',
           type: 'string',
           choices: ['suspected', 'active', 'remission', 'resolved'],
-          description: 'Whether it is still to be confirmed, present, quiet for now, or over.',
+          description: 'Whether it is still to be confirmed, present, in remission, or over.',
         },
       ],
       appearance: {

@@ -5,9 +5,14 @@
  * decision (ADR 0078), and its tour's check finds nothing to look at.
  */
 import { checkProject, checkTour, scenarioTimeline } from '@visual-anything/core';
+import ELK from 'elkjs/lib/elk.bundled.js';
 import { describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
-import { buildScene } from './scene';
+import { layoutCommand } from './layout/command';
+import { layOut } from './layout/engine';
+import { layoutInput } from './layout/input';
+import { inputAfter } from './layout/settle';
+import { buildScene, buildSceneAfresh } from './scene';
 import { detailOf } from './draw';
 import { writesNameInside } from './outlined';
 
@@ -26,6 +31,22 @@ describe('the finance sample', () => {
     expect(project.project.packages).toEqual(['finance']);
     expect(project.views.map((view) => view.id).sort()).toEqual(VIEWS);
   });
+
+  it.each(VIEWS)(
+    'keeps %s where the app’s layout puts it: laying it out again moves nothing',
+    { timeout: 30_000 },
+    async (view) => {
+      const elk = new ELK();
+      const scope = { kind: 'view' } as const;
+      const scene = buildSceneAfresh(project, view);
+      const input = layoutInput(scene, project, scope);
+      if (!input) throw new Error('Nothing to lay out.');
+      let result = await layOut(input, elk);
+      const again = inputAfter(project, view, scene, scope, input, result.shapes);
+      if (again) result = await layOut(again, elk);
+      expect(layoutCommand(project, view, scene, scope, result.shapes)).toBeUndefined();
+    },
+  );
 
   it('keeps every journal entry balanced: its lines debit as much as they credit', () => {
     const entries = project.model.elements.filter(

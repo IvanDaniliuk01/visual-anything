@@ -57,7 +57,7 @@
       "name": "Harbor Silver",
       "description": "Covers visits; imaging needs an authorization first.",
       "attributes": {
-        "level": "Silver"
+        "tier": "Silver"
       }
     },
     {
@@ -87,7 +87,7 @@
       "name": "Knee pain visit",
       "description": "Jordan sees Dr. Ortiz about her left knee.",
       "attributes": {
-        "class": "ambulatory",
+        "setting": "ambulatory",
         "date": "2026-03-04"
       }
     },
@@ -117,7 +117,7 @@
       "name": "MRI appointment",
       "description": "Jordan comes back for the scan.",
       "attributes": {
-        "class": "ambulatory",
+        "setting": "ambulatory",
         "date": "2026-03-12"
       }
     },

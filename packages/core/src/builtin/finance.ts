@@ -134,14 +134,14 @@ export const FINANCE: PackageFile = {
     accountKind(
       'asset',
       'Asset account',
-      'What is owned or owed to the books, such as cash in the bank or what customers owe; a debit increases it.',
+      'What the company owns or is owed, such as cash in the bank or what customers owe; a debit increases it.',
       '#E3EEFB',
       '#1C5DA6',
     ),
     accountKind(
       'liability',
       'Liability account',
-      'What the books owe others, such as tax due or a loan; a credit increases it.',
+      'What the company owes others, such as tax due or a loan; a credit increases it.',
       '#FFF0D4',
       '#865400',
     ),
@@ -269,8 +269,8 @@ export const FINANCE: PackageFile = {
         {
           name: 'status',
           type: 'string',
-          description: 'Where it stands: open, paid, overdue or cancelled.',
-          choices: ['open', 'paid', 'overdue', 'cancelled'],
+          description: 'Where it stands: open, paid, overdue or canceled.',
+          choices: ['open', 'paid', 'overdue', 'canceled'],
         },
       ],
       appearance: {

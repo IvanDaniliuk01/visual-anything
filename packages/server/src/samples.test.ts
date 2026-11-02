@@ -34,7 +34,7 @@ describe('the sample projects the program holds', () => {
     ).toBe(samplesText());
   });
 
-  it('are the C4, data-science, machine learning, physical-ai, process and healthcare samples, each with its starter packages', () => {
+  it('are the C4, data-science, machine learning, physical-ai, process, healthcare and finance samples, each with its starter packages', () => {
     expect(samples().map(({ id, packages }) => ({ id, packages }))).toEqual([
       { id: 'c4-architecture', packages: ['c4'] },
       { id: 'data-science-pipeline', packages: ['data-science'] },

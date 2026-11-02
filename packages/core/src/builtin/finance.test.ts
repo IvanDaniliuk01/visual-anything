@@ -171,7 +171,7 @@ describe('the built-in Finance package', () => {
       'compliance',
     ]);
     expect(choices('control', 'kind')).toEqual(['preventive', 'detective', 'corrective']);
-    expect(choices('invoice', 'status')).toEqual(['open', 'paid', 'overdue', 'cancelled']);
+    expect(choices('invoice', 'status')).toEqual(['open', 'paid', 'overdue', 'canceled']);
   });
 
   it('ships under CC0 with its pictures, at most 128 of them, all drawn for Visual Anything', () => {
