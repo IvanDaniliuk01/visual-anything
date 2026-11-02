@@ -7,6 +7,7 @@ import type { DrawingDefaults } from '@visual-anything/schema';
 import { validateFile } from '@visual-anything/schema/validate';
 import { describe, expect, it } from 'vitest';
 import { executeCommand } from './commands';
+import { EMPTY_HISTORY, record, undo } from './history';
 import {
   DRAWING_BEFORE_A5,
   DRAWING_GROUPS,
@@ -168,6 +169,34 @@ describe('set-drawing-defaults', () => {
     if (!back.ok) throw new Error(JSON.stringify(back.problems));
     expect(back.label).toBe(`Reset the drawing defaults of "${view.name}"`);
     expect(back.state.views[0]?.drawing).toBeUndefined();
+  });
+
+  it('writes valid files for any drawing it allows, in the project or a view, and undoes to what was', () => {
+    const start = testProject();
+    const view = start.views[0];
+    if (!view) throw new Error('The test project has no view.');
+    fc.assert(
+      fc.property(someDrawing, fc.boolean(), (drawing, inView) => {
+        const outcome = executeCommand(start, {
+          type: 'set-drawing-defaults',
+          ...(inView ? { view: view.id } : {}),
+          drawing,
+        });
+        if (!outcome.ok) throw new Error(JSON.stringify(outcome.problems));
+        expect(validateFile('project', outcome.state.project).ok).toBe(true);
+        for (const each of outcome.state.views) expect(validateFile('view', each).ok).toBe(true);
+        const history = record(EMPTY_HISTORY, {
+          label: outcome.label,
+          author: 'claude',
+          operations: outcome.operations,
+          inverse: outcome.inverse,
+        });
+        const undone = undo(outcome.state, history);
+        expect(undone?.state).toEqual(start);
+        expect(undone?.entry.author).toBe('claude');
+      }),
+      { numRuns: 100 },
+    );
   });
 
   it('refuses what is not valid, changing nothing', () => {
