@@ -15,7 +15,7 @@ import type { Graphics } from 'pixi.js';
 import { mixColors, type ResolvedDrawing } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import { THEMES, type CanvasTheme } from '../theme/themes';
-import { BASE_DRAWING, roundedCornerRadius, textSideInset } from './drawing';
+import { BASE_DRAWING, roundedCornerRadius, textSideInset, TOGGLE_LOOK } from './drawing';
 import { TOGGLE_SIZE, toggleRect, type Rect, type ShapeKind } from './geometry';
 import { containerHeaderOf, type ElementShape } from './scene';
 import { headerShift } from './shape-images';
@@ -181,15 +181,15 @@ export function drawRegion(
   if (toggle) {
     const { x: left, y: top, width: side, height: tall } = toggle;
     graphics
-      .roundRect(left, top, side, tall, 3)
+      .roundRect(left, top, side, tall, TOGGLE_LOOK.radius)
       .stroke({ color: shape.stroke, alpha: colors.borderAlpha, width: REGION_BORDER });
     const middleX = left + side / 2;
     const middleY = top + tall / 2;
-    const arm = side * 0.28;
+    const arm = side * TOGGLE_LOOK.arm;
     graphics
       .moveTo(middleX - arm, middleY)
       .lineTo(middleX + arm, middleY)
-      .stroke({ color: shape.stroke, width: 1.5 });
+      .stroke({ color: shape.stroke, width: TOGGLE_LOOK.sign });
   }
 }
 
