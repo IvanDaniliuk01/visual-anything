@@ -10,6 +10,7 @@ import {
   MAX_GUIDANCE_TARGETS,
   automaticRouteStyleOf,
   definitionsIn,
+  executeCommand,
   freshId,
   modelIndexOf,
   previewDelete,
@@ -22,6 +23,7 @@ import {
 } from '@visual-anything/core';
 import type { Attributes, FreeShape, Id } from '@visual-anything/schema';
 import { z } from 'zod';
+import type { Rect } from '@visual-anything/app/src/canvas/geometry';
 import {
   APPEARANCE_TOOLS,
   blendWarnings,
@@ -1178,13 +1180,85 @@ Example: { "view": "system-overview", "moves": [{ "element": "appointments-db", 
 const setCollapsed = tool({
   name: 'set_collapsed',
   title: 'Collapse or expand containers',
-  description: `Collapses containers in a view, showing none of their contents and one aggregated relation, with a count, for each relation type and far end, or expands them again, as one undoable action. It changes only the view.
+  description: `Collapses containers in a view, showing none of their contents and one aggregated relation, with a count, for each relation type and far end, or expands them again, as one undoable action. It changes only the view. Collapsing also moves the shapes beside and below them in, closing the room they leave, as collapsing by hand does. Expanding makes no room around them: when they then cover other shapes, the answer warns and names them, and lay_out_view arranges them.
 
 Example: { "view": "system-overview", "elements": ["scheduling"], "collapsed": true }`,
   input: { view: id(), elements: z.array(id()).min(1), collapsed: z.boolean() },
   hints: WRITE,
-  run: async (args, program) => act(program, { type: 'set-collapsed', ...args }),
+  run: async (args, program) => {
+    const state = await program.project();
+    const command = await collapsing(state, args.view, args.elements, args.collapsed);
+    return act(program, command, async () =>
+      args.collapsed ? {} : await expandedOver(await program.project(), args.view, args.elements),
+    );
+  },
 });
+
+/**
+ * What collapsing or expanding asks for. Collapsing closes the room the containers leave, as
+ * collapsing by hand does when it has no places to give back (ADR 0080's clarification of
+ * 2026-10-29), in the same action; expanding makes no room, which needs the layout the app runs.
+ */
+async function collapsing(
+  state: ProjectSnapshot,
+  view: Id,
+  elements: readonly Id[],
+  collapsed: boolean,
+): Promise<Command> {
+  const collapse: Command = { type: 'set-collapsed', view, elements: [...elements], collapsed };
+  if (!collapsed) return collapse;
+  const done = executeCommand(state, collapse);
+  if (!done.ok) return collapse;
+  const { closedRoom } = await import('@visual-anything/app/src/canvas/layout/closeRoom');
+  const closing = closedRoom(state, done.state, view, elements);
+  if (closing.length === 0) return collapse;
+  const index = modelIndexOf(state);
+  const [only] = elements;
+  const name = only === undefined ? undefined : index.element(only)?.name;
+  return {
+    type: 'batch',
+    label:
+      elements.length === 1 && name !== undefined
+        ? `Collapse "${name}"`
+        : `Collapse ${elements.length} containers`,
+    commands: [collapse, { type: 'set-positions', view, positions: closing }],
+  };
+}
+
+/**
+ * A warning when containers expanded here now cover shapes beside them: expanding from Claude makes
+ * no room around them, so it says which, and that `lay_out_view` arranges them.
+ */
+async function expandedOver(
+  state: ProjectSnapshot,
+  viewId: Id,
+  elements: readonly Id[],
+): Promise<{ warnings?: string[] }> {
+  const { buildScene } = await import('@visual-anything/app/src/canvas/scene');
+  const scene = buildScene(state, viewId);
+  const opened = new Set(elements);
+  const covered = new Set<Id>();
+  for (const shape of scene.shapes) {
+    if (!opened.has(shape.element)) continue;
+    for (const other of scene.shapes) {
+      if (other === shape || other.container !== shape.container) continue;
+      if (overlaps(shape.rect, other.rect)) covered.add(other.element);
+    }
+  }
+  if (covered.size === 0) return {};
+  const index = modelIndexOf(state);
+  const named = [...covered].slice(0, 5).map((each) => `"${index.element(each)?.name ?? each}"`);
+  const more = covered.size > named.length ? ` and ${covered.size - named.length} more` : '';
+  return {
+    warnings: [
+      `Expanded, the containers now cover ${named.join(', ')}${more}: expanding here makes no room around them. Call lay_out_view, with containers naming what holds them or with none for the whole view, to arrange them, then capture_view to check.`,
+    ],
+  };
+}
+
+function overlaps(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+}
 
 /** Where a line attaches to one of its ends, or `null` for automatically. */
 const attachment = () =>

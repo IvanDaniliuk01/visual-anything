@@ -598,6 +598,24 @@ describe('other write tools', () => {
     expect(session.history.undo?.author).toBe('claude');
   });
 
+  it('collapse a container and close the room it leaves, then expand it and say what it covers', async () => {
+    await session.execute(
+      { type: 'set-positions', view: 'overview', positions: [{ element: 'cart', x: 440, y: 0 }] },
+      'user',
+    );
+    const cartX = () =>
+      session.snapshot.views[0]?.positions.find((each) => each.element === 'cart')?.x;
+    await value('set_collapsed', { view: 'overview', elements: ['system'], collapsed: true });
+    expect(cartX()).toBeLessThan(440);
+    expect(session.history.undo).toEqual({ label: 'Collapse "Shop system"', author: 'claude' });
+    const expanded = await value('set_collapsed', {
+      view: 'overview',
+      elements: ['system'],
+      collapsed: false,
+    });
+    expect(expanded.warnings).toEqual([expect.stringMatching(/now cover "Cart".*lay_out_view/)]);
+  });
+
   it('rename a package', async () => {
     await value('update_package', { id: 'shop', name: 'Shop things' });
     expect(session.snapshot.packages.find((each) => each.id === 'shop')?.name).toBe('Shop things');
