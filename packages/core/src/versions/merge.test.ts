@@ -14,7 +14,14 @@ import { randomIds } from '../ids';
 import { applyOperations, type ConflictFile } from '../operations';
 import type { ProjectSnapshot } from '../snapshot';
 import { testProject } from '../test/fixtures';
-import { commandFor, intent, NESTING, propertyProject, type Intent } from '../test/random-commands';
+import {
+  commandFor,
+  intent,
+  NESTING,
+  propertyProject,
+  RELATION_TYPES,
+  type Intent,
+} from '../test/random-commands';
 import { isOwnPackage } from './items';
 import { mergeFile, mergeItem, type MergePolicy } from './merge';
 import { operationsBetween } from './operations-between';
@@ -225,6 +232,128 @@ describe('mergeFile', () => {
     ]);
   });
 
+  it('leaves alone a cycle one side holds whole, through a relation type that side made not nest', () => {
+    // Found by the property "give the other side where one side is unchanged" (seed 3066248): the
+    // merge is told that "is part of" nests, but the side that made it not nest holds a loop of it,
+    // which the merge took out as a cycle although no change of the other side closed it.
+    const base = propertyProject();
+    const unnested = done(base, {
+      type: 'define-relation-type',
+      package: 'test',
+      relationType: {
+        id: 'test.part-of',
+        name: 'is part of',
+        derivesFrom: 'relates-to',
+        direction: 'directed',
+        nests: false,
+      },
+    });
+    const mine = done(
+      done(unnested, {
+        type: 'create-relation',
+        relation: { id: 'client-of-db', relationType: 'test.part-of', from: 'client', to: 'db' },
+      }),
+      {
+        type: 'create-relation',
+        relation: { id: 'db-of-client', relationType: 'test.part-of', from: 'db', to: 'client' },
+      },
+    );
+    for (const [left, right] of [
+      [base.model, mine.model],
+      [mine.model, base.model],
+    ] as const) {
+      const merged = mergeFile('model', base.model, left, right, { nesting });
+      expect(merged.conflicts).toEqual([]);
+      expect(merged.file).toEqual(mine.model);
+    }
+    // A change of the other side elsewhere joins it, and the loop stays.
+    const yours = done(base, { type: 'update-element', id: 'api', changes: { name: 'Gateway' } });
+    const merged = mergeFile('model', base.model, mine.model, yours.model, { nesting });
+    expect(merged.conflicts).toEqual([]);
+    expect(merged.file.relations.map((each) => each.id)).toEqual(
+      mine.model.relations.map((each) => each.id),
+    );
+    expect(merged.file.elements.find((each) => each.id === 'api')?.name).toBe('Gateway');
+  });
+
+  it('still leaves out an addition that closes a cycle of its own beside a loop one side holds', () => {
+    const base = propertyProject();
+    const mine = done(base, {
+      type: 'batch',
+      label: 'Unnest and loop',
+      commands: [
+        {
+          type: 'define-relation-type',
+          package: 'test',
+          relationType: {
+            id: 'test.part-of',
+            name: 'is part of',
+            derivesFrom: 'relates-to',
+            direction: 'directed',
+            nests: false,
+          },
+        },
+        {
+          type: 'create-relation',
+          relation: { id: 'client-of-db', relationType: 'test.part-of', from: 'client', to: 'db' },
+        },
+        {
+          type: 'create-relation',
+          relation: { id: 'db-of-client', relationType: 'test.part-of', from: 'db', to: 'client' },
+        },
+        {
+          type: 'create-relation',
+          relation: {
+            id: 'contract-in-api',
+            relationType: 'test.inside',
+            from: 'contract',
+            to: 'api',
+          },
+        },
+      ],
+    });
+    // api is inside system, so system in contract closes contract → api → system → contract.
+    const yours = done(base, {
+      type: 'create-relation',
+      relation: {
+        id: 'system-in-contract',
+        relationType: 'test.inside',
+        from: 'system',
+        to: 'contract',
+      },
+    });
+    const merged = mergeFile('model', base.model, mine.model, yours.model, { nesting });
+    const ids = merged.file.relations.map((each) => each.id);
+    expect(ids).toEqual(
+      expect.arrayContaining(['client-of-db', 'db-of-client', 'contract-in-api']),
+    );
+    expect(ids).not.toContain('system-in-contract');
+    expect(merged.conflicts).toEqual([
+      expect.objectContaining({ item: 'relation:system-in-contract', why: 'cycle', kept: 'ours' }),
+    ]);
+  });
+
+  it('leaves out a package’s images when each side removed the others', () => {
+    const image = (id: string) => ({
+      kind: 'svg' as const,
+      id,
+      name: id,
+      width: 10,
+      height: 10,
+      svg: '<svg viewBox="0 0 10 10"></svg>',
+    });
+    const own = testProject().packages[0]!;
+    const base = { ...own, images: [image('test.a'), image('test.b')] };
+    const merged = mergeFile(
+      'package',
+      base,
+      { ...base, images: [image('test.b')] },
+      { ...base, images: [image('test.a')] },
+    );
+    expect(merged.conflicts).toEqual([]);
+    expect(merged.file).not.toHaveProperty('images');
+  });
+
   it('names the sides and keeps the conflicts both held, numbering new ones after them', () => {
     const base = testProject();
     const held: FileConflict = {
@@ -406,6 +535,48 @@ describe('a view’s lists', () => {
     expect(merged.file.collapsed).toEqual(['db', 'system']);
   });
 
+  it('leaves out a list each side emptied of what the other kept, as the file leaves out an empty one', () => {
+    // Found by the property "give valid files" (seed -1644032437): each side opened one of two
+    // collapsed containers, and the merge wrote `collapsed: []`, which a view file never holds.
+    const base = {
+      ...view(),
+      collapsed: ['api', 'system'],
+      relationTypesLeftOut: [{ relationType: 'test.calls' }, { relationType: 'test.reads' }],
+      scope: { added: ['api', 'db'] },
+    };
+    const merged = mergeFile(
+      'view',
+      base,
+      {
+        ...base,
+        collapsed: ['system'],
+        relationTypesLeftOut: [{ relationType: 'test.reads' }],
+        scope: { added: ['db'] },
+      },
+      {
+        ...base,
+        collapsed: ['api'],
+        relationTypesLeftOut: [{ relationType: 'test.calls' }],
+        scope: { added: ['api'] },
+      },
+    );
+    expect(merged.conflicts).toEqual([]);
+    expect(merged.file).not.toHaveProperty('collapsed');
+    expect(merged.file).not.toHaveProperty('relationTypesLeftOut');
+    expect(merged.file).not.toHaveProperty('scope');
+    const valid = validateFile('view', merged.file);
+    expect(valid.ok ? [] : valid.errors).toEqual([]);
+    // The lists a file keeps when empty stay, empty.
+    const nested = { ...view(), nestingRelationTypes: ['test.inside', 'test.part-of'] };
+    const both = mergeFile(
+      'view',
+      nested,
+      { ...nested, nestingRelationTypes: ['test.part-of'] },
+      { ...nested, nestingRelationTypes: ['test.inside'] },
+    );
+    expect(both.file.nestingRelationTypes).toEqual([]);
+  });
+
   it('merges the relation types it leaves out by relation type, and resolves one inside the list', () => {
     const base = { ...view(), relationTypesLeftOut: [{ relationType: 'test.calls' }] };
     const mine = { ...base, relationTypesLeftOut: [{ relationType: 'test.calls', exactly: true }] };
@@ -541,7 +712,40 @@ function mergeProjects(
   };
 }
 
-const edits = fc
+/** Two edits of one version, the ancestor's. */
+interface Edits {
+  base: ProjectSnapshot;
+  mine: ProjectSnapshot;
+  yours: ProjectSnapshot;
+}
+
+/**
+ * An intent to add a relation of a type that nests between two of the project's five elements, which
+ * come after World among the ends an intent picks from, before the relations.
+ */
+const nestingIntent: fc.Arbitrary<Intent> = fc.record({
+  kind: fc.constant('create-relation' as const),
+  type: fc.constantFrom(...NESTING.map((type) => RELATION_TYPES.indexOf(type))),
+  from: fc.integer({ min: 1, max: 5 }),
+  to: fc.integer({ min: 1, max: 5 }),
+});
+
+/**
+ * Two edits that each add nesting relations, and only those, so that together they close cycles
+ * that neither closes alone, which the actions at large reach too seldom to count on.
+ */
+const nestingEdits: fc.Arbitrary<Edits> = fc
+  .tuple(
+    fc.array(nestingIntent, { minLength: 1, maxLength: 6 }),
+    fc.array(nestingIntent, { minLength: 1, maxLength: 6 }),
+    fc.integer(),
+  )
+  .map(([left, right, seed]) => {
+    const base = propertyProject();
+    return { base, mine: evolve(base, left, seed + 1), yours: evolve(base, right, seed + 2) };
+  });
+
+const edits: fc.Arbitrary<Edits> = fc
   .tuple(
     fc.array(intent, { minLength: 0, maxLength: 20 }),
     fc.array(intent, { minLength: 1, maxLength: 20 }),
@@ -553,8 +757,12 @@ const edits = fc
     return { base, mine: evolve(base, left, seed + 1), yours: evolve(base, right, seed + 2) };
   });
 
-/** The model rules one file can tell: ids name one thing, relations end on what is there, no cycle. */
-function modelRules(model: ModelFile): string[] {
+/**
+ * The model rules one file can tell: ids name one thing, relations end on what is there, and no
+ * cycle that the merge closed. A relation on a cycle that one of the merged sides held, as that side
+ * held it, nests by a relation type that side's packages made not nest, so it is passed over.
+ */
+function modelRules(model: ModelFile, sides: readonly ModelFile[] = []): string[] {
   const broken: string[] = [];
   const ids = new Set<string>([model.world.id]);
   for (const each of [...model.elements, ...model.relations]) {
@@ -566,9 +774,32 @@ function modelRules(model: ModelFile): string[] {
       if (!ids.has(end)) broken.push(`"${relation.id}" ends on "${end}", which is not there`);
     }
   }
+  const held = (relation: ModelFile['relations'][number]) =>
+    sides.some((side) => {
+      const own = side.relations.find((each) => each.id === relation.id);
+      if (
+        own?.from !== relation.from ||
+        own.to !== relation.to ||
+        own.relationType !== relation.relationType
+      ) {
+        return false;
+      }
+      // On a cycle of that side when its end reaches its start there.
+      const reached = new Set<string>([own.to]);
+      const queue = [own.to];
+      for (let next = queue.pop(); next !== undefined; next = queue.pop()) {
+        for (const each of side.relations) {
+          if (each.from !== next || !nesting.has(each.relationType) || reached.has(each.to))
+            continue;
+          reached.add(each.to);
+          queue.push(each.to);
+        }
+      }
+      return reached.has(own.from);
+    });
   const containers = new Map<string, string[]>();
   for (const relation of model.relations) {
-    if (!nesting.has(relation.relationType)) continue;
+    if (!nesting.has(relation.relationType) || held(relation)) continue;
     containers.set(relation.from, [...(containers.get(relation.from) ?? []), relation.to]);
   }
   const open = new Set<string>();
@@ -592,56 +823,85 @@ const contentOf = (file: unknown) => {
   return rest;
 };
 
+/** Each file of one side merged with the ancestor as the other side: that side's file, unchanged. */
+function givesTheOtherSide({ base, mine }: Edits): void {
+  const older = filesOf(base);
+  for (const [key, file] of filesOf(mine)) {
+    const was = older.get(key);
+    if (!was) continue;
+    const left = mergeFile(file.kind, was.content, was.content, file.content, { nesting });
+    expect(left.conflicts, key).toEqual([]);
+    expect(left.file, key).toEqual(file.content);
+    const right = mergeFile(file.kind, was.content, file.content, was.content, { nesting });
+    expect(right.conflicts, key).toEqual([]);
+    expect(right.file, key).toEqual(file.content);
+  }
+}
+
+/** Every merged file valid, its conflicts' ids once each, and a model keeping its rules. */
+function givesValidFiles({ base, mine, yours }: Edits): void {
+  for (const { key, kind, file } of mergeProjects(base, mine, yours).merged) {
+    const valid = validateFile(kind, file);
+    expect(valid.ok ? [] : valid.errors, key).toEqual([]);
+    const conflicts = (file as { conflicts?: FileConflict[] }).conflicts ?? [];
+    expect(new Set(conflicts.map((each) => each.id)).size).toBe(conflicts.length);
+    if (kind === 'model') {
+      expect(modelRules(file as ModelFile, [mine.model, yours.model])).toEqual([]);
+    }
+  }
+}
+
 describe('merges, for any two edits of one version', () => {
   it('meet every kind of conflict the actions lead to', () => {
     const seen = new Set<string>();
-    fc.assert(
-      fc.property(edits, ({ base, mine, yours }) => {
-        for (const { file } of mergeProjects(base, mine, yours).merged) {
-          for (const each of (file as { conflicts?: FileConflict[] }).conflicts ?? []) {
-            seen.add(each.why);
-          }
+    const meet = ({ base, mine, yours }: Edits) => {
+      for (const { file } of mergeProjects(base, mine, yours).merged) {
+        for (const each of (file as { conflicts?: FileConflict[] }).conflicts ?? []) {
+          seen.add(each.why);
         }
-      }),
-      { numRuns: 300, seed: 20261028 },
-    );
+      }
+    };
+    fc.assert(fc.property(edits, meet), { numRuns: 300, seed: 20261028 });
+    // Cycles the two sides close together, from edits that add nesting relations.
+    fc.assert(fc.property(nestingEdits, meet), { numRuns: 60, seed: 20261102 });
     expect([...seen].sort()).toEqual(
-      ['both-added', 'both-changed', 'needs-removed', 'order', 'removed-and-changed'].sort(),
+      [
+        'both-added',
+        'both-changed',
+        'cycle',
+        'needs-removed',
+        'order',
+        'removed-and-changed',
+      ].sort(),
     );
   });
 
   it('give the other side where one side is unchanged', () => {
-    fc.assert(
-      fc.property(edits, ({ base, mine }) => {
-        const older = filesOf(base);
-        for (const [key, file] of filesOf(mine)) {
-          const was = older.get(key);
-          if (!was) continue;
-          const left = mergeFile(file.kind, was.content, was.content, file.content, { nesting });
-          expect(left.conflicts).toEqual([]);
-          expect(left.file).toEqual(file.content);
-          const right = mergeFile(file.kind, was.content, file.content, was.content, { nesting });
-          expect(right.conflicts).toEqual([]);
-          expect(right.file).toEqual(file.content);
-        }
-      }),
-      { numRuns: 60 },
-    );
+    fc.assert(fc.property(edits, givesTheOtherSide), { numRuns: 60 });
+  });
+
+  it('give the other side unchanged where it holds a cycle of a relation type it made not nest', () => {
+    // Found by the property above (seed 3066248): one side made "is part of" not nest and holds a
+    // loop of it; the merge, told it nests, took the loop out of the side the other left unchanged.
+    fc.assert(fc.property(edits, givesTheOtherSide), {
+      numRuns: 1,
+      seed: 3066248,
+      path: '541:0:1:1:5:2:10:11:10:11:10:11:10:10:12:11:10:11:11:11:11:11:11:11:12:24:9:34:34:32:32:32:32:32:32:32:32:32:32:32:32',
+    });
   });
 
   it('give valid files that keep the rules one file can tell', () => {
-    fc.assert(
-      fc.property(edits, ({ base, mine, yours }) => {
-        for (const { key, kind, file } of mergeProjects(base, mine, yours).merged) {
-          const valid = validateFile(kind, file);
-          expect(valid.ok ? [] : valid.errors, key).toEqual([]);
-          const conflicts = (file as { conflicts?: FileConflict[] }).conflicts ?? [];
-          expect(new Set(conflicts.map((each) => each.id)).size).toBe(conflicts.length);
-          if (kind === 'model') expect(modelRules(file as ModelFile)).toEqual([]);
-        }
-      }),
-      { numRuns: 60 },
-    );
+    fc.assert(fc.property(edits, givesValidFiles), { numRuns: 60 });
+    fc.assert(fc.property(nestingEdits, givesValidFiles), { numRuns: 30 });
+  });
+
+  it('give a valid view where each side opened one of the containers the other kept collapsed', () => {
+    // Found by the property above (seed -1644032437): the merge wrote `collapsed: []`.
+    fc.assert(fc.property(edits, givesValidFiles), {
+      numRuns: 1,
+      seed: -1644032437,
+      path: '34:1:0:1:4:6:7:9:7:11:2:2:2:2:7:7:7:8:11:11:6:6:9:10:10:9:9:6:5:5:6:6:8:6:6:8:9:8:8:7:7:7:7:7',
+    });
   });
 
   it('keep a relation that one side made nesting, closing a cycle, as it was, with what ends on it', () => {
@@ -650,7 +910,9 @@ describe('merges, for any two edits of one version', () => {
     fc.assert(
       fc.property(edits, ({ base, mine, yours }) => {
         for (const { kind, file } of mergeProjects(base, mine, yours).merged) {
-          if (kind === 'model') expect(modelRules(file as ModelFile)).toEqual([]);
+          if (kind === 'model') {
+            expect(modelRules(file as ModelFile, [mine.model, yours.model])).toEqual([]);
+          }
         }
       }),
       {
