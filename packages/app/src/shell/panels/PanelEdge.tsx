@@ -154,22 +154,25 @@ function OpenEdge({ store, side, controls }: PanelEdgeProps) {
         onLostPointerCapture={onPointerEnd}
         onDoubleClick={() => store.reset(side)}
       />
-      <button
-        ref={collapse}
-        type="button"
-        className={`panel-toggle panel-collapse panel-collapse-${side}`}
-        data-panel-edge={side}
-        aria-controls={controls}
-        aria-label={t(names.collapse)}
-        aria-keyshortcuts={PANEL_SHORTCUT[side]}
-        title={t('{name} ({shortcut})', {
-          name: t(names.collapse),
-          shortcut: PANEL_SHORTCUT_SHOWN[side],
-        })}
-        onClick={() => store.toggle(side)}
-      >
-        <names.Close />
-      </button>
+      {/* A band of its own at the panel's foot, which the panel ends above, so that it covers nothing. */}
+      <div className={`panel-foot panel-foot-${side}`}>
+        <button
+          ref={collapse}
+          type="button"
+          className="panel-toggle panel-collapse"
+          data-panel-edge={side}
+          aria-controls={controls}
+          aria-label={t(names.collapse)}
+          aria-keyshortcuts={PANEL_SHORTCUT[side]}
+          title={t('{name} ({shortcut})', {
+            name: t(names.collapse),
+            shortcut: PANEL_SHORTCUT_SHOWN[side],
+          })}
+          onClick={() => store.toggle(side)}
+        >
+          <names.Close />
+        </button>
+      </div>
     </>
   );
 }

@@ -91,22 +91,36 @@
   cursor: not-allowed;
 }
 
-.panel-collapse {
-  position: relative;
-  z-index: var(--z-toolbar);
+/*
+ * The collapse button sits in a band at the open panel's foot, as tall as the strip is wide, and the
+ * panel ends above it, so that the button never covers what the panel holds, such as the inspector's
+ * last line (A5.4). The edge, positioned, stays above the band.
+ */
+.panel-foot {
+  display: flex;
+  align-items: center;
   align-self: end;
-  margin: var(--space-50);
-  box-shadow: var(--shadow-1);
+  height: var(--panel-strip);
+  padding: 0 var(--space-50);
+  border-top: var(--stroke-thin) solid var(--border);
+  background: var(--panel);
 }
 
-.panel-collapse-model {
+.panel-foot-model {
   grid-area: model;
-  justify-self: end;
+  justify-content: flex-end;
+  border-right: var(--stroke-thin) solid var(--border);
 }
 
-.panel-collapse-inspector {
+.panel-foot-inspector {
   grid-area: inspector;
-  justify-self: start;
+  justify-content: flex-start;
+  border-left: var(--stroke-thin) solid var(--border);
+}
+
+.shell > .model-panel,
+.shell > .inspector {
+  margin-bottom: var(--panel-strip);
 }
 
 /* The strip a collapsed panel leaves. */

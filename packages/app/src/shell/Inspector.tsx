@@ -6,6 +6,7 @@ import { useEditor } from '../editor/EditorContext';
 import { selectionOf, sizeOf, type Selectable } from '../editor/selection';
 import { useT } from '../i18n';
 import { DefinitionInspector } from './definitions/DefinitionInspector';
+import { DrawingPanel } from './drawing/DrawingPanel';
 import { countsOf } from './inspector/describe';
 import { ElementInspector } from './inspector/ElementInspector';
 import { FreeShapeAppearance } from './inspector/FreeShapeAppearance';
@@ -74,6 +75,8 @@ export function Inspector({ view, scene, definitions, id, hidden }: InspectorPro
               )}
             </p>
             <ViewDetails view={view} scene={scene} definitions={definitions} />
+            {/* The drawing defaults of the project and of the open view (A5.4, ADR 0086). */}
+            <DrawingPanel />
             {view && <OverlaysSection view={view} />}
           </>
         )}
