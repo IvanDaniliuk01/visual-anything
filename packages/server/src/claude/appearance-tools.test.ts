@@ -378,3 +378,82 @@ describe('the colors of the project’s own definitions', () => {
     ]);
   });
 });
+
+describe('the format panel’s traits through Claude’s tools (ADR 0088)', () => {
+  it('sets an element’s style and text traits, and a relation’s opacity, each one action', async () => {
+    await tools.value('set_appearance', {
+      element: 'api',
+      appearanceTraits: {
+        borderWidth: 3,
+        shadow: 'soft',
+        gradient: { to: '#3E63DD', direction: 'right' },
+        text: { bold: true, size: 16, position: 'below' },
+      },
+    });
+    const api = () => state().model.elements.find((each) => each.id === 'api');
+    expect(api()?.appearance).toMatchObject({
+      borderWidth: 3,
+      shadow: 'soft',
+      gradient: { to: '#3E63DD', direction: 'right' },
+      text: { bold: true, size: 16, position: 'below' },
+    });
+    // One part of the text inherited again, the others kept.
+    await tools.value('set_appearance', {
+      element: 'api',
+      appearanceTraits: { text: { size: null } },
+    });
+    expect(api()?.appearance?.text).toEqual({ bold: true, position: 'below' });
+    await tools.value('update_relation', {
+      id: 'api-reads-db',
+      appearanceTraits: { opacity: 0.5 },
+    });
+    expect(relation('api-reads-db')?.appearance).toMatchObject({ opacity: 0.5 });
+    expect(tools.session.actions.map((each) => each.author)).toEqual([
+      'claude',
+      'claude',
+      'claude',
+    ]);
+  });
+
+  it('turns and mirrors a shape through set_positions, and keeps the turn through a move', async () => {
+    const position = () =>
+      state().views[0]?.positions.find(
+        (each) => each.element === 'api' && each.container === 'system',
+      );
+    await tools.value('set_positions', {
+      view: 'overview',
+      positions: [
+        { element: 'api', container: 'system', x: 200, y: 40, rotation: -90, flip: 'vertical' },
+      ],
+    });
+    expect(position()).toMatchObject({ rotation: 270, flip: 'vertical' });
+    await tools.value('set_positions', {
+      view: 'overview',
+      positions: [{ element: 'api', container: 'system', x: 208, y: 40 }],
+    });
+    expect(position()).toMatchObject({ x: 208, rotation: 270, flip: 'vertical' });
+    await tools.value('set_positions', {
+      view: 'overview',
+      positions: [
+        { element: 'api', container: 'system', x: 208, y: 40, rotation: 0, flip: 'none' },
+      ],
+    });
+    expect(position()?.rotation).toBeUndefined();
+    expect(position()?.flip).toBeUndefined();
+  });
+
+  it('names the new traits and the turn in the tools’ descriptions', () => {
+    const described = (name: string) => TOOLS.find((each) => each.name === name)?.description ?? '';
+    for (const trait of ['borderWidth', 'cornerRadius', 'opacity', 'shadow', 'gradient', 'text']) {
+      expect(described('set_appearance')).toContain(trait);
+    }
+    expect(described('set_appearance')).toContain('set_positions takes rotation and flip');
+    const input = TOOLS.find((each) => each.name === 'set_appearance')?.input as
+      Readonly<Record<string, { description?: string } | undefined>> | undefined;
+    const traits = input?.appearanceTraits?.description ?? '';
+    for (const part of ['borderWidth', 'cornerRadius', 'gradient', 'padding', 'position']) {
+      expect(traits).toContain(part);
+    }
+    expect(described('set_positions')).toContain('rotation');
+  });
+});

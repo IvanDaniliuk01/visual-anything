@@ -223,6 +223,7 @@ import { placeTextBlock, robotoMeasure } from '../canvas/textBlock';
 import { drawsDifferently } from '../text/drawn';
 import { detailPlainText } from '../text/detail';
 import { BASELINE_BELOW_MIDDLE, layOutBlocks, type LaidText } from '../text/layout';
+import { isTurned, levelShapeOf, svgTransformOf } from '../canvas/turn';
 
 /** The room left around the scene's bounds, in canvas units, as the PNG of the whole view keeps. */
 export const SVG_MARGIN = 32;
@@ -1200,10 +1201,17 @@ function isContainer(shape: ElementShape): boolean {
  * outline draws it (`outlineParts`), and an anchored part only its name, since its drawing's picture
  * shows it (ADR 0067).
  */
-function shapeParts(writer: Writer, shape: ElementShape): string {
+function shapeParts(writer: Writer, shape: ElementShape, writes = true): string {
   const { outline } = shape;
   // An anchored part of a solid is drawn by its drawing's picture, and traced over it (ADR 0075).
   if (isAnchoredSolidPart(shape)) return '';
+  // A turned or mirrored shape: its body in a group that turns it, its texts level (ADR 0088).
+  if (writes && isTurned(shape)) {
+    return (
+      element('g', { transform: svgTransformOf(shape) }, shapeParts(writer, shape, false)) +
+      turnedTexts(writer, shape)
+    );
+  }
   if (outline && shape.part?.inDrawing === true) {
     return outlinedText(writer, shape, outline, shape.part.color);
   }
@@ -1244,7 +1252,9 @@ function shapeParts(writer: Writer, shape: ElementShape): string {
           const picture = ownPicture();
           return picture === '' ? '' : element('g', { opacity: num(opacity) }, picture);
         };
-  if (outline) return outlineParts(writer, shape, outline, colors, face?.svg, fadedPicture);
+  if (outline) {
+    return outlineParts(writer, shape, outline, colors, face?.svg, fadedPicture, writes);
+  }
   if (drawsRows(shape)) {
     return (
       tableParts(writer, shape, colors) +
@@ -1307,12 +1317,34 @@ function shapeParts(writer: Writer, shape: ElementShape): string {
     if (drawing && !placeholder) body += plateOf(placed.box, colors.fill);
     body += fadedPicture();
   }
+  if (!writes) return body;
   // A drawing with parts that is no container writes its name in its name tag, under its box, and
   // a shape whose text names a side in a tag there (ADR 0088).
   if (nameTagOf(shape)) {
     return body + nameTagParts(writer, shape, colors) + (face?.svg ?? '');
   }
   return body + (face ? face.svg : shapeText(writer, shape, colors.fill));
+}
+
+/**
+ * What a turned or mirrored shape writes, level and never mirrored (ADR 0088): its name tag, its
+ * face, or its name and detail, inside its own outline's label area or in its level box.
+ */
+function turnedTexts(writer: Writer, shape: ElementShape): string {
+  const painted = shapeColors(shape, writer.theme.name);
+  const stroke = outlineColorOf(
+    shape.containerShape === undefined
+      ? painted
+      : { ...painted, containerShape: shape.containerShape },
+  );
+  const fill = shape.part ? shape.part.color : painted.fill;
+  const face = faceOf(writer, shape, { fill, stroke: painted.stroke });
+  if (nameTagOf(shape)) {
+    return nameTagParts(writer, shape, { fill, stroke }) + (face?.svg ?? '');
+  }
+  if (face) return face.svg;
+  if (shape.outline) return outlinedText(writer, shape, shape.outline, fill);
+  return shapeText(writer, levelShapeOf(shape), painted.fill);
 }
 
 /** A shape's face as SVG, and whether it draws the shape's own image as its `<icon/>`. */
@@ -2081,6 +2113,7 @@ function outlineParts(
   face?: string,
   ownPicture: () => string = () =>
     shape.image ? writer.picture(shape.image, shape.image.rect) : '',
+  writes = true,
 ): string {
   const fill = shape.part ? shape.part.color : colors.fill;
   // Its own border, opacity and gradient (ADR 0088), as the canvas draws them on an outline.
@@ -2109,6 +2142,7 @@ function outlineParts(
   const picture = shape.part ? ownPartPicture(writer, shape, shape.part) : undefined;
   if (picture) body += writer.picture(picture.image, picture.rect);
   else body += ownPicture();
+  if (!writes) return body;
   // A name that does not fit inside the outline whole is written in its name tag, under it, or at
   // the side its text names (ADR 0088).
   if (nameTagOf(shape)) {

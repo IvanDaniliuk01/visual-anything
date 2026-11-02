@@ -25,6 +25,7 @@ import type { ElementShape, RelationLine } from '../scene';
 import { automaticRoute, type AutomaticEnd } from './automatic';
 import { routeByHand, type Attach, type CurveSpan, type HandEnd, type RouteStyle } from './hand';
 import { endOutline, routeBoxOf } from './outline-ends';
+import { isTurned, turnKey } from '../turn';
 
 /** What a line drawn by hand holds besides its route, as `RelationLine` carries it. */
 export interface HandOfLine {
@@ -332,6 +333,7 @@ function automaticEnd(end: AnyEnd, shape: ElementShape | undefined): AutomaticEn
  * with its own outline, or a name tag, which is part of it.
  */
 function outlined(shape: ElementShape | undefined): boolean {
+  if (shape !== undefined && isTurned(shape)) return true;
   return (
     shape !== undefined &&
     shape.plate === undefined &&
@@ -359,7 +361,9 @@ function serialOf(item: object): number {
 function outlineKey(shape: ElementShape | undefined): string {
   if (!shape || !outlined(shape)) return '-';
   const tag = nameTagOf(shape);
-  const own = shape.outline ? `o${serialOf(shape.outline)}` : 'o-';
+  const outline = shape.outline ? `o${serialOf(shape.outline)}` : 'o-';
+  // A turn changes where lines attach (ADR 0088).
+  const own = isTurned(shape) ? `${outline}r${turnKey(shape)}` : outline;
   return tag ? `${own}t${serialOf(tag)}` : own;
 }
 

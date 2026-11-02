@@ -8,6 +8,7 @@
  * so the canvas draws the bands in order and draws every overlapping pair in drawing order, and the
  * shape under the pointer is the last one in that order that holds it: the one drawn on top.
  */
+import { outlineHolds } from '@visual-anything/core';
 import { holdsPoint, type Point, type Rect } from './geometry';
 import { boundsWithTag, drawnBoundsOf, nameTagOf, tagHolds } from './nameTags';
 import { OUTLINE_REACH, outlineBoundsOn, simplifiedHolds } from './outlined';
@@ -18,6 +19,7 @@ import { holdsDrawn } from './shape-images';
 import { SpatialIndex, overlaps, rectAround, segmentsOf, within } from './spatial';
 import { isAnchoredSolidPart } from './solidMark';
 import { boxHoldsSolidPart } from './solids/pointing';
+import { isTurned, turnedBounds, turnedOutlineOf, unturnPoint } from './turn';
 
 /** What lies at a point, topmost first: free shapes over relations over element shapes. */
 export type Hit =
@@ -548,6 +550,7 @@ function shapesUnder(
  */
 export function holdsAsDrawn(shape: ElementShape, point: Point, exact: boolean): boolean {
   if (tagHolds(shape, point, exact ? OUTLINE_REACH : 0)) return true;
+  if (isTurned(shape)) return turnedHolds(shape, point, exact);
   const { outline } = shape;
   if (outline) {
     return exact
@@ -558,13 +561,38 @@ export function holdsAsDrawn(shape: ElementShape, point: Point, exact: boolean):
 }
 
 /**
+ * Whether a turned or mirrored shape holds a point as it is drawn (ADR 0088): drawn in full, as its
+ * body holds the point carried back to where it would be drawn level; as a plain block, as its
+ * turned box does.
+ */
+function turnedHolds(shape: ElementShape, point: Point, exact: boolean): boolean {
+  if (!exact) {
+    const { fitted, x, y } = turnedOutlineOf(shape);
+    return outlineHolds(fitted, { x: point.x - shape.rect.x - x, y: point.y - shape.rect.y - y });
+  }
+  const level = unturnPoint(shape, point);
+  const { outline } = shape;
+  if (outline) {
+    const { rect } = shape;
+    return outlineHolds(
+      outline.fitted,
+      { x: level.x - rect.x - outline.x, y: level.y - rect.y - outline.y },
+      OUTLINE_REACH,
+    );
+  }
+  return holdsDrawn(shape, level);
+}
+
+/**
  * What box selection reads of a shape: the bounds of its own outline, which a dragged box must hold
- * whole (ADR 0066), or its rectangle; with its name tag, which is part of it.
+ * whole (ADR 0066), or its rectangle, turned as it is drawn (ADR 0088); with its name tag, which is
+ * part of it.
  */
 export function selectedBoxOf(shape: ElementShape): Rect {
-  const box = shape.outline
+  const level = shape.outline
     ? outlineBoundsOn({ rect: shape.rect, outline: shape.outline })
     : shape.rect;
+  const box = isTurned(shape) ? turnedBounds(shape, level) : level;
   const tag = nameTagOf(shape);
   return tag ? boundsWithTag(box, tag, shape.rect) : box;
 }

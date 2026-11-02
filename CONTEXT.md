@@ -576,6 +576,14 @@ _Avoid_: palette (alone, which is the component palette), preset color
 The inspector's tabs for the selection, Style, Text and Arrange, which set appearance as particularities of each selected element or relation and arrangement in the view (ADR 0088).
 _Avoid_: style panel, properties panel
 
+**Turn** (of a shape):
+How far a shape's position turns it clockwise about its middle in a view, in degrees, and whether it **mirrors** it in its own axes first (the position's `rotation` and `flip`): its body is drawn turned, its name stays level. Containers, rows and anchored parts never turn (ADR 0088).
+_Avoid_: rotate and flip (in the app's words; the file's fields keep those names), spin
+
+**Copy appearance**:
+Taking every Style and Text trait one element or relation is drawn with, to set them on the selection with **Paste appearance**, in one action (ADR 0088).
+_Avoid_: format painter, copy style
+
 **Computed value**:
 An attribute's value that a hook of package code computed: shown with a mark naming its package, and never saved, put in the history or sent to a file.
 _Avoid_: derived attribute, formula

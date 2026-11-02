@@ -25,6 +25,7 @@
  * Pure, over the core's outline maths, with no PixiJS; the layout worker never loads it.
  */
 import {
+  ellipseContour,
   fitOutline,
   flattenOutline,
   outlineExit,
@@ -39,6 +40,7 @@ import {
 import type { Point, Rect } from '../geometry';
 import { boundsWithTag, tagOfShape, type NameTag } from '../nameTags';
 import type { PlacedOutline, ShapeOutline } from '../outlines';
+import { isTurned, turnedBounds, turnedOutlineOf, type Outlinable } from '../turn';
 
 /** A side and a place along it, from 0 at its left or top end to 1 at the other. */
 export interface SidePlace {
@@ -72,9 +74,18 @@ export function endOutline(
   shape: { outline?: ShapeOutline; plate?: Rect } | undefined,
   rect: Rect,
 ): PlacedOutline | undefined {
-  if (!shape || shape.plate) return undefined;
+  if (!shape) return undefined;
+  // A turned or mirrored shape is attached on its outline as drawn (ADR 0088), its plate's too.
+  const turned =
+    'rect' in shape && isTurned(shape as Outlinable)
+      ? turnedOutlineOf(shape as Outlinable)
+      : undefined;
+  if (!turned && shape.plate) return undefined;
+  const own = turned ?? shape.outline;
   const tag = tagOfShape(shape);
-  const outline = tag ? taggedOutline(shape.outline, rect, tag) : shape.outline;
+  // An ellipse with a tag at its side is attached on its curve and its tag (ADR 0088).
+  const ellipse = !own && 'kind' in shape && shape.kind === 'ellipse';
+  const outline = tag ? taggedOutline(own, rect, tag, ellipse) : own;
   if (!outline) return undefined;
   return { fitted: outline.fitted, x: rect.x + outline.x, y: rect.y + outline.y };
 }
@@ -85,6 +96,19 @@ export function endOutline(
  * (ADR 0066's clarification of 2026-10-27).
  */
 export function routeBoxOf(shape: { plate?: Rect } | undefined, rect: Rect): Rect {
+  if (shape && 'rect' in shape && isTurned(shape as Outlinable)) {
+    // A turned shape is reached by the box it is drawn in, moved as `rect` is (ADR 0088).
+    const turned = shape as Outlinable;
+    const box = turnedBounds(turned);
+    const at = {
+      x: box.x + rect.x - turned.rect.x,
+      y: box.y + rect.y - turned.rect.y,
+      width: box.width,
+      height: box.height,
+    };
+    const tag = tagOfShape(shape);
+    return tag ? boundsWithTag(at, tag, rect) : at;
+  }
   const tag = shape?.plate ? undefined : tagOfShape(shape);
   return tag ? boundsWithTag(rect, tag, rect) : rect;
 }
@@ -100,19 +124,29 @@ interface TaggedFit {
 }
 
 const taggedFits = new WeakMap<FittedOutline, TaggedFit>();
-const taggedOutlines = new WeakMap<NameTag, { fitted: FittedOutline; x: number; y: number }>();
+const taggedOutlines = new WeakMap<
+  NameTag,
+  Map<object | string, { fitted: FittedOutline; x: number; y: number }>
+>();
 
 /**
- * A shape's outline, or its box for a shape drawn as its kind, with its name tag as one more fill of
- * it, placed from the top left of its rectangle as its outline is: made once for each tag, which is
- * made once for each outline and texts.
+ * A shape's outline, or its box for a shape drawn as its kind, its ellipse for an ellipse, with its
+ * name tag as one more fill of it, placed from the top left of its rectangle as its outline is: made
+ * once for each tag and outline, or tag and kind; a tag is made once for each outline and texts.
  */
 function taggedOutline(
   outline: ShapeOutline | undefined,
   rect: Rect,
   tag: NameTag,
+  ellipse = false,
 ): { fitted: FittedOutline; x: number; y: number } {
-  const known = taggedOutlines.get(tag);
+  let byOwn = taggedOutlines.get(tag);
+  if (!byOwn) {
+    byOwn = new Map();
+    taggedOutlines.set(tag, byOwn);
+  }
+  const ownKey = outline ?? (ellipse ? 'ellipse' : 'box');
+  const known = byOwn.get(ownKey);
   if (known) return known;
   const fitted = outline?.fitted;
   const x = outline?.x ?? 0;
@@ -121,7 +155,9 @@ function taggedOutline(
   const height = fitted?.height ?? rect.height;
   const own: readonly OutlineContour[] = fitted
     ? fitted.contours
-    : [rectangleContour({ x: 0, y: 0, width, height }, 0)];
+    : ellipse
+      ? [ellipseContour(width / 2, height / 2, width / 2, height / 2)]
+      : [rectangleContour({ x: 0, y: 0, width, height }, 0)];
   const groups = own.reduce((most, contour) => Math.max(most, contour.group ?? 0), 0);
   const box = { x: tag.x - x, y: tag.y - y, width: tag.width, height: tag.height };
   const bounds = fitted?.bounds ?? { x: 0, y: 0, width, height };
@@ -146,7 +182,7 @@ function taggedOutline(
     fitted.contours.length > 0 &&
     fitted.contours.every((contour) => contour.role === 'line');
   taggedFits.set(made.fitted, { inner, strokes, tag: box });
-  taggedOutlines.set(tag, made);
+  byOwn.set(ownKey, made);
   return made;
 }
 

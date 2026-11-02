@@ -199,6 +199,7 @@ import {
   type SolidAnchor,
   type SolidLook,
 } from './shape-solids';
+import type { Flip } from './turn';
 
 /** Everything a view draws. */
 export interface Scene {
@@ -248,6 +249,15 @@ export interface ElementShape {
   storedSize?: { width?: number; height?: number };
   /** Whether the view stores its position, and whether that position was set by hand. */
   positioned: 'pinned' | 'stored' | 'placed';
+  /**
+   * How far its position turns it clockwise about its middle, in degrees, above 0 and below 360
+   * (ADR 0088): its body, outline, picture and shadow are drawn turned, its name level (`turn.ts`).
+   * Absent on a shape not turned, and on one that is never turned: a container, a row, a shape that
+   * draws rows, a region and an anchored part.
+   */
+  rotation?: number;
+  /** How its position mirrors it in its own axes, before it turns (ADR 0088); its name never is. */
+  flip?: Flip;
   name: string;
   componentName: string;
   /**
@@ -2616,7 +2626,9 @@ function onlyMoved(was: ShapePosition | undefined, now: ShapePosition | undefine
     now !== undefined &&
     (was.pinned ?? false) === (now.pinned ?? false) &&
     was.width === now.width &&
-    was.height === now.height
+    was.height === now.height &&
+    was.rotation === now.rotation &&
+    was.flip === now.flip
   );
 }
 
@@ -2755,8 +2767,21 @@ function shapeFor(
     picture === undefined &&
     plate === undefined &&
     face === undefined;
+  // A turn and a mirror apply to shapes that hold nothing and are no rows (ADR 0088).
+  const turns =
+    position !== undefined &&
+    !holdsContents &&
+    collapsed === undefined &&
+    !region &&
+    !appearance.contentsAsRows &&
+    rowish.row === undefined &&
+    part?.inDrawing !== true;
+  const rotation = turns ? position.rotation : undefined;
+  const flip = turns ? position.flip : undefined;
   if (
     before &&
+    before.rotation === rotation &&
+    before.flip === flip &&
     sameRowFields(before, rowish) &&
     (before.region === true) === region &&
     before.collapsed?.component === collapsed?.component &&
@@ -2824,6 +2849,8 @@ function shapeFor(
   };
   if (container !== undefined) shape.container = container;
   if (path !== undefined) shape.containerShape = path;
+  if (rotation !== undefined) shape.rotation = rotation;
+  if (flip !== undefined) shape.flip = flip;
   if (position && (position.width !== undefined || position.height !== undefined)) {
     shape.storedSize = {};
     if (position.width !== undefined) shape.storedSize.width = position.width;
@@ -3476,6 +3503,8 @@ function routeEndOf(
 export function routeEndOfShape(shape: ElementShape): { rect: Rect } | { point: Point } {
   const point = shape.part?.point;
   if (point) return { point };
+  // A turned shape is attached on its turned outline, placed from its rectangle (ADR 0088).
+  if (shape.rotation !== undefined || shape.flip !== undefined) return { rect: shape.rect };
   return { rect: shape.plate ?? shape.rect };
 }
 
@@ -3777,13 +3806,15 @@ const relationLines = new WeakMap<readonly RelationLine[], Map<Id, RelationLine>
 
 /**
  * Whether lines attach to a shape elsewhere than before: its rectangle, the plate of a shape drawn by
- * its picture, its own outline or its name tag changed, so that the lines on it are routed again.
+ * its picture, its own outline, its turn or mirroring (ADR 0088) or its name tag changed, so that the lines on it are routed again.
  */
 function attachesElsewhere(before: ElementShape, after: ElementShape): boolean {
   return (
     !sameRect(before.rect, after.rect) ||
     !sameRect(before.plate, after.plate) ||
     before.outline !== after.outline ||
+    before.rotation !== after.rotation ||
+    before.flip !== after.flip ||
     nameTagOf(before) !== nameTagOf(after)
   );
 }

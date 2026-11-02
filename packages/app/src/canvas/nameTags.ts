@@ -32,6 +32,7 @@ import type { ShapeOutline } from './outlines';
 import { nameLinesOf } from './nameLines';
 import { nameLookOf, type ShapeText, type TagSide } from './shapeText';
 import { robotoMeasure } from './textBlock';
+import { isTurned, turnKey, turnedBounds, type Turn } from './turn';
 
 /** How far in from its left and right sides a name tag writes its text, in canvas units. */
 export const TAG_INSET = 8;
@@ -101,7 +102,7 @@ export type Tagged = Parameters<typeof writesNameBelow>[0] & {
   rowCount?: number;
   /** How it writes its name (ADR 0088): in a tag at a side of its own, in a font of its own. */
   text?: ShapeText;
-};
+} & Turn;
 
 /** The corner radius of a name tag, as a rounded rectangle's is (`draw.ts`). */
 export function tagRadius(
@@ -180,14 +181,16 @@ function takesSideTag(shape: Tagged): boolean {
 function tagFor(shape: Tagged): NameTag {
   const { rect, outline } = shape;
   const hung = outline !== undefined && shape.picture === undefined;
-  const bounds = hung
+  const level = hung
     ? outlineBoundsOn({ rect, outline })
     : { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  // A turned shape hangs its tag, level, from the bounds it is drawn in (ADR 0088).
+  const bounds = isTurned(shape) ? turnedBounds(shape, level) : level;
   const bx = bounds.x - rect.x;
   const by = bounds.y - rect.y;
   const detail = outlinedDetailOf(shape);
   const look = shape.text && tagLookKey(shape.text);
-  const key = `${bx} ${by} ${bounds.width} ${bounds.height}\u0000${shape.name}\u0000${detail}\u0000${look ?? ''}`;
+  const key = `${bx} ${by} ${bounds.width} ${bounds.height} ${turnKey(shape)}\u0000${shape.name}\u0000${detail}\u0000${look ?? ''}`;
   const from = hung ? outline : UNHUNG;
   let kept = made.get(from);
   if (!kept) {
@@ -309,7 +312,9 @@ export function placedTag(tag: NameTag, rect: { x: number; y: number }): Rect {
 export function drawnBoundsOf(shape: Tagged): Rect {
   const { rect } = shape;
   const tag = nameTagOf(shape);
-  return tag ? boundsWithTag(rect, tag, rect) : rect;
+  // A turned shape covers its turned bounds (ADR 0088).
+  const box = isTurned(shape) ? turnedBounds(shape) : rect;
+  return tag ? boundsWithTag(box, tag, rect) : box;
 }
 
 /** A box and a tag placed for `at` together: the rectangle holding both. */
