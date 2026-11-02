@@ -4319,6 +4319,11 @@ export const messages: Catalog = {
     'El componente "{id}" del paquete "{package}" debería empezar con "{prefix}.".',
   'The relation type "{id}" of package "{package}" should start with "{prefix}.".':
     'El tipo de relación "{id}" del paquete "{package}" debería empezar con "{prefix}.".',
+  // Kinematics (ADR 0090).
+  '{members} are attached to each other in a cycle, so their joints move none of them.':
+    '{members} están unidos entre sí en un ciclo, así que sus articulaciones no mueven a ninguno.',
+  'The position of "{name}", {value}, is outside its limits, from {lower} to {upper}; it is drawn at the nearest one.':
+    'La posición de "{name}", {value}, está fuera de sus límites, de {lower} a {upper}; se dibuja en el más cercano.',
   'The components {members} derive from each other in a cycle.':
     'Los componentes {members} derivan unos de otros en un ciclo.',
   'The relation types {members} derive from each other in a cycle.':
@@ -7925,6 +7930,8 @@ export const builtins: Readonly<
       upperLimit:
         'La posición más alta que alcanza: un ángulo en grados si gira, una distancia en metros si se desliza.',
       axis: 'El eje sobre el que gira o a lo largo del cual se desliza, en su propio marco, como "0 0 1".',
+      position:
+        'Dónde está ahora entre sus límites: un ángulo en grados si gira, una distancia en metros si se desliza. Mueve todo lo que la articulación sostiene (ADR 0090).',
     },
   },
   'physical-ai.sensor': {

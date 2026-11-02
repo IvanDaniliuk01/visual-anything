@@ -6,6 +6,9 @@
  * - an anchored part of a solid shown by an element in physical space (ADR 0075), drawn as its node
  *   there. A pose it has is kept and not used.
  *
+ * Joints then move what they carry (ADR 0090, `kinematics.ts`): each element's matrix is its motion
+ * applied to where it is at rest.
+ *
  * An element is in physical space at most once. Poses never form a cycle, since `in` is always one of
  * the element's containers and containment never forms one (ADR 0019); a pose whose `in` is not one
  * of them is kept and not used (`pose-not-in-container`).
@@ -25,6 +28,7 @@ import { shownByScope } from '../scope';
 import { definitionsIn, modelIndexOf } from '../state';
 import { solidAnchoredElements } from '../solids/anchoring';
 import { solidShownBy, solidsIn } from '../solids/catalog';
+import { motionsOf } from './kinematics';
 import { poseIsUsable } from './pose';
 import {
   IDENTITY,
@@ -71,6 +75,12 @@ export interface Space {
    * show: drawn faintly, as a container of what a filter shows is.
    */
   readonly faint: ReadonlyMap<Id, SpaceEntry>;
+  /**
+   * How joints move what they carry (ADR 0090): for each element they move, the motion its matrix
+   * applies to where it is at rest, in the root's coordinates. The panel turns an anchored part's
+   * node of its holder's solid by it. Left out, or without an element, where nothing moves.
+   */
+  readonly motions?: ReadonlyMap<Id, Matrix>;
 }
 
 interface Placed {
@@ -83,8 +93,16 @@ interface Placed {
  * What is in physical space under `root`, World when left out, for `view`: every element in it, how
  * it is there and where, as the open view shows it. Without a view, the whole model.
  */
-export function spaceOf(project: ProjectSnapshot, view?: ViewFile, root?: Id): Space {
-  const placed = placeAll(project, root);
+export function spaceOf(
+  project: ProjectSnapshot,
+  view?: ViewFile,
+  root?: Id,
+  positions?: ReadonlyMap<Id, number>,
+): Space {
+  const { placed, motions } =
+    positions === undefined || positions.size === 0
+      ? placeAll(project, root)
+      : moved(project, placeAll(project, root).rest, positions);
   const rootId = root ?? project.model.world.id;
   const shown = view ? shownByScope(project, view) : undefined;
   const drawnAsOf =
@@ -103,7 +121,13 @@ export function spaceOf(project: ProjectSnapshot, view?: ViewFile, root?: Id): S
       }
     }
   }
-  return { root: rootId, entries, faint };
+  const shownMotions = new Map([...motions].filter(([id]) => entries.has(id) || faint.has(id)));
+  return {
+    root: rootId,
+    entries,
+    faint,
+    ...(shownMotions.size > 0 ? { motions: shownMotions } : {}),
+  };
 }
 
 /**
@@ -138,25 +162,63 @@ function collapsedHolders(
   return holderOf;
 }
 
-const placements = new WeakMap<
-  object,
-  { packages: unknown; byRoot: Map<Id, ReadonlyMap<Id, Placed>> }
->();
+/** Elements in physical space, as joints at their positions move them, and the motions. */
+interface Placement {
+  readonly placed: ReadonlyMap<Id, Placed>;
+  readonly motions: ReadonlyMap<Id, Matrix>;
+  /** Where each is at rest, before joints move it. */
+  readonly rest: ReadonlyMap<Id, Placed>;
+}
 
-/** Every element in physical space under a root, whatever a view shows; kept per model and root. */
-function placeAll(project: ProjectSnapshot, root?: Id): ReadonlyMap<Id, Placed> {
+const placements = new WeakMap<object, { packages: unknown; byRoot: Map<Id, Placement> }>();
+
+/** The elements at rest moved by their joints, at their own positions or at `positions`. */
+function moved(
+  project: ProjectSnapshot,
+  rest: ReadonlyMap<Id, Placed>,
+  positions?: ReadonlyMap<Id, number>,
+): Placement {
+  const motions = motionsOf(
+    project,
+    new Map(
+      [...rest].map(([id, { entry }]) => [
+        id,
+        entry.in === undefined ? { matrix: entry.matrix } : { matrix: entry.matrix, in: entry.in },
+      ]),
+    ),
+    positions,
+  );
+  if (motions.size === 0) return { placed: rest, motions, rest };
+  const placed = new Map<Id, Placed>();
+  for (const [id, each] of rest) {
+    const motion = motions.get(id);
+    placed.set(
+      id,
+      motion === undefined
+        ? each
+        : { ...each, entry: { ...each.entry, matrix: multiply(motion, each.entry.matrix) } },
+    );
+  }
+  return { placed, motions, rest };
+}
+
+/**
+ * Every element in physical space under a root, whatever a view shows, moved by its joints at their
+ * own positions; kept per model and root.
+ */
+function placeAll(project: ProjectSnapshot, root?: Id): Placement {
   const rootId = root ?? project.model.world.id;
   let kept = placements.get(project.model);
   if (kept === undefined || kept.packages !== project.packages) {
     kept = { packages: project.packages, byRoot: new Map() };
     placements.set(project.model, kept);
   }
-  let placed = kept.byRoot.get(rootId);
-  if (placed === undefined) {
-    placed = place(project, rootId);
-    kept.byRoot.set(rootId, placed);
+  let placement = kept.byRoot.get(rootId);
+  if (placement === undefined) {
+    placement = moved(project, place(project, rootId));
+    kept.byRoot.set(rootId, placement);
   }
-  return placed;
+  return placement;
 }
 
 function place(project: ProjectSnapshot, rootId: Id): Map<Id, Placed> {
@@ -270,7 +332,7 @@ export function poseIn(
   element: Id,
   container: Id | undefined,
 ): Pose | undefined {
-  const placed = placeAll(project);
+  const { placed } = placeAll(project);
   const self = placed.get(element);
   const holder = placed.get(container ?? project.model.world.id);
   if (!self || !holder) return undefined;

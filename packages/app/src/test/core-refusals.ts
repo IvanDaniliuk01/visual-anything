@@ -9,6 +9,7 @@ import {
   HISTORY_WEIGHT_LIMIT,
   PROPOSAL_LIMIT,
   acceptProposal,
+  builtinPackage,
   anchoringCommand,
   checkProject,
   cleanSvg,
@@ -2204,6 +2205,53 @@ function drawings(sample: ProjectSnapshot): Said[] {
 }
 
 /** Everything these fixtures make the core say. */
+/** A robot's joints as they open (ADR 0090): one past its limits, and links attached in a cycle. */
+function kinematicsOnOpening(sample: ProjectSnapshot): [string, ProjectSnapshot][] {
+  const physicalAi = builtinPackage('physical-ai') as PackageFile;
+  const withRobot = (elements: Element[], relations: Relation[]): ProjectSnapshot => ({
+    ...sample,
+    project: { ...sample.project, packages: [...sample.project.packages, 'physical-ai'] },
+    packages: [...sample.packages, physicalAi],
+    model: {
+      ...sample.model,
+      elements: [...sample.model.elements, ...elements],
+      relations: [...sample.model.relations, ...relations],
+    },
+  });
+  const attached = (from: string, to: string): Relation => ({
+    id: `${from}-on-${to}`,
+    relationType: 'physical-ai.is-attached-to',
+    from,
+    to,
+  });
+  return [
+    [
+      'a joint past its limits',
+      withRobot(
+        [
+          {
+            id: 'elbow',
+            component: 'physical-ai.joint',
+            name: 'Elbow',
+            attributes: { kind: 'revolute', lowerLimit: -90, upperLimit: 90, position: 120 },
+          },
+        ],
+        [],
+      ),
+    ],
+    [
+      'links attached in a cycle',
+      withRobot(
+        [
+          { id: 'upper-arm', component: 'physical-ai.link', name: 'Upper arm' },
+          { id: 'forearm', component: 'physical-ai.link', name: 'Forearm' },
+        ],
+        [attached('upper-arm', 'forearm'), attached('forearm', 'upper-arm')],
+      ),
+    ],
+  ];
+}
+
 export function coreRefusals(): Said[] {
   const sample = loadSample();
   const said: Said[] = [];
@@ -2220,6 +2268,7 @@ export function coreRefusals(): Said[] {
   said.push(...anchoring(sample));
   for (const [name, command] of DECISIONS) said.push(...runInOrder(sample, name, [command]));
   for (const [name, state] of decisionsOnOpening(sample)) said.push(...checked(name, state));
+  for (const [name, state] of kinematicsOnOpening(sample)) said.push(...checked(name, state));
   said.push(...cleaningRefusals());
   said.push(...drawings(sample));
   said.push(...mergeConflicts(sample));

@@ -25,3 +25,12 @@ M9 draws a solid inside its shape and M10 places elements in physical space with
 - **Positions only in poses, without joints:** rejected. Moving a shoulder would mean moving each link by hand, and limits could not be checked.
 - **Animations stored in the solid (glTF animations):** kept as M9 has them, played when asked; they are a file's own clip, not the model's joints, and they cannot follow a scenario or a simulation.
 - **A physics engine now (Rapier in WebAssembly):** left for later by the user's choice, as heavier work and heavier for the laptop.
+
+## Clarifications
+
+- 2026-11-02 (M15.0, the seam, in the main session):
+  - **The chain.** An element's parent in the chain is what it is attached to, through `physical-ai.is-attached-to` or a relation type derived from it (the robot-arm sample's "is mounted on" is one), when that is in physical space; otherwise what it is posed or anchored in. The first attachment an element starts counts. An attachment that closes a cycle is not followed, and opening warns (`attachment-cycle`).
+  - **The motion.** Each element's matrix is the product, from the top down, of the motions of the joints above it, each worked out where that joint stands at rest, applied to where the element is at rest: a joint turns what it carries, not its own body. A joint's axis is read in its own frame, which for a joint anchored to a part of a solid is the solid's axes (glTF's, +Y up); its pivot is its origin, which for an anchored part is the part's point. `revolute` and `prismatic` positions are drawn within the limits, `continuous` turns without end, `fixed` and a joint without a readable axis move nothing. A position past its limits is warned about on opening (`joint-out-of-limits`).
+  - **Where it lives.** `core/src/space/kinematics.ts`; `spaceOf(project, view, root, positions)` takes positions over the joints' own, as sliders and tours give them; `Space.motions` holds each moved element's motion, which the panel applies to an anchored part's node of its holder's solid, since a solid's parts are flat in the files seen so far (the robot-arm sample's are). `poseIn` measures from where things are once moved.
+  - **Tours** give positions in a step's view state, `space.joints`, by joint id. Scenario steps take none in the seam; M15.2 plays them through the tour's stage and simulation, and may add them to steps with a clarification here.
+  - **The sample's axes** are written as a robot's description would write them, with +Z up, while its solid is +Y up: M15.3 writes them in the solid's axes.

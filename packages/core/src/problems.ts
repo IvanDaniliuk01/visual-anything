@@ -83,6 +83,9 @@ export type ProblemCode =
   // one of its element's containers, kept and not used.
   | 'invalid-pose'
   | 'pose-not-in-container'
+  // Kinematics (ADR 0090), only as warnings: attachments in a cycle, a joint past its limits.
+  | 'attachment-cycle'
+  | 'joint-out-of-limits'
   // Faces (ADR 0083): markup or style outside the subset, a face past its caps, and, only as
   // warnings, a slot naming an attribute the component lacks and text that reads poorly.
   | 'invalid-face'

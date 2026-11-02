@@ -145,6 +145,13 @@ export const PHYSICAL_AI: PackageFile = {
           description:
             'The axis it turns about or slides along, in its own frame, such as "0 0 1".',
         },
+        {
+          name: 'position',
+          type: 'number',
+          default: 0,
+          description:
+            'Where it is now between its limits: an angle in degrees for a joint that turns, a distance in metres for one that slides. It moves everything the joint carries (ADR 0090).',
+        },
       ],
       appearance: {
         shape: 'ellipse',

@@ -11,3 +11,14 @@ export {
   poseWarnings,
 } from './pose';
 export { pointInSpace, poseIn, spaceOf, type Space, type SpaceEntry, type SpaceHow } from './space';
+export {
+  ATTACHED_TO,
+  JOINT_COMPONENT,
+  attachmentsOf,
+  axisOf,
+  isJoint,
+  jointMotionOf,
+  kinematicsWarnings,
+  motionMatrix,
+  type JointMotion,
+} from './kinematics';
