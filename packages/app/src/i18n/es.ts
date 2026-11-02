@@ -3640,6 +3640,46 @@ export const ui: Catalog = {
   'As picked': 'Tal como se eligieron',
   'Adapted to the dark canvas': 'Adaptados al lienzo oscuro',
   'Drawn {color} on the dark canvas': 'Se dibuja {color} en el lienzo oscuro',
+  // A6.2: the format panel's Text tab (ADR 0088).
+  'Roboto Mono': 'Roboto Mono',
+  'Text size': 'Tamaño del texto',
+  Weight: 'Grosor de la letra',
+  Italics: 'Cursiva',
+  Upright: 'Recta',
+  Italic: 'Cursiva',
+  Underline: 'Subrayado',
+  'Not underlined': 'Sin subrayar',
+  Underlined: 'Subrayado',
+  Alignment: 'Alineación',
+  'Aligned left': 'Alineado a la izquierda',
+  Centered: 'Centrado',
+  'Aligned right': 'Alineado a la derecha',
+  'Where its name is written': 'Dónde se escribe su nombre',
+  'Inside the shape': 'Dentro de la forma',
+  'In a tag above': 'En una etiqueta arriba',
+  'In a tag below': 'En una etiqueta abajo',
+  'In a tag at the left': 'En una etiqueta a la izquierda',
+  'In a tag at the right': 'En una etiqueta a la derecha',
+  'Text color': 'Color del texto',
+  'Text background': 'Relleno detrás del texto',
+  'Text border': 'Borde del texto',
+  'Long names': 'Nombres largos',
+  'Wrapped onto more lines': 'En varias líneas',
+  'On one line, cut with “…”': 'En una línea, cortados con “…”',
+  'Text padding': 'Margen interno del texto',
+  'reads on its fill': 'se lee sobre su relleno',
+  'Roboto Mono is written upright in one weight: bold and italics apply to the other fonts.':
+    'Roboto Mono se escribe recta y en un solo peso: la negrita y la cursiva se aplican a las otras fuentes.',
+  'Containers, tables and rows write their names as always; a container takes only the text color.':
+    'Los contenedores, las tablas y las filas escriben sus nombres como siempre; un contenedor toma solo el color del texto.',
+  'Its text reads poorly on its fill on the light canvas ({ratio}); text needs 4.5:1.':
+    'Su texto se lee mal sobre su relleno en el lienzo claro ({ratio}); el texto necesita 4,5:1.',
+  'Its text reads poorly on its fill on the dark canvas ({ratio}); text needs 4.5:1.':
+    'Su texto se lee mal sobre su relleno en el lienzo oscuro ({ratio}); el texto necesita 4,5:1.',
+  'Its text reads poorly on its background on the light canvas ({ratio}); text needs 4.5:1.':
+    'Su texto se lee mal sobre el relleno detrás de él en el lienzo claro ({ratio}); el texto necesita 4,5:1.',
+  'Its text reads poorly on its background on the dark canvas ({ratio}); text needs 4.5:1.':
+    'Su texto se lee mal sobre el relleno detrás de él en el lienzo oscuro ({ratio}); el texto necesita 4,5:1.',
   // A6.1: the format panel and its Style tab (ADR 0088).
   Arrange: 'Disposición',
   Gradient: 'Degradado',
@@ -3993,6 +4033,8 @@ export const messages: Catalog = {
   'Change the appearance of {n} shapes': 'Cambiar la apariencia de {n} formas',
   'Change the style of {n} shapes': 'Cambiar el estilo de {n} formas',
   'Change the style of {n} lines': 'Cambiar el estilo de {n} líneas',
+  // A6.2: the Text tab's changes of several shapes (ADR 0088).
+  'Change the text of {n} shapes': 'Cambiar el texto de {n} formas',
 
   // The labels of what the component editor and the Components tab change.
   'Use the package "{name}"': 'Usar el paquete "{name}"',

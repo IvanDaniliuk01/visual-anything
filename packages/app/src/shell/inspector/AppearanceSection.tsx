@@ -38,6 +38,7 @@ import {
 } from './recolor';
 import { SHAPES, isShape } from './shapes';
 import { StyleTraitInput } from './StyleTraitInput';
+import { ElementTextTraits } from './TextSection';
 import {
   SHAPE_STYLE_ROWS,
   borderHints,
@@ -123,6 +124,14 @@ export function AppearanceSection({
       }
       text={
         <>
+          <ElementTextTraits
+            // A new set of rows for each scope, so that a choice on its way is not shown in the other.
+            key={`text-${scope}`}
+            element={element}
+            definitions={definitions}
+            disabled={disabled}
+            ofComponent={ofComponent}
+          />
           <TextPlacementRow
             // A new row for each scope, so that a choice on its way is not shown in the other.
             key={scope}

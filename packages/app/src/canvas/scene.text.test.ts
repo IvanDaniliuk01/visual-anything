@@ -446,8 +446,7 @@ describe('the SVG', () => {
 
 describe('shapeTextOf', () => {
   it('gives nothing for an empty text', () => {
-    expect(
-      shapeTextOf({ ...(shapeIn(sample) as never), text: {} } as never, 'as-stored'),
-    ).toBeUndefined();
+    expect(shapeTextOf({ text: {} } as never, 'as-stored')).toBeUndefined();
+    expect(shapeTextOf({ text: { size: 9 } } as never, 'as-stored')).toEqual({ size: 9 });
   });
 });
