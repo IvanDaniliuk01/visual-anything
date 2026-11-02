@@ -22,8 +22,8 @@
 
 /* Snapping waits for the grid: while it cannot take effect, its toggle does not look pressed. */
 .canvas-toolbar-grid button:disabled[aria-pressed='true'] {
-  border-color: var(--control-border);
-  background: var(--surface-raised);
+  border-color: transparent;
+  background: transparent;
   color: var(--text-muted);
 }
 
@@ -59,11 +59,6 @@
 .canvas-frame[data-rulers] .canvas-toolbar {
   top: calc(var(--space-60) + var(--ruler-size));
   left: calc(var(--space-60) + var(--ruler-size));
-}
-
-.canvas-frame[data-rulers] .canvas-keys {
-  left: calc(var(--space-60) + var(--ruler-size));
-  max-width: calc(100% - var(--size-120) - var(--ruler-size));
 }
 
 .canvas-frame[data-rulers] .canvas-message {

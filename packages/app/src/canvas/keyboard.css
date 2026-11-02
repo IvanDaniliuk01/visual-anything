@@ -1,23 +1,14 @@
-/* The canvas's keyboard help, in its bottom left corner. Text meets WCAG 2.1 AA contrast (4.5:1). */
+/*
+ * The canvas's keyboard help, in the canvas toolbar (A5): its button takes the toolbar's look
+ * (styles.css), and the list of keys opens in a panel under it, or under More within More's panel.
+ * Text meets WCAG 2.1 AA contrast (4.5:1).
+ */
 
 .canvas-keys {
-  position: absolute;
-  bottom: var(--space-60);
-  left: var(--space-60);
-  z-index: var(--z-toolbar);
-  max-width: calc(100% - var(--size-120));
+  position: relative;
 }
 
 .canvas-keys > summary {
-  display: inline-block;
-  padding: var(--space-30) var(--space-65);
-  border: var(--stroke-thin) solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--text);
-  font-size: var(--text-xs);
-  box-shadow: var(--shadow-1);
-  cursor: pointer;
   list-style: none;
 }
 
@@ -25,29 +16,11 @@
   display: none;
 }
 
-.canvas-keys > summary:hover {
-  border-color: var(--accent);
-}
-
-.canvas-keys > summary:active {
-  border-color: var(--accent);
-  background: var(--surface-pressed);
-}
-
-.canvas-keys > summary:focus-visible {
-  outline: var(--stroke-thick) solid var(--accent);
-  outline-offset: var(--stroke-thick);
-}
-
-.canvas-keys[open] > summary {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
 .canvas-keys-list {
   position: absolute;
-  bottom: calc(100% + var(--space-40));
+  top: calc(100% + var(--space-60));
   left: 0;
+  z-index: var(--z-menu);
   display: grid;
   gap: var(--space-35);
   width: min(var(--size-2600), calc(100vw - var(--size-400)));
@@ -56,9 +29,20 @@
   padding: var(--space-70) var(--space-90);
   border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--surface);
+  background: var(--surface-raised);
+  color: var(--text);
   box-shadow: var(--shadow-2);
   font-size: var(--text-xs);
+}
+
+/* Under More, the list opens within More's panel, under the button. */
+.canvas-toolbar-more-panel .canvas-keys-list {
+  position: static;
+  width: min(var(--size-2400), calc(100vw - var(--size-400)));
+  max-width: 100%;
+  max-height: 40vh;
+  margin-top: var(--space-30);
+  box-shadow: none;
 }
 
 .canvas-keys-list > div {

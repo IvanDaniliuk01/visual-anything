@@ -1,13 +1,12 @@
 import type { HistorySummary } from '@visual-anything/core';
 import { useContext, useEffect, useEffectEvent, useRef, type ReactNode } from 'react';
-import { LanguageControl } from '../i18n/LanguageControl';
 import { useT, type Translator } from '../i18n';
 import { LiveContext, type Live } from '../live/context';
 import { IS_APPLE } from '../live/platform';
 import { historyShortcut, isTextEntry, type HistoryAction } from '../live/shortcuts';
-import { ThemeControl } from '../theme/ThemeControl';
 import { usePreferencesLink } from '../theme/usePreferences';
 import { ProductMark, RedoIcon, UndoIcon } from './icons';
+import { PreferencesMenu } from './PreferencesMenu';
 import './header.css';
 
 /** The product's name, as the header and the tab's title write it. */
@@ -18,15 +17,18 @@ interface HeaderProps {
   projectName?: string | undefined;
   /** The open view's name; absent when no view is open. */
   viewName?: string | undefined;
-  /** Controls the shell adds for the open project, before undo and redo, such as Copy address and Export. */
+  /**
+   * Controls the shell adds for the open project, before undo and redo, such as Copy address and
+   * Export; a `HeaderSeparator` between two of them groups them.
+   */
   actions?: ReactNode;
 }
 
 /**
- * The header: the product's mark and name, then the open project and view, and at its end the
- * Language and Theme controls. While a project is open in a live session, it also holds undo and redo. It is on every
- * screen, so it also keeps the person's preferences in step with the local program, and names the tab
- * after the open project.
+ * The header: the product's mark and name, then the open project and view, and at its end the menu of
+ * the language and the theme (A5). While a project is open in a live session, it also holds undo and
+ * redo. It is on every screen, so it also keeps the person's preferences in step with the local
+ * program, and names the tab after the open project.
  */
 export function Header({ projectName, viewName, actions }: HeaderProps) {
   const t = useT();
@@ -35,6 +37,7 @@ export function Header({ projectName, viewName, actions }: HeaderProps) {
   useEffect(() => {
     document.title = projectName === undefined ? PRODUCT_NAME : `${projectName} · ${PRODUCT_NAME}`;
   }, [projectName]);
+  const history = projectName !== undefined && live !== null;
   return (
     <header className="shell-header">
       <h1 className="shell-product">
@@ -42,17 +45,19 @@ export function Header({ projectName, viewName, actions }: HeaderProps) {
         {PRODUCT_NAME}
       </h1>
       {projectName !== undefined && (
+        // The project and the view, as "My systems / System overview": each takes the room its name
+        // needs, and is cut with "…" only when the window is too narrow, whole in its tooltip and to
+        // screen readers (A5).
         <dl className="shell-context">
           <div>
-            <dt>{t('Project')}</dt>
-            {/* Cut to the row with "…", whole in its tooltip and to screen readers (A4). */}
+            <dt className="visually-hidden">{t('Project')}</dt>
             <dd className="shell-context-value" title={projectName}>
               {projectName}
             </dd>
           </div>
           {viewName !== undefined && (
             <div>
-              <dt>{t('View')}</dt>
+              <dt className="visually-hidden">{t('View')}</dt>
               <dd className="shell-context-value" title={viewName}>
                 {viewName}
               </dd>
@@ -62,12 +67,18 @@ export function Header({ projectName, viewName, actions }: HeaderProps) {
       )}
       <div className="shell-actions">
         {projectName !== undefined && actions}
-        {projectName !== undefined && live !== null && <HistoryControls live={live} />}
-        <LanguageControl />
-        <ThemeControl />
+        {projectName !== undefined && actions !== undefined && history && <HeaderSeparator />}
+        {history && <HistoryControls live={live} />}
+        {projectName !== undefined && <HeaderSeparator />}
+        <PreferencesMenu />
       </div>
     </header>
   );
+}
+
+/** A thin line between two groups of the header's actions; screen readers pass over it. */
+export function HeaderSeparator() {
+  return <span className="shell-separator" aria-hidden="true" />;
 }
 
 /** An action the history could undo or redo. */

@@ -11,6 +11,7 @@ import { useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { selectionOf } from '../editor/selection';
 import { useT, type Translator } from '../i18n';
+import { FilterIcon, FocusIcon } from '../shell/icons';
 import { SelectControl } from '../shell/inspector/controls';
 import {
   ALL_DEGREES,
@@ -52,7 +53,17 @@ const NO_CHOICES: FilterChoices = {
   attributes: { elements: [], relations: [] },
 };
 
-/** The toolbar's explore controls: the perspective switcher, the filters and focus mode. */
+/**
+ * The toolbar's perspective switcher, which stays in its row while the filters and focus may go under
+ * More (A5).
+ */
+export function PerspectiveControl() {
+  const editor = useContext(EditorContext);
+  if (!editor?.explore || editor.viewId === undefined) return null;
+  return <PerspectiveSwitcher editor={editor} viewId={editor.viewId} />;
+}
+
+/** The toolbar's explore controls: the filters and focus mode. */
 export function ExploreControls() {
   const t = useT();
   const editor = useContext(EditorContext);
@@ -60,7 +71,6 @@ export function ExploreControls() {
   if (!editor || !explore || editor.viewId === undefined) return null;
   return (
     <div className="canvas-toolbar-explore" role="group" aria-label={t('Explore')}>
-      <PerspectiveSwitcher editor={editor} viewId={editor.viewId} />
       <FiltersControl editor={editor} explore={explore} />
       <FocusToggle explore={explore} />
       <p role="status" className="visually-hidden">
@@ -177,7 +187,16 @@ function FiltersControl({ editor, explore }: { editor: Editor; explore: Explore 
         title={t('Hide shapes by component, relation type or attribute; nothing moves')}
         onClick={() => setOpen((last) => !last)}
       >
-        {count > 0 ? t('Filters ({count})', { count }) : t('Filters')}
+        <FilterIcon />
+        <span className="canvas-toolbar-label">
+          {count > 0 ? t('Filters ({count})', { count }) : t('Filters')}
+        </span>
+        {/* How many filters apply, beside the icon; its name says it to screen readers. */}
+        {count > 0 && (
+          <span className="canvas-toolbar-count" aria-hidden="true">
+            {count}
+          </span>
+        )}
       </button>
       {open && <FilterPanel id={panelId} editor={editor} explore={explore} onClose={close} />}
     </span>
@@ -195,7 +214,8 @@ function FocusToggle({ explore }: { explore: Explore }) {
       title={t('Dim everything the selection does not reach through its relations')}
       onClick={() => (focus.on ? explore.setFocus({ on: false }) : explore.startFocus())}
     >
-      {t('Focus')}
+      <FocusIcon />
+      <span className="canvas-toolbar-label">{t('Focus')}</span>
     </button>
   );
 }

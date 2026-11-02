@@ -34,8 +34,19 @@ function renderApp(live: Live, language?: 'en' | 'es') {
   );
 }
 
-function languageSelect(): HTMLSelectElement {
-  return screen.getByRole('combobox', { name: /^(Language|Idioma)$/ });
+/** The Language control's radios, in the header's Language and theme, opened if it is not (A5). */
+function languageChoices(): HTMLElement {
+  const button = screen.getByRole('button', { name: /^(Language and theme|Idioma y tema)$/ });
+  if (button.getAttribute('aria-expanded') !== 'true') fireEvent.click(button);
+  return screen.getByRole('radiogroup', { name: /^(Language|Idioma)$/ });
+}
+
+/** The language chosen in the Language control. */
+function chosenLanguage(): string | null {
+  const checked = within(languageChoices())
+    .getAllByRole<HTMLInputElement>('radio')
+    .find((radio) => radio.checked);
+  return checked?.value ?? null;
 }
 
 describe('the browser’s language', () => {
@@ -127,15 +138,14 @@ describe('the Language control', () => {
   it('offers matching the browser, English and Español, each language by its own name', () => {
     stubBrowserLanguages(['es-AR']);
     renderApp(fakeLive());
-    const select = languageSelect();
-    const options = within(select).getAllByRole('option');
-    expect(options.map((option) => option.textContent)).toEqual([
+    const options = within(languageChoices()).getAllByRole('radio');
+    expect(options.map((option) => option.closest('label')?.textContent)).toEqual([
       'Usar el idioma del navegador (Español)',
       'English',
       'Español',
     ]);
-    expect(options[2]).toHaveAttribute('lang', 'es');
-    expect(select).toHaveValue('system');
+    expect(options[2]?.closest('label')?.querySelector('[lang]')).toHaveAttribute('lang', 'es');
+    expect(chosenLanguage()).toBe('system');
   });
 
   it('applies a choice in the tab at once, and the program keeps it', async () => {
@@ -150,7 +160,7 @@ describe('the Language control', () => {
       });
     });
     renderApp({ ...fakeLive(), preferences: DEFAULT_PREFERENCES, setPreferences });
-    fireEvent.change(languageSelect(), { target: { value: 'es' } });
+    fireEvent.click(within(languageChoices()).getByRole('radio', { name: 'Español' }));
     expect(screen.getByText('Proyecto')).toBeInTheDocument();
     expect(document.documentElement.lang).toBe('es');
     await act(async () => {
@@ -158,7 +168,7 @@ describe('the Language control', () => {
       await Promise.resolve();
     });
     expect(asked).toEqual([{ language: 'es' }]);
-    expect(languageSelect()).toHaveValue('es');
+    expect(chosenLanguage()).toBe('es');
   });
 });
 

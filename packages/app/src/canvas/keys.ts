@@ -111,4 +111,4 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
 
 /** What the canvas tells screen readers about its keys when it gets the focus. */
 export const CANVAS_KEYS_HINT =
-  'The arrow keys select shapes, ] and [ (or . and ,) step through the selected element’s relations, and Enter follows a relation, and Shift+F10 opens the selected shape’s menu. Every key is listed under Keyboard, after the canvas.';
+  'The arrow keys select shapes, ] and [ (or . and ,) step through the selected element’s relations, and Enter follows a relation, and Shift+F10 opens the selected shape’s menu. Every key is listed under Keyboard, in the canvas toolbar.';

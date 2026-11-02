@@ -313,6 +313,14 @@ export const ui: Catalog = {
   'Match the system (dark now)': 'Usar el tema del sistema (ahora oscuro)',
   Light: 'Claro',
   Dark: 'Oscuro',
+  System: 'Sistema',
+  'Language and theme': 'Idioma y tema',
+  '{count} warnings': { one: '{count} advertencia', other: '{count} advertencias' },
+  Hide: 'Ocultar',
+  Copy: 'Copiar',
+  Copied: 'Copiado',
+  'Could not copy: the list is selected, to copy it with Ctrl+C or ⌘C.':
+    'No se pudo copiar: la lista está seleccionada, para copiarla con Ctrl+C o ⌘C.',
   'Your theme applies to this tab only: Visual Anything is not connected.':
     'El tema se aplica solo a esta pestaña: Visual Anything no está conectado.',
   'Your approval of package code applies to this tab only: Visual Anything is not connected.':
@@ -1273,8 +1281,8 @@ export const ui: Catalog = {
   'Ctrl+F or ⌘F': 'Ctrl+F o ⌘F',
   'Find names, ids, components and attribute values in the project, and go to what was found':
     'Buscar nombres, ids, componentes y valores de atributos en el proyecto, e ir a lo encontrado',
-  'The arrow keys select shapes, ] and [ (or . and ,) step through the selected element’s relations, and Enter follows a relation, and Shift+F10 opens the selected shape’s menu. Every key is listed under Keyboard, after the canvas.':
-    'Las flechas seleccionan formas, ] y [ (o . y ,) recorren las relaciones del elemento seleccionado, Enter sigue una relación y Mayús+F10 abre el menú de la forma seleccionada. Todas las teclas están en Teclado, después del lienzo.',
+  'The arrow keys select shapes, ] and [ (or . and ,) step through the selected element’s relations, and Enter follows a relation, and Shift+F10 opens the selected shape’s menu. Every key is listed under Keyboard, in the canvas toolbar.':
+    'Las flechas seleccionan formas, ] y [ (o . y ,) recorren las relaciones del elemento seleccionado, Enter sigue una relación y Mayús+F10 abre el menú de la forma seleccionada. Todas las teclas están en Teclado, en la barra de herramientas del lienzo.',
 
   // Routes chosen by hand (ADR 0039): the relation's menu, the inspector, dragging and the keys.
   Route: 'Ruta',

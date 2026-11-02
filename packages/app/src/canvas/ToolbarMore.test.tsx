@@ -28,6 +28,7 @@ const STACKING: Record<StackingMove, StackingAction> = {
 function layOut(toolbarWidth: number) {
   const widthOf = (element: Element): number => {
     if (element.matches('.canvas-toolbar-spacer, .explore-strip')) return 0;
+    if (element.matches('.canvas-toolbar-separator')) return 1;
     if (element.matches('.canvas-toolbar-add')) return 140;
     if (element.matches('.canvas-toolbar-stacking')) return 150;
     if (element.matches('.canvas-toolbar-grid')) return 110;

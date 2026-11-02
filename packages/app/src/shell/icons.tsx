@@ -568,3 +568,95 @@ export const WorldIcon = icon(
     <path d="M2 12h20" />
   </>,
 );
+
+/** Lucide's "plus": Add element, the canvas toolbar's one primary action (A5). */
+export const PlusIcon = icon(
+  'Plus',
+  <>
+    <path d="M5 12h14" />
+    <path d="M12 5v14" />
+  </>,
+);
+
+/** Lucide's "align-start-vertical": the canvas toolbar's Align (A5). */
+export const AlignIcon = icon(
+  'Align',
+  <>
+    <rect width="9" height="6" x="6" y="14" rx="2" />
+    <rect width="16" height="6" x="6" y="4" rx="2" />
+    <path d="M2 2v20" />
+  </>,
+);
+
+/** Lucide's "network": the canvas toolbar's Layout, which lays the shapes out for their relations (A5). */
+export const LayoutIcon = icon(
+  'Layout',
+  <>
+    <rect x="16" y="16" width="6" height="6" rx="1" />
+    <rect x="2" y="16" width="6" height="6" rx="1" />
+    <rect x="9" y="2" width="6" height="6" rx="1" />
+    <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" />
+    <path d="M12 12V8" />
+  </>,
+);
+
+/** Lucide's "focus": the canvas toolbar's Focus (A5). */
+export const FocusIcon = icon(
+  'Focus',
+  <>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+    <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+    <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+    <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+  </>,
+);
+
+/** Lucide's "keyboard": the canvas's keyboard help, in its toolbar (A5). */
+export const KeyboardIcon = icon(
+  'Keyboard',
+  <>
+    <path d="M10 8h.01" />
+    <path d="M12 12h.01" />
+    <path d="M14 8h.01" />
+    <path d="M16 12h.01" />
+    <path d="M18 8h.01" />
+    <path d="M6 8h.01" />
+    <path d="M7 16h10" />
+    <path d="M8 12h.01" />
+    <rect width="20" height="16" x="2" y="4" rx="2" />
+  </>,
+);
+
+/** Lucide's "settings-2": the header's Language and theme, at its end (A5). */
+export const PreferencesIcon = icon(
+  'Preferences',
+  <>
+    <path d="M14 17H5" />
+    <path d="M19 7h-9" />
+    <circle cx="17" cy="17" r="3" />
+    <circle cx="7" cy="7" r="3" />
+  </>,
+);
+
+/** Lucide's "triangle-alert": a notice that sums up warnings (A5). */
+export const WarningIcon = icon(
+  'Warning',
+  <>
+    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+    <path d="M12 9v4" />
+    <path d="M12 17h.01" />
+  </>,
+);
+
+/** Lucide's "copy": copying a list of warnings (A5). */
+export const CopyIcon = icon(
+  'Copy',
+  <>
+    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+  </>,
+);
+
+/** Lucide's "check": the choice made, in a list of choices (A5). */
+export const CheckIcon = icon('Check', <path d="M20 6 9 17l-5-5" />);

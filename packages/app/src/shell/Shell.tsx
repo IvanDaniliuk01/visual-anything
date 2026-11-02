@@ -46,7 +46,7 @@ import { ElementListStore } from '../element-list/store';
 import type { CanvasCamera } from '../view-state/canvas';
 import { CopyAddress } from '../view-state/CopyAddress';
 import { useViewState } from '../view-state/useViewState';
-import { Header } from './Header';
+import { Header, HeaderSeparator } from './Header';
 import { Inspector } from './Inspector';
 import { ModelPanel } from './ModelPanel';
 import { OpenWhenShown } from './panels/OpenWhenShown';
@@ -415,8 +415,14 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                     projectName={project.project.name}
                                     viewName={view?.name}
                                     actions={
+                                      // In groups (A5): what the window shows, versions, then what
+                                      // comes in and goes out.
                                       <>
-                                        {view && <CopyAddress link={viewState} />}
+                                        <ProposalButton />
+                                        <ElementListToggle store={elementList} />
+                                        <HeaderSeparator />
+                                        <CompareControl session={versions} />
+                                        <HeaderSeparator />
                                         <ImportControl
                                           project={project}
                                           viewId={view?.id}
@@ -434,10 +440,8 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                             ? { selectedElement: [...selection.elements][0] }
                                             : {})}
                                         />
-                                        <ProposalButton />
-                                        <CompareControl session={versions} />
                                         {exportTool}
-                                        <ElementListToggle store={elementList} />
+                                        {view && <CopyAddress link={viewState} />}
                                       </>
                                     }
                                   />

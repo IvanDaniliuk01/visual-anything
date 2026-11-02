@@ -1,29 +1,33 @@
 /*
- * The canvas toolbar's More (W26): the toolbar keeps one row, and what does not fit shows in a panel
- * under More, at the row's end. Only the tokens of styles.css.
+ * The canvas toolbar's More (W26, A5): the toolbar keeps one row, and what does not fit shows in a
+ * panel under More, at the row's end, as a list of the same controls with their names written out.
+ * Only the tokens of styles.css.
  */
 
-/* Adding elements stays in the row; with everything else under More, it gives up width first. */
-.canvas-toolbar-add select {
-  max-width: var(--size-1100);
-  text-overflow: ellipsis;
+/*
+ * Adding elements and the view stay in the row; with everything else under More, the view gives up
+ * width first, cut with "…", and Add element keeps its whole name.
+ */
+.canvas-toolbar-add {
+  flex: none;
 }
 
-.canvas-toolbar[data-overflow='all'] .canvas-toolbar-add {
+.canvas-toolbar[data-overflow='all'] .canvas-toolbar-perspective {
   display: flex;
   /* It takes the room left before the spacer, which pushes zooming to the end, takes any. */
   flex: 1000 1 0;
-  min-width: var(--size-350);
+  min-width: var(--size-400);
   max-width: max-content;
 }
 
-.canvas-toolbar[data-overflow='all'] .canvas-toolbar-add select {
+.canvas-toolbar[data-overflow='all'] .canvas-toolbar-perspective select {
   width: 100%;
   min-width: 0;
+  field-sizing: fixed;
 }
 
-/* With everything under More, More shows only its icon; its name stays for screen readers. */
-.canvas-toolbar[data-overflow='all'] .canvas-toolbar-more-label {
+/* More shows only its icon; its name stays for screen readers and in its tooltip. */
+.canvas-toolbar-more-label {
   position: absolute;
   width: var(--size-hidden);
   height: var(--size-hidden);
@@ -38,15 +42,18 @@
 
 .canvas-toolbar-more-panel {
   position: absolute;
-  top: calc(100% + var(--space-30));
+  top: calc(100% + var(--space-60));
   right: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-40);
+  align-items: stretch;
+  gap: var(--space-20);
   width: max-content;
+  min-width: var(--size-1300);
   max-width: min(var(--size-2600), calc(100vw - var(--size-200)));
-  padding: var(--space-50);
+  max-height: 70vh;
+  overflow: hidden auto;
+  padding: var(--space-35);
   border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
@@ -57,20 +64,47 @@
   display: none;
 }
 
-/* One line for each group under More, in the toolbar's own order. */
+/* One part for each group under More, in the toolbar's own order, after a line. */
 .canvas-toolbar-more-slot {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-40);
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-10);
+}
+
+.canvas-toolbar-more-slot + .canvas-toolbar-more-slot:not(:empty) {
+  padding-top: var(--space-20);
+  border-top: var(--stroke-thin) solid var(--border);
 }
 
 .canvas-toolbar-more-slot:empty {
   display: none;
 }
 
+/* A group's controls one under the other, each its icon and its name. */
+.canvas-toolbar-more-panel :is([role='group'], .canvas-toolbar-align, .canvas-toolbar-filters) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-10);
+}
+
+.canvas-toolbar .canvas-toolbar-more-panel :is(button, summary) {
+  justify-content: flex-start;
+  width: 100%;
+  padding: 0 var(--space-50);
+}
+
+.canvas-toolbar-more-panel .canvas-toolbar-label {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+}
+
 .canvas-toolbar-more > button:focus-visible,
-.canvas-toolbar-more-panel :is(button, select):focus-visible {
+.canvas-toolbar-more-panel :is(button, select, summary):focus-visible {
   outline: var(--stroke-thick) solid var(--focus-ring);
-  outline-offset: var(--stroke-thick);
+  outline-offset: calc(-1 * var(--stroke-thick));
 }

@@ -3,8 +3,13 @@ import type { Id } from '@visual-anything/schema';
 import { useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react';
 import { useT } from '../i18n';
 import {
+  ArrowIcon,
   BringForwardIcon,
   BringToFrontIcon,
+  FitIcon,
+  LayoutIcon,
+  NoteIcon,
+  PlusIcon,
   SendBackwardIcon,
   SendToBackIcon,
   ZoomInIcon,
@@ -15,8 +20,9 @@ import type { AlignHow } from './align';
 import type { AlignAction } from './alignActions';
 import { AlignMenu } from './AlignMenu';
 import './drop.css';
-import { ExploreControls, ExploreStrip } from './ExploreBar';
+import { ExploreControls, ExploreStrip, PerspectiveControl } from './ExploreBar';
 import { GridToggles } from './GridToggles';
+import { KeyboardHelp } from './KeyboardHelp';
 import type { LayoutControl } from './layout/useLayout';
 import type { GridOptions } from './renderer';
 import {
@@ -81,10 +87,12 @@ export interface CanvasToolbarProps {
 const IN_WORLD = 'With nothing selected, elements are added directly in World.';
 
 /**
- * The canvas toolbar: the component palette, free shapes, the stacking order, Physical space (ADR
- * 0076) and zoom. The palette
- * adds an element when one is picked from its open list; the arrow keys going through it while it is
- * closed only show an option, which Enter adds.
+ * The canvas toolbar, one row of quiet icon buttons in groups (A5): adding, with the component palette
+ * as the one primary action and the free shapes; arranging, with the stacking order, Align and Layout;
+ * viewing and reading, with the view, the filters, focus, the grid, Physical space (ADR 0076) and the
+ * keyboard help; and zooming. Each icon's name shows in its tooltip, with its key where it has one,
+ * and under More. The palette adds an element when one is picked from its open list; the arrow keys
+ * going through it while it is closed only show an option, which Enter adds.
  */
 export function CanvasToolbar({
   project,
@@ -107,9 +115,12 @@ export function CanvasToolbar({
   onGrid,
 }: CanvasToolbarProps) {
   const t = useT();
+  const named = (name: string, shortcut: string) => t('{name} ({shortcut})', { name, shortcut });
   return (
     <OverflowToolbar className="canvas-toolbar" role="toolbar" aria-label={t('Canvas')}>
+      {/* Adding: the one primary action, then the free shapes. */}
       <label className="canvas-toolbar-add">
+        <PlusIcon className="canvas-toolbar-add-icon" />
         <span className="visually-hidden">{addPlace?.label ?? t('Add an element')}</span>
         <ComponentSelect
           project={project}
@@ -121,12 +132,28 @@ export function CanvasToolbar({
           {...(onAddLeave ? { onLeave: onAddLeave } : {})}
         />
       </label>
-      <OverflowButton group="shapes" type="button" disabled={!editable} onClick={onAddNote}>
-        {t('Note')}
+      <OverflowButton
+        group="shapes"
+        type="button"
+        title={t('Note')}
+        disabled={!editable}
+        onClick={onAddNote}
+      >
+        <NoteIcon />
+        <span className="canvas-toolbar-label">{t('Note')}</span>
       </OverflowButton>
-      <OverflowButton group="shapes" type="button" disabled={!editable} onClick={onAddArrow}>
-        {t('Arrow')}
+      <OverflowButton
+        group="shapes"
+        type="button"
+        title={t('Arrow')}
+        disabled={!editable}
+        onClick={onAddArrow}
+      >
+        <ArrowIcon />
+        <span className="canvas-toolbar-label">{t('Arrow')}</span>
       </OverflowButton>
+      <ToolbarSeparator />
+      {/* Arranging: the stacking order, Align and Layout. */}
       {stacking && (
         <OverflowDiv
           group="stacking"
@@ -144,7 +171,7 @@ export function CanvasToolbar({
               onClick={() => onRestack?.(move)}
             >
               <StackingIcon move={move} />
-              <span className="visually-hidden">{t(STACKING_NAMES[move])}</span>
+              <span className="canvas-toolbar-label">{t(STACKING_NAMES[move])}</span>
             </button>
           ))}
         </OverflowDiv>
@@ -155,9 +182,6 @@ export function CanvasToolbar({
           <AlignMenu actions={align} onAlign={onAlign} />
         </Overflowing>
       )}
-      <Overflowing group="explore">
-        <ExploreControls />
-      </Overflowing>
       {layout && (
         <OverflowButton
           group="layout"
@@ -167,32 +191,70 @@ export function CanvasToolbar({
           aria-busy={layout.busy ? true : undefined}
           onClick={layout.run}
         >
-          {layout.label}
+          <LayoutIcon />
+          {/* While a layout runs, how far it has come shows in the row too. */}
+          <span className={layout.busy ? undefined : 'canvas-toolbar-label'}>{layout.label}</span>
         </OverflowButton>
       )}
+      <ToolbarSeparator />
+      {/* Viewing and reading: the view, which always shows, the filters and focus, the grid,
+          Physical space and the keyboard help. */}
+      <PerspectiveControl />
+      <Overflowing group="explore">
+        <ExploreControls />
+      </Overflowing>
       {grid && onGrid && (
         <Overflowing group="grid">
           <GridToggles grid={grid} onGrid={onGrid} />
         </Overflowing>
       )}
       <SpacePanelToggle />
+      <Overflowing group="keys">
+        <KeyboardHelp />
+      </Overflowing>
       <span className="canvas-toolbar-spacer" />
-      <button type="button" aria-label={t('Zoom out')} onClick={() => onZoom(1 / 1.25)}>
+      {/* Zooming, then More. */}
+      <button
+        type="button"
+        aria-label={t('Zoom out')}
+        title={named(t('Zoom out'), '−')}
+        onClick={() => onZoom(1 / 1.25)}
+      >
         <ZoomOutIcon />
       </button>
       <output className="canvas-toolbar-zoom" aria-label={t('Zoom')}>
         {scale === undefined ? '' : `${Math.round(scale * 100)}%`}
       </output>
-      <button type="button" aria-label={t('Zoom in')} onClick={() => onZoom(1.25)}>
+      <button
+        type="button"
+        aria-label={t('Zoom in')}
+        title={named(t('Zoom in'), '+')}
+        onClick={() => onZoom(1.25)}
+      >
         <ZoomInIcon />
       </button>
-      <OverflowButton group="fit" type="button" onClick={onFit}>
-        {t('Fit')}
+      <OverflowButton
+        group="fit"
+        type="button"
+        title={named(t('Fit'), '0')}
+        aria-keyshortcuts="0"
+        onClick={onFit}
+      >
+        <FitIcon />
+        <span className="canvas-toolbar-label">{t('Fit')}</span>
       </OverflowButton>
       <ToolbarMore />
       <ExploreStrip />
     </OverflowToolbar>
   );
+}
+
+/**
+ * A thin line between two groups of the toolbar. Where a group has gone under More, or is not there,
+ * the line beside it hides (`styles.css`), so that two never stand side by side.
+ */
+function ToolbarSeparator() {
+  return <span className="canvas-toolbar-separator" aria-hidden="true" />;
 }
 
 export interface ComponentSelectProps {

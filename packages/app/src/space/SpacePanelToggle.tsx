@@ -8,6 +8,7 @@ import { useContext } from 'react';
 import { OverflowButton } from '../canvas/ToolbarMore';
 import { EditorContext } from '../editor/EditorContext';
 import { useT } from '../i18n';
+import { SpaceIcon } from '../shell/icons';
 import { useSpacePanel, useSpacePanelState } from './context';
 import { SPACE_PANEL_SHORTCUT, SPACE_PANEL_SHORTCUT_SHOWN } from './keys';
 
@@ -30,7 +31,8 @@ export function SpacePanelToggle() {
       })}
       onClick={() => store.toggle(viewId)}
     >
-      {t('Physical space')}
+      <SpaceIcon />
+      <span className="canvas-toolbar-label">{t('Physical space')}</span>
     </OverflowButton>
   );
 }

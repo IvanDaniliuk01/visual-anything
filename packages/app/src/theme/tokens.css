@@ -223,6 +223,7 @@
   --line-relaxed: 1.5;
   --tracking-title: 0.01em;
   --tracking-caps: 0.05em;
+  --z-behind: -1;
   --z-marks: 1;
   --z-toolbar: 2;
   --z-editor: 3;

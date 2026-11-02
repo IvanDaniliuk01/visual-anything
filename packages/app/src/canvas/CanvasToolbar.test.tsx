@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { createRef, type ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { loadSample } from '../test/sample';
+import { readSource } from '../theme/testing';
 import { CanvasToolbar, ComponentSelect } from './CanvasToolbar';
 import type { StackingAction, StackingMove } from './stacking';
 
@@ -295,5 +296,80 @@ describe('CanvasToolbar', () => {
     const addSelect = createRef<HTMLSelectElement>();
     toolbar({ addSelect });
     expect(addSelect.current).toBe(screen.getByRole('combobox', { name: 'Add an element' }));
+  });
+});
+
+describe('the toolbar’s one row (A5)', () => {
+  const LAYOUT = { label: 'Layout', title: 'Lay out the view', enabled: true, busy: false };
+
+  it('draws its buttons as icons from the set, each named for screen readers and in its tooltip', () => {
+    toolbar({ stacking: STACKING, layout: { ...LAYOUT, run: () => {} } });
+    const row = screen.getByRole('toolbar', { name: 'Canvas' });
+    for (const name of ['Note', 'Arrow', 'Layout', 'Fit', 'Zoom in', 'Zoom out', 'Bring forward']) {
+      const button = within(row).getByRole('button', { name });
+      expect(button.querySelector('svg'), name).toHaveAttribute('aria-hidden', 'true');
+    }
+    // The names are hidden in the row, and written out under More.
+    expect(within(row).getByRole('button', { name: 'Note' }).querySelector('span')).toHaveClass(
+      'canvas-toolbar-label',
+    );
+    expect(readSource('canvas/more.css')).toMatch(
+      /\.canvas-toolbar-more-panel \.canvas-toolbar-label\s*\{[^}]*position: static/,
+    );
+  });
+
+  it('says each button’s key in its tooltip, where it has one', () => {
+    toolbar();
+    expect(screen.getByRole('button', { name: 'Zoom in' })).toHaveAttribute('title', 'Zoom in (+)');
+    expect(screen.getByRole('button', { name: 'Zoom out' })).toHaveAttribute(
+      'title',
+      'Zoom out (−)',
+    );
+    const fit = screen.getByRole('button', { name: 'Fit' });
+    expect(fit).toHaveAttribute('title', 'Fit (0)');
+    expect(fit).toHaveAttribute('aria-keyshortcuts', '0');
+    expect(screen.getByRole('button', { name: 'Note' })).toHaveAttribute('title', 'Note');
+  });
+
+  it('shows how far a layout has come in the row while it runs', () => {
+    toolbar({ layout: { ...LAYOUT, label: 'Stop layout (40%)', busy: true, run: () => {} } });
+    const busy = screen.getByRole('button', { name: 'Stop layout (40%)' });
+    expect(busy.querySelector('span')).not.toHaveClass('canvas-toolbar-label');
+  });
+
+  it('groups its controls between thin lines, adding first and zooming last', () => {
+    toolbar({ stacking: STACKING, layout: { ...LAYOUT, run: () => {} } });
+    const row = screen.getByRole('toolbar', { name: 'Canvas' });
+    const children = [...row.children];
+    const separators = children.filter((child) => child.matches('.canvas-toolbar-separator'));
+    expect(separators).toHaveLength(2);
+    for (const separator of separators) expect(separator).toHaveAttribute('aria-hidden', 'true');
+    expect(children[0]).toHaveClass('canvas-toolbar-add');
+    const spacer = children.findIndex((child) => child.matches('.canvas-toolbar-spacer'));
+    const zoomOut = children.indexOf(screen.getByRole('button', { name: 'Zoom out' }));
+    expect(zoomOut).toBeGreaterThan(spacer);
+    // A line beside a group that is not there, or beside the spacer, hides.
+    expect(readSource('styles.css')).toMatch(
+      /\.canvas-toolbar-separator:has\(\+ :is\(\.canvas-toolbar-separator, \.canvas-toolbar-spacer\)\)/,
+    );
+  });
+
+  it('makes Add element its one primary action, and every other control quiet', () => {
+    const css = readSource('styles.css');
+    expect(css).toMatch(
+      /\.canvas-toolbar \.canvas-toolbar-add select\s*\{[^}]*background: var\(--accent-fill\)/,
+    );
+    expect(css).toMatch(
+      /\.canvas-toolbar summary,\s*\.canvas-toolbar-zoom\s*\{[^}]*border: var\(--stroke-thin\) solid transparent;\s*border-radius: var\(--radius-md\);\s*background: transparent/,
+    );
+  });
+
+  it('holds the keyboard help, which no longer floats over the canvas', () => {
+    toolbar();
+    const row = screen.getByRole('toolbar', { name: 'Canvas' });
+    const keys = within(row).getByText('Keyboard').closest('details');
+    expect(keys).toHaveClass('canvas-keys');
+    expect(within(keys as HTMLElement).getByText('Shift+arrow keys')).toBeInTheDocument();
+    expect(readSource('canvas/keyboard.css')).not.toMatch(/\.canvas-keys\s*\{[^}]*bottom:/);
   });
 });

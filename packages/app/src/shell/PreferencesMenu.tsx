@@ -1,0 +1,72 @@
+/**
+ * Language and theme, at the header's end (A5): one quiet icon button that opens a small panel under
+ * it with the same choices the header showed before, the theme as three radios and the language as
+ * three more. Each choice applies at once, as it did. Escape or a press outside closes the panel, and
+ * the focus goes back to the button; opening it moves the focus to the theme chosen, so the arrow keys
+ * move through each group as through any radios.
+ */
+import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useOutsidePress } from '../canvas/focus';
+import { useT } from '../i18n';
+import { LanguageControl } from '../i18n/LanguageControl';
+import { ThemeControl } from '../theme/ThemeControl';
+import { PreferencesIcon } from './icons';
+
+const NAME = 'Language and theme';
+
+export function PreferencesMenu() {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const wrapper = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+  useOutsidePress(wrapper, () => setOpen(false));
+
+  useLayoutEffect(() => {
+    if (open) panel.current?.querySelector<HTMLInputElement>('input:checked')?.focus();
+  }, [open]);
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Escape' || !open) return;
+    event.preventDefault();
+    setOpen(false);
+    button.current?.focus();
+  };
+
+  return (
+    <div ref={wrapper} className="preferences" onKeyDown={onKeyDown}>
+      <button
+        ref={button}
+        type="button"
+        className="preferences-button"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        aria-label={t(NAME)}
+        title={t(NAME)}
+        onClick={() => setOpen((last) => !last)}
+      >
+        <PreferencesIcon />
+      </button>
+      {open && (
+        <div
+          ref={panel}
+          id={panelId}
+          className="preferences-panel"
+          role="group"
+          aria-label={t(NAME)}
+        >
+          {/* Each group says its name to screen readers itself. */}
+          <p className="preferences-heading" aria-hidden="true">
+            {t('Theme')}
+          </p>
+          <ThemeControl labelled />
+          <p className="preferences-heading" aria-hidden="true">
+            {t('Language')}
+          </p>
+          <LanguageControl />
+        </div>
+      )}
+    </div>
+  );
+}
