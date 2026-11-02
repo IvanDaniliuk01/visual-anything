@@ -6,6 +6,14 @@
  * it is drawn, pointed at, marked, related, laid out and routed around with it. A shape whose face
  * writes its name hangs none (`faceWritesName`, ADR 0083): the face takes the tag's place.
  *
+ * A shape whose text asks for its name in a tag (ADR 0088's `position`) writes it in one too, attached
+ * above, below, left or right of its outline or its box, centred along that side; a shape with no
+ * outline of its own, which writes its name inside itself otherwise, then writes nothing inside. A
+ * tag takes the text's font, size, weight, wrapping and padding, its back's fill and line in place of
+ * the shape's, and is all the same part of the shape. Containers, rows, regions, anchored parts and
+ * shapes whose face writes the name hang no such tag. A name that does not fit inside its own
+ * outline still moves to a tag below, unless its text names another side.
+ *
  * A tag is worked out once for each shape object of a scene, cached by the outline it hangs from and
  * the texts it holds, the way outlines are, so that a shape that moves keeps the same tag object, and
  * placed from the top left of the shape's rectangle. Nothing here runs per frame but lookups.
@@ -21,6 +29,9 @@ import { estimateWidth, fitText } from './fit';
 import type { Point, Rect } from './geometry';
 import { PART_NAME_LINE, PART_NAME_SIZE, outlineBoundsOn, writesNameBelow } from './outlined';
 import type { ShapeOutline } from './outlines';
+import { nameLinesOf } from './nameLines';
+import { nameLookOf, type ShapeText, type TagSide } from './shapeText';
+import { robotoMeasure } from './textBlock';
 
 /** How far in from its left and right sides a name tag writes its text, in canvas units. */
 export const TAG_INSET = 8;
@@ -62,6 +73,18 @@ export interface NameTag {
   readonly lines: readonly string[];
   /** Its detail on one line, cut to its width with "…" where it does not fit; '' for none. */
   readonly detail: string;
+  /** The side of its shape it is attached to, when not below (ADR 0088). */
+  readonly side?: Exclude<TagSide, 'below'>;
+  /**
+   * For a tag written as its shape's text says (ADR 0088): how tall a line of its name is, how far
+   * in from its left and right and from its top it writes, and the width of each line.
+   */
+  readonly styled?: {
+    readonly lineHeight: number;
+    readonly inset: number;
+    readonly padding: number;
+    readonly widths: readonly number[];
+  };
 }
 
 /** A shape as its name tag reads it. */
@@ -75,6 +98,9 @@ export type Tagged = Parameters<typeof writesNameBelow>[0] & {
   face?: ShapeFace;
   levels?: readonly LevelOfDetail[];
   row?: number;
+  rowCount?: number;
+  /** How it writes its name (ADR 0088): in a tag at a side of its own, in a font of its own. */
+  text?: ShapeText;
 };
 
 /** The corner radius of a name tag, as a rounded rectangle's is (`draw.ts`). */
@@ -118,12 +144,37 @@ const UNHUNG_KEPT = 1024;
  */
 export function nameTagOf(shape: Tagged): NameTag | undefined {
   // Most shapes are boxes, which write their names inside: asked of every one, so asked first.
-  if (shape.outline === undefined && shape.picture === undefined) return undefined;
+  if (
+    shape.outline === undefined &&
+    shape.picture === undefined &&
+    shape.text?.position === undefined
+  ) {
+    return undefined;
+  }
   const known = tags.get(shape);
   if (known !== undefined) return known ?? undefined;
-  const tag = writesNameBelow(shape) && !faceWritesName(shape) ? tagFor(shape) : undefined;
+  const tag =
+    (writesNameBelow(shape) || takesSideTag(shape)) && !faceWritesName(shape)
+      ? tagFor(shape)
+      : undefined;
   tags.set(shape, tag ?? null);
   return tag;
+}
+
+/**
+ * Whether a shape's text asks for its name in a tag beside it (ADR 0088), and the shape may hang one:
+ * one with a name that holds nothing, draws no rows, is no row and no anchored part.
+ */
+function takesSideTag(shape: Tagged): boolean {
+  return (
+    shape.text?.position !== undefined &&
+    shape.name.trim() !== '' &&
+    !shape.holdsContents &&
+    shape.collapsed === undefined &&
+    shape.rowCount === undefined &&
+    shape.row === undefined &&
+    shape.part?.inDrawing !== true
+  );
 }
 
 function tagFor(shape: Tagged): NameTag {
@@ -135,7 +186,8 @@ function tagFor(shape: Tagged): NameTag {
   const bx = bounds.x - rect.x;
   const by = bounds.y - rect.y;
   const detail = outlinedDetailOf(shape);
-  const key = `${bx} ${by} ${bounds.width} ${bounds.height}\u0000${shape.name}\u0000${detail}`;
+  const look = shape.text && tagLookKey(shape.text);
+  const key = `${bx} ${by} ${bounds.width} ${bounds.height}\u0000${shape.name}\u0000${detail}\u0000${look ?? ''}`;
   const from = hung ? outline : UNHUNG;
   let kept = made.get(from);
   if (!kept) {
@@ -144,12 +196,11 @@ function tagFor(shape: Tagged): NameTag {
   }
   const known = kept.get(key);
   if (known) return known;
-  const tag = madeTag(shape.name, detail, {
-    x: bx,
-    y: by,
-    width: bounds.width,
-    height: bounds.height,
-  });
+  const box = { x: bx, y: by, width: bounds.width, height: bounds.height };
+  const tag =
+    shape.text && look !== undefined
+      ? styledTag(shape.name, detail, box, shape.text)
+      : madeTag(shape.name, detail, box);
   if (kept.size >= (hung ? TAGS_KEPT : UNHUNG_KEPT))
     kept.delete(kept.keys().next().value as string);
   kept.set(key, tag);
@@ -174,6 +225,57 @@ function madeTag(name: string, detail: string, bounds: Rect): NameTag {
     height,
     lines,
     detail: cut,
+  };
+}
+
+/** What of a text changes how a tag is written: none when it changes nothing, as tags were. */
+function tagLookKey(text: ShapeText): string | undefined {
+  const { font, size, bold, italic, underline, align, wrap, padding, position } = text;
+  const parts = [font, size, bold, italic, underline, align, wrap, padding, position];
+  if (parts.every((each) => each === undefined)) return undefined;
+  return parts.map((each) => each ?? '').join(' ');
+}
+
+/**
+ * A tag written as a shape's text says (ADR 0088): its name in the text's font, size, weight and
+ * style, wrapped at the width a name tag wraps at, or on one line cut with "…", the text's padding
+ * in from its edges, attached to the side its text names, centred along it.
+ */
+function styledTag(name: string, detail: string, bounds: Rect, text: ShapeText): NameTag {
+  const look = nameLookOf(text, BASE_DRAWING, PART_NAME_SIZE, '700');
+  const inset = text.padding ?? TAG_INSET;
+  const padding = text.padding ?? TAG_PADDING;
+  const lineHeight = look.size * (PART_NAME_LINE / PART_NAME_SIZE);
+  const side = text.position ?? 'below';
+  const across = side === 'above' || side === 'below';
+  const wrap = across ? Math.max(bounds.width - 2 * TAG_INSET, NAME_TAG_WIDTH) : NAME_TAG_WIDTH;
+  const named = nameLinesOf(name, wrap, look, robotoMeasure, Infinity, text.wrap !== false);
+  let widest = Math.max(0, ...named.widths);
+  const cut = detail === '' ? '' : fitText(detail, Math.max(wrap, widest), TAG_DETAIL_SIZE);
+  if (cut !== '') widest = Math.max(widest, estimateWidth(cut, TAG_DETAIL_SIZE));
+  const width = Math.ceil(widest) + 2 * inset;
+  const height = 2 * padding + named.lines.length * lineHeight + (cut === '' ? 0 : TAG_DETAIL_LINE);
+  const x =
+    side === 'left'
+      ? bounds.x - width
+      : side === 'right'
+        ? bounds.x + bounds.width
+        : bounds.x + bounds.width / 2 - width / 2;
+  const y =
+    side === 'above'
+      ? bounds.y - height
+      : side === 'below'
+        ? bounds.y + bounds.height
+        : bounds.y + bounds.height / 2 - height / 2;
+  return {
+    x,
+    y,
+    width,
+    height,
+    lines: named.lines,
+    detail: cut,
+    ...(side === 'below' ? {} : { side }),
+    styled: { lineHeight, inset, padding, widths: named.widths },
   };
 }
 

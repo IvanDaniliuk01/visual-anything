@@ -44,6 +44,8 @@ import {
   type NoteShape,
   type RelationLine,
 } from '../scene';
+import { labelColorsOf } from '../labelColors';
+import { nameTagOf } from '../nameTags';
 import { nameBandOf } from '../shape-images';
 import type { RoutePiece } from '../tiles';
 import {
@@ -307,12 +309,15 @@ export class Painter {
         record.label.paint(this.name, fillOf(painted), painted.stroke);
         continue;
       }
-      // A name tag is drawn in its shape's fill, which its name reads on (ADR 0066's clarifications).
-      const under = nameBandOf(shape) ? this.backdropOf(shape, lookups) : undefined;
+      // A name tag is drawn in its shape's fill, which its name reads on (ADR 0066's clarifications),
+      // or in its text's back (ADR 0088), and one at a side of the shape is never under its picture.
+      const painted = paintedShape(shape, this.name);
+      const tagged = painted.text !== undefined && nameTagOf(shape) !== undefined;
+      const under = !tagged && nameBandOf(shape) ? this.backdropOf(shape, lookups) : undefined;
       // A shape drawn as a named part writes on its part's main color (ADR 0067).
-      const colors = readableTextColors(
-        under ?? shape.part?.color ?? shapeColors(shape, this.name).fill,
-      );
+      const base = under ?? shape.part?.color ?? shapeColors(shape, this.name).fill;
+      // As its text says: its own color, or the one that reads on its label back (ADR 0088).
+      const colors = under === undefined ? labelColorsOf(painted, base) : readableTextColors(base);
       tintLabel(label, record.role === 'name' ? colors.name : colors.detail);
     }
   }

@@ -14,6 +14,7 @@ import type { CanvasTheme } from '../../theme/themes';
 import { readableTextColors } from '../colors';
 import { rowsFollowTheme } from '../rowsDraw';
 import type { ArrowShape, ElementShape, NoteShape, RelationLine } from '../scene';
+import { darkShapeText } from '../shapeText';
 import type { RoutePiece } from '../tiles';
 
 /** The fill and stroke a shape is drawn in, in a theme. */
@@ -58,6 +59,7 @@ export function shapeFollowsTheme(shape: ElementShape): boolean {
   return (
     shape.dark !== undefined ||
     shape.style?.gradient?.darkTo !== undefined ||
+    shape.text?.dark !== undefined ||
     rowsFollowTheme(shape)
   );
 }
@@ -89,9 +91,11 @@ const darkPieces = new WeakMap<RoutePiece, RoutePiece>();
 
 /** A shape with the colors it is drawn in, in a theme: itself, when they are its `fill` and `stroke`. */
 export function paintedShape(shape: ElementShape, theme: ThemeName): ElementShape {
-  const { dark, style } = shape;
+  const { dark, style, text } = shape;
   const gradient = style?.gradient;
-  if (theme !== 'dark' || (!dark && gradient?.darkTo === undefined)) return shape;
+  if (theme !== 'dark' || (!dark && gradient?.darkTo === undefined && text?.dark === undefined)) {
+    return shape;
+  }
   let painted = darkShapes.get(shape);
   if (!painted) {
     painted = dark ? { ...shape, fill: dark.fill, stroke: dark.stroke } : { ...shape };
@@ -102,6 +106,8 @@ export function paintedShape(shape: ElementShape, theme: ThemeName): ElementShap
         gradient: { to: gradient.darkTo, direction: gradient.direction },
       };
     }
+    // Its text's colors, adapted on the dark canvas where asked (ADR 0087, ADR 0088).
+    if (text?.dark !== undefined) painted.text = darkShapeText(text);
     darkShapes.set(shape, painted);
   }
   return painted;

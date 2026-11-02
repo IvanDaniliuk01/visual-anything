@@ -32,7 +32,8 @@ export interface LayoutShape {
   aside?: true;
   /**
    * Where it sits now, relative to its container's shape, or to the canvas when directly in World:
-   * the box layout spaces it by, `tagLeft` left of its rectangle for a shape with a name tag.
+   * the box layout spaces it by, `tagLeft` left of and `tagTop` above its rectangle for a shape with
+   * a name tag.
    */
   x: number;
   y: number;
@@ -45,6 +46,8 @@ export interface LayoutShape {
    * layout adds back to where it puts the box, so that the shape lands on the step.
    */
   tagLeft?: number;
+  /** The same above its rectangle, for a shape whose tag is attached above it (ADR 0088). */
+  tagTop?: number;
   /** The size the view stores for it, which a shape that holds contents grows beyond to hold them. */
   storedWidth?: number;
   storedHeight?: number;

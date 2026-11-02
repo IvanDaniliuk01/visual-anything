@@ -84,7 +84,8 @@ export interface LayoutOptions {
   size: number;
   /** The widest a line may be. */
   width: number;
-  align: 'left' | 'center';
+  /** Right, for a shape's detail whose text aligns it so (ADR 0088). */
+  align: 'left' | 'center' | 'right';
   /** The most lines it takes: past them it ends in "…". */
   maxLines?: number;
   /** The tallest it may be: lines past it go, and the last one kept ends in "…". */
@@ -148,11 +149,12 @@ function finished(lines: LaidLine[], cut: boolean): LaidText {
   };
 }
 
-/** Centres each line in the width, with its bands. */
+/** Centres each line in the width, or sets it against its right, with its bands. */
 function aligned(lines: readonly LaidLine[], options: LayoutOptions): void {
-  if (options.align !== 'center') return;
+  if (options.align === 'left') return;
+  const share = options.align === 'center' ? 0.5 : 1;
   for (const line of lines) {
-    const shift = (options.width - line.width) / 2 - (line.pieces[0]?.x ?? 0);
+    const shift = (options.width - line.width) * share - (line.pieces[0]?.x ?? 0);
     if (shift === 0) continue;
     for (const piece of line.pieces) piece.x += shift;
     for (const band of line.bands) band.x += shift;

@@ -156,11 +156,12 @@ export function layoutInput(
       parent: parent ?? -1,
       free: isFree,
       x: shape.offset.x - reach.left,
-      y: shape.offset.y,
+      y: shape.offset.y - reach.top,
       width: laidOut.width + reach.left + reach.right,
-      height: laidOut.height + reach.bottom,
+      height: laidOut.height + reach.top + reach.bottom,
     };
     if (reach.left > 0) laidShape.tagLeft = reach.left;
+    if (reach.top > 0) laidShape.tagTop = reach.top;
     // A shape kept where the view stores it, unpinned, may move aside for a container that grows.
     if (!isFree && shape.row === undefined && !anchored && shape.positioned === 'stored') {
       laidShape.aside = true;
@@ -225,23 +226,24 @@ export function layoutInput(
   };
 }
 
-const NO_REACH = { left: 0, right: 0, bottom: 0 } as const;
+const NO_REACH = { left: 0, right: 0, top: 0, bottom: 0 } as const;
 
 /**
- * How far a shape's name tag reaches left, right and below the rectangle layout gave it, each rounded
- * up to the step, so that the box layout spaces it by holds the tag and the shape still lands on the
- * step; nothing for a shape without one.
+ * How far a shape's name tag reaches left, right, above and below the rectangle layout gave it, each
+ * rounded up to the step, so that the box layout spaces it by holds the tag and the shape still lands
+ * on the step; nothing for a shape without one. A tag attached above (ADR 0088) reaches above.
  */
 export function tagReachOf(
   shape: ElementShape,
   laidOut: Rect = laidOutRect(shape),
-): { left: number; right: number; bottom: number } {
+): { left: number; right: number; top: number; bottom: number } {
   const tag = nameTagOn(shape);
   if (!tag) return NO_REACH;
   const up = (room: number) => (room > 0 ? Math.ceil(room / LAYOUT_STEP - 1e-9) * LAYOUT_STEP : 0);
   return {
     left: up(laidOut.x - tag.x),
     right: up(tag.x + tag.width - (laidOut.x + laidOut.width)),
+    top: up(laidOut.y - tag.y),
     bottom: up(tag.y + tag.height - (laidOut.y + laidOut.height)),
   };
 }
