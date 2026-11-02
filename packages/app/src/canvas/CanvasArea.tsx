@@ -98,7 +98,7 @@ import { useAvoidedRoutes } from './routing/useAvoidedRoutes';
 import { RelationMenu } from './RelationMenu';
 import { onRouteEditingRequest } from './routing/requests';
 import { RouteMenu } from './routing/RouteMenu';
-import { relationLinesOf, type ElementShape, type Scene } from './scene';
+import { drawingOfScene, relationLinesOf, type ElementShape, type Scene } from './scene';
 import type { ComparisonScene } from './comparison/scene';
 import { ShapeMenu } from './ShapeMenu';
 import { useSpacePanel } from '../space/context';
@@ -378,7 +378,10 @@ export function CanvasArea({
   });
   const themeShown = useEffectEvent((shown: ThemeName) => onThemeShown?.(shown));
   // The shape whose hover card shows, once the pointer or the keys rested on it (ADR 0082).
-  const [hoverCard, hoverShape] = useHoverCard((key) => latest.current.indexed?.byKey.get(key));
+  const [hoverCard, hoverShape] = useHoverCard(
+    (key) => latest.current.indexed?.byKey.get(key),
+    () => drawingOfScene(latest.current.indexed?.scene),
+  );
   // What the canvas hovers is shared by element id, as the physical-space panel marks it (ADR 0076).
   const hovers = useHoverStore();
   const shareHover = useEffectEvent((key: string | undefined) => {

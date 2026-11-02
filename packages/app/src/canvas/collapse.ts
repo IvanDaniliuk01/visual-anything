@@ -16,12 +16,19 @@ import type { Id, ViewFile } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
 import { t } from '../i18n';
 import { layOutRuns, type Measure } from '../text/layout';
-import { BASE_DRAWING } from './drawing';
-import { SHEET, TOGGLE_SIZE } from './geometry';
+import {
+  BASE_DRAWING,
+  headerHeldOf,
+  headerPlacesOf,
+  headerRoomsOf,
+  lineOf,
+  textSideInset,
+} from './drawing';
+import { SHEET, TOGGLE_SIZE, bodyOf, toggleRect } from './geometry';
 import type { IndexedScene } from './hit';
 import type { ElementShape, Scene } from './scene';
-import { HEADER_TEXT_SHIFT } from './shape-images';
-import { DEFAULT_DETAIL_LINES, DETAIL_SIZE, robotoMeasure } from './textBlock';
+import { HEADER_TEXT_SHIFT, headerShift } from './shape-images';
+import { DEFAULT_DETAIL_LINES, robotoMeasure } from './textBlock';
 
 const NONE: ReadonlySet<Id> = new Set();
 const collapsedSets = new WeakMap<readonly Id[], ReadonlySet<Id>>();
@@ -168,9 +175,6 @@ export function countText(collapsed: NonNullable<ElementShape['collapsed']>): st
     : t('{count} × {component}', { count: contents, component });
 }
 
-/** How far below a container's top its name is written, and the gap between its name and detail. */
-const NAME_TOP = 8;
-const NAME_GAP = 6;
 /** The least that line is below the top: where the canvas wrote it before drawing defaults. */
 const LEAST_COUNT_TOP = 44;
 
@@ -180,26 +184,30 @@ const LEAST_COUNT_TOP = 44;
  * drawing defaults, so that a collapsed container keeps its height.
  */
 export function countLineTopOf(drawing: ResolvedDrawing): number {
-  const { containerNameSize, detailSize, lineHeight } = drawing.text;
   return Math.max(
     LEAST_COUNT_TOP,
-    Math.round(NAME_TOP + containerNameSize + NAME_GAP + detailSize * lineHeight + 2),
+    Math.round(headerPlacesOf(drawing).detailTop + detailLineOf(drawing) + 2),
   );
 }
 
 /** Where a container's header writes its third line, as the drawing that names nothing places it. */
 export const COUNT_LINE_TOP = countLineTopOf(BASE_DRAWING);
-/** How tall the third line of a container's header is at most, and how tall it must be to show. */
-const COUNT_ROOM = 16;
-const COUNT_LEAST = 14;
-/** How tall the first line of a header's detail may be. */
-const DETAIL_ROOM = 16;
-/** How tall each line of a header's detail after its first is. */
-function detailLineOf(drawing: ResolvedDrawing): number {
-  return drawing.text.detailSize * drawing.text.lineHeight;
+/**
+ * How tall the third line of a container's header is at most, at the detail's size, as its detail's
+ * first line (16 at the sizes of before), and how tall it must be to show: 2 less.
+ */
+function countRoomOf(drawing: ResolvedDrawing): number {
+  return headerPlacesOf(drawing).detailRoom;
 }
-/** How far in from its sides a container's header writes, and the room its toggle takes beside it. */
-const HEADER_INSET = 12;
+const COUNT_SHORT_BY = 2;
+/**
+ * How tall each line of a header's detail after its first is: a line at the detail's size, never
+ * shorter than a label of one line is drawn (`lineOf`).
+ */
+function detailLineOf(drawing: ResolvedDrawing): number {
+  return lineOf(drawing, drawing.text.detailSize);
+}
+/** The room a container's toggle takes beside its header. */
 const BESIDE_TOGGLE = TOGGLE_SIZE + 4;
 
 /** What a container's header writes under its name. */
@@ -217,13 +225,41 @@ export interface HeaderLines {
 }
 
 /**
- * How wide a collapsed container's header writes its detail, as `writeShapeText` wraps it: its body,
- * less the insets, the toggle and, when it shows one, the icon (ADR 0082).
+ * How wide a collapsed container `width` wide writes its header's detail, as `writeShapeText` wraps
+ * it: its body, without the sheet the drawing shows behind it, less the drawing's side insets, the
+ * toggle and, when it shows one, the icon (ADR 0082).
  */
-export function collapsedHeaderWrap(width: number, icon: boolean): number {
+export function collapsedHeaderWrap(
+  width: number,
+  icon: boolean,
+  drawing: ResolvedDrawing = BASE_DRAWING,
+): number {
   return Math.max(
     1,
-    width - SHEET - 2 * HEADER_INSET - BESIDE_TOGGLE - (icon ? HEADER_TEXT_SHIFT : 0),
+    width -
+      sheetOf(drawing) -
+      2 * textSideInset(drawing) -
+      BESIDE_TOGGLE -
+      (icon ? HEADER_TEXT_SHIFT : 0),
+  );
+}
+
+/** How far the sheet behind a collapsed container shows in a drawing: none where it counts instead. */
+function sheetOf(drawing: ResolvedDrawing): number {
+  return drawing.containers.collapsed === 'count' ? 0 : SHEET;
+}
+
+/**
+ * How wide a container's header writes its name and detail, as the canvas and the SVG wrap them:
+ * its body, less the drawing's side insets, the toggle when it shows one, and the icon its header
+ * may show.
+ */
+export function headerWrapOf(shape: ElementShape, drawing: ResolvedDrawing = BASE_DRAWING): number {
+  const toggle = toggleRect(shape);
+  const beside = toggle ? toggle.width + 4 : 0;
+  return Math.max(
+    1,
+    bodyOf(shape).width - 2 * textSideInset(drawing) - beside - headerShift(shape),
   );
 }
 
@@ -248,22 +284,24 @@ export function headerLines(
   drawing: ResolvedDrawing = BASE_DRAWING,
 ): HeaderLines {
   const detail = shape.detail ?? shape.componentName;
-  const oneLine = { detailRoom: Math.min(DETAIL_ROOM, bodyHeight - 32), detailCut: false };
+  const oneLine = { detailRoom: headerRoomsOf(drawing, bodyHeight).detail, detailCut: false };
   if (shape.collapsed === undefined) return { detail, ...oneLine };
   const count = countText(shape.collapsed);
   if (detail === '') return { detail: count, ...oneLine };
-  const laid = detailLinesOf(shape, detail, wrap, measure);
+  const laid = detailLinesOf(shape, detail, wrap, measure, drawing);
   // As many lines as the body holds with the count's line under them.
   const top = countLineTopOf(drawing);
   const line = detailLineOf(drawing);
-  const holds = Math.floor((bodyHeight - top - COUNT_LEAST) / line + 1e-6) + 1;
+  const countRoom = countRoomOf(drawing);
+  const least = countRoom - COUNT_SHORT_BY;
+  const holds = Math.floor((bodyHeight - top - least) / line + 1e-6) + 1;
   const lines = Math.max(1, Math.min(laid.lines, holds));
   const countTop = top + (lines - 1) * line;
-  const room = Math.min(COUNT_ROOM, bodyHeight - countTop);
-  if (room >= COUNT_LEAST) {
+  const room = Math.min(countRoom, bodyHeight - countTop);
+  if (room >= least) {
     return {
       detail,
-      detailRoom: DETAIL_ROOM + (lines - 1) * line,
+      detailRoom: headerPlacesOf(drawing).detailRoom + (lines - 1) * line,
       detailCut: laid.cut || lines < laid.lines,
       count,
       countTop,
@@ -275,7 +313,9 @@ export function headerLines(
 
 /**
  * The height a collapsed container takes: its component's, or more when its detail wraps to more
- * than one line, enough to hold them and its count under them (ADR 0082, built in M3c Stage 2).
+ * than one line, enough to hold them and its count under them (ADR 0082, built in M3c Stage 2), and
+ * never less than its header needs to write its name and its detail's first line at the drawing's
+ * sizes (`headerHeldOf`), 48 at the sizes of before.
  */
 export function collapsedHeight(
   shape: Pick<ElementShape, 'detail' | 'componentName' | 'detailRuns' | 'detailLines'>,
@@ -284,12 +324,14 @@ export function collapsedHeight(
   measure: Measure = robotoMeasure,
   drawing: ResolvedDrawing = BASE_DRAWING,
 ): number {
+  const held = Math.max(height, headerHeldOf(drawing) + sheetOf(drawing));
   const detail = shape.detail ?? shape.componentName;
-  if (detail === '') return height;
-  const { lines } = detailLinesOf(shape, detail, wrap, measure);
-  if (lines <= 1) return height;
-  const needed = countLineTopOf(drawing) + (lines - 1) * detailLineOf(drawing) + COUNT_ROOM + SHEET;
-  return Math.max(height, Math.ceil(needed));
+  if (detail === '') return held;
+  const { lines } = detailLinesOf(shape, detail, wrap, measure, drawing);
+  if (lines <= 1) return held;
+  const needed =
+    countLineTopOf(drawing) + (lines - 1) * detailLineOf(drawing) + countRoomOf(drawing) + SHEET;
+  return Math.max(held, Math.ceil(needed));
 }
 
 /** How many lines a header's detail wraps to, at most its `lines`, and whether it was cut. */
@@ -298,13 +340,14 @@ function detailLinesOf(
   detail: string,
   wrap: number,
   measure: Measure,
+  drawing: ResolvedDrawing,
 ): { lines: number; cut: boolean } {
   if (!Number.isFinite(wrap)) return { lines: 1, cut: false };
   const most = Math.max(1, shape.detailLines ?? DEFAULT_DETAIL_LINES);
   const runs = shape.detailRuns ?? [plainRun(detail)];
   const laid = layOutRuns(runs, {
     measure,
-    size: DETAIL_SIZE,
+    size: drawing.text.detailSize,
     width: wrap,
     align: 'left',
     maxLines: most,

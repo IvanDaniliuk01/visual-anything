@@ -20,12 +20,21 @@
  * around the box that holds the shape and its tag, and reach it there (ADR 0066's clarification of
  * 2026-10-27).
  */
-import type { Side } from '@visual-anything/core';
+import type { ResolvedDrawing, Side } from '@visual-anything/core';
+import { countLineTopOf } from '../collapse';
+import { BASE_DRAWING, textSideInset } from '../drawing';
 import { estimateWidth } from '../fit';
 import { arrowheadAgain, type Point, type Rect } from '../geometry';
 import type { PlacedOutline } from '../outlines';
+import { regionTabOf } from '../regionDraw';
 import { midpointOf, routeBetweenEnds } from '../route';
-import { withRelations, type ElementShape, type RelationLine, type Scene } from '../scene';
+import {
+  drawingOfScene,
+  withRelations,
+  type ElementShape,
+  type RelationLine,
+  type Scene,
+} from '../scene';
 import { headerShift } from '../shape-images';
 import {
   PLATE_HEIGHT,
@@ -55,11 +64,6 @@ export interface AvoidBatch {
   /** The scene's line for each of `lines`, in the same order. */
   drawn: RelationLine[];
 }
-
-/** How far in from its side a container's name starts, and the room around its name plate. */
-const NAME_INSET = 12;
-const NAME_SIZE = 14;
-const DETAIL_SIZE = 11;
 
 /**
  * Whether routing around keeps a shape's end of a line: one that attaches as a plain rectangle, one
@@ -189,30 +193,60 @@ function followsMiddle(
   return at !== undefined && batch.plain[at] === 1 && batch.beside[at] === -1;
 }
 
-/** A container's name plate, where it writes its name and detail; none for a shape that holds nothing. */
-export function namePlateOf(shape: ElementShape): Rect | undefined {
-  const width = plateWidth(shape);
+/**
+ * A container's name plate, where it writes its name and detail in a drawing; none for a shape that
+ * holds nothing.
+ */
+export function namePlateOf(
+  shape: ElementShape,
+  drawing: ResolvedDrawing = BASE_DRAWING,
+): Rect | undefined {
+  const width = plateWidth(shape, drawing);
   if (!(width > 0)) return undefined;
   const { x, y } = shape.rect;
   return {
     x,
     y,
     width: Math.min(width, shape.rect.width),
-    height: Math.min(PLATE_HEIGHT, shape.rect.height),
+    height: Math.min(plateHeightOf(drawing), shape.rect.height),
   };
 }
 
-/** How wide a container's name plate is: its name and detail, from its left side, as it writes them. */
-function plateWidth(shape: ElementShape): number {
+/**
+ * How tall a container's name plate is in a drawing: its name and its detail, down to where its
+ * header writes a third line (44 at the sizes of before drawing defaults).
+ */
+function plateHeightOf(drawing: ResolvedDrawing): number {
+  return countLineTopOf(drawing);
+}
+
+/**
+ * How wide a container's name plate is: its name and detail, from its left side, as it writes them
+ * at the drawing's sizes, in its name's weight, from the drawing's side inset or, for a region, from
+ * after its icon in its tab (ADR 0086).
+ */
+function plateWidth(shape: ElementShape, drawing: ResolvedDrawing): number {
   if (!shape.holdsContents) return 0;
-  const name = estimateWidth(shape.name, NAME_SIZE, true);
-  const detail = estimateWidth(shape.detail ?? shape.componentName, DETAIL_SIZE);
-  return NAME_INSET + headerShift(shape) + Math.max(name, detail) + NAME_INSET;
+  const { containerNameSize, detailSize, nameWeight } = drawing.text;
+  const inset = textSideInset(drawing);
+  // A region writes its name at 500, which is measured as Bold.
+  const name = estimateWidth(
+    shape.name,
+    containerNameSize,
+    shape.region === true || nameWeight !== 400,
+  );
+  const detail = estimateWidth(shape.detail ?? shape.componentName, detailSize);
+  const left = shape.region
+    ? regionTabOf(shape, drawing).name.x - shape.rect.x
+    : inset + headerShift(shape);
+  return left + Math.max(name, detail) + inset;
 }
 
 /** A scene's shapes as the avoider reads them, with the index of each key. */
 interface ShapeBatch {
   shapes: AvoidShapes;
+  /** The drawing its plates are measured in. */
+  drawing: ResolvedDrawing;
   indexes: ReadonlyMap<string, number>;
   /** 1 for each shape a routed line may end on (`routedEnd`). */
   plain: Uint8Array;
@@ -230,19 +264,31 @@ let lastRead: { shapes: readonly ElementShape[]; batch: ShapeBatch } | undefined
 /**
  * Every shape of a list as the avoider reads it: its plate for one drawn by its picture. A list that
  * keeps the keys of the last one read, as after a move or a rename, is read from it, again only where
- * its shapes changed.
+ * its shapes changed. Its name plates are measured in the drawing its scene is drawn with; asked
+ * for no drawing, it gives the list as last read, as for its indexes alone.
  */
-export function avoidShapesOf(shapes: readonly ElementShape[]): ShapeBatch {
+export function avoidShapesOf(
+  shapes: readonly ElementShape[],
+  drawing?: ResolvedDrawing,
+): ShapeBatch {
   const known = shapeBatches.get(shapes);
-  if (known) return known;
+  if (known && (drawing === undefined || known.drawing === drawing)) return known;
+  const measured = drawing ?? BASE_DRAWING;
   const batch =
-    (lastRead && readAgain(lastRead.shapes, lastRead.batch, shapes)) ?? readAfresh(shapes);
+    (lastRead && readAgain(lastRead.shapes, lastRead.batch, shapes, measured)) ??
+    readAfresh(shapes, measured);
   shapeBatches.set(shapes, batch);
   lastRead = { shapes, batch };
   return batch;
 }
 
-function readAfresh(shapes: readonly ElementShape[]): ShapeBatch {
+/** How tall a drawing's name plates are, where it is not `PLATE_HEIGHT`. */
+function plateHeightIn(drawing: ResolvedDrawing): { plateHeight?: number } {
+  const height = plateHeightOf(drawing);
+  return height === PLATE_HEIGHT ? {} : { plateHeight: height };
+}
+
+function readAfresh(shapes: readonly ElementShape[], drawing: ResolvedDrawing): ShapeBatch {
   const indexes = new Map<string, number>();
   shapes.forEach((shape, at) => indexes.set(shape.key, at));
   const rects = new Float64Array(shapes.length * 4);
@@ -253,7 +299,7 @@ function readAfresh(shapes: readonly ElementShape[]): ShapeBatch {
   const inside = new Uint8Array(shapes.length);
   const open = new Uint8Array(shapes.length);
   shapes.forEach((shape, at) => {
-    write(rects, plates, plain, shape, at);
+    write(rects, plates, plain, shape, at, drawing);
     parents[at] =
       shape.containerShape === undefined ? -1 : (indexes.get(shape.containerShape) ?? -1);
     // A row is gone around as its table.
@@ -263,7 +309,13 @@ function readAfresh(shapes: readonly ElementShape[]): ShapeBatch {
   shapes.forEach((shape, at) => {
     beside[at] = besideOf(shape, at, indexes);
   });
-  return { shapes: { rects, parents, plates, inside, open }, indexes, plain, beside };
+  return {
+    shapes: { rects, parents, plates, ...plateHeightIn(drawing), inside, open },
+    drawing,
+    indexes,
+    plain,
+    beside,
+  };
 }
 
 /** Whether a container is drawn open, its contents drawn: lines beside rows run through it. */
@@ -282,8 +334,9 @@ function readAgain(
   before: readonly ElementShape[],
   batch: ShapeBatch,
   shapes: readonly ElementShape[],
+  drawing: ResolvedDrawing,
 ): ShapeBatch | undefined {
-  if (before.length !== shapes.length) return undefined;
+  if (before.length !== shapes.length || batch.drawing !== drawing) return undefined;
   const changed: number[] = [];
   for (let at = 0; at < shapes.length; at++) {
     const was = before[at] as ElementShape;
@@ -300,7 +353,7 @@ function readAgain(
   let open = batch.shapes.open;
   for (const at of changed) {
     const shape = shapes[at] as ElementShape;
-    write(rects, plates, plain, shape, at);
+    write(rects, plates, plain, shape, at, drawing);
     const opened = drawnOpen(shape) ? 1 : 0;
     if (open && open[at] !== opened) {
       if (open === batch.shapes.open) open = open.slice();
@@ -314,6 +367,7 @@ function readAgain(
   }
   return {
     shapes: { ...batch.shapes, rects, plates, ...(open ? { open } : {}) },
+    drawing,
     indexes: batch.indexes,
     plain,
     beside,
@@ -326,6 +380,7 @@ function write(
   plain: Uint8Array,
   shape: ElementShape,
   at: number,
+  drawing: ResolvedDrawing,
 ): void {
   plain[at] = routedEnd(shape) ? 1 : 0;
   const rect = avoidedBoxOf(shape);
@@ -334,7 +389,7 @@ function write(
   rects[at * 4 + 2] = rect.width;
   rects[at * 4 + 3] = rect.height;
   // A shape that draws rows writes its name in its header, inside the block routes go around.
-  plates[at] = shape.rowCount === undefined ? plateWidth(shape) : 0;
+  plates[at] = shape.rowCount === undefined ? plateWidth(shape, drawing) : 0;
 }
 
 /** Which lines of a scene go around what is in their way, a flag for each, and the lines. */
@@ -366,7 +421,7 @@ export function routedFlagsOf(scene: Scene): Uint8Array {
 export function routedLinesOf(scene: Scene): readonly RelationLine[] {
   const known = eligible.get(scene.relations);
   if (known?.shapes === scene.shapes) return known.lines;
-  const batch = avoidShapesOf(scene.shapes);
+  const batch = avoidShapesOf(scene.shapes, drawingOfScene(scene));
   const endingOn = endingOnOf(scene);
   const { relations } = scene;
   const before = lastSorted;
@@ -412,7 +467,7 @@ export function routedLinesOf(scene: Scene): readonly RelationLine[] {
  * their way, all of them or those of `only`.
  */
 export function avoidBatchOf(scene: Scene, only?: ReadonlySet<RelationLine>): AvoidBatch {
-  const batch = avoidShapesOf(scene.shapes);
+  const batch = avoidShapesOf(scene.shapes, drawingOfScene(scene));
   const lines: AvoidLine[] = [];
   const drawn: RelationLine[] = [];
   for (const line of routedLinesOf(scene)) {
@@ -876,7 +931,14 @@ export function channelBatchOf(
   starts[lines.length] = at;
   if (!any) return undefined;
   return {
-    input: { obstacles: channelObstaclesOf(drawn.shapes), points, starts, ends, movable, stubs },
+    input: {
+      obstacles: channelObstaclesOf(drawn.shapes, drawingOfScene(drawn)),
+      points,
+      starts,
+      ends,
+      movable,
+      stubs,
+    },
     lines,
   };
 }
@@ -899,13 +961,16 @@ const channelObstacles = new WeakMap<readonly ElementShape[], Float64Array>();
  * What lines keep clear of in the channel pass: every shape drawn as one block, a row's table
  * rather than its rows, and the name plate of every container drawn open.
  */
-function channelObstaclesOf(shapes: readonly ElementShape[]): Float64Array {
+function channelObstaclesOf(
+  shapes: readonly ElementShape[],
+  drawing: ResolvedDrawing,
+): Float64Array {
   let rects = channelObstacles.get(shapes);
   if (rects) return rects;
   const list: number[] = [];
   for (const shape of shapes) {
     if (shape.row !== undefined || shape.part?.inDrawing === true) continue;
-    const rect = drawnOpen(shape) ? namePlateOf(shape) : avoidedBoxOf(shape);
+    const rect = drawnOpen(shape) ? namePlateOf(shape, drawing) : avoidedBoxOf(shape);
     if (rect) list.push(rect.x, rect.y, rect.width, rect.height);
   }
   rects = Float64Array.from(list);

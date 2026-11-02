@@ -3,8 +3,8 @@
  * canvas, so that it never covers the drawing, in the theme and the language the image is drawn in.
  * The SVG writer writes the same band as SVG, and the PDF draws that.
  */
-import type { Legend, ThemeName } from '@visual-anything/core';
-import { DASH_PATTERNS } from '../canvas/drawing';
+import type { Legend, ResolvedDrawing, ThemeName } from '@visual-anything/core';
+import { BASE_DRAWING, DASH_PATTERNS } from '../canvas/drawing';
 import { entryDash } from '../canvas/overlays/relationLegend';
 import type { Translator } from '../i18n';
 import { THEMES } from '../theme/themes';
@@ -17,7 +17,8 @@ type Context = CanvasRenderingContext2D;
 /**
  * The image with the legend in a band below it, in the theme it is drawn in, and widened to the
  * band's width when it is narrower; the image itself when the legend shows nothing. Throws an
- * `ImageError` when the band makes it too large to draw.
+ * `ImageError` when the band makes it too large to draw. Its entries are written at the sizes of the
+ * drawing the image is drawn with (ADR 0086), as the SVG writes them.
  */
 export function withLegendBand(
   image: HTMLCanvasElement,
@@ -25,6 +26,7 @@ export function withLegendBand(
   t: Translator,
   theme: ThemeName,
   scale: number,
+  drawing: ResolvedDrawing = BASE_DRAWING,
   make: () => HTMLCanvasElement = () => document.createElement('canvas'),
 ): HTMLCanvasElement {
   if (legend.overlays.length === 0) return image;
@@ -34,7 +36,7 @@ export function withLegendBand(
     measuring.font = bandFont(size, bold);
     return measuring.measureText(text).width;
   };
-  const band = layOutBand(legend, t, measure, image.width, scale, theme);
+  const band = layOutBand(legend, t, measure, image.width, scale, theme, drawing);
   const width = band.width;
   const height = image.height + band.height;
   if (width > MAX_IMAGE_SIDE || height > MAX_IMAGE_SIDE || width * height > MAX_IMAGE_PIXELS) {

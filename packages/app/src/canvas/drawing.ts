@@ -3,26 +3,25 @@
  * resolved values for a project and a view, cached by the identity of their `drawing` objects, so
  * that resolving them costs nothing a frame and a change gives another object, which draws again.
  *
- * This is the one place the app chooses how a project that names no preset is drawn: from Clean, the
- * default preset (A5.2), with whatever the project and the view set laid over it; a project or a
- * view that names a preset is drawn from that preset, as the core resolves it. `DRAWING_BEFORE_A5`,
- * how the canvas drew before drawing defaults, stays for the tests that need the old pictures.
+ * The core resolves them (`resolveDrawing`; ADR 0086, "One module resolves them"): a project that
+ * names no preset is drawn from Clean, the default preset (A5.2), with whatever the project and the
+ * view set laid over it, and a project or a view that names a preset from that preset.
+ *
+ * It also holds the measures the canvas and the exports share: those a drawing default changes, as
+ * a container's header (`headerPlacesOf`), and those none changes, as the casing.
  */
 import {
   DRAWING_GROUPS,
-  DRAWING_PRESETS,
   resolveDrawing,
   type ProjectSnapshot,
   type ResolvedDrawing,
 } from '@visual-anything/core';
 import type { DrawingDefaults, Id } from '@visual-anything/schema';
 import { ROBOTO, SANS_FAMILY } from './fontFamilies';
+import type { Rect } from './geometry';
 
-/** What a project that names no preset is drawn from: Clean (A5.2). */
-const NO_PRESET: ResolvedDrawing | undefined = DRAWING_PRESETS.clean;
-
-/** The drawing of a project and a view that set nothing. */
-export const BASE_DRAWING: ResolvedDrawing = resolveCanvasDrawing(undefined, undefined);
+/** The drawing of a project and a view that set nothing: Clean (A5.2). */
+export const BASE_DRAWING: ResolvedDrawing = resolveDrawing(undefined, undefined);
 
 /** Stands for a project or a view that sets no drawing, as a key of the cache. */
 const NONE = {};
@@ -47,7 +46,7 @@ export function canvasDrawing(
   const inner = view ?? NONE;
   let drawing = byView.get(inner);
   if (drawing === undefined) {
-    const made = resolveCanvasDrawing(project, view);
+    const made = resolveDrawing(project, view);
     drawing = sameDrawing(made, BASE_DRAWING) ? BASE_DRAWING : made;
     byView.set(inner, drawing);
   }
@@ -171,33 +170,105 @@ export function fontFamilyOf(drawing: ResolvedDrawing): string[] {
   return drawing.text.font === 'system' ? SYSTEM_FONTS : ROBOTO_FIRST;
 }
 
-function resolveCanvasDrawing(
-  project: DrawingDefaults | undefined,
-  view: DrawingDefaults | undefined,
-): ResolvedDrawing {
-  const named = view?.preset ?? project?.preset;
-  if (named !== undefined || NO_PRESET === undefined) return resolveDrawing(project, view);
-  const base = NO_PRESET;
-  const drawing: ResolvedDrawing = {
-    preset: base.preset,
-    lines: { ...base.lines },
-    shapes: { ...base.shapes },
-    text: { ...base.text },
-    containers: { ...base.containers },
-    aggregated: { ...base.aggregated },
-    reading: { ...base.reading },
-    grid: { ...base.grid },
+// --- A container's header, as one drawn as its kind writes it -------------------------------------
+// The canvas, the SVG, the hover card, the scene and the routing read these, so that a header's
+// rooms grow with the sizes it writes in, and no size the panel or Claude allows loses a name.
+
+/** How far below a container's top its name is written, and the gap between its name and detail. */
+export const HEADER_NAME_TOP = 8;
+export const HEADER_NAME_GAP = 6;
+/** What a header keeps free under its name's and its detail's rooms, inside its body. */
+const HEADER_KEEPS = 4;
+/** The least room a header gives its detail: the canvas's before drawing defaults. */
+const LEAST_DETAIL_ROOM = 16;
+/**
+ * How tall a label of one line is drawn, in ems, and a little more: Roboto's ascent and descent
+ * together come to about 1.17, whatever the drawing's line height.
+ */
+const LABEL_LINE = 1.25;
+
+/**
+ * The height a line of text this size takes in a drawing: its line height, and never less than a
+ * label of one line is drawn, on the canvas or in the exports.
+ */
+export function lineOf(drawing: ResolvedDrawing, size: number): number {
+  return size * Math.max(drawing.text.lineHeight, LABEL_LINE);
+}
+
+/** Where a container's header writes its name and its detail, below its top, and how tall each may be. */
+export interface HeaderPlaces {
+  nameTop: number;
+  nameRoom: number;
+  detailTop: number;
+  detailRoom: number;
+}
+
+/**
+ * Where a container drawn as its kind writes its name and its detail, from the drawing's sizes and
+ * line height: its name 8 below its top, in a room of one line of it and never less than 20; its
+ * detail 6 under the name's size, in a room of one line of it and never less than 16, the rooms of
+ * before drawing defaults.
+ */
+export function headerPlacesOf(drawing: ResolvedDrawing): HeaderPlaces {
+  const { containerNameSize, detailSize } = drawing.text;
+  return {
+    nameTop: HEADER_NAME_TOP,
+    nameRoom: Math.max(NAME_LINE, lineOf(drawing, containerNameSize)),
+    detailTop: HEADER_NAME_TOP + containerNameSize + HEADER_NAME_GAP,
+    detailRoom: Math.max(LEAST_DETAIL_ROOM, lineOf(drawing, detailSize)),
   };
-  for (const layer of [project, view]) {
-    if (layer === undefined) continue;
-    for (const group of DRAWING_GROUPS) {
-      const values = layer[group];
-      if (values === undefined) continue;
-      for (const [name, value] of Object.entries(values)) {
-        if (value !== undefined) (drawing[group] as Record<string, unknown>)[name] = value;
-      }
-    }
-  }
-  drawing.lines.arrow = base.lines.arrow;
-  return drawing;
+}
+
+/**
+ * How tall a container's name and its detail may be in a body this tall, so that they stay inside
+ * it: one line each, the name's room under its top and the detail's under the name's. At the sizes
+ * of before, 20 and 16 at most, and 12 and 32 less than the body.
+ */
+export function headerRoomsOf(
+  drawing: ResolvedDrawing,
+  height: number,
+): { name: number; detail: number } {
+  const { nameTop, nameRoom, detailRoom } = headerPlacesOf(drawing);
+  return {
+    name: Math.min(nameRoom, height - nameTop - HEADER_KEEPS),
+    detail: Math.min(detailRoom, height - nameTop - nameRoom - HEADER_KEEPS),
+  };
+}
+
+/**
+ * How tall a container's body must be at least for its header to give its name and one line of its
+ * detail their whole rooms: 48 at the sizes of before, more where the drawing writes larger.
+ */
+export function headerHeldOf(drawing: ResolvedDrawing): number {
+  const { nameTop, nameRoom, detailRoom } = headerPlacesOf(drawing);
+  return Math.ceil(nameTop + nameRoom + detailRoom + HEADER_KEEPS);
+}
+
+/**
+ * A container's toggle, as the canvas and the SVG draw it: its corners' radius, its border's width,
+ * how far its sign reaches from its middle, as a part of its side, and the sign's width.
+ */
+export const TOGGLE_LOOK = { radius: 3, border: 1, arm: 0.28, sign: 1.5 } as const;
+
+/** How far below a note's top its text starts, and how far above its bottom it stops. */
+const NOTE_TEXT_TOP = 10;
+const NOTE_TEXT_BOTTOM = 8;
+
+/**
+ * Where a note writes its text in its rectangle, and at what size: the drawing's side inset in at
+ * the sides (12 units unless it says otherwise), 10 below its top and 8 above its bottom, at its
+ * `text.noteSize`.
+ */
+export function noteTextPlaceIn(
+  rect: Rect,
+  drawing: ResolvedDrawing,
+): { x: number; y: number; width: number; height: number; size: number } {
+  const inset = textSideInset(drawing);
+  return {
+    x: rect.x + inset,
+    y: rect.y + NOTE_TEXT_TOP,
+    width: Math.max(1, rect.width - 2 * inset),
+    height: Math.max(0, rect.height - NOTE_TEXT_TOP - NOTE_TEXT_BOTTOM),
+    size: drawing.text.noteSize,
+  };
 }

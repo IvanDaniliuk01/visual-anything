@@ -171,7 +171,7 @@ describe('the legend below an image', () => {
     const make = () =>
       ({ width: 0, height: 0, getContext: () => context }) as unknown as HTMLCanvasElement;
     const image = { width: 800, height: 600 } as HTMLCanvasElement;
-    const result = withLegendBand(image, legendWith([owner]), t, 'light', 1, make);
+    const result = withLegendBand(image, legendWith([owner]), t, 'light', 1, undefined, make);
     expect(result).not.toBe(image);
     expect(result.width).toBe(800);
     expect(result.height).toBeGreaterThan(600);
@@ -180,6 +180,6 @@ describe('the legend below an image', () => {
     expect(drawn).toContain('text Team');
     expect(drawn).toContain('text Fill by owner');
     // Without overlays, the image is the image.
-    expect(withLegendBand(image, legendWith([]), t, 'light', 1, make)).toBe(image);
+    expect(withLegendBand(image, legendWith([]), t, 'light', 1, undefined, make)).toBe(image);
   });
 });

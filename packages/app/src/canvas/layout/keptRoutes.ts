@@ -18,7 +18,13 @@ import {
   type LineRouter,
 } from '../routing/avoided';
 import { shapeChanges, type ShapeChange } from '../routing/useAvoidedRoutes';
-import { withRelations, type ElementShape, type RelationLine, type Scene } from '../scene';
+import {
+  drawingOfScene,
+  withRelations,
+  type ElementShape,
+  type RelationLine,
+  type Scene,
+} from '../scene';
 import { keptApart, type RouteWithEnds } from './sharedRuns';
 import type { LaidOutRoute } from './types';
 
@@ -116,7 +122,7 @@ export function withKeptRoutes(scene: Scene, kept: KeptRoutes | undefined): Scen
   if (!kept) return scene;
   const known = composed.get(scene);
   if (known?.kept === kept) return known.scene;
-  const changes = shapeChanges(kept.base.shapes, scene.shapes);
+  const changes = shapeChanges(kept.base.shapes, scene.shapes, drawingOfScene(scene));
   const endedOn = endedOnOf(scene);
   let bounds = scene.bounds;
   let any = false;

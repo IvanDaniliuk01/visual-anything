@@ -18,7 +18,7 @@ import {
 import type { Camera } from '../canvas/camera';
 import type { CollapseAction } from '../canvas/collapse';
 import { indexScene } from '../canvas/hit';
-import type { Scene } from '../canvas/scene';
+import { drawingOfScene, type Scene } from '../canvas/scene';
 import { useEmphasis, type Emphasis } from '../editor/emphasis';
 import { useHover, useHoverStore } from '../editor/hover';
 import type { Selection } from '../editor/selection';
@@ -86,7 +86,10 @@ export function ViewerCanvas({
   }, [scene]);
   const indexed = indexing.indexed;
   // The shape whose hover card shows, as on the editor's canvas (ADR 0082).
-  const [hoverCard, hoverShape] = useHoverCard((key) => indexed?.byKey.get(key));
+  const [hoverCard, hoverShape] = useHoverCard(
+    (key) => indexed?.byKey.get(key),
+    () => drawingOfScene(indexed?.scene),
+  );
   const collapse = useEffectEvent((action: CollapseAction, collapsed: boolean) =>
     latest.current.onCollapse(action, collapsed),
   );

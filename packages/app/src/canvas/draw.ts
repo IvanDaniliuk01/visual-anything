@@ -45,7 +45,7 @@ import {
   outlineColorOf,
   readableTextColors,
 } from './colors';
-import { countLineTopOf, countText, headerLines } from './collapse';
+import { countLineTopOf, countText, headerLines, headerWrapOf } from './collapse';
 import { drawLeavingMark, writeLeavingMark } from './leavingMark';
 import {
   TAG_DETAIL_LINE,
@@ -101,8 +101,13 @@ import {
   BASE_DRAWING,
   NAME_LINE,
   SOFT_SHADOW,
+  TOGGLE_LOOK,
   fontFamilyOf,
+  headerPlacesOf,
+  headerRoomsOf,
+  lineOf,
   nameWeightOf,
+  noteTextPlaceIn,
   personCornerRadius,
   roundedCornerRadius,
   textSideInset,
@@ -525,17 +530,17 @@ function drawToggle(graphics: Graphics, shape: ElementShape): void {
   if (!toggle) return;
   const { x, y, width, height } = toggle;
   graphics
-    .roundRect(x, y, width, height, 3)
+    .roundRect(x, y, width, height, TOGGLE_LOOK.radius)
     .fill(shape.fill)
-    .stroke({ color: shape.stroke, width: 1 });
+    .stroke({ color: shape.stroke, width: TOGGLE_LOOK.border });
   const middleX = x + width / 2;
   const middleY = y + height / 2;
-  const arm = width * 0.28;
+  const arm = width * TOGGLE_LOOK.arm;
   graphics.moveTo(middleX - arm, middleY).lineTo(middleX + arm, middleY);
   if (shape.collapsed !== undefined) {
     graphics.moveTo(middleX, middleY - arm).lineTo(middleX, middleY + arm);
   }
-  graphics.stroke({ color: readableTextColors(shape.fill).name, width: 1.5 });
+  graphics.stroke({ color: readableTextColors(shape.fill).name, width: TOGGLE_LOOK.sign });
 }
 
 /**
@@ -608,7 +613,8 @@ function writeRegionName(
         ),
       },
       true,
-      detail.rect.height + 1,
+      // Never shorter than a label of one line is drawn, whatever the drawing's line height.
+      Math.max(detail.rect.height + 1, lineOf(drawing, drawing.text.detailSize)),
       shape.detailRuns,
     );
   }
@@ -628,7 +634,7 @@ function writeRegionName(
       ),
     },
     false,
-    name.height + 1,
+    Math.max(name.height + 1, lineOf(drawing, drawing.text.containerNameSize)),
   );
 }
 
@@ -816,7 +822,8 @@ export function writeNoteTexts(
 
 /**
  * Where a note writes its text, and at what size: inside it, the drawing's side inset in at the sides
- * (12 units unless it says otherwise), at its `text.noteSize`.
+ * (12 units unless it says otherwise), at its `text.noteSize` (`noteTextPlaceIn`, which the SVG
+ * reads too).
  */
 export function noteTextPlace(
   note: NoteShape,
@@ -828,14 +835,7 @@ export function noteTextPlace(
   height: number;
   size: number;
 } {
-  const inset = textSideInset(drawing);
-  return {
-    x: note.rect.x + inset,
-    y: note.rect.y + 10,
-    width: Math.max(1, note.rect.width - 2 * inset),
-    height: Math.max(0, note.rect.height - 18),
-    size: drawing.text.noteSize,
-  };
+  return noteTextPlaceIn(note.rect, drawing);
 }
 
 /**
@@ -1194,17 +1194,16 @@ function writeShapeText(
   const weight = nameWeightOf(drawing);
   if (isContainer(shape)) {
     const { x, y, width, height } = bodyOf(shape);
-    const toggle = toggleRect(shape);
-    const beside = toggle ? toggle.width + 4 : 0;
     // Right of the icon its header may show.
     const shift = headerShift(shape);
-    const wrap = Math.max(1, width - 2 * inset - beside - shift);
+    const wrap = headerWrapOf(shape, drawing);
+    const { nameTop, detailTop } = headerPlacesOf(drawing);
     if (rooms.name > 0) {
       write(
         {
           text: shape.name,
           x: x + inset + shift,
-          y: y + 8,
+          y: y + nameTop,
           style: textStyle(containerNameSize, colors.name, wrap, 'left', weight, drawing),
         },
         false,
@@ -1225,7 +1224,7 @@ function writeShapeText(
         {
           text: detail,
           x: x + inset + shift,
-          y: y + 8 + containerNameSize + 6,
+          y: y + detailTop,
           style: textStyle(detailSize, colors.detail, wrap, 'left', 'normal', drawing),
         },
         true,
@@ -1345,19 +1344,20 @@ function writeOutlinedText(
     writePartName(shape, outline, colors.name, write);
     return;
   }
-  const rooms = outlinedRooms(shape, outline);
+  const rooms = outlinedRooms(shape, outline, drawing);
   if (showsContents(shape)) {
     const stretch = headerStretch({ ...shape, outline });
     if (!stretch) return;
     const { y } = shape.rect;
     const left = stretch.x + 2 + headerShift(shape);
     const wrap = Math.max(1, stretch.x + stretch.width - left);
+    const { nameTop, detailTop } = headerPlacesOf(drawing);
     if (rooms.name > 0) {
       write(
         {
           text: shape.name,
           x: left,
-          y: y + 8,
+          y: y + nameTop,
           style: textStyle(
             containerNameSize,
             colors.name,
@@ -1377,7 +1377,7 @@ function writeOutlinedText(
         {
           text: detail,
           x: left,
-          y: y + 8 + containerNameSize + 6,
+          y: y + detailTop,
           style: textStyle(detailSize, colors.detail, wrap, 'left', 'normal', drawing),
         },
         true,
@@ -1523,13 +1523,13 @@ export function partNameText(
 function outlinedRooms(
   shape: ElementShape,
   outline: ShapeOutline,
+  drawing: ResolvedDrawing,
 ): { name: number; detail: number } {
   const none = { name: 0, detail: 0 };
   if (showsContents(shape)) {
     const stretch = headerStretch({ ...shape, outline });
     if (!stretch || stretch.width < LEAST_HEADER_WIDTH) return none;
-    const { height } = shape.rect;
-    return { name: Math.min(NAME_LINE, height - 12), detail: Math.min(16, height - 32) };
+    return headerRoomsOf(drawing, shape.rect.height);
   }
   const { height } = labelAreaOn({ rect: shape.rect, outline });
   if (height < LEAST_LABEL_HEIGHT) return none;
@@ -1592,14 +1592,11 @@ export function labelRooms(
   drawing: ResolvedDrawing = BASE_DRAWING,
 ): { name: number; detail: number } {
   if (shape.outline && shape.rowCount === undefined && shape.row === undefined) {
-    return outlinedRooms(shape, shape.outline);
+    return outlinedRooms(shape, shape.outline, drawing);
   }
   const band = nameBandOf(shape);
   if (band) return bandRooms(band);
-  if (isContainer(shape)) {
-    const { height } = bodyOf(shape);
-    return { name: Math.min(20, height - 12), detail: Math.min(16, height - 32) };
-  }
+  if (isContainer(shape)) return headerRoomsOf(drawing, bodyOf(shape).height);
   const area = besideImage(shape, labelArea(shape));
   const block = textBlockOf(
     shape,
