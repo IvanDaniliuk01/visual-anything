@@ -644,6 +644,23 @@ describe('merges, for any two edits of one version', () => {
     );
   });
 
+  it('keep a relation that one side made nesting, closing a cycle, as it was, with what ends on it', () => {
+    // Found by the property above (seed 116172835): the merge took the relation out whole, leaving
+    // a relation that ended on it with nothing to end on.
+    fc.assert(
+      fc.property(edits, ({ base, mine, yours }) => {
+        for (const { kind, file } of mergeProjects(base, mine, yours).merged) {
+          if (kind === 'model') expect(modelRules(file as ModelFile)).toEqual([]);
+        }
+      }),
+      {
+        numRuns: 1,
+        seed: 116172835,
+        path: '56:0:2:1:9:11:11:12:1:2:3:2:12:12:12:11:11:11:11:11:11:22:24:22',
+      },
+    );
+  });
+
   it('leave a file without conflicts once every conflict is resolved, whatever is taken', () => {
     fc.assert(
       fc.property(

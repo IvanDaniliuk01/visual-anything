@@ -897,7 +897,36 @@ function mergeModel(
         // by another change, such as of a definition, stays for its check to refuse.
         (policy.keptWins === true ? undefined : cycle[cycle.length - 1]);
       if (!added) break;
-      relations = relations.filter((each) => each.id !== added.id);
+      // A relation that was there before, whose change closed the cycle, goes back to how the kept
+      // side or the ancestor had it, if that does not nest; one that is new goes, with the
+      // relations that end on it, as deleting a relation takes them.
+      const before = [
+        (policy.kept === 'ours' ? ours : theirs).relations.find((each) => each.id === added.id),
+        olderRelations.get(added.id),
+      ].find((each) => each !== undefined && !nesting.has(each.relationType));
+      if (before) {
+        relations = relations.map((each) => (each.id === added.id ? before : each));
+      } else {
+        const gone = new Set([added.id]);
+        for (let grew = true; grew;) {
+          grew = false;
+          for (const each of relations) {
+            if (gone.has(each.id) || !(gone.has(each.from) || gone.has(each.to))) continue;
+            gone.add(each.id);
+            grew = true;
+          }
+        }
+        for (const each of relations) {
+          if (!gone.has(each.id) || each.id === added.id) continue;
+          add(`relation:${each.id}`)({
+            path: [],
+            why: 'cycle',
+            kept: policy.kept,
+            other: each as unknown as JsonValue,
+          });
+        }
+        relations = relations.filter((each) => !gone.has(each.id));
+      }
       add(`relation:${added.id}`)({
         path: [],
         why: 'cycle',
