@@ -31,6 +31,7 @@ const resolved = new WeakMap<object, WeakMap<object, ResolvedDrawing>>();
 /**
  * The drawing defaults a project's and a view's `drawing` resolve to, the same object for the same
  * two: the project's preset, or the base, with the project's values and then the view's laid over.
+ * Drawing defaults that come to the base's values, as an empty one, are the base itself.
  */
 export function canvasDrawing(
   project: DrawingDefaults | undefined,
@@ -46,10 +47,28 @@ export function canvasDrawing(
   const inner = view ?? NONE;
   let drawing = byView.get(inner);
   if (drawing === undefined) {
-    drawing = resolveCanvasDrawing(project, view);
+    const made = resolveCanvasDrawing(project, view);
+    drawing = sameDrawing(made, BASE_DRAWING) ? BASE_DRAWING : made;
     byView.set(inner, drawing);
   }
   return drawing;
+}
+
+/** Whether two resolved drawings hold the same values, group by group. */
+function sameDrawing(a: ResolvedDrawing, b: ResolvedDrawing): boolean {
+  if (a.preset !== b.preset) return false;
+  if (!sameValues(a.lines.arrow, b.lines.arrow)) return false;
+  return DRAWING_GROUPS.every((group) => sameValues(a[group], b[group]));
+}
+
+function sameValues(a: object, b: object): boolean {
+  const left = a as Record<string, unknown>;
+  const right = b as Record<string, unknown>;
+  const keys = Object.keys(left);
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every((key) => key === 'arrow' || Object.is(left[key], right[key]))
+  );
 }
 
 /** The drawing defaults the view with this id is drawn with; with no view, the project's. */

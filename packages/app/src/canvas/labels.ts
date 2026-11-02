@@ -17,7 +17,7 @@ import type { CanvasTextOptions, TextStyleOptions } from 'pixi.js';
 import { parseEmphasis, type EmphasisRun } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import { FONT_FAMILY, fitText, noteTextPlace, type LabelKind, type TextFactory } from './draw';
-import { ROBOTO } from './robotoFonts';
+import { ROBOTO, ROBOTO_MONO } from './robotoFonts';
 import { RELATION_LABEL_BACK } from './drawing';
 import { emphasisLabel, noteLabel } from './emphasisLabels';
 import { canvasMeasure } from './textBlock';
@@ -86,16 +86,19 @@ function commonOptions() {
  * load is drawn as the nearest it does, as the browser would: 600 and above as 700, 500 as 500, below
  * as 400; a style that names none, or the normal weight, takes the kind's own font.
  */
-function fontOf(kind: LabelKind, style: TextStyleOptions): string {
+export function labelFontOf(kind: LabelKind, style: TextStyleOptions): string {
   const weight = loadedWeight(style.fontWeight, WEIGHTS[kind]);
   const families = Array.isArray(style.fontFamily) ? style.fontFamily : [style.fontFamily];
-  const system = families[0] !== undefined && families[0] !== ROBOTO;
-  if (weight === WEIGHTS[kind] && !system) return FONTS[kind];
-  const name = `${FONTS[kind]}-${weight}${system ? '-system' : ''}`;
+  const first = families[0];
+  const other = first !== undefined && first !== ROBOTO;
+  if (weight === WEIGHTS[kind] && !other) return FONTS[kind];
+  // Roboto Mono, as a table's rows write a column's type in (A5.1), or the system's fonts alone.
+  const family = !other ? '' : first === ROBOTO_MONO ? '-mono' : '-system';
+  const name = `${FONTS[kind]}-${weight}${family}`;
   installOnce({
     name,
     style: {
-      fontFamily: system ? (families as string[]) : FONT_FAMILY,
+      fontFamily: other ? (families as string[]) : FONT_FAMILY,
       fontSize: SIZES[kind],
       fontWeight: weight,
       fill: '#ffffff',
@@ -159,7 +162,7 @@ export const bitmapText: TextFactory = (options, kind, room, runs) => {
     ...(options.x === undefined ? {} : { x: options.x }),
     ...(options.y === undefined ? {} : { y: options.y }),
     style: {
-      fontFamily: fontOf(kind, style),
+      fontFamily: labelFontOf(kind, style),
       ...(style.fontSize === undefined ? {} : { fontSize: style.fontSize }),
       ...(style.align === undefined ? {} : { align: style.align }),
       ...(style.wordWrap === undefined ? {} : { wordWrap: style.wordWrap }),

@@ -9,7 +9,16 @@ import type { Placement, ResolvedDrawing } from '@visual-anything/core';
 import { BASE_DRAWING } from './drawing';
 import { t } from '../i18n';
 import { centerOf, type Point, type Rect, type ShapeKind } from './geometry';
-import { fitHeader, fitRow, rowTextSizesOf, type FittedLine } from './fit';
+import {
+  columnWidthsOf,
+  fitHeader,
+  fitRow,
+  fitRowColumns,
+  rowTextSizesOf,
+  type ColumnWidths,
+  type FittedLine,
+  type RowColumns,
+} from './fit';
 import { overlapHorizontally, sideToward, type AnyEnd, type SideEnd } from './rowRoutes';
 import type { RouteEnd } from './route';
 import {
@@ -38,7 +47,29 @@ export type RowParts =
        */
       leftOut?: readonly Placement[];
     }
-  | { kind: 'row'; index: number; undrawn: readonly Id[] };
+  | {
+      kind: 'row';
+      index: number;
+      undrawn: readonly Id[];
+      /** How wide its table's type and badges columns are, when some row writes either. */
+      columns?: ColumnWidths;
+    };
+
+/**
+ * What a row writes after its name, in its table's columns: its detail but the badges that end it,
+ * which are its column's type, and those badges. A badge is told by its text, one of those its
+ * appearance gives, in their order, at the detail's end, as the core writes them (`detailParts`).
+ */
+export function rowColumnsOf(detail: string, look: Look): { type: string; badges: string } {
+  if (detail === '') return { type: '', badges: '' };
+  const parts = detail.split(' · ');
+  const texts = look.appearance.detail.badges.map((badge) => badge.text);
+  const badges: string[] = [];
+  for (let at = texts.length - 1; at >= 0 && parts.length > 0; at--) {
+    if (parts.at(-1) === texts[at]) badges.unshift(parts.pop() as string);
+  }
+  return { type: parts.join(' · '), badges: badges.join(' · ') };
+}
 
 /**
  * A row's box: as wide as its container and one row high, which its container sets as it stacks its
@@ -84,6 +115,7 @@ export function rowsBox(
   rowsOf: () => Box[],
   keyRows?: ReadonlySet<Id>,
   headerOf?: (width: number) => number,
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): Box {
   const { appearance } = look;
   const offset = position ? { x: position.x, y: position.y } : undefined;
@@ -118,13 +150,22 @@ export function rowsBox(
     rows.length < every.length
       ? every.filter((row) => !keyRows?.has(row.placement.element)).map((row) => row.placement)
       : undefined;
+  // Its rows write their types and badges in columns as wide as the widest (A5.1).
+  const split = rows.map((row) =>
+    row.measured ? rowColumnsOf(row.measured.detail, row.measured.look) : NO_COLUMNS,
+  );
+  const widths = columnWidthsOf(split, width, drawing);
+  const columns = widths.type > 0 || widths.badges > 0 ? widths : undefined;
   rows.forEach((row, index) => {
     row.offset = { x: 0, y: (header ?? ROWS_HEADER) + index * ROW_HEIGHT };
     row.width = width;
     row.height = ROW_HEIGHT;
     row.stored = false;
     const parts = row.measured;
-    if (parts?.rows?.kind === 'row') parts.rows = { ...parts.rows, index };
+    if (parts?.rows?.kind === 'row') {
+      const { undrawn } = parts.rows;
+      parts.rows = { kind: 'row', index, undrawn, ...(columns ? { columns } : {}) };
+    }
   });
   return {
     placement,
@@ -143,6 +184,8 @@ export function rowsBox(
     },
   };
 }
+
+const NO_COLUMNS = { type: '', badges: '' } as const;
 
 /** What a collapsed shape's header says it holds: how many, and of which component when they share one. */
 function holdingOf(rows: readonly Box[]): string {
@@ -175,6 +218,8 @@ export interface RowFields {
   row?: number;
   undrawn?: readonly Id[];
   fitted?: FittedLine;
+  /** On a row of a table whose rows write types or badges, its texts in the table's columns. */
+  columns?: RowColumns;
 }
 
 /** The fields a measured box gives its shape: its kind, and on rows and their containers, the rest. */
@@ -189,11 +234,25 @@ export function rowFieldsOf(
   // A picture takes room before the name: at a row's left, in a header after its inset.
   const icon = look.image !== undefined || look.solid !== undefined;
   if (rows.kind === 'row') {
+    const split = rows.columns ? rowColumnsOf(detail, look) : undefined;
     return {
       kind: 'rectangle',
       row: rows.index,
       ...(rows.undrawn.length > 0 ? { undrawn: rows.undrawn } : {}),
       fitted: fittedOnce('row', element.name, detail, width, false, icon, drawing),
+      ...(rows.columns && split
+        ? {
+            columns: fitRowColumns(
+              element.name,
+              split.type,
+              split.badges,
+              width,
+              rows.columns,
+              { icon },
+              drawing,
+            ),
+          }
+        : {}),
     };
   }
   const collapsed = parts.folded !== undefined;
@@ -257,7 +316,20 @@ export function sameRowFields(before: ElementShape, fields: RowFields): boolean 
     sameIds(before.undrawn, fields.undrawn) &&
     before.fitted?.name === fields.fitted?.name &&
     before.fitted?.detail === fields.fitted?.detail &&
-    before.fitted?.detailCut === fields.fitted?.detailCut
+    before.fitted?.detailCut === fields.fitted?.detailCut &&
+    sameColumns(before.columns, fields.columns)
+  );
+}
+
+function sameColumns(a: RowColumns | undefined, b: RowColumns | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.name === b.name &&
+    a.type === b.type &&
+    a.badges === b.badges &&
+    a.typeX === b.typeX &&
+    a.badgesX === b.badgesX
   );
 }
 
@@ -268,6 +340,7 @@ export function withRowFields(shape: ElementShape, fields: RowFields): void {
   if (fields.row !== undefined) shape.row = fields.row;
   if (fields.undrawn !== undefined) shape.undrawn = fields.undrawn;
   if (fields.fitted !== undefined) shape.fitted = fields.fitted;
+  if (fields.columns !== undefined) shape.columns = fields.columns;
 }
 
 function sameIds(a: readonly Id[] | undefined, b: readonly Id[] | undefined): boolean {

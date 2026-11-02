@@ -87,6 +87,7 @@ import {
   ROW_ICON,
   ROW_INSET,
   rowTextSizesOf,
+  type RowColumns,
 } from '../canvas/fit';
 import {
   CASING_EXTRA,
@@ -100,7 +101,7 @@ import {
   rowsCornerRadius,
   textSideInset,
 } from '../canvas/drawing';
-import { ROBOTO } from '../canvas/robotoFonts';
+import { MONO_FAMILY, ROBOTO } from '../canvas/robotoFonts';
 import {
   SHEET,
   bodyOf,
@@ -348,7 +349,16 @@ const LEAST_SIDE = 0.01;
 const NONE: ReadonlySet<string> = new Set();
 
 /** A text the writer writes: in a weight of the loaded ones when bold, the name's, 700 otherwise. */
-type WrittenText = TextSpec & { fill: Color; halo?: Halo; weight?: 400 | 500 | 700 };
+type WrittenText = TextSpec & {
+  fill: Color;
+  halo?: Halo;
+  weight?: 400 | 500 | 700;
+  /** Written in Roboto Mono, as a table's rows write a column's type (A5.1). */
+  mono?: true;
+};
+
+/** The fonts a column's type is written in, as an SVG `font-family`. */
+const MONO_SVG_FAMILY = svgFamily(MONO_FAMILY);
 
 /** A picture to draw: its cleaned view, the serial of its content, and the tint of a silhouette. */
 type PictureSource = Pick<ShapeImage, 'image' | 'serial' | 'tint'>;
@@ -510,8 +520,11 @@ class Writer {
       const values = {
         'font-size': spec.size,
         'font-weight': weight,
-        'font-family':
-          weight === 500 ? `'${MEDIUM_FAMILY}', ${svgFontFamilyOf(this.drawing)}` : undefined,
+        'font-family': spec.mono
+          ? MONO_SVG_FAMILY
+          : weight === 500
+            ? `'${MEDIUM_FAMILY}', ${svgFontFamilyOf(this.drawing)}`
+            : undefined,
         ...paint,
         'text-anchor': spec.align === 'start' ? undefined : spec.align,
       };
@@ -2134,6 +2147,7 @@ function rowParts(
   if (!fitted) return parts;
   const colors = readableTextColors(fill);
   const middle = y + height / 2;
+  if (shape.columns) return parts + rowColumnsParts(writer, shape, shape.columns, colors.detail);
   if (fitted.name !== '') {
     parts += writer.text({
       text: fitted.name,
@@ -2159,6 +2173,39 @@ function rowParts(
     });
   }
   return parts;
+}
+
+/**
+ * A row's texts in its table's columns, as the canvas writes them (`writeRowColumns`): its name at
+ * the left, its column's type in Roboto Mono from the type column's left edge, its badges after.
+ */
+function rowColumnsParts(
+  writer: Writer,
+  shape: ElementShape,
+  columns: RowColumns,
+  color: Color,
+): string {
+  const { x, y, height } = shape.rect;
+  const sizes = rowTextSizesOf(writer.drawing);
+  const at = (text: string, left: number, size: number, mono?: true) =>
+    text === ''
+      ? ''
+      : writer.text({
+          text,
+          size,
+          fill: color,
+          x: left,
+          align: 'start',
+          y: y + height / 2,
+          anchor: 'middle',
+          room: height,
+          ...(mono ? { mono } : {}),
+        });
+  return (
+    at(columns.name, x + ROW_INSET + (showsPicture(shape) ? ROW_ICON : 0), sizes.rowName) +
+    at(columns.type, x + columns.typeX, sizes.rowDetail, true) +
+    at(columns.badges, x + columns.badgesX, sizes.rowDetail)
+  );
 }
 
 // --- Relations -----------------------------------------------------------------------------------

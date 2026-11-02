@@ -187,3 +187,100 @@ function fitLine(
     ...(detail !== '' && fittedDetail !== oneLine(detail) ? { detailCut: true } : {}),
   };
 }
+
+// --- A table's rows in columns (A5.1, ADR 0086's clarification) -----------------------------------
+
+/**
+ * What a row of a table writes in columns: its name at the left; its column's type in Roboto Mono, in
+ * a column of its own whose left edge is one x for every row of its table; and its badges in a column
+ * after it, at the right. `typeX` and `badgesX` are from the row's left side.
+ */
+export interface RowColumns {
+  name: string;
+  type: string;
+  badges: string;
+  typeX: number;
+  badgesX: number;
+}
+
+/** How wide a table's type and badges columns are: as its widest, within a share of its room. */
+export interface ColumnWidths {
+  type: number;
+  badges: number;
+}
+
+/** The most of a row's room its type column takes, and its badges column. */
+const TYPE_SHARE = 0.45;
+const BADGES_SHARE = 0.3;
+/** How wide a monospace character is, in ems: Roboto Mono advances every glyph by 0.6 em. */
+const MONO_EMS = 0.6;
+
+/** How wide a text is in Roboto Mono at `size`. */
+export function monoWidth(text: string, size: number): number {
+  return [...text].length * MONO_EMS * size;
+}
+
+/** A text cut to fit `width` in Roboto Mono at `size`, with "…" in place of what is cut. */
+export function fitMono(text: string, width: number, size: number): string {
+  const line = oneLine(text);
+  const characters = [...line];
+  const fits = Math.floor(width / (MONO_EMS * size) + 1e-6);
+  if (characters.length <= fits) return line;
+  if (fits < 2) return '';
+  return `${characters
+    .slice(0, fits - 1)
+    .join('')
+    .trimEnd()}${ELLIPSIS}`;
+}
+
+/**
+ * The widths of a table's columns, `width` wide, from the type and badges each of its rows writes:
+ * the widest type in Roboto Mono and the widest badges, at a row's detail size, each within its share
+ * of a row's room.
+ */
+export function columnWidthsOf(
+  rows: readonly { type: string; badges: string }[],
+  width: number,
+  drawing: ResolvedDrawing = BASE_DRAWING,
+): ColumnWidths {
+  const size = rowTextSizesOf(drawing).rowDetail;
+  const room = rowRoom(width);
+  let type = 0;
+  let badges = 0;
+  for (const row of rows) {
+    if (row.type !== '') type = Math.max(type, monoWidth(oneLine(row.type), size));
+    if (row.badges !== '') badges = Math.max(badges, estimateWidth(oneLine(row.badges), size));
+  }
+  return {
+    type: Math.min(type, room * TYPE_SHARE),
+    badges: Math.min(badges, room * BADGES_SHARE),
+  };
+}
+
+/**
+ * A row's texts in its table's columns, the row `width` wide: the badges column against the right,
+ * the type column before it, and the name in what is left, after the row's picture when it shows one.
+ */
+export function fitRowColumns(
+  name: string,
+  type: string,
+  badges: string,
+  width: number,
+  widths: ColumnWidths,
+  room: FitRoom = {},
+  drawing: ResolvedDrawing = BASE_DRAWING,
+): RowColumns {
+  const sizes = rowTextSizesOf(drawing);
+  const badgesX = width - ROW_INSET - widths.badges;
+  const typeEnd = widths.badges > 0 ? badgesX - BETWEEN : width - ROW_INSET;
+  const typeX = typeEnd - widths.type;
+  const nameStart = ROW_INSET + (room.icon ? ROW_ICON : 0);
+  const nameEnd = widths.type > 0 ? typeX - BETWEEN : badgesX - BETWEEN;
+  return {
+    name: fitText(name, Math.max(0, nameEnd - nameStart), sizes.rowName),
+    type: type === '' ? '' : fitMono(type, widths.type, sizes.rowDetail),
+    badges: badges === '' ? '' : fitText(badges, widths.badges, sizes.rowDetail),
+    typeX,
+    badgesX,
+  };
+}

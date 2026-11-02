@@ -31,6 +31,16 @@ export const SANS_FAMILY: readonly string[] = [
   'sans-serif',
 ];
 
+/** The fonts code and a table's column types are written in: Roboto Mono, then the system's. */
+export const MONO_FAMILY: readonly string[] = [
+  ROBOTO_MONO,
+  'ui-monospace',
+  'Cascadia Mono',
+  'Roboto Mono',
+  'Consolas',
+  'monospace',
+];
+
 /**
  * A list of families as a CSS `font-family` value: a name of letters and hyphens alone, which the
  * generic families are, as it is, and any other quoted.

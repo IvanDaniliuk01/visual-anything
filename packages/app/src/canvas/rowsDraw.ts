@@ -23,7 +23,9 @@ import {
   ROW_ICON,
   ROW_INSET,
   rowTextSizesOf,
+  type RowColumns,
 } from './fit';
+import { MONO_FAMILY } from './robotoFonts';
 import { BASE_DRAWING, fontFamilyOf, nameWeightOf, rowsCornerRadius } from './drawing';
 import { THEMES } from '../theme/themes';
 import { readableTextColors } from './colors';
@@ -204,6 +206,10 @@ export function writeRowsText(
     const { x, y, width, height } = shape.rect;
     const colors = readableTextColors(shape.fill);
     const middle = y + height / 2;
+    if (shape.columns) {
+      writeRowColumns(shape, shape.columns, write, colors.detail, drawing);
+      return true;
+    }
     if (fitted.name !== '') {
       write(
         {
@@ -268,6 +274,38 @@ export function writeRowsText(
     );
   }
   return true;
+}
+
+/**
+ * Writes a row's texts in its table's columns (A5.1): its name at the left, after its picture; its
+ * column's type in Roboto Mono, one size under the row's name, from the type column's left edge, the
+ * same x for every row of the table; its badges from the badges column's, at the right. A face keeps
+ * its own layout (ADR 0083), and draws in place of all three.
+ */
+function writeRowColumns(
+  shape: ElementShape,
+  columns: RowColumns,
+  write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+  color: Color,
+  drawing: ResolvedDrawing,
+): void {
+  const { x, y, height } = shape.rect;
+  const middle = y + height / 2;
+  const sizes = rowTextSizesOf(drawing);
+  const at = (text: string, left: number, style: TextStyleOptions) => {
+    if (text === '') return;
+    write({ text, anchor: { x: 0, y: 0.5 }, x: left, y: middle, style }, true, height);
+  };
+  at(
+    columns.name,
+    x + ROW_INSET + (showsPicture(shape) ? ROW_ICON : 0),
+    lineStyle(sizes.rowName, color, 'normal', drawing),
+  );
+  at(columns.type, x + columns.typeX, {
+    ...lineStyle(sizes.rowDetail, color, 'normal', drawing),
+    fontFamily: [...MONO_FAMILY],
+  });
+  at(columns.badges, x + columns.badgesX, lineStyle(sizes.rowDetail, color, 'normal', drawing));
 }
 
 function lineStyle(

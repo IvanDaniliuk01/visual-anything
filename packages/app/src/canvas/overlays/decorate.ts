@@ -665,6 +665,8 @@ function badge(shape: ElementShape, text: string, drawing: ResolvedDrawing | und
   const icon = showsPicture(shape);
   if (shape.row !== undefined) {
     shape.fitted = fitRow(shape.name, shape.detail, shape.rect.width, { icon }, drawing);
+    // A badge an overlay adds is written on the row's one line, out of its table's columns.
+    delete shape.columns;
     return;
   }
   // What a header already cut shows no more of its detail.

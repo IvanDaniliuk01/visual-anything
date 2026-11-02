@@ -139,6 +139,7 @@ import {
 } from './routing/scene-routes';
 import { isSideEnd, routeWithSides, type AnyEnd } from './rowRoutes';
 import { detailRunsOf } from '../text/detail';
+import type { RowColumns } from './fit';
 import {
   MOST_CURVES,
   curveCrosses,
@@ -300,6 +301,12 @@ export interface ElementShape {
    * cut to one line each, ending in "…" when cut. `name` stays whole, for the editor and the outline.
    */
   fitted?: { name: string; detail: string; detailCut?: boolean };
+  /**
+   * On a row of a table whose rows write types or badges (A5.1): its name, its column's type and its
+   * badges in the table's columns, each cut to its column, which the canvas and the exports draw in
+   * place of `fitted`'s line.
+   */
+  columns?: RowColumns;
   /** The image its appearance shows, placed on it (`shape-images.ts`). */
   image?: ShapeImage;
   /**
@@ -1757,6 +1764,7 @@ function measured(
       keyRows,
       // A face is the header of its rows (ADR 0083).
       face && ((width) => faceHeader(face, width, ROWS_HEADER)),
+      laying,
     );
     if (face && box.measured) box.measured.face = face;
     return box;
