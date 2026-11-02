@@ -11,6 +11,7 @@ import type { SavedSimulation, SimulationDefinition } from './simulation';
 import type { DrawingDefaults } from './drawing';
 export type {
   DrawingAggregated,
+  DrawingColors,
   DrawingContainers,
   DrawingDefaults,
   DrawingGrid,

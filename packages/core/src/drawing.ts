@@ -5,6 +5,7 @@
  */
 import type {
   DrawingAggregated,
+  DrawingColors,
   DrawingContainers,
   DrawingDefaults,
   DrawingGrid,
@@ -15,6 +16,8 @@ import type {
   DrawingText,
   Id,
 } from '@visual-anything/schema';
+import type { StoredColorsInDark } from './colors';
+import type { ThemeName } from './preferences';
 import type { ProjectSnapshot } from './snapshot';
 
 /** An arrowhead's length and half width, each the larger of a least and a multiple of the line's width. */
@@ -35,7 +38,11 @@ export interface ResolvedDrawing {
   aggregated: Required<DrawingAggregated>;
   reading: Required<DrawingReading>;
   grid: Required<DrawingGrid>;
+  colors: Required<DrawingColors>;
 }
+
+/** How every preset draws the colors a project stores on the dark canvas: as stored (ADR 0087). */
+const AS_STORED: Required<DrawingColors> = { storedColorsInDark: 'as-stored' };
 
 /** The presets, in the order the app offers them; Clean comes first and is the default. */
 export const DRAWING_PRESET_IDS: readonly DrawingPreset[] = [
@@ -87,6 +94,7 @@ export const DRAWING_BEFORE_A5: ResolvedDrawing = {
   aggregated: { count: 'label', growsWithCount: true },
   reading: { namesFrom: 0.45, detailsFrom: 0.9, rowsFrom: 0.7, labelsFrom: 0.9, farNameSize: 12 },
   grid: { look: 'lines' },
+  colors: { ...AS_STORED },
 };
 
 /** The presets as built in, every value set (the design's section 3). */
@@ -120,6 +128,7 @@ export const DRAWING_PRESETS: Readonly<Record<DrawingPreset, ResolvedDrawing>> =
     aggregated: { count: 'badge', growsWithCount: false },
     reading: { namesFrom: 0.35, detailsFrom: 0.8, rowsFrom: 0.6, labelsFrom: 0.8, farNameSize: 13 },
     grid: { look: 'dots' },
+    colors: { ...AS_STORED },
   },
   dense: {
     preset: 'dense',
@@ -150,6 +159,7 @@ export const DRAWING_PRESETS: Readonly<Record<DrawingPreset, ResolvedDrawing>> =
     aggregated: { count: 'badge', growsWithCount: false },
     reading: { namesFrom: 0.3, detailsFrom: 0.7, rowsFrom: 0.5, labelsFrom: 0.7, farNameSize: 12 },
     grid: { look: 'lines' },
+    colors: { ...AS_STORED },
   },
   expressive: {
     preset: 'expressive',
@@ -180,6 +190,7 @@ export const DRAWING_PRESETS: Readonly<Record<DrawingPreset, ResolvedDrawing>> =
     aggregated: { count: 'badge', growsWithCount: true },
     reading: { namesFrom: 0.4, detailsFrom: 0.9, rowsFrom: 0.7, labelsFrom: 0.9, farNameSize: 14 },
     grid: { look: 'dots' },
+    colors: { ...AS_STORED },
   },
   'high-contrast': {
     preset: 'high-contrast',
@@ -210,6 +221,7 @@ export const DRAWING_PRESETS: Readonly<Record<DrawingPreset, ResolvedDrawing>> =
     aggregated: { count: 'label', growsWithCount: true },
     reading: { namesFrom: 0.45, detailsFrom: 0.9, rowsFrom: 0.7, labelsFrom: 0.9, farNameSize: 14 },
     grid: { look: 'lines' },
+    colors: { ...AS_STORED },
   },
 };
 
@@ -222,6 +234,7 @@ export const DRAWING_GROUPS = [
   'aggregated',
   'reading',
   'grid',
+  'colors',
 ] as const;
 export type DrawingGroup = (typeof DRAWING_GROUPS)[number];
 
@@ -281,6 +294,7 @@ export const DRAWING_VALUES: Readonly<
     farNameSize: number(9, 24),
   },
   grid: { look: choice('lines', 'dots') },
+  colors: { storedColorsInDark: choice('as-stored', 'adapted') },
 };
 
 /**
@@ -376,6 +390,7 @@ export function resolveDrawing(
     aggregated: { ...base.aggregated },
     reading: { ...base.reading },
     grid: { ...base.grid },
+    colors: { ...base.colors },
   };
   for (const layer of layers) {
     if (layer === undefined) continue;
@@ -387,6 +402,17 @@ export function resolveDrawing(
   }
   drawing.lines.arrow = base.lines.arrow;
   return drawing;
+}
+
+/**
+ * How a theme draws the colors a project stores, by these drawing defaults (ADR 0087): adapted only
+ * on the dark canvas, and only when the drawing asks for it; as stored everywhere else.
+ */
+export function storedColorsIn(
+  drawing: Pick<ResolvedDrawing, 'colors'>,
+  theme: ThemeName,
+): StoredColorsInDark {
+  return theme === 'dark' ? drawing.colors.storedColorsInDark : 'as-stored';
 }
 
 /** An arrowhead's length and half width for a line of `width`, with the drawing's size. */

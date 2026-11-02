@@ -22,7 +22,11 @@ import {
 } from '../inspector/colors';
 import { ColorControl } from '../inspector/controls';
 import { definitionColorCommand, shownAtLevel, storedAtLevel } from '../inspector/recolor';
-import { useShownTheme } from '../inspector/useShownTheme';
+import {
+  useShownTheme,
+  useStoredColorsInDark,
+  useStoredColorsShown,
+} from '../inspector/useShownTheme';
 import { isBuiltInDefinition, type DefinitionKind } from './commands';
 import { TraitRow } from './TraitRow';
 import { nameOf } from './traits';
@@ -52,17 +56,21 @@ export function ColorRow({ kind, id, trait, label, hints: withHints = false }: C
   const { package: packageId, origin } = colorOf(definitions, kind, id, trait);
   // As the canvas draws it in the theme shown: a component's dark colors, a relation type's dark stroke.
   const shown = shownAtLevel(project, kind, id, trait, theme);
+  // As drawn, where the open view adapts stored colors on the dark canvas (ADR 0087).
+  const drawn = shownAtLevel(project, kind, id, trait, theme, useStoredColorsShown());
+  const storedInDark = useStoredColorsInDark();
   const stored = storedAtLevel(project, kind, id, trait);
   const hints = !withHints
     ? []
     : component
       ? shapeHints({
           light: drawnColorsOf({ component: id }, definitions, 'light'),
-          dark: drawnColorsOf({ component: id }, definitions, 'dark'),
+          dark: drawnColorsOf({ component: id }, definitions, 'dark', storedInDark),
         })
       : lineHints({
           light: drawnRelationAppearanceOf({ relationType: id }, definitions, 'light').stroke,
-          dark: drawnRelationAppearanceOf({ relationType: id }, definitions, 'dark').stroke,
+          dark: drawnRelationAppearanceOf({ relationType: id }, definitions, 'dark', storedInDark)
+            .stroke,
         });
 
   return (
@@ -85,6 +93,7 @@ export function ColorRow({ kind, id, trait, label, hints: withHints = false }: C
             id={controlId}
             label={label}
             value={shown}
+            drawn={drawn}
             disabled={readOnly}
             describedBy={idsOf(describedBy, hints.length > 0 ? hintId : undefined)}
             onCommit={(color, { waiting }) => {

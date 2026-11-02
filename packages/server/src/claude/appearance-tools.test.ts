@@ -182,6 +182,32 @@ describe('an element’s colors', () => {
     });
     expect(result).not.toHaveProperty('warnings');
   });
+
+  it('say what the dark canvas draws where the drawing defaults adapt stored colors, and store them as given (ADR 0087)', async () => {
+    await tools.value('set_drawing', { drawing: { colors: { storedColorsInDark: 'adapted' } } });
+    const result = await tools.value('update_element', {
+      id: 'api',
+      appearanceTraits: { fill: '#FFFFFF', stroke: '#FFFFFF' },
+    });
+    // White draws black on the dark canvas: the stroke is measured there as drawn.
+    expect(result.warnings).toEqual([
+      'The stroke #FFFFFF of "API" is 1.0:1 against the light canvas, under 3:1.',
+      'The stroke #FFFFFF of "API", drawn #000000 there, is 1.1:1 against the dark canvas, under 3:1.',
+      '"API" blends into the light canvas: its fill #FFFFFF and its stroke #FFFFFF are 1.0:1 and 1.0:1 against it, under 3:1.',
+      '"API" blends into the dark canvas: its fill #000000 and its stroke #000000 are 1.1:1 and 1.1:1 against it, under 3:1.',
+      'On the dark canvas the fill #FFFFFF of "API" is drawn #000000: the drawing defaults adapt stored colors there (colors.storedColorsInDark). The color stored stays #FFFFFF.',
+      'On the dark canvas the stroke #FFFFFF of "API" is drawn #000000: the drawing defaults adapt stored colors there (colors.storedColorsInDark). The color stored stays #FFFFFF.',
+    ]);
+    expect(state().model.elements.find((each) => each.id === 'api')?.appearance).toEqual({
+      fill: '#FFFFFF',
+      stroke: '#FFFFFF',
+    });
+    const item = await tools.value('get_item', { id: 'api' });
+    expect(item).toMatchObject({
+      appearance: { fill: '#FFFFFF', stroke: '#FFFFFF' },
+      darkCanvas: { fill: '#000000', stroke: '#000000' },
+    });
+  });
 });
 
 describe('notes and arrows', () => {

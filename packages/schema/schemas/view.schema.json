@@ -1778,6 +1778,9 @@
         },
         "grid": {
           "$ref": "#/definitions/DrawingGrid"
+        },
+        "colors": {
+          "$ref": "#/definitions/DrawingColors"
         }
       },
       "additionalProperties": false,
@@ -2024,6 +2027,21 @@
       },
       "additionalProperties": false,
       "description": "How the grid is drawn when it shows."
+    },
+    "DrawingColors": {
+      "type": "object",
+      "properties": {
+        "storedColorsInDark": {
+          "type": "string",
+          "enum": [
+            "as-stored",
+            "adapted"
+          ],
+          "description": "On the dark canvas, the colors the project stores (fills, strokes, tints, notes and free arrows) are drawn as stored, or adapted: their lightness turned and their hue kept. The light theme always draws them as stored, and nothing stored changes."
+        }
+      },
+      "additionalProperties": false,
+      "description": "How the colors a project stores are drawn in each theme (ADR 0087)."
     },
     "FileConflict": {
       "type": "object",

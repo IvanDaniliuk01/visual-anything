@@ -143,6 +143,8 @@ The project names a preset and changes any of its values; a view changes them ag
 ${VALUES_IN_WORDS}
 Sizes are in canvas units, reading's *From values are scales (1 is 100%), and farNameSize is in screen pixels.
 
+colors.storedColorsInDark says how the dark canvas draws the colors the project stores (fills, strokes, tints, notes and free arrows): as-stored, every preset's, draws them as picked; adapted turns their lightness and keeps their hue, so that a pale fill draws dark there. It only draws: the light canvas, the files and every tool's answer keep the stored colors, and built-in colors keep their own dark shades. Set it when the person finds light colors glare on the dark canvas, never on your own.
+
 After you set them, call capture_view on a view to check the result, and tell the person what changed: they can undo it in the app.
 
 Example: { "drawing": { "preset": "dense" } }

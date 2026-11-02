@@ -82,6 +82,11 @@ export interface ImageLook {
   placement: 'icon' | 'drawing' | 'parts';
   /** Present for a silhouette of this colour: the picture's shape kept, its colours replaced. */
   tint?: Color;
+  /**
+   * The tint drawn on the dark canvas, when it differs from `tint`: a stored tint adapted, where the
+   * drawing defaults adapt stored colors there (ADR 0087).
+   */
+  darkTint?: Color;
 }
 
 /** An image placed on a shape. */
@@ -101,6 +106,16 @@ export interface ShapeImage {
   /** A drawing's name band, across the shape under the plate. */
   band?: Rect;
   tint?: Color;
+  /** The tint drawn on the dark canvas, when it differs from `tint` (ADR 0087). */
+  darkTint?: Color;
+}
+
+/** The tint a picture is drawn in, in a theme: its dark one on the dark canvas, when it has one. */
+export function tintIn(
+  image: Pick<ShapeImage, 'tint' | 'darkTint'>,
+  theme: 'light' | 'dark',
+): Color | undefined {
+  return theme === 'dark' && image.darkTint !== undefined ? image.darkTint : image.tint;
 }
 
 /** What a shape's image is placed from: its kind, rectangle, and whether it holds or draws contents. */
@@ -208,6 +223,7 @@ export function placeImage(
       serial: look.serial,
       ...where,
       ...(look.tint === undefined ? {} : { tint: look.tint }),
+      ...(look.darkTint === undefined ? {} : { darkTint: look.darkTint }),
     },
     ...(plate ? { plate } : {}),
   };
@@ -378,6 +394,7 @@ export function sameShapeImage(a: ShapeImage | undefined, b: ShapeImage | undefi
     a.serial === b.serial &&
     a.placement === b.placement &&
     a.tint === b.tint &&
+    a.darkTint === b.darkTint &&
     sameRect(a.rect, b.rect) &&
     sameRect(a.box, b.box) &&
     sameRect(a.band, b.band)
@@ -440,6 +457,7 @@ export function placedAgain(
     placement:
       image.placement === 'drawing' || image.placement === 'parts' ? image.placement : 'icon',
     ...(image.tint === undefined ? {} : { tint: image.tint }),
+    ...(image.darkTint === undefined ? {} : { darkTint: image.darkTint }),
   };
   const placed = placeImage(
     look,
@@ -502,6 +520,7 @@ export function imageSignature(shape: {
     image ? image.serial : `solid ${solid?.hash ?? ''}`,
     shown.placement,
     image?.tint ?? '',
+    image?.darkTint ?? '',
     rect.x,
     rect.y,
     rect.width,

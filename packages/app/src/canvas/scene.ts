@@ -48,7 +48,9 @@ import type {
 import { ESSENCE_ID } from '@visual-anything/schema';
 import { THEMES } from '../theme/themes';
 import {
+  adaptedForDark,
   appearanceOf,
+  appearanceOriginsOf,
   componentOrEssence,
   containmentTree,
   darkColorsOf,
@@ -62,9 +64,11 @@ import {
   relationAppearanceOf,
   relationAppearanceOriginsOf,
   relationDarkStrokeOf,
+  relationTypeDarkStrokeOf,
   relationTypeOrRelatesTo,
   storedStacking,
   type Definitions,
+  type StoredColorsInDark,
   type Placement,
   type ResolvedAppearance,
   type TraitOrigin,
@@ -264,7 +268,8 @@ export interface ElementShape {
   stroke: Color;
   /**
    * The fill and stroke drawn on the dark canvas, when they differ from `fill` and `stroke`: built-in
-   * colors in their dark shades, stored colors as stored (core's `darkColorsOf`, ADR-0033).
+   * colors in their dark shades, stored colors as stored (core's `darkColorsOf`, ADR-0033), or
+   * adapted where the drawing defaults ask for it (ADR 0087).
    */
   dark?: { fill: Color; stroke: Color };
   rect: Rect;
@@ -487,6 +492,11 @@ export interface NoteShape {
   fill?: Color;
   /** Its own stroke, as stored; absent when it takes the theme's. */
   stroke?: Color;
+  /**
+   * Present when its own colors are drawn adapted on the dark canvas, as the drawing defaults ask
+   * (ADR 0087, the core's `noteColorsOf`); absent when it has none or they are drawn as stored.
+   */
+  adapted?: true;
 }
 
 /** An arrow: a free shape pointing from one place on the canvas to another. */
@@ -497,6 +507,8 @@ export interface ArrowShape {
   arrowhead: Arrowhead;
   /** Its own color, as stored; absent when it takes the theme's (ADR-0035). */
   stroke?: Color;
+  /** Present when its own color is drawn adapted on the dark canvas (ADR 0087, `arrowColorOf`). */
+  adapted?: true;
 }
 
 /**
@@ -1576,16 +1588,35 @@ function sameTypes(a: ReadonlySet<Id> | undefined, b: ReadonlySet<Id> | undefine
   return true;
 }
 
-/** The looks of elements, for each set of definitions: dropped with them, when packages change. */
-const looks = new WeakMap<Definitions, WeakMap<Element, Look>>();
+/**
+ * The looks of elements, for each set of definitions and each way the dark canvas draws stored colors
+ * (ADR 0087): dropped with the definitions, when packages change.
+ */
+const looks = new WeakMap<Definitions, Map<StoredColorsInDark, WeakMap<Element, Look>>>();
 
 function looksOf(definitions: Definitions, keep: boolean): WeakMap<Element, Look> {
-  let kept = keep ? looks.get(definitions) : undefined;
+  const stored = laying.colors.storedColorsInDark;
+  let byStored = keep ? looks.get(definitions) : undefined;
+  if (keep && !byStored) {
+    byStored = new Map();
+    looks.set(definitions, byStored);
+  }
+  let kept = byStored?.get(stored);
   if (!kept) {
     kept = new WeakMap();
-    if (keep) looks.set(definitions, kept);
+    byStored?.set(stored, kept);
   }
   return kept;
+}
+
+/**
+ * The tint an element's silhouette is drawn in on the dark canvas when stored colors are adapted
+ * there (ADR 0087): a tint the project stores, adapted; one a built-in definition gives, as it is.
+ */
+function adaptedTintOf(element: Element, definitions: Definitions, tint: Color): Color {
+  const origin = appearanceOriginsOf(element, definitions).image;
+  const builtIn = origin.kind === 'definition' && origin.via === 'definition' && origin.builtIn;
+  return builtIn ? tint : adaptedForDark(tint);
 }
 
 /** An element's look and its detail, as `measured` takes them. */
@@ -1619,9 +1650,15 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
       look.solid = solid;
       look.image = undefined;
     }
-    const dark = darkColorsOf(element, definitions);
+    // Built-in colors in their dark shades; stored ones as stored, or adapted (ADR 0087).
+    const stored = laying.colors.storedColorsInDark;
+    const dark = darkColorsOf(element, definitions, stored);
     if (dark.fill !== look.appearance.fill || dark.stroke !== look.appearance.stroke) {
       look.dark = dark;
+    }
+    if (look.image?.tint !== undefined && stored === 'adapted') {
+      const darkTint = adaptedTintOf(element, definitions, look.image.tint);
+      if (darkTint !== look.image.tint) look.image = { ...look.image, darkTint };
     }
     const ownPart = ownPartOf(look.appearance, shownImagesOf(definitions));
     if (ownPart) look.ownPart = ownPart;
@@ -3502,11 +3539,13 @@ function lineBetween(
       ? `${members.length}`
       : `×${members.length}`
     : relation?.name;
-  // A relation's own stroke is drawn as stored; an aggregated relation takes its relation type's.
+  // A relation's own stroke is drawn as stored, or adapted on the dark canvas (ADR 0087); an
+  // aggregated relation takes its relation type's.
+  const stored = laying.colors.storedColorsInDark;
   const typeDark =
     relation === undefined || members
-      ? relationType.darkStroke
-      : relationDarkStrokeOf(relation, definitions);
+      ? relationTypeDarkStrokeOf(relationType, stored)
+      : relationDarkStrokeOf(relation, definitions, stored);
   const neutral = laying.lines.color === 'neutral' && builtInTrait(origins.stroke);
   const stroke = neutral ? NEUTRAL_LINES.light : appearance.stroke;
   const darkStroke = neutral ? NEUTRAL_LINES.dark : typeDark;
@@ -3601,7 +3640,13 @@ function noteShape(note: Note): NoteShape {
   };
   if (note.fill !== undefined) shape.fill = note.fill;
   if (note.stroke !== undefined) shape.stroke = note.stroke;
+  if (adaptsOwn(note.fill, note.stroke)) shape.adapted = true;
   return shape;
+}
+
+/** Whether a free shape with these colors of its own draws them adapted on the dark canvas (ADR 0087). */
+function adaptsOwn(...own: (Color | undefined)[]): boolean {
+  return laying.colors.storedColorsInDark === 'adapted' && own.some((each) => each !== undefined);
 }
 
 function arrowShape(arrow: Arrow): ArrowShape {
@@ -3614,6 +3659,7 @@ function arrowShape(arrow: Arrow): ArrowShape {
     arrowhead: arrowheadAt(from, to, arrowWidthOf(laying), laying),
   };
   if (arrow.stroke !== undefined) shape.stroke = arrow.stroke;
+  if (adaptsOwn(arrow.stroke)) shape.adapted = true;
   return shape;
 }
 

@@ -52,6 +52,7 @@ export {
   RELATION_APPEARANCE_TRAITS,
   appearanceOf,
   appearanceOriginsOf,
+  componentDarkColorsOf,
   componentOrEssence,
   darkColorsOf,
   definitionsOf,
@@ -61,16 +62,18 @@ export {
   relationAppearanceOf,
   relationAppearanceOriginsOf,
   relationDarkStrokeOf,
+  relationTypeDarkStrokeOf,
   relationTypeOrRelatesTo,
 } from './definitions';
 
-export type { FreeShapeColor, FreeShapeTheme } from './colors';
+export type { FreeShapeColor, FreeShapeTheme, StoredColorsInDark } from './colors';
 export {
   CANVAS_BACKGROUNDS,
   COLOR_PATTERN,
   MINIMUM_COLOR_DIFFERENCE,
   MINIMUM_MARK_CONTRAST,
   MINIMUM_TEXT_CONTRAST,
+  adaptedForDark,
   arrowColorOf,
   colorDifference,
   contrastRatio,
@@ -81,6 +84,8 @@ export {
   relativeLuminance,
   sameColor,
   storedColor,
+  storedColorInDark,
+  turnKeepsChroma,
 } from './colors';
 export { PALETTE } from './palette';
 export type { Swatch } from './palette';

@@ -4,7 +4,7 @@ import { useId } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
 import { originText, savedIn } from '../inspector/colors';
-import { useShownTheme } from '../inspector/useShownTheme';
+import { useShownTheme, useStoredColorsShown } from '../inspector/useShownTheme';
 import { isBuiltInDefinition } from './commands';
 import { GeometryEditor } from './GeometryEditor';
 import { PartControl } from './PartControl';
@@ -38,7 +38,7 @@ export function ShapeSection({ id }: { id: Id }) {
   const saved = isBuiltInDefinition(definitions, 'component', id)
     ? savedIn(project.packages, component.package)
     : undefined;
-  const colors = drawnColorsOf({ component: id }, definitions, theme);
+  const colors = drawnColorsOf({ component: id }, definitions, theme, useStoredColorsShown());
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>

@@ -1,4 +1,5 @@
 import {
+  adaptedForDark,
   flattenOutline,
   imagesIn,
   outlineLabelArea,
@@ -280,6 +281,36 @@ describe('writeSvg', () => {
     const body = document.querySelector('g[data-element="appointments-api"] > rect');
     expect(body?.getAttribute('fill')).toBe(api?.dark?.fill);
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+  });
+
+  it('draws stored colors adapted in the dark theme where the drawing defaults ask, and as stored in the light one (ADR 0087)', () => {
+    const rich = richSample();
+    const project: ProjectSnapshot = {
+      ...rich,
+      project: { ...rich.project, drawing: { colors: { storedColorsInDark: 'adapted' } } },
+      model: {
+        ...rich.model,
+        elements: rich.model.elements.map((element) =>
+          element.id === 'whatsapp'
+            ? { ...element, appearance: { ...element.appearance, fill: '#FFF3BF' } }
+            : element,
+        ),
+      },
+    };
+    const dark = readSvg(writeSvg(project, SAMPLE_VIEW, { theme: 'dark' }).text);
+    const light = readSvg(writeSvg(project, SAMPLE_VIEW).text);
+    const fillOf = (document: Document) =>
+      document.querySelector('g[data-element="whatsapp"] > rect')?.getAttribute('fill');
+    expect(fillOf(light)).toBe('#FFF3BF');
+    expect(fillOf(dark)).toBe(adaptedForDark('#FFF3BF'));
+    // A silhouette's stored tint is adapted too.
+    const silhouetteOf = (document: Document) => {
+      const href = document.querySelector('g[data-element="whatsapp"] use')?.getAttribute('href');
+      return document.querySelector(`symbol[id="${href?.slice(1)}"]`)?.innerHTML ?? '';
+    };
+    expect(silhouetteOf(light)).toContain('#B42318');
+    expect(silhouetteOf(dark)).toContain(adaptedForDark('#B42318'));
+    expect(silhouetteOf(dark)).not.toContain('#B42318');
   });
 
   it('writes each picture once and uses it on every shape that shows it', () => {

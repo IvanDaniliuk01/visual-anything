@@ -17,7 +17,12 @@ import type { ThemeName } from '@visual-anything/core';
 import type { ArrowShape, ElementShape, NoteShape, RelationLine } from '../scene';
 import { nameBandOf } from '../shape-images';
 import type { TilePlan } from '../tiles';
-import { lineFollowsTheme, noteFollowsTheme, shapeFollowsTheme } from './paint';
+import {
+  lineFollowsTheme,
+  noteFollowsTheme,
+  noteTextFollowsTheme,
+  shapeFollowsTheme,
+} from './paint';
 
 /**
  * How long a frame may spend drawing tiles again and tinting labels again, in milliseconds: with the
@@ -140,7 +145,7 @@ export function labelsFollowTheme(tile: TileItems): boolean {
           )
         : tile.kind === 'relations'
           ? tile.lines.some((line) => line.label !== undefined)
-          : tile.notes.some((note) => note.fill === undefined);
+          : tile.notes.some(noteTextFollowsTheme);
     labelsFollow.set(members, follows);
   }
   return follows;

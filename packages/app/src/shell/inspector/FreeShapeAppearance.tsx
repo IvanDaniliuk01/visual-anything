@@ -9,11 +9,11 @@ import { ColorHints } from './colorParts';
 import { idsOf, lineHints, shapeHints, wayBack, type ColorTrait } from './colors';
 import { ColorControl } from './controls';
 import { freeShapeColorCommand } from './recolor';
-import { useShownTheme } from './useShownTheme';
+import { useShownTheme, useStoredColorsInDark, useStoredColorsShown } from './useShownTheme';
 
-/** The colors a note is drawn in, in each theme. */
-function noteColors(note: Note, theme: ThemeName) {
-  const { fill, stroke } = noteColorsOf(note, THEMES[theme].canvas);
+/** The colors a note is drawn in, in each theme; its own adapted when asked (ADR 0087). */
+function noteColors(note: Note, theme: ThemeName, adapted = false) {
+  const { fill, stroke } = noteColorsOf(note, THEMES[theme].canvas, adapted);
   return { fill: fill.color, stroke: stroke.color };
 }
 
@@ -28,15 +28,25 @@ export function FreeShapeAppearance({ shape }: { shape: Note | Arrow }) {
   const headingId = useId();
   const hintId = useId();
   const SHOWN = THEMES[useShownTheme()].canvas;
+  // Its own colors adapted on the dark canvas, where the view asks for it (ADR 0087): the inspector
+  // shows the stored color, which a pick changes, with the color drawn beside it.
+  const inDark = useStoredColorsInDark() === 'adapted';
+  const shownAdapted = useStoredColorsShown() === 'adapted';
   const disabled = send === undefined || viewId === undefined;
   const hints =
     shape.kind === 'note'
-      ? shapeHints({ light: noteColors(shape, 'light'), dark: noteColors(shape, 'dark') })
+      ? shapeHints({ light: noteColors(shape, 'light'), dark: noteColors(shape, 'dark', inDark) })
       : lineHints({
           light: arrowColorOf(shape, THEMES.light.canvas).color,
-          dark: arrowColorOf(shape, THEMES.dark.canvas).color,
+          dark: arrowColorOf(shape, THEMES.dark.canvas, inDark).color,
         });
-  const traits: { trait: ColorTrait; label: string; own: Color | undefined; shown: Color }[] =
+  const traits: {
+    trait: ColorTrait;
+    label: string;
+    own: Color | undefined;
+    shown: Color;
+    drawn: Color;
+  }[] =
     shape.kind === 'note'
       ? [
           {
@@ -44,12 +54,14 @@ export function FreeShapeAppearance({ shape }: { shape: Note | Arrow }) {
             label: 'Fill',
             own: shape.fill,
             shown: noteColorsOf(shape, SHOWN).fill.color,
+            drawn: noteColorsOf(shape, SHOWN, shownAdapted).fill.color,
           },
           {
             trait: 'stroke',
             label: 'Stroke',
             own: shape.stroke,
             shown: noteColorsOf(shape, SHOWN).stroke.color,
+            drawn: noteColorsOf(shape, SHOWN, shownAdapted).stroke.color,
           },
         ]
       : [
@@ -58,6 +70,7 @@ export function FreeShapeAppearance({ shape }: { shape: Note | Arrow }) {
             label: 'Stroke',
             own: shape.stroke,
             shown: arrowColorOf(shape, SHOWN).color,
+            drawn: arrowColorOf(shape, SHOWN, shownAdapted).color,
           },
         ];
 
@@ -65,7 +78,7 @@ export function FreeShapeAppearance({ shape }: { shape: Note | Arrow }) {
     <section className="inspector-section" aria-labelledby={headingId}>
       <h4 id={headingId}>{t('Appearance')}</h4>
       <ul className="definition-traits">
-        {traits.map(({ trait, label, own, shown }) => (
+        {traits.map(({ trait, label, own, shown, drawn }) => (
           <TraitRow
             key={trait}
             label={t(label)}
@@ -86,6 +99,7 @@ export function FreeShapeAppearance({ shape }: { shape: Note | Arrow }) {
                 id={id}
                 label={t(label)}
                 value={shown}
+                drawn={drawn}
                 disabled={disabled}
                 describedBy={idsOf(describedBy, hints.length > 0 ? hintId : undefined)}
                 onCommit={(color, { waiting }) => {

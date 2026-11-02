@@ -31,7 +31,7 @@ import {
   storedAtLevel,
 } from './recolor';
 import { SHAPES, isShape } from './shapes';
-import { useShownTheme } from './useShownTheme';
+import { useShownTheme, useStoredColorsInDark, useStoredColorsShown } from './useShownTheme';
 
 interface AppearanceSectionProps {
   element: Element;
@@ -125,14 +125,17 @@ function OwnTraits({
   const asRow = drawnOnlyAsRows(useEditor().scene, element.id);
   const own = element.appearance ?? {};
   const shown = appearanceOf(element, definitions);
-  // The colors the canvas draws in the theme shown.
+  // The colors the canvas draws in the theme shown, stored colors as stored: what a pick changes.
   const drawn = drawnColorsOf(element, definitions, theme);
+  // Stored colors adapted on the dark canvas, where the view asks for it (ADR 0087).
+  const storedInDark = useStoredColorsInDark();
+  const adapted = drawnColorsOf(element, definitions, theme, useStoredColorsShown());
   const origins = appearanceOriginsOf(element, definitions);
   const nameOf = (id: Id) => t.definition(id, componentOrEssence(definitions, id).name);
   const ownTraits = Object.entries(own).filter(([, value]) => value !== undefined);
   const hints = shapeHints({
     light: drawnColorsOf(element, definitions, 'light'),
-    dark: drawnColorsOf(element, definitions, 'dark'),
+    dark: drawnColorsOf(element, definitions, 'dark', storedInDark),
   });
   const changing = (traits: AppearanceChanges): Command => ({
     type: 'update-element',
@@ -159,6 +162,7 @@ function OwnTraits({
           id={id}
           label={label}
           value={drawn[trait]}
+          drawn={adapted[trait]}
           disabled={disabled || (asRow && trait === 'stroke')}
           describedBy={idsOf(
             describedBy,
@@ -257,14 +261,17 @@ function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
   const id = element.component;
   const component = componentOrEssence(definitions, id);
   const shown = component.appearance;
-  // The component's colors as the canvas draws them in the theme shown: its dark colors in the dark.
+  // The component's colors as the canvas draws them in the theme shown: its dark colors in the dark,
+  // stored colors as stored; and as drawn there, where the view adapts them (ADR 0087).
   const drawn = drawnColorsOf({ component: id }, definitions, theme);
+  const storedInDark = useStoredColorsInDark();
+  const adapted = drawnColorsOf({ component: id }, definitions, theme, useStoredColorsShown());
   const stored = (trait: 'shape' | ColorTrait) => storedAtLevel(project, 'component', id, trait);
   const nameOf = (each: Id) => t.definition(each, componentOrEssence(definitions, each).name);
   const own = element.appearance ?? {};
   const hints = shapeHints({
     light: drawnColorsOf({ component: id }, definitions, 'light'),
-    dark: drawnColorsOf({ component: id }, definitions, 'dark'),
+    dark: drawnColorsOf({ component: id }, definitions, 'dark', storedInDark),
   });
   const keeps = (trait: 'shape' | ColorTrait, what: string) =>
     own[trait] === undefined
@@ -293,6 +300,7 @@ function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
           id={controlId}
           label={label}
           value={drawn[trait]}
+          drawn={adapted[trait]}
           disabled={disabled}
           describedBy={idsOf(describedBy, hints.length > 0 ? hintId : undefined)}
           onCommit={(picked, { waiting }) => {
