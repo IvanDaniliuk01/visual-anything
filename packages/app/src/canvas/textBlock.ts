@@ -13,8 +13,9 @@
 import { robotoWidth, type EmphasisRun, type ResolvedDrawing } from '@visual-anything/core';
 import { BASE_DRAWING, nameVariantOf } from './drawing';
 import { SYSTEM_FONT_MARGIN } from '../export/measure';
-import { layOutRuns, type LaidText, type Measure } from '../text/layout';
+import { layOutRuns, type FontVariant, type LaidText, type Measure } from '../text/layout';
 import type { Rect } from './geometry';
+import { nameLinesOf } from './nameLines';
 
 /**
  * How big a shape's name and detail are written where the drawing defaults say nothing else: their
@@ -63,6 +64,11 @@ export interface TextBlock {
   /** Whether the name was cut to fit. */
   nameCut: boolean;
   /**
+   * The name's lines as written and their widths, for a name laid out in its own widths
+   * (`styledName`): a shape whose text sets its font, size or wrapping (ADR 0088).
+   */
+  nameText?: { lines: string[]; widths: number[] };
+  /**
    * The height its label may take: its lines and a quarter of one, which fonts draw a little shorter
    * than the block counts them.
    */
@@ -102,6 +108,12 @@ export interface TextBlockInput {
    * (`nameLinesInside`): how many lines it takes and how tall each is. The detail then wraps under it.
    */
   nameBlock?: { lines: number; lineHeight: number };
+  /**
+   * A name written in widths of its own (ADR 0088): broken here into the lines it is written on,
+   * which the block gives back, at most those the area holds, the last ending in "…"; without
+   * `wrap`, on one line cut with "…".
+   */
+  styledName?: { variant: FontVariant; wrap: boolean };
 }
 
 /** Places a shape's name and detail in its label area. */
@@ -123,18 +135,35 @@ export function placeTextBlock(input: TextBlockInput): TextBlock {
       : Math.max(CENTRED_INSET, Math.min(padding, (area.height - nameLineHeight) / 2));
   const usable = Math.max(0, area.height - 2 * inset);
   const given = input.nameBlock;
-  const name = given
-    ? undefined
-    : layOutRuns([plainRun(input.name)], {
-        measure: (text) => measureName(text),
-        size: nameSize,
-        width: wrap,
-        align: 'center',
-        lineHeight,
-      });
-  const nameLine = given?.lineHeight ?? nameLineHeight;
   const fitting = Math.max(1, Math.floor(usable / nameLineHeight + 1e-6));
-  const nameLines = given ? given.lines : Math.min(Math.max(1, name?.lines.length ?? 1), fitting);
+  const styled = input.styledName;
+  const nameText =
+    styled && !given
+      ? nameLinesOf(
+          input.name,
+          wrap,
+          { variant: styled.variant, size: nameSize },
+          measure,
+          fitting,
+          styled.wrap,
+        )
+      : undefined;
+  const name =
+    given || nameText
+      ? undefined
+      : layOutRuns([plainRun(input.name)], {
+          measure: (text) => measureName(text),
+          size: nameSize,
+          width: wrap,
+          align: 'center',
+          lineHeight,
+        });
+  const nameLine = given?.lineHeight ?? nameLineHeight;
+  const nameLines = given
+    ? given.lines
+    : nameText
+      ? Math.max(1, nameText.lines.length)
+      : Math.min(Math.max(1, name?.lines.length ?? 1), fitting);
   const nameHeight = nameLines * nameLine;
   let detailLines = 0;
   let detail: LaidText | undefined;
@@ -169,7 +198,8 @@ export function placeTextBlock(input: TextBlockInput): TextBlock {
     nameTop: top,
     nameLines,
     nameHeight,
-    nameCut: name !== undefined && name.lines.length > nameLines,
+    nameCut: nameText ? nameText.cut : name !== undefined && name.lines.length > nameLines,
+    ...(nameText ? { nameText: { lines: nameText.lines, widths: nameText.widths } } : {}),
     nameRoom: nameHeight + nameLine / 4,
     detailTop: top + nameHeight + GAP,
     detailLines,

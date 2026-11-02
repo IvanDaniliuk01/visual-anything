@@ -68,7 +68,6 @@ import {
   labelAreaOn,
   partNameLines,
   showsContents,
-  writesNameBelow,
 } from '../canvas/outlined';
 import { outlineAt, type PlacedOutline, type ShapeOutline } from '../canvas/outlines';
 import {
@@ -178,7 +177,21 @@ import {
 } from './solid-pictures';
 import { partValues, tracedPathData, valueBoxes } from './solid-trace';
 import { anchoredByIndex } from '../canvas/solids/pointing';
-import { arrowStroke, lineStroke, noteColors, shapeColors } from '../canvas/theme/paint';
+import {
+  arrowStroke,
+  lineStroke,
+  noteColors,
+  paintedShape,
+  shapeColors,
+} from '../canvas/theme/paint';
+import { labelColorsOf, writesStyledInside } from '../canvas/labelColors';
+import {
+  LABEL_BACK,
+  nameColorsOf,
+  nameLookOf,
+  styledTextBlock,
+  type NameLook,
+} from '../canvas/shapeText';
 import {
   borderWidthOf,
   castsShadow,
@@ -209,7 +222,7 @@ import { outlinedTextBlock } from '../canvas/outlinedText';
 import { placeTextBlock, robotoMeasure } from '../canvas/textBlock';
 import { drawsDifferently } from '../text/drawn';
 import { detailPlainText } from '../text/detail';
-import { layOutBlocks } from '../text/layout';
+import { BASELINE_BELOW_MIDDLE, layOutBlocks, type LaidText } from '../text/layout';
 
 /** The room left around the scene's bounds, in canvas units, as the PNG of the whole view keeps. */
 export const SVG_MARGIN = 32;
@@ -389,6 +402,9 @@ type WrittenText = TextSpec & {
   weight?: 400 | 500 | 700;
   /** Written in Roboto Mono, as a table's rows write a column's type (A5.1). */
   mono?: true;
+  /** In italics, and in fonts of its own, as a shape's text may ask (ADR 0088). */
+  italic?: true;
+  family?: string;
 };
 
 /** The fonts a column's type is written in, as an SVG `font-family`. */
@@ -564,11 +580,12 @@ class Writer {
       const values = {
         'font-size': spec.size,
         'font-weight': weight,
+        'font-style': spec.italic ? 'italic' : undefined,
         'font-family': spec.mono
           ? MONO_SVG_FAMILY
           : weight === 500
-            ? `'${MEDIUM_FAMILY}', ${svgFontFamilyOf(this.drawing)}`
-            : undefined,
+            ? `'${MEDIUM_FAMILY}', ${spec.family ?? svgFontFamilyOf(this.drawing)}`
+            : spec.family,
         ...paint,
         'text-anchor': spec.align === 'start' ? undefined : spec.align,
       };
@@ -1290,8 +1307,9 @@ function shapeParts(writer: Writer, shape: ElementShape): string {
     if (drawing && !placeholder) body += plateOf(placed.box, colors.fill);
     body += fadedPicture();
   }
-  // A drawing with parts that is no container writes its name in its name tag, under its box.
-  if (writesNameBelow(shape)) {
+  // A drawing with parts that is no container writes its name in its name tag, under its box, and
+  // a shape whose text names a side in a tag there (ADR 0088).
+  if (nameTagOf(shape)) {
     return body + nameTagParts(writer, shape, colors) + (face?.svg ?? '');
   }
   return body + (face ? face.svg : shapeText(writer, shape, colors.fill));
@@ -1710,7 +1728,8 @@ function detailOf(shape: ElementShape): string {
 
 /** A shape's name and detail, where and as the canvas writes them. */
 function shapeText(writer: Writer, shape: ElementShape, fill: Color): string {
-  const colors = readableTextColors(fill);
+  // In its text's colors, as drawn in the theme written (ADR 0088).
+  const colors = labelColorsOf(paintedShape(shape, writer.theme.name), fill);
   const detail = detailOf(shape);
   const band = nameBandOf(shape);
   if (band) {
@@ -1754,7 +1773,168 @@ function shapeText(writer: Writer, shape: ElementShape, fill: Color): string {
     });
   }
   const area = besideImage(shape, labelAreaOf(shape.kind, shape.rect));
+  if (writesStyledInside(shape)) return styledText(writer, shape, area, fill, detail);
   return centredText(writer, shape, area, colors, detail);
+}
+
+/**
+ * A shape's name and detail written inside it as its text says (ADR 0088), as the canvas writes them
+ * (`writeStyledText`): on the back its text sets, the name on the lines its block broke it into, in
+ * its font, size, weight and style, aligned in its column and underlined when asked, the detail
+ * aligned alike under it.
+ */
+function styledText(
+  writer: Writer,
+  shape: ElementShape,
+  area: Rect,
+  fill: Color,
+  detail: string,
+): string {
+  const painted = paintedShape(shape, writer.theme.name);
+  const text = painted.text;
+  if (!text) return '';
+  const wrap = Math.max(1, area.width - writer.inset);
+  const styled = styledTextBlock(
+    {
+      drawing: writer.drawing,
+      area,
+      wrap,
+      name: shape.name,
+      detail,
+      ...(shape.detailRuns && shape.collapsed === undefined
+        ? { detailRuns: shape.detailRuns }
+        : {}),
+      ...(shape.detailLines === undefined ? {} : { lines: shape.detailLines }),
+      ...(shape.textPlacement === undefined ? {} : { placement: shape.textPlacement }),
+    },
+    text,
+  );
+  const { block, look, lines, widths, align, left, right, back } = styled;
+  const colors = nameColorsOf(painted, fill);
+  let written = '';
+  if (back) {
+    written += empty('rect', {
+      ...back,
+      rx: LABEL_BACK.radius,
+      fill: text.background ?? 'none',
+      ...(text.border === undefined ? {} : { stroke: text.border, 'stroke-width': 1 }),
+    });
+  }
+  const lineHeight = look.size * writer.drawing.text.lineHeight;
+  written += nameLinesSvg(writer, lines, widths, look, colors.name, {
+    align,
+    left,
+    right,
+    top: block.nameTop,
+    lineHeight,
+  });
+  if (block.detailLines === 0) return written;
+  const anchor = align === 'left' ? 'start' : align === 'right' ? 'end' : 'middle';
+  const x = align === 'left' ? left : align === 'right' ? right : (left + right) / 2;
+  if (shape.detailRuns && block.detail) {
+    return (
+      written +
+      laidTextSvg(
+        // Laid out centred in its column: each line moved to the side the text aligns it to.
+        realigned(block.detail, styled.wrap, align),
+        { x: left, y: block.detailTop },
+        colors.detail,
+        robotoMeasure,
+        writer.texts,
+      )
+    );
+  }
+  return (
+    written +
+    writer.text({
+      text: detail,
+      size: writer.drawing.text.detailSize,
+      fill: colors.detail,
+      x,
+      align: anchor,
+      y: block.detailTop,
+      anchor: 'top',
+      wrap: styled.wrap,
+      room: block.detailRoom,
+    })
+  );
+}
+
+/** A detail laid out centred in a column `width` wide, each line set against its side instead. */
+function realigned(laid: LaidText, width: number, align: 'left' | 'center' | 'right'): LaidText {
+  if (align === 'center') return laid;
+  return {
+    ...laid,
+    lines: laid.lines.map((line) => {
+      const start = line.pieces[0]?.x ?? 0;
+      const shift = (align === 'left' ? 0 : width - line.width) - start;
+      return {
+        ...line,
+        pieces: line.pieces.map((piece) => ({ ...piece, x: piece.x + shift })),
+        bands: line.bands.map((band) => ({ ...band, x: band.x + shift })),
+      };
+    }),
+  };
+}
+
+/**
+ * A name on lines already broken, as a shape's text writes it (ADR 0088): each line in its font,
+ * size, weight and style, aligned between `left` and `right`, `lineHeight` apart from `top`, and a
+ * line under each when underlined, as the canvas draws one.
+ */
+function nameLinesSvg(
+  writer: Writer,
+  lines: readonly string[],
+  widths: readonly number[],
+  look: NameLook,
+  fill: Color,
+  place: {
+    align: 'left' | 'center' | 'right';
+    left: number;
+    right: number;
+    top: number;
+    lineHeight: number;
+  },
+): string {
+  const { align, left, right, top, lineHeight } = place;
+  const anchor = align === 'left' ? 'start' : align === 'right' ? 'end' : 'middle';
+  const x = align === 'left' ? left : align === 'right' ? right : (left + right) / 2;
+  const weight = look.weight === '700' ? 700 : look.weight === '500' ? 500 : 400;
+  const thickness = Math.max(1, look.size / 14);
+  return lines
+    .map((line, at) => {
+      const middle = top + (at + 0.5) * lineHeight;
+      const written = writer.text({
+        text: line,
+        size: look.size,
+        bold: weight !== 400,
+        weight,
+        ...(look.mono ? { mono: true as const } : {}),
+        ...(look.italic ? { italic: true as const } : {}),
+        ...(look.mono ? {} : { family: svgFamily(look.family) }),
+        fill,
+        x,
+        align: anchor,
+        y: middle,
+        anchor: 'middle',
+      });
+      if (!look.underline) return written;
+      const width = widths[at] ?? 0;
+      const start =
+        align === 'left' ? left : align === 'right' ? right - width : (left + right - width) / 2;
+      const baseline = middle + BASELINE_BELOW_MIDDLE * look.size;
+      return (
+        written +
+        empty('rect', {
+          x: start,
+          y: baseline + look.size * 0.12,
+          width,
+          height: thickness,
+          fill,
+        })
+      );
+    })
+    .join('');
 }
 
 /**
@@ -1929,8 +2109,9 @@ function outlineParts(
   const picture = shape.part ? ownPartPicture(writer, shape, shape.part) : undefined;
   if (picture) body += writer.picture(picture.image, picture.rect);
   else body += ownPicture();
-  // A name that does not fit inside the outline whole is written in its name tag, under it.
-  if (writesNameBelow(shape)) {
+  // A name that does not fit inside the outline whole is written in its name tag, under it, or at
+  // the side its text names (ADR 0088).
+  if (nameTagOf(shape)) {
     return body + nameTagParts(writer, shape, { fill, stroke: colors.stroke }) + (face ?? '');
   }
   return body + (face ?? outlinedText(writer, shape, outline, fill));
@@ -2097,7 +2278,8 @@ function outlinedText(
   outline: ShapeOutline,
   fill: Color,
 ): string {
-  const colors = readableTextColors(fill);
+  // The name in its text's own color, as the canvas writes it (ADR 0088).
+  const colors = labelColorsOf(paintedShape(shape, writer.theme.name), fill);
   const outlined = { ...shape, outline };
   if (shape.part?.inDrawing === true) {
     const area = labelAreaOn(outlined);
@@ -2192,17 +2374,52 @@ function nameTagParts(
   const tag = nameTagOf(shape);
   if (!tag) return '';
   const placed = placedTag(tag, shape.rect);
-  const text = readableTextColors(colors.fill);
-  const x = placed.x + placed.width / 2;
-  const top = placed.y + TAG_PADDING;
-  const height = tag.lines.length * PART_NAME_LINE;
+  // In its text's back and line, and its colors, as drawn in the theme written (ADR 0088).
+  const painted = paintedShape(shape, writer.theme.name);
+  const text = nameColorsOf(painted, colors.fill);
   const box = empty('rect', {
     ...placed,
     rx: tagRadius(tag, writer.drawing),
-    fill: colors.fill,
-    stroke: colors.stroke,
+    fill: painted.text?.background ?? colors.fill,
+    stroke: painted.text?.border ?? colors.stroke,
     'stroke-width': writer.border,
   });
+  if (tag.styled) {
+    const { inset, padding, lineHeight, widths } = tag.styled;
+    const align = shape.text?.align ?? 'center';
+    const left = placed.x + inset;
+    const right = placed.x + placed.width - inset;
+    const top = placed.y + padding;
+    const look = nameLookOf(shape.text, BASE_DRAWING, PART_NAME_SIZE, '700');
+    const anchor = align === 'left' ? 'start' : align === 'right' ? 'end' : 'middle';
+    const x = align === 'left' ? left : align === 'right' ? right : (left + right) / 2;
+    return (
+      box +
+      nameLinesSvg(writer, tag.lines, widths, look, text.name, {
+        align,
+        left,
+        right,
+        top,
+        lineHeight,
+      }) +
+      (tag.detail === ''
+        ? ''
+        : writer.text({
+            text: tag.detail,
+            size: writer.drawing.text.detailSize,
+            fill: text.detail,
+            x,
+            align: anchor,
+            y: top + tag.lines.length * lineHeight + 1,
+            anchor: 'top',
+            wrap: Math.max(1, right - left),
+            room: TAG_DETAIL_LINE,
+          }))
+    );
+  }
+  const x = placed.x + placed.width / 2;
+  const top = placed.y + TAG_PADDING;
+  const height = tag.lines.length * PART_NAME_LINE;
   // A shape whose face writes its name hangs no tag (`faceWritesName`); one whose face does not
   // writes its name in its tag, as on the canvas (ADR 0083).
   return (

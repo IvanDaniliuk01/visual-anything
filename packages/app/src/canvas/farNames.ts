@@ -10,6 +10,8 @@
  * plate would cover one already placed is left out, as is the name of a shape narrower on screen
  * than three of its letters, and at most 240 are written at once.
  *
+ * A container's text color, when it sets one (ADR 0088), writes its name far out too, on its plate.
+ *
  * Placing is pure; `FarNames` draws what it places, from a pool of bitmap labels and plates, so that
  * panning only moves them.
  */
@@ -158,10 +160,21 @@ export function placeFarNames(
       x: plate.x + INSET,
       y: plate.y + (plate.height - size * 1.2) / 2,
       fill,
-      color: readableTextColors(fill).name,
+      color: ownColorOf(shape, options.dark === true) ?? readableTextColors(fill).name,
     });
   }
   return placed;
+}
+
+/**
+ * The color a container's text gives its name (ADR 0088), as its header writes it, adapted on the
+ * dark canvas where asked; none for a table, whose header writes in its rows' colors, or a text that
+ * sets none.
+ */
+function ownColorOf(shape: ElementShape, dark: boolean): Color | undefined {
+  const text = shape.text;
+  if (text?.color === undefined || shape.rowCount !== undefined || shape.region) return undefined;
+  return dark ? (text.dark?.color ?? text.color) : text.color;
 }
 
 function overlap(a: Rect, b: Rect): boolean {

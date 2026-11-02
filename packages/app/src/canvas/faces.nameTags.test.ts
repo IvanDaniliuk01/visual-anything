@@ -72,7 +72,7 @@ describe('a face in place of the name tag (ADR 0083)', () => {
       // What it covers is its rectangle alone.
       expect(drawnBoundsOf(shape), key).toBe(shape.rect);
       // Layout spaces it by its rectangle alone.
-      expect(tagReachOf(shape), key).toEqual({ left: 0, right: 0, bottom: 0 });
+      expect(tagReachOf(shape), key).toEqual({ left: 0, right: 0, top: 0, bottom: 0 });
     }
     // The scene's bounds end at the framed shape, not under its tag.
     const tagged = shapeOf(plain, 'framed');

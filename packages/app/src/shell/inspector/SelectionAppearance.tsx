@@ -25,6 +25,7 @@ import { ColorControl, SelectControl } from './controls';
 import { FormatPanel } from './FormatPanel';
 import { selectionColorCommand, selectionColors } from './recolor';
 import { StyleTraitInput } from './StyleTraitInput';
+import { SelectionTextTraits } from './TextSection';
 import {
   LINE_STYLE_ROWS,
   SHAPE_STYLE_ROWS,
@@ -242,7 +243,10 @@ function StyleField({ label, note, input }: StyleFieldProps) {
   );
 }
 
-/** Where the selected elements write their names, set on all of them in one action. */
+/**
+ * How the selected elements write their names (ADR 0088), and where their text sits, each set on all
+ * of them in one action.
+ */
 function SelectionText({ elements, disabled }: { elements: Element[]; disabled: boolean }) {
   const t = useT();
   const { project } = useEditor();
@@ -252,32 +256,35 @@ function SelectionText({ elements, disabled }: { elements: Element[]; disabled: 
   );
   if (!shared) return null;
   return (
-    <Field label={t('Where its text sits')}>
-      {({ id, describedBy, send }) => (
-        <SelectControl
-          id={id}
-          value={shared.mixed ? '' : shared.value}
-          disabled={disabled}
-          describedBy={describedBy}
-          onCommit={async (placement) => {
-            if (!isTextPlacement(placement)) return;
-            const command = elementsStyleCommand(elements, { textPlacement: placement });
-            if (command) await send(command);
-          }}
-        >
-          {shared.mixed && (
-            <option value="" disabled>
-              {t('Mixed')}
-            </option>
-          )}
-          {TEXT_PLACEMENTS.map(({ placement, words }) => (
-            <option key={placement} value={placement}>
-              {t(words)}
-            </option>
-          ))}
-        </SelectControl>
-      )}
-    </Field>
+    <>
+      <SelectionTextTraits elements={elements} disabled={disabled} />
+      <Field label={t('Where its text sits')}>
+        {({ id, describedBy, send }) => (
+          <SelectControl
+            id={id}
+            value={shared.mixed ? '' : shared.value}
+            disabled={disabled}
+            describedBy={describedBy}
+            onCommit={async (placement) => {
+              if (!isTextPlacement(placement)) return;
+              const command = elementsStyleCommand(elements, { textPlacement: placement });
+              if (command) await send(command);
+            }}
+          >
+            {shared.mixed && (
+              <option value="" disabled>
+                {t('Mixed')}
+              </option>
+            )}
+            {TEXT_PLACEMENTS.map(({ placement, words }) => (
+              <option key={placement} value={placement}>
+                {t(words)}
+              </option>
+            ))}
+          </SelectControl>
+        )}
+      </Field>
+    </>
   );
 }
 

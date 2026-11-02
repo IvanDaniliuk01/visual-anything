@@ -10,13 +10,23 @@
  * Names are drawn in Roboto Bold (700), the weight the drawing defaults name unless they say
  * otherwise; a label in another weight the canvas loads (400 or 500), or in the system's fonts alone,
  * takes a font of its own, installed the first time one is written (ADR 0086). No weight that is not
- * loaded is ever asked for.
+ * loaded is ever asked for. A name in italics (ADR 0088) takes Roboto's Italic or Bold Italic, both
+ * loaded, or the system's italic; Roboto Mono, loaded upright alone, is never asked for in italics.
+ * An underlined name is its text over a line under each of its lines, drawn white with it and tinted
+ * together.
  */
 import { BitmapFont, BitmapText, Cache, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import type { CanvasTextOptions, TextStyleOptions } from 'pixi.js';
 import { parseEmphasis, type EmphasisRun } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
-import { FONT_FAMILY, fitText, noteTextPlace, type LabelKind, type TextFactory } from './draw';
+import {
+  FONT_FAMILY,
+  fitText,
+  noteTextPlace,
+  type LabelDecor,
+  type LabelKind,
+  type TextFactory,
+} from './draw';
 import { ROBOTO, ROBOTO_MONO } from './robotoFonts';
 import { COUNT_BADGE_PADDING, RELATION_LABEL_BACK, countBadgeSize } from './drawing';
 import { emphasisLabel, noteLabel } from './emphasisLabels';
@@ -95,16 +105,22 @@ export function labelFontOf(asked: LabelKind, style: TextStyleOptions): string {
   const families = Array.isArray(style.fontFamily) ? style.fontFamily : [style.fontFamily];
   const first = families[0];
   const other = first !== undefined && first !== ROBOTO;
-  if (weight === WEIGHTS[kind] && !other) return FONTS[kind];
+  const mono = first === ROBOTO_MONO;
+  // Roboto Mono is loaded upright alone: it is never asked for in italics.
+  const italic = style.fontStyle === 'italic' && !mono;
+  if (weight === WEIGHTS[kind] && !other && !italic) return FONTS[kind];
   // Roboto Mono, as a table's rows write a column's type in (A5.1), or the system's fonts alone.
-  const family = !other ? '' : first === ROBOTO_MONO ? '-mono' : '-system';
-  const name = `${FONTS[kind]}-${weight}${family}`;
+  const family = !other ? '' : mono ? '-mono' : '-system';
+  // Roboto's Italic and Bold Italic are loaded, a Medium name in italics is written in Bold Italic.
+  const drawnWeight = italic && weight === '500' ? '700' : weight;
+  const name = `${FONTS[kind]}-${drawnWeight}${family}${italic ? '-italic' : ''}`;
   installOnce({
     name,
     style: {
       fontFamily: other ? (families as string[]) : FONT_FAMILY,
       fontSize: SIZES[kind],
-      fontWeight: weight,
+      fontWeight: drawnWeight,
+      ...(italic ? { fontStyle: 'italic' as const } : {}),
       fill: '#ffffff',
     },
     ...commonOptions(),
@@ -176,7 +192,7 @@ export class CountBadgeLabel extends RelationLabel {
  * its shape gives it: shortened with "…" when too tall, or left out when even that does not fit. A
  * relation's name takes its fill as its text's tint, and its stroke's color as its back's.
  */
-export const bitmapText: TextFactory = (options, kind, room, runs) => {
+export const bitmapText: TextFactory = (options, kind, room, runs, decor) => {
   installFonts();
   const style: TextStyleOptions = options.style ?? {};
   if (runs && kind === 'detail') return detailWithEmphasis(options, style, room, runs);
@@ -197,10 +213,55 @@ export const bitmapText: TextFactory = (options, kind, room, runs) => {
   if (kind === 'count-badge') return countBadgeLabel(text, style);
   if (kind !== 'relation') {
     if (typeof style.fill === 'string') text.tint = style.fill;
-    return fitText(text, room);
+    const fitted = fitText(text, room);
+    return fitted && decor?.underline ? underlined(fitted, decor.underline, style) : fitted;
   }
   return relationLabel(text, style);
 };
+
+/** Where a line of a text's font stands, down its line, and how far under it an underline lies. */
+const BASELINE_DOWN = 0.79;
+const UNDERLINE_BELOW = 0.12;
+
+/**
+ * A name underlined (ADR 0088): its text, white, over a line under each of its lines as wide as the
+ * line, aligned as the text is, the two tinted together, so that a retint tints both.
+ */
+function underlined(
+  text: BitmapText,
+  underline: NonNullable<LabelDecor['underline']>,
+  style: TextStyleOptions,
+): Container {
+  const { widths, size } = underline;
+  const widest = Math.max(1, ...widths);
+  const left = text.x - text.anchor.x * text.width;
+  const top = text.y - text.anchor.y * text.height;
+  const line = text.height / Math.max(1, widths.length);
+  // Drawn in the font's widths, which may differ a little from Roboto's measured ones.
+  const scale = text.width / widest;
+  const thickness = Math.max(1, size / 14);
+  const lines = new Graphics();
+  widths.forEach((width, at) => {
+    const drawn = width * scale;
+    const x =
+      style.align === 'left'
+        ? left
+        : style.align === 'right'
+          ? left + text.width - drawn
+          : left + (text.width - drawn) / 2;
+    lines.rect(
+      x,
+      top + at * line + line * BASELINE_DOWN + size * UNDERLINE_BELOW,
+      drawn,
+      thickness,
+    );
+  });
+  lines.fill(0xffffff);
+  const label = new Container({ children: [text, lines] });
+  label.tint = text.tint;
+  text.tint = 0xffffff;
+  return label;
+}
 
 /** A count badge: its count over a pill as tall as its line and its padding, round at both ends. */
 function countBadgeLabel(text: BitmapText, style: TextStyleOptions): CountBadgeLabel {
@@ -252,7 +313,7 @@ function detailWithEmphasis(
     anchor: at,
     size: typeof style.fontSize === 'number' ? style.fontSize : 11,
     width: style.wordWrapWidth ?? 100,
-    align: style.align === 'center' ? 'center' : 'left',
+    align: style.align === 'center' || style.align === 'right' ? style.align : 'left',
     room,
     fill: typeof style.fill === 'string' ? style.fill : '#000000',
   });

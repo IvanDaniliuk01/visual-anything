@@ -79,7 +79,6 @@ import {
   placedPoints,
   showsContents,
   simplifiedLinesOf,
-  writesNameBelow,
   type Outlined,
 } from './outlined';
 import { outlineAt, type PlacedOutline, type ShapeOutline } from './outlines';
@@ -131,7 +130,16 @@ import {
 } from './drawing';
 import type { Measure } from '../text/layout';
 import { outlinedTextBlock } from './outlinedText';
-import { placeTextBlock, type TextBlock } from './textBlock';
+import { canvasMeasure, placeTextBlock, type TextBlock, type TextBlockInput } from './textBlock';
+import { labelColorsOf, writesStyledInside } from './labelColors';
+import {
+  LABEL_BACK,
+  nameColorsOf,
+  nameLookOf,
+  styledTextBlock,
+  type NameLook,
+  type StyledBlock,
+} from './shapeText';
 import { SANS_FAMILY } from './robotoFonts';
 
 /**
@@ -144,16 +152,28 @@ export const FONT_FAMILY = [...SANS_FAMILY];
 export type LabelKind = 'name' | 'detail' | 'relation' | 'count-badge';
 
 /**
+ * What a name draws beyond its text (ADR 0088): a line under each of its lines, which are written as
+ * given, each as wide as `widths` says, `lineHeight` apart, at `size`.
+ */
+export interface LabelDecor {
+  underline?: { widths: readonly number[]; lineHeight: number; size: number };
+}
+
+/**
  * Makes what a label is drawn with, from text laid out by this module. `room` is the height the label
  * may take inside its shape; a factory that cannot fit the text in it gives nothing.
  */
 export interface TextFactory {
-  /** `runs`, on a detail, are its text emphasis (ADR 0082), drawn in place of `options.text`. */
+  /**
+   * `runs`, on a detail, are its text emphasis (ADR 0082), drawn in place of `options.text`; `decor`,
+   * on a name, what it draws beyond its text (ADR 0088), which a factory may leave out.
+   */
   (
     options: CanvasTextOptions,
     kind: LabelKind,
     room?: number,
     runs?: readonly EmphasisRun[],
+    decor?: LabelDecor,
   ): Container | undefined;
   /** How it measures a detail, so that a shape's text block is placed as it draws; Roboto's otherwise. */
   measure?: Measure;
@@ -163,12 +183,13 @@ export interface TextFactory {
   note?: (note: NoteShape, color: Color, drawing?: ResolvedDrawing) => Container;
 }
 
-/** How a label is written: where, in what room, and with what text emphasis. */
+/** How a label is written: where, in what room, with what text emphasis and what it draws beyond. */
 type Write = (
   options: CanvasTextOptions,
   detail: boolean,
   room: number,
   runs?: readonly EmphasisRun[],
+  decor?: LabelDecor,
 ) => Container | undefined;
 
 /** Labels as canvas text: sharp at any resolution, but slow to make by the thousand. */
@@ -277,7 +298,7 @@ export function drawShapeBlocks(
       const rim = outlined ? outlineColorOf(shape) : undefined;
       silhouettes.add({ rect: shape.rect, outline: shape.outline }, fill, rim, hairlines);
       if (inOrder) silhouettes.draw(graphics);
-      if (tag) block(tag, fill, rim);
+      if (tag) block(tag, shape.text?.background ?? fill, shape.text?.border ?? rim);
       if (inOrder) hairlines.stroke(graphics);
       continue;
     }
@@ -318,12 +339,12 @@ export function drawShapeBlocks(
       // Its opacity and gradient show far out too (ADR 0088), drawn at once: blocks out of order
       // never overlap, so where it is drawn among them shows not.
       styledBlock(graphics, blockRectOf(shape), shape, rim, blockOutline);
-      if (tag) block(tag, shape.fill, rim);
+      if (tag) block(tag, shape.text?.background ?? shape.fill, shape.text?.border ?? rim);
       if (inOrder) hairlines.stroke(graphics);
       continue;
     }
     block(blockRectOf(shape), shape.fill, rim);
-    if (tag) block(tag, shape.fill, rim);
+    if (tag) block(tag, shape.text?.background ?? shape.fill, shape.text?.border ?? rim);
     if (inOrder) hairlines.stroke(graphics);
   }
   for (const [color, rects] of outlines) fillRects(graphics, color, rects);
@@ -520,6 +541,7 @@ export function drawShapeOutlines(
       drawInnerBorder(graphics, shape.kind, body, colors, drawing);
     // A solid's placeholder until its picture covers it (ADR 0075).
     drawSolidMark(graphics, shape, colors.stroke);
+    drawLabelBack(graphics, shape, drawing);
     drawNameTag(graphics, shape, colors, hairlines, drawing);
     drawToggle(graphics, shape);
     drawLeavingMark(graphics, shape);
@@ -574,11 +596,30 @@ function drawNameTag(
   const tag = nameTagOf(shape);
   if (!tag) return;
   const placed = placedTag(tag, shape.rect);
+  // In its text's back and line, where its text sets them (ADR 0088).
+  const fill = shape.text?.background ?? colors.fill;
+  const stroke = shape.text?.border ?? colors.stroke;
   graphics
     .roundRect(placed.x, placed.y, placed.width, placed.height, tagRadius(tag, drawing))
-    .fill(colors.fill)
-    .stroke({ color: colors.stroke, width: drawing.shapes.borderWidth });
-  hairlines.add(colors.stroke, 'rounded-rectangle', placed);
+    .fill(fill)
+    .stroke({ color: stroke, width: drawing.shapes.borderWidth });
+  hairlines.add(stroke, 'rounded-rectangle', placed);
+}
+
+/**
+ * Draws the back of a shape's name and detail written inside it, when its text sets a background or
+ * a border (ADR 0088): a rectangle with slightly rounded corners around them, filled in the
+ * background and lined in the border.
+ */
+function drawLabelBack(graphics: Graphics, shape: ElementShape, drawing: ResolvedDrawing): void {
+  const text = shape.text;
+  if (text?.background === undefined && text?.border === undefined) return;
+  // Measured as the canvas writes its text, in Roboto's own widths.
+  const back = styledBlockInside(shape, { measure: canvasMeasure }, drawing)?.back;
+  if (!back) return;
+  graphics.roundRect(back.x, back.y, back.width, back.height, LABEL_BACK.radius);
+  if (text.background !== undefined) graphics.fill(text.background);
+  if (text.border !== undefined) graphics.stroke({ color: text.border, width: 1 });
 }
 
 /** Whether a shape is drawn as a container: one that holds shapes, or one the view collapses. */
@@ -628,9 +669,9 @@ export function writeShapeLabels(
   for (const shape of shapes) {
     // An anchored part of a solid writes its name only in the hover and selection marks (ADR 0075).
     if (isAnchoredSolidPart(shape)) continue;
-    const write: Write = (options, detail, room, runs) => {
+    const write: Write = (options, detail, room, runs, decor) => {
       if (detail && !details) return undefined;
-      const text = make(options, detail ? 'detail' : 'name', room, runs);
+      const text = make(options, detail ? 'detail' : 'name', room, runs, decor);
       if (text) texts.push(text);
       return text;
     };
@@ -644,8 +685,8 @@ export function writeShapeLabels(
     if (face) {
       texts.push(face);
       // A face that does not write the name leaves it to the shape's name tag (ADR 0083).
-      if (writesNameBelow(shape)) {
-        writeNameTag(shape, readableTextColors(fillOf(shape)), write, drawing);
+      if (nameTagOf(shape)) {
+        writeNameTag(shape, nameColorsOf(shape, fillOf(shape)), write, drawing);
       }
     } else writeShapeText(shape, write, backdrop, make, drawing);
     writeLeavingMark(shape, write);
@@ -1490,15 +1531,17 @@ function writeShapeText(
   drawing: ResolvedDrawing,
 ): void {
   if (writeRowsText(shape, write, drawing)) return;
-  if (writesNameBelow(shape)) {
-    writeNameTag(shape, readableTextColors(fillOf(shape)), write, drawing);
+  // In its name tag, under its own outline when its name does not fit inside it, or at the side its
+  // text names (ADR 0066's clarifications, ADR 0088).
+  if (nameTagOf(shape)) {
+    writeNameTag(shape, nameColorsOf(shape, fillOf(shape)), write, drawing);
     return;
   }
   if (shape.outline) {
     writeOutlinedText(shape, shape.outline, write, make, drawing);
     return;
   }
-  const colors = readableTextColors(shape.fill);
+  const colors = labelColorsOf(shape, shape.fill);
   const rooms = labelRooms(shape, drawing);
   const inset = textSideInset(drawing);
   const { nameSize, detailSize, containerNameSize } = drawing.text;
@@ -1573,6 +1616,12 @@ function writeShapeText(
   // Right of the icon beside its name, when it shows one.
   const area = besideImage(shape, labelArea(shape));
   if (area.height <= 0) return;
+  // As its text says, when it says anything (ADR 0088).
+  if (shape.text) {
+    const styled = styledBlockInside(shape, make, drawing);
+    if (styled) writeStyledText(shape, styled, write, drawing);
+    return;
+  }
   const centerX = area.x + area.width / 2;
   const wrap = Math.max(1, area.width - inset);
   const block = textBlockOf(shape, area, wrap, make, drawing);
@@ -1613,7 +1662,20 @@ export function textBlockOf(
   make?: Pick<TextFactory, 'measure' | 'measureName'>,
   drawing: ResolvedDrawing = BASE_DRAWING,
 ): TextBlock {
-  return placeTextBlock({
+  const input = textBlockInput(shape, area, wrap, make, drawing);
+  // A shape whose text says how it writes its name places it so (ADR 0088).
+  return shape.text ? styledTextBlock(input, shape.text).block : placeTextBlock(input);
+}
+
+/** What a shape's text block is placed from. */
+function textBlockInput(
+  shape: ElementShape,
+  area: Rect,
+  wrap: number,
+  make: Pick<TextFactory, 'measure' | 'measureName'> | undefined,
+  drawing: ResolvedDrawing,
+): TextBlockInput {
+  return {
     drawing,
     area,
     wrap,
@@ -1623,8 +1685,103 @@ export function textBlockOf(
     ...(shape.detailLines === undefined ? {} : { lines: shape.detailLines }),
     ...(shape.textPlacement === undefined ? {} : { placement: shape.textPlacement }),
     ...(make?.measure ? { measure: make.measure } : {}),
-    ...(make?.measureName ? { measureName: make.measureName } : {}),
-  });
+    // A styled name is measured in its own widths.
+    ...(make?.measureName && !shape.text ? { measureName: make.measureName } : {}),
+  };
+}
+
+/**
+ * The text block of a shape that writes its name and detail inside itself as its text says (ADR
+ * 0088): a shape with its kind's outline, no rows, no picture band and no tag, that holds nothing;
+ * none for any other, which writes as always, and for one whose text says nothing.
+ */
+export function styledBlockInside(
+  shape: ElementShape,
+  make: Pick<TextFactory, 'measure' | 'measureName'> | undefined,
+  drawing: ResolvedDrawing,
+): StyledBlock | undefined {
+  const text = shape.text;
+  if (!text || !writesStyledInside(shape)) return undefined;
+  const area = besideImage(shape, labelArea(shape));
+  if (area.height <= 0) return undefined;
+  const wrap = Math.max(1, area.width - textSideInset(drawing));
+  return styledTextBlock(textBlockInput(shape, area, wrap, make, drawing), text);
+}
+
+/** The style a name is written in, as its look says, in `fill`, aligned as given. */
+function nameStyle(
+  look: NameLook,
+  fill: Color,
+  align: 'left' | 'center' | 'right',
+): TextStyleOptions {
+  return {
+    fontFamily: [...look.family],
+    fontSize: look.size,
+    fontWeight: look.weight,
+    fontStyle: look.italic ? 'italic' : 'normal',
+    fill,
+    align,
+    wordWrap: false,
+  };
+}
+
+/** Where a label aligned so starts across, and its anchor. */
+function alignedAt(
+  align: 'left' | 'center' | 'right',
+  left: number,
+  right: number,
+): { x: number; anchor: number } {
+  return align === 'left'
+    ? { x: left, anchor: 0 }
+    : align === 'right'
+      ? { x: right, anchor: 1 }
+      : { x: (left + right) / 2, anchor: 0.5 };
+}
+
+/**
+ * Writes a shape's name and detail as its text says (ADR 0088): the name on the lines its block broke
+ * it into, in its font, size, weight and style, aligned in its column and underlined when asked, in
+ * its own color or the one that reads on its back or its fill; the detail under it, aligned alike.
+ */
+function writeStyledText(
+  shape: ElementShape,
+  styled: StyledBlock,
+  write: Write,
+  drawing: ResolvedDrawing,
+): void {
+  const { block, look, lines, widths, align, left, right, wrap } = styled;
+  const colors = nameColorsOf(shape, shape.fill);
+  const at = alignedAt(align, left, right);
+  if (lines.length > 0) {
+    const lineHeight = look.size * drawing.text.lineHeight;
+    write(
+      {
+        text: lines.join('\n'),
+        anchor: { x: at.anchor, y: 0 },
+        x: at.x,
+        y: block.nameTop,
+        style: nameStyle(look, colors.name, align),
+      },
+      false,
+      // Its lines were cut to the block already: what it draws is what it holds.
+      block.nameHeight + lineHeight,
+      undefined,
+      look.underline ? { underline: { widths, lineHeight, size: look.size } } : undefined,
+    );
+  }
+  if (block.detailLines === 0) return;
+  write(
+    {
+      text: detailOf(shape),
+      anchor: { x: at.anchor, y: 0 },
+      x: at.x,
+      y: block.detailTop,
+      style: textStyle(drawing.text.detailSize, colors.detail, wrap, align, 'normal', drawing),
+    },
+    true,
+    block.detailRoom,
+    shape.detailRuns,
+  );
 }
 
 /**
@@ -1649,7 +1806,7 @@ function writeOutlinedText(
   make: TextFactory | undefined,
   drawing: ResolvedDrawing,
 ): void {
-  const colors = readableTextColors(fillOf(shape));
+  const colors = labelColorsOf(shape, fillOf(shape));
   const { containerNameSize, detailSize } = drawing.text;
   if (shape.part?.inDrawing === true) {
     writePartName(shape, outline, colors.name, write);
@@ -1745,12 +1902,16 @@ function wholeLines(fill: Color, width: number, drawing: ResolvedDrawing): TextS
 function writeNameTag(
   shape: ElementShape,
   colors: { name: Color; detail: Color },
-  write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+  write: Write,
   drawing: ResolvedDrawing,
 ): void {
   const tag = nameTagOf(shape);
   if (!tag) return;
   const placed = placedTag(tag, shape.rect);
+  if (tag.styled) {
+    writeStyledTag(shape, tag, placed, colors, write, drawing);
+    return;
+  }
   const x = placed.x + placed.width / 2;
   const top = placed.y + TAG_PADDING;
   const height = tag.lines.length * PART_NAME_LINE;
@@ -1777,6 +1938,64 @@ function writeNameTag(
         colors.detail,
         placed.width,
         'center',
+        'normal',
+        drawing,
+      ),
+    },
+    true,
+    TAG_DETAIL_LINE,
+  );
+}
+
+/**
+ * Writes the name and detail of a tag made as its shape's text says (ADR 0088): its name on its
+ * lines, in the text's font, size, weight and style, aligned between its insets, underlined when
+ * asked, and its detail under it.
+ */
+function writeStyledTag(
+  shape: ElementShape,
+  tag: NameTag,
+  placed: Rect,
+  colors: { name: Color; detail: Color },
+  write: Write,
+  drawing: ResolvedDrawing,
+): void {
+  const styled = tag.styled;
+  if (!styled) return;
+  const look = nameLookOf(shape.text, BASE_DRAWING, PART_NAME_SIZE, '700');
+  const align = shape.text?.align ?? 'center';
+  const left = placed.x + styled.inset;
+  const right = placed.x + placed.width - styled.inset;
+  const at = alignedAt(align, left, right);
+  const top = placed.y + styled.padding;
+  const height = tag.lines.length * styled.lineHeight;
+  write(
+    {
+      text: tag.lines.join('\n'),
+      anchor: { x: at.anchor, y: 0 },
+      x: at.x,
+      y: top,
+      style: nameStyle(look, colors.name, align),
+    },
+    false,
+    height + styled.lineHeight / 2,
+    undefined,
+    look.underline
+      ? { underline: { widths: styled.widths, lineHeight: styled.lineHeight, size: look.size } }
+      : undefined,
+  );
+  if (tag.detail === '') return;
+  write(
+    {
+      text: tag.detail,
+      anchor: { x: at.anchor, y: 0 },
+      x: at.x,
+      y: top + height + 1,
+      style: textStyle(
+        drawing.text.detailSize,
+        colors.detail,
+        Math.max(1, right - left),
+        align,
         'normal',
         drawing,
       ),
@@ -1946,7 +2165,7 @@ function textStyle(
   fontSize: number,
   fill: Color,
   wordWrapWidth: number,
-  align: 'left' | 'center',
+  align: 'left' | 'center' | 'right',
   fontWeight: TextStyleOptions['fontWeight'] = 'normal',
   drawing: ResolvedDrawing = BASE_DRAWING,
 ): TextStyleOptions {

@@ -132,6 +132,7 @@ import {
 } from './partShapes';
 import { midpointOf } from './route';
 import { sameShapeStyle, shapeStyleOf, type ShapeStyle } from './shapeStyle';
+import { sameShapeText, shapeTextOf, type ShapeText } from './shapeText';
 import { leavingByElement, scopedTree } from './scope';
 import type { CurveSpan } from './routing/hand';
 import {
@@ -279,6 +280,12 @@ export interface ElementShape {
    * draw it.
    */
   style?: ShapeStyle;
+  /**
+   * What its appearances set of how it writes its name (ADR 0088): its font, size, weight, italics,
+   * underline, alignment, the side of the tag it is written in, its colors, its label back, its
+   * wrapping and its padding. Absent, as is each part no appearance sets: it writes as always.
+   */
+  text?: ShapeText;
   rect: Rect;
   /**
    * The rectangle holding this shape and everything inside it; larger than `rect` only when contents
@@ -1527,6 +1534,8 @@ export interface Look {
   dark?: { fill: Color; stroke: Color };
   /** What its appearances set of its style (ADR 0088), if anything. */
   style?: ShapeStyle;
+  /** What its appearances set of how it writes its name (ADR 0088), if anything. */
+  text?: ShapeText;
   componentName: string;
   details: Map<string, string>;
   /** The runs of those details that take text emphasis, by their text (`detailRunsOf`). */
@@ -1669,6 +1678,8 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
     }
     const style = shapeStyleOf(look.appearance, stored);
     if (style) look.style = style;
+    const text = shapeTextOf(look.appearance, stored);
+    if (text) look.text = text;
     if (look.image?.tint !== undefined && stored === 'adapted') {
       const darkTint = adaptedTintOf(element, definitions, look.image.tint);
       if (darkTint !== look.image.tint) look.image = { ...look.image, darkTint };
@@ -2770,6 +2781,7 @@ function shapeFor(
     before.dark?.fill === look.dark?.fill &&
     before.dark?.stroke === look.dark?.stroke &&
     sameShapeStyle(before.style, look.style) &&
+    sameShapeText(before.text, look.text) &&
     before.rect.x === x &&
     before.rect.y === y &&
     before.rect.width === width &&
@@ -2824,6 +2836,8 @@ function shapeFor(
   if (look.style)
     shape.style =
       before?.style && sameShapeStyle(before.style, look.style) ? before.style : look.style;
+  if (look.text)
+    shape.text = before?.text && sameShapeText(before.text, look.text) ? before.text : look.text;
   if (points) shape.points = points;
   if (placed) shape.image = placed.image;
   if (placedSolid) {

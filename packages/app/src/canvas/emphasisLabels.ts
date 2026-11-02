@@ -187,7 +187,7 @@ export function laidOutRuns(
   runs: readonly EmphasisRun[],
   size: number,
   width: number,
-  align: 'left' | 'center',
+  align: 'left' | 'center' | 'right',
   maxLines: number,
 ): LaidText {
   let kept = laidRuns.get(runs);
@@ -216,7 +216,7 @@ export function emphasisLabel(
     anchor: { x: number; y: number };
     size: number;
     width: number;
-    align: 'left' | 'center';
+    align: 'left' | 'center' | 'right';
     room: number | undefined;
     fill: Color;
   },
@@ -227,7 +227,7 @@ export function emphasisLabel(
   const laid = laidOutRuns(runs, place.size, place.width, place.align, maxLines);
   if (laid.lines.length === 0) return undefined;
   const label = new EmphasisLabel(laid);
-  const width = place.align === 'center' ? place.width : laid.width;
+  const width = place.align === 'left' ? laid.width : place.width;
   label.position.set(place.x - place.anchor.x * width, place.y - place.anchor.y * laid.height);
   label.paint(place.fill);
   return label;

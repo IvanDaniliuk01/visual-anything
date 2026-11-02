@@ -42,6 +42,17 @@ export function cutOnCanvas(
   const detailOver = (width: number) =>
     detail !== '' && measure(detail, 'regular', detailSize) > width;
   if (shape.region) return regionCut(shape, measure, drawing);
+  // A tag holds its name whole, unless its text writes it on one line cut with "…" (ADR 0088), and
+  // its detail on one line, cut with "…".
+  const tag = nameTagOf(shape);
+  if (tag) {
+    const whole = shape.name
+      .split(/\s+/)
+      .filter((word) => word !== '')
+      .join(' ');
+    const nameCut = shape.text?.wrap === false && tag.lines.join(' ') !== whole;
+    return nameCut || tag.detail !== outlinedDetailOf(shape);
+  }
   if (shape.collapsed !== undefined && !shape.outline) {
     // Its name on one line, and its detail wrapped to its lines (ADR 0082).
     const wrap = headerWrapOf(shape, drawing);

@@ -948,7 +948,7 @@ function carriedRoutes(
     if (parent !== WORLD) {
       const holder = boxOf(parent);
       x += holder.x + (shapes[parent]?.tagLeft ?? 0);
-      y += holder.y;
+      y += holder.y + (shapes[parent]?.tagTop ?? 0);
     }
     const box = { x, y, width: rect.width, height: rect.height };
     boxes.set(at, box);
@@ -961,7 +961,7 @@ function carriedRoutes(
     if (shape.rowAt !== undefined || shape.partAt !== undefined) return;
     if (tree.childrenOf(at).length > 0 && shape.headerAt === undefined) return;
     const box = boxOf(at);
-    const rect = { ...box, x: box.x + (shape.tagLeft ?? 0) };
+    const rect = { ...box, x: box.x + (shape.tagLeft ?? 0), y: box.y + (shape.tagTop ?? 0) };
     blocks.insert({ at, rect }, rect);
   });
   const obstacles = input.obstacles;
@@ -972,7 +972,9 @@ function carriedRoutes(
     if (!route || !relation || plan.exact[at] !== true || route.length < 2) return;
     const shift = (node: number): Point | undefined => {
       const was = laid.rects.get(node);
-      if (!was || shapes[node]?.tagLeft !== undefined) return undefined;
+      if (!was || shapes[node]?.tagLeft !== undefined || shapes[node]?.tagTop !== undefined) {
+        return undefined;
+      }
       const now = boxOf(node);
       return { x: now.x - was.x, y: now.y - was.y };
     };
@@ -1032,17 +1034,20 @@ export function carried(route: readonly Point[], by: Point): Point[] {
 
 /**
  * Where layout puts the shapes it moved, rather than the boxes it spaced them by: a shape with a name
- * tag sits `tagLeft` right of its box (ADR 0066's clarification of 2026-10-27).
+ * tag sits `tagLeft` right of its box, and `tagTop` below its top for one whose tag is above it
+ * (ADR 0066's clarification of 2026-10-27, ADR 0088).
  */
 function withoutTagRoom(input: LayoutInput, placed: LaidOutShape[]): LaidOutShape[] {
-  const shifts = new Map<string, number>();
+  const shifts = new Map<string, { x: number; y: number }>();
   for (const shape of input.shapes) {
-    if (shape.tagLeft !== undefined) shifts.set(shape.key, shape.tagLeft);
+    if (shape.tagLeft !== undefined || shape.tagTop !== undefined) {
+      shifts.set(shape.key, { x: shape.tagLeft ?? 0, y: shape.tagTop ?? 0 });
+    }
   }
   if (shifts.size === 0) return placed;
   return placed.map((each) => {
-    const left = shifts.get(each.key);
-    return left === undefined ? each : { ...each, x: each.x + left };
+    const shift = shifts.get(each.key);
+    return shift === undefined ? each : { ...each, x: each.x + shift.x, y: each.y + shift.y };
   });
 }
 
