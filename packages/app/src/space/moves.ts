@@ -8,7 +8,7 @@
  * frame, so that a move from a panel whose state gives no camera starts where it looks.
  */
 import type { ViewSpace } from '@visual-anything/core';
-import type { Id, SpaceCamera } from '@visual-anything/schema';
+import type { Id, SpaceCamera, SpacePoint } from '@visual-anything/schema';
 import { spaceMove, type SpaceMove } from './travel';
 
 /** What the moves read and write: the panel's store. */
@@ -25,12 +25,15 @@ export interface MoveFrames {
 
 /**
  * Where a panel last drew from, the aspect of its frames, width over height, and the element its
- * state showed then, as its `root` names it, since a camera is in that element's coordinates.
+ * state showed then, as its `root` names it, since a camera is in that element's coordinates; and how
+ * far the exploded view moved each entry it moved in that frame (`SpaceFrameReply.shifts`), so that
+ * what reads where things are in the frame reads them where they were drawn.
  */
 export interface SpaceDrawn {
   readonly camera: SpaceCamera;
   readonly aspect: number;
   readonly root?: Id | undefined;
+  readonly shifts?: ReadonlyMap<Id, SpacePoint> | undefined;
 }
 
 /** How a move goes: as `spaceMove` says, or not at all while the panel is closed. */

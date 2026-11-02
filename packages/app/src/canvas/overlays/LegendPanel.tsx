@@ -89,12 +89,15 @@ function LegendPart({ part }: { part: LegendOverlay }) {
   );
 }
 
-/** The legend of the open view's overlays; nothing while none is on. */
-export function LegendPanel({ legend }: { legend: Legend }) {
+/**
+ * The legend of the open view's overlays; nothing while none is on. The physical-space panel shows it
+ * too, for the overlays that color something there, with a class of its own that places it.
+ */
+export function LegendPanel({ legend, className }: { legend: Legend; className?: string }) {
   const t = useT();
   if (legend.overlays.length === 0) return null;
   return (
-    <details className="canvas-legend" open>
+    <details className={className ? `canvas-legend ${className}` : 'canvas-legend'} open>
       <summary>{t('Legend')}</summary>
       <div className="canvas-legend-body">
         {legend.overlays.map((part) => (

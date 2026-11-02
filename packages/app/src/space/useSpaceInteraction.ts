@@ -185,14 +185,14 @@ export function useSpaceInteraction(input: SpaceInteractionInput): SpaceInteract
     return handleAt(handleShapes(handles, camera, size, pixelRatio), at.x, at.y, pixelRatio);
   };
 
-  const latest = useRef({ selection, select: editor.select, project, space });
+  const latest = useRef({ selection, select: editor.select, project, space, shifts });
   useEffect(() => {
-    latest.current = { selection, select: editor.select, project, space };
+    latest.current = { selection, select: editor.select, project, space, shifts };
   });
 
   /** Selects what a pick found, adding to the selection with a modifier. */
   const choose = (pick: SpacePick | undefined, adding: boolean) => {
-    const { selection: now, select, project: model, space: shown } = latest.current;
+    const { selection: now, select, project: model, space: shown, shifts: moved } = latest.current;
     const item: Selectable | undefined =
       pick?.element != null
         ? { kind: 'element', id: pick.element }
@@ -204,7 +204,7 @@ export function useSpaceInteraction(input: SpaceInteractionInput): SpaceInteract
       return;
     }
     select?.(adding ? toggle(now, item) : selectionOf([item]));
-    if (item.kind === 'element') say(`${whereIs(t, model, shown, item.id)}.`);
+    if (item.kind === 'element') say(`${whereIs(t, model, shown, item.id, moved)}.`);
   };
 
   const pickAt = (point: Point) => {

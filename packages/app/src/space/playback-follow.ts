@@ -1,11 +1,12 @@
 /**
  * Scenario playback brings the step it plays into view in the physical-space panel (ADR 0076, ADR
  * 0031's clarification of 2026-10-26), as the canvas's follower does (`scenarios/follow.ts`): when
- * the step's ends are not all in the panel's frame, the panel frames them (`SpacePanelStore.frame`),
- * and its camera moves there as a tour's does, eased or cut (`travel.ts`). A step the person or Claude
- * asks for always comes into view; while playback goes on by itself, it stops doing so once the
- * person moves the panel's camera, until they play or step again. The first step it is told of, and a
- * step an address or a tour puts there, which place the camera themselves, move nothing.
+ * the step's ends are not all in the panel's frame, where its exploded view drew them, the panel
+ * frames them (`SpacePanelStore.frame`), and its camera moves there as a tour's does, eased or cut
+ * (`travel.ts`). A step the person or Claude asks for always comes into view; while playback goes on
+ * by itself, it stops doing so once the person moves the panel's camera, until they play or step
+ * again. The first step it is told of, and a step an address or a tour puts there, which place the
+ * camera themselves, move nothing.
  */
 import { pointInSpace, type Space } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
@@ -29,7 +30,10 @@ export interface SpacePlayedStep {
   playing: boolean;
 }
 
-/** Whether every point of these elements is in the frame the panel last drew, clear of its edges. */
+/**
+ * Whether every point of these elements is in the frame the panel last drew, clear of its edges:
+ * where that frame drew them, moved as far as its exploded view moved them.
+ */
 export function inSpaceView(
   drawn: SpaceDrawn,
   space: Space,
@@ -40,7 +44,10 @@ export function inSpaceView(
   return elements.every((element) => {
     const point = pointInSpace(space, element);
     if (!point) return true;
-    const at = project(point);
+    const shift = drawn.shifts?.get(element);
+    const at = project(
+      shift ? { x: point.x + shift.x, y: point.y + shift.y, z: point.z + shift.z } : point,
+    );
     return (
       at.depth > 0 && at.x >= margin && at.x <= 1 - margin && at.y >= margin && at.y <= 1 - margin
     );

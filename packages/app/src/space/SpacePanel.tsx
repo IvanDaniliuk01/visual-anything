@@ -24,6 +24,7 @@
  */
 import {
   definitionsIn,
+  legendOf,
   modelIndexOf,
   overlayLookOf,
   spaceOf,
@@ -32,7 +33,7 @@ import {
   type ThemeName,
   type ViewSpace,
 } from '@visual-anything/core';
-import type { Color, Id, SpacePoint, ViewFile } from '@visual-anything/schema';
+import type { Color, Id, ViewFile } from '@visual-anything/schema';
 import {
   useCallback,
   useEffect,
@@ -44,6 +45,7 @@ import {
   type RefObject,
 } from 'react';
 import { emphasize, type Emphasized } from '../canvas/emphasize';
+import { LegendPanel } from '../canvas/overlays/LegendPanel';
 import type { Scene } from '../canvas/scene';
 import { useEmphasis } from '../editor/emphasis';
 import { useHover } from '../editor/hover';
@@ -76,6 +78,8 @@ import { SpacePanelEdge } from './SpacePanelEdge';
 import { shapeEmphasisOf, spaceStateList, spaceStates, type SpaceOverlayLook } from './states';
 import type { SpacePanelStore } from './store';
 import { useFramingRequests } from './useFramingRequests';
+import { overlaysColoringSpace, spaceLegendOf, type SpaceAttributeValue } from './legend';
+import type { SpaceShifts } from './where';
 import './space.css';
 
 interface SpacePanelProps {
@@ -153,6 +157,8 @@ function OpenSpacePanel({
     [],
   );
   const drawn = !empty && client !== undefined;
+  // How far the exploded view moves each entry, as the newest frame said, which the words follow.
+  const [shifts, setShifts] = useState<SpaceShifts>();
   const world = index.world;
   const showsElement = shown.root !== undefined && shown.root !== world.id;
   const showWorld = () => {
@@ -218,13 +224,17 @@ function OpenSpacePanel({
           shown={shown}
           theme={theme ?? 'light'}
           readOnly={readOnly}
+          shifts={shifts}
+          onShifts={setShifts}
         />
       ) : (
         <p className="space-panel-message">
           {t('Physical space is drawn while Visual Anything is connected.')}
         </p>
       )}
-      {drawn && <SpaceList project={project} space={space} control={control} say={say} />}
+      {drawn && (
+        <SpaceList project={project} space={space} control={control} say={say} shifts={shifts} />
+      )}
       <p role="status" className="visually-hidden">
         {message.text}
         {message.count % 2 === 1 ? ' ' : ''}
@@ -257,6 +267,10 @@ interface SpaceFramesProps {
   shown: ViewSpace;
   theme: ThemeName;
   readOnly: boolean;
+  /** How far the exploded view moves each entry, as the newest frame said. */
+  shifts: SpaceShifts | undefined;
+  /** Told how far it moves them whenever a frame says so differently. */
+  onShifts: (shifts: SpaceShifts | undefined) => void;
 }
 
 /** The worker's frames of the space, and what it is sent as what the panel shows changes. */
@@ -275,6 +289,8 @@ function SpaceFrames({
   shown,
   theme,
   readOnly,
+  shifts,
+  onShifts,
 }: SpaceFramesProps) {
   const t = useT();
   const hint = useId();
@@ -300,7 +316,10 @@ function SpaceFrames({
   const { reduced } = useMotion();
   const hovered = useHover()?.element;
   const lookup = useAttributeLookup();
-  const overlay = useMemo(() => overlayOf(project, view, lookup), [project, view, lookup]);
+  const valueOf = useMemo(() => attributeValueOf(project, lookup), [project, lookup]);
+  const overlay = useMemo(() => overlayOf(view, valueOf), [view, valueOf]);
+  // The legend of the overlays that color something here, as the canvas's legend words them.
+  const legend = useSpaceLegend(project, view, space, valueOf, theme);
   const emphasized = useMemo(() => emphasize(scene, emphasis), [scene, emphasis]);
   const states = useMemo(
     () =>
@@ -337,8 +356,6 @@ function SpaceFrames({
     [project, space, markers, ofSelection],
   );
   const explode = useEasedExplode(store, shown.explode ?? 0, reduced);
-  // How far the exploded view moves each entry, as the newest frame that said so.
-  const [shifts, setShifts] = useState<ReadonlyMap<Id, SpacePoint>>();
   const interaction = useSpaceInteraction({
     control,
     canvas,
@@ -393,6 +410,13 @@ function SpaceFrames({
     where.current = { viewId: view.id, root: shown.root };
   });
 
+  // How far the exploded view moved each entry in the newest frame that said so, kept as frames come.
+  const keptShifts = useRef(shifts);
+  const tellShifts = useRef(onShifts);
+  useLayoutEffect(() => {
+    tellShifts.current = onShifts;
+  });
+
   // One drawing while the panel shows frames, ended when it goes.
   useEffect(() => {
     sent.current = latest.current;
@@ -400,12 +424,19 @@ function SpaceFrames({
       onFrame: (frame) => {
         showFrame(canvas.current, frame);
         const moved = frame.shifts;
-        if (moved) setShifts((last) => shiftsFrom(moved, last));
+        if (moved) {
+          const next = shiftsFrom(moved, keptShifts.current);
+          if (next !== keptShifts.current) {
+            keptShifts.current = next;
+            tellShifts.current(next);
+          }
+        }
         const { viewId, root } = where.current;
         store.moves.setDrawn(viewId, {
           camera: frame.camera,
           aspect: frame.width / Math.max(1, frame.height),
           root,
+          ...(keptShifts.current ? { shifts: keptShifts.current } : {}),
         });
       },
       onProblem: setProblem,
@@ -446,13 +477,38 @@ function SpaceFrames({
       <p id={hint} className="visually-hidden">
         {t(readOnly ? SPACE_READING_HINT : SPACE_HINT)}
       </p>
-      {problem?.code === 'unavailable' && (
+      {problem?.code === 'unavailable' ? (
         <p className="space-panel-message">
           {t('This browser cannot draw physical space: it has no WebGL.')}
         </p>
+      ) : (
+        <LegendPanel legend={legend} className="space-panel-legend" />
       )}
     </div>
   );
+}
+
+/**
+ * The legend the panel shows: the parts of the view's legend (ADR 0055) whose overlays give something
+ * it draws its fill or its opacity, measured against the canvas of the theme it draws in.
+ */
+function useSpaceLegend(
+  project: ProjectSnapshot,
+  view: ViewFile,
+  space: Space,
+  valueOf: SpaceAttributeValue,
+  theme: ThemeName,
+) {
+  const legend = useMemo(
+    () => legendOf(view, definitionsIn(project), theme),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the definitions follow the packages and the project appearances only
+    [view, project.packages, project.project.appearances, theme],
+  );
+  const coloring = useMemo(
+    () => overlaysColoringSpace(space, view.overlays, valueOf),
+    [space, view.overlays, valueOf],
+  );
+  return useMemo(() => spaceLegendOf(legend, coloring), [legend, coloring]);
 }
 
 const NO_RELATIONS: readonly SelectionRelation[] = [];
@@ -517,22 +573,28 @@ function showFrame(canvas: HTMLCanvasElement | null, frame: SpaceFrameReply): vo
   context.transferFromImageBitmap(frame.bitmap);
 }
 
+/** How an element's attribute is read through the attribute lookup, live and computed values too. */
+function attributeValueOf(
+  project: ProjectSnapshot,
+  lookup: ReturnType<typeof useAttributeLookup>,
+): SpaceAttributeValue {
+  const index = modelIndexOf(project);
+  const definitions = definitionsIn(project);
+  return (id, name) => {
+    const element = index.element(id);
+    return element ? lookup.value({ kind: 'element', element }, name, definitions) : undefined;
+  };
+}
+
 /** What the open view's overlays give an element, through the attribute lookup. */
 function overlayOf(
-  project: ProjectSnapshot,
   view: ViewFile,
-  lookup: ReturnType<typeof useAttributeLookup>,
+  valueOf: SpaceAttributeValue,
 ): ((element: Id) => SpaceOverlayLook | undefined) | undefined {
   const overlays = view.overlays;
   if (!overlays || overlays.length === 0) return undefined;
-  const index = modelIndexOf(project);
-  const definitions = definitionsIn(project);
   return (id) => {
-    const element = index.element(id);
-    if (!element) return undefined;
-    const look = overlayLookOf(overlays, 'elements', (name) =>
-      lookup.value({ kind: 'element', element }, name, definitions),
-    );
+    const look = overlayLookOf(overlays, 'elements', (name) => valueOf(id, name));
     if (!look) return undefined;
     return {
       ...(look.fill === undefined ? {} : { fill: look.fill }),

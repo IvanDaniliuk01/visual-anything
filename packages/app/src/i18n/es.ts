@@ -1473,6 +1473,8 @@ export const ui: Catalog = {
   '{name}, posed in {container}, {distance} from it':
     '{name}, ubicado en {container}, a {distance} de él',
   ', drawn as {container}, which is collapsed': ', dibujado como {container}, que está contraído',
+  ', drawn {distance} from its place by the exploded view':
+    ', dibujado a {distance} de su lugar por la explosión',
   '{count} elements selected, {inSpace} of them in this physical space.':
     '{count} elementos seleccionados, {inSpace} de ellos en este espacio físico.',
   // M10: the panel's ways of reading and Show World (ADR 0076). The cut is "corte" and the exploded
@@ -1554,6 +1556,10 @@ export const ui: Catalog = {
     'Lo encuadra en el panel del espacio físico, donde está en Mundo.',
   'Opens the physical-space panel showing it, with what is posed or anchored in it.':
     'Abre el panel del espacio físico mostrándolo, con lo que está ubicado o anclado en él.',
+  // A4: what Show in physical space did, in the read-only page's Details.
+  'The physical-space panel shows “{name}”.': 'El panel del espacio físico muestra “{name}”.',
+  '“{name}” is framed in the physical-space panel.':
+    '“{name}” está encuadrado en el panel del espacio físico.',
   'In physical space': 'En el espacio físico',
   ', in physical space': ', en el espacio físico',
   // M8b W53: an end dragged onto a shape with free geometry or onto an anchored part.

@@ -114,6 +114,31 @@
   transform: translateY(-50%);
 }
 
+/*
+ * The legend of the overlays that color something in the panel (ADR 0076): the canvas's legend, in
+ * the frames' bottom right corner as the canvas's is in its own, never wider or taller than the
+ * frames. The box it stands in lets the pointer through to the frames around it.
+ */
+.canvas-legend.space-panel-legend {
+  top: var(--space-60);
+  left: var(--space-60);
+  max-width: none;
+  justify-content: flex-start;
+  pointer-events: none;
+}
+
+.space-panel-legend > summary,
+.space-panel-legend > .canvas-legend-body {
+  pointer-events: auto;
+}
+
+.space-panel-legend > .canvas-legend-body {
+  width: auto;
+  max-width: min(var(--size-1800), 100%);
+  min-height: 0;
+  max-height: none;
+}
+
 /* The toolbar's Physical space, pressed while the panel is open. */
 .space-panel-toggle[aria-pressed='true'] {
   border-color: var(--accent);

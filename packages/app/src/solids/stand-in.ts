@@ -30,6 +30,7 @@ import {
   type SolidWorkerRequest,
   type SpaceDrawnEntry,
   type SpaceMoved,
+  type SpaceShift,
   type SpaceShown,
 } from './protocol';
 
@@ -48,6 +49,11 @@ export interface StandInOptions {
   manual?: boolean;
   /** Its largest picture, 2,048 pixels unless smaller. */
   largestPicture?: number;
+  /**
+   * How far a test says the exploded view moves each entry of a space shown so, sent with each of its
+   * frames as the worker sends its own (`SpaceFrameReply.shifts`); the stand-in moves nothing itself.
+   */
+  shifts?: (shown: SpaceShown) => SpaceShift[] | undefined;
 }
 
 type Listener = (event: { data: unknown }) => void;
@@ -367,6 +373,7 @@ export class StandInSolidWorker implements SolidWorkerPort {
     const camera = this.cameraOf(space.shown);
     const drawn = drawSpaceBoxes(space.shown, camera);
     space.serial += 1;
+    const shifts = this.options.shifts?.(space.shown);
     this.reply({
       type: 'space/frame',
       space: number,
@@ -375,6 +382,7 @@ export class StandInSolidWorker implements SolidWorkerPort {
       bitmap: drawn.bitmap as unknown as ImageBitmap,
       width: space.shown.size.width,
       height: space.shown.size.height,
+      ...(shifts ? { shifts } : {}),
     });
   }
 

@@ -231,6 +231,49 @@ describe('the read-only page’s physical-space panel', () => {
     expect(updates.at(-1)?.states).toContainEqual({ element: 'camera', hovered: true });
   });
 
+  it('offers Show in physical space in the Details, which opens the panel on what is in no place', async () => {
+    await open(workcell(), posedPage(), `#view=${VIEW}&select=spare`);
+    expect(panel()).toBeNull();
+    const details = screen.getByRole('region', { name: 'Selected' });
+    const show = within(details).getByRole('button', { name: 'Show in physical space' });
+    expect(show).toHaveAttribute(
+      'title',
+      'Opens the physical-space panel showing it, with what is posed or anchored in it.',
+    );
+    fireEvent.click(show);
+    await settle();
+    expect(panel()).toHaveTextContent('Shows “Spare arm”');
+    expect(within(details).getByRole('status')).toHaveTextContent(
+      'The physical-space panel shows “Spare arm”.',
+    );
+  });
+
+  it('frames in World, from the Details, what is in physical space there', async () => {
+    const { worker } = await open(workcell(), posedPage(), `#view=${VIEW}&select=camera`);
+    const details = screen.getByRole('region', { name: 'Selected' });
+    const show = within(details).getByRole('button', { name: 'Show in physical space' });
+    expect(show).toHaveAttribute(
+      'title',
+      'Frames it in the physical-space panel, where it is in World.',
+    );
+    fireEvent.click(show);
+    await settle();
+    expect(panel()).toHaveTextContent('Shows “World”');
+    await waitFor(() =>
+      expect(worker()?.ofType('space/framing').at(-1)?.elements).toEqual(['camera']),
+    );
+    expect(within(details).getByRole('status')).toHaveTextContent(
+      '“Camera” is framed in the physical-space panel.',
+    );
+  });
+
+  it('offers no Show in physical space in a page without the panel', async () => {
+    await open(workcell(), { form: 'pictures', pictures: [] }, `#view=${VIEW}&select=table`);
+    const details = screen.getByRole('region', { name: 'Selected' });
+    expect(details).toHaveTextContent('Table');
+    expect(within(details).queryByRole('button', { name: 'Show in physical space' })).toBeNull();
+  });
+
   it('says nothing of putting something in physical space when the view holds nothing there', async () => {
     // A page whose poses no longer reach the view, as one changed by hand might be.
     await open(workcell({ posed: false }), posedPage(), `#view=${VIEW}&space=open`, true);
