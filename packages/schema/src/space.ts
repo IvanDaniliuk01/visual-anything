@@ -145,4 +145,19 @@ export interface SavedSpace {
   relations?: boolean;
   /** Whether names are written for the parts nearest the camera; left out, they are not. */
   names?: boolean;
+  /**
+   * Joints' positions the panel shows, by joint, over their own (ADR 0090): degrees for a joint that
+   * turns, meters for one that slides. A tour's step moves the chain to them, gliding from the step
+   * before. Reading it changes nothing in the project.
+   */
+  joints?: JointPositions;
+}
+
+/**
+ * Positions of joints by their ids.
+ *
+ * @maxProperties 200
+ */
+export interface JointPositions {
+  [joint: string]: number;
 }

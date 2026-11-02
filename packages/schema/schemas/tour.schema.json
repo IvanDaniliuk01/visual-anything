@@ -422,6 +422,10 @@
         "names": {
           "type": "boolean",
           "description": "Whether names are written for the parts nearest the camera; left out, they are not."
+        },
+        "joints": {
+          "$ref": "#/definitions/JointPositions",
+          "description": "Joints' positions the panel shows, by joint, over their own (ADR 0090): degrees for a joint that turns, meters for one that slides. A tour's step moves the chain to them, gliding from the step before. Reading it changes nothing in the project."
         }
       },
       "additionalProperties": false,
@@ -522,6 +526,14 @@
       ],
       "additionalProperties": false,
       "description": "A cutting plane across one of the root's axes, keeping one side of it."
+    },
+    "JointPositions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number"
+      },
+      "description": "Positions of joints by their ids.",
+      "maxProperties": 200
     },
     "SavedSimulation": {
       "type": "object",

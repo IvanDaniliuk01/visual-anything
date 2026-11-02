@@ -103,7 +103,7 @@ describe('the built-in Physical AI and robotics package', () => {
       definitions.component(id(componentId))?.attributes.map((each) => each.name);
     expect(attributes('robot')).toEqual(['model', 'degreesOfFreedom']);
     expect(attributes('link')).toEqual(['mass', 'length']);
-    expect(attributes('joint')).toEqual(['kind', 'lowerLimit', 'upperLimit', 'axis']);
+    expect(attributes('joint')).toEqual(['kind', 'lowerLimit', 'upperLimit', 'axis', 'position']);
     expect(attributes('camera')).toEqual(['rate', 'frame']);
     expect(attributes('motor')).toEqual(['torque']);
     expect(attributes('controller')).toEqual(['kind', 'rate']);
