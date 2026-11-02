@@ -45,7 +45,7 @@ const someDrawing: fc.Arbitrary<DrawingDefaults> = fc.record(
     ),
   },
   { requiredKeys: [] },
-) as fc.Arbitrary<DrawingDefaults>;
+);
 
 describe('presets', () => {
   it('set every value a drawing has, within its range or among its choices', () => {
@@ -57,10 +57,9 @@ describe('presets', () => {
             .sort(),
         ).toEqual(Object.keys(DRAWING_VALUES[group]).sort());
       }
-      const { preset: _preset, ...groups } = drawing;
-      const lines = { ...groups.lines } as Record<string, unknown>;
+      const lines = { ...drawing.lines } as Record<string, unknown>;
       delete lines.arrow;
-      expect(drawingProblems({ ...groups, lines })).toEqual([]);
+      expect(drawingProblems({ ...drawing, lines })).toEqual([]);
     }
   });
 

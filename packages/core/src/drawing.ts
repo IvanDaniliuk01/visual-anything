@@ -343,7 +343,7 @@ export function compactDrawing(given: DrawingDefaults): DrawingDefaults | undefi
     const kept = Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined));
     if (Object.keys(kept).length > 0) out[group] = kept;
   }
-  return Object.keys(out).length === 0 ? undefined : (out as DrawingDefaults);
+  return Object.keys(out).length === 0 ? undefined : (out);
 }
 
 /**
