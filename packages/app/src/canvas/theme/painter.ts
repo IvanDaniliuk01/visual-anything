@@ -89,7 +89,7 @@ export class Painter {
 
   /** What this theme draws regions with (ADR 0086). */
   get region(): RegionColors {
-    return (this.regionColors ??= regionColorsOf(this.theme));
+    return (this.regionColors ??= regionColorsOf(this.theme, this.drawing));
   }
 
   private regionColors: RegionColors | undefined;

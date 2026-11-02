@@ -5,7 +5,7 @@
  * the canvas's own pointer handling (`gestures.ts`, ADR 0074). `pnpm bench` builds this page for production and serves it on 127.0.0.1:47707, at
  * `/bench.html`; the official numbers come from that build, in work mode. `?elements=N` changes the
  * size, `?overlap=stairs`, `grid` or `cascade` makes shapes overlap (see `synthetic.ts`), and
- * `?theme=dark` runs it in the dark theme, and `?preset=expressive` from that drawing preset (ADR 0086). It also switches the theme back and forth at three scales,
+ * `?theme=dark` runs it in the dark theme, and `?preset=expressive` from that drawing preset (ADR 0086), its phases of names and details shown at that preset's reading levels. It also switches the theme back and forth at three scales,
  * pans and zooms after a switch, selects everything in the dark theme, and recolors every Service;
  * it colors and sizes every shape by an overlay, and zooms across a level of detail (ADR 0055).
  * `?grid=on` runs every phase with the grid and the rulers shown (A3); otherwise the pan and zoom of
@@ -63,7 +63,8 @@ import { panBy, screenToWorld, zoomAt, type Camera } from '../canvas/camera';
 import { CanvasController } from '../canvas/controller';
 import { centerOf } from '../canvas/geometry';
 import { indexScene, type IndexedScene } from '../canvas/hit';
-import { COARSE_BELOW, DETAILS_FROM, NAMES_FROM } from '../canvas/renderer';
+import { drawingOfView } from '../canvas/drawing';
+import { COARSE_BELOW } from '../canvas/renderer';
 import { previewOf } from '../canvas/routing/editor';
 import { handlesOf } from '../canvas/routing/handles';
 import { buildScene, type ElementShape, type RelationLine } from '../canvas/scene';
@@ -245,6 +246,12 @@ const synthetic = solidsMade
 const drawnFrom = preset === undefined ? synthetic : withPreset(synthetic, preset);
 let project: ProjectSnapshot = curves ? withCurves(drawnFrom) : drawnFrom;
 const VIEW = project.views[0]?.id ?? 'everything';
+/**
+ * Where names and details show: the reading levels of the drawing the view is drawn with, so that
+ * with `?preset=` the phases of names and details shown are placed at that preset's own (A5.6); a
+ * project that names none is drawn from Clean, the renderer's `NAMES_FROM` and `DETAILS_FROM`.
+ */
+const { namesFrom: NAMES_FROM, detailsFrom: DETAILS_FROM } = drawingOfView(project, VIEW).reading;
 // What the recolor phase recolors: every Service, or in a view of tables every Column.
 const RECOLORED = tables ? 'Column' : 'Service';
 let indexed: IndexedScene = indexScene(buildScene(project, VIEW));
