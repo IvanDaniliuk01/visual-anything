@@ -22,6 +22,9 @@ import type { Scene } from '../scene';
 /** The id of the relation types' part of a legend, which no overlay's id is. */
 export const RELATION_TYPES_LEGEND = ' relation types';
 
+/** The attribute of the relation types' part when its lines are drawn in the neutral color. */
+export const NEUTRAL_LINES = 'neutral';
+
 /** An entry of the relation types' part: an overlay's line entry, with the type's dash. */
 export interface RelationTypeEntry extends LegendEntry {
   dash: Dash;
@@ -54,7 +57,8 @@ export function relationTypesLegend(
     types.push(type);
   }
   if (types.length === 0) return undefined;
-  if (types.length < 2 && !drawsNeutralLines(scene)) return undefined;
+  const neutral = drawsNeutralLines(scene);
+  if (types.length < 2 && !neutral) return undefined;
   const entries: RelationTypeEntry[] = types.map((id) => {
     const type = relationTypeOrRelatesTo(definitions, id);
     return {
@@ -67,7 +71,7 @@ export function relationTypesLegend(
   return {
     id: RELATION_TYPES_LEGEND,
     title,
-    attribute: '',
+    attribute: neutral ? NEUTRAL_LINES : '',
     of: 'relations',
     channel: 'stroke',
     mapping: 'discrete',

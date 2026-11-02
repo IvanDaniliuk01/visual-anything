@@ -18,7 +18,9 @@ import { BASE_DRAWING, SOFT_SHADOW } from './drawing';
 import { bodyOf, holdsPoint, personFigure, personLabelTop, type Rect } from './geometry';
 import { GridMarks, MAX_GRID_DOTS } from './gridMarks';
 import { accentsOf, FADED_OTHERS, MOST_ACCENTED } from './lineAccents';
+import { legendSubtitle } from './overlays/legendText';
 import { relationTypesLegend, RELATION_TYPES_LEGEND } from './overlays/relationLegend';
+import { translatorFor } from '../i18n';
 import { definitionsIn } from '@visual-anything/core';
 import { LIGHT_REGION, regionColorsOf, regionFillOf } from './regionDraw';
 import {
@@ -444,6 +446,30 @@ describe('the legend of relation types (A5.2)', () => {
     const legend = svg.querySelector('[data-part="legend"]');
     expect(legend).not.toBeNull();
     expect(legend?.querySelector('[stroke-dasharray]')).not.toBeNull();
+  });
+
+  it('says the neutral lines take their type’s color only when pointed at or selected', () => {
+    const sample = loadSample();
+    const neutral = relationTypesLegend(
+      buildSceneAfresh(sample, SAMPLE_VIEW),
+      sample,
+      definitionsIn(sample),
+      'light',
+      'Relation types',
+    );
+    const english = translatorFor('en');
+    expect(neutral && legendSubtitle(english, neutral)).toBe(
+      'Line dash by relation type, and its color when pointed at or selected',
+    );
+    const dense = preset(loadSample(), 'dense');
+    const byType = relationTypesLegend(
+      buildSceneAfresh(dense, SAMPLE_VIEW),
+      dense,
+      definitionsIn(dense),
+      'light',
+      'Relation types',
+    );
+    expect(byType && legendSubtitle(english, byType)).toBe('Line color and dash by relation type');
   });
 
   it('shows no part for a view whose lines are of one type and drawn in their own color', () => {

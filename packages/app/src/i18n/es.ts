@@ -2546,6 +2546,8 @@ export const ui: Catalog = {
   'Opacity by {attribute}': 'Opacidad según {attribute}',
   'Line color by {attribute}': 'Color de línea según {attribute}',
   'Line color and dash by relation type': 'Color y trazo de línea según el tipo de relación',
+  'Line dash by relation type, and its color when pointed at or selected':
+    'Trazo de línea según el tipo de relación, y su color al señalarla o seleccionarla',
   'Line width by {attribute}': 'Grosor según {attribute}',
   'Label by {attribute}': 'Etiqueta según {attribute}',
   'Line opacity by {attribute}': 'Opacidad de línea según {attribute}',
