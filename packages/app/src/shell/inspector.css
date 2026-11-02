@@ -581,6 +581,16 @@
   color: var(--accent);
 }
 
+.format-tab:active {
+  color: var(--accent);
+}
+
+.format-tab:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.6;
+}
+
 .format-tab:focus-visible {
   border-radius: var(--radius-sm);
   outline: var(--stroke-thick) solid var(--focus-ring);

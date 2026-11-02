@@ -1,0 +1,235 @@
+/*
+ * Packages' panels in the inspector (ADR 0089): each a section headed by its label and its package,
+ * which folds it away, holding what the package's code answered, drawn with the app's own controls.
+ */
+
+/* The heading's button: the panel's label in the inspector's heading style, its package after it. */
+.package-panel-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-30);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.package-panel-toggle::before {
+  content: '▾' / '';
+  color: var(--text-muted);
+}
+
+.package-panel-toggle[aria-expanded='false']::before {
+  content: '▸' / '';
+}
+
+.package-panel-toggle:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.package-panel-toggle:active:not(:disabled) {
+  color: var(--accent);
+}
+
+.package-panel-toggle:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.package-panel-toggle:focus-visible {
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thin);
+}
+
+.package-panel-from {
+  font-weight: var(--weight-normal);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.package-panel-body[hidden] {
+  display: none;
+}
+
+.package-panel-blocks {
+  display: grid;
+  gap: var(--space-40);
+  overflow-wrap: anywhere;
+}
+
+.package-panel-heading {
+  margin: var(--space-40) 0 0;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+}
+
+.package-panel-text {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-xs);
+  line-height: var(--line-normal);
+  white-space: pre-line;
+}
+
+/* Label and value rows. */
+.package-panel-values {
+  display: grid;
+  gap: var(--space-20);
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+.package-panel-value {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 var(--space-50);
+}
+
+.package-panel-value dt {
+  color: var(--text-muted);
+}
+
+.package-panel-value dd {
+  margin: 0;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A table scrolls in its own box, which takes the focus so that the keyboard scrolls it too. */
+.package-panel-table {
+  max-height: var(--size-1800);
+  overflow: auto;
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.package-panel-table:hover {
+  border-color: var(--control-border);
+}
+
+.package-panel-table:active {
+  border-color: var(--text-muted);
+}
+
+.package-panel-table:focus-visible {
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thin);
+}
+
+.package-panel-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+}
+
+.package-panel-table th,
+.package-panel-table td {
+  padding: var(--space-20) var(--space-40);
+  border-bottom: var(--stroke-thin) solid var(--border);
+  color: var(--text);
+  text-align: left;
+  vertical-align: top;
+}
+
+.package-panel-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  color: var(--text-muted);
+  font-weight: var(--weight-strong);
+}
+
+.package-panel-table td.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.package-panel-table .package-panel-empty {
+  color: var(--text-muted);
+}
+
+/* Charts, drawn as the Simulation section's are. */
+.package-chart {
+  margin: 0;
+}
+
+.package-chart-drawing {
+  display: block;
+  width: 100%;
+  height: calc(var(--control-md) * 2.5);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.package-chart-baseline {
+  stroke: var(--text-muted);
+  stroke-width: var(--stroke-thin);
+}
+
+.package-chart-bar {
+  stroke: var(--surface);
+  stroke-width: var(--stroke-thin);
+}
+
+.package-chart-line {
+  stroke-width: var(--stroke-thick);
+  stroke-linejoin: round;
+}
+
+.package-chart-point {
+  stroke-width: var(--size-55);
+  stroke-linecap: round;
+}
+
+.package-chart-labels,
+.package-chart-range {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-50);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.package-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-20) var(--space-60);
+  margin: var(--space-25) 0 0;
+  padding: 0;
+  color: var(--text);
+  font-size: var(--text-xs);
+  list-style: none;
+}
+
+.package-chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-25);
+}
+
+.package-chart-swatch {
+  width: var(--size-80);
+  height: var(--size-80);
+}
+
+.package-panel-problem {
+  display: grid;
+  justify-items: start;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .package-panel-toggle {
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+}

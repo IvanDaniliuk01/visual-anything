@@ -31,6 +31,7 @@ import { EmphasisBlocks } from '../../text/EmphasisText';
 import { ScopeSection } from './ScopeSection';
 import { ViewSection } from './ViewSection';
 import { DestinationsSection } from '../../destinations/DestinationsSection';
+import { PackagePanels } from '../../packages/PackagePanels';
 import { ExternalIdsSection } from '../../destinations/ExternalIdsSection';
 
 interface ElementInspectorProps {
@@ -137,6 +138,7 @@ export function ElementInspector({
         update={update}
         arrange={drawn ? <ViewSection element={element} /> : undefined}
       />
+      <PackagePanels element={element} />
     </>
   );
 }

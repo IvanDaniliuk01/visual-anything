@@ -1,6 +1,7 @@
 /**
  * What packages add to the app's menus and dialogs (ADR 0089): the actions of the canvas's menu for a
- * selection and of "Packages…", the importers Import… offers and the exporters Export… offers. Only
+ * selection and of "Packages…", the importers Import… offers, the exporters Export… offers and the
+ * panels the inspector shows for an element. Only
  * what approved code that runs on this computer adds is offered: a package whose code waits for
  * approval, is turned off here, is off after its calls stopped or failed to load offers nothing, and
  * "Packages…" says why. What each offers is what its file declares.
@@ -12,6 +13,7 @@ import type {
   PackageExporterDeclaration,
   PackageExtensions,
   PackageImporterDeclaration,
+  PackagePanelDeclaration,
 } from '@visual-anything/schema';
 import type { PackageCodeView } from '../code/context';
 import type { Selection } from '../editor/selection';
@@ -33,6 +35,11 @@ export interface Offered<T> {
 export type OfferedAction = Offered<PackageActionDeclaration>;
 export type OfferedImporter = Offered<PackageImporterDeclaration>;
 export type OfferedExporter = Offered<PackageExporterDeclaration>;
+
+/** A panel offered for an element, with the actions its package declares, which its buttons run. */
+export interface OfferedPanel extends Offered<PackagePanelDeclaration> {
+  actions: readonly PackageActionDeclaration[];
+}
 
 /**
  * The packages of the project whose code runs here, approved and not turned off, each with what its
@@ -95,6 +102,31 @@ export function selectionActions(
     (extensions.actions ?? [])
       .filter((action) => action.where.includes('selection') && fits(action.components))
       .map((declared) => ({ package: pkg, declared })),
+  );
+}
+
+/**
+ * The panels the inspector shows for one element (ADR 0089's M14.4 clarification), in the order of
+ * the packages and of their files: those that name no components, and those that name the element's
+ * component or one it derives from.
+ */
+export function elementPanels(
+  project: ProjectSnapshot,
+  code: ReadonlyMap<Id, PackageCodeView>,
+  element: Id,
+): OfferedPanel[] {
+  const offering = offeringPackages(project, code);
+  if (offering.length === 0) return [];
+  const component = modelIndexOf(project).element(element)?.component;
+  if (component === undefined) return [];
+  const definitions = definitionsIn(project);
+  const fits = (components: readonly Id[] | undefined) =>
+    components === undefined ||
+    components.some((each) => definitions.componentDerives(component, each));
+  return offering.flatMap(({ package: pkg, extensions }) =>
+    (extensions.panels ?? [])
+      .filter((panel) => fits(panel.components))
+      .map((declared) => ({ package: pkg, declared, actions: extensions.actions ?? [] })),
   );
 }
 
