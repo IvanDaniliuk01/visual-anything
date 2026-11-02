@@ -48,7 +48,7 @@ export type {
 } from './input';
 export { hookInputOf, modelReaderOf } from './input';
 export { CODE_LIMITS } from './limits';
-export type { CodeFailure, HookName, Named } from './messages';
+export type { CodeFailure, ExtensionHookName, HookName, Named } from './messages';
 export {
   HOOK_NAMES,
   callProblem,
@@ -61,3 +61,20 @@ export {
 } from './messages';
 export type { PackageCode } from './packages';
 export { codePackagesOn, packageCodeOf, packagesWithCode } from './packages';
+export type {
+  ActionInput,
+  ChangesPreview,
+  ExportFileInput,
+  ImportFileInput,
+  PackageChanges,
+  PanelBlock,
+  PanelInput,
+  PanelSeries,
+} from './extensions';
+export {
+  checkChangesAnswer,
+  checkExportAnswer,
+  checkPanelAnswer,
+  checkedExtensions,
+  previewPackageChanges,
+} from './extensions';

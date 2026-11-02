@@ -2,8 +2,9 @@
  * Writing a package's code and the capabilities it declares (ADR 0054). Storing code runs nothing:
  * the code runs only once the person approves it by its hash, which any change here changes.
  */
-import type { Capability, PackageFile } from '@visual-anything/schema';
+import type { Capability, PackageExtensions, PackageFile } from '@visual-anything/schema';
 import { capabilityProblem, sortedCapabilities } from '../code/capabilities';
+import { checkedExtensions } from '../code/extensions';
 import { CODE_LIMITS } from '../code/limits';
 import type { PackageProperties } from '../operations';
 import { reject, type Draft } from './draft';
@@ -11,8 +12,15 @@ import type { SetPackageCodeCommand } from './types';
 
 export function setPackageCode(draft: Draft, command: SetPackageCodeCommand): string {
   const file = draft.ownPackage(command.package);
-  if (command.code === undefined && command.capabilities === undefined) {
-    reject('invalid-command', 'set-package-code needs the code, the capabilities, or both.');
+  if (
+    command.code === undefined &&
+    command.capabilities === undefined &&
+    command.extensions === undefined
+  ) {
+    reject(
+      'invalid-command',
+      'set-package-code needs the code, the capabilities, what the code adds, or some of them.',
+    );
   }
   const code =
     command.code === undefined
@@ -40,6 +48,21 @@ export function setPackageCode(draft: Draft, command: SetPackageCodeCommand): st
     capabilities = undefined;
   }
   if (capabilities !== undefined && capabilities.length === 0) capabilities = undefined;
+  // What the code adds to the app goes with the code, as its capabilities do (ADR 0089).
+  let extensions: PackageExtensions | undefined =
+    command.extensions === undefined
+      ? file.extensions
+      : command.extensions === null
+        ? undefined
+        : checkedPackageExtensions(command.extensions, file);
+  if (code === undefined) {
+    if (command.extensions !== undefined && extensions !== undefined) {
+      reject('invalid-code', `The package "${file.name}" has no code to add anything to the app.`, [
+        file.id,
+      ]);
+    }
+    extensions = undefined;
+  }
 
   // The package's own properties, with the code and the capabilities as they are to be.
   const properties: Partial<PackageFile> = { ...file };
@@ -48,20 +71,24 @@ export function setPackageCode(draft: Draft, command: SetPackageCodeCommand): st
   delete properties.images;
   delete properties.code;
   delete properties.capabilities;
+  delete properties.extensions;
   const next: PackageProperties = {
     ...(properties as PackageProperties),
     ...(code === undefined ? {} : { code }),
     ...(capabilities === undefined ? {} : { capabilities }),
+    ...(extensions === undefined ? {} : { extensions }),
   };
   const sameCode = sameLines(file.code, code);
   const sameCapabilities = sameLines(file.capabilities, capabilities);
-  if (!sameCode || !sameCapabilities) {
+  const sameExtensions = JSON.stringify(file.extensions) === JSON.stringify(extensions);
+  if (!sameCode || !sameCapabilities || !sameExtensions) {
     draft.apply({ op: 'set-package', package: file.id, properties: next });
   }
   const name = JSON.stringify(file.name);
   if (code === undefined) return `Remove the code of the package ${name}`;
   if (file.code === undefined) return `Add code to the package ${name}`;
   if (sameCode && !sameCapabilities) return `Change what the code of the package ${name} may reach`;
+  if (sameCode && !sameExtensions) return `Change what the code of the package ${name} adds`;
   return `Change the code of the package ${name}`;
 }
 
@@ -130,6 +157,15 @@ function checkedCapabilities(capabilities: unknown): Capability[] {
     );
   }
   return sorted;
+}
+
+function checkedPackageExtensions(
+  value: unknown,
+  file: PackageFile,
+): PackageExtensions | undefined {
+  const checked = checkedExtensions(value);
+  if (!checked.ok) reject('invalid-code', checked.reason, [file.id]);
+  return checked.extensions;
 }
 
 function sameLines(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {

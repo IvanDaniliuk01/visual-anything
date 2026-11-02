@@ -37,4 +37,21 @@ export const CODE_LIMITS = Object.freeze({
   drawingSize: 10_000,
   /** The most relations, containers and contents a hook's context holds. */
   contextItems: 500,
+  /**
+   * How long one call of `act`, `importFile` or `exportFile` may run (ADR 0089), in milliseconds: the
+   * person asked for it and waits, with a notice, so it has longer than the hooks the canvas calls.
+   */
+  extensionCallMs: 2000,
+  /** The most commands an action or an importer may answer, and its longest answer as JSON. */
+  changesCommands: 500,
+  changesText: 1024 * 1024,
+  /** The longest file an importer is given and an exporter may answer, in characters. */
+  importText: 4 * 1024 * 1024,
+  exportText: 4 * 1024 * 1024,
+  /** The most blocks of a panel, the longest text of one, and a table's and a chart's sizes. */
+  panelBlocks: 64,
+  panelText: 2000,
+  panelColumns: 12,
+  panelRows: 200,
+  panelSeries: 6,
 });

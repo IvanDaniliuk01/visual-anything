@@ -187,7 +187,7 @@ describe('how a shape writes the name', () => {
     expect(refusal(traitsOf('api', { text: { font: 'comic' } }))).toContain('roboto');
     expect(refusal(traitsOf('api', { text: { position: 'center' } }))).toContain('inside');
     expect(refusal(traitsOf('api', { text: { padding: 49 } }))).toContain('text padding');
-    expect(refusal(traitsOf('api', { text: { wrap: 'yes' } }))).toContain('wrap');
+    expect(refusal(traitsOf('api', { text: { wrap: 'yes' } }))).toContain('wraps its name');
   });
 
   const textStyles: fc.Arbitrary<TextStyle> = fc.record(

@@ -85,6 +85,10 @@
       "maxItems": 16,
       "uniqueItems": true
     },
+    "extensions": {
+      "$ref": "#/definitions/PackageExtensions",
+      "description": "What its code adds to the app beyond its components (ADR 0089): actions, importers, exporters and panels, declared here so that the app lists them before the code is approved or runs. Each runs through a hook of the code: `act`, `importFile`, `exportFile` or `panel`. Left out when it adds none."
+    },
     "conflicts": {
       "type": "array",
       "items": {
@@ -1914,6 +1918,186 @@
       "type": "string",
       "description": "Something a package's code may reach beyond its element: `model:read`, the whole model, read-only; `time`, the clock; or `network:` and one web origin, such as `network:https://status.example.com`, fetched through the local program.",
       "pattern": "^(model:read|time|network:https?://[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?(:[0-9]{1,5})?)$"
+    },
+    "PackageExtensions": {
+      "type": "object",
+      "properties": {
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PackageActionDeclaration"
+          },
+          "description": "Its actions, which answer changes the person reviews before they apply.",
+          "minItems": 1,
+          "maxItems": 32
+        },
+        "importers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PackageImporterDeclaration"
+          },
+          "description": "Its importers, which read a file into changes the person reviews.",
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "exporters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PackageExporterDeclaration"
+          },
+          "description": "Its exporters, which write the model and a view as a text file.",
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "panels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PackagePanelDeclaration"
+          },
+          "description": "Its panels, which the inspector shows for a selection.",
+          "minItems": 1,
+          "maxItems": 8
+        }
+      },
+      "additionalProperties": false,
+      "description": "What a package's code adds to the app (ADR 0089), each list left out when empty."
+    },
+    "PackageActionDeclaration": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/ExtensionId"
+        },
+        "label": {
+          "$ref": "#/definitions/ExtensionLabel"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "where": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "selection",
+              "packages-menu"
+            ]
+          },
+          "description": "Where it is offered: the canvas menu for a selection, the Packages menu, or both.",
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "description": "The components whose elements, or those of components derived from them, it is offered for in the canvas menu; left out, it is offered for any selection.",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "where"
+      ],
+      "additionalProperties": false,
+      "description": "A named action, run with the selection and, with `model:read`, the model (ADR 0089)."
+    },
+    "ExtensionId": {
+      "type": "string",
+      "description": "The id of something a package adds, unique among the package's ones of its kind.",
+      "pattern": "^[a-z][a-z0-9-]{0,47}$"
+    },
+    "ExtensionLabel": {
+      "type": "string",
+      "description": "What the app names something a package adds, in the package's own words.",
+      "minLength": 1,
+      "maxLength": 60
+    },
+    "PackageImporterDeclaration": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/ExtensionId"
+        },
+        "label": {
+          "$ref": "#/definitions/ExtensionLabel"
+        },
+        "extensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FileExtension"
+          },
+          "description": "The extensions it reads, each with its dot, in lower case, such as \".sql\".",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "extensions"
+      ],
+      "additionalProperties": false,
+      "description": "An importer: it reads files with these extensions into changes (ADR 0089)."
+    },
+    "FileExtension": {
+      "type": "string",
+      "description": "A file's extension, with its dot, in lower case.",
+      "pattern": "^\\.[a-z0-9]{1,16}$"
+    },
+    "PackageExporterDeclaration": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/ExtensionId"
+        },
+        "label": {
+          "$ref": "#/definitions/ExtensionLabel"
+        },
+        "extension": {
+          "$ref": "#/definitions/FileExtension"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "extension"
+      ],
+      "additionalProperties": false,
+      "description": "An exporter: it writes the model and a view as a text file with this extension (ADR 0089)."
+    },
+    "PackagePanelDeclaration": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/ExtensionId"
+        },
+        "label": {
+          "$ref": "#/definitions/ExtensionLabel"
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "description": "The components whose elements, or those of components derived from them, it shows for; left out, it shows for any one selected element.",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "label"
+      ],
+      "additionalProperties": false,
+      "description": "A panel the inspector shows for a selection of these components' elements (ADR 0089)."
     },
     "FileConflict": {
       "type": "object",

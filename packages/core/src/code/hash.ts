@@ -17,14 +17,32 @@ export function sha256(text: string): string {
 /**
  * The hash of a package's code and capabilities: the SHA-256 of `[text, capabilities]` written as
  * JSON, where the text is the code's lines joined by line feeds and the capabilities are sorted. Any
- * change to either changes it, and the order the capabilities are declared in does not.
+ * change to either changes it, and the order the capabilities are declared in does not. A package
+ * that declares what its code adds to the app (ADR 0089) hashes `[text, capabilities, extensions]`,
+ * the extensions written with their keys sorted, so that adding an action asks for approval again
+ * while code that adds nothing keeps the hash it was approved by.
  */
 export function codeHash(
   code: readonly string[],
   capabilities: readonly string[] | undefined,
+  extensions?: unknown,
 ): string {
   const sorted = [...new Set(capabilities ?? [])].sort(compareText);
-  return sha256(JSON.stringify([code.join('\n'), sorted]));
+  const parts: unknown[] = [code.join('\n'), sorted];
+  if (extensions !== undefined) parts.push(sortedKeys(extensions));
+  return sha256(JSON.stringify(parts));
+}
+
+/** A plain value with every object's keys in sorted order, so that its JSON does not depend on it. */
+function sortedKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortedKeys);
+  if (typeof value !== 'object' || value === null) return value;
+  const record = value as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.keys(record)
+      .sort(compareText)
+      .map((key) => [key, sortedKeys(record[key])]),
+  );
 }
 
 /** A text's UTF-8 bytes; a lone surrogate is written as U+FFFD, as encoders do. */

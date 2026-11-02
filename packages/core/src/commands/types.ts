@@ -24,6 +24,7 @@ import type {
   Face,
   FaceVariant,
   Gradient,
+  PackageExtensions,
   FreeGeometry,
   FreeShape,
   Id,
@@ -924,6 +925,11 @@ export interface SetPackageCodeCommand {
    * sorted. `null` or an empty list removes them; left out, they stay as they are.
    */
   capabilities?: string[] | null;
+  /**
+   * What the code adds to the app (ADR 0089): its actions, importers, exporters and panels. `null`
+   * removes them; left out, they stay as they are. They go with the code, as its capabilities do.
+   */
+  extensions?: PackageExtensions | null;
 }
 
 // Overlays (ADR 0055) --------------------------------------------------------------------------------

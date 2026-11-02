@@ -486,7 +486,9 @@ export class CodeRunner {
       let run: PackageRun;
       if (request.stops >= CODE_LIMITS.stopsBeforeOff) {
         run = off(request.package, request.stops, offProblem(named));
-      } else if (codeHash(request.code.split('\n'), request.declared) !== request.hash) {
+      } else if (
+        codeHash(request.code.split('\n'), request.declared, request.extensions) !== request.hash
+      ) {
         // Only the code the person approved runs: never other code under its hash.
         run = {
           package: request.package,

@@ -7,14 +7,21 @@ import type { Id } from '@visual-anything/schema';
 import { problem, type Problem } from '../problems';
 import { CODE_LIMITS } from './limits';
 
-/** The hooks package code may export. */
-export type HookName = 'attributes' | 'check' | 'draw' | 'simulate';
+/** The hooks package code may export: the canvas's and the simulation's, then ADR 0089's. */
+export type HookName = 'attributes' | 'check' | 'draw' | 'simulate' | ExtensionHookName;
+
+/** The hooks that add to the app (ADR 0089), each called only when the person asks for it. */
+export type ExtensionHookName = 'act' | 'importFile' | 'exportFile' | 'panel';
 
 export const HOOK_NAMES: readonly HookName[] = Object.freeze([
   'attributes',
   'check',
   'draw',
   'simulate',
+  'act',
+  'importFile',
+  'exportFile',
+  'panel',
 ]);
 
 /** How a call of package code, or the loading of its module, ended badly. */

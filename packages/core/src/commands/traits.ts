@@ -414,6 +414,13 @@ function checkedGradient(
 const FONTS = ['roboto', 'system', 'mono'] as const;
 const TEXT_ALIGNS = ['left', 'center', 'right'] as const;
 const LABEL_POSITIONS = ['inside', 'above', 'below', 'left', 'right'] as const;
+/** The text's switches, and what each says in a refusal. */
+const TEXT_SWITCHES = [
+  ['bold', 'writes its name in bold'],
+  ['italic', 'writes its name in italics'],
+  ['underline', 'underlines its name'],
+  ['wrap', 'wraps its name'],
+] as const;
 
 /** How a shape writes the name (ADR 0088), each part checked; colors keep their stored spelling. */
 function checkedText(value: unknown, of: string, stored?: TextStyle): TextStyle {
@@ -433,8 +440,8 @@ function checkedText(value: unknown, of: string, stored?: TextStyle): TextStyle 
   const font = choice('font', FONTS, 'is written in "roboto", "system" or "mono"');
   if (font !== undefined) text.font = font;
   if (value.size !== undefined) text.size = checkedRange(value.size, 8, 48, 'text size', of);
-  for (const key of ['bold', 'italic', 'underline', 'wrap'] as const) {
-    if (value[key] !== undefined) text[key] = checkedBoolean(value[key], `is ${key}`, of);
+  for (const [key, says] of TEXT_SWITCHES) {
+    if (value[key] !== undefined) text[key] = checkedBoolean(value[key], says, of);
   }
   const align = choice('align', TEXT_ALIGNS, 'is aligned "left", "center" or "right"');
   if (align !== undefined) text.align = align;
