@@ -7,7 +7,8 @@
  * from its edge.
  */
 import type { ProjectSnapshot } from '@visual-anything/core';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import type { Attributes, Overlay } from '@visual-anything/schema';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CANVAS_KEYS } from '../canvas/keys';
@@ -16,7 +17,7 @@ import { EditorContext, type Editor } from '../editor/EditorContext';
 import { HoverContext, HoverStore } from '../editor/hover';
 import { EMPTY_SELECTION, selectionOf, type Selection } from '../editor/selection';
 import { createSolidClient, type SolidClient } from '../solids/client';
-import { StandInSolidWorker } from '../solids/stand-in';
+import { StandInSolidWorker, type StandInOptions } from '../solids/stand-in';
 import { workcell } from '../test/space';
 import { changeOf } from './changes';
 import { SpacePanelContext } from './context';
@@ -28,7 +29,9 @@ import { useSpacePanelShortcut } from './useSpacePanelShortcut';
 
 const VIEW = 'cell-view';
 
-function setUp(options: { project?: ProjectSnapshot; client?: boolean } = {}) {
+function setUp(
+  options: { project?: ProjectSnapshot; client?: boolean; standIn?: StandInOptions } = {},
+) {
   const project = options.project ?? workcell();
   const view = project.views[0];
   if (!view) throw new Error('The workcell has a view.');
@@ -47,7 +50,7 @@ function setUp(options: { project?: ProjectSnapshot; client?: boolean } = {}) {
             get: () => Promise.resolve({ ok: false, code: 'solid-file-missing', message: 'No.' }),
           },
           start: () => {
-            const worker = new StandInSolidWorker();
+            const worker = new StandInSolidWorker(options.standIn);
             workers.push(worker);
             return worker;
           },
@@ -214,6 +217,75 @@ describe('the physical-space panel', () => {
     expect(edge).toHaveAttribute('aria-valuenow', '280');
     fireEvent.doubleClick(edge);
     expect(store.width).toBe(480);
+  });
+});
+
+/** The workcell with these overlays on its view and these attributes on its elements. */
+function overlaid(overlays: Overlay[], attributes: Record<string, Attributes>): ProjectSnapshot {
+  const project = workcell({ view: { overlays } });
+  return {
+    ...project,
+    model: {
+      ...project.model,
+      elements: project.model.elements.map((element) =>
+        attributes[element.id] ? { ...element, attributes: attributes[element.id] } : element,
+      ),
+    },
+  };
+}
+
+const heat: Overlay = {
+  id: 'heat',
+  name: 'Heat',
+  of: 'elements',
+  attribute: 'heat',
+  channel: 'fill',
+  mapping: { kind: 'discrete', cases: [{ value: 'hot', color: '#B91C1C', label: 'Hot' }] },
+};
+
+describe('the panel’s legend', () => {
+  it('shows the legend of the overlays that color something in it, in words', async () => {
+    const stroke: Overlay = { ...heat, id: 'edge', name: 'Edge', channel: 'stroke' };
+    const { store } = setUp({ project: overlaid([heat, stroke], { table: { heat: 'hot' } }) });
+    act(() => store.open(VIEW));
+    await settle();
+    const panel = screen.getByRole('region', { name: 'Physical space' });
+    expect(within(panel).getByText('Legend')).toBeInTheDocument();
+    const part = within(panel).getByRole('region', { name: 'Heat' });
+    expect(part).toHaveTextContent('Fill by heat');
+    expect(part).toHaveTextContent('Hot');
+    // A stroke is the canvas's alone.
+    expect(within(panel).queryByRole('region', { name: 'Edge' })).toBeNull();
+  });
+
+  it('shows no legend while its overlays color only what it does not draw', async () => {
+    const { store } = setUp({ project: overlaid([heat], { lamp: { heat: 'hot' } }) });
+    act(() => store.open(VIEW));
+    await settle();
+    const panel = screen.getByRole('region', { name: 'Physical space' });
+    expect(within(panel).queryByText('Legend')).toBeNull();
+  });
+});
+
+describe('the panel’s words, following the exploded view', () => {
+  it('say how far the exploded view draws a part from its place, and keep it for playback', async () => {
+    let moved = [{ element: 'elbow', by: { x: 0, y: 0.3, z: 0.4 } }];
+    const { store, select } = setUp({
+      standIn: { shifts: (shown) => ((shown.explode ?? 0) > 0 ? moved : []) },
+    });
+    act(() => store.open(VIEW, { explode: 1 }));
+    await settle();
+    const row = screen.getAllByRole('treeitem').find((each) => each.textContent?.includes('Elbow'));
+    expect(row).toHaveAccessibleName(
+      'Elbow, anchored to the part “elbow” of Arm, drawn 50 cm from its place by the exploded view',
+    );
+    expect(store.moves.drawn(VIEW)?.shifts?.get('elbow')).toEqual({ x: 0, y: 0.3, z: 0.4 });
+    // A frame whose exploded view moves nothing any more, as at a factor of 0.
+    moved = [];
+    act(() => select(selectionOf([{ kind: 'element', id: 'arm' }])));
+    await settle();
+    expect(row).toHaveAccessibleName('Elbow, anchored to the part “elbow” of Arm');
+    expect(store.moves.drawn(VIEW)?.shifts).toBeUndefined();
   });
 });
 

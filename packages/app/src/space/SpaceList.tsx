@@ -3,7 +3,8 @@
  * anchored in, so that everything it draws is reached from the keyboard and heard by a screen reader.
  * It follows the selection, made anywhere; a click selects a row's element, Enter selects it and
  * frames it, and +, − and 0 zoom and fit the camera as on the frames. Each row's name says where its
- * element is, and resting the pointer on a row hovers its element everywhere.
+ * element is, drawn where the exploded view moves it, and resting the pointer on a row hovers its
+ * element everywhere.
  */
 import { modelIndexOf, type ProjectSnapshot, type Space } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
@@ -17,16 +18,18 @@ import { VirtualTree, type TreeRequest } from '../shell/VirtualTree';
 import type { SpaceControl } from './control';
 import { holdersOf, spaceListOf, type SpaceListItem } from './list';
 import { cameraKeyOf, cameraMovedByKey } from './orbit';
-import { whereIs } from './where';
+import { whereIs, type SpaceShifts } from './where';
 
 interface SpaceListProps {
   project: ProjectSnapshot;
   space: Space;
   control: SpaceControl;
   say: (text: string) => void;
+  /** How far the exploded view moves each entry it moves, as the newest frame said. */
+  shifts?: SpaceShifts | undefined;
 }
 
-export function SpaceList({ project, space, control, say }: SpaceListProps) {
+export function SpaceList({ project, space, control, say, shifts }: SpaceListProps) {
   const t = useT();
   const heading = useId();
   const editor = useEditor();
@@ -77,7 +80,7 @@ export function SpaceList({ project, space, control, say }: SpaceListProps) {
   const activate = (row: TreeRow<SpaceListItem>, how: 'key' | 'pointer') => {
     const element = row.item.element;
     editor.select?.(selectionOf([{ kind: 'element', id: element }]));
-    say(`${whereIs(t, project, space, element)}.`);
+    say(`${whereIs(t, project, space, element, shifts)}.`);
     if (how === 'key') void control.fit([element]);
   };
 
@@ -103,7 +106,7 @@ export function SpaceList({ project, space, control, say }: SpaceListProps) {
           request={request}
           isSelected={(row) => selection.elements.has(row.item.element)}
           textOf={(row) => nameOf(row.item.element)}
-          labelOf={(row) => whereIs(t, project, space, row.item.element)}
+          labelOf={(row) => whereIs(t, project, space, row.item.element, shifts)}
           onOpen={(row, open) =>
             setClosed((now) => {
               const next = new Set(now);

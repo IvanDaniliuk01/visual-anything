@@ -80,6 +80,23 @@ describe('the panel following playback', () => {
     expect(framed()).toBeUndefined();
   });
 
+  it('reads where the exploded view drew the step’s ends in the newest frame', () => {
+    const { store, follower, step, framed } = setUp();
+    const whole = frameSpace([{ min: { x: -1, y: -1, z: -1 }, max: { x: 3, y: 2, z: 1 } }], 1);
+    // The camera's part drawn far out of the frame, where the poses put it in the frame.
+    const shifts = new Map([['camera', { x: 0, y: 40, z: 0 }]]);
+    expect(inSpaceView({ camera: whole, aspect: 1, shifts }, space, ['camera', 'arm'])).toBe(false);
+    expect(inSpaceView({ camera: whole, aspect: 1, shifts }, space, ['arm'])).toBe(true);
+    store.moves.setDrawn(VIEW, { camera: whole, aspect: 1, shifts });
+    follower.show(step('s 0', true), 0);
+    follower.show(step('s 1', true), 1);
+    expect(framed()).toEqual(['camera', 'arm']);
+    // Drawn back where the poses put it, it is in the frame again.
+    store.moves.setDrawn(VIEW, { camera: whole, aspect: 1, shifts: new Map() });
+    follower.show(step('s 2', true), 2);
+    expect(framed()).toBeUndefined();
+  });
+
   it('frames nothing while the panel is closed', () => {
     const { store, follower, step } = setUp();
     store.close(VIEW);

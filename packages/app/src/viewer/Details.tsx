@@ -2,20 +2,39 @@
  * What is selected in a read-only page, written out: an element's name, its component, its
  * description and its attributes; a relation's type, its ends and its attributes; a note's text; or
  * how much is selected. It is read, never edited: the page has no inspector controls (ADR 0041).
+ *
+ * In a page with the physical-space panel, an element's details offer Show in physical space, as the
+ * app's shape menu does (ADR 0076): it only reads, so it is the page's too.
  */
-import { componentOrEssence, modelIndexOf, relationTypeOrRelatesTo } from '@visual-anything/core';
-import type { Attributes, AttributeDefinition, JsonValue } from '@visual-anything/schema';
+import {
+  componentOrEssence,
+  modelIndexOf,
+  relationTypeOrRelatesTo,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
+import type {
+  Attributes,
+  AttributeDefinition,
+  Id,
+  JsonValue,
+  ViewFile,
+} from '@visual-anything/schema';
+import { useState } from 'react';
 import { nameOfEnd } from '../canvas/announce';
 import { useEditor } from '../editor/EditorContext';
 import { EMPTY_SELECTION, sizeOf } from '../editor/selection';
 import { useT, type Translator } from '../i18n';
-import { DismissIcon } from '../shell/icons';
+import { DismissIcon, SpaceIcon } from '../shell/icons';
+import { useSpacePanel } from '../space/context';
+import { showInSpace, showInSpaceOf } from '../space/show';
+import type { SpacePanelStore } from '../space/store';
 import { EmphasisBlocks, EmphasisRuns } from '../text/EmphasisText';
 import { leavingTitleOf } from './leaving';
 
 export function Details() {
   const t = useT();
   const { project, definitions, selection, select, viewId, scene } = useEditor();
+  const spacePanel = useSpacePanel();
   const size = sizeOf(selection);
   if (size === 0) return null;
   const close = (
@@ -40,6 +59,7 @@ export function Details() {
     const component = componentOrEssence(definitions, element.component);
     // The relations that leave the view through its scope, from the element's first shape (ADR-0040).
     const leaving = scene?.shapes.find((shape) => shape.element === element.id)?.leaving;
+    const view = project.views.find((each) => each.id === viewId);
     return (
       <section className="viewer-sheet viewer-details" aria-label={t('Selected')}>
         <div className="viewer-sheet-head">
@@ -53,6 +73,16 @@ export function Details() {
         <AttributeList t={t} values={element.attributes} defined={component.attributes} />
         {leaving !== undefined && leaving.length > 0 && (
           <p className="viewer-note">{leavingTitleOf(project, leaving)}</p>
+        )}
+        {spacePanel && view && (
+          <ShowInSpace
+            key={element.id}
+            store={spacePanel}
+            project={project}
+            view={view}
+            element={element.id}
+            name={element.name}
+          />
         )}
       </section>
     );
@@ -111,6 +141,58 @@ export function Details() {
         {close}
       </div>
     </section>
+  );
+}
+
+/**
+ * Show in physical space, for the element selected: opens the page's panel showing it, or frames it
+ * where it is in World, as `space/show.ts` says, and says which it did.
+ */
+function ShowInSpace({
+  store,
+  project,
+  view,
+  element,
+  name,
+}: {
+  store: SpacePanelStore;
+  project: ProjectSnapshot;
+  view: ViewFile;
+  element: Id;
+  name: string;
+}) {
+  const t = useT();
+  // Each message counts, so that the same words said again are heard again.
+  const [said, setSaid] = useState({ text: '', count: 0 });
+  const frames = showInSpaceOf(project, view, element).kind === 'frames';
+  const show = () => {
+    const what = showInSpace(store, project, view, element);
+    const text =
+      what.kind === 'shows'
+        ? t('The physical-space panel shows “{name}”.', { name })
+        : t('“{name}” is framed in the physical-space panel.', { name });
+    setSaid((last) => ({ text, count: last.count + 1 }));
+  };
+  return (
+    <div className="viewer-row">
+      <button
+        type="button"
+        className="viewer-button"
+        title={
+          frames
+            ? t('Frames it in the physical-space panel, where it is in World.')
+            : t('Opens the physical-space panel showing it, with what is posed or anchored in it.')
+        }
+        onClick={show}
+      >
+        <SpaceIcon />
+        {t('Show in physical space')}
+      </button>
+      <p role="status" className="visually-hidden">
+        {said.text}
+        {said.count % 2 === 1 ? ' ' : ''}
+      </p>
+    </div>
   );
 }
 
