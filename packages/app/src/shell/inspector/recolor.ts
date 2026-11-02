@@ -22,6 +22,7 @@ import {
   type Definitions,
   type FreeShapeTheme,
   type ProjectSnapshot,
+  type StoredColorsInDark,
   type ThemeName,
   type UpdateElementCommand,
   type UpdateFreeShapeCommand,
@@ -315,11 +316,12 @@ export function shownAtLevel(
   id: Id,
   trait: ColorTrait,
   theme: ThemeName = 'light',
+  stored: StoredColorsInDark = 'as-stored',
 ): Color {
   const definitions = definitionsIn(project);
   return kind === 'component'
-    ? drawnColorsOf({ component: id }, definitions, theme)[trait]
-    : drawnRelationAppearanceOf({ relationType: id }, definitions, theme).stroke;
+    ? drawnColorsOf({ component: id }, definitions, theme, stored)[trait]
+    : drawnRelationAppearanceOf({ relationType: id }, definitions, theme, stored).stroke;
 }
 
 /** The theme's colors for notes and arrows, in a theme. */
@@ -356,7 +358,8 @@ function selected(
 /**
  * The colors a selection shows for a trait in a theme, as the canvas draws them, one for each shape
  * that has it, in the order elements, relations, free shapes: the inspector shows the common one, or
- * that they differ.
+ * that they differ. Stored colors as stored, which picks compare with, or as `stored` says the theme
+ * draws them (ADR 0087).
  */
 export function selectionColors(
   project: ProjectSnapshot,
@@ -364,17 +367,21 @@ export function selectionColors(
   selection: Selection,
   trait: ColorTrait,
   theme: ThemeName = 'light',
+  stored: StoredColorsInDark = 'as-stored',
 ): Color[] {
   const definitions = definitionsIn(project);
   const { elements, relations, freeShapes } = selected(project, viewId, selection, trait);
   const canvas = freeShapeTheme(theme);
+  const adapted = stored === 'adapted';
   return [
-    ...elements.map((element) => drawnColorsOf(element, definitions, theme)[trait]),
-    ...relations.map((relation) => drawnRelationAppearanceOf(relation, definitions, theme).stroke),
+    ...elements.map((element) => drawnColorsOf(element, definitions, theme, stored)[trait]),
+    ...relations.map(
+      (relation) => drawnRelationAppearanceOf(relation, definitions, theme, stored).stroke,
+    ),
     ...freeShapes.map((shape) =>
       shape.kind === 'note'
-        ? noteColorsOf(shape, canvas)[trait].color
-        : arrowColorOf(shape, canvas).color,
+        ? noteColorsOf(shape, canvas, adapted)[trait].color
+        : arrowColorOf(shape, canvas, adapted).color,
     ),
   ];
 }

@@ -365,6 +365,12 @@ interface ColorControlProps extends ControlProps {
   /** Whether the shapes the control changes show different colors: it then says "Mixed". */
   mixed?: boolean;
   /**
+   * The color the canvas draws for `value`, when it draws another: on the dark canvas with the
+   * project's stored colors adapted (ADR 0087). It shows beside the stored color, which is what a
+   * pick changes.
+   */
+  drawn?: Color;
+  /**
    * Commits a color, in capitals, that differs from the one shown; resolves once the project shows it,
    * to `false` when it was not done. A color that was done goes first among the recent colors.
    * `waiting` says that an earlier commit of this control has not been answered yet, so that the
@@ -391,6 +397,7 @@ export function ColorControl({
   label,
   value,
   mixed = false,
+  drawn,
   onCommit,
 }: ColorControlProps) {
   const t = useT();
@@ -406,6 +413,11 @@ export function ColorControl({
   const codeId = `${id}-code`;
   const problemId = `${id}-code-problem`;
   const mixedId = `${id}-mixed`;
+  const drawnId = `${id}-drawn`;
+  const drawnShown =
+    drawn !== undefined && !isMixed && draft === undefined && !sameColor(drawn, value)
+      ? drawn.toUpperCase()
+      : undefined;
 
   const choose = (picked: string) => {
     const color = readColor(picked);
@@ -466,7 +478,10 @@ export function ColorControl({
           type="color"
           value={shown.toLowerCase()}
           disabled={disabled}
-          aria-describedby={describedByOf(describedBy, isMixed ? mixedId : undefined)}
+          aria-describedby={describedByOf(
+            describedBy,
+            isMixed ? mixedId : drawnShown !== undefined ? drawnId : undefined,
+          )}
           onChange={(event) => setDraft(event.target.value.toUpperCase())}
         />
         {isMixed && (
@@ -500,6 +515,16 @@ export function ColorControl({
         }}
       />
       {code?.problem !== undefined && <InlineProblem id={problemId} text={code.problem} inline />}
+      {drawnShown !== undefined && (
+        <span id={drawnId} className="inspector-color-drawn">
+          <span
+            className="inspector-color-drawn-swatch"
+            style={{ backgroundColor: drawnShown }}
+            aria-hidden="true"
+          />
+          {t('Drawn {color} on the dark canvas', { color: drawnShown })}
+        </span>
+      )}
       {suggestions.length > 0 && (
         <Swatches
           label={label}

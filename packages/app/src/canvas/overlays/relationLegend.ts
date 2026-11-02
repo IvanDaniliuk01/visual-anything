@@ -6,6 +6,7 @@
  * overlay's part, after the overlays' parts. Pure.
  */
 import {
+  relationTypeDarkStrokeOf,
   relationTypeOrRelatesTo,
   type Definitions,
   type Legend,
@@ -58,13 +59,15 @@ export function relationTypesLegend(
   }
   if (types.length === 0) return undefined;
   const neutral = drawsNeutralLines(scene);
+  // Stored colors as the dark canvas draws them, adapted where the drawing asks (ADR 0087).
+  const stored = scene.drawingDefaults?.colors.storedColorsInDark ?? 'as-stored';
   if (types.length < 2 && !neutral) return undefined;
   const entries: RelationTypeEntry[] = types.map((id) => {
     const type = relationTypeOrRelatesTo(definitions, id);
     return {
       kind: 'case',
       label: type.name,
-      color: theme === 'dark' ? type.darkStroke : type.appearance.stroke,
+      color: theme === 'dark' ? relationTypeDarkStrokeOf(type, stored) : type.appearance.stroke,
       dash: type.appearance.dash,
     };
   });

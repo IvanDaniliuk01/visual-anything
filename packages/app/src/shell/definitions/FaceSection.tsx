@@ -11,6 +11,7 @@ import { useCallback, useId, useMemo } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
 import { originText, savedIn } from '../inspector/colors';
+import { useStoredColorsInDark } from '../inspector/useShownTheme';
 import { isBuiltInDefinition } from './commands';
 import { FaceEditor } from './FaceEditor';
 import { componentFaceCommand, elementFaceCommand } from './faceDraft';
@@ -42,9 +43,11 @@ export function FaceSection({ id }: { id: Id }) {
     () => new Set(component.attributes.map((each) => each.name)),
     [component],
   );
+  // Stored colors as the dark canvas draws them, adapted where the view asks (ADR 0087).
+  const storedInDark = useStoredColorsInDark();
   const colors = useCallback(
-    (theme: ThemeName) => drawnColorsOf({ component: id }, definitions, theme),
-    [id, definitions],
+    (theme: ThemeName) => drawnColorsOf({ component: id }, definitions, theme, storedInDark),
+    [id, definitions, storedInDark],
   );
   const note = isBuiltInDefinition(definitions, 'component', id)
     ? savedIn(project.packages, component.package)
@@ -109,9 +112,11 @@ export function ElementFaceTrait({ element, disabled }: { element: Element; disa
       ...Object.keys(element.attributes ?? {}),
     ]);
   }, [definitions, element]);
+  // Stored colors as the dark canvas draws them, adapted where the view asks (ADR 0087).
+  const storedInDark = useStoredColorsInDark();
   const colors = useCallback(
-    (theme: ThemeName) => drawnColorsOf(element, definitions, theme),
-    [element, definitions],
+    (theme: ThemeName) => drawnColorsOf(element, definitions, theme, storedInDark),
+    [element, definitions, storedInDark],
   );
   const elements = useMemo(() => [element], [element]);
 

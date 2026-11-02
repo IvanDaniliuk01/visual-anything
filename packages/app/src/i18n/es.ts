@@ -3631,6 +3631,15 @@ export const ui: Catalog = {
   'A number beside the line': 'Un número junto a la línea',
   'A number in a rounded box on the line': 'Un número en un recuadro redondeado sobre la línea',
   Dots: 'Puntos',
+  // Stored colors adapted on the dark canvas (ADR 0087).
+  Colors: 'Colores',
+  'The project’s own colors on the dark canvas':
+    'Los colores propios del proyecto en el lienzo oscuro',
+  'Adapted keeps each color’s hue and turns its lightness, so pale fills draw dark. The light canvas and the project’s files keep the colors as picked.':
+    'Adaptados conserva el tono de cada color e invierte su luminosidad, así los rellenos pálidos se dibujan oscuros. El lienzo claro y los archivos del proyecto conservan los colores tal como se eligieron.',
+  'As picked': 'Tal como se eligieron',
+  'Adapted to the dark canvas': 'Adaptados al lienzo oscuro',
+  'Drawn {color} on the dark canvas': 'Se dibuja {color} en el lienzo oscuro',
 };
 
 /**

@@ -81,7 +81,11 @@ export interface DrawingDefaults {
 }
 ```
 
-The proposed `storedColorsInDark` waits for the user (ADR 0086, "Proposed"), and is not in the schema until they agree.
+Agreed by the user on 2026-11-02 (ADR 0087) and built in A5.8, a group of its own sets how the dark canvas draws the colors the project stores, `"as-stored"` in every preset:
+
+```ts
+  colors?: { storedColorsInDark?: 'as-stored' | 'adapted' };
+```
 
 ## 3. The presets
 

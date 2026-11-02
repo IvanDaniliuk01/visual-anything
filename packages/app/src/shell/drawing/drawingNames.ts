@@ -30,6 +30,7 @@ export const GROUP_NAMES: Readonly<Record<DrawingGroup, string>> = {
   aggregated: 'Aggregated relations',
   reading: 'Reading by zoom',
   grid: 'Grid',
+  colors: 'Colors',
 };
 
 /** A value's name, and, where the number needs it, what it is measured in. */
@@ -87,6 +88,12 @@ export const VALUE_NAMES: Readonly<Record<DrawingGroup, Readonly<Record<string, 
   grid: {
     look: { name: 'Grid drawn as' },
   },
+  colors: {
+    storedColorsInDark: {
+      name: 'The project’s own colors on the dark canvas',
+      note: 'Adapted keeps each color’s hue and turns its lightness, so pale fills draw dark. The light canvas and the project’s files keep the colors as picked.',
+    },
+  },
 };
 
 /** The names of the choices of each value that takes choices, by the choice as text. */
@@ -114,4 +121,7 @@ export const CHOICE_NAMES: Readonly<
     count: { label: 'A number beside the line', badge: 'A number in a rounded box on the line' },
   },
   grid: { look: { lines: 'Lines', dots: 'Dots' } },
+  colors: {
+    storedColorsInDark: { 'as-stored': 'As picked', adapted: 'Adapted to the dark canvas' },
+  },
 };

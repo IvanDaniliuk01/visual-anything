@@ -2,7 +2,12 @@
  * The canvas in the person's theme (ADR-0033): what a switch draws again and when it shows, and how a
  * recolor restyles tiles in place.
  */
-import { executeCommand, type Command, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  adaptedForDark,
+  executeCommand,
+  type Command,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import { Color, Container, type Graphics, type GraphicsContext } from 'pixi.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { THEMES } from '../theme/themes';
@@ -288,6 +293,40 @@ describe('CanvasRenderer themes', () => {
       expect([tile.coarse?.context, tile.full?.context]).toEqual(contexts);
     }
     expect(shown.at(-1)).toBe('dark');
+  });
+
+  it('draws again, with stored colors adapted, only the tiles whose colors change (ADR 0087)', async () => {
+    const adapted = { fill: adaptedForDark('#FFE8D6'), stroke: adaptedForDark('#8A4B12') };
+    const gray = '#777777';
+    // A gray of L* 50 turns into itself: the scene gives it no dark colors.
+    expect(adaptedForDark(gray)).toBe(gray);
+    const renderer = await ready(makeRenderer());
+    renderer.show(
+      indexScene(
+        sceneOf([
+          shapeAt('pale', { x: 0, y: 0, width: 100, height: 50 }, adapted),
+          {
+            ...shapeAt('gray', { x: 1050, y: 0, width: 100, height: 50 }),
+            fill: gray,
+            stroke: gray,
+          },
+        ]),
+      ),
+    );
+    renderer.setCamera({ x: 0, y: 0, scale: 1 });
+    settleFrames(renderer);
+    const pale = tileOf(renderer, 'pale');
+    const grayTile = tileOf(renderer, 'gray');
+    expect(pale).not.toBe(grayTile);
+    const before = contextsOf(renderer);
+    renderer.setTheme(DARK);
+    untilShown(renderer);
+    // The gray tile keeps its drawings; the pale one is drawn again in its adapted colors.
+    expect([grayTile.coarse?.context, grayTile.full?.context]).toEqual(before.get(grayTile));
+    expect(pale.full?.context).not.toBe(before.get(pale)?.[1]);
+    expect(colorsOf(pale.full?.context as GraphicsContext)).toEqual(
+      expect.arrayContaining([adapted.fill, adapted.stroke]),
+    );
   });
 
   it('keeps a stale full drawing off screen, and draws it again before it shows', async () => {

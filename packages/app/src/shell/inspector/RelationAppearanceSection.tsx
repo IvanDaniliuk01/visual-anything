@@ -24,7 +24,7 @@ import {
   relationTypeRouteCommand,
   storedRelationTypeRoute,
 } from './routeStyles';
-import { useShownTheme } from './useShownTheme';
+import { useShownTheme, useStoredColorsInDark, useStoredColorsShown } from './useShownTheme';
 
 interface RelationAppearanceSectionProps {
   relation: Relation;
@@ -58,9 +58,12 @@ export function RelationAppearanceSection({
   const nameOf = (each: Id) => t.definition(each, relationTypeOrRelatesTo(definitions, each).name);
   const stored = storedAtLevel(project, 'relation-type', id, 'stroke');
   const drawn = ofType ? { relationType: id } : relation;
+  // Stored strokes adapted on the dark canvas, where the view asks for it (ADR 0087).
+  const storedInDark = useStoredColorsInDark();
+  const adapted = drawnRelationAppearanceOf(drawn, definitions, theme, useStoredColorsShown());
   const hints = lineHints({
     light: drawnRelationAppearanceOf(drawn, definitions, 'light').stroke,
-    dark: drawnRelationAppearanceOf(drawn, definitions, 'dark').stroke,
+    dark: drawnRelationAppearanceOf(drawn, definitions, 'dark', storedInDark).stroke,
   });
   const origin = ofType
     ? relationType.origins.stroke
@@ -121,6 +124,7 @@ export function RelationAppearanceSection({
               id={controlId}
               label={t('Stroke')}
               value={shown}
+              drawn={adapted.stroke}
               disabled={disabled}
               describedBy={idsOf(describedBy, hints.length > 0 ? hintId : undefined)}
               onCommit={(color, { waiting }) => {

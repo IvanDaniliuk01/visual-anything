@@ -164,6 +164,16 @@ export interface DrawingGrid {
   look?: 'lines' | 'dots';
 }
 
+/** How the colors a project stores are drawn in each theme (ADR 0087). */
+export interface DrawingColors {
+  /**
+   * On the dark canvas, the colors the project stores (fills, strokes, tints, notes and free arrows)
+   * are drawn as stored, or adapted: their lightness turned and their hue kept. The light theme
+   * always draws them as stored, and nothing stored changes.
+   */
+  storedColorsInDark?: 'as-stored' | 'adapted';
+}
+
 /** Drawing defaults, by group; whatever is left out is the layer's under it. */
 export interface DrawingDefaults {
   /** The preset the values below change; in a view, a preset of its own. Left out: Clean. */
@@ -175,4 +185,5 @@ export interface DrawingDefaults {
   aggregated?: DrawingAggregated;
   reading?: DrawingReading;
   grid?: DrawingGrid;
+  colors?: DrawingColors;
 }

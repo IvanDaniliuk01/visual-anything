@@ -164,6 +164,7 @@ import {
   nameBandOf,
   pictureOn,
   showsPicture,
+  tintIn,
   type ShapeImage,
 } from '../canvas/shape-images';
 import { solidsIn } from '@visual-anything/core';
@@ -385,7 +386,7 @@ type WrittenText = TextSpec & {
 const MONO_SVG_FAMILY = svgFamily(MONO_FAMILY);
 
 /** A picture to draw: its cleaned view, the serial of its content, and the tint of a silhouette. */
-type PictureSource = Pick<ShapeImage, 'image' | 'serial' | 'tint'>;
+type PictureSource = Pick<ShapeImage, 'image' | 'serial' | 'tint' | 'darkTint'>;
 
 /**
  * How an outline's lines are stroked: each at its own width, at least `least`, as a shape's body and
@@ -591,7 +592,7 @@ class Writer {
    */
   picture(image: PictureSource, rect: Rect): string {
     const cleaned = image.image;
-    const tint = image.tint;
+    const tint = tintIn(image, this.theme.name);
     const silhouette = tint !== undefined && cleaned.kind === 'svg';
     const key = `${image.serial}${silhouette ? ` ${tint}` : ''}`;
     let id = this.#symbols.get(key);

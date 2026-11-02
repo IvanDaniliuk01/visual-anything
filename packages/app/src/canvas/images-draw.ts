@@ -12,7 +12,8 @@
  * - Plates follow the theme (ADR-0033): drawn in white, a drawing for each pair of a fill and its dark
  *   shade, and tinted each frame to the fill of the theme the canvas shows, so that a switch changes
  *   them in the frame it shows, with the rest of the canvas. Pictures are drawn as stored in both
- *   themes, a silhouette in its stored colour.
+ *   themes, a silhouette in its stored colour; where the drawing defaults adapt stored colors on the
+ *   dark canvas, a silhouette with an adapted tint is drawn again for the theme shown (ADR 0087).
  * - Work per frame: at most four image drawings are rebuilt, nearest the middle of the screen first,
  *   those whose textures just arrived before those whose buckets changed with the zoom, and none once
  *   the frame has spent 8 ms. The store keeps its own limits on decoding and rasterizing.
@@ -48,7 +49,7 @@ import {
 import { imageSerial } from './image-serials';
 import { partImageOf, type ShapePart } from './partShapes';
 import type { ElementShape } from './scene';
-import { IMAGE_SCALES, type ShapeImage } from './shape-images';
+import { IMAGE_SCALES, tintIn, type ShapeImage } from './shape-images';
 import { meets } from './spatial';
 import { shapeColors } from './theme/paint';
 import type { SolidClient } from '../solids/solid-client';
@@ -498,6 +499,8 @@ export class TileImages<
       const image = pictureOf(shape) as ShapeImage;
       if (!drawnWhole(image) && !iconsShown) continue;
       key += `,${bucketOf(image, view)}`;
+      // A silhouette whose stored tint is adapted on the dark canvas is drawn again for each theme.
+      if (image.darkTint !== undefined) key += view.theme === 'dark' ? 'd' : 'l';
     }
     return key;
   }
@@ -632,7 +635,14 @@ export class TileImages<
       keys.push(made.key);
       const into = isDrawing ? drawings : icons;
       if (image.placement === 'drawing') plateOf(shape, image.box);
-      into.texture(made.texture, image.tint, rect.x, rect.y, rect.width, rect.height);
+      into.texture(
+        made.texture,
+        tintIn(image, view.theme),
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height,
+      );
     }
     return keys;
   }

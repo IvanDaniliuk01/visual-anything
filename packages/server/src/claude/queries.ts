@@ -6,11 +6,14 @@
  * tools.
  */
 import {
+  adaptedForDark,
   brokenStepsOf,
   builtinPackage,
   combinationsOf,
   definitionsIn,
+  drawingOf,
   isBrokenTourStep,
+  isColor,
   destinationKind,
   destinationsOf,
   externalIdQuery,
@@ -18,6 +21,7 @@ import {
   isOutside,
   modelIndexOf,
   nestingTypesInView,
+  sameColor,
   scenarioTimeline,
   showsPart,
   shownByScope,
@@ -35,6 +39,33 @@ import { readDecisions } from './decision-edits';
 import { appearanceRead } from './geometry-brief';
 import { handRoutesOn, routedByHandAnswer, viewsRoutingByHand } from './hand-routes';
 import { UNDEFINED_ATTRIBUTES_NOTE, undefinedAttributesOf } from './undefined-attributes';
+
+/**
+ * What the dark canvas draws for the colors an appearance stores, where the project's drawing
+ * defaults adapt stored colors there and it draws another (ADR 0087): `darkCanvas`, by trait. The
+ * appearance itself stays as stored; nothing when every color is drawn as stored.
+ */
+function darkCanvasOf(
+  state: ProjectSnapshot,
+  appearance: { fill?: unknown; stroke?: unknown; image?: unknown } | undefined,
+): { darkCanvas?: Record<string, string> } {
+  if (appearance === undefined) return {};
+  if (drawingOf(state).colors.storedColorsInDark !== 'adapted') return {};
+  const image = appearance.image;
+  const tint =
+    typeof image === 'object' && image !== null ? (image as { tint?: unknown }).tint : undefined;
+  const drawn: Record<string, string> = {};
+  for (const [trait, color] of [
+    ['fill', appearance.fill],
+    ['stroke', appearance.stroke],
+    ['tint', tint],
+  ] as const) {
+    if (!isColor(color)) continue;
+    const adapted = adaptedForDark(color);
+    if (!sameColor(adapted, color)) drawn[trait] = adapted;
+  }
+  return Object.keys(drawn).length === 0 ? {} : { darkCanvas: drawn };
+}
 
 /** How many ways a scenario plays that read_scenario counts before it says "or more". */
 const WAYS_COUNTED = 1000;
@@ -330,6 +361,7 @@ export function describeItem(
       ...(element.appearance === undefined
         ? {}
         : { appearance: appearanceRead(element.appearance, options.fullGeometry) }),
+      ...darkCanvasOf(state, element.appearance),
       containers: containers.map((relation) => ({
         id: relation.to,
         name: endName(relation.to, state),
@@ -371,6 +403,7 @@ export function describeItem(
       ...describedDestinations(relation, type?.attributes ?? []),
       // Its own appearance, a particularity: stroke, width, dash and route (ADR-0035, ADR 0069).
       ...(relation.appearance === undefined ? {} : { appearance: relation.appearance }),
+      ...darkCanvasOf(state, relation.appearance),
       relationsOnIt: index.relationsOn(id).map(relationBrief),
       // The views that route it by hand, which reset_route sends back to automatic (ADR 0039).
       ...nonEmpty('routedByHandIn', viewsRoutingByHand(state, id)),

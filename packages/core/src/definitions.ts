@@ -34,7 +34,13 @@ import {
 import { builtinPackage } from './builtin';
 import { darkShadeOf } from './builtin/dark';
 import { ESSENCE, RELATES_TO } from './builtin/essence-and-relates-to';
-import { CANVAS_BACKGROUNDS, MINIMUM_MARK_CONTRAST, contrastRatio } from './colors';
+import {
+  CANVAS_BACKGROUNDS,
+  MINIMUM_MARK_CONTRAST,
+  adaptedForDark,
+  contrastRatio,
+  type StoredColorsInDark,
+} from './colors';
 import type { ThemeName } from './preferences';
 import { problem, type Problem } from './problems';
 
@@ -209,20 +215,48 @@ export function appearanceOriginsOf(
 
 /**
  * The fill and stroke the dark theme draws an element's shapes in. Built-in colors take their dark
- * shades while nothing in the project sets them; every color the project sets is drawn as stored;
- * and a built-in fill keeps its light value beside a stored stroke under 3:1 on the dark canvas, so
- * that the shape keeps the pair the light theme shows instead of vanishing (ADR-0033).
+ * shades while nothing in the project sets them; every color the project sets is drawn as stored, or
+ * adapted when the drawing defaults ask for it (`stored`, ADR 0087); and a built-in fill keeps its
+ * light value beside a stored stroke drawn under 3:1 on the dark canvas, so that the shape keeps the
+ * pair the light theme shows instead of vanishing (ADR-0033).
  */
-export function darkColorsOf(element: Drawn, definitions: Definitions): ShapeColors {
+export function darkColorsOf(
+  element: Drawn,
+  definitions: Definitions,
+  stored: StoredColorsInDark = 'as-stored',
+): ShapeColors {
   const component = componentOrEssence(definitions, element.component);
   const own = element.appearance;
-  if (own?.fill === undefined && own?.stroke === undefined) return component.darkColors;
+  if (own?.fill === undefined && own?.stroke === undefined) {
+    return componentDarkColorsOf(component, stored);
+  }
   const light = appearanceOf(element, definitions);
   const origins = appearanceOriginsOf(element, definitions);
   return darkPair(
-    { light: light.fill, shade: shadeOf('component', origins.fill, 'fill') },
-    { light: light.stroke, shade: shadeOf('component', origins.stroke, 'stroke') },
+    { light: light.fill, origin: origins.fill },
+    { light: light.stroke, origin: origins.stroke },
+    stored,
   );
+}
+
+const adaptedComponentColors = new WeakMap<ResolvedComponent, ShapeColors>();
+
+/**
+ * The fill and stroke the dark theme draws the elements of a component in when they set neither:
+ * its `darkColors`, or, when the drawing defaults adapt stored colors, with the colors the project
+ * sets adapted (ADR 0087).
+ */
+export function componentDarkColorsOf(
+  component: ResolvedComponent,
+  stored: StoredColorsInDark = 'as-stored',
+): ShapeColors {
+  if (stored === 'as-stored') return component.darkColors;
+  let colors = adaptedComponentColors.get(component);
+  if (colors === undefined) {
+    colors = darkColorsFrom(component.appearance, component.origins, stored);
+    adaptedComponentColors.set(component, colors);
+  }
+  return colors;
 }
 
 /** The fill and stroke an element's shapes are drawn in, in a theme. */
@@ -230,8 +264,9 @@ export function drawnColorsOf(
   element: Drawn,
   definitions: Definitions,
   theme: ThemeName,
+  stored: StoredColorsInDark = 'as-stored',
 ): ShapeColors {
-  if (theme === 'dark') return darkColorsOf(element, definitions);
+  if (theme === 'dark') return darkColorsOf(element, definitions, stored);
   const { fill, stroke } = appearanceOf(element, definitions);
   return { fill, stroke };
 }
@@ -272,11 +307,38 @@ export function relationAppearanceOriginsOf(
   };
 }
 
-/** The stroke the dark theme draws a relation in: its own, or its relation type's dark stroke. */
-export function relationDarkStrokeOf(relation: DrawnRelation, definitions: Definitions): Color {
-  return (
-    relation.appearance?.stroke ??
-    relationTypeOrRelatesTo(definitions, relation.relationType).darkStroke
+/**
+ * The stroke the dark theme draws a relation in: its own, as stored or adapted (`stored`, ADR 0087),
+ * or its relation type's dark stroke.
+ */
+export function relationDarkStrokeOf(
+  relation: DrawnRelation,
+  definitions: Definitions,
+  stored: StoredColorsInDark = 'as-stored',
+): Color {
+  const own = relation.appearance?.stroke;
+  if (own !== undefined) return stored === 'adapted' ? adaptedForDark(own) : own;
+  return relationTypeDarkStrokeOf(
+    relationTypeOrRelatesTo(definitions, relation.relationType),
+    stored,
+  );
+}
+
+/**
+ * The stroke the dark theme draws a relation type's relations in when they set none: its
+ * `darkStroke`, or, when the drawing defaults adapt stored colors and its stroke is one the project
+ * sets, that stroke adapted (ADR 0087). A built-in stroke keeps its dark shade, or its light value.
+ */
+export function relationTypeDarkStrokeOf(
+  relationType: ResolvedRelationType,
+  stored: StoredColorsInDark = 'as-stored',
+): Color {
+  if (stored === 'as-stored') return relationType.darkStroke;
+  return darkOf(
+    'relation-type',
+    { light: relationType.appearance.stroke, origin: relationType.origins.stroke },
+    'stroke',
+    stored,
   );
 }
 
@@ -285,10 +347,11 @@ export function drawnRelationAppearanceOf(
   relation: DrawnRelation,
   definitions: Definitions,
   theme: ThemeName,
+  stored: StoredColorsInDark = 'as-stored',
 ): ResolvedRelationAppearance {
   const appearance = relationAppearanceOf(relation, definitions);
   return theme === 'dark'
-    ? { ...appearance, stroke: relationDarkStrokeOf(relation, definitions) }
+    ? { ...appearance, stroke: relationDarkStrokeOf(relation, definitions, stored) }
     : appearance;
 }
 
@@ -342,20 +405,46 @@ function shadeOf(
     : undefined;
 }
 
+/** A color trait as the light theme draws it, and where it comes from. */
+interface ColorTrait {
+  light: Color;
+  origin: TraitOrigin;
+}
+
+/** Whether a trait comes from a built-in definition itself: a built-in color, not a stored one. */
+function isBuiltInColor(origin: TraitOrigin): boolean {
+  return origin.kind === 'definition' && origin.via === 'definition' && origin.builtIn;
+}
+
 /**
- * The dark theme's fill and stroke from each one's light value and dark shade, if it takes one: a
- * stroke drawn in its light value, as every stored color is, keeps a built-in fill in its light value
- * too when it is under 3:1 on the dark canvas.
+ * The color the dark theme draws a trait in, on its own: a built-in color's dark shade, or its light
+ * value when it has none; a stored color as stored, or adapted (ADR 0087).
  */
-function darkPair(
-  fill: { light: Color; shade: Color | undefined },
-  stroke: { light: Color; shade: Color | undefined },
-): ShapeColors {
-  const darkStroke = stroke.shade ?? stroke.light;
+function darkOf(
+  kind: 'component' | 'relation-type',
+  trait: ColorTrait,
+  name: 'fill' | 'stroke',
+  stored: StoredColorsInDark,
+): Color {
+  if (isBuiltInColor(trait.origin)) return shadeOf(kind, trait.origin, name) ?? trait.light;
+  return stored === 'adapted' ? adaptedForDark(trait.light) : trait.light;
+}
+
+/**
+ * The dark theme's fill and stroke from each one's light value and where it comes from: a stroke
+ * drawn without a dark shade, as every stored color is, keeps a built-in fill in its light value too
+ * when the stroke drawn is under 3:1 on the dark canvas.
+ */
+function darkPair(fill: ColorTrait, stroke: ColorTrait, stored: StoredColorsInDark): ShapeColors {
+  const darkStroke = darkOf('component', stroke, 'stroke', stored);
   const keepsLight =
-    stroke.shade === undefined &&
+    shadeOf('component', stroke.origin, 'stroke') === undefined &&
+    isBuiltInColor(fill.origin) &&
     contrastRatio(darkStroke, CANVAS_BACKGROUNDS.dark) < MINIMUM_MARK_CONTRAST;
-  return { fill: keepsLight ? fill.light : (fill.shade ?? fill.light), stroke: darkStroke };
+  return {
+    fill: keepsLight ? fill.light : darkOf('component', fill, 'fill', stored),
+    stroke: darkStroke,
+  };
 }
 
 function buildDefinitions(
@@ -522,10 +611,12 @@ function resolveRelatesTo(entries: Entries): ResolvedRelationType {
 function darkColorsFrom(
   appearance: ResolvedAppearance,
   origins: Readonly<Record<TraitPath, TraitOrigin>>,
+  stored: StoredColorsInDark = 'as-stored',
 ): ShapeColors {
   return darkPair(
-    { light: appearance.fill, shade: shadeOf('component', origins.fill, 'fill') },
-    { light: appearance.stroke, shade: shadeOf('component', origins.stroke, 'stroke') },
+    { light: appearance.fill, origin: origins.fill },
+    { light: appearance.stroke, origin: origins.stroke },
+    stored,
   );
 }
 

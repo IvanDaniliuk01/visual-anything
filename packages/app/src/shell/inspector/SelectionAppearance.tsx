@@ -6,7 +6,7 @@ import { Field } from '../definitions/Field';
 import type { ColorTrait } from './colors';
 import { ColorControl } from './controls';
 import { selectionColorCommand, selectionColors } from './recolor';
-import { useShownTheme } from './useShownTheme';
+import { useShownTheme, useStoredColorsShown } from './useShownTheme';
 
 /**
  * The colors of several selected shapes, changed together as one action: a fill for the elements and
@@ -19,6 +19,7 @@ export function SelectionAppearance() {
   const { project, viewId, selection, send } = useEditor();
   const headingId = useId();
   const theme = useShownTheme();
+  const stored = useStoredColorsShown();
   const disabled = send === undefined;
   const rows: { trait: ColorTrait; label: string }[] = [
     { trait: 'fill', label: 'Fill' },
@@ -28,7 +29,9 @@ export function SelectionAppearance() {
     const colors = selectionColors(project, viewId, selection, trait, theme);
     const [first] = colors;
     if (first === undefined) return [];
-    return [{ trait, label, first, colors }];
+    // The first shape's color as drawn, where the dark canvas adapts stored colors (ADR 0087).
+    const drawn = selectionColors(project, viewId, selection, trait, theme, stored)[0];
+    return [{ trait, label, first, colors, drawn }];
   });
   const shapes = Math.max(0, ...shown.map(({ colors }) => colors.length));
   if (shown.length === 0) return null;
@@ -41,7 +44,7 @@ export function SelectionAppearance() {
           { count: shapes },
         )}
       </h4>
-      {shown.map(({ trait, label, first, colors }) => (
+      {shown.map(({ trait, label, first, colors, drawn }) => (
         <Field
           key={trait}
           label={t(label)}
@@ -63,6 +66,7 @@ export function SelectionAppearance() {
               label={t(label)}
               value={first}
               mixed={colors.some((color) => !sameColor(color, first))}
+              {...(drawn === undefined ? {} : { drawn })}
               disabled={disabled}
               describedBy={describedBy}
               onCommit={(color, { waiting }) => {

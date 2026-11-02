@@ -400,7 +400,7 @@ The actions of the open project since it was opened or last reloaded from disk, 
 _Avoid_: log, timeline, version history
 
 **Drawing defaults**:
-The values the canvas, the read-only page and every export draw with wherever no appearance sets them: line widths and arrowheads, borders and corner radii, the font and its sizes and weights, padding, how containers, collapsed containers and aggregated relations are drawn, the zoom at which names, details and rows show, and the grid's look. A project names a preset and changes any of its values, and a view changes them again for itself; both are stored in their files, so everyone opening the project and every export see the same. An appearance still comes first for what it sets (ADR 0086).
+The values the canvas, the read-only page and every export draw with wherever no appearance sets them: line widths and arrowheads, borders and corner radii, the font and its sizes and weights, padding, how containers, collapsed containers and aggregated relations are drawn, the zoom at which names, details and rows show, the grid's look, and whether the dark canvas draws the project's stored colors as stored or adapted. A project names a preset and changes any of its values, and a view changes them again for itself; both are stored in their files, so everyone opening the project and every export see the same. An appearance still comes first for what it sets (ADR 0086).
 _Avoid_: style, settings, theme (for these values)
 
 **Drawing preset**:
@@ -426,7 +426,7 @@ The language the app reads in, English or Spanish: its panels, menus, dialogs, c
 _Avoid_: locale (in the app's text)
 
 **Theme**:
-The colors the app and the canvas itself are drawn in, light or dark: panels and text, the canvas background, the grid, the rulers, selection, labels, and notes and free arrows without colors of their own. Built-in packages give their components and relation types a shade for each theme; every color stored in a project is drawn as stored in both. A theme follows the system unless the person chooses one, and it never changes the project.
+The colors the app and the canvas itself are drawn in, light or dark: panels and text, the canvas background, the grid, the rulers, selection, labels, and notes and free arrows without colors of their own. Built-in packages give their components and relation types a shade for each theme; every color stored in a project is drawn as stored in both, unless the project's or a view's drawing defaults ask for its stored colors adapted on the dark canvas, which turns their lightness there and keeps their hue, and only draws (ADR 0087). A theme follows the system unless the person chooses one, and it never changes the project.
 _Avoid_: skin, palette
 
 ### The local program

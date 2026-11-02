@@ -28,10 +28,12 @@ import {
   type ProjectSnapshot,
   type ResolvedAppearance,
   type ResolvedFace,
+  type StoredColorsInDark,
   type TraitOrigin,
 } from '@visual-anything/core';
 import type { Element, FaceVariant, Id } from '@visual-anything/schema';
 import { z } from 'zod';
+import { storedColorsInDarkOf } from './appearance-tools';
 import { READ, WRITE, act, fail, id, ok, tool } from './kit';
 import type { Tool, ToolOutcome } from './tools';
 
@@ -148,15 +150,19 @@ function attributesFor(target: Target, definitions: Definitions): Set<string> {
   return names;
 }
 
-/** Every problem of a face for a target, in both themes, errors first. */
+/**
+ * Every problem of a face for a target, in both themes, errors first: on the dark canvas with the
+ * shape's stored colors adapted where the drawing defaults ask for it (`stored`, ADR 0087).
+ */
 function problemsFor(
   face: ResolvedFace,
   target: Target,
   definitions: Definitions,
+  stored: StoredColorsInDark,
 ): readonly FaceProblem[] {
   const drawn = target.kind === 'element' ? target.element : { component: target.id };
   const palette = (theme: 'light' | 'dark') => {
-    const colors = drawnColorsOf(drawn, definitions, theme);
+    const colors = drawnColorsOf(drawn, definitions, theme, stored);
     return facePalette(theme, colors.fill, colors.stroke);
   };
   return faceProblems(face, {
@@ -309,7 +315,7 @@ Example, back to the component's face: { "element": "api", "face": null }`,
       if (shown === undefined) {
         return { keptIn, face: `${capitalized(subjectOf(current))} draws no face.` };
       }
-      const warnings = problemsFor(shown, current, now).map(
+      const warnings = problemsFor(shown, current, now, storedColorsInDarkOf(after)).map(
         (each) => `${capitalized(faceMessage(each))}`,
       );
       return {
@@ -452,7 +458,7 @@ Example, collapsed: { "element": "billing", "collapsed": true }`,
         `${subject} draws no face${args.face === undefined ? '' : ' with these parts'}: give face a markup to try one, and set_face to set it.`,
       );
     }
-    const problems = problemsFor(face, target, definitions);
+    const problems = problemsFor(face, target, definitions, storedColorsInDarkOf(state));
     const errors = problems.filter((each) => each.severity === 'error');
     const answer: Record<string, unknown> = {
       of: subject,

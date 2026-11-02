@@ -4,6 +4,7 @@
  * color already shown records nothing, in either theme (A2).
  */
 import {
+  adaptedForDark,
   definitionsIn,
   executeCommand,
   type Command,
@@ -33,13 +34,15 @@ function Harness({
   send,
   selected,
   children,
+  start = sample,
 }: {
   send: SendCommand;
   selected: Selectable[];
   children?: React.ReactNode;
+  start?: ProjectSnapshot;
 }) {
-  const [project, setProject] = useState<ProjectSnapshot>(sample);
-  const latest = useRef(sample);
+  const [project, setProject] = useState<ProjectSnapshot>(start);
+  const latest = useRef(start);
   const definitions = useMemo(() => definitionsIn(project), [project]);
   const view = project.views[0];
   const scene = useMemo(() => (view ? buildScene(project, view.id) : undefined), [project, view]);
@@ -73,11 +76,12 @@ function renderIn(
   theme: 'light' | 'dark',
   selected: Selectable[],
   children?: React.ReactNode,
+  start: ProjectSnapshot = sample,
 ): Mock<SendCommand> {
   changePreferences({ theme });
   const send = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
   render(
-    <Harness send={send} selected={selected}>
+    <Harness send={send} selected={selected} start={start}>
       {children}
     </Harness>,
   );
@@ -205,5 +209,48 @@ describe('the inspector’s colors, in each theme', () => {
     expect(screen.getByLabelText('Line')).toHaveValue('#aeb8c4');
     await pick(screen.getByLabelText('Stroke'), '#78a8ee');
     expect(send).not.toHaveBeenCalled();
+  });
+});
+
+describe('the inspector’s colors with stored colors adapted on the dark canvas (ADR 0087)', () => {
+  const adapted: ProjectSnapshot = {
+    ...sample,
+    project: { ...sample.project, drawing: { colors: { storedColorsInDark: 'adapted' } } },
+  };
+
+  it('shows the stored color, with the color the dark canvas draws beside it', () => {
+    renderIn('dark', [element('booking-agent')], undefined, adapted);
+    // Its own fill, as stored, which a pick changes; drawn adapted.
+    const fill = screen.getByLabelText('Fill');
+    expect(fill).toHaveValue('#f8e1ec');
+    const drawn = adaptedForDark('#F8E1EC');
+    expect(fill).toHaveAccessibleDescription(
+      expect.stringContaining(`Drawn ${drawn} on the dark canvas`) as string,
+    );
+    // AI agent's stroke is built in: its dark shade, drawn as it is, with nothing beside it.
+    expect(screen.getByLabelText('Stroke')).toHaveValue('#b39cf0');
+    expect(screen.getByLabelText('Stroke')).not.toHaveAccessibleDescription(
+      expect.stringContaining('Drawn') as string,
+    );
+  });
+
+  it('shows nothing beside it on the light canvas, where stored colors are drawn as stored', () => {
+    renderIn('light', [element('booking-agent')], undefined, adapted);
+    expect(screen.getByLabelText('Fill')).toHaveValue('#f8e1ec');
+    expect(screen.queryByText(/on the dark canvas/)).toBeNull();
+  });
+
+  it('records nothing for the stored color picked again, and stores a pick as picked', async () => {
+    const send = renderIn('dark', [element('booking-agent')], undefined, adapted);
+    await pick(screen.getByLabelText('Fill'), '#f8e1ec');
+    expect(send).not.toHaveBeenCalled();
+    await pick(screen.getByLabelText('Fill'), '#fff3bf');
+    expect(sent(send)).toEqual([
+      {
+        type: 'update-element',
+        id: 'booking-agent',
+        changes: { appearanceTraits: { fill: '#FFF3BF' } },
+      },
+    ]);
   });
 });

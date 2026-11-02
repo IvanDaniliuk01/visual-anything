@@ -465,6 +465,22 @@
   pointer-events: none;
 }
 
+/* The color the dark canvas draws, beside the stored one, when stored colors are adapted there */
+.inspector-color-drawn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-25);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.inspector-color-drawn-swatch {
+  width: var(--size-130);
+  height: var(--size-130);
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-sm);
+}
+
 .inspector-swatches {
   display: flex;
   flex-basis: 100%;

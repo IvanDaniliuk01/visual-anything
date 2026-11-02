@@ -3,20 +3,26 @@
  * one element or relation (ADR-0035), free geometry, named parts and route styles included (ADR 0066,
  * ADR 0067, ADR 0069); the inputs for a relation's own appearance; and what Claude's tools say about
  * the colors they store (ADR-0033): a color is #RRGGBB, which the core checks, and one that is hard
- * to see on the canvas of either theme is pointed out in the answer, never refused.
+ * to see on the canvas of either theme is pointed out in the answer, never refused. Where the drawing
+ * defaults adapt stored colors on the dark canvas (ADR 0087), the answers measure the dark canvas with
+ * the colors it draws, and say which color it draws for each color stored.
  */
 import {
   CANVAS_BACKGROUNDS,
   MINIMUM_MARK_CONTRAST,
   THEME_NAMES,
   contrastRatio,
+  adaptedForDark,
   definitionsIn,
+  drawingOf,
   drawnColorsOf,
   editableAppearanceOf,
   isColor,
   modelIndexOf,
   type ProjectSnapshot,
+  storedColorInDark,
   type ShapeColors,
+  type StoredColorsInDark,
   type ThemeName,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
@@ -77,16 +83,56 @@ function ratioText(ratio: number): string {
   return (Math.floor(ratio * 10) / 10).toFixed(1);
 }
 
-/** The warnings for a stroke stored: one for each theme's canvas it is under 3:1 against. */
-export function strokeWarnings(subject: string, stroke: string | undefined): string[] {
+/**
+ * How the project's drawing defaults draw its stored colors on the dark canvas (ADR 0087): those of
+ * the view given, or the project's own. Claude's answers about colors measure the dark canvas with it.
+ */
+export function storedColorsInDarkOf(state: ProjectSnapshot, view?: Id): StoredColorsInDark {
+  return drawingOf(state, view).colors.storedColorsInDark;
+}
+
+/**
+ * The warnings for a stroke stored: one for each theme's canvas it is under 3:1 against, as each
+ * draws it: on the dark canvas adapted, when the drawing defaults adapt stored colors there.
+ */
+export function strokeWarnings(
+  subject: string,
+  stroke: string | undefined,
+  stored: StoredColorsInDark = 'as-stored',
+): string[] {
   if (stroke === undefined) return [];
   return THEME_NAMES.flatMap((theme) => {
-    const ratio = contrastRatio(stroke, CANVAS_BACKGROUNDS[theme]);
+    const drawn = theme === 'dark' ? storedColorInDark(stroke, stored) : stroke;
+    const ratio = contrastRatio(drawn, CANVAS_BACKGROUNDS[theme]);
+    const as = drawn.toUpperCase() === stroke.toUpperCase() ? '' : `, drawn ${drawn} there,`;
     return ratio < MINIMUM_MARK_CONTRAST
       ? [
-          `The stroke ${stroke} of ${subject} is ${ratioText(ratio)}:1 against the ${theme} canvas, under 3:1.`,
+          `The stroke ${stroke} of ${subject}${as} is ${ratioText(ratio)}:1 against the ${theme} canvas, under 3:1.`,
         ]
       : [];
+  });
+}
+
+/**
+ * What the dark canvas draws for the colors a change stored, where the drawing defaults adapt stored
+ * colors there and it draws another color (ADR 0087): one sentence for each, so that Claude does not
+ * take the stored color for what the person sees in the dark theme. None when they are drawn as stored.
+ */
+export function darkCanvasNotes(
+  subject: string,
+  set: { fill?: string; stroke?: string },
+  stored: StoredColorsInDark,
+): string[] {
+  if (stored !== 'adapted') return [];
+  return (['fill', 'stroke'] as const).flatMap((trait) => {
+    const color = set[trait];
+    if (color === undefined) return [];
+    const drawn = adaptedForDark(color);
+    return drawn.toUpperCase() === color.toUpperCase()
+      ? []
+      : [
+          `On the dark canvas the ${trait} ${color} of ${subject} is drawn ${drawn}: the drawing defaults adapt stored colors there (colors.storedColorsInDark). The color stored stays ${color}.`,
+        ];
   });
 }
 
@@ -122,9 +168,11 @@ export function elementColorWarnings(
   if (found === undefined) return [];
   const subject = `"${found.name}"`;
   const definitions = definitionsIn(state);
+  const stored = storedColorsInDarkOf(state);
   return [
-    ...strokeWarnings(subject, set.stroke),
-    ...blendWarnings(subject, (theme) => drawnColorsOf(found, definitions, theme)),
+    ...strokeWarnings(subject, set.stroke, stored),
+    ...blendWarnings(subject, (theme) => drawnColorsOf(found, definitions, theme, stored)),
+    ...darkCanvasNotes(subject, set, stored),
   ];
 }
 
@@ -140,7 +188,11 @@ export function relationColorWarnings(
   if (found === undefined) return [];
   const end = (end: Id) => index.element(end)?.name ?? index.relation(end)?.name ?? end;
   const subject = `the relation "${found.name ?? `${end(found.from)} → ${end(found.to)}`}"`;
-  return strokeWarnings(subject, stroke);
+  const stored = storedColorsInDarkOf(state);
+  return [
+    ...strokeWarnings(subject, stroke, stored),
+    ...darkCanvasNotes(subject, { stroke }, stored),
+  ];
 }
 
 /**
@@ -160,11 +212,16 @@ export function definitionColorWarnings(
     kind === 'component'
       ? `the component "${definitions.component(target)?.name ?? target}"`
       : `the relation type "${definitions.relationType(target)?.name ?? target}"`;
+  // A stored color is adapted on the dark canvas where the drawing defaults ask; a built-in one is not.
+  const stored = storedColorsInDarkOf(state);
   return [
-    ...strokeWarnings(named, set.stroke),
+    ...strokeWarnings(named, set.stroke, stored),
     ...(kind === 'component'
-      ? blendWarnings(named, (theme) => drawnColorsOf({ component: target }, definitions, theme))
+      ? blendWarnings(named, (theme) =>
+          drawnColorsOf({ component: target }, definitions, theme, stored),
+        )
       : []),
+    ...darkCanvasNotes(named, set, stored),
   ];
 }
 
@@ -190,7 +247,7 @@ Shapes' traits: shape (rectangle, rounded-rectangle, ellipse, cylinder or person
 - part: { part, image } or { part, solid }, the named part they are drawn as; image or solid may be left out inside a drawing with parts. "none" takes it away. A part the picture lacks warns unknown-part. list_image_parts and list_solid_parts list parts; anchor_parts anchors a drawing's.
 - route: the style of automatic routes, orthogonal, straight or curved. It comes before a view's routeStyle (update_view).
 
-Colors are #RRGGBB, drawn as stored in both themes. A line needs 3:1 against both canvases: the answer warns about a color under it, and about shapes that blend into a canvas, and never refuses one.
+Colors are #RRGGBB, drawn as stored in both themes unless the drawing defaults adapt them on the dark canvas (the answer then says what it draws). A line needs 3:1 against both canvases: the answer warns about a color under it, and about shapes that blend into a canvas, and never refuses one.
 
 Example: { "component": "systems.service", "appearanceTraits": { "fill": "#E3F2E9", "stroke": "#2F855A" } }
 Example, a heart: { "component": "anatomy.heart", "appearanceTraits": { "geometry": { "width": 120, "height": 110, "keepProportions": true, "outline": [{ "kind": "path", "d": "${HEART_PATH}" }], "label": { "x": 24, "y": 30, "width": 72, "height": 36 } } } }

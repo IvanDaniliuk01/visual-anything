@@ -17,9 +17,11 @@ import {
   randomIds,
   routeOf,
   slug,
+  storedColorInDark,
   type Command,
   type Guidance,
   type ProjectSnapshot,
+  type StoredColorsInDark,
 } from '@visual-anything/core';
 import type { Attributes, FreeShape, Id } from '@visual-anything/schema';
 import { z } from 'zod';
@@ -28,11 +30,13 @@ import {
   APPEARANCE_TOOLS,
   blendWarnings,
   colorsSet,
+  darkCanvasNotes,
   definitionColorWarnings,
   elementColorWarnings,
   relationAppearance,
   relationAppearanceTraits,
   relationColorWarnings,
+  storedColorsInDarkOf,
   strokeWarnings,
 } from './appearance-tools';
 import { ALIGN_TOOLS } from './align-tools';
@@ -297,7 +301,7 @@ Example: { "relationType": "systems.writes-to", "to": "appointments-db" }`,
 const getItem = tool({
   name: 'get_item',
   title: 'Read an element or a relation',
-  description: `Reads one element or relation by id, with everything around it. For an element: its component, attributes and the definitions of the attributes it can have (undefinedAttributes names those it carries that its component does not define: kept, as particularities), its own appearance (free geometry in brief unless fullGeometry), its containers (with the nesting relation that places it in each), its contents, the relations from and to it, and the views that place it. For a relation: its type, ends, attributes, its own appearance, the relations that end on it, the scenario steps that use it, and routedByHandIn, the views that route it by hand; an element's relationsRoutedByHand says the same of the relations on it, for reset_route. ${LIVE_VALUES_BESIDE}
+  description: `Reads one element or relation by id, with everything around it. For an element: its component, attributes and the definitions of the attributes it can have (undefinedAttributes names those it carries that its component does not define: kept, as particularities), its own appearance (free geometry in brief unless fullGeometry), its containers (with the nesting relation that places it in each), its contents, the relations from and to it, and the views that place it. For a relation: its type, ends, attributes, its own appearance, the relations that end on it, the scenario steps that use it, and routedByHandIn, the views that route it by hand; an element's relationsRoutedByHand says the same of the relations on it, for reset_route. Where the drawing defaults adapt stored colors on the dark canvas (colors.storedColorsInDark), darkCanvas gives the colors that canvas draws for those of its own appearance; the appearance holds the colors stored. ${LIVE_VALUES_BESIDE}
 
 Example: { "id": "booking-agent" }`,
   input: { id: id(), fullGeometry: fullGeometry() },
@@ -505,7 +509,7 @@ const updateElement = tool({
   title: 'Change an element',
   description: `Changes an element, World included, as one undoable action: its name, description, component, attribute values, attributes to remove, its external identifiers, or its own appearance (replaced whole; null makes it look like its component again). A description of null removes it.
 
-To change some traits of its own appearance and keep the others, give appearanceTraits instead: a value sets a trait, null makes it inherited again. Colors are #RRGGBB, drawn as stored in both themes; the answer warns about a stroke under 3:1 against the light or the dark canvas, and about a shape that blends into one, and never refuses a color. To recolor every element of a component, built-in ones included, use set_appearance.
+To change some traits of its own appearance and keep the others, give appearanceTraits instead: a value sets a trait, null makes it inherited again. Colors are #RRGGBB, drawn as stored in both themes unless the drawing defaults adapt them on the dark canvas (the answer then says what it draws); the answer warns about a stroke under 3:1 against the light or the dark canvas, and about a shape that blends into one, and never refuses a color. To recolor every element of a component, built-in ones included, use set_appearance.
 
 An attribute whose type is destination opens something when the person follows the mark on its shape: a view of this project, focused on some elements; a view of another project, by a path relative to this project's folder that stays inside the folder holding it, opened by that project's own program after the person agrees; or an https: web address, opened only after the person confirms. Any other scheme is refused.
 
@@ -555,7 +559,7 @@ const updateRelation = tool({
   title: 'Change a relation',
   description: `Changes a relation as one undoable action: its relation type, its ends, name, description, attributes, or its own appearance (stroke, width, dash, and route: the style of its automatic routes, orthogonal, straight or curved), which is a particularity of this relation: replaced whole with appearance, where null makes it look like its relation type again, or trait by trait with appearanceTraits, where a value sets a trait and null makes it inherited again. A name or description of null removes it.
 
-Colors are #RRGGBB, drawn as stored in both themes; a line needs 3:1 against the light and the dark canvas, and the answer warns about a stroke under it, never refusing one. To recolor every relation of a relation type, built-in ones included, use set_appearance.
+Colors are #RRGGBB, drawn as stored in both themes unless the drawing defaults adapt them on the dark canvas (the answer then says what it draws); a line needs 3:1 against the light and the dark canvas, and the answer warns about a stroke under it, never refusing one. To recolor every relation of a relation type, built-in ones included, use set_appearance.
 
 Example: { "id": "patient-to-whatsapp", "name": "Books by message", "attributes": { "protocol": "HTTPS" } }
 Example: { "id": "api-reads-db", "appearanceTraits": { "stroke": "#C05621", "dash": "dashed" } }
@@ -1412,11 +1416,16 @@ function withColorWarnings<T extends Record<string, unknown>>(
   return warnings.length > 0 ? { ...answer, warnings } : answer;
 }
 
-/** What to say about the colors a note or an arrow is given: a stroke, or a note, hard to see. */
+/**
+ * What to say about the colors a note or an arrow is given: a stroke, or a note, hard to see, and,
+ * where the view's drawing defaults adapt stored colors on the dark canvas (`stored`, ADR 0087),
+ * what that canvas draws for them.
+ */
 function freeShapeColorWarnings(
   shape: { kind: string; fill?: unknown; stroke?: unknown },
   viewName: string,
   set: { fill?: string; stroke?: string },
+  stored: StoredColorsInDark = 'as-stored',
 ): string[] {
   const subject = shape.kind === 'note' ? `a note in "${viewName}"` : `an arrow in "${viewName}"`;
   const { fill, stroke } = colorsSet(shape);
@@ -1426,9 +1435,17 @@ function freeShapeColorWarnings(
     (set.fill !== undefined || set.stroke !== undefined) &&
     fill !== undefined &&
     stroke !== undefined
-      ? blendWarnings(subject, () => ({ fill, stroke }))
+      ? blendWarnings(subject, (theme) =>
+          theme === 'dark'
+            ? { fill: storedColorInDark(fill, stored), stroke: storedColorInDark(stroke, stored) }
+            : { fill, stroke },
+        )
       : [];
-  return [...strokeWarnings(subject, set.stroke), ...blends];
+  return [
+    ...strokeWarnings(subject, set.stroke, stored),
+    ...blends,
+    ...darkCanvasNotes(subject, set, stored),
+  ];
 }
 
 const addFreeShape = tool({
@@ -1436,14 +1453,15 @@ const addFreeShape = tool({
   title: 'Add a note or an arrow',
   description: `Adds a free shape to a view, as one undoable action: a note holding text, or an arrow pointing from one place on the canvas to another. Free shapes are drawing only; they are not part of the model.
 
-A note can have a fill and a stroke, and an arrow a stroke, as #RRGGBB, drawn as stored in both themes; without them they take the theme's colors, and an arrow has no fill. The answer warns about a stroke under 3:1 against the light or the dark canvas, and never refuses a color.
+A note can have a fill and a stroke, and an arrow a stroke, as #RRGGBB, drawn as stored in both themes unless the drawing defaults adapt them on the dark canvas (the answer then says what it draws); without them they take the theme's colors, and an arrow has no fill. The answer warns about a stroke under 3:1 against the light or the dark canvas, and never refuses a color.
 
 Example: { "view": "system-overview", "shape": { "kind": "note", "x": 40, "y": 560, "width": 240, "height": 80, "text": "Reminders go out the day before." } }
 Example: { "view": "system-overview", "shape": { "kind": "arrow", "from": { "x": 300, "y": 600 }, "to": { "x": 420, "y": 480 }, "stroke": "#C53030" } }`,
   input: { view: id(), shape: freeShape(), escapeText: escapeTextInput() },
   hints: WRITE,
   run: async (args, program) => {
-    const viewName = (await program.project()).views.find((each) => each.id === args.view)?.name;
+    const before = await program.project();
+    const viewName = before.views.find((each) => each.id === args.view)?.name;
     return act(
       program,
       await escapeTextsIf(program, args.escapeText, {
@@ -1456,6 +1474,7 @@ Example: { "view": "system-overview", "shape": { "kind": "arrow", "from": { "x":
           args.shape,
           viewName ?? args.view,
           colorsSet(args.shape),
+          storedColorsInDarkOf(before, args.view),
         );
         return { shape: answer.created[0], ...(warnings.length > 0 ? { warnings } : {}) };
       },
@@ -1489,8 +1508,10 @@ Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "fill": "#
   },
   hints: WRITE,
   run: async (args, program) => {
-    const view = (await program.project()).views.find((each) => each.id === args.view);
+    const state = await program.project();
+    const view = state.views.find((each) => each.id === args.view);
     if (view === undefined) return fail(`There is no view "${args.view}".`);
+    const inDark = storedColorsInDarkOf(state, args.view);
     const stored = view.freeShapes.find((each) => each.id === args.shape.id);
     if (stored === undefined) {
       return fail(
@@ -1518,6 +1539,7 @@ Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "fill": "#
         shape,
         view.name,
         colorsSet({ fill: fill ?? undefined, stroke: stroke ?? undefined }),
+        inDark,
       );
       return warnings.length > 0 ? { warnings } : {};
     });

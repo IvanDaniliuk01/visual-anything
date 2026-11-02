@@ -1,7 +1,7 @@
 /**
  * What each item of a scene is drawn in, in a theme (ADR-0033): built-in colors in that theme's
- * shade, every stored color as stored, and notes and free arrows without colors of their own in the
- * theme's. The drawing step takes painted copies, which carry the colors to draw in their `fill` and
+ * shade, every stored color as stored, or adapted on the dark canvas where the drawing defaults ask
+ * for it (ADR 0087), and notes and free arrows without colors of their own in the theme's. The drawing step takes painted copies, which carry the colors to draw in their `fill` and
  * `stroke`, so that `draw.ts` draws a scene in any theme as it draws one in the light theme; in the
  * light theme an item in its own colors is its own copy.
  *
@@ -31,7 +31,7 @@ export function noteColors(
   note: NoteShape,
   theme: CanvasTheme,
 ): { fill: Color; stroke: Color; text: Color } {
-  const { fill, stroke } = noteColorsOf(note, theme);
+  const { fill, stroke } = noteColorsOf(note, theme, adaptedIn(note, theme));
   return {
     fill: fill.color,
     stroke: stroke.color,
@@ -41,7 +41,12 @@ export function noteColors(
 
 /** The color a free arrow is drawn in. */
 export function arrowStroke(arrow: ArrowShape, theme: CanvasTheme): Color {
-  return arrowColorOf(arrow, theme).color;
+  return arrowColorOf(arrow, theme, adaptedIn(arrow, theme)).color;
+}
+
+/** Whether a free shape's own colors are drawn adapted in this theme: on the dark canvas, if asked. */
+function adaptedIn(shape: NoteShape | ArrowShape, theme: CanvasTheme): boolean {
+  return theme.name === 'dark' && shape.adapted === true;
 }
 
 /**
@@ -57,13 +62,21 @@ export function lineFollowsTheme(line: RelationLine): boolean {
   return line.darkStroke !== undefined;
 }
 
-/** Whether a note takes a color from the theme: its fill, its stroke, or, on the theme's fill, its text. */
+/**
+ * Whether a note takes a color from the theme: its fill, its stroke, or, on the theme's fill, its
+ * text; or draws its own adapted on the dark canvas (ADR 0087).
+ */
 export function noteFollowsTheme(note: NoteShape): boolean {
-  return note.fill === undefined || note.stroke === undefined;
+  return note.fill === undefined || note.stroke === undefined || note.adapted === true;
+}
+
+/** Whether a note's text is tinted otherwise in each theme: on the theme's fill, or an adapted one. */
+export function noteTextFollowsTheme(note: NoteShape): boolean {
+  return note.fill === undefined || note.adapted === true;
 }
 
 export function arrowFollowsTheme(arrow: ArrowShape): boolean {
-  return arrow.stroke === undefined;
+  return arrow.stroke === undefined || arrow.adapted === true;
 }
 
 const darkShapes = new WeakMap<ElementShape, ElementShape>();
@@ -109,20 +122,27 @@ export function paintedPiece(piece: RoutePiece, theme: ThemeName): RoutePiece {
 /** A note with the fill and stroke it is drawn in. */
 export function paintedNote(note: NoteShape, theme: CanvasTheme): NoteShape {
   const { fill, stroke } = noteColors(note, theme);
-  return note.fill === fill && note.stroke === stroke ? note : { ...note, fill, stroke };
+  if (note.fill === fill && note.stroke === stroke) return note;
+  // The copy holds the colors drawn, so it is not adapted again.
+  const painted: NoteShape = { ...note, fill, stroke };
+  delete painted.adapted;
+  return painted;
 }
 
 /** An arrow with the color it is drawn in. */
 export function paintedArrow(arrow: ArrowShape, theme: CanvasTheme): ArrowShape {
   const stroke = arrowStroke(arrow, theme);
-  return arrow.stroke === stroke ? arrow : { ...arrow, stroke };
+  if (arrow.stroke === stroke) return arrow;
+  const painted: ArrowShape = { ...arrow, stroke };
+  delete painted.adapted;
+  return painted;
 }
 
 /** The fields of each item that hold its colors; every other field says where and what it draws. */
 export const SHAPE_PAINT: readonly string[] = ['fill', 'stroke', 'dark'];
 export const LINE_PAINT: readonly string[] = ['stroke', 'darkStroke', 'typeStroke'];
-export const NOTE_PAINT: readonly string[] = ['fill', 'stroke'];
-export const ARROW_PAINT: readonly string[] = ['stroke'];
+export const NOTE_PAINT: readonly string[] = ['fill', 'stroke', 'adapted'];
+export const ARROW_PAINT: readonly string[] = ['stroke', 'adapted'];
 
 /**
  * Whether two items differ in nothing but the fields `paint` names, comparing every other field in
