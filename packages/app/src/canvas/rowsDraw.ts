@@ -25,7 +25,7 @@ import {
   rowTextSizesOf,
   type RowColumns,
 } from './fit';
-import { MONO_FAMILY } from './robotoFonts';
+import { MONO_FAMILY } from './fontFamilies';
 import { BASE_DRAWING, fontFamilyOf, nameWeightOf, rowsCornerRadius } from './drawing';
 import { THEMES } from '../theme/themes';
 import { readableTextColors } from './colors';

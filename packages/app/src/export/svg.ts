@@ -101,7 +101,7 @@ import {
   rowsCornerRadius,
   textSideInset,
 } from '../canvas/drawing';
-import { MONO_FAMILY, ROBOTO } from '../canvas/robotoFonts';
+import { MONO_FAMILY, ROBOTO } from '../canvas/fontFamilies';
 import {
   SHEET,
   bodyOf,

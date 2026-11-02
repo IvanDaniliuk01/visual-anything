@@ -14,32 +14,9 @@
  * that no weight the canvas asks for is one it has not loaded, which the browser would draw as Bold.
  */
 import { decodeBase64 } from '@visual-anything/core';
+import { ROBOTO, ROBOTO_MONO } from './fontFamilies';
 
-/** The family Roboto's five styles are registered under. */
-export const ROBOTO = 'Visual Anything Roboto';
-/** The family Roboto Mono is registered under. */
-export const ROBOTO_MONO = 'Visual Anything Roboto Mono';
-
-/** The fonts the canvas writes text in, first available first: Roboto, then the system's until it loads. */
-export const SANS_FAMILY: readonly string[] = [
-  ROBOTO,
-  'system-ui',
-  'Segoe UI',
-  'Roboto',
-  'Helvetica Neue',
-  'Arial',
-  'sans-serif',
-];
-
-/** The fonts code and a table's column types are written in: Roboto Mono, then the system's. */
-export const MONO_FAMILY: readonly string[] = [
-  ROBOTO_MONO,
-  'ui-monospace',
-  'Cascadia Mono',
-  'Roboto Mono',
-  'Consolas',
-  'monospace',
-];
+export { MONO_FAMILY, ROBOTO, ROBOTO_MONO, SANS_FAMILY } from './fontFamilies';
 
 /**
  * A list of families as a CSS `font-family` value: a name of letters and hyphens alone, which the
