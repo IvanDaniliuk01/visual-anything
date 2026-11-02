@@ -6,11 +6,14 @@
  * has changed by `ZOOM_SLACK`, then draws it again, and it is drawn again exactly once the camera
  * rests, so that a zoom costs a drawing every few frames rather than every frame. A container's grid
  * is drawn in canvas units from the container's origin, where its contents snap to.
- * Both draw white, tinted in the theme's grid color, so that a theme switch only retints them.
+ * Both draw white, tinted in the theme's grid color, so that a theme switch only retints them. Dots
+ * are quads written into buffers kept between drawings (`gridDots.ts`), never a `Graphics` of
+ * thousands of rectangles, so that drawing them again as a zoom goes keeps A3's 0.5 ms (A5.6).
  */
 import { Container, Graphics } from 'pixi.js';
 import { THEMES, type CanvasTheme } from '../theme/themes';
 import type { Camera } from './camera';
+import { GridDots, type DotSink } from './gridDots';
 import { cylinderCap, personLabelTop, type Point, type Rect, type Size } from './geometry';
 import {
   ZOOM_SLACK,
@@ -86,9 +89,11 @@ export class GridMarks {
   /** The canvas's grid: the first child of the renderer's `world`, never left out by culling. */
   readonly whole = new Container({ label: 'grid', isRenderGroup: true });
   private readonly lines = new Graphics();
+  private readonly dots = new GridDots();
   /** A container's grid, put last in the drawing of the container's shape when it shows. */
   readonly inside = new Container({ label: 'container grid', isRenderGroup: true });
   private readonly insideLines = new Graphics();
+  private readonly insideDots = new GridDots();
   private state: GridState = { shown: false, snapping: false };
   private theme: CanvasTheme = THEMES.light.canvas;
   private look: GridLook = 'lines';
@@ -100,13 +105,15 @@ export class GridMarks {
   draws = 0;
 
   constructor() {
-    this.whole.addChild(this.lines);
+    this.whole.addChild(this.lines, this.dots.container);
     this.whole.cullable = false;
     this.whole.visible = false;
-    this.inside.addChild(this.insideLines);
+    this.inside.addChild(this.insideLines, this.insideDots.container);
     this.inside.visible = false;
     this.lines.tint = this.theme.gridLine;
     this.insideLines.tint = this.theme.gridLine;
+    this.dots.setTint(this.theme.gridLine);
+    this.insideDots.setTint(this.theme.gridLine);
   }
 
   get shown(): boolean {
@@ -129,6 +136,13 @@ export class GridMarks {
     this.theme = theme;
     this.lines.tint = theme.gridLine;
     this.insideLines.tint = theme.gridLine;
+    this.dots.setTint(theme.gridLine);
+    this.insideDots.setTint(theme.gridLine);
+  }
+
+  /** The dots each family of the canvas's grid drew last, for tests. */
+  get dotFamilies(): GridDots['families'] {
+    return this.dots.families;
   }
 
   /**
@@ -176,9 +190,11 @@ export class GridMarks {
     // when a zoom shrinks them.
     const widen = exact ? 1 : ZOOM_SLACK;
     if (this.look === 'dots') {
-      this.lineCount = drawDots(graphics, planned.families, MAX_GRID_DOTS, widen, (family) =>
+      this.dots.begin();
+      this.lineCount = drawDots(this.dots, planned.families, MAX_GRID_DOTS, widen, (family) =>
         Math.min(1, DOT_STRENGTH * familyAlpha(family, this.theme, this.state.snapping)),
       );
+      this.dots.end();
       return {
         scale,
         width: viewport.width,
@@ -191,6 +207,7 @@ export class GridMarks {
         exact,
       };
     }
+    this.dots.clear();
     for (const family of planned.families) {
       if (family.xs.length + family.ys.length === 0) continue;
       for (const { start, width } of family.xs) {
@@ -284,11 +301,14 @@ export class GridMarks {
         xs: family.xs.map((x) => ({ start: x - width / 2, width })),
         ys: family.ys.map((y) => ({ start: y - width / 2, width })),
       }));
-      this.insideLineCount = drawDots(graphics, lines, MAX_CONTAINER_DOTS, 1, (family) =>
+      this.insideDots.begin();
+      this.insideLineCount = drawDots(this.insideDots, lines, MAX_CONTAINER_DOTS, 1, (family) =>
         Math.min(1, DOT_STRENGTH * familyAlpha(family, this.theme, this.state.snapping)),
       );
+      this.insideDots.end();
       return;
     }
+    this.insideDots.clear();
     for (const family of families) {
       if (family.xs.length + family.ys.length === 0) continue;
       for (const x of family.xs) graphics.rect(x - width / 2, area.y, width, area.height);
@@ -312,7 +332,7 @@ export class GridMarks {
  * dots it drew.
  */
 function drawDots(
-  graphics: Graphics,
+  sink: DotSink,
   families: readonly (DrawnFamily & { xs: readonly GridLine[]; ys: readonly GridLine[] })[],
   cap: number,
   widen: number,
@@ -345,7 +365,7 @@ function drawDots(
     const coarserXs = families.slice(at + 1).flatMap((each) => each.xs);
     const coarserYs = families.slice(at + 1).flatMap((each) => each.ys);
     const dot = (x: GridLine, y: GridLine) => {
-      graphics.rect(x.start, y.start, x.width * widen, y.width * widen);
+      sink.dot(x.start, y.start, x.width * widen, y.width * widen);
       drawn += 1;
     };
     for (const x of family.xs) {
@@ -353,7 +373,7 @@ function drawDots(
       for (const y of coarserYs) dot(x, y);
     }
     for (const x of coarserXs) for (const y of family.ys) dot(x, y);
-    if (drawn > 0) graphics.fill({ color: 0xffffff, alpha: alphaOf(family) });
+    sink.fill(alphaOf(family));
   }
   return drawn;
 }

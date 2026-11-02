@@ -4,6 +4,8 @@
  * its fill, a border 1 wide at 40 % of that color, and at its top left a name tab: its kind's icon,
  * then its name at the drawing's container name size, at 500, in the theme's muted text. A database,
  * a cylinder kind, is so drawn as a region with the database icon, never stretched as a cylinder.
+ * High contrast draws its border whole, at the shapes' border width, and its tab in the theme's own
+ * text (A5.6).
  *
  * The icons are Lucide's (https://lucide.dev, ISC license, see LICENSE-lucide.txt), as the app's own
  * set draws them (`shell/icons.tsx`), as parts the canvas strokes and the SVG writes alike. Pure but
@@ -18,20 +20,44 @@ import { TOGGLE_SIZE, toggleRect, type Rect, type ShapeKind } from './geometry';
 import { containerHeaderOf, type ElementShape } from './scene';
 import { headerShift } from './shape-images';
 
-/** What a theme draws a region with, besides the container's own stroke. */
+/** What a theme and a drawing draw a region with, besides the container's own stroke. */
 export interface RegionColors {
   /** The canvas, which the region's faint fill and border lie over. */
   canvas: Color;
   fillAlpha: number;
   borderAlpha: number;
-  /** Its name tab's text and icon. */
+  /** How wide its border is, in canvas units. */
+  borderWidth: number;
+  /** Its name tab's text and detail. */
   text: Color;
 }
 
-/** The colors of a theme's regions. */
+/** How wide a region's border is, in canvas units, but in High contrast. */
+export const REGION_BORDER = 1;
+
+/**
+ * The colors of a theme's regions, as a drawing draws them. High contrast, "darker text, and no faint
+ * colors" (ADR 0086, A5.6), draws a region's border whole, at the shapes' border width, and writes its
+ * tab in the theme's own text rather than the muted one; it keeps the faint fill, on which that text
+ * reads at 7:1 or more whatever the region's color (`theme/presets.contrast.test.ts`). The other
+ * presets draw the quiet region of A5.2.
+ */
 export function regionColorsOf(
-  theme: Pick<CanvasTheme, 'background' | 'regionFillAlpha' | 'regionBorderAlpha' | 'regionText'>,
+  theme: Pick<
+    CanvasTheme,
+    'background' | 'regionFillAlpha' | 'regionBorderAlpha' | 'regionText' | 'text'
+  >,
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): RegionColors {
+  if (drawing.preset === 'high-contrast') {
+    return {
+      canvas: theme.background,
+      fillAlpha: theme.regionFillAlpha,
+      borderAlpha: 1,
+      borderWidth: drawing.shapes.borderWidth,
+      text: theme.text,
+    };
+  }
   if (
     theme.background === LIGHT_REGION.canvas &&
     theme.regionFillAlpha === LIGHT_REGION.fillAlpha &&
@@ -44,6 +70,7 @@ export function regionColorsOf(
     canvas: theme.background,
     fillAlpha: theme.regionFillAlpha,
     borderAlpha: theme.regionBorderAlpha,
+    borderWidth: REGION_BORDER,
     text: theme.regionText,
   };
 }
@@ -53,6 +80,7 @@ export const LIGHT_REGION: RegionColors = {
   canvas: THEMES.light.canvas.background,
   fillAlpha: THEMES.light.canvas.regionFillAlpha,
   borderAlpha: THEMES.light.canvas.regionBorderAlpha,
+  borderWidth: REGION_BORDER,
   text: THEMES.light.canvas.regionText,
 };
 
@@ -66,8 +94,6 @@ export function regionBorderOf(stroke: Color, colors: RegionColors): Color {
   return mixColors(colors.canvas, stroke, colors.borderAlpha);
 }
 
-/** How wide a region's border is, in canvas units. */
-export const REGION_BORDER = 1;
 /** How far apart a region's icon and its name are. */
 const ICON_GAP = 6;
 /** How wide the strokes of a region's icon are, in the icon's box of 24. */
@@ -147,7 +173,7 @@ export function drawRegion(
   graphics
     .roundRect(x, y, width, height, radius)
     .fill({ color: shape.stroke, alpha: colors.fillAlpha })
-    .stroke({ color: shape.stroke, alpha: colors.borderAlpha, width: REGION_BORDER });
+    .stroke({ color: shape.stroke, alpha: colors.borderAlpha, width: colors.borderWidth });
   const tab = regionTabOf(shape, drawing);
   // In its own color, which draws alike in both themes; its name is tinted to the theme.
   if (tab.icon) drawRegionIcon(graphics, shape.kind, tab.icon, shape.stroke);

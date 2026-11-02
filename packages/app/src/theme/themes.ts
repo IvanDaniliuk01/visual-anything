@@ -156,6 +156,11 @@ export interface CanvasTheme {
   regionFillAlpha: number;
   regionBorderAlpha: number;
   regionText: Color;
+  /**
+   * The theme's own text, the shell's: what High contrast writes a region's tab in, in place of the
+   * muted `regionText` (ADR 0086, A5.6).
+   */
+  text: Color;
 }
 
 const LIGHT: ShellTheme = {
@@ -285,6 +290,7 @@ function canvasTheme(
     regionFillAlpha: 0.07,
     regionBorderAlpha: 0.4,
     regionText: colors.textMuted,
+    text: colors.text,
     ...own,
   };
 }

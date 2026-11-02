@@ -530,7 +530,10 @@ class Writer {
     if (!holder) return this.theme.background;
     // A region's contents sit on its faint fill as it comes out over the canvas (ADR 0086).
     if (holder.region) {
-      return regionFillOf(shapeColors(holder, this.theme.name).stroke, regionColorsOf(this.theme));
+      return regionFillOf(
+        shapeColors(holder, this.theme.name).stroke,
+        regionColorsOf(this.theme, this.drawing),
+      );
     }
     return shapeColors(holder, this.theme.name).fill;
   }
@@ -1497,7 +1500,7 @@ function shadowMarkup(kind: ElementShape['kind'], rect: Rect, drawing: ResolvedD
  * fill, a thin border at a part of that color, then its kind's icon, its name and its toggle.
  */
 function regionParts(writer: Writer, shape: ElementShape, stroke: Color): string {
-  const colors = regionColorsOf(writer.theme);
+  const colors = regionColorsOf(writer.theme, writer.drawing);
   const { x, y, width, height } = shape.rect;
   let markup = empty('rect', {
     x,
@@ -1509,7 +1512,7 @@ function regionParts(writer: Writer, shape: ElementShape, stroke: Color): string
     'fill-opacity': num(colors.fillAlpha),
     stroke,
     'stroke-opacity': num(colors.borderAlpha),
-    'stroke-width': REGION_BORDER,
+    'stroke-width': colors.borderWidth,
   });
   const tab = regionTabOf(shape, writer.drawing);
   if (tab.icon) markup += regionIconMarkup(shape.kind, tab.icon, stroke);
