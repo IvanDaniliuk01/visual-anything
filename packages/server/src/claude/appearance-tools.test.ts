@@ -448,6 +448,12 @@ describe('the format panel’s traits through Claude’s tools (ADR 0088)', () =
       expect(described('set_appearance')).toContain(trait);
     }
     expect(described('set_appearance')).toContain('set_positions takes rotation and flip');
+    const input = TOOLS.find((each) => each.name === 'set_appearance')?.input as
+      Readonly<Record<string, { description?: string } | undefined>> | undefined;
+    const traits = input?.appearanceTraits?.description ?? '';
+    for (const part of ['borderWidth', 'cornerRadius', 'gradient', 'padding', 'position']) {
+      expect(traits).toContain(part);
+    }
     expect(described('set_positions')).toContain('rotation');
   });
 });
