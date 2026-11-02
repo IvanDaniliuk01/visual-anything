@@ -257,7 +257,7 @@ describe('bundleServer', () => {
       expect(text).toMatch(/parse5 8\.0\.1\n {2}License: MIT/);
       expect(text).toMatch(/ws \d/);
       expect(text).toContain('Node.js 24.0.0');
-      expect(text).toContain('Roboto 2.137 Regular, Bold, Italic and Bold Italic');
+      expect(text).toContain('Roboto 2.137 Regular, Medium, Bold, Italic and Bold Italic');
       expect(text).toMatch(
         /Roboto Mono 3\.000 Regular, which the PDF export writes code in\n {2}License: Apache-2\.0/,
       );

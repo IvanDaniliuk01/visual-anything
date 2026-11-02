@@ -275,6 +275,8 @@ function shapeWith(
       detail,
       fitted: fitRow(shape.name, detail, shape.rect.width, { icon: showsPicture(shape) }),
     };
+    // A live detail is written on the row's one line, out of its table's columns.
+    delete drawn.columns;
   } else if (shape.rowCount !== undefined) {
     // A collapsed header also says what it holds, which only the scene knows: it keeps its detail.
     if (shape.collapsed !== undefined) return shape;

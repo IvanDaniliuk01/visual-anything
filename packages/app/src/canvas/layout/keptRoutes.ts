@@ -9,7 +9,7 @@
  * not kept at all.
  */
 import type { Id } from '@visual-anything/schema';
-import { arrowheadAt, type Point, type Rect } from '../geometry';
+import { arrowheadAgain, type Point, type Rect } from '../geometry';
 import { midpointOf } from '../route';
 import {
   channelledScene,
@@ -132,7 +132,9 @@ export function withKeptRoutes(scene: Scene, kept: KeptRoutes | undefined): Scen
       to: route.at(-1) as Point,
       middle: midpointOf(route),
     };
-    if (line.arrowhead) along.arrowhead = arrowheadAt(route.at(-2) as Point, along.to, line.width);
+    if (line.arrowhead) {
+      along.arrowhead = arrowheadAgain(line.arrowhead, route.at(-2) as Point, along.to, line.width);
+    }
     bounds = union(bounds, boundsOfPoints(route));
     return along;
   });

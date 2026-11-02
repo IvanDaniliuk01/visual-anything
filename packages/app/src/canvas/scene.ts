@@ -29,6 +29,7 @@ import {
   type EmphasisRun,
   type LeftOutTypes,
   type ProjectSnapshot,
+  type ResolvedDrawing,
   type RouteStyle,
 } from '@visual-anything/core';
 import type {
@@ -44,7 +45,7 @@ import type {
   ShapePosition,
   ViewFile,
 } from '@visual-anything/schema';
-import { ESSENCE_ID } from '@visual-anything/schema';
+import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
 import {
   appearanceOf,
   componentOrEssence,
@@ -58,12 +59,14 @@ import {
   nestingTypesInView,
   orderByStacking,
   relationAppearanceOf,
+  relationAppearanceOriginsOf,
   relationDarkStrokeOf,
   relationTypeOrRelatesTo,
   storedStacking,
   type Definitions,
   type Placement,
   type ResolvedAppearance,
+  type TraitOrigin,
 } from '@visual-anything/core';
 import { currentLanguage, t, type Language } from '../i18n';
 import {
@@ -96,10 +99,12 @@ import {
   arrowheadAt,
   bodyOf,
   directionOf,
+  drawsArrowheads,
   type Arrowhead,
   type Point,
   type Rect,
 } from './geometry';
+import { BASE_DRAWING, drawingOfView } from './drawing';
 import { drawnBoundsOf, nameTagOf } from './nameTags';
 import { ROWS_HEADER } from './rows';
 import { geometryOutline, geometrySource, outlineIn, partSource, sameOutline } from './outlines';
@@ -134,6 +139,7 @@ import {
 } from './routing/scene-routes';
 import { isSideEnd, routeWithSides, type AnyEnd } from './rowRoutes';
 import { detailRunsOf } from '../text/detail';
+import type { RowColumns } from './fit';
 import {
   MOST_CURVES,
   curveCrosses,
@@ -207,6 +213,17 @@ export interface Scene {
   arrows: ArrowShape[];
   /** The smallest rectangle holding everything drawn; undefined when the view draws nothing. */
   bounds: Rect | undefined;
+  /**
+   * The drawing defaults it was laid out and is drawn with (ADR 0086), the same object for the same
+   * project and view `drawing`; absent for those of a project and a view that set none
+   * (`BASE_DRAWING`, `drawingOfScene`).
+   */
+  drawingDefaults?: ResolvedDrawing;
+}
+
+/** The drawing defaults a scene is drawn with. */
+export function drawingOfScene(scene: Pick<Scene, 'drawingDefaults'> | undefined): ResolvedDrawing {
+  return scene?.drawingDefaults ?? BASE_DRAWING;
 }
 
 /** An anchored shape of an element. An element has one inside each of its containers. */
@@ -284,6 +301,12 @@ export interface ElementShape {
    * cut to one line each, ending in "…" when cut. `name` stays whole, for the editor and the outline.
    */
   fitted?: { name: string; detail: string; detailCut?: boolean };
+  /**
+   * On a row of a table whose rows write types or badges (A5.1): its name, its column's type and its
+   * badges in the table's columns, each cut to its column, which the canvas and the exports draw in
+   * place of `fitted`'s line.
+   */
+  columns?: RowColumns;
   /** The image its appearance shows, placed on it (`shape-images.ts`). */
   image?: ShapeImage;
   /**
@@ -445,21 +468,51 @@ export interface ArrowShape {
   stroke?: Color;
 }
 
-/** The line width of free arrows. */
-export const ARROW_WIDTH = 2;
+/**
+ * The line width of free arrows where the drawing defaults say nothing else: they are drawn at the
+ * drawing's `lines.width` (`arrowWidthOf`), as no appearance sets theirs.
+ */
+export const ARROW_WIDTH = BASE_DRAWING.lines.width;
 
-/** Room left around the contents of a container that has no stored size. */
-const CONTAINER_PADDING = 24;
+/** How wide free arrows are drawn in a drawing. */
+export function arrowWidthOf(drawing: ResolvedDrawing): number {
+  return drawing.lines.width;
+}
+
+/**
+ * The drawing defaults the build under way lays out with, set at the start of each (`layOut`,
+ * `routedAgain`), as the catalogs of pictures and solids are: everything a build calls runs
+ * within it.
+ */
+let laying: ResolvedDrawing = BASE_DRAWING;
+
 /** Where the first row of contents starts inside a container, below the container's name. */
 const CONTAINER_HEADER = 48;
-/** What a container leaves around its contents, which a drawing with parts leaves around its picture. */
-const ROOM = { padding: CONTAINER_PADDING, header: CONTAINER_HEADER } as const;
-/** Where contents placed without a stored position start, relative to their container's shape. */
-export const CONTENTS_ORIGIN: Readonly<Point> = { x: CONTAINER_PADDING, y: CONTAINER_HEADER };
+/**
+ * What a container leaves around its contents, which a drawing with parts leaves around its picture:
+ * the drawing's `containers.padding` round them, and its header above.
+ */
+function roomOf(drawing: ResolvedDrawing): { padding: number; header: number } {
+  return { padding: drawing.containers.padding, header: CONTAINER_HEADER };
+}
+const origins = new WeakMap<ResolvedDrawing, Readonly<Point>>();
+/**
+ * Where contents placed without a stored position start, relative to their container's shape, where
+ * the drawing defaults say nothing else (`contentsOriginOf`).
+ */
+export const CONTENTS_ORIGIN: Readonly<Point> = contentsOriginOf(BASE_DRAWING);
+
+/** Where contents placed without a stored position start in a drawing: its padding in, under the header. */
+export function contentsOriginOf(drawing: ResolvedDrawing): Readonly<Point> {
+  let origin = origins.get(drawing);
+  if (origin === undefined) {
+    origin = { x: drawing.containers.padding, y: CONTAINER_HEADER };
+    origins.set(drawing, origin);
+  }
+  return origin;
+}
 /** The space between shapes in the stand-in row, and between that row and what is above it. */
 const STAND_IN_GAP = 40;
-/** How far apart relations that relate the same two ends are drawn. */
-const PARALLEL_GAP = 24;
 /** How the key of an aggregated relation starts: a space, which no id holds. */
 export const AGGREGATED = 'aggregated ';
 /** How much wider than its relation type's line an aggregated relation is drawn, at most. */
@@ -573,6 +626,7 @@ function decorationOf(built: Built, values: SceneValues): DecorationInputs {
     elements: elementsById(model.elements),
     allElements: model.elements,
     values: values.overlays,
+    drawing: built.defaults,
   };
 }
 
@@ -582,6 +636,7 @@ function lineDecorationOf(built: Built, values: SceneValues): LineDecoration {
     definitions: built.definitions,
     relations: relationsById(built.model.relations),
     values: values.overlays,
+    drawing: built.defaults,
   };
 }
 
@@ -785,6 +840,7 @@ function routedAgain(
   moved: readonly number[],
 ): RelationLine[] {
   if (moved.length === 0) return built.baseRelations;
+  laying = built.defaults;
   const { layout } = built;
   const placed: Placed = {
     shapes,
@@ -908,8 +964,12 @@ export function shownBy(scene: Scene, element: Id): ElementShape | undefined {
   return holder === undefined ? undefined : scene.shapes[holder];
 }
 
-/** How much wider than its relation type's line an aggregated relation of `count` relations is. */
-export function aggregatedExtraWidth(count: number): number {
+/**
+ * How much wider than its relation type's line an aggregated relation of `count` relations is: none
+ * in a drawing whose aggregated relations do not grow with their count.
+ */
+export function aggregatedExtraWidth(count: number, drawing = BASE_DRAWING): number {
+  if (!drawing.aggregated.growsWithCount) return 0;
   return Math.min(MOST_EXTRA_WIDTH, 1 + Math.floor(Math.log2(Math.max(1, count))));
 }
 
@@ -931,6 +991,8 @@ interface Layout {
 /** A layout, with what it was made from: what the next build of the same view starts from. */
 interface Built {
   viewId: Id;
+  /** The drawing defaults it was laid out with: a build with others starts from nothing. */
+  defaults: ResolvedDrawing;
   model: ProjectSnapshot['model'];
   packages: ProjectSnapshot['packages'];
   view: ViewFile;
@@ -1006,6 +1068,7 @@ export function buildScene(
     latest.clear();
   }
   const view = viewOf(project, viewId);
+  const defaults = drawingOfView(project, view.id);
   const kept = exactly.get(view.positions);
   // An older build, as an undo past the last change brings back, would give shapes equal to those of
   // the last build as other objects: the next build starts from the last one instead.
@@ -1013,11 +1076,20 @@ export function buildScene(
     kept &&
     kept === latest.get(view.id) &&
     kept.expanded === expanded &&
+    kept.defaults === defaults &&
     laidOutFrom(kept, project, view)
   ) {
     return redrawn(kept, project, view);
   }
-  const built = layOut(project, view, latest.get(view.id), true, expanded);
+  // Other drawing defaults change sizes, widths and text everywhere: the view is laid out afresh.
+  const last = latest.get(view.id);
+  const built = layOut(
+    project,
+    view,
+    last?.defaults === defaults ? last : undefined,
+    true,
+    expanded,
+  );
   exactly.set(view.positions, built);
   latest.set(view.id, built);
   return built.scene;
@@ -1051,7 +1123,7 @@ function redrawn(kept: Built, project: ProjectSnapshot, view: ViewFile): Scene {
     drawingOrder(kept.layout, view, project.model.world.id),
     kept.scene.drawing,
   );
-  const scene = sceneOf(kept.layout, drawing);
+  const scene = sceneOf(kept.layout, drawing, kept.defaults);
   hidings.set(scene, kept.hiddenIn);
   const next: Built = { ...kept, view, scene };
   builtScenes.set(scene, next);
@@ -1078,9 +1150,11 @@ function laidOutFrom(kept: Built, project: ProjectSnapshot, view: ViewFile): boo
   );
 }
 
-function sceneOf(layout: Layout, drawing: readonly number[]): Scene {
+function sceneOf(layout: Layout, drawing: readonly number[], defaults: ResolvedDrawing): Scene {
   const { shapes, relations, notes, arrows, bounds } = layout;
-  return { shapes, drawing, relations, notes, arrows, bounds };
+  const scene: Scene = { shapes, drawing, relations, notes, arrows, bounds };
+  if (defaults !== BASE_DRAWING) scene.drawingDefaults = defaults;
+  return scene;
 }
 
 /**
@@ -1100,6 +1174,8 @@ function layOut(
   const { model, packages } = project;
   const worldId = model.world.id;
   const definitions = definitionsIn(project);
+  const defaults = drawingOfView(project, view.id);
+  laying = defaults;
   setImageCatalog(definitions, imagesIn(project));
   setSolidCatalog(definitions, solidsIn(project));
   // Only the listed types that a package defines and that nest arrange the view, as in the core.
@@ -1180,6 +1256,7 @@ function layOut(
       definitions,
       elements: elementsById(model.elements),
       allElements: model.elements,
+      drawing: defaults,
     },
     keep && undecorated.keysKept ? before?.layout.shapes : undefined,
   );
@@ -1217,6 +1294,7 @@ function layOut(
     overlays: view.overlays,
     definitions,
     relations: relationsById(model.relations),
+    drawing: defaults,
   });
   const relations =
     before && sameItems(before.layout.relations, overlaidLines)
@@ -1265,10 +1343,11 @@ function layOut(
     before.layout.bounds === layout.bounds &&
     (before.scene.drawing ?? before.layout.identity) === drawing
       ? before.scene
-      : sceneOf(layout, drawing);
+      : sceneOf(layout, drawing, defaults);
   hidings.set(scene, placed.hiddenIn);
   const built: Built = {
     viewId: view.id,
+    defaults,
     model,
     packages,
     view,
@@ -1685,6 +1764,7 @@ function measured(
       keyRows,
       // A face is the header of its rows (ADR 0083).
       face && ((width) => faceHeader(face, width, ROWS_HEADER)),
+      laying,
     );
     if (face && box.measured) box.measured.face = face;
     return box;
@@ -1730,14 +1810,14 @@ function measured(
   }
   const drawn = drawingImage(look, folding);
   if (drawn) {
-    const picture = pictureIn(drawn.image, appearance, position, ROOM);
+    const picture = pictureIn(drawn.image, appearance, position, roomOf(laying));
     const anchors = anchorsIn(drawn, picture, placement.contents, shaping.partOf);
     return drawingBox(placement, element, look, detail, position, picture, anchors, contentsOf);
   }
   // A drawing with parts that shows a solid (ADR 0075).
   const solid = drawingSolid(look, folding);
   if (solid) {
-    const picture = solidPictureIn(appearance, position, ROOM);
+    const picture = solidPictureIn(appearance, position, roomOf(laying));
     const anchors = solidAnchorsIn(solid, picture, placement.contents, shaping.partOf);
     return drawingBox(placement, element, look, detail, position, picture, anchors, contentsOf);
   }
@@ -1852,8 +1932,8 @@ function drawingBox(
     if (right === undefined || boxRight > right) right = boxRight;
     if (bottom === undefined || boxBottom > bottom) bottom = boxBottom;
   }
-  const width = Math.max(appearance.width, picture.rect.width + 2 * CONTAINER_PADDING);
-  const height = Math.max(appearance.height, below + CONTAINER_PADDING);
+  const width = Math.max(appearance.width, picture.rect.width + 2 * laying.containers.padding);
+  const height = Math.max(appearance.height, below + laying.containers.padding);
   return {
     placement,
     width: containerSize(position?.width, width, right),
@@ -2458,7 +2538,7 @@ function shapeFor(
   const container = box.placement.container;
   const holdsContents = parts.contents.length > 0;
   // An anchored part, as a row, does not draw what it holds (ADR 0067).
-  const rowish = withUndrawn(rowFieldsOf(parts, width, holdsContents), anchored);
+  const rowish = withUndrawn(rowFieldsOf(parts, width, holdsContents, laying), anchored);
   const holder = {
     kind: appearance.shape,
     rect: { x, y, width, height },
@@ -2605,7 +2685,7 @@ function arrangeContents(contents: Box[], top = CONTAINER_HEADER): void {
   }
   layOutStandIn(
     contents,
-    CONTAINER_PADDING,
+    laying.containers.padding,
     below === undefined ? top : Math.max(top, below + STAND_IN_GAP),
   );
 }
@@ -2631,7 +2711,7 @@ function containerSize(
 ): number {
   if (contentsEnd === undefined) return stored ?? inherited;
   if (stored !== undefined) return Math.max(stored, contentsEnd);
-  return Math.max(inherited, contentsEnd + CONTAINER_PADDING);
+  return Math.max(inherited, contentsEnd + laying.containers.padding);
 }
 
 const elementMaps = new WeakMap<readonly Element[], Map<Id, Element>>();
@@ -3140,7 +3220,7 @@ function planRelations(
   }
   for (const list of siblings.values()) {
     list.forEach((spec, at) => {
-      spec.offset = (at - (list.length - 1) / 2) * PARALLEL_GAP;
+      spec.offset = (at - (list.length - 1) / 2) * laying.lines.parallelGap;
     });
   }
 
@@ -3270,7 +3350,13 @@ function lineBetween(
       ? relationType.appearance
       : relationAppearanceOf(relation, definitions);
   const { stroke, dash } = appearance;
-  const width = appearance.width + (members ? aggregatedExtraWidth(members.length) : 0);
+  // A width no appearance sets but "relates to"'s own is the drawing defaults' (ADR 0086).
+  const origin =
+    relation === undefined || members
+      ? relationType.origins.width
+      : relationAppearanceOriginsOf(relation, definitions).width;
+  const own = setsWidth(origin) ? appearance.width : laying.lines.width;
+  const width = own + (members ? aggregatedExtraWidth(members.length, laying) : 0);
   const label = members ? `×${members.length}` : relation?.name;
   const line: RelationLine = {
     relation: spec.key,
@@ -3295,15 +3381,30 @@ function lineBetween(
   if (routed?.curve) line.curve = routed.curve;
   if (rounded && !routed?.hand) {
     line.rounded = rounded;
-    withRoundedCorners(line);
+    withRoundedCorners(line, laying.lines.cornerRadius);
   }
-  if (relationType.direction === 'directed') line.arrowhead = arrowheadAt(beforeEnd, end, width);
+  if (relationType.direction === 'directed' && drawsArrowheads(laying)) {
+    line.arrowhead = arrowheadAt(beforeEnd, end, width, laying);
+  }
   if (members) {
     line.aggregate = { relationType: spec.relationType, relations: members };
     if (spec.reversed && spec.reversed.length > 0) line.aggregate.reversed = spec.reversed;
   }
   lineInputs.set(line, inputs);
   return line;
+}
+
+/**
+ * Whether a trait comes from an appearance: the line's own, a definition's other than "relates to",
+ * or a project appearance. Where "relates to" gives it as built in, the drawing defaults' value
+ * stands instead.
+ */
+function setsWidth(origin: TraitOrigin): boolean {
+  return !(
+    origin.kind === 'definition' &&
+    origin.id === RELATES_TO_ID &&
+    origin.via === 'definition'
+  );
 }
 
 /** The notes and arrows of the view: those of `before` while its free shapes are the same. */
@@ -3346,7 +3447,7 @@ function arrowShape(arrow: Arrow): ArrowShape {
     id: arrow.id,
     from,
     to,
-    arrowhead: arrowheadAt(from, to, ARROW_WIDTH),
+    arrowhead: arrowheadAt(from, to, arrowWidthOf(laying), laying),
   };
   if (arrow.stroke !== undefined) shape.stroke = arrow.stroke;
   return shape;

@@ -35,6 +35,7 @@ import type { Color } from '@visual-anything/schema';
 import { Container, Graphics, type Texture } from 'pixi.js';
 import type { FaceLabel, FacePictureSource, FacePictures } from './faceDraw';
 import { iconInFace } from './faces';
+import { PLATE_RADIUS } from './drawing';
 import { grow, type Rect } from './geometry';
 import {
   IMAGE_LIMITS,
@@ -113,8 +114,6 @@ interface Plates {
   dark: Color | undefined;
 }
 
-/** The corner radius of a drawing's plate, at most. */
-const PLATE_RADIUS = 6;
 /** The name the store knows the drag's pictures by. */
 const DRAGGED = 'dragged';
 /** The name the store knows faces' pictures by, which are always within reach. */

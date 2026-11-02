@@ -1,6 +1,8 @@
 /** Plane geometry for the canvas, in canvas units with y growing downwards. */
 import type { Point } from '@visual-anything/schema';
 import type { Appearance, RelationAppearance } from '@visual-anything/schema';
+import { arrowheadOf, type ResolvedDrawing } from '@visual-anything/core';
+import { BASE_DRAWING } from './drawing';
 
 /** The kinds of shape an element can have. */
 export type ShapeKind = NonNullable<Appearance['shape']>;
@@ -27,6 +29,11 @@ export interface Arrowhead {
   tip: Point;
   left: Point;
   right: Point;
+  /**
+   * Drawn as two strokes from its tip rather than filled, the line running on to the tip, as the
+   * drawing defaults' `open` arrowhead is (ADR 0086); absent for a filled one.
+   */
+  open?: true;
 }
 
 /** A uniform scale followed by a translation. */
@@ -246,17 +253,50 @@ function inEllipse(
   return dx * dx + dy * dy <= 1;
 }
 
-/** The arrowhead for a line from `from` whose end is `tip`, sized for the line's width. */
-export function arrowheadAt(from: Point, tip: Point, lineWidth: number): Arrowhead {
+/**
+ * The arrowhead for a line from `from` whose end is `tip`, sized for the line's width as the drawing
+ * defaults size it (`arrowheadOf`), and open where they draw it open. Where they draw none, the scene
+ * gives lines none (`drawsArrowheads`).
+ */
+export function arrowheadAt(
+  from: Point,
+  tip: Point,
+  lineWidth: number,
+  drawing: ResolvedDrawing = BASE_DRAWING,
+): Arrowhead {
   const direction = directionOf(from, tip) ?? { x: 1, y: 0 };
-  const length = Math.max(10, lineWidth * 5);
-  const halfWidth = Math.max(4, lineWidth * 2.5);
+  const { length, halfWidth } = arrowheadOf(drawing, lineWidth);
   const base = { x: tip.x - direction.x * length, y: tip.y - direction.y * length };
-  return {
+  const arrowhead: Arrowhead = {
     tip,
     left: { x: base.x + direction.y * halfWidth, y: base.y - direction.x * halfWidth },
     right: { x: base.x - direction.y * halfWidth, y: base.y + direction.x * halfWidth },
   };
+  if (drawing.lines.arrowhead === 'open') arrowhead.open = true;
+  if (drawing !== BASE_DRAWING) madeWith.set(arrowhead, drawing);
+  return arrowhead;
+}
+
+/** The drawing defaults each arrowhead was made with, where they are not the base. */
+const madeWith = new WeakMap<Arrowhead, ResolvedDrawing>();
+
+/**
+ * The arrowhead a line whose end moved to `tip` takes, coming from `from`: made as `was` was made,
+ * with the same drawing defaults, for a line `lineWidth` wide. What routes a line again, a drag, a
+ * route around shapes or an edit, gives it so.
+ */
+export function arrowheadAgain(
+  was: Arrowhead,
+  from: Point,
+  tip: Point,
+  lineWidth: number,
+): Arrowhead {
+  return arrowheadAt(from, tip, lineWidth, madeWith.get(was) ?? BASE_DRAWING);
+}
+
+/** Whether a drawing gives directed lines and arrows an arrowhead: unless it draws them with none. */
+export function drawsArrowheads(drawing: ResolvedDrawing): boolean {
+  return drawing.lines.arrowhead !== 'none';
 }
 
 /**
@@ -268,7 +308,8 @@ export function untilArrowhead(
   arrowhead: Arrowhead | undefined,
 ): Point[] {
   const until = [...points];
-  if (!arrowhead || until.length < 2) return until;
+  // An open arrowhead covers nothing: the line runs on to its tip.
+  if (!arrowhead || arrowhead.open || until.length < 2) return until;
   const tip = until.at(-1) as Point;
   const before = until.at(-2) as Point;
   const base = middle(arrowhead.left, arrowhead.right);

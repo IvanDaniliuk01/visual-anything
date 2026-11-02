@@ -52,7 +52,7 @@ import {
   type LayoutStats,
 } from './types';
 import {
-  COMPOUND_PADDING,
+  compoundPaddingOf,
   runWhole,
   WHOLE_RELATIONS,
   WHOLE_SHAPES,
@@ -189,11 +189,12 @@ export async function layOut(
   let outOfTime = false;
   const engines = Array.isArray(elk) ? (elk as readonly ElkEngine[]) : [elk as ElkEngine];
   const tree = new Tree(input);
+  // Containers keep the drawing defaults' room around their contents (ADR 0086).
+  const roomInside = { x: input.padding ?? CONTENTS_ORIGIN.x, y: CONTENTS_ORIGIN.y };
+  const compound = compoundPaddingOf(roomInside.x);
   /** Where a container's contents start from its top: under its face's header, when it has one. */
   const topOf = (level: number): number =>
-    level === WORLD
-      ? CONTENTS_ORIGIN.y
-      : Math.max(CONTENTS_ORIGIN.y, input.shapes[level]?.header ?? 0);
+    level === WORLD ? roomInside.y : Math.max(roomInside.y, input.shapes[level]?.header ?? 0);
   const stats: LayoutStats = {
     levels: 0,
     shapes: 0,
@@ -327,10 +328,10 @@ export async function layOut(
     const grew = { x: now.width - before.width, y: now.height - before.height };
     const holder = tree.keptSizeOf(level);
     const inner = {
-      left: CONTENTS_ORIGIN.x,
+      left: roomInside.x,
       top: topOf(level),
-      right: holder.width - CONTENTS_ORIGIN.x,
-      bottom: holder.height - CONTENTS_ORIGIN.x,
+      right: holder.width - roomInside.x,
+      bottom: holder.height - roomInside.x,
     };
     const others = tree
       .childrenOf(level)
@@ -479,7 +480,7 @@ export async function layOut(
     const origin =
       inPlace && level !== WORLD && kept.length === 0
         ? {
-            x: Math.max(CONTENTS_ORIGIN.x, roundToStep(bounds.x)),
+            x: Math.max(roomInside.x, roundToStep(bounds.x)),
             y: Math.max(topOf(level), roundToStep(bounds.y)),
           }
         : placeBlock(
@@ -489,6 +490,7 @@ export async function layOut(
               : { kind: 'container', top: topOf(level) },
             kept,
             flow,
+            roomInside.x,
           );
     const container = level === WORLD ? undefined : input.shapes[level]?.element;
     nodes.forEach((node, at) => {
@@ -639,10 +641,10 @@ export async function layOut(
         const rect = first.get(level);
         const shape = input.shapes[level];
         if (!rect || !shape) continue;
-        const room: Padding = { ...COMPOUND_PADDING };
+        const room: Padding = { ...compound };
         // A face's header, taller than the canvas's own, keeps the same room under it (ADR 0083).
         if (shape.header !== undefined) {
-          room.top = Math.max(room.top, shape.header + COMPOUND_PADDING.top - CONTENTS_ORIGIN.y);
+          room.top = Math.max(room.top, shape.header + compound.top - roomInside.y);
         }
         const width = rect.width - room.left - room.right;
         const height = rect.height - room.top - room.bottom;
@@ -1493,6 +1495,7 @@ class Tree {
       contents,
       { width: shape.baseWidth ?? shape.width, height: shape.baseHeight ?? shape.height },
       { width: shape.storedWidth, height: shape.storedHeight },
+      this.input.padding,
     );
     this.sizes.set(node, size);
     return size;
@@ -1522,6 +1525,7 @@ class Tree {
       contents,
       { width: shape.baseWidth ?? shape.width, height: shape.baseHeight ?? shape.height },
       { width: shape.storedWidth, height: shape.storedHeight },
+      this.input.padding,
     );
   }
 

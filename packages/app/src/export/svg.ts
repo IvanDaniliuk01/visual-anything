@@ -45,6 +45,7 @@ import {
   type FlatContour,
   type OutlineContour,
   type ProjectSnapshot,
+  type ResolvedDrawing,
   type ThemeName,
 } from '@visual-anything/core';
 import type { Color, Id, ViewFile } from '@visual-anything/schema';
@@ -81,15 +82,26 @@ import {
 import type { ShapePart } from '../canvas/partShapes';
 import {
   HEADER_DETAIL_INSET,
-  HEADER_DETAIL_SIZE,
   HEADER_INSET,
-  HEADER_NAME_SIZE,
   HEADER_TOGGLE,
-  ROW_DETAIL_SIZE,
   ROW_ICON,
   ROW_INSET,
-  ROW_NAME_SIZE,
+  rowTextSizesOf,
+  type RowColumns,
 } from '../canvas/fit';
+import {
+  CASING_EXTRA,
+  DASH_PATTERNS,
+  NAME_LINE,
+  PLATE_RADIUS,
+  RELATION_LABEL_BACK,
+  fontFamilyOf,
+  personCornerRadius,
+  roundedCornerRadius,
+  rowsCornerRadius,
+  textSideInset,
+} from '../canvas/drawing';
+import { MONO_FAMILY, ROBOTO } from '../canvas/fontFamilies';
 import {
   SHEET,
   bodyOf,
@@ -107,10 +119,11 @@ import { facePaints, facePictureRect, faceRect, shapeFaceDrawing } from '../canv
 import { avoidedScene } from '../canvas/routing/avoided';
 import { drawnCurve } from '../canvas/routing/curves';
 import { ROWS_HEADER } from '../canvas/rows';
-import { drawsRows, isRow, rowColorsOf } from '../canvas/rowsDraw';
+import { ROW_INSIDE, ROW_SEPARATOR, drawsRows, isRow, rowColorsOf } from '../canvas/rowsDraw';
 import {
-  ARROW_WIDTH,
+  arrowWidthOf,
   buildScene,
+  drawingOfScene,
   standsFor,
   type ArrowShape,
   type ElementShape,
@@ -153,7 +166,8 @@ import {
 import { layOutBand, type BandItem, type BandLayout } from './legendLayout';
 import { element, empty, num, textElement, type AttributeValue } from './markup';
 import { textWidth } from './measure';
-import { layOutText, type TextSpec } from './text-layout';
+import { LINE_HEIGHT, layOutText, type TextSpec } from './text-layout';
+import { BASE_DRAWING } from '../canvas/drawing';
 import { laidTextSvg } from './emphasis-svg';
 import { exportedFaceShow, faceSvg } from './face-svg';
 import { parseEmphasis } from '@visual-anything/core';
@@ -166,8 +180,27 @@ import { layOutBlocks } from '../text/layout';
 /** The room left around the scene's bounds, in canvas units, as the PNG of the whole view keeps. */
 export const SVG_MARGIN = 32;
 
-/** The fonts the drawing's text is written in, first available first: the canvas's own. */
-export const SVG_FONT_FAMILY = "system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+/**
+ * The fonts the drawing's text is written in, first available first: the canvas's own, the bundled
+ * Roboto first, where the drawing defaults say nothing else (`svgFontFamilyOf`).
+ */
+export const SVG_FONT_FAMILY = svgFamily(fontFamilyOf(BASE_DRAWING));
+
+/** The fonts a drawing writes in (`text.font`, ADR 0086), as an SVG `font-family`. */
+export function svgFontFamilyOf(drawing: ResolvedDrawing): string {
+  return drawing === BASE_DRAWING ? SVG_FONT_FAMILY : svgFamily(fontFamilyOf(drawing));
+}
+
+/**
+ * The family the PDF writer embeds Roboto Medium for (`pdf.ts`): written before the drawing's fonts
+ * on text at weight 500, which no reader has installed, so that a reader draws that text in the
+ * drawing's fonts at weight 500, and the PDF in Roboto Medium.
+ */
+export const MEDIUM_FAMILY = `${ROBOTO} Medium`;
+
+function svgFamily(families: readonly string[]): string {
+  return families.map((each) => (/^[a-z-]+$/i.test(each) ? each : `'${each}'`)).join(', ');
+}
 
 /** How the drawing is written. */
 export interface SvgOptions {
@@ -308,28 +341,24 @@ export function writeSvg(
   return svgOfScene(project, view, avoidedScene(buildScene(project, viewId)), options);
 }
 
-const SHAPE_STROKE_WIDTH = 1.5;
-const NAME_SIZE = 14;
-const DETAIL_SIZE = 11;
-const TEXT_INSET = 12;
-const RELATION_LABEL_SIZE = 12;
-/** How far a relation's name's back reaches past its text, across and down. */
-const LABEL_BACK = { x: 3, y: 1 };
-const NOTE_TEXT_SIZE = 13;
-/** How much wider than its line a casing is, as the painter draws it. */
-const CASING_EXTRA = 2;
-const ROW_RULE = 1.5;
-const ROW_INSIDE = 1;
-const ROW_SEPARATOR = 1;
-const PLATE_RADIUS = 6;
 /** How far a cubic Bézier's handles reach along a quarter of an ellipse, of its radius. */
 const KAPPA = 0.5522847498;
 /** The least side an outline's symbol takes, so that a straight line's bounds still draw. */
 const LEAST_SIDE = 0.01;
-/** How tall a line of a name is where a shape with its own outline writes it, as on the canvas. */
-const NAME_LINE = 20;
 /** No shape: what an export hides and draws faintly, since it draws no filter, focus or drag. */
 const NONE: ReadonlySet<string> = new Set();
+
+/** A text the writer writes: in a weight of the loaded ones when bold, the name's, 700 otherwise. */
+type WrittenText = TextSpec & {
+  fill: Color;
+  halo?: Halo;
+  weight?: 400 | 500 | 700;
+  /** Written in Roboto Mono, as a table's rows write a column's type (A5.1). */
+  mono?: true;
+};
+
+/** The fonts a column's type is written in, as an SVG `font-family`. */
+const MONO_SVG_FAMILY = svgFamily(MONO_FAMILY);
 
 /** A picture to draw: its cleaned view, the serial of its content, and the tint of a silhouette. */
 type PictureSource = Pick<ShapeImage, 'image' | 'serial' | 'tint'>;
@@ -397,6 +426,8 @@ class Writer {
   readonly #bitmaps: ReadonlySet<BitmapFormat>;
   readonly #filtersDrawn: boolean;
   readonly reading: WriterReading;
+  /** The drawing defaults the scene is drawn with (ADR 0086), which the canvas draws it with too. */
+  readonly drawing: ResolvedDrawing;
 
   readonly #solids: ReadonlyMap<string, SvgSolidPicture> | undefined;
   /** Each solid's picture's symbol, by its PNG's data: the same picture is written once. */
@@ -409,6 +440,36 @@ class Writer {
     this.#filtersDrawn = options.filters ?? true;
     this.#solids = options.solids;
     this.reading = reading;
+    this.drawing = drawingOfScene(scene);
+  }
+
+  /** How a shape's name is written: at the drawing's name size, in its weight. */
+  get name(): { size: number; bold: boolean; weight: 400 | 500 | 700 } {
+    const { nameSize, nameWeight } = this.drawing.text;
+    return { size: nameSize, bold: nameWeight !== 400, weight: nameWeight };
+  }
+
+  /** How a container's name is written: as a name, at the drawing's container name size. */
+  get containerName(): { size: number; bold: boolean; weight: 400 | 500 | 700 } {
+    return { ...this.name, size: this.drawing.text.containerNameSize };
+  }
+
+  /** How wide a shape's border is. */
+  get border(): number {
+    return this.drawing.shapes.borderWidth;
+  }
+
+  /** How far in from its sides a shape writes its text. */
+  get inset(): number {
+    return textSideInset(this.drawing);
+  }
+
+  /**
+   * How tall the exports' lines are, in ems: theirs (`text-layout.ts`), in the ratio of the drawing's
+   * line height to the canvas's own.
+   */
+  get #lineHeight(): number {
+    return (LINE_HEIGHT * this.drawing.text.lineHeight) / BASE_DRAWING.text.lineHeight;
   }
 
   /** The picture drawn of a shape's solid for this drawing; none: it is drawn as its placeholder. */
@@ -449,14 +510,21 @@ class Writer {
    * halo, the same text is written first in the halo's color, stroked as wide, which every reader of
    * SVG draws, the PDF writer among them.
    */
-  text(spec: TextSpec & { fill: Color; halo?: Halo }): string {
-    const { lines } = layOutText(spec);
+  text(spec: WrittenText): string {
+    const { lines } = layOutText({ ...spec, lineHeight: this.#lineHeight });
     if (lines.length === 0) return '';
     for (const line of lines) this.texts.push(line.text);
+    // The real weight, one the canvas loads; Roboto Medium is named for the PDF to embed.
+    const weight = spec.bold ? (spec.weight ?? 700) : undefined;
     const write = (paint: Readonly<Record<string, AttributeValue>>) => {
       const values = {
         'font-size': spec.size,
-        'font-weight': spec.bold ? 600 : undefined,
+        'font-weight': weight,
+        'font-family': spec.mono
+          ? MONO_SVG_FAMILY
+          : weight === 500
+            ? `'${MEDIUM_FAMILY}', ${svgFontFamilyOf(this.drawing)}`
+            : undefined,
         ...paint,
         'text-anchor': spec.align === 'start' ? undefined : spec.align,
       };
@@ -562,7 +630,7 @@ class Writer {
         fill: paint.fill ?? 'none',
         'fill-opacity': paint.fill === undefined ? undefined : opacity,
         stroke: paint.stroke,
-        'stroke-width': stroked ? (paint.strokeWidth ?? SHAPE_STROKE_WIDTH) : undefined,
+        'stroke-width': stroked ? (paint.strokeWidth ?? this.border) : undefined,
         'stroke-linejoin': stroked && paint.round ? 'round' : undefined,
         'stroke-linecap': stroked && paint.round ? 'round' : undefined,
         'stroke-opacity': stroked ? opacity : undefined,
@@ -762,14 +830,17 @@ export function svgOfScene(
   const free = [
     ...scene.notes.map((note) => faintFree(note.id, noteParts(writer, note))),
     ...scene.arrows.map((arrow) =>
-      faintFree(arrow.id, arrowParts(arrow, arrowStroke(arrow, theme), theme)),
+      faintFree(
+        arrow.id,
+        arrowParts(arrow, arrowStroke(arrow, theme), theme, arrowWidthOf(writer.drawing)),
+      ),
     ),
   ];
 
   // The legend of the view's overlays goes below the drawing, so that it never covers it (ADR 0055).
   const legend = legendOf(view, definitions, theme.name);
   const band = legendShows(legend)
-    ? layOutBand(legend, t, textWidth, drawn.width, 1, theme.name)
+    ? layOutBand(legend, t, textWidth, drawn.width, 1, theme.name, writer.drawing)
     : undefined;
   const legendRect =
     band === undefined
@@ -855,7 +926,7 @@ export function svgOfScene(
     role: 'img',
     'aria-labelledby': 'va-title',
     'aria-describedby': 'va-desc',
-    'font-family': SVG_FONT_FAMILY,
+    'font-family': svgFontFamilyOf(writer.drawing),
     'data-view': view.id,
     'data-theme': theme.name,
   };
@@ -981,7 +1052,7 @@ function swatchOf(writer: Writer, item: Extract<BandItem, { kind: 'swatch' }>, a
       }) +
       writer.text({
         text: entry.badge,
-        size: 12,
+        size: writer.drawing.text.labelSize,
         fill: colors.text,
         x: x + 5,
         align: 'start',
@@ -995,7 +1066,7 @@ function swatchOf(writer: Writer, item: Extract<BandItem, { kind: 'swatch' }>, a
       d: `M${num(x + 2)} ${num(middle.y)}H${num(x + room - 2)}`,
       fill: 'none',
       stroke: entry.color ?? colors.text,
-      'stroke-width': entry.size === undefined ? 2 : 2 * entry.size,
+      'stroke-width': (entry.size ?? 1) * writer.drawing.lines.width,
       opacity: entry.opacity,
     });
   }
@@ -1089,13 +1160,18 @@ function shapeParts(writer: Writer, shape: ElementShape): string {
   if (shape.collapsed !== undefined) {
     const inner = bodyOf(shape);
     if (inner !== shape.rect) {
-      body += bodyMarkup(shape.kind, { ...inner, x: inner.x + SHEET, y: inner.y + SHEET }, colors);
+      body += bodyMarkup(
+        shape.kind,
+        { ...inner, x: inner.x + SHEET, y: inner.y + SHEET },
+        colors,
+        writer.drawing,
+      );
     }
-    body += bodyMarkup(shape.kind, inner, colors);
+    body += bodyMarkup(shape.kind, inner, colors, writer.drawing);
   } else if (!drawing) {
-    body += bodyMarkup(shape.kind, shape.rect, colors);
+    body += bodyMarkup(shape.kind, shape.rect, colors, writer.drawing);
   } else if (placeholder) {
-    body += bodyMarkup(shape.kind, bodyRectOf(shape), colors);
+    body += bodyMarkup(shape.kind, bodyRectOf(shape), colors, writer.drawing);
   }
   // Otherwise a shape drawn by its picture is covered by the picture's plate, always ready here.
   body += toggleOf(shape, colors);
@@ -1170,14 +1246,16 @@ function bodyMarkup(
   kind: ElementShape['kind'],
   rect: Rect,
   colors: { fill: Color; stroke: Color },
+  drawing: ResolvedDrawing,
 ): string {
   const { x, y, width, height } = rect;
-  const paint = { fill: colors.fill, stroke: colors.stroke, 'stroke-width': SHAPE_STROKE_WIDTH };
+  const border = drawing.shapes.borderWidth;
+  const paint = { fill: colors.fill, stroke: colors.stroke, 'stroke-width': border };
   switch (kind) {
     case 'rectangle':
       return empty('rect', { x, y, width, height, ...paint });
     case 'rounded-rectangle': {
-      const radius = Math.min(10, width / 4, height / 4);
+      const radius = roundedCornerRadius(drawing, width, height);
       return empty('rect', { x, y, width, height, rx: radius, ...paint });
     }
     case 'ellipse':
@@ -1208,7 +1286,7 @@ function bodyMarkup(
           d: front,
           fill: 'none',
           stroke: colors.stroke,
-          'stroke-width': SHAPE_STROKE_WIDTH,
+          'stroke-width': border,
         })
       );
     }
@@ -1221,7 +1299,7 @@ function bodyMarkup(
           y: top,
           width,
           height: height - head * 1.6,
-          rx: Math.min(12, width / 4),
+          rx: personCornerRadius(drawing, width),
           ...paint,
         }) + empty('circle', { cx: x + width / 2, cy: y + head, r: head, ...paint })
       );
@@ -1330,12 +1408,11 @@ function shapeText(writer: Writer, shape: ElementShape, fill: Color): string {
     const under = readableTextColors(writer.backdropOf(shape));
     const rooms = bandRooms(band);
     const centerX = band.x + band.width / 2;
-    const wrap = Math.max(1, band.width - TEXT_INSET);
+    const wrap = Math.max(1, band.width - writer.inset);
     return (
       writer.text({
         text: shape.name,
-        size: NAME_SIZE,
-        bold: true,
+        ...writer.name,
         fill: under.name,
         x: centerX,
         align: 'middle',
@@ -1347,7 +1424,7 @@ function shapeText(writer: Writer, shape: ElementShape, fill: Color): string {
       (rooms.detail > 0 && detail !== ''
         ? writer.text({
             text: detail,
-            size: DETAIL_SIZE,
+            size: writer.drawing.text.detailSize,
             fill: under.detail,
             x: centerX,
             align: 'middle',
@@ -1384,17 +1461,18 @@ function headerText(
 ): string {
   const { x, y, width, height } = area;
   const { shift, beside } = room;
-  const wrap = Math.max(1, width - 2 * TEXT_INSET - beside - shift);
+  const inset = writer.inset;
+  const { detailSize, containerNameSize } = writer.drawing.text;
+  const wrap = Math.max(1, width - 2 * inset - beside - shift);
   const rooms = { name: Math.min(20, height - 12), detail: Math.min(16, height - 32) };
   const header = headerLines(shape, height, wrap, robotoMeasure);
   return (
     (rooms.name > 0
       ? writer.text({
           text: shape.name,
-          size: NAME_SIZE,
-          bold: true,
+          ...writer.containerName,
           fill: colors.name,
-          x: x + TEXT_INSET + shift,
+          x: x + inset + shift,
           align: 'start',
           y: y + 8,
           anchor: 'top',
@@ -1405,11 +1483,11 @@ function headerText(
     (rooms.detail > 0 && header.detail !== ''
       ? writer.text({
           text: header.detail,
-          size: DETAIL_SIZE,
+          size: detailSize,
           fill: colors.detail,
-          x: x + TEXT_INSET + shift,
+          x: x + inset + shift,
           align: 'start',
-          y: y + 8 + NAME_SIZE + 6,
+          y: y + 8 + containerNameSize + 6,
           anchor: 'top',
           wrap,
           room: shape.collapsed === undefined ? rooms.detail : header.detailRoom,
@@ -1418,13 +1496,13 @@ function headerText(
     (header.count !== undefined && header.countRoom !== undefined
       ? writer.text({
           text: header.count,
-          size: DETAIL_SIZE,
+          size: detailSize,
           fill: colors.detail,
-          x: x + TEXT_INSET + shift,
+          x: x + inset + shift,
           align: 'start',
           y: y + (header.countTop ?? COUNT_LINE_TOP),
           anchor: 'top',
-          wrap: Math.max(1, width - 2 * TEXT_INSET),
+          wrap: Math.max(1, width - 2 * inset),
           room: header.countRoom,
         })
       : '')
@@ -1444,8 +1522,9 @@ function centredText(
   detail: string,
 ): string {
   const centerX = area.x + area.width / 2;
-  const wrap = Math.max(1, area.width - TEXT_INSET);
+  const wrap = Math.max(1, area.width - writer.inset);
   const block = placeTextBlock({
+    drawing: writer.drawing,
     area,
     wrap,
     name: shape.name,
@@ -1456,8 +1535,7 @@ function centredText(
   });
   const name = writer.text({
     text: shape.name,
-    size: NAME_SIZE,
-    bold: true,
+    ...writer.name,
     fill: colors.name,
     x: centerX,
     align: 'middle',
@@ -1483,7 +1561,7 @@ function centredText(
     name +
     writer.text({
       text: detail,
-      size: DETAIL_SIZE,
+      size: writer.drawing.text.detailSize,
       fill: colors.detail,
       x: centerX,
       align: 'middle',
@@ -1517,7 +1595,7 @@ function outlineParts(
   const paint: OutlinePaint = {
     fill,
     stroke: colors.stroke,
-    lines: { color: colors.stroke, widths: { least: SHAPE_STROKE_WIDTH } },
+    lines: { color: colors.stroke, widths: { least: writer.border } },
   };
   const placed = outlineAt({ rect: shape.rect, outline }) as PlacedOutline;
   let body = '';
@@ -1717,8 +1795,7 @@ function outlinedText(
       (rooms.name > 0
         ? writer.text({
             text: shape.name,
-            size: NAME_SIZE,
-            bold: true,
+            ...writer.containerName,
             fill: colors.name,
             x: left,
             align: 'start',
@@ -1731,11 +1808,11 @@ function outlinedText(
       (rooms.detail > 0 && detail !== ''
         ? writer.text({
             text: detail,
-            size: DETAIL_SIZE,
+            size: writer.drawing.text.detailSize,
             fill: colors.detail,
             x: left,
             align: 'start',
-            y: y + 8 + NAME_SIZE + 6,
+            y: y + 8 + writer.drawing.text.containerNameSize + 6,
             anchor: 'top',
             wrap,
             room: rooms.detail,
@@ -1765,7 +1842,7 @@ function outlinedText(
     name +
     writer.text({
       text: detail,
-      size: DETAIL_SIZE,
+      size: writer.drawing.text.detailSize,
       fill: colors.detail,
       x: centerX,
       align: 'middle',
@@ -1797,10 +1874,10 @@ function nameTagParts(
   const height = tag.lines.length * PART_NAME_LINE;
   const box = empty('rect', {
     ...placed,
-    rx: tagRadius(tag),
+    rx: tagRadius(tag, writer.drawing),
     fill: colors.fill,
     stroke: colors.stroke,
-    'stroke-width': SHAPE_STROKE_WIDTH,
+    'stroke-width': writer.border,
   });
   // A shape whose face writes its name hangs no tag (`faceWritesName`); one whose face does not
   // writes its name in its tag, as on the canvas (ADR 0083).
@@ -1811,7 +1888,7 @@ function nameTagParts(
       ? ''
       : writer.text({
           text: tag.detail,
-          size: DETAIL_SIZE,
+          size: writer.drawing.text.detailSize,
           fill: text.detail,
           x,
           align: 'middle',
@@ -1839,7 +1916,8 @@ function wholeLines(
       writer.text({
         text: line,
         size: PART_NAME_SIZE,
-        bold: true,
+        bold: writer.name.bold,
+        weight: writer.name.weight,
         fill,
         x,
         align: 'middle',
@@ -1937,9 +2015,10 @@ function tableParts(
       false,
       colors,
       rows.body,
+      writer.drawing,
     );
   }
-  return parts + tableBody(shape, body, true, colors, rows.body);
+  return parts + tableBody(shape, body, true, colors, rows.body, writer.drawing);
 }
 
 function tableBody(
@@ -1948,10 +2027,12 @@ function tableBody(
   header: boolean,
   colors: { fill: Color; stroke: Color },
   bodyFill: Color,
+  drawing: ResolvedDrawing,
 ): string {
   const { x, y, width, height } = rect;
   const rounded = shape.kind === 'rounded-rectangle';
-  const radius = rounded ? Math.min(8, width / 4, height / 2) : undefined;
+  const radius = rounded ? rowsCornerRadius(drawing, width, height) : undefined;
+  const border = drawing.shapes.borderWidth;
   // A face gives the header its height (ADR 0083), as on the canvas.
   const band = Math.min(shape.header ?? ROWS_HEADER, height);
   let parts = empty('rect', { x, y, width, height, rx: radius, fill: bodyFill });
@@ -1976,9 +2057,9 @@ function tableBody(
     if (band < height) {
       parts += empty('rect', {
         x,
-        y: y + band - ROW_RULE,
+        y: y + band - border,
         width,
-        height: ROW_RULE,
+        height: border,
         fill: colors.stroke,
       });
     }
@@ -1993,7 +2074,7 @@ function tableBody(
       rx: radius,
       fill: 'none',
       stroke: colors.stroke,
-      'stroke-width': SHAPE_STROKE_WIDTH,
+      'stroke-width': border,
     })
   );
 }
@@ -2006,12 +2087,13 @@ function tableText(writer: Writer, shape: ElementShape, fill: Color): string {
   const colors = readableTextColors(fill);
   const band = Math.min(shape.header ?? ROWS_HEADER, body.height);
   const middle = body.y + band / 2;
+  const sizes = rowTextSizesOf(writer.drawing);
   let parts = '';
   if (fitted.name !== '') {
     parts += writer.text({
       text: fitted.name,
-      size: HEADER_NAME_SIZE,
-      bold: true,
+      ...writer.name,
+      size: sizes.headerName,
       fill: colors.name,
       x: body.x + HEADER_INSET + headerShift(shape),
       align: 'start',
@@ -2024,7 +2106,7 @@ function tableText(writer: Writer, shape: ElementShape, fill: Color): string {
     const toggle = toggleRect(shape) ? HEADER_TOGGLE : 0;
     parts += writer.text({
       text: fitted.detail,
-      size: HEADER_DETAIL_SIZE,
+      size: sizes.headerDetail,
       fill: colors.detail,
       x: body.x + body.width - HEADER_DETAIL_INSET - toggle,
       align: 'end',
@@ -2065,10 +2147,11 @@ function rowParts(
   if (!fitted) return parts;
   const colors = readableTextColors(fill);
   const middle = y + height / 2;
+  if (shape.columns) return parts + rowColumnsParts(writer, shape, shape.columns, colors.detail);
   if (fitted.name !== '') {
     parts += writer.text({
       text: fitted.name,
-      size: ROW_NAME_SIZE,
+      size: rowTextSizesOf(writer.drawing).rowName,
       fill: colors.detail,
       x: x + ROW_INSET + (showsPicture(shape) ? ROW_ICON : 0),
       align: 'start',
@@ -2080,7 +2163,7 @@ function rowParts(
   if (fitted.detail !== '') {
     parts += writer.text({
       text: fitted.detail,
-      size: ROW_DETAIL_SIZE,
+      size: rowTextSizesOf(writer.drawing).rowDetail,
       fill: colors.detail,
       x: x + width - ROW_INSET,
       align: 'end',
@@ -2090,6 +2173,39 @@ function rowParts(
     });
   }
   return parts;
+}
+
+/**
+ * A row's texts in its table's columns, as the canvas writes them (`writeRowColumns`): its name at
+ * the left, its column's type in Roboto Mono from the type column's left edge, its badges after.
+ */
+function rowColumnsParts(
+  writer: Writer,
+  shape: ElementShape,
+  columns: RowColumns,
+  color: Color,
+): string {
+  const { x, y, height } = shape.rect;
+  const sizes = rowTextSizesOf(writer.drawing);
+  const at = (text: string, left: number, size: number, mono?: true) =>
+    text === ''
+      ? ''
+      : writer.text({
+          text,
+          size,
+          fill: color,
+          x: left,
+          align: 'start',
+          y: y + height / 2,
+          anchor: 'middle',
+          room: height,
+          ...(mono ? { mono } : {}),
+        });
+  return (
+    at(columns.name, x + ROW_INSET + (showsPicture(shape) ? ROW_ICON : 0), sizes.rowName) +
+    at(columns.type, x + columns.typeX, sizes.rowDetail, true) +
+    at(columns.badges, x + columns.badgesX, sizes.rowDetail)
+  );
 }
 
 // --- Relations -----------------------------------------------------------------------------------
@@ -2122,21 +2238,42 @@ function curvePath(line: RelationLine): string {
   );
 }
 
+/** An arrowhead's path: a closed triangle, or for an open one its two sides from the tip. */
 function arrowheadPath(arrowhead: Arrowhead): string {
   const { tip, left, right } = arrowhead;
+  if (arrowhead.open) {
+    return `M${num(left.x)} ${num(left.y)}L${num(tip.x)} ${num(tip.y)}L${num(right.x)} ${num(right.y)}`;
+  }
   return `M${num(tip.x)} ${num(tip.y)}L${num(left.x)} ${num(left.y)}L${num(right.x)} ${num(right.y)}Z`;
 }
 
-/** How a line is dashed: its dashes and gaps in canvas units, from its width. */
-function dashArray(line: { dash: RelationLine['dash']; width: number }): string | undefined {
-  switch (line.dash) {
-    case 'solid':
-      return undefined;
-    case 'dashed':
-      return `${num(4 * line.width)} ${num(3 * line.width)}`;
-    case 'dotted':
-      return `${num(2 * line.width)} ${num(line.width)}`;
+/**
+ * An arrowhead drawn in `color`: filled, or for an open one, stroked at its line's `width`, with
+ * `extra` more for a casing.
+ */
+function arrowheadMarkup(arrowhead: Arrowhead, color: Color, width: number, extra = 0): string {
+  if (arrowhead.open) {
+    return empty('path', {
+      d: arrowheadPath(arrowhead),
+      fill: 'none',
+      stroke: color,
+      'stroke-width': width + extra,
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
+    });
   }
+  return empty('path', {
+    d: arrowheadPath(arrowhead),
+    fill: color,
+    ...(extra > 0 ? { stroke: color, 'stroke-width': extra, 'stroke-linejoin': 'round' } : {}),
+  });
+}
+
+/** How a line is dashed: its dashes and gaps in canvas units, from its width, as the canvas's. */
+function dashArray(line: { dash: RelationLine['dash']; width: number }): string | undefined {
+  if (line.dash === 'solid') return undefined;
+  const { on, period } = DASH_PATTERNS[line.dash];
+  return `${num(on * line.width)} ${num((period - on) * line.width)}`;
 }
 
 /** The casing under a line: its route stroked wider in the canvas's color, on to its tip. */
@@ -2150,15 +2287,7 @@ function casingOf(line: RelationLine, background: Color): string {
       stroke: background,
       'stroke-width': line.width + CASING_EXTRA,
     }) +
-    (line.arrowhead
-      ? empty('path', {
-          d: arrowheadPath(line.arrowhead),
-          fill: background,
-          stroke: background,
-          'stroke-width': CASING_EXTRA,
-          'stroke-linejoin': 'round',
-        })
-      : '')
+    (line.arrowhead ? arrowheadMarkup(line.arrowhead, background, line.width, CASING_EXTRA) : '')
   );
 }
 
@@ -2175,8 +2304,7 @@ function routeOf(line: RelationLine, stroke: Color): string {
           'stroke-width': line.width,
           'stroke-dasharray': dashArray(line),
           'stroke-linejoin': 'miter',
-        })) +
-    (line.arrowhead ? empty('path', { d: arrowheadPath(line.arrowhead), fill: stroke }) : '')
+        })) + (line.arrowhead ? arrowheadMarkup(line.arrowhead, stroke, line.width) : '')
   );
 }
 
@@ -2184,9 +2312,10 @@ function routeOf(line: RelationLine, stroke: Color): string {
 function relationLabel(writer: Writer, line: RelationLine): string {
   if (!line.label) return '';
   const { relationLabelText: text, relationLabelBack: back } = writer.theme;
+  const size = writer.drawing.text.labelSize;
   const spec = {
     text: line.label,
-    size: RELATION_LABEL_SIZE,
+    size,
     x: line.middle.x,
     align: 'middle' as const,
     y: line.middle.y,
@@ -2196,8 +2325,8 @@ function relationLabel(writer: Writer, line: RelationLine): string {
   const [first] = laidOut.lines;
   if (!first) return '';
   // As wide as its text, by the estimate the scene fits rows with, which leans wide.
-  const width = textWidth(first.text, RELATION_LABEL_SIZE) + 2 * LABEL_BACK.x;
-  const height = laidOut.lineHeight + 2 * LABEL_BACK.y;
+  const width = textWidth(first.text, size) + 2 * RELATION_LABEL_BACK.x;
+  const height = laidOut.lineHeight + 2 * RELATION_LABEL_BACK.y;
   return (
     empty('rect', {
       x: line.middle.x - width / 2,
@@ -2214,6 +2343,8 @@ function relationLabel(writer: Writer, line: RelationLine): string {
 function noteParts(writer: Writer, note: NoteShape): string {
   const colors = noteColors(note, writer.theme);
   const { x, y, width, height } = note.rect;
+  const inset = writer.inset;
+  const size = writer.drawing.text.noteSize;
   return element(
     'g',
     { 'data-free-shape': note.id },
@@ -2230,32 +2361,32 @@ function noteParts(writer: Writer, note: NoteShape): string {
         ? laidTextSvg(
             layOutBlocks(parseEmphasis(note.text, { blocks: true }), {
               measure: robotoMeasure,
-              size: NOTE_TEXT_SIZE,
-              width: Math.max(1, width - 2 * TEXT_INSET),
+              size,
+              width: Math.max(1, width - 2 * inset),
               align: 'left',
               maxHeight: height - 16,
             }),
-            { x: x + TEXT_INSET, y: y + 10 },
+            { x: x + inset, y: y + 10 },
             colors.text,
             robotoMeasure,
             writer.texts,
           )
         : writer.text({
             text: note.text,
-            size: NOTE_TEXT_SIZE,
+            size,
             fill: colors.text,
-            x: x + TEXT_INSET,
+            x: x + inset,
             align: 'start',
             y: y + 10,
             anchor: 'top',
-            wrap: Math.max(1, width - 2 * TEXT_INSET),
+            wrap: Math.max(1, width - 2 * inset),
             // The canvas stops a long text at the note's bottom, and so does this.
             room: height - 16,
           })),
   );
 }
 
-function arrowParts(arrow: ArrowShape, stroke: Color, theme: CanvasTheme): string {
+function arrowParts(arrow: ArrowShape, stroke: Color, theme: CanvasTheme, width: number): string {
   const { from, to, arrowhead } = arrow;
   return element(
     'g',
@@ -2264,22 +2395,16 @@ function arrowParts(arrow: ArrowShape, stroke: Color, theme: CanvasTheme): strin
       d: pathThrough([from, to]),
       fill: 'none',
       stroke: theme.background,
-      'stroke-width': ARROW_WIDTH + CASING_EXTRA,
+      'stroke-width': width + CASING_EXTRA,
     }) +
-      empty('path', {
-        d: arrowheadPath(arrowhead),
-        fill: theme.background,
-        stroke: theme.background,
-        'stroke-width': CASING_EXTRA,
-        'stroke-linejoin': 'round',
-      }) +
+      arrowheadMarkup(arrowhead, theme.background, width, CASING_EXTRA) +
       empty('path', {
         d: pathThrough(untilArrowhead([from, to], arrowhead)),
         fill: 'none',
         stroke,
-        'stroke-width': ARROW_WIDTH,
+        'stroke-width': width,
       }) +
-      empty('path', { d: arrowheadPath(arrowhead), fill: stroke }),
+      arrowheadMarkup(arrowhead, stroke, width),
   );
 }
 

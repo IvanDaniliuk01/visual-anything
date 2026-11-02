@@ -8,7 +8,7 @@
  * where it ends (`sameGeometry`, `retargeted`), so that the move goes on.
  */
 import type { Id } from '@visual-anything/schema';
-import { arrowheadAt, type Point, type Rect } from '../geometry';
+import { arrowheadAgain, type Point, type Rect } from '../geometry';
 import { midpointOf, routeBetweenEnds } from '../route';
 import type { ElementShape, RelationLine, Scene } from '../scene';
 import { movedImage } from '../shape-images';
@@ -185,7 +185,9 @@ function withRoute(line: RelationLine, route: Point[]): RelationLine {
     from: start,
     to: end,
     middle: midpointOf(route),
-    ...(line.arrowhead && turns ? { arrowhead: arrowheadAt(beforeEnd, end, line.width) } : {}),
+    ...(line.arrowhead && turns
+      ? { arrowhead: arrowheadAgain(line.arrowhead, beforeEnd, end, line.width) }
+      : {}),
   };
 }
 

@@ -8,7 +8,8 @@
  * casings of relations are drawn in white, in a drawing of their own, and tinted to the canvas, so that
  * a theme switch only tints them; those of free arrows are drawn in the canvas color with the arrows.
  */
-import type { ThemeName } from '@visual-anything/core';
+import type { ResolvedDrawing, ThemeName } from '@visual-anything/core';
+import { BASE_DRAWING, CASING_EXTRA } from '../drawing';
 import type { Color, Id } from '@visual-anything/schema';
 import type { Container, Graphics, GraphicsContext } from 'pixi.js';
 import { THEMES, type CanvasTheme } from '../../theme/themes';
@@ -35,7 +36,7 @@ import type { FaceShow } from '../faces';
 import { RelationLabel } from '../labels';
 import { rowColorsOf } from '../rowsDraw';
 import {
-  ARROW_WIDTH,
+  arrowWidthOf,
   type ArrowShape,
   type ElementShape,
   type NoteShape,
@@ -70,11 +71,18 @@ export interface PaintLookups {
 }
 
 /** How much wider than its line a casing is, in canvas units. */
-export const CASING_EXTRA = 2;
+export { CASING_EXTRA };
 const CASING = '#FFFFFF';
 
+/**
+ * Draws in one theme, with one set of drawing defaults (ADR 0086): the widths, radii, sizes and
+ * weights where no appearance sets them.
+ */
 export class Painter {
-  constructor(readonly theme: CanvasTheme) {}
+  constructor(
+    readonly theme: CanvasTheme,
+    readonly drawing: ResolvedDrawing = BASE_DRAWING,
+  ) {}
 
   get name(): ThemeName {
     return this.theme.name;
@@ -82,12 +90,12 @@ export class Painter {
 
   /** Element shapes as plain blocks. */
   shapeBlocks(graphics: Graphics, shapes: readonly ElementShape[], inOrder = false): void {
-    drawShapeBlocks(graphics, this.shapes(shapes), inOrder, rowColorsOf(this.theme));
+    drawShapeBlocks(graphics, this.shapes(shapes), inOrder, rowColorsOf(this.theme), this.drawing);
   }
 
   /** Element shapes in full; rows and the shapes that draw them in the theme's row colors. */
   shapeOutlines(graphics: Graphics, shapes: readonly ElementShape[]): void {
-    drawShapeOutlines(graphics, this.shapes(shapes), rowColorsOf(this.theme));
+    drawShapeOutlines(graphics, this.shapes(shapes), rowColorsOf(this.theme), this.drawing);
   }
 
   /** Relations as plain lines. */
@@ -121,19 +129,22 @@ export class Painter {
       graphics,
       notes.map((note) => paintedNote(note, theme)),
       [],
+      this.drawing,
     );
+    const width = arrowWidthOf(this.drawing);
     for (const arrow of arrows) {
       const { from, to, arrowhead } = arrow;
       graphics
         .moveTo(from.x, from.y)
         .lineTo(to.x, to.y)
-        .stroke({ color: theme.background, width: ARROW_WIDTH + CASING_EXTRA, cap: 'butt' });
-      arrowheadCasing(graphics, arrowhead, theme.background);
+        .stroke({ color: theme.background, width: width + CASING_EXTRA, cap: 'butt' });
+      arrowheadCasing(graphics, arrowhead, theme.background, width);
     }
     drawFreeShapes(
       graphics,
       [],
       arrows.map((arrow) => paintedArrow(arrow, theme)),
+      this.drawing,
     );
   }
 
@@ -147,6 +158,11 @@ export class Painter {
     let any = false;
     for (const line of ends) {
       if (!line.arrowhead) continue;
+      // An open arrowhead's casing is its two sides stroked wider, as its line's is.
+      if (line.arrowhead.open) {
+        arrowheadCasing(graphics, line.arrowhead, CASING, line.width);
+        continue;
+      }
       const { tip, left, right } = line.arrowhead;
       graphics.poly([tip.x, tip.y, left.x, left.y, right.x, right.y]);
       any = true;
@@ -204,6 +220,7 @@ export class Painter {
           recording ?? make,
           () => this.backdropOf(shape, lookups),
           shape.face ? face : undefined,
+          this.drawing,
         ),
       );
     }
@@ -217,14 +234,14 @@ export class Painter {
     records?: LabelPaint[],
   ): Container[] {
     const { relationLabelText: text, relationLabelBack: back } = this.theme;
-    const written = writeRelationLabels(lines, make, { text, back });
+    const written = writeRelationLabels(lines, make, { text, back }, this.drawing);
     if (records) for (const label of written) records.push({ label, role: 'relation' });
     return written;
   }
 
   /** The text of notes, tinted to read on the fill each note is drawn in. */
   noteTexts(notes: readonly NoteShape[], records?: LabelPaint[], make?: TextFactory): Container[] {
-    const texts = writeNoteTexts(notes, make);
+    const texts = writeNoteTexts(notes, make, this.drawing);
     texts.forEach((text, at) => {
       const note = notes[at] as NoteShape;
       tintLabel(text, noteColors(note, this.theme).text);
@@ -290,9 +307,23 @@ export class Painter {
   }
 }
 
-/** An arrowhead filled one unit wider all round. */
-function arrowheadCasing(graphics: Graphics, arrowhead: Arrowhead, color: string): void {
+/**
+ * An arrowhead filled one unit wider all round; an open one, its sides stroked that much wider than
+ * its line's `width`.
+ */
+function arrowheadCasing(
+  graphics: Graphics,
+  arrowhead: Arrowhead,
+  color: string,
+  width: number,
+): void {
   const { tip, left, right } = arrowhead;
+  if (arrowhead.open) {
+    graphics
+      .poly([left.x, left.y, tip.x, tip.y, right.x, right.y], false)
+      .stroke({ color, width: width + CASING_EXTRA, cap: 'round', join: 'round' });
+    return;
+  }
   graphics
     .poly([tip.x, tip.y, left.x, left.y, right.x, right.y])
     .fill(color)
@@ -303,11 +334,28 @@ const PAINTERS: Readonly<Record<ThemeName, Painter>> = {
   light: new Painter(THEMES.light.canvas),
   dark: new Painter(THEMES.dark.canvas),
 };
+/** The painters of other drawing defaults, one for each theme, made once for each. */
+const DRAWN_PAINTERS = new WeakMap<ResolvedDrawing, Partial<Record<ThemeName, Painter>>>();
 
-/** The painter of a theme: one for each of the app's themes. */
-export function painterOf(theme: CanvasTheme): Painter {
-  const known = PAINTERS[theme.name];
-  return known.theme === theme ? known : new Painter(theme);
+/**
+ * The painter of a theme and drawing defaults: one for each of the app's themes, for each drawing
+ * the canvas shows, so that a switch of either finds its painter made.
+ */
+export function painterOf(theme: CanvasTheme, drawing: ResolvedDrawing = BASE_DRAWING): Painter {
+  if (drawing === BASE_DRAWING) {
+    const known = PAINTERS[theme.name];
+    return known.theme === theme ? known : new Painter(theme);
+  }
+  let painters = DRAWN_PAINTERS.get(drawing);
+  if (painters === undefined) {
+    painters = {};
+    DRAWN_PAINTERS.set(drawing, painters);
+  }
+  const known = painters[theme.name];
+  if (known?.theme === theme) return known;
+  const made = new Painter(theme, drawing);
+  if (theme === THEMES[theme.name].canvas) painters[theme.name] = made;
+  return made;
 }
 
 /** What builds a drawing's geometry before it is shown: PixiJS's graphics context system. */

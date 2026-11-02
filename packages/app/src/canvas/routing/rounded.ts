@@ -8,6 +8,7 @@
  * read, and carries the spans the renderer and the exports draw: each straight run a span of its own,
  * each corner a quarter of a circle, smaller where the runs beside it are short.
  */
+import { BASE_DRAWING } from '../drawing';
 import type { Point, Rect } from '../geometry';
 import type { ElementShape, RelationLine } from '../scene';
 import type { CurveSpan } from './hand';
@@ -17,8 +18,11 @@ export type RoundedBecause = 'many' | 'crossing';
 
 /** The most automatic curved lines a container holds and still draws curved. */
 export const MOST_CURVES = 24;
-/** The radius of the corners of a line drawn with rounded corners, in canvas units. */
-export const CORNER_RADIUS = 16;
+/**
+ * The radius of the corners of a line drawn with rounded corners, in canvas units, where the drawing
+ * defaults say nothing else (their `lines.cornerRadius`, ADR 0086).
+ */
+export const CORNER_RADIUS = BASE_DRAWING.lines.cornerRadius;
 /** How far along a quarter circle's tangents a cubic span puts its control points, over its radius. */
 const KAPPA = 0.5523;
 
@@ -58,11 +62,20 @@ export function roundedCurve(route: readonly Point[], radius = CORNER_RADIUS): C
 
 /**
  * The line with the spans of its route, when it is drawn with rounded corners; the line itself
- * otherwise. Called wherever a line's route is replaced.
+ * otherwise, its corners `radius` round: the drawing defaults'. Called wherever a line's route is replaced.
  */
-export function withRoundedCorners(line: RelationLine): RelationLine {
-  if (line.rounded) line.curve = roundedCurve(line.route);
+export function withRoundedCorners(line: RelationLine, radius = CORNER_RADIUS): RelationLine {
+  if (line.rounded) line.curve = roundedCurve(line.route, radius);
+  if (radius !== CORNER_RADIUS) radii.set(line, radius);
   return line;
+}
+
+/** The radius each line was given its rounded corners with, where it is not `CORNER_RADIUS`. */
+const radii = new WeakMap<RelationLine, number>();
+
+/** The radius a line's rounded corners were drawn with: what a copy of it on a new route keeps. */
+export function cornerRadiusOf(line: RelationLine): number {
+  return radii.get(line) ?? CORNER_RADIUS;
 }
 
 function straight(from: Point, to: Point): CurveSpan {

@@ -34,6 +34,8 @@ export interface TextSpec {
   wrap?: number;
   /** The tallest the block may be: lines past it go, and the last one kept ends in "…". */
   room?: number;
+  /** How tall a line is, in ems: `LINE_HEIGHT` unless given, as the drawing defaults give it. */
+  lineHeight?: number;
 }
 
 /** A line laid out: its text and its baseline. */
@@ -51,7 +53,7 @@ export interface LaidOutText {
 
 /** Lays out a text: wrapped, cut to its room, each line with its baseline. */
 export function layOutText(spec: TextSpec): LaidOutText {
-  const lineHeight = spec.size * LINE_HEIGHT;
+  const lineHeight = spec.size * (spec.lineHeight ?? LINE_HEIGHT);
   let lines =
     spec.wrap === undefined
       ? [oneLine(spec.text)]

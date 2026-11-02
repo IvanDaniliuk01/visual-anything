@@ -12,7 +12,9 @@
  *
  * Pure, with no PixiJS, as the scene is.
  */
+import type { ResolvedDrawing } from '@visual-anything/core';
 import type { LevelOfDetail } from '@visual-anything/schema';
+import { BASE_DRAWING, roundedCornerRadius } from './drawing';
 import { t } from '../i18n';
 import { faceWritesName, type ShapeFace } from './faces';
 import { estimateWidth, fitText } from './fit';
@@ -76,8 +78,11 @@ export type Tagged = Parameters<typeof writesNameBelow>[0] & {
 };
 
 /** The corner radius of a name tag, as a rounded rectangle's is (`draw.ts`). */
-export function tagRadius(tag: { width: number; height: number }): number {
-  return Math.min(10, tag.width / 4, tag.height / 4);
+export function tagRadius(
+  tag: { width: number; height: number },
+  drawing: ResolvedDrawing = BASE_DRAWING,
+): number {
+  return roundedCornerRadius(drawing, tag.width, tag.height);
 }
 
 /**

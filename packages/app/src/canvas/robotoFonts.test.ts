@@ -25,7 +25,7 @@ describe('Roboto on the canvas (ADR 0083, F0)', () => {
     expect(robotoLoaded()).toBe(false);
   });
 
-  it('loads the five fonts from the bytes the app ships, under families of their own', async () => {
+  it('loads the six fonts from the bytes the app ships, under families of their own', async () => {
     const made: { family: string; bytes: unknown; descriptors: FontFaceDescriptors }[] = [];
     const added: unknown[] = [];
     class FakeFace {
@@ -48,6 +48,7 @@ describe('Roboto on the canvas (ADR 0083, F0)', () => {
       made.map(({ family, descriptors }) => [family, descriptors.weight, descriptors.style]),
     ).toEqual([
       [ROBOTO, '400', 'normal'],
+      [ROBOTO, '500', 'normal'],
       [ROBOTO, '700', 'normal'],
       [ROBOTO, '400', 'italic'],
       [ROBOTO, '700', 'italic'],
@@ -58,10 +59,10 @@ describe('Roboto on the canvas (ADR 0083, F0)', () => {
       expect(bytes).toBeInstanceOf(Uint8Array);
       expect(String.fromCharCode(...(bytes as Uint8Array).slice(0, 4))).toBe('wOFF');
     }
-    expect(added).toHaveLength(5);
+    expect(added).toHaveLength(6);
     // Loaded once, however often asked.
     await loadRobotoFonts();
-    expect(made).toHaveLength(5);
+    expect(made).toHaveLength(6);
   });
 
   it('never rejects: a font that fails to load leaves the system’s fonts', async () => {

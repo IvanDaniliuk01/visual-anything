@@ -14,18 +14,19 @@
  * Each text was fitted to its line by the scene (`fit.ts`), so none of them overlap.
  */
 import type { CanvasTextOptions, Graphics, TextStyleOptions } from 'pixi.js';
+import type { ResolvedDrawing } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import {
   HEADER_DETAIL_INSET,
-  HEADER_DETAIL_SIZE,
   HEADER_INSET,
-  HEADER_NAME_SIZE,
   HEADER_TOGGLE,
-  ROW_DETAIL_SIZE,
   ROW_ICON,
   ROW_INSET,
-  ROW_NAME_SIZE,
+  rowTextSizesOf,
+  type RowColumns,
 } from './fit';
+import { MONO_FAMILY } from './fontFamilies';
+import { BASE_DRAWING, fontFamilyOf, nameWeightOf, rowsCornerRadius } from './drawing';
 import { THEMES } from '../theme/themes';
 import { readableTextColors } from './colors';
 import { SHEET, bodyOf, grow, toggleRect, type Rect } from './geometry';
@@ -64,16 +65,13 @@ export function rowsFollowTheme(shape: ElementShape): boolean {
   return shape.rowCount !== undefined || shape.row !== undefined;
 }
 
-/** How wide a shape's border is, as `draw.ts` strokes it. */
-const BORDER = 1.5;
-/** How wide the rule under the header is, drawn inside the header so that no row covers it. */
-const RULE = 1.5;
-/** How far in from the border each row's band starts and ends. */
-const ROW_INSIDE = 1;
-const SEPARATOR = 1;
-
-/** The fonts text is drawn in, first available first, as `draw.ts` writes them. */
-const FONT = ['system-ui', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'];
+/**
+ * How far in from the border each row's band starts and ends, and how wide the line between two
+ * rows is. A table's border and the rule under its header are as wide as every shape's border, the
+ * drawing defaults' `shapes.borderWidth` (ADR 0086).
+ */
+export const ROW_INSIDE = 1;
+export const ROW_SEPARATOR = 1;
 
 /** Whether a shape draws its contents as rows. */
 export function drawsRows(shape: ElementShape): boolean {
@@ -126,6 +124,7 @@ export function drawRowsShape(
   graphics: Graphics,
   shape: ElementShape,
   colors: RowColors = LIGHT_ROWS,
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): boolean {
   if (isRow(shape)) {
     drawRow(graphics, shape, colors);
@@ -135,9 +134,9 @@ export function drawRowsShape(
   const body = bodyOf(shape);
   if (body !== shape.rect) {
     const sheet = { ...body, x: body.x + SHEET, y: body.y + SHEET };
-    drawTableBody(graphics, shape, sheet, false, colors);
+    drawTableBody(graphics, shape, sheet, false, colors, drawing);
   }
-  drawTableBody(graphics, shape, body, true, colors);
+  drawTableBody(graphics, shape, body, true, colors, drawing);
   return true;
 }
 
@@ -148,10 +147,12 @@ function drawTableBody(
   rect: Rect,
   header: boolean,
   colors: RowColors,
+  drawing: ResolvedDrawing,
 ): void {
   const { x, y, width, height } = rect;
   const rounded = shape.kind === 'rounded-rectangle';
-  const radius = Math.min(8, width / 4, height / 2);
+  const radius = rowsCornerRadius(drawing, width, height);
+  const border = drawing.shapes.borderWidth;
   const band = Math.min(shape.header ?? ROWS_HEADER, height);
   if (rounded) graphics.roundRect(x, y, width, height, radius).fill(colors.body);
   else graphics.rect(x, y, width, height).fill(colors.body);
@@ -171,9 +172,9 @@ function drawTableBody(
     } else {
       graphics.rect(x, y, width, band).fill(shape.fill);
     }
-    if (band < height) graphics.rect(x, y + band - RULE, width, RULE).fill(shape.stroke);
+    if (band < height) graphics.rect(x, y + band - border, width, border).fill(shape.stroke);
   }
-  const stroke = { color: shape.stroke, width: BORDER };
+  const stroke = { color: shape.stroke, width: border };
   if (rounded) graphics.roundRect(x, y, width, height, radius).stroke(stroke);
   else graphics.rect(x, y, width, height).stroke(stroke);
 }
@@ -184,7 +185,7 @@ function drawRow(graphics: Graphics, shape: ElementShape, colors: RowColors): vo
   const left = x + ROW_INSIDE;
   const inner = Math.max(0, width - 2 * ROW_INSIDE);
   graphics.rect(left, y, inner, height).fill(shape.fill);
-  if ((shape.row ?? 0) > 0) graphics.rect(left, y, inner, SEPARATOR).fill(colors.separator);
+  if ((shape.row ?? 0) > 0) graphics.rect(left, y, inner, ROW_SEPARATOR).fill(colors.separator);
 }
 
 /**
@@ -194,13 +195,21 @@ function drawRow(graphics: Graphics, shape: ElementShape, colors: RowColors): vo
 export function writeRowsText(
   shape: ElementShape,
   write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+  drawing: ResolvedDrawing = BASE_DRAWING,
 ): boolean {
   const fitted = shape.fitted;
+  const sizes = rowTextSizesOf(drawing);
+  const oneLine = (fontSize: number, fill: Color, fontWeight: TextStyleOptions['fontWeight']) =>
+    lineStyle(fontSize, fill, fontWeight, drawing);
   if (isRow(shape)) {
     if (!fitted) return true;
     const { x, y, width, height } = shape.rect;
     const colors = readableTextColors(shape.fill);
     const middle = y + height / 2;
+    if (shape.columns) {
+      writeRowColumns(shape, shape.columns, write, colors.detail, drawing);
+      return true;
+    }
     if (fitted.name !== '') {
       write(
         {
@@ -210,7 +219,7 @@ export function writeRowsText(
           x: x + ROW_INSET + (showsPicture(shape) ? ROW_ICON : 0),
           y: middle,
           // In the detail's color, which a theme switch tints it to again, as it is written small.
-          style: oneLine(ROW_NAME_SIZE, colors.detail),
+          style: oneLine(sizes.rowName, colors.detail, 'normal'),
         },
         true,
         height,
@@ -223,7 +232,7 @@ export function writeRowsText(
           anchor: { x: 1, y: 0.5 },
           x: x + width - ROW_INSET,
           y: middle,
-          style: oneLine(ROW_DETAIL_SIZE, colors.detail),
+          style: oneLine(sizes.rowDetail, colors.detail, 'normal'),
         },
         true,
         height,
@@ -244,7 +253,7 @@ export function writeRowsText(
         anchor: { x: 0, y: 0.5 },
         x: body.x + HEADER_INSET + headerShift(shape),
         y: middle,
-        style: oneLine(HEADER_NAME_SIZE, colors.name, '600'),
+        style: oneLine(sizes.headerName, colors.name, nameWeightOf(drawing)),
       },
       false,
       band,
@@ -258,7 +267,7 @@ export function writeRowsText(
         anchor: { x: 1, y: 0.5 },
         x: body.x + body.width - HEADER_DETAIL_INSET - toggle,
         y: middle,
-        style: oneLine(HEADER_DETAIL_SIZE, colors.detail),
+        style: oneLine(sizes.headerDetail, colors.detail, 'normal'),
       },
       true,
       band,
@@ -267,12 +276,46 @@ export function writeRowsText(
   return true;
 }
 
-function oneLine(
+/**
+ * Writes a row's texts in its table's columns (A5.1): its name at the left, after its picture; its
+ * column's type in Roboto Mono, one size under the row's name, from the type column's left edge, the
+ * same x for every row of the table; its badges from the badges column's, at the right. A face keeps
+ * its own layout (ADR 0083), and draws in place of all three.
+ */
+function writeRowColumns(
+  shape: ElementShape,
+  columns: RowColumns,
+  write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+  color: Color,
+  drawing: ResolvedDrawing,
+): void {
+  const { x, y, height } = shape.rect;
+  const middle = y + height / 2;
+  const sizes = rowTextSizesOf(drawing);
+  const at = (text: string, left: number, style: TextStyleOptions) => {
+    if (text === '') return;
+    write({ text, anchor: { x: 0, y: 0.5 }, x: left, y: middle, style }, true, height);
+  };
+  at(
+    columns.name,
+    x + ROW_INSET + (showsPicture(shape) ? ROW_ICON : 0),
+    lineStyle(sizes.rowName, color, 'normal', drawing),
+  );
+  at(columns.type, x + columns.typeX, {
+    ...lineStyle(sizes.rowDetail, color, 'normal', drawing),
+    fontFamily: [...MONO_FAMILY],
+  });
+  at(columns.badges, x + columns.badgesX, lineStyle(sizes.rowDetail, color, 'normal', drawing));
+}
+
+function lineStyle(
   fontSize: number,
   fill: Color,
-  fontWeight: TextStyleOptions['fontWeight'] = 'normal',
+  fontWeight: TextStyleOptions['fontWeight'],
+  drawing: ResolvedDrawing,
 ): TextStyleOptions {
-  return { fontFamily: FONT, fontSize, fontWeight, fill, align: 'left', wordWrap: false };
+  const fontFamily = fontFamilyOf(drawing);
+  return { fontFamily, fontSize, fontWeight, fill, align: 'left', wordWrap: false };
 }
 
 /**
@@ -284,9 +327,10 @@ export function levelWithRows<L extends 0 | 1 | 2>(
   shapes: readonly ElementShape[],
   wanted: L,
   scale: number,
+  rowsFrom = ROWS_FROM,
 ): L | 1 | 2 {
   if (wanted === 0 || !holdsRows(shapes)) return wanted;
-  return scale >= ROWS_FROM ? 2 : 1;
+  return scale >= rowsFrom ? 2 : 1;
 }
 
 const rowsInTiles = new WeakMap<readonly ElementShape[], boolean>();

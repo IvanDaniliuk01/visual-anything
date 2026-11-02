@@ -1,0 +1,26 @@
+diff --git a/lib/scene/text-bitmap/DynamicBitmapFont.js b/lib/scene/text-bitmap/DynamicBitmapFont.js
+index c7aa5d01d26ea62a30858cbf1fc815310e8c77da..e29df480b6aa740f76c7078c84daea4c41619e47 100644
+--- a/lib/scene/text-bitmap/DynamicBitmapFont.js
++++ b/lib/scene/text-bitmap/DynamicBitmapFont.js
+@@ -177,7 +177,7 @@ const _DynamicBitmapFont = class _DynamicBitmapFont extends AbstractBitmapFont.A
+         if (!c1) c1 = measureCache[first] = context.measureText(first).width;
+         let c2 = measureCache[second];
+         if (!c2) c2 = measureCache[second] = context.measureText(second).width;
+-        let total = context.measureText(first + second).width;
++        let total = context.measureText(second + first).width;
+         let amount = total - (c1 + c2);
+         if (amount && this.chars[first]) {
+           this.chars[first].kerning[second] = amount / fontScale;
+diff --git a/lib/scene/text-bitmap/DynamicBitmapFont.mjs b/lib/scene/text-bitmap/DynamicBitmapFont.mjs
+index 4f3c4db3718b8863295eb51ea94291dce180d06f..4c2d96c8d6db20383f9fe8eb2c5fcc301c57dcf4 100644
+--- a/lib/scene/text-bitmap/DynamicBitmapFont.mjs
++++ b/lib/scene/text-bitmap/DynamicBitmapFont.mjs
+@@ -175,7 +175,7 @@ const _DynamicBitmapFont = class _DynamicBitmapFont extends AbstractBitmapFont {
+         if (!c1) c1 = measureCache[first] = context.measureText(first).width;
+         let c2 = measureCache[second];
+         if (!c2) c2 = measureCache[second] = context.measureText(second).width;
+-        let total = context.measureText(first + second).width;
++        let total = context.measureText(second + first).width;
+         let amount = total - (c1 + c2);
+         if (amount && this.chars[first]) {
+           this.chars[first].kerning[second] = amount / fontScale;

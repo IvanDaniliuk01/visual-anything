@@ -17,7 +17,7 @@ import { outlineAt } from '../outlines';
 import { headerMiddle } from '../rows';
 import { laidOutRect } from '../overlays/decorate';
 import { innerPointOf } from '../routing/outline-ends';
-import { CONTENTS_ORIGIN, type ElementShape, type Scene } from '../scene';
+import { CONTENTS_ORIGIN, drawingOfScene, type ElementShape, type Scene } from '../scene';
 import { connectionPointsOf, handPortsOf } from './ports';
 import {
   LAYOUT_STEP,
@@ -73,6 +73,8 @@ export function layoutInput(
   scope: LayoutScope,
 ): LayoutInput | undefined {
   const all = scene.shapes;
+  // Containers leave the drawing defaults' room around their contents (ADR 0086).
+  const padding = drawingOfScene(scene).containers.padding;
   let shapes: readonly ElementShape[] = all;
   let free: (shape: ElementShape) => boolean;
   switch (scope.kind) {
@@ -183,7 +185,7 @@ export function layoutInput(
     if (shape.rowCount !== undefined)
       laidShape.headerAt = headerMiddle(shape.rect, shape.header) - shape.rect.y;
     // A drawing with parts is one block, as large as its header, its picture and its contents.
-    if (shape.picture) Object.assign(laidShape, drawingFields(shape, laidShape));
+    if (shape.picture) Object.assign(laidShape, drawingFields(shape, laidShape, padding));
     if (anchored) {
       const holder = parent === undefined ? undefined : shapes[parent];
       const partAt = holder && partPlace(shape, holder);
@@ -210,6 +212,7 @@ export function layoutInput(
     relations,
     obstacles,
     ...(scope.kind === 'new' ? {} : { onePass: true as const }),
+    ...(padding === CONTENTS_ORIGIN.x ? {} : { padding }),
   };
 }
 
@@ -242,14 +245,15 @@ export function tagReachOf(
 function drawingFields(
   shape: ElementShape,
   laid: LayoutShape,
+  padding: number,
 ): Pick<LayoutShape, 'pictureBottom' | 'baseWidth' | 'baseHeight'> {
   const picture = shape.picture as NonNullable<ElementShape['picture']>;
   const right = picture.rect.x - shape.rect.x + picture.rect.width;
   const bottom = picture.rect.y - shape.rect.y + picture.rect.height;
   return {
     pictureBottom: bottom,
-    baseWidth: Math.max(laid.baseWidth ?? laid.width, right + CONTENTS_ORIGIN.x),
-    baseHeight: Math.max(laid.baseHeight ?? laid.height, bottom + CONTENTS_ORIGIN.x),
+    baseWidth: Math.max(laid.baseWidth ?? laid.width, right + padding),
+    baseHeight: Math.max(laid.baseHeight ?? laid.height, bottom + padding),
   };
 }
 

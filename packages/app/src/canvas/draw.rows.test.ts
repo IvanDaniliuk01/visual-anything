@@ -2,6 +2,8 @@ import { Graphics, type CanvasTextOptions } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
 import { VIEW, usersAndOrders } from '../test/tables';
 import { drawShapeBlocks, drawShapeOutlines, writeShapeLabels, type TextFactory } from './draw';
+import { estimateWidth, monoWidth } from './fit';
+import { ROBOTO_MONO } from './robotoFonts';
 import { ROWS_FROM } from './rows';
 import { LIGHT_ROWS, levelWithRows, rowsBlocks } from './rowsDraw';
 import { buildScene, type ElementShape } from './scene';
@@ -82,20 +84,47 @@ describe('writing a table and its rows', () => {
     expect(written.map((each) => each.text)).toEqual(['users']);
     written.length = 0;
     writeShapeLabels([users, id, email], true, make);
-    expect(written.map((each) => each.text)).toEqual(['users', 'id', 'uuid · PK', 'email', 'text']);
+    // Each row's column type, then its badges, in columns of their own (A5.1).
+    expect(written.map((each) => each.text)).toEqual([
+      'users',
+      'id',
+      'uuid',
+      'PK',
+      'email',
+      'text',
+    ]);
   });
 
-  it('writes a row’s name on the left and its detail on the right, small and on one line', () => {
+  it('writes a row’s name on the left, its type and its badges in columns, small and on one line', () => {
     written.length = 0;
     writeShapeLabels([id], true, make);
-    const [name, detail] = written;
+    const [name, type, badges] = written;
+    const columns = id.columns;
+    expect(columns).toBeDefined();
     expect(name?.kind).toBe('detail');
     expect(name?.options.x).toBe(id.rect.x + 10);
     expect(name?.options.anchor).toEqual({ x: 0, y: 0.5 });
-    expect(detail?.options.x).toBe(id.rect.x + id.rect.width - 10);
-    expect(detail?.options.anchor).toEqual({ x: 1, y: 0.5 });
+    expect(type?.options.x).toBe(id.rect.x + (columns?.typeX ?? 0));
+    expect(type?.options.anchor).toEqual({ x: 0, y: 0.5 });
+    // The badges' column ends at the row's right inset.
+    expect(badges?.options.x).toBe(id.rect.x + (columns?.badgesX ?? 0));
     expect(name?.options.style).toMatchObject({ fontSize: 12, wordWrap: false });
-    expect(detail?.options.style).toMatchObject({ fontSize: 11, wordWrap: false });
+    expect(type?.options.style).toMatchObject({ fontSize: 11, wordWrap: false });
+    expect((type?.options.style as { fontFamily: string[] }).fontFamily[0]).toBe(ROBOTO_MONO);
+    expect(badges?.options.style).toMatchObject({ fontSize: 11, wordWrap: false });
+  });
+
+  it('starts every row’s type at one x, its badges after, whatever the type’s length', () => {
+    const rows = [id, email];
+    expect(new Set(rows.map((row) => row.columns?.typeX)).size).toBe(1);
+    expect(new Set(rows.map((row) => row.columns?.badgesX)).size).toBe(1);
+    const typeX = id.columns?.typeX ?? 0;
+    const badgesX = id.columns?.badgesX ?? 0;
+    // The type column holds the longest type, "uuid", in Roboto Mono at 11; the badges after it.
+    expect(badgesX - typeX).toBeGreaterThanOrEqual(monoWidth('uuid', 11));
+    expect(badgesX + estimateWidth('PK', 11)).toBeCloseTo(id.rect.width - 10);
+    expect(email.columns).toMatchObject({ name: 'email', type: 'text', badges: '' });
+    expect(id.columns).toMatchObject({ name: 'id', type: 'uuid', badges: 'PK' });
   });
 
   it('writes the header’s name centered on its band', () => {

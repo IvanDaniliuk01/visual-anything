@@ -21,7 +21,10 @@ export type FontVariant = 'regular' | 'bold' | 'italic' | 'boldItalic' | 'mono';
 /** How wide a text is in a font variant at a size. */
 export type Measure = (text: string, variant: FontVariant, size: number) => number;
 
-/** How tall a line is, in ems. */
+/**
+ * How tall a line is, in ems, where the drawing defaults say nothing else: a paragraph laid out with
+ * their `text.lineHeight` takes it in its place (ADR 0086).
+ */
 export const LINE_HEIGHT = 1.3;
 /** How far below the middle of its line a line's baseline lies, in ems (`export/text-layout.ts`). */
 export const BASELINE_BELOW_MIDDLE = 0.35;
@@ -86,6 +89,8 @@ export interface LayoutOptions {
   maxLines?: number;
   /** The tallest it may be: lines past it go, and the last one kept ends in "…". */
   maxHeight?: number;
+  /** How tall a line of a paragraph is, in ems: `LINE_HEIGHT` unless given. */
+  lineHeight?: number;
 }
 
 /** The font variant a run is drawn in: code is monospace whatever else it takes. */
@@ -173,6 +178,8 @@ interface ParagraphAt {
   /** The pieces a first line starts with, as a list item's marker. */
   lead?: LaidPiece[];
   leadBands?: LaidBand[];
+  /** How tall a line is, in ems: `LINE_HEIGHT` unless given. */
+  lineHeight?: number | undefined;
 }
 
 /**
@@ -186,7 +193,7 @@ function paragraph(
   maxLines = Infinity,
 ): boolean {
   const { measure, size } = at;
-  const lineHeight = size * LINE_HEIGHT;
+  const lineHeight = size * (at.lineHeight ?? LINE_HEIGHT);
   const widthOf = (fragment: Fragment) => measure(fragment.text, fragment.variant, size);
   let current: Fragment[] = [];
   let currentWidth = 0;

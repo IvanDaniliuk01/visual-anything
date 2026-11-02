@@ -22,12 +22,12 @@ import {
   type LaidText,
 } from '../text/layout';
 import { emphasisBacks } from './colors';
-import { ROBOTO_MONO, SANS_FAMILY } from './robotoFonts';
+import { MONO_FAMILY, SANS_FAMILY } from './robotoFonts';
 import { canvasMeasure } from './textBlock';
 
 /** The fonts the family is drawn in, first available first: Roboto, then the system's until it loads. */
 const SANS = [...SANS_FAMILY];
-const MONO = [ROBOTO_MONO, 'ui-monospace', 'Cascadia Mono', 'Roboto Mono', 'Consolas', 'monospace'];
+const MONO = [...MONO_FAMILY];
 
 const FONT_NAMES: Record<FontVariant, string> = {
   regular: 'visual-anything-text',

@@ -11,6 +11,9 @@
  *   package `roboto-fontface` 0.10.0; `fonts/LICENSE-roboto.txt` holds their license. Text emphasis
  *   (ADR 0082) adds Roboto Italic and Bold Italic, from the same package, and Roboto Mono 3.000, all
  *   Apache-2.0, in `fonts/roboto-emphasis.json`: loaded and embedded only when a text uses them.
+ *   Roboto Medium, from the same package, in `fonts/roboto-medium.json`, is loaded and embedded only
+ *   when the drawing writes names at weight 500 (ADR 0086), which the SVG marks with the family
+ *   `MEDIUM_FAMILY`.
  * - **Pictures.** SVG pictures are drawn as vectors, PNG and JPEG bitmaps as images; WebP, which PDF
  *   cannot hold, and the silhouettes of bitmaps, which need filters, are said to be lost.
  * - **The page** is the size of the view, a canvas unit to a CSS pixel, three quarters of a point, and
@@ -27,7 +30,7 @@ import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
 import { decodeBase64, encodeBase64 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { t, type PluralText } from '../i18n';
-import { svgPieces, writeSvg, type SvgDrawing, type SvgOptions } from './svg';
+import { MEDIUM_FAMILY, svgPieces, writeSvg, type SvgDrawing, type SvgOptions } from './svg';
 import { usesEmphasisFonts } from './emphasis-svg';
 
 /** Points to a canvas unit: a CSS pixel is three quarters of a point. */
@@ -129,6 +132,13 @@ async function libraries(): Promise<{
   };
 }
 
+/** Roboto Medium, loaded the first time a PDF writes names at weight 500. */
+async function mediumFont(): Promise<Uint8Array> {
+  const medium = decodeBase64((await import('./fonts/roboto-medium.json')).default.medium);
+  if (!medium) throw new Error('The fonts the PDF embeds could not be read.');
+  return medium;
+}
+
 /** The fonts text emphasis adds (ADR 0082), loaded the first time a PDF has a text that uses them. */
 async function emphasisFonts(): Promise<{
   italic: Uint8Array;
@@ -145,8 +155,18 @@ async function emphasisFonts(): Promise<{
   return { italic, boldItalic, mono };
 }
 
-/** The embedded font a text of this family, weight and style is written in. */
-export function fontFor(family: string, bold: boolean, italic: boolean, more: boolean): string {
+/**
+ * The embedded font a text of this family, weight and style is written in: Roboto Medium, when it is
+ * embedded, for upright text the SVG marks with its family.
+ */
+export function fontFor(
+  family: string,
+  bold: boolean,
+  italic: boolean,
+  more: boolean,
+  medium = false,
+): string {
+  if (medium && !italic && family.includes(MEDIUM_FAMILY)) return 'va-medium';
   if (more && family.includes('Mono')) return 'va-mono';
   if (more && italic) return bold ? 'va-bold-italic' : 'va-italic';
   return bold ? 'va-bold' : 'va-regular';
@@ -232,6 +252,7 @@ export async function pdfOfSvg(
   const { PDFDocument, svgToPdf, regular, bold } = await libraries();
   const uses = usesEmphasisFonts(drawing.text);
   const more = uses.italic || uses.mono ? await emphasisFonts() : undefined;
+  const medium = drawing.text.includes(MEDIUM_FAMILY) ? await mediumFont() : undefined;
   signal?.throwIfAborted();
 
   const natural = {
@@ -268,6 +289,7 @@ export async function pdfOfSvg(
   });
   document.registerFont('va-regular', regular);
   document.registerFont('va-bold', bold);
+  if (medium) document.registerFont('va-medium', medium);
   if (more) {
     document.registerFont('va-italic', more.italic);
     document.registerFont('va-bold-italic', more.boldItalic);
@@ -301,7 +323,7 @@ export async function pdfOfSvg(
       height: natural.height,
       assumePt: false,
       fontCallback: (family, isBold, isItalic) =>
-        fontFor(family, isBold, isItalic, more !== undefined),
+        fontFor(family, isBold, isItalic, more !== undefined, medium !== undefined),
       warningCallback: (warning) => warnings.push(warning),
     });
     await pause();

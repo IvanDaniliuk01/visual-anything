@@ -113,6 +113,11 @@ export interface LayoutInput {
    * arranges each container on its own.
    */
   onePass?: true;
+  /**
+   * The room containers leave around their contents, the drawing defaults' `containers.padding`
+   * (ADR 0086); absent, `CONTENTS_ORIGIN`'s.
+   */
+  padding?: number;
 }
 
 /** Where one shape that layout moved goes. */
