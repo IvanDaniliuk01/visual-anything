@@ -46,7 +46,7 @@ const SEGMENTS = 24;
 type Axis = 'x' | 'y' | 'z';
 
 /** One piece of geometry, before it joins a part's primitive. */
-interface Piece {
+export interface Piece {
   positions: number[];
   normals: number[];
   indices: number[];
@@ -57,7 +57,7 @@ interface Piece {
  * nearest the box's middle is then the middle of a face across its thinnest side, the first of +X,
  * +Y and +Z where two tie, which face the camera: the part's point, where relations end, shows.
  */
-function box(min: Vec3, max: Vec3): Piece {
+export function box(min: Vec3, max: Vec3): Piece {
   const piece: Piece = { positions: [], normals: [], indices: [] };
   const faces: { normal: Vec3; corners: Vec3[] }[] = [
     {
@@ -215,7 +215,7 @@ function cylinder(axis: Axis, center: [number, number], radius: number, from: nu
 }
 
 /** Pieces joined into one primitive of a material. */
-function primitive(material: number, ...pieces: Piece[]): CleanPrimitive {
+export function primitive(material: number, ...pieces: Piece[]): CleanPrimitive {
   const positions: number[] = [];
   const normals: number[] = [];
   const indices: number[] = [];
@@ -249,7 +249,7 @@ function linear(hex: string): [number, number, number, number] {
   return [channel(1), channel(3), channel(5), 1];
 }
 
-function material(hex: string, metallic: number, roughness: number): CleanMaterial {
+export function material(hex: string, metallic: number, roughness: number): CleanMaterial {
   return {
     baseColorFactor: linear(hex),
     metallicFactor: metallic,

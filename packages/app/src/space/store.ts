@@ -15,6 +15,7 @@ import type { ViewSpace } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { panBy } from '../canvas/camera';
 import type { CanvasCamera } from '../view-state/canvas';
+import { JointGlides } from './joint-glides';
 import { SpaceCameraMoves } from './moves';
 
 /** The narrowest the panel is, in CSS pixels. */
@@ -98,6 +99,8 @@ export class SpacePanelStore {
    * guidance, framing and playback make; and where each panel last drew from.
    */
   readonly moves: SpaceCameraMoves;
+  /** The glides of each view's panel's joints (`joint-glides.ts`), which tours and Back to stored positions make. */
+  readonly joints: JointGlides;
 
   constructor(options: SpacePanelStoreOptions = {}) {
     this.frames = options.frames ?? {
@@ -107,6 +110,7 @@ export class SpacePanelStore {
     this.windowWidth = options.windowWidth ?? (() => window.innerWidth);
     this.now = options.now ?? (() => performance.now());
     this.moves = new SpaceCameraMoves(this, this.frames, this.now);
+    this.joints = new JointGlides(this, this.frames, this.now);
   }
 
   readonly subscribe = (listener: () => void): (() => void) => {
@@ -133,6 +137,7 @@ export class SpacePanelStore {
     if (!this.byView.has(viewId)) return;
     this.framings.delete(viewId);
     this.moves.forget(viewId);
+    this.joints.stop(viewId);
     this.resizing(() => this.byView.delete(viewId));
   }
 

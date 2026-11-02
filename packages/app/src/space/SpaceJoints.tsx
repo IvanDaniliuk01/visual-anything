@@ -37,7 +37,7 @@ export function SpaceJoints({ joints, control, say, readOnly = false }: SpaceJoi
   const region = useId();
   const [open, setOpen] = useState(true);
   const changed = changedPositions(joints, control.positions);
-  const given = control.positions.size > 0;
+  const given = control.given;
   const nameOf = (id: Id) => joints.find((joint) => joint.element === id)?.name ?? id;
 
   const keep = async () => {

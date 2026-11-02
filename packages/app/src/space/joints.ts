@@ -10,6 +10,8 @@ import {
   definitionsIn,
   jointMotionOf,
   modelIndexOf,
+  TOUR_MOVE_TIME,
+  TOUR_MOVE_TIME_PER_UNIT,
   type Command,
   type JointMotion,
   type ProjectSnapshot,
@@ -135,4 +137,86 @@ export function positionsBetween(
     between.set(joint.element, given + (joint.stored - given) * eased);
   }
   return between;
+}
+
+/** Joints' positions as a view state keeps them (`ViewSpace.joints`), by joint. */
+export type SavedJoints = Readonly<Record<Id, number>>;
+
+/** The positions a view state's joints give, as the panel hands them to `spaceOf`. */
+export function positionsOfSaved(joints: SavedJoints | undefined): JointPositions {
+  if (joints === undefined) return NO_POSITIONS;
+  const entries = Object.entries(joints);
+  return entries.length === 0 ? NO_POSITIONS : new Map(entries);
+}
+
+/** A joint's stored position, or 0, drawn within its limits; 0 for what is no joint that moves. */
+export function storedPosition(project: ProjectSnapshot, joint: Id): number {
+  const element = modelIndexOf(project).element(joint);
+  return (element && jointMotionOf(element, definitionsIn(project))?.position) ?? 0;
+}
+
+/**
+ * The positions `eased` of the way from `from` to `to`, each joint either names going from or to
+ * its stored position where the other leaves it out (`stored`); `to` itself once the way is done.
+ */
+export function savedJointsBetween(
+  from: SavedJoints | undefined,
+  to: SavedJoints | undefined,
+  eased: number,
+  stored: (joint: Id) => number,
+): SavedJoints | undefined {
+  if (eased >= 1) return to;
+  const between: Record<Id, number> = {};
+  for (const joint of new Set([...Object.keys(from ?? {}), ...Object.keys(to ?? {})])) {
+    const a = from?.[joint] ?? stored(joint);
+    const b = to?.[joint] ?? stored(joint);
+    between[joint] = a + (b - a) * eased;
+  }
+  return between;
+}
+
+/** Whether two views of the joints' positions give the same, none and an empty one alike. */
+export function sameSavedJoints(a: SavedJoints | undefined, b: SavedJoints | undefined): boolean {
+  const left = Object.entries(a ?? {});
+  if (left.length !== Object.keys(b ?? {}).length) return false;
+  return left.every(([joint, position]) => b?.[joint] === position);
+}
+
+/** How far, in degrees, a joint that turns travels for each unit of a tour step's glide. */
+const TURN_UNIT = 30;
+/** How far, in meters, a joint that slides travels for each unit of a tour step's glide. */
+const SLIDE_UNIT = 0.1;
+/** How long a tour step's joints glide for nothing travelled, in milliseconds. */
+export const JOINT_STEP_TIME = TOUR_MOVE_TIME;
+/** How much longer they glide for each unit travelled, in milliseconds. */
+export const JOINT_STEP_TIME_PER_UNIT = TOUR_MOVE_TIME_PER_UNIT;
+/** The longest a tour step's joints glide, in milliseconds. */
+export const MAX_JOINT_STEP_TIME = 1200;
+
+/**
+ * How long a tour step's joints glide from `from` to `to` (ADR 0090, as ADR 0084's glides time a
+ * shape's): {@link JOINT_STEP_TIME} plus {@link JOINT_STEP_TIME_PER_UNIT} for each 30° the joint that
+ * travels farthest turns, or each 10 cm it slides, at most {@link MAX_JOINT_STEP_TIME}; 0 when no
+ * joint moves.
+ */
+export function jointStepGlide(
+  project: ProjectSnapshot,
+  from: SavedJoints | undefined,
+  to: SavedJoints | undefined,
+): number {
+  const index = modelIndexOf(project);
+  const definitions = definitionsIn(project);
+  let units = 0;
+  let moves = false;
+  for (const joint of new Set([...Object.keys(from ?? {}), ...Object.keys(to ?? {})])) {
+    const element = index.element(joint);
+    const motion = element && jointMotionOf(element, definitions);
+    const stored = motion?.position ?? 0;
+    const travel = Math.abs((to?.[joint] ?? stored) - (from?.[joint] ?? stored));
+    if (travel === 0) continue;
+    moves = true;
+    units = Math.max(units, travel / (motion?.kind === 'prismatic' ? SLIDE_UNIT : TURN_UNIT));
+  }
+  if (!moves) return 0;
+  return Math.min(MAX_JOINT_STEP_TIME, JOINT_STEP_TIME + JOINT_STEP_TIME_PER_UNIT * units);
 }

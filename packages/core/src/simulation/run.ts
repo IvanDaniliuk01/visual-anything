@@ -301,5 +301,9 @@ function clampTicks(ticks: number): number {
 
 /** How long a tick is, written as JSON, as its budget counts it. */
 function tickText(tick: SimulatedTick): number {
-  return JSON.stringify(tick.values).length + JSON.stringify(tick.marks).length;
+  return (
+    JSON.stringify(tick.values).length +
+    JSON.stringify(tick.marks).length +
+    (tick.joints === undefined ? 0 : JSON.stringify(tick.joints).length)
+  );
 }

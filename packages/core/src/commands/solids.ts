@@ -297,9 +297,9 @@ function checkedParts(value: unknown): SolidPart[] {
   return value.map((each, at) => {
     const part = each as Record<string, unknown> | null;
     if (typeof part !== 'object' || part === null)
-      invalidSolid('A part is its name, its holder and its point.');
+      invalidSolid('A part is its name, its holder, its point and its origin.');
     for (const key of Object.keys(part)) {
-      if (key !== 'name' && key !== 'parent' && key !== 'point')
+      if (key !== 'name' && key !== 'parent' && key !== 'point' && key !== 'origin')
         invalidSolid(`A part holds no "${key}".`);
     }
     if (typeof part.name !== 'string' || !SOLID_PART_NAME.test(part.name)) {
@@ -322,6 +322,8 @@ function checkedParts(value: unknown): SolidPart[] {
     }
     if (part.point !== undefined)
       result.point = checkedPoint(part.point, `Part "${part.name}"'s point`);
+    if (part.origin !== undefined)
+      result.origin = checkedPoint(part.origin, `Part "${part.name}"'s origin`);
     return result;
   });
 }

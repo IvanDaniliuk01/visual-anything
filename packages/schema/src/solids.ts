@@ -56,6 +56,11 @@ export interface SolidPart {
    * is written. Left out for a part that draws nothing of its own.
    */
   point?: SpacePoint;
+  /**
+   * Where the node's origin is at rest, in the solid's coordinates: what a joint anchored to it turns
+   * about (ADR 0090). Left out in a definition written before it was kept, where its point stands in.
+   */
+  origin?: SpacePoint;
 }
 
 /** How a solid is looked at: from a direction, fitted to its bounds (ADR 0075). */

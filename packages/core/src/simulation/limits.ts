@@ -20,6 +20,8 @@ export const SIMULATION_LIMITS = Object.freeze({
   stateDepth: 16,
   /** The most marks one tick answers. */
   marks: 64,
+  /** The most joints' positions one tick answers (ADR 0090), as a view state gives at most. */
+  joints: 200,
   /** The longest string a simulated value may be, and the longest sentence `done` may say. */
   valueText: 200,
   doneText: 200,

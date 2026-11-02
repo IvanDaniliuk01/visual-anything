@@ -181,10 +181,10 @@ function moved(
   const motions = motionsOf(
     project,
     new Map(
-      [...rest].map(([id, { entry }]) => [
-        id,
-        entry.in === undefined ? { matrix: entry.matrix } : { matrix: entry.matrix, in: entry.in },
-      ]),
+      [...rest].map(([id, { entry }]) => {
+        const matrix = frameOf(entry, rest);
+        return [id, entry.in === undefined ? { matrix } : { matrix, in: entry.in }];
+      }),
     ),
     positions,
   );
@@ -200,6 +200,23 @@ function moved(
     );
   }
   return { placed, motions, rest };
+}
+
+/**
+ * The frame a joint turns in (ADR 0090): where it is at rest, but for an anchored part whose solid
+ * keeps its node's origin, at that origin rather than at its point, so that it turns about its axis
+ * while relations keep ending at its point.
+ */
+function frameOf(entry: SpaceEntry, rest: ReadonlyMap<Id, { entry: SpaceEntry }>): Matrix {
+  if (!entry.part || entry.in === undefined) return entry.matrix;
+  const part = rest.get(entry.in)?.entry.solid?.definition.parts[entry.part.index];
+  const origin = part?.origin;
+  if (!origin) return entry.matrix;
+  const point = part.point ?? { x: 0, y: 0, z: 0 };
+  return multiply(
+    entry.matrix,
+    matrixOf({ x: origin.x - point.x, y: origin.y - point.y, z: origin.z - point.z }),
+  );
 }
 
 /**

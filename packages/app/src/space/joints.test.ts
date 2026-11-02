@@ -32,6 +32,21 @@ const world = (positions?: ReadonlyMap<string, number>, of: ProjectSnapshot = pr
   spaceOf(of, undefined, undefined, positions);
 const at = (space: Space, element: string) => pointInSpace(space, element) as SpacePoint;
 const distance = (a: SpacePoint, b: SpacePoint) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+/** Where a joint turns about in World: its part's node origin, in the arm's frame (ADR 0090). */
+const pivotOf = (space: Space, joint: string): SpacePoint => {
+  const origin = project.packages
+    .flatMap((file) => file.solids ?? [])
+    .flatMap((solid) => solid.parts)
+    .find((part) => part.name === joint)?.origin as SpacePoint;
+  const m = space.entries.get('arm')?.matrix ?? [];
+  const [a = 0, b = 0, c = 0, , d = 0, e = 0, f = 0, , g = 0, h = 0, i = 0, , x = 0, y = 0, z = 0] =
+    m;
+  return {
+    x: a * origin.x + d * origin.y + g * origin.z + x,
+    y: b * origin.x + e * origin.y + h * origin.z + y,
+    z: c * origin.x + f * origin.y + i * origin.z + z,
+  };
+};
 
 describe('the joints the panel shows', () => {
   it('gives a slider to each joint it shows, in the order it reaches them, ranged by its limits', () => {
@@ -132,7 +147,7 @@ describe('the robot-arm sample’s joints', () => {
   it('turns the shoulder, the elbow and the wrist in the arm’s own plane, about horizontal axes', () => {
     for (const joint of ['joint-2', 'joint-3', 'joint-5']) {
       const moved = world(new Map([[joint, 30]]));
-      const pivot = at(rest, joint);
+      const pivot = pivotOf(rest, joint);
       const before = at(rest, 'gripper');
       const after = at(moved, 'gripper');
       // Across the arm's plane, nothing moves; the gripper keeps its distance from the pivot.

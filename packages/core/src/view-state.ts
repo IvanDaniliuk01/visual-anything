@@ -31,8 +31,9 @@
  *   by their ids, in the order of the decisions' ids, so that the same choices write the same address
  *   (ADR 0078); a decision it does not name plays its default.
  * - `space=root:<id>;camera:<x>,<y>,<z>,<azimuth>,<elevation>,<distance>;cut:<axis>,<at>,<keep>;
- *   explode:<factor>;relations;names`: the physical-space panel, open (ADR 0076), each clause only
- *   when it says something, in that order; `space=open` when none does. An address without it reads
+ *   explode:<factor>;relations;names;joints:<id>=<position>,…`: the physical-space panel, open (ADR
+ *   0076), each clause only when it says something, in that order; `space=open` when none does. The
+ *   joints' positions (ADR 0090) are written by the joints' ids in order. An address without it reads
  *   as before, with the panel closed.
  * - `simulation=<element>;seed:<n>;tick:<n>;p:<name>,<value>…`: one simulation shown at one tick
  *   (ADR 0085): the element, then the seed and the tick when they are not 1 and 0, then each
@@ -64,6 +65,7 @@ import {
 } from './protocol';
 import { DECISION_CAPS, knownChoices, playedSteps } from './scenarios/blocks';
 import { MAX_SPACE_DISTANCE, readSpaceCamera } from './space/camera';
+import { isJoint } from './space/kinematics';
 import { simulationOf } from './simulation/definition';
 import { checkParameters } from './simulation/parameters';
 import { copiedSimulation, own, readSavedSimulation } from './simulation/saved';
@@ -369,7 +371,13 @@ function parseChoices(text: string): Record<string, string> {
 }
 
 const SPACE_CLAUSES =
-  'The physical-space panel holds root, camera, cut, explode, relations and names, or is open alone';
+  'The physical-space panel holds root, camera, cut, explode, relations, names and joints, or is open alone';
+
+/** The most joints' positions a view state gives, as `SavedSpace.joints` allows. */
+export const MAX_VIEW_STATE_JOINTS = 200;
+
+const SPACE_JOINTS_FORM =
+  "The joints' positions are joints:<id>=<position>,…: each joint's id and a number.";
 
 const SPACE_CAMERA_FORM =
   'The camera of the physical-space panel is six numbers: x,y,z,azimuth,elevation,distance.';
@@ -413,6 +421,26 @@ function parseSpace(text: string): Record<string, unknown> {
         if (rest !== undefined) refuse(`"${name}" in the physical-space panel takes no value.`);
         space[name] = true;
         break;
+      case 'joints': {
+        const joints: Record<string, number> = {};
+        for (const pair of (rest ?? '').split(',')) {
+          const at = pair.indexOf('=');
+          const value = pair.slice(at + 1);
+          if (at <= 0 || !NUMBER.test(value)) refuse(SPACE_JOINTS_FORM);
+          const joint = pair.slice(0, at);
+          if (Object.hasOwn(joints, joint)) {
+            refuse(`The joints' positions name "${shortened(joint)}" twice.`);
+          }
+          Object.defineProperty(joints, joint, {
+            value: Number(value),
+            enumerable: true,
+            writable: true,
+            configurable: true,
+          });
+        }
+        space.joints = joints;
+        break;
+      }
       default:
         refuse(`${SPACE_CLAUSES}, not "${shortened(name)}".`);
     }
@@ -550,6 +578,12 @@ function writeSpace(space: ViewSpace): string {
   if (space.explode !== undefined) clauses.push(`explode:${number(space.explode)}`);
   if (space.relations) clauses.push('relations');
   if (space.names) clauses.push('names');
+  if (space.joints && Object.keys(space.joints).length > 0) {
+    const pairs = Object.entries(space.joints)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([joint, position]) => `${joint}=${number(position)}`);
+    clauses.push(`joints:${pairs.join(',')}`);
+  }
   return clauses.length === 0 ? 'open' : clauses.join(';');
 }
 
@@ -682,6 +716,7 @@ const SPACE_KEYS: ReadonlySet<string> = new Set([
   'explode',
   'relations',
   'names',
+  'joints',
 ]);
 
 /**
@@ -714,7 +749,43 @@ function checkSpace(value: unknown): ViewSpace {
     }
     if (on) space[key] = true;
   }
+  if (value.joints !== undefined) {
+    const joints = checkJoints(value.joints);
+    if (Object.keys(joints).length > 0) space.joints = joints;
+  }
   return space;
+}
+
+/** The furthest a joint's position given in a view state goes either way: degrees or meters. */
+const MAX_JOINT_POSITION = 100_000;
+
+/**
+ * Joints' positions (ADR 0090): at most {@link MAX_VIEW_STATE_JOINTS}, each a joint's id and a finite
+ * number, kept in the order of their ids so that the same positions say the same.
+ */
+function checkJoints(value: unknown): Record<Id, number> {
+  if (!isRecord(value)) refuse("The joints' positions map each joint's id to a number.");
+  const entries = Object.entries(value);
+  if (entries.length > MAX_VIEW_STATE_JOINTS) {
+    refuse(`A view state gives at most ${MAX_VIEW_STATE_JOINTS} joints' positions.`);
+  }
+  const joints: Record<Id, number> = {};
+  for (const [joint, position] of entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    const id = checkId(joint);
+    const kept = within(position, -MAX_JOINT_POSITION, MAX_JOINT_POSITION);
+    if (kept === undefined) {
+      refuse(
+        `The position of "${shortened(id)}" is a number from ${-MAX_JOINT_POSITION} to ${MAX_JOINT_POSITION}: degrees for a joint that turns, meters for one that slides.`,
+      );
+    }
+    Object.defineProperty(joints, id, {
+      value: kept,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return joints;
 }
 
 /** A finite number from `min` to `max`, a negative zero as 0; otherwise `undefined`. */
@@ -751,6 +822,7 @@ export function copiedSpace(space: ViewSpace): ViewSpace {
     ...space,
     ...(space.camera ? { camera: { ...space.camera, target: { ...space.camera.target } } } : {}),
     ...(space.cut ? { cut: { ...space.cut } } : {}),
+    ...(space.joints ? { joints: { ...space.joints } } : {}),
   };
 }
 
@@ -979,6 +1051,11 @@ export function viewStateProblems(project: ProjectSnapshot, state: ViewState): s
   if (root !== undefined && index.element(root) === undefined) {
     problems.push(spaceRootProblem(root));
   }
+  const notJoints = Object.keys(state.space?.joints ?? {}).filter((id) => {
+    const element = index.element(id);
+    return element === undefined || !isJoint(element, definitionsIn(project));
+  });
+  if (notJoints.length > 0) problems.push(spaceJointsProblem(notJoints));
   if (state.simulation) problems.push(...simulationProblemsIn(project, state.simulation));
   if (state.filters) {
     const definitions = definitionsIn(project);
@@ -1042,6 +1119,14 @@ function simulationProblemsIn(project: ProjectSnapshot, simulation: ViewSimulati
 /** What a view state says of a physical-space panel that shows what is not an element. */
 export function spaceRootProblem(root: Id): string {
   return `The physical-space panel shows "${root}", which is not an element of the project.`;
+}
+
+/** What a view state says of joints' positions given to what is not a joint of the project. */
+export function spaceJointsProblem(ids: readonly Id[]): string {
+  const named = ids.slice(0, 5).map((id) => `"${id}"`);
+  if (ids.length > 5) named.push(`${ids.length - 5} more`);
+  const one = ids.length === 1;
+  return `The physical-space panel gives positions to ${named.join(', ')}, which ${one ? 'is not a joint' : 'are not joints'} of the project; ${one ? 'it is' : 'they are'} left out.`;
 }
 
 /**
