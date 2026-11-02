@@ -126,6 +126,75 @@ export function checkedProblem(pkg: Named, element: Named, message: string): Pro
   return problem('code-check', message, [pkg.id, element.id]);
 }
 
+/**
+ * How long one call of a hook may run, in milliseconds: `act`, `importFile` and `exportFile`, which
+ * the person asked for and waits on, ADR 0089's longer time; every other hook, ADR 0054's.
+ */
+export function callMsOf(hook: HookName): number {
+  return hook === 'act' || hook === 'importFile' || hook === 'exportFile'
+    ? CODE_LIMITS.extensionCallMs
+    : CODE_LIMITS.callMs;
+}
+
+/** What each hook that adds to the app is called for, as its declarations name it. */
+const DECLARED_KIND: Readonly<Record<ExtensionHookName, string>> = {
+  act: 'action',
+  importFile: 'importer',
+  exportFile: 'exporter',
+  panel: 'panel',
+};
+
+/**
+ * The problem one call of a hook that adds to the app ran into (ADR 0089), on the package: named
+ * with the hook and the label of the action, importer, exporter or panel it was called for.
+ */
+export function extensionProblem(
+  pkg: Named,
+  hook: ExtensionHookName,
+  declared: Named,
+  failure: CodeFailure,
+): Problem {
+  const subjects = [pkg.id];
+  const where = `in ${hook} for ${JSON.stringify(declared.name)}`;
+  const of = `The code of the package ${JSON.stringify(pkg.name)}`;
+  switch (failure.kind) {
+    case 'threw':
+      return problem('code-failed', `${of} failed ${where}: ${oneLine(failure.message)}`, subjects);
+    case 'time':
+      return problem(
+        'code-stopped',
+        `${of} was stopped ${where}: it ran past ${callMsOf(hook)} ms.`,
+        subjects,
+      );
+    case 'memory':
+      return problem('code-stopped', `${of} was stopped ${where}: ${PAST_MEMORY}`, subjects);
+    case 'answer':
+      return problem(
+        'code-answer-dropped',
+        `The answer of ${hook} from the package ${JSON.stringify(pkg.name)} for ${JSON.stringify(declared.name)} was dropped: ${failure.reason}.`,
+        subjects,
+      );
+  }
+}
+
+/** A call asked for an action, importer, exporter or panel the package does not declare: no code ran. */
+export function undeclaredProblem(pkg: Named, hook: ExtensionHookName, id: string): Problem {
+  return problem(
+    'code-failed',
+    `The package ${JSON.stringify(pkg.name)} declares no ${DECLARED_KIND[hook]} ${JSON.stringify(id.slice(0, 60))}, so its code was not called.`,
+    [pkg.id],
+  );
+}
+
+/** A file longer than an importer is given (ADR 0089): its code is not called. */
+export function fileTooLongProblem(pkg: Named, importer: Named, file: string): Problem {
+  return problem(
+    'code-failed',
+    `${JSON.stringify(file)} is over ${CODE_LIMITS.importText} characters, so the importer ${JSON.stringify(importer.name)} of the package ${JSON.stringify(pkg.name)} did not read it.`,
+    [pkg.id],
+  );
+}
+
 const PAST_TIME = `it ran past ${CODE_LIMITS.callMs} ms.`;
 const PAST_MEMORY = `it took more than ${CODE_LIMITS.memoryBytes / 1024 / 1024} MiB.`;
 

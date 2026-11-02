@@ -51,8 +51,12 @@ export { CODE_LIMITS } from './limits';
 export type { CodeFailure, ExtensionHookName, HookName, Named } from './messages';
 export {
   HOOK_NAMES,
+  callMsOf,
   callProblem,
   checkedProblem,
+  extensionProblem,
+  fileTooLongProblem,
+  undeclaredProblem,
   loadProblem,
   notApprovedProblem,
   offProblem,

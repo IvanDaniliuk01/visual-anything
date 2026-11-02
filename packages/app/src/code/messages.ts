@@ -4,11 +4,18 @@
  * time, so that the app always knows it is alive and which package it is running.
  */
 import type {
+  ActionInput,
   ComputedAttribute,
   Drawing,
+  ExportFileInput,
+  ExtensionHookName,
   HookName,
+  ImportFileInput,
+  PanelBlock,
+  PanelInput,
   Problem,
   ProjectSnapshot,
+  previewPackageChanges,
 } from '@visual-anything/core';
 import type { Capability, Id, PackageExtensions } from '@visual-anything/schema';
 import type { SimulationReply, SimulationRequest } from '../simulation/messages';
@@ -45,7 +52,47 @@ export type CodeRequest =
    */
   | { kind: 'fetched'; package: Id; url: string; response?: FetchedResponse; problem?: Problem }
   /** What a simulation run is to do (ADR 0085). */
-  | SimulationRequest;
+  | SimulationRequest
+  /** A call of a hook that adds to the app, which the person asked for (ADR 0089). */
+  | ExtensionRequest;
+
+/** One of the hooks that add to the app (ADR 0089), with what it is called with. */
+export type ExtensionCall =
+  | { hook: 'act'; input: ActionInput }
+  | { hook: 'importFile'; input: ImportFileInput }
+  | { hook: 'exportFile'; input: ExportFileInput }
+  | { hook: 'panel'; input: PanelInput };
+
+/**
+ * A call of a hook that adds to the app, numbered by the app so that its answer finds it: the
+ * worker runs it between its slices of other work, alone, and answers once.
+ */
+export type ExtensionRequest = {
+  kind: 'extension/call';
+  call: number;
+  package: Id;
+} & ExtensionCall;
+
+/**
+ * The changes an action or an importer answers (ADR 0089), as `previewPackageChanges` takes them for
+ * the person's review. The core names them `PackageChanges` in its code, but its index gives that
+ * name to what a shared package's update changes, so they are reached through the function here.
+ */
+export type PackageCodeChanges = Parameters<typeof previewPackageChanges>[1];
+
+/** What each hook that adds to the app answers, once checked. */
+export interface ExtensionValues {
+  act: PackageCodeChanges;
+  importFile: PackageCodeChanges;
+  exportFile: string;
+  panel: PanelBlock[];
+}
+
+/**
+ * What a call of a package's hook came to: the answer, checked by the core, or the problem that
+ * names the package and the hook, for a notice. Nothing is retried.
+ */
+export type PackageAnswer<T> = { ok: true; value: T } | { ok: false; problem: Problem };
 
 /** What an origin answered a fetch with, as `context.fetched` gives it to package code. */
 export interface FetchedResponse {
@@ -110,4 +157,15 @@ export type CodeReply =
   /** Every address a package's code wants fetched now, and how often: the others are no longer. */
   | { kind: 'network'; package: Id; wanted: WantedAddress[] }
   /** What a simulation run did (ADR 0085). */
-  | SimulationReply;
+  | SimulationReply
+  /**
+   * A call of a hook that adds to the app starts now: nothing else runs in the worker until it
+   * ends, for up to the hook's time, so the app waits that long more before it thinks it stalled.
+   */
+  | { kind: 'extension/running'; call: number; package: Id; hook: ExtensionHookName }
+  /** What a call of a hook that adds to the app came to. */
+  | {
+      kind: 'extension/answer';
+      call: number;
+      answer: PackageAnswer<ExtensionValues[ExtensionHookName]>;
+    };

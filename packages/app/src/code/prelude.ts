@@ -27,19 +27,23 @@ import { TICK_RANDOM_SOURCE } from '@visual-anything/core';
 export const NOT_AN_ERROR = 'it threw something that is not an error';
 
 /** Why `run` refused an answer, by the number it gives. */
-export const REFUSED: Readonly<Record<number, (limit: number) => string>> = {
+export const REFUSED: Readonly<Record<number, (limit: number, depth?: number) => string>> = {
   1: () => 'it is not plain data',
-  2: () => 'it nests deeper than 16 levels',
+  2: (_limit, depth = ANSWER_DEPTH) => `it nests deeper than ${depth} levels`,
   3: (limit) => `it is over ${limit} characters as JSON`,
   4: () => 'it has the key "__proto__"',
 };
 
-/** How deep an answer may nest, as the core's checks allow. */
+/**
+ * How deep an answer may nest, as the core's checks allow; `run` takes a deeper one for the hooks
+ * whose answers the core lets nest deeper, such as the commands of `act` (ADR 0089).
+ */
 export const ANSWER_DEPTH = 16;
 
 /**
  * A function expression of `(global, grantTime)`: it locks the context down and gives back
- * `[run(hook, inputJson, limit, readModel, readNetwork, seed, tick), describe(thrown)]`. With `readNetwork`, for
+ * `[run(hook, inputJson, limit, readModel, readNetwork, seed, tick, deepest), describe(thrown)]`,
+ * where `deepest` is how deep the answer may nest, {@link ANSWER_DEPTH} when left out. With `readNetwork`, for
  * `attributes` in a package granted an origin (ADR 0063), `context.fetched(url, { every })` gives
  * what the local program last fetched from that address, or undefined until it has, and asks for it
  * to be fetched every `every` seconds; `readNetwork` answers `A` and the answer's JSON, `R` and why
@@ -143,7 +147,7 @@ export const PRELUDE = String.raw`(function (global, grantTime) {
     } else if (type !== 'object') {
       out.error = 1;
       return;
-    } else if (depth >= ${ANSWER_DEPTH}) {
+    } else if (depth >= out.depth) {
       out.error = 2;
       return;
     } else if (isArray(value)) {
@@ -257,8 +261,9 @@ export const PRELUDE = String.raw`(function (global, grantTime) {
     }
   }
 
-  function run(hook, inputJson, limit, readModel, readNetwork, seed, tick) {
+  function run(hook, inputJson, limit, readModel, readNetwork, seed, tick, deepest) {
     const simulating = typeof seed === 'number' && typeof tick === 'number';
+    const depth = typeof deepest === 'number' ? deepest : ${ANSWER_DEPTH};
     try {
       const input = parse(inputJson);
       const element = input[0];
@@ -276,11 +281,11 @@ export const PRELUDE = String.raw`(function (global, grantTime) {
       const answer = hook(element, context);
       if (!simulating) {
         if (answer === undefined) return 'Anull';
-        const out = { text: '', limit: limit, error: 0, carried: '' };
+        const out = { text: '', limit: limit, error: 0, carried: '', depth: depth };
         write(answer, 0, out, 0);
         return out.error !== 0 ? out.error : 'A' + out.text;
       }
-      const out = { text: '[', limit: limit, error: 0, carried: '' };
+      const out = { text: '[', limit: limit, error: 0, carried: '', depth: depth };
       if (answer === undefined) out.text += 'null';
       else write(answer, 0, out, 1);
       if (out.error !== 0) return out.error;

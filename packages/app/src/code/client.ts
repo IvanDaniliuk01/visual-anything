@@ -6,13 +6,37 @@
  * A worker that stays silent past its watchdog, in work the interpreter cannot stop, such as an
  * allocation that drowns its garbage collector, is stopped and started again: the package it was
  * running counts a call that stopped, and the third in a row turns it off.
+ *
+ * It also asks the worker for the hooks that add to the app (ADR 0089), through {@link PackageCalls}:
+ * each call answers once, with what the code answered, checked by the core, or with the problem that
+ * names the package and the hook. While one of them runs, the worker runs nothing else, for up to its
+ * time, so the watchdog waits that much longer.
  */
-import { stalledProblem, type Drawing, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  CODE_LIMITS,
+  callMsOf,
+  fileTooLongProblem,
+  notApprovedProblem,
+  stalledProblem,
+  type ActionInput,
+  type Drawing,
+  type ExportFileInput,
+  type ExtensionHookName,
+  type ImportFileInput,
+  type Named,
+  type PanelBlock,
+  type PanelInput,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import type {
   CodeReply,
   CodeRequest,
   ElementAnswers,
+  ExtensionCall,
+  ExtensionValues,
+  PackageAnswer,
+  PackageCodeChanges,
   PackageRun,
   RunPackage,
   WantedAddress,
@@ -74,6 +98,31 @@ export type WantedListener = (pkg: Id, wanted: readonly WantedAddress[]) => void
 /** Hears what the worker says of simulation runs (ADR 0085). */
 export type SimulationListener = (reply: SimulationReply) => void;
 
+/**
+ * How the app runs what package code adds to it (ADR 0089): an action, an importer, an exporter or
+ * a panel of one package, by the id its file declares. Each answers once, never throws, and is never
+ * retried: what the code answered, checked by the core, or the problem naming the package and the
+ * hook, for a notice. Only approved code runs, and only what its file declares; while `act`,
+ * `importFile` or `exportFile` runs, for up to 2 s, the canvas's hooks wait.
+ */
+export interface PackageCalls {
+  /** Runs an action on a selection: the changes it proposes, for the person's review. */
+  runPackageAction(pkg: Id, input: ActionInput): Promise<PackageAnswer<PackageCodeChanges>>;
+  /** Reads a file's text with one of the package's importers: the changes that build it, for review. */
+  readFileWithPackage(pkg: Id, input: ImportFileInput): Promise<PackageAnswer<PackageCodeChanges>>;
+  /** Writes a view, or the model, with one of the package's exporters: the file's text. */
+  writeFileWithPackage(pkg: Id, input: ExportFileInput): Promise<PackageAnswer<string>>;
+  /** One of the package's panels for an element: the blocks the inspector draws. */
+  packagePanel(pkg: Id, input: PanelInput): Promise<PackageAnswer<PanelBlock[]>>;
+}
+
+/** A call of a hook that adds to the app, sent and not answered yet. */
+interface PendingCall {
+  pkg: Id;
+  call: ExtensionCall;
+  resolve: (answer: PackageAnswer<ExtensionValues[ExtensionHookName]>) => void;
+}
+
 /** Starts the code worker. Vite bundles the worker from this exact expression. */
 export function startCodeWorker(): CodeWorkerLike {
   return new Worker(new URL('./code.worker.ts', import.meta.url), {
@@ -82,8 +131,13 @@ export function startCodeWorker(): CodeWorkerLike {
   });
 }
 
-export class CodeHost {
+export class CodeHost implements PackageCalls {
   private worker: CodeWorkerLike | undefined;
+  /** The calls of the hooks that add to the app not answered yet, by their number. */
+  private readonly calls = new Map<number, PendingCall>();
+  private lastCall = 0;
+  /** The call the worker said it runs now, until it answers. */
+  private runningCall: number | undefined;
   private input: CodeInput | undefined;
   private sent: { project?: unknown; packages?: string; view?: string } = {};
   /** Calls that stopped in a row, by the hash of the code that made them. */
@@ -117,6 +171,7 @@ export class CodeHost {
     this.input = input;
     if (input.packages.length === 0) {
       this.stop();
+      this.settleCalls();
       if (this.answers !== NO_ANSWERS) this.change(NO_ANSWERS);
       return;
     }
@@ -192,9 +247,79 @@ export class CodeHost {
     if (this.worker) this.post(this.worker, request);
   }
 
+  runPackageAction(pkg: Id, input: ActionInput): Promise<PackageAnswer<PackageCodeChanges>> {
+    return this.callPackage(pkg, { hook: 'act', input });
+  }
+
+  readFileWithPackage(pkg: Id, input: ImportFileInput): Promise<PackageAnswer<PackageCodeChanges>> {
+    return this.callPackage(pkg, { hook: 'importFile', input });
+  }
+
+  writeFileWithPackage(pkg: Id, input: ExportFileInput): Promise<PackageAnswer<string>> {
+    return this.callPackage(pkg, { hook: 'exportFile', input });
+  }
+
+  packagePanel(pkg: Id, input: PanelInput): Promise<PackageAnswer<PanelBlock[]>> {
+    return this.callPackage(pkg, { hook: 'panel', input });
+  }
+
+  /**
+   * Asks the worker for one call of a hook that adds to the app. Refused at once when the package's
+   * code is not among the approved ones, and so no worker runs it, or when the file is longer than
+   * an importer is given, which is never sent.
+   */
+  private callPackage<H extends ExtensionHookName>(
+    pkg: Id,
+    asked: Extract<ExtensionCall, { hook: H }>,
+  ): Promise<PackageAnswer<ExtensionValues[H]>> {
+    const call: ExtensionCall = asked;
+    return new Promise((resolve) => {
+      const named = this.namedOf(pkg);
+      const approved = this.input?.packages.find((each) => each.package === pkg);
+      if (!this.worker || !approved) {
+        resolve({ ok: false, problem: notApprovedProblem(named) });
+        return;
+      }
+      if (call.hook === 'importFile' && call.input.text.length > CODE_LIMITS.importText) {
+        const { importer, name } = call.input;
+        const label = approved.extensions?.importers?.find((each) => each.id === importer)?.label;
+        const what = { id: importer, name: label ?? importer };
+        resolve({ ok: false, problem: fileTooLongProblem(named, what, name) });
+        return;
+      }
+      this.lastCall += 1;
+      const number = this.lastCall;
+      this.calls.set(number, {
+        pkg,
+        call,
+        resolve: resolve as PendingCall['resolve'],
+      });
+      this.post(this.worker, { kind: 'extension/call', call: number, package: pkg, ...call });
+    });
+  }
+
+  /** Answers every call not answered yet: the code that would run them no longer runs. */
+  private settleCalls(): void {
+    const pending = [...this.calls.values()];
+    this.calls.clear();
+    this.runningCall = undefined;
+    for (const each of pending) {
+      each.resolve({ ok: false, problem: notApprovedProblem(this.namedOf(each.pkg)) });
+    }
+  }
+
+  /** A package as messages name it: by its name among the approved ones, or the project's. */
+  private namedOf(pkg: Id): Named {
+    const name =
+      this.input?.packages.find((each) => each.package === pkg)?.name ??
+      this.input?.project.packages.find((each) => each.id === pkg)?.name;
+    return { id: pkg, name: name ?? pkg };
+  }
+
   /** Stops the worker for good. */
   dispose(): void {
     this.stop();
+    this.settleCalls();
     this.listeners.clear();
     this.wantedListeners.clear();
     this.simulationListeners.clear();
@@ -232,6 +357,21 @@ export class CodeHost {
       return;
     }
     if (reply.kind === 'simulation/restarted') return;
+    if (reply.kind === 'extension/running') {
+      // Nothing else runs in the worker until it answers, for up to the hook's time.
+      this.calling = reply.package;
+      this.runningCall = reply.call;
+      this.arm(callMsOf(reply.hook) + this.watchdogMs);
+      return;
+    }
+    if (reply.kind === 'extension/answer') {
+      if (this.runningCall === reply.call) this.runningCall = undefined;
+      const pending = this.calls.get(reply.call);
+      this.calls.delete(reply.call);
+      this.arm();
+      pending?.resolve(reply.answer);
+      return;
+    }
     if (reply.kind === 'idle') {
       this.disarm();
       this.calling = undefined;
@@ -269,6 +409,8 @@ export class CodeHost {
   /** A worker that went silent: stopped, the package it ran counted, and started again. */
   private restart(): void {
     const blamed = this.calling;
+    const stalled = this.runningCall;
+    this.runningCall = undefined;
     this.stop();
     if (blamed !== undefined) {
       const hash = this.hashOf(blamed);
@@ -288,7 +430,17 @@ export class CodeHost {
         this.change({ ...this.answers, packages });
       }
     }
+    // The call that kept the worker silent is answered with that; the others go to the new worker.
+    const pending = stalled === undefined ? undefined : this.calls.get(stalled);
+    if (stalled !== undefined) this.calls.delete(stalled);
+    pending?.resolve({ ok: false, problem: stalledProblem(this.namedOf(pending.pkg)) });
     if (this.input) this.update(this.input);
+    const worker = this.worker;
+    if (worker) {
+      for (const [call, each] of this.calls) {
+        this.post(worker, { kind: 'extension/call', call, package: each.pkg, ...each.call });
+      }
+    }
     for (const listener of [...this.simulationListeners])
       listener({ kind: 'simulation/restarted' });
   }
@@ -308,14 +460,15 @@ export class CodeHost {
     }
   }
 
-  private arm(): void {
+  /** Starts the watchdog again: the worker's own time, a new worker's, or the time given. */
+  private arm(ms?: number): void {
     this.disarm();
     this.timer = this.setTimer(
       () => {
         this.timer = undefined;
         this.restart();
       },
-      this.heard ? this.watchdogMs : this.startingMs,
+      ms ?? (this.heard ? this.watchdogMs : this.startingMs),
     );
   }
 

@@ -5531,6 +5531,73 @@ export const messages: Catalog = {
     'El código del paquete "{name}" no está aprobado: la persona lo aprueba en la app antes de que se ejecute.',
   'The code of the package "{name}" was stopped: it kept the worker that runs package code from answering, so the worker started again.':
     'El código del paquete "{name}" se detuvo: no dejaba responder al proceso que ejecuta el código de los paquetes, así que ese proceso volvió a empezar.',
+  // M14.1: what a call of a hook that adds to the app says (ADR 0089), for the action, importer,
+  // exporter or panel named by its label.
+  'The code of the package "{name}" failed in {hook} for "{label}": {error}':
+    'El código del paquete "{name}" falló en {hook} para "{label}": {error}',
+  'The code of the package "{name}" failed in {hook} for "{label}": it threw something that is not an error':
+    'El código del paquete "{name}" falló en {hook} para "{label}": lanzó algo que no es un error',
+  'The code of the package "{name}" failed in {hook} for "{label}": the package exports no {exported}':
+    'El código del paquete "{name}" falló en {hook} para "{label}": el paquete no exporta {exported}',
+  'The code of the package "{name}" failed in {hook} for "{label}": it imports another module, and package code is one module on its own':
+    'El código del paquete "{name}" falló en {hook} para "{label}": importa otro módulo, y el código de un paquete es un único módulo',
+  'The code of the package "{name}" failed in {hook} for "{label}": the interpreter stopped working':
+    'El código del paquete "{name}" falló en {hook} para "{label}": el intérprete dejó de funcionar',
+  'The code of the package "{name}" failed in {hook} for "{label}": the interpreter failed: {error}':
+    'El código del paquete "{name}" falló en {hook} para "{label}": falló el intérprete: {error}',
+  'The code of the package "{name}" failed in {hook} for "{label}": it threw nothing that says why':
+    'El código del paquete "{name}" falló en {hook} para "{label}": lanzó algo que no dice por qué',
+  'The code of the package "{name}" failed in {hook} for "{label}": it gave no reason':
+    'El código del paquete "{name}" falló en {hook} para "{label}": no dio ningún motivo',
+  'The code of the package "{name}" was stopped in {hook} for "{label}": it ran past {n} ms.':
+    'El código del paquete "{name}" se detuvo en {hook} para "{label}": pasó de {n} ms.',
+  'The code of the package "{name}" was stopped in {hook} for "{label}": it took more than {n} MiB.':
+    'El código del paquete "{name}" se detuvo en {hook} para "{label}": ocupó más de {n} MiB.',
+  'The answer of {hook} from the package "{name}" for "{label}" was dropped: {why}.':
+    'Se descartó la respuesta de {hook} del paquete "{name}" para "{label}": {why}.',
+  'The package "{name}" declares no action "{id}", so its code was not called.':
+    'El paquete "{name}" no declara ninguna acción "{id}", así que su código no se llamó.',
+  'The package "{name}" declares no importer "{id}", so its code was not called.':
+    'El paquete "{name}" no declara ningún importador "{id}", así que su código no se llamó.',
+  'The package "{name}" declares no exporter "{id}", so its code was not called.':
+    'El paquete "{name}" no declara ningún exportador "{id}", así que su código no se llamó.',
+  'The package "{name}" declares no panel "{id}", so its code was not called.':
+    'El paquete "{name}" no declara ningún panel "{id}", así que su código no se llamó.',
+  '"{fileName}" is over {n} characters, so the importer "{label}" of the package "{name}" did not read it.':
+    '"{fileName}" pasa de {n} caracteres, así que el importador "{label}" del paquete "{name}" no lo leyó.',
+  // M14.1: why the core drops what an action, an importer, an exporter or a panel answered.
+  'it is not an object of commands': 'no es un objeto JSON de comandos',
+  'it has "{key}"': 'tiene "{key}"',
+  'its label is not a text': 'su etiqueta no es un texto',
+  'its commands are not a list': 'sus comandos no son una lista',
+  'it holds more than {n} commands': 'tiene más de {n} comandos',
+  'a command has no type': 'un comando no tiene tipo',
+  'package code never sends "{type}"': 'el código de un paquete nunca envía "{type}"',
+  'it is not a text': 'no es un texto',
+  'it is over {n} characters': 'pasa de {n} caracteres',
+  'it is not a list of blocks': 'no es una lista de bloques',
+  'it holds more than {n} blocks': 'tiene más de {n} bloques',
+  'block {n} is not an object': 'el bloque {n} no es un objeto JSON',
+  'block {n} has a text that is not one of at most {m} characters':
+    'el bloque {n} tiene un texto de más de {m} caracteres, o que no es un texto',
+  'block {n} is not a label and a text, number or true or false':
+    'el bloque {n} no es una etiqueta con un texto, un número, o verdadero o falso',
+  'block {n} has columns that are not 1 to {m} texts':
+    'el bloque {n} tiene columnas que no son de 1 a {m} textos',
+  'block {n} has rows that are not at most {m}, each a cell for each column':
+    'el bloque {n} tiene filas que no son como máximo {m}, cada una con una celda por columna',
+  'block {n} is a chart that is not "bar" or "line"':
+    'el bloque {n} es un gráfico que no es "bar" ni "line"',
+  'block {n} has labels that are not 1 to {m} texts':
+    'el bloque {n} tiene etiquetas que no son de 1 a {m} textos',
+  'block {n} has series that are not 1 to {m}, each a number for each label':
+    'el bloque {n} tiene series que no son de 1 a {m}, cada una con un número por etiqueta',
+  'block {n} is a button whose label is not 1 to {m} characters':
+    'el bloque {n} es un botón cuya etiqueta no tiene de 1 a {m} caracteres',
+  'block {n} is a button that runs no action the package declares':
+    'el bloque {n} es un botón que no ejecuta ninguna acción que declare el paquete',
+  'block {n} is not a heading, text, value, table, chart or button':
+    'el bloque {n} no es un título, un texto, un valor, una tabla, un gráfico ni un botón',
   // Why an answer of package code was dropped, as the messages above hold it.
   'it is not plain data': 'no son datos simples',
   'it nests deeper than {n} levels': 'anida más de {n} niveles',

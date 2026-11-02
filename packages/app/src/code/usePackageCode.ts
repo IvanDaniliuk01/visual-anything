@@ -75,6 +75,8 @@ export function usePackageCode({
   const codes = useMemo(() => packagesWithCode(project), [project.packages]);
   const [host] = useState(makeHost);
   useEffect(() => () => host?.dispose(), [host]);
+  // What package code adds to the app runs through the host while the shell is mounted (ADR 0089).
+  useEffect(() => store.lendCalls(host), [store, host]);
   const subscribeHost = useCallback(
     (listener: () => void) => host?.subscribe(listener) ?? NONE(),
     [host],

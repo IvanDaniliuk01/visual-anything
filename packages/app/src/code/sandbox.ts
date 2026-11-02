@@ -1,7 +1,8 @@
 /**
  * The sandbox package code runs in (ADR 0054, ADR 0012): QuickJS compiled to WebAssembly, with one
  * runtime and one context for each package, so that packages cannot see each other. A call stops
- * past 50 ms or past 32 MiB for its package's runtime; the code has no module to import, no code made
+ * past 50 ms, or 2 s for `act`, `importFile` and `exportFile` (ADR 0089), or past 32 MiB for its
+ * package's runtime; the code has no module to import, no code made
  * from text, no clock unless granted, and nothing of the page, the network or the files at all.
  *
  * It runs wherever it is given a QuickJS module: in the app's code worker, and in Claude's tools. It
@@ -9,10 +10,15 @@
  * and hands back what the code answered, parsed from JSON and not yet checked by the core.
  */
 import type {
+  ActionInput,
   CodeFailure,
+  ExportFileInput,
+  ExtensionHookName,
   HookInput,
   HookName,
+  ImportFileInput,
   ModelReader,
+  PanelInput,
   SimulateInput,
 } from '@visual-anything/core';
 import { CODE_LIMITS, HOOK_NAMES, SIMULATION_LIMITS } from '@visual-anything/core';
@@ -38,6 +44,16 @@ export const STACK_BYTES = 48 * 1024;
  * core's check, which keeps or refuses it.
  */
 export const SIMULATE_ANSWER_TEXT = 2 * SIMULATION_LIMITS.stateText;
+
+/**
+ * The longest answer `exportFile` may give, as JSON, in characters: a text of the most characters
+ * an export may hold (ADR 0089), each written as JSON's longest escape, six characters, and its
+ * quotes, so that only the core's check says a text is too long.
+ */
+export const EXPORT_ANSWER_TEXT = 6 * CODE_LIMITS.exportText + 2;
+
+/** How deep the changes `act` and `importFile` answer may nest, as the core's check of them takes. */
+const CHANGES_DEPTH = CODE_LIMITS.depth + 4;
 
 /**
  * Why the sandbox itself could not run a package's code, in its own words: messages of their own,
@@ -161,6 +177,11 @@ export interface SandboxOptions {
   now?: () => number;
   /** How long one call may run, in milliseconds; 50 by default. */
   callMs?: number;
+  /**
+   * How long one call of `act`, `importFile` or `exportFile` may run, in milliseconds (ADR 0089);
+   * {@link CODE_LIMITS.extensionCallMs} by default.
+   */
+  extensionCallMs?: number;
 }
 
 /** Runs the code of packages, one runtime each, in one QuickJS module. */
@@ -168,6 +189,7 @@ export class CodeSandbox {
   private readonly packages = new Map<Id, Loaded>();
   private readonly now: () => number;
   private readonly callMs: number;
+  private readonly extensionCallMs: number;
   private deadline = Infinity;
   private spent = false;
 
@@ -177,6 +199,7 @@ export class CodeSandbox {
   ) {
     this.now = options.now ?? (() => performance.now());
     this.callMs = options.callMs ?? CODE_LIMITS.callMs;
+    this.extensionCallMs = options.extensionCallMs ?? CODE_LIMITS.extensionCallMs;
   }
 
   /** Whether the interpreter failed, so that nothing more can run here. */
@@ -334,9 +357,63 @@ export class CodeSandbox {
     network?: NetworkReader,
     random?: { seed: number; tick: number },
   ): CallOutcome {
-    const started = this.now();
     const simulating = hook === 'simulate';
-    const answerText = simulating ? SIMULATE_ANSWER_TEXT : CODE_LIMITS.answerText;
+    return this.invoke(id, hook, [input.element, input.context], {
+      answerText: simulating ? SIMULATE_ANSWER_TEXT : CODE_LIMITS.answerText,
+      depth: CODE_LIMITS.depth,
+      ms: this.callMs,
+      reader,
+      network,
+      random: simulating ? (random ?? { seed: SIMULATION_LIMITS.defaultSeed, tick: 0 }) : undefined,
+    });
+  }
+
+  /**
+   * Calls one of the hooks that add to the app (ADR 0089) with a frozen copy of its input:
+   * `hook(input, context)`, where `context.model` reads the whole model through `reader` with
+   * `model:read` granted, and `context` is empty otherwise. `act`, `importFile` and `exportFile` may
+   * run for {@link CODE_LIMITS.extensionCallMs}, `panel` as long as every other call; each answer may
+   * be as long and nest as deep as the core's check of it takes, so that the check says why it drops
+   * one. A text `exportFile` answers may take six characters as JSON for each of its own.
+   */
+  extension(
+    id: Id,
+    hook: ExtensionHookName,
+    input: ActionInput | ImportFileInput | ExportFileInput | PanelInput,
+    reader?: ModelReader,
+  ): CallOutcome {
+    const changes = hook === 'act' || hook === 'importFile';
+    return this.invoke(id, hook, [input, {}], {
+      answerText: changes
+        ? CODE_LIMITS.changesText
+        : hook === 'exportFile'
+          ? EXPORT_ANSWER_TEXT
+          : CODE_LIMITS.answerText,
+      depth: changes ? CHANGES_DEPTH : CODE_LIMITS.depth,
+      ms: hook === 'panel' ? this.callMs : this.extensionCallMs,
+      reader,
+      network: undefined,
+      random: undefined,
+    });
+  }
+
+  /** Calls a hook with its two arguments, within the time and the answer's caps given. */
+  private invoke(
+    id: Id,
+    hook: HookName,
+    args: readonly [unknown, unknown],
+    how: {
+      answerText: number;
+      depth: number;
+      ms: number;
+      reader: ModelReader | undefined;
+      network: NetworkReader | undefined;
+      random: { seed: number; tick: number } | undefined;
+    },
+  ): CallOutcome {
+    const started = this.now();
+    const { answerText, reader, network, random } = how;
+    const simulating = random !== undefined;
     const loaded = this.packages.get(id);
     const handle = loaded?.hooks.get(hook);
     if (!loaded || !handle) {
@@ -350,10 +427,12 @@ export class CodeSandbox {
     const { context } = loaded;
     const handles: QuickJSHandle[] = [];
     try {
-      const json = context.newString(JSON.stringify([input.element, input.context]));
+      const json = context.newString(JSON.stringify(args));
       handles.push(json);
       const limit = context.newNumber(answerText);
       handles.push(limit);
+      const deepest = context.newNumber(how.depth);
+      handles.push(deepest);
       loaded.reader = reader;
       loaded.network = network;
       const read =
@@ -365,14 +444,12 @@ export class CodeSandbox {
           ? loaded.readNetwork
           : context.undefined;
       // For simulate, the run's seed and the tick, from which the prelude makes the tick's generator.
-      const seed = simulating
-        ? context.newNumber(random?.seed ?? SIMULATION_LIMITS.defaultSeed)
-        : context.undefined;
-      const tick = simulating ? context.newNumber(random?.tick ?? 0) : context.undefined;
+      const seed = simulating ? context.newNumber(random.seed) : context.undefined;
+      const tick = simulating ? context.newNumber(random.tick) : context.undefined;
       if (simulating) handles.push(seed, tick);
       // The deadline stays in force until everything is read back: whatever reads a value the code
       // made runs inside `run`, and a getter or a proxy trap that never ends is stopped there.
-      this.deadline = started + this.callMs;
+      this.deadline = started + how.ms;
       const result = context.callFunction(
         loaded.run,
         context.undefined,
@@ -383,6 +460,7 @@ export class CodeSandbox {
         readNetwork,
         seed,
         tick,
+        deepest,
       );
       const ms = this.now() - started;
       if (result.error) {
@@ -394,11 +472,11 @@ export class CodeSandbox {
       const value = result.value;
       handles.push(value);
       // A call that ran past its time, in code the interpreter could not stop, stops all the same.
-      if (ms > this.callMs) return { ok: false, failure: { kind: 'time' }, ms };
+      if (ms > how.ms) return { ok: false, failure: { kind: 'time' }, ms };
       const type = context.typeof(value);
       if (type === 'number') {
         const code = context.getNumber(value);
-        const reason = REFUSED[code]?.(answerText) ?? 'it is not plain data';
+        const reason = REFUSED[code]?.(answerText, how.depth) ?? 'it is not plain data';
         return { ok: false, failure: { kind: 'answer', reason }, ms };
       }
       if (type !== 'string') {

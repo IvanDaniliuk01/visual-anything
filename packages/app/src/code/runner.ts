@@ -16,34 +16,55 @@
  * hooks' slices whenever both have work, so that neither waits on the other. A call of `simulate`
  * keeps every limit a hook's call keeps, and a failure of the code in it counts towards turning its
  * package off as a stopped call does; a stop at a limit, at its ticks or by itself does not.
+ *
+ * And it runs the hooks that add to the app (ADR 0089), `act`, `importFile`, `exportFile` and
+ * `panel`, when the tab asks: only for an action, importer, exporter or panel the package declares,
+ * only in approved code, with the input frozen and, with `model:read`, the model. Each call runs
+ * alone, between the slices of the other work, ahead of it, since the person waits for it; its
+ * answer is checked by the core and sent back once, or the problem naming the package and the hook.
+ * A call cannot be cut into slices: QuickJS runs it to its end on this thread, so for up to its time,
+ * 2 s for `act`, `importFile` and `exportFile`, the canvas's hooks wait. The worker says so as the
+ * call starts, so that the app waits that long before it thinks the worker stalled. A call stopped
+ * for its time or its memory counts towards turning its package off, as the other hooks' stops do.
  */
 import {
   CODE_LIMITS,
   LIVE_FETCH_LIMITS,
   LIVE_LIMITS,
   callProblem,
+  checkChangesAnswer,
+  checkExportAnswer,
   checkFetchAddress,
   checkAttributesAnswer,
   checkDrawAnswer,
+  checkPanelAnswer,
   checkProblemsAnswer,
   checkedProblem,
   codeHash,
   codePackagesOn,
+  extensionProblem,
+  fileTooLongProblem,
   hookInputOf,
   imagesIn,
   loadProblem,
   modelReaderOf,
   notApprovedProblem,
   offProblem,
+  undeclaredProblem,
+  type ActionInput,
   type Drawing,
+  type ExportFileInput,
+  type ExtensionHookName,
   type HookName,
+  type ImportFileInput,
+  type PanelInput,
   type ModelReader,
   type Problem,
   type ProjectSnapshot,
   type RunBudget,
   type CodeFailure,
 } from '@visual-anything/core';
-import type { Id } from '@visual-anything/schema';
+import type { Id, PackageExtensions } from '@visual-anything/schema';
 import { SimulationDriver, type SimulateOutcome, type SimulationHost } from '../simulation/driver';
 import type { SimulationReply, SimulationRequest } from '../simulation/messages';
 import type {
@@ -51,7 +72,10 @@ import type {
   CodeRequest,
   ComputedValue,
   ElementAnswers,
+  ExtensionRequest,
+  ExtensionValues,
   FetchedResponse,
+  PackageAnswer,
   PackageRun,
   RunPackage,
   WantedAddress,
@@ -131,6 +155,8 @@ export class CodeRunner {
   private roundFor = -1;
   /** The package and the element of the call of `simulate` under way, or the last one. */
   private simulating: { pkg: Id; element: { id: Id; name: string } } | undefined;
+  /** The calls of the hooks that add to the app the tab asked for and that wait, in order. */
+  private readonly extensionRequests: ExtensionRequest[] = [];
 
   constructor(private readonly options: RunnerOptions) {
     this.now = options.now ?? (() => performance.now());
@@ -147,6 +173,12 @@ export class CodeRunner {
     if (isSimulationRequest(request)) {
       // Taken in order, once the packages asked for before it run.
       this.simulationRequests.push(request);
+      this.start();
+      return;
+    }
+    if (request.kind === 'extension/call') {
+      // Run ahead of the other work, at the next slice's end: the person waits for it.
+      this.extensionRequests.push(request);
       this.start();
       return;
     }
@@ -190,6 +222,10 @@ export class CodeRunner {
       this.sandbox ??= await this.options.newSandbox();
       this.syncPackages();
       this.takeSimulationRequests();
+      if (this.extensionRequests.length > 0) {
+        await this.extensionCalls();
+        continue;
+      }
       const hooksDue = this.roundFor !== this.generation;
       const runsDue = this.driver.busy;
       if (!hooksDue && !runsDue) break;
@@ -305,6 +341,90 @@ export class CodeRunner {
     this.count(running, true);
   }
 
+  /**
+   * Runs the calls of the hooks that add to the app that wait, one after the other, and sends each
+   * its answer; then tells the app what changed and lets the messages in. When one turned its
+   * package off or broke the interpreter, the hooks go over everything again, to take back what the
+   * package answered and to call them in the new interpreter.
+   */
+  private async extensionCalls(): Promise<void> {
+    const sandbox = this.sandbox;
+    let changed = false;
+    for (let request = this.extensionRequests.shift(); request;) {
+      const before = this.running.get(request.package)?.run.state;
+      const answer = this.callExtension(request);
+      this.options.post({ kind: 'extension/answer', call: request.call, answer });
+      const after = this.running.get(request.package)?.run.state;
+      if (after !== before) changed = true;
+      if (this.sandbox?.crashed) await this.replaceSandbox();
+      request = this.extensionRequests.shift();
+    }
+    if (changed || this.sandbox !== sandbox) this.generation += 1;
+    this.flush();
+    await this.pause();
+  }
+
+  /**
+   * One call of a hook that adds to the app: refused without running any code when the package's
+   * code is not approved, not running, or declares no such action, importer, exporter or panel, or
+   * when the file is longer than an importer is given; otherwise its answer, checked by the core,
+   * or the problem the call ran into.
+   */
+  private callExtension(
+    request: ExtensionRequest,
+  ): PackageAnswer<ExtensionValues[ExtensionHookName]> {
+    const pkg = request.package;
+    const running = this.running.get(pkg);
+    const asked = this.requested.find((each) => each.package === pkg);
+    const named = { id: pkg, name: asked?.name ?? pkg };
+    const sandbox = this.sandbox;
+    if (!running || !asked || !sandbox) return refused(notApprovedProblem(named));
+    if (running.run.state !== 'running') {
+      return refused(running.run.problem ?? notApprovedProblem(named));
+    }
+    const declared = declarationOf(running.request.extensions, request);
+    if (!declared) return refused(undeclaredProblem(named, request.hook, idOf(request)));
+    const what = { id: declared.id, name: declared.label };
+    if (request.hook === 'importFile' && request.input.text.length > CODE_LIMITS.importText) {
+      return refused(fileTooLongProblem(named, what, request.input.name));
+    }
+    this.calling = pkg;
+    this.options.post({
+      kind: 'extension/running',
+      call: request.call,
+      package: pkg,
+      hook: request.hook,
+    });
+    const project = this.project;
+    const reads = running.request.granted.includes('model:read') && project !== undefined;
+    const outcome = sandbox.extension(
+      pkg,
+      request.hook,
+      inputOf(request),
+      reads ? readerOf(project) : undefined,
+    );
+    if (!outcome.ok) {
+      const problem = extensionProblem(named, request.hook, what, outcome.failure);
+      running.run = { ...running.run, problem };
+      this.pendingPackages.set(pkg, running.run);
+      const kind = outcome.failure.kind;
+      this.count(running, kind === 'time' || kind === 'memory' || outcome.crashed === true);
+      return refused(problem);
+    }
+    this.count(running, false);
+    const actions = (running.request.extensions?.actions ?? []).map((each) => each.id);
+    const checked =
+      request.hook === 'act' || request.hook === 'importFile'
+        ? checkChangesAnswer(outcome.answer, declared.label)
+        : request.hook === 'exportFile'
+          ? checkExportAnswer(outcome.answer)
+          : checkPanelAnswer(outcome.answer, actions);
+    if (checked.ok) return { ok: true, value: checked.value };
+    return refused(
+      extensionProblem(named, request.hook, what, { kind: 'answer', reason: checked.reason }),
+    );
+  }
+
   /** One pass over everything; false when a newer request came in during it. */
   private async round(generation: number): Promise<boolean> {
     this.sandbox ??= await this.options.newSandbox();
@@ -324,8 +444,9 @@ export class CodeRunner {
         const running = this.running.get(id);
         for (const hook of running?.run.hooks ?? []) {
           if (!running || running.run.state !== 'running') break;
-          // Only simulation runs call simulate, tick by tick, in slices of their own.
-          if (hook === 'simulate') continue;
+          // Only simulation runs call simulate, tick by tick, in slices of their own; and the hooks
+          // that add to the app run only when the person asks (ADR 0089).
+          if (!CANVAS_HOOKS.has(hook)) continue;
           if (hook === 'draw' && !this.view.shown.has(element.id)) {
             this.resultsOf(id, hook).delete(element.id);
             continue;
@@ -337,6 +458,10 @@ export class CodeRunner {
             this.flush();
             await this.pause();
             if (generation !== this.generation) return false;
+            if (this.extensionRequests.length > 0) {
+              await this.extensionCalls();
+              if (generation !== this.generation) return false;
+            }
             this.takeSimulationRequests();
             if (this.driver.busy) {
               await this.simulationSlice();
@@ -718,6 +843,9 @@ export class CodeRunner {
   }
 }
 
+/** The hooks a round calls on the elements, as their input changes. */
+const CANVAS_HOOKS: ReadonlySet<HookName> = new Set<HookName>(['attributes', 'check', 'draw']);
+
 const SIMULATION_REQUESTS: ReadonlySet<string> = new Set<SimulationRequest['kind']>([
   'simulation/start',
   'simulation/until',
@@ -741,6 +869,68 @@ function freshForOf(reads: ReadonlyMap<string, { every: number }>): number {
   let every = 0;
   for (const read of reads.values()) every = Math.max(every, read.every);
   return Math.min(LIVE_LIMITS.freshForMax, Math.max(LIVE_LIMITS.freshForMin, 2 * every));
+}
+
+function refused(problem: Problem): { ok: false; problem: Problem } {
+  return { ok: false, problem };
+}
+
+/** The id of the action, importer, exporter or panel a call is for. */
+function idOf(request: ExtensionRequest): string {
+  switch (request.hook) {
+    case 'act':
+      return request.input.action;
+    case 'importFile':
+      return request.input.importer;
+    case 'exportFile':
+      return request.input.exporter;
+    case 'panel':
+      return request.input.panel;
+  }
+}
+
+/** The package's declaration of what a call is for; undefined when it declares none such. */
+function declarationOf(
+  extensions: PackageExtensions | undefined,
+  request: ExtensionRequest,
+): { id: string; label: string } | undefined {
+  const id = idOf(request);
+  const declared =
+    request.hook === 'act'
+      ? extensions?.actions
+      : request.hook === 'importFile'
+        ? extensions?.importers
+        : request.hook === 'exportFile'
+          ? extensions?.exporters
+          : extensions?.panels;
+  return declared?.find((each) => each.id === id);
+}
+
+/**
+ * What a call's hook is given, made afresh from the parts its input has, so that nothing else the
+ * request carried reaches the code; the sandbox freezes it.
+ */
+function inputOf(
+  request: ExtensionRequest,
+): ActionInput | ImportFileInput | ExportFileInput | PanelInput {
+  switch (request.hook) {
+    case 'act': {
+      const { action, selection, view } = request.input;
+      return { action, selection: [...selection], ...(view === undefined ? {} : { view }) };
+    }
+    case 'importFile': {
+      const { importer, name, text } = request.input;
+      return { importer, name, text };
+    }
+    case 'exportFile': {
+      const { exporter, view } = request.input;
+      return { exporter, ...(view === undefined ? {} : { view }) };
+    }
+    case 'panel': {
+      const { panel, element } = request.input;
+      return { panel, element };
+    }
+  }
 }
 
 function off(id: Id, stops: number, problem: Problem): PackageRun {

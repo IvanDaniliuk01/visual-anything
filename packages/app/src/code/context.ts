@@ -6,11 +6,17 @@
  * The shell keeps it in a store whose identity never changes, carried by the editor's context, so
  * that what the worker answers re-renders only the components that read it.
  */
-import type { CodeStatus, Drawing, PackageCode } from '@visual-anything/core';
+import {
+  notApprovedProblem,
+  type CodeStatus,
+  type Drawing,
+  type PackageCode,
+} from '@visual-anything/core';
 import type { Capability, Id } from '@visual-anything/schema';
 import { useContext, useSyncExternalStore } from 'react';
 import { EditorContext } from '../editor/EditorContext';
-import type { ElementAnswers, PackageRun } from './messages';
+import type { PackageCalls } from './client';
+import type { ElementAnswers, PackageAnswer, PackageRun } from './messages';
 
 /** A package that holds code, with where it stands. */
 export interface PackageCodeView {
@@ -66,6 +72,22 @@ export class CodeStore {
   private state: CodeState = NO_CODE;
   private readonly listeners = new Set<() => void>();
   private kept: Omit<CodeActions, 'review'> = { approve: () => false, withdraw: () => {} };
+  /** The host of the code worker, lent while the shell is mounted. */
+  private host: PackageCalls | undefined;
+  /**
+   * How the app runs what package code adds to it (ADR 0089): through the code worker's host while
+   * one is lent; without one, as where no approved code runs, each call answers that the package's
+   * code is not approved.
+   */
+  readonly calls: PackageCalls = {
+    runPackageAction: (pkg, input) =>
+      this.host?.runPackageAction(pkg, input) ?? this.notRunning(pkg),
+    readFileWithPackage: (pkg, input) =>
+      this.host?.readFileWithPackage(pkg, input) ?? this.notRunning(pkg),
+    writeFileWithPackage: (pkg, input) =>
+      this.host?.writeFileWithPackage(pkg, input) ?? this.notRunning(pkg),
+    packagePanel: (pkg, input) => this.host?.packagePanel(pkg, input) ?? this.notRunning(pkg),
+  };
   readonly actions: CodeActions = {
     review: (pkg) => this.review(pkg),
     approve: (pkg, reviewed, shown, granted) => this.kept.approve(pkg, reviewed, shown, granted),
@@ -105,6 +127,19 @@ export class CodeStore {
     this.kept = actions;
   }
 
+  /** Lends the code worker's host, or none, to {@link calls}; answers how to take it back. */
+  lendCalls(host: PackageCalls | undefined): () => void {
+    this.host = host;
+    return () => {
+      if (this.host === host) this.host = undefined;
+    };
+  }
+
+  private notRunning<T>(pkg: Id): Promise<PackageAnswer<T>> {
+    const name = this.state.packages.get(pkg)?.code.name ?? pkg;
+    return Promise.resolve({ ok: false, problem: notApprovedProblem({ id: pkg, name }) });
+  }
+
   private review(pkg: Id | undefined): void {
     if (pkg === this.state.reviewing) return;
     const { packages, elements, drawings } = this.state;
@@ -142,6 +177,14 @@ export function useCode(): CodeContextValue | null {
   );
   if (!store) return null;
   return { ...state, ...store.actions };
+}
+
+/**
+ * How the app runs what package code adds to it (ADR 0089), for the menus, Import…, Export… and the
+ * inspector: null where the editor carries no store. Its functions never change.
+ */
+export function usePackageCalls(): PackageCalls | null {
+  return useStore()?.calls ?? null;
 }
 
 /** What package code draws inside shapes, by element: none where the editor carries no store. */
