@@ -137,6 +137,10 @@
   background: var(--surface-hover);
 }
 
+.tree-row:active {
+  background: var(--surface-pressed);
+}
+
 .tree-row[aria-selected='true'] {
   background: var(--accent-soft);
   /* The background alone is too faint to see: a bar in the accent marks the row, at 3:1 or more. */

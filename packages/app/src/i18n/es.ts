@@ -1729,7 +1729,8 @@ export const ui: Catalog = {
   // Attributes in the inspector.
   component: 'componente',
   'relation type': 'tipo de relación',
-  'Its {definer} defines no attributes.': 'Su {definer} no define atributos.',
+  'Its {definer} defines no attributes. Add one under New attribute, in the {definer} on the Components tab.':
+    'Su {definer} no define atributos. Agregar uno en Nuevo atributo, en el {definer}, en la pestaña Componentes.',
   'Not defined by its {definer}.': 'No lo define su {definer}.',
   'No default.': 'Sin valor predeterminado.',
   'Default: {value}.': 'Valor predeterminado: {value}.',
@@ -1885,7 +1886,8 @@ export const ui: Catalog = {
   'Draw what its elements hold as rows': 'Dibujar como filas lo que contienen sus elementos',
   'Write the component’s name': 'Escribir el nombre del componente',
   'Attributes written': 'Atributos escritos',
-  'It has no attributes to write.': 'No tiene atributos para escribir.',
+  'It has no attributes to write yet. Add one under New attribute, in its Attributes section.':
+    'Todavía no tiene atributos para escribir. Agregar uno en Nuevo atributo, en su sección Atributos.',
   '(it has no such attribute)': '(no tiene ese atributo)',
   'Write “{name}” earlier': 'Escribir “{name}” antes',
   'Write “{name}” later': 'Escribir “{name}” después',
@@ -2015,8 +2017,10 @@ export const ui: Catalog = {
   Images: 'Imágenes',
   Solids: 'Sólidos',
   '{count} images': { one: '{count} imagen', other: '{count} imágenes' },
-  'It defines no components.': 'No define componentes.',
-  'It defines no relation types.': 'No define tipos de relación.',
+  'It defines no components yet. Add one with New component, on the Components tab.':
+    'Todavía no define componentes. Agregar uno con Nuevo componente, en la pestaña Componentes.',
+  'It defines no relation types yet. Add one with New relation type, on the Components tab.':
+    'Todavía no define tipos de relación. Agregar uno con Nuevo tipo de relación, en la pestaña Componentes.',
   'Use this package': 'Usar este paquete',
   '{count} components': { one: '{count} componente', other: '{count} componentes' },
   '{count} relation types': { one: '{count} tipo de relación', other: '{count} tipos de relación' },
@@ -2761,8 +2765,8 @@ export const ui: Catalog = {
   '{count} d': '{count} d',
   // Time ranges (R43): the filter panel's choice and the strip's sliders and playback.
   'Time range': 'Rango de tiempo',
-  'No attribute here holds dates, times or numbers to show a range of.':
-    'Ningún atributo de aquí tiene fechas, horas o números de los que mostrar un rango.',
+  'No attribute here holds dates, times or numbers to show a range of. Give one a date, time or number type in its component, on the Components tab.':
+    'Ningún atributo de aquí tiene fechas, horas o números de los que mostrar un rango. Darle a uno el tipo fecha, hora o número en su componente, en la pestaña Componentes.',
   'Show only what a date, time or number attribute puts in a range, and play it.':
     'Mostrar solo lo que un atributo de fecha, hora o número pone dentro de un rango, y reproducirlo.',
   'Range on': 'Rango sobre',
@@ -2957,7 +2961,8 @@ export const ui: Catalog = {
   'Copy the outline of a named part…': 'Copiar el contorno de una parte con nombre…',
   'Copy the outline of a named part': 'Copiar el contorno de una parte con nombre',
   'Draw its kind instead': 'Dibujar su tipo en su lugar',
-  'This picture has no named parts.': 'Esta imagen no tiene partes con nombre.',
+  'This picture has no named parts. Give its parts ids in the SVG, then replace the picture with it.':
+    'Esta imagen no tiene partes con nombre. Darles un id a sus partes en el SVG y después reemplazar la imagen con él.',
   'Named part': 'Parte con nombre',
   'Choose a part…': 'Elegir una parte…',
   'A copy of its outline stays as it is when the picture changes; to draw the shapes as the part itself, choose it under Drawn as a part.':

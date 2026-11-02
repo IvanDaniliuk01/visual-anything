@@ -104,6 +104,10 @@ describe('controls', () => {
       attributes,
     });
     expect(isControl(element('li', ' role="option" className="x"'))).toBe(true);
+    expect(isControl(element('div', ' role="treeitem"'))).toBe(true);
+    expect(isControl(element('canvas', ' tabIndex={0} role="img"'))).toBe(true);
+    expect(isControl(element('pre', ' tabIndex={0}'))).toBe(false);
+    expect(isControl(element('div', ' tabIndex={-1}'))).toBe(false);
     expect(isControl(element('input', ' type="hidden"'))).toBe(false);
     expect(isControl(element('div', ' className="x"'))).toBe(false);
     expect(statesNeeded(new Set(['background']))).toEqual(['hover', 'active']);

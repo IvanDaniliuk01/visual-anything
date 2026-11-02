@@ -8,7 +8,8 @@ import { allRules, closingParenthesis, selectorsOf, type StyleRule } from './sty
 
 /** The elements that are controls by their tag, and the roles that make any element one. */
 const CONTROL_TAGS = ['button', 'select', 'input', 'textarea', 'summary'] as const;
-const CONTROL_ROLES = /^(?:menuitem|menuitemcheckbox|menuitemradio|option|tab|switch)$/;
+const CONTROL_ROLES =
+  /^(?:menuitem|menuitemcheckbox|menuitemradio|option|tab|switch|treeitem|gridcell|button|radio|slider|checkbox)$/;
 
 /** The source files of the app's components, by their paths from `src`. */
 export function componentFiles(): string[] {
@@ -113,7 +114,11 @@ export function isControl(element: WrittenElement): boolean {
   if ((CONTROL_TAGS as readonly string[]).includes(element.tag)) {
     return stringAttribute(element.attributes, 'type') !== 'hidden';
   }
-  return CONTROL_ROLES.test(stringAttribute(element.attributes, 'role') ?? '');
+  if (CONTROL_ROLES.test(stringAttribute(element.attributes, 'role') ?? '')) return true;
+  // A `<pre>` the keyboard reaches only scrolls, as the code to approve does: it is no control.
+  if (element.tag === 'pre') return false;
+  // An element the keyboard reaches by its tabIndex is a control too, whatever its tag.
+  return /(?<![\w-])tabIndex=(?:\{0\}|"0")/.test(element.attributes);
 }
 
 /**

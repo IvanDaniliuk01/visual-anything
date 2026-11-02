@@ -72,3 +72,5 @@ While Claude built the user's data model, it could not see what it had made.
   - **The answer Claude reads.** An MCP image content (PNG) comes first, then a short text: the view's name and id, what the picture shows, its size, theme and zoom, and the elements with no shape there. Every case without a picture is an error with a sentence. With no app open, that sentence says `open_app` opens one. The tool never starts a browser. `ToolOutcome` gains `image` for this.
   - **Reads gain `capture`.** The tools' rule on the names of the tools that only read becomes get, list, find, read, preview, export, check or capture.
   - **Nothing the person sees.** The tab shows nothing while it takes a picture, so `es.ts` gains nothing. The reasons a drawing failed go to Claude only, in English.
+
+- 2026-11-01 (A4, the main session, from the user's note 15): **`region` frames notes and arrows by their ids too**, in any view that holds them, as `highlight` and tours mark them; an id that names neither an element nor a note or an arrow is refused, saying which.

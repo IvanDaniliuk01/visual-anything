@@ -224,6 +224,14 @@
   cursor: default;
 }
 
+.element-list-cell:hover {
+  background: var(--surface-hover);
+}
+
+.element-list-cell:active {
+  background: var(--surface-pressed);
+}
+
 .element-list-cell:focus {
   outline: var(--stroke-thick) solid var(--focus-ring);
   outline-offset: calc(-1 * var(--stroke-thick));

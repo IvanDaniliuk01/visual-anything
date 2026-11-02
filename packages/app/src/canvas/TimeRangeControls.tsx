@@ -104,7 +104,9 @@ export function TimeRangeChooser({ editor, explore }: { editor: Editor; explore:
       <legend>{t('Time range')}</legend>
       {choices.length === 0 ? (
         <p className="explore-panel-note">
-          {t('No attribute here holds dates, times or numbers to show a range of.')}
+          {t(
+            'No attribute here holds dates, times or numbers to show a range of. Give one a date, time or number type in its component, on the Components tab.',
+          )}
         </p>
       ) : (
         <>

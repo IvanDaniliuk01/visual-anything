@@ -413,7 +413,11 @@ function PartOutlinePicker({ pictures, disabled, onCopy }: PartOutlinePickerProp
         ))}
       </select>
       {parts.length === 0 ? (
-        <p className="inspector-notes">{t('This picture has no named parts.')}</p>
+        <p className="inspector-notes">
+          {t(
+            'This picture has no named parts. Give its parts ids in the SVG, then replace the picture with it.',
+          )}
+        </p>
       ) : (
         <>
           <label htmlFor={partId}>{t('Named part')}</label>

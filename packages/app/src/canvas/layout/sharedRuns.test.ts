@@ -49,7 +49,7 @@ describe('keptApart', () => {
     expect(keep).toEqual([true, false]);
   });
 
-  it('always keeps the fixed lines given first, and leaves out what lies on them', () => {
+  it('always keeps the staying lines given first, and leaves out what lies on them', () => {
     const keep = keptApart(
       [
         route(['a', 'b'], [0, 0], [0, 100]),

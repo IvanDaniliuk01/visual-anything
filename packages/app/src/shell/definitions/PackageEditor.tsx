@@ -160,7 +160,9 @@ export function PackageEditor({ id, titleRef }: PackageEditorProps) {
             id: each.id,
             name: t.definition(each.id, each.name),
           }))}
-          none={t('It defines no components.')}
+          none={t(
+            'It defines no components yet. Add one with New component, on the Components tab.',
+          )}
           open={inUse ? (other) => opener('component', other) : () => undefined}
         />
       </section>
@@ -172,7 +174,9 @@ export function PackageEditor({ id, titleRef }: PackageEditorProps) {
             id: each.id,
             name: t.definition(each.id, each.name),
           }))}
-          none={t('It defines no relation types.')}
+          none={t(
+            'It defines no relation types yet. Add one with New relation type, on the Components tab.',
+          )}
           open={inUse ? (other) => opener('relation-type', other) : () => undefined}
         />
       </section>

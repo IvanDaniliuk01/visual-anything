@@ -106,7 +106,10 @@ export function AttributesSection({
         </ul>
       ) : (
         <p className="panel-empty">
-          {t('Its {definer} defines no attributes.', { definer: t(DEFINER[of]) })}
+          {t(
+            'Its {definer} defines no attributes. Add one under New attribute, in the {definer} on the Components tab.',
+            { definer: t(DEFINER[of]) },
+          )}
         </p>
       )}
       {of === 'element' && (

@@ -134,7 +134,9 @@ export function PartControl({
               />
             ) : (
               <p id={partId} className="inspector-notes">
-                {t('This picture has no named parts.')}
+                {t(
+                  'This picture has no named parts. Give its parts ids in the SVG, then replace the picture with it.',
+                )}
               </p>
             )}
           </div>

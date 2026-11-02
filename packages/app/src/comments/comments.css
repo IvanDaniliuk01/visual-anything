@@ -382,6 +382,14 @@ span.comment-mention {
   pointer-events: auto;
 }
 
+.comment-placing:hover {
+  opacity: 0.3;
+}
+
+.comment-placing:active {
+  opacity: 0.4;
+}
+
 .comment-placing:focus-visible {
   outline: var(--stroke-thick) solid var(--focus-ring);
   outline-offset: calc(-1 * var(--stroke-thick));

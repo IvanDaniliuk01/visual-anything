@@ -34,16 +34,16 @@ interface Run {
 
 /**
  * Which of `routes` to keep, in their order: true for each that runs together with no route kept
- * before it but those it shares an end with. The first `fixed` are lines that stay whatever they
+ * before it but those it shares an end with. The first `staying` are lines that stay whatever they
  * meet, and are always kept.
  */
-export function keptApart(routes: readonly RouteWithEnds[], fixed = 0): boolean[] {
+export function keptApart(routes: readonly RouteWithEnds[], staying = 0): boolean[] {
   const cells = new Map<string, Run[]>();
   const keep: boolean[] = [];
   routes.forEach((route, index) => {
     const own = runsOf(route.points, index);
     const clash =
-      index >= fixed &&
+      index >= staying &&
       own.some((run) =>
         cellsOf(run).some((cell) =>
           (cells.get(cell) ?? []).some(

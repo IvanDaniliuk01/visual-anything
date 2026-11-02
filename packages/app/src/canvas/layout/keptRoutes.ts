@@ -77,13 +77,13 @@ function apart(scene: Scene, kept: Map<Id, readonly Point[]>): Map<Id, readonly 
     const shape = key === undefined ? undefined : byKey.get(key);
     return shape?.row !== undefined ? shape.containerShape : key;
   };
-  const fixed: RouteWithEnds[] = [];
+  const staying: RouteWithEnds[] = [];
   scene.relations.forEach((line, at) => {
     if (kept.has(line.relation) || line.route.length < 2) return;
     const from = line.ends?.from.kind === 'shape' ? blockOf(line.ends.from.key) : undefined;
     const to = line.ends?.to.kind === 'shape' ? blockOf(line.ends.to.key) : undefined;
     if (flags[at] === 1 && (from === undefined || from !== to)) return;
-    fixed.push({ points: line.route, ends: endKeysOf(line) });
+    staying.push({ points: line.route, ends: endKeysOf(line) });
   });
   const lines = new Map(scene.relations.map((line) => [line.relation, line]));
   const ids = [...kept.keys()];
@@ -91,7 +91,7 @@ function apart(scene: Scene, kept: Map<Id, readonly Point[]>): Map<Id, readonly 
     points: kept.get(id) as readonly Point[],
     ends: endKeysOf(lines.get(id) as RelationLine),
   }));
-  const keep = keptApart([...fixed, ...candidates], fixed.length).slice(fixed.length);
+  const keep = keptApart([...staying, ...candidates], staying.length).slice(staying.length);
   const result = new Map<Id, readonly Point[]>();
   ids.forEach((id, at) => {
     if (keep[at] === true) result.set(id, kept.get(id) as readonly Point[]);

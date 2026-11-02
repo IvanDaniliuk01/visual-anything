@@ -83,6 +83,10 @@
   outline-offset: var(--stroke-thin);
 }
 
+.simulation-chart-drawing:active {
+  background: var(--surface-pressed);
+}
+
 /* Text buttons beside the icons sit on their line. */
 .simulation-text-button {
   margin-top: 0;

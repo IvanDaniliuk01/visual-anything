@@ -148,6 +148,15 @@
   cursor: grab;
 }
 
+.solid-preview-picture:hover {
+  background: var(--surface-hover);
+}
+
+.solid-preview-picture:active {
+  background: var(--surface-pressed);
+  cursor: grabbing;
+}
+
 .solid-preview-none {
   display: grid;
   place-items: center;

@@ -17,10 +17,8 @@ const DRAWINGS: Record<string, string> = {
 };
 
 /**
- * Icons still drawn where they are, in a file another task owned while A4's styles were built: the
- * canvas's toolbar (`canvas/`), whose TypeScript the canvas task was changing. The set has its icons
- * already (`BringToFrontIcon`, `BringForwardIcon`, `SendBackwardIcon`, `SendToBackIcon`, and
- * `ZoomOutIcon` and `ZoomInIcon` for its "−" and "+"); the entry goes once the toolbar takes them.
+ * Icons still drawn where they are, by file, with why: for a file another task owns while the set
+ * gains their icons. None is left.
  */
 const NOT_YET_FROM_THE_SET: Record<string, string> = {};
 

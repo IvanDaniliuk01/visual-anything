@@ -192,7 +192,13 @@ function WrittenAttributes({ written, names, readOnly, control, update }: Writte
     void write(next);
   };
   if (listed.length === 0) {
-    return <p className="panel-empty">{t('It has no attributes to write.')}</p>;
+    return (
+      <p className="panel-empty">
+        {t(
+          'It has no attributes to write yet. Add one under New attribute, in its Attributes section.',
+        )}
+      </p>
+    );
   }
   return (
     <ul className="definition-checklist">
