@@ -285,3 +285,114 @@ Read from the pair of section 2, After against Before. Absolute numbers on this 
 ## 5. Outside the canvas
 
 - **Cleaning heavy SVGs** (core): the images variants take 4.2–4.3 s to build in the page, against about 0.35 s without images, nearly all of it in `cleanSvg` on the benchmark's four heavy icons. In `packages/core/src/images/svg.ts`, the scan for function calls in each attribute value, `value.matchAll(/([A-Za-z_][\w-]*)\s*\(/g)`, backtracks over every run of word characters, which is quadratic on long path data: about 2.9 s for a path of 20,000 commands. Scanning only values that hold a `(`, or matching names that are not preceded by a word character, makes it linear. This pass changes nothing outside `packages/app`.
+
+## Measured again (A4)
+
+Date: 2026-11-01. Measured by a builder, on `develop` at `98ceb85` with every other A4 task merged, the last task of A4, recorded and not held; nothing was optimized. This is the canvas benchmark's and the app benchmark's first record since section 2.
+
+**How it differs from the runs above.** Not on the reference laptop, and not in a window in front:
+
+- **The machine:** an Intel Core i9-14900HX (32 logical processors), 32 GB of memory and an NVIDIA GeForce RTX 4060 Laptop GPU, on Windows 11, on mains power in Windows' balanced plan; the machine `benchmark-5.md` and `benchmark-12.md` measured A4 on. Alongside ran the OneDrive sync service (about one processor), the antivirus (`bdservicehost`), Windows Update in the first minutes, and the person's own idle programs (their Visual Anything server on 52927, their browser and editor). No test run, benchmark or other builder's work ran meanwhile.
+- **The browser:** Chrome 156.0.8078.74 run headless (`--headless=new`) on the RTX 4060 through ANGLE and Direct3D 11, in a profile of its own on debugging port 9347, with `--disable-background-timer-throttling`, `--disable-renderer-backgrounding` and `--disable-backgrounding-occluded-windows`, at a pixel ratio of 1, cross-origin isolated. No browser window was visible. Headless Chrome starts a frame every 4.2 ms, about 240 a second, not 60.
+- **The build:** `pnpm bench`'s, built with its config and served by `vite preview` on 127.0.0.1:47721.
+- **The runs:** `bench.html?elements=10000` in work mode three times, at 1600 by 900 pixels (1578 by 802 inside); the build of `cf6c8d7` (A4's "The main thread", the commit the "After A4" numbers of `benchmark-5.md` and `benchmark-12.md` came from) once, in the same hour, as the Before of the pair, since the reference laptop's numbers above cannot be compared with this machine's; and `app-bench.html?elements=10000` twice, at 1366 by 768 pixels (below says why).
+
+Cells are "average / p95 / worst" for frames and "p50 / p95 / worst" for timed actions, in milliseconds; ✗ marks a miss, as the page judges it.
+
+### The canvas benchmark, measured again
+
+| Phase | benchmark-3, After, Default (reference laptop) | `cf6c8d7`, today | Now, run 1 | Now, run 2 | Now, run 3 |
+| --- | --- | --- | --- | --- | --- |
+| Pan, whole view | 3.4 / 4.0 / 12.5 | 5.6 / 7.9 / 11.4 | 5.8 / 9.1 / 11.0 | 5.5 / 7.9 / 23.9 | 5.4 / 7.8 / 11.8 |
+| Zoom, whole view | 3.1 / 3.8 / 4.6 | 5.2 / 9.2 / 19.5 | 3.5 / 8.1 / 13.5 | 5.7 / 10.4 / 15.8 | 2.9 / 6.8 / 12.7 |
+| Pan with the grid | 3.4 / 3.9 / 4.8 | 4.9 / 7.3 / 8.1 | 2.2 / 2.6 / 3.3 | 4.8 / 9.0 / 11.1 | 2.3 / 2.8 / 4.8 |
+| Zoom with the grid | 3.4 / 4.4 / 6.5 | 4.9 / 10.3 / 23.6 | 2.5 / 6.0 / 7.8 | 2.4 / 5.5 / 8.7 | 2.4 / 5.8 / 7.4 |
+| Pan with the grid and rulers | 3.9 / 4.5 / 10.3 | 5.1 / 7.2 / 9.8 | 2.8 / 3.7 / 4.1 | 2.5 / 3.1 / 4.4 | 3.1 / 5.7 / 7.7 |
+| Zoom with the grid and rulers | 4.3 / 5.3 / 9.3 | 5.1 / 8.2 / 12.0 | 2.9 / 5.8 / 8.2 | 2.6 / 5.5 / 7.8 | 2.7 / 5.3 / 7.0 |
+| Pan, names shown | 6.0 / 12.6 / 17.8 | 1.6 / 2.0 / 3.6 | 1.5 / 1.9 / 4.0 | 1.6 / 2.1 / 3.9 | 1.7 / 2.1 / 4.1 |
+| Pan, names shown, again | 4.7 / 5.5 / 9.1 | 1.5 / 1.7 / 1.8 | 1.4 / 1.6 / 1.7 | 1.5 / 1.8 / 2.1 | 1.6 / 1.9 / 2.3 |
+| Zoom across the label threshold | 4.0 / 8.6 / 12.3 | 2.1 / 4.3 / 13.5 | 1.5 / 2.7 / 4.2 | 1.5 / 2.6 / 4.9 | 1.9 / 3.4 / 5.4 |
+| Pan, details shown | 3.7 / 4.3 / 5.4 | 1.2 / 1.3 / 1.9 | 1.0 / 1.1 / 1.5 | 1.0 / 1.2 / 1.5 | 1.8 / 2.2 / 2.5 |
+| Select by clicking | 3.4 / 4.5 / 5.0 | 1.6 / 2.3 / 2.8 | 1.3 / 1.7 / 2.7 | 1.4 / 1.9 / 2.6 | 4.6 / 7.3 / 10.2 |
+| Select everything | 6.6 / 9.5 / 16.3 | 2.6 / 4.5 / 7.1 | 2.2 / 4.3 / 6.6 | 2.2 / 4.3 / 7.0 | 3.4 / 8.4 / 11.5 |
+| Zoom, everything selected | 4.3 / 5.5 / 6.1 | 4.9 / 8.8 / 16.0 | 2.3 / 5.3 / 6.5 | 2.3 / 5.6 / 6.8 | 2.3 / 4.7 / 10.3 |
+| Switch theme, whole view | 13.4 / 24.8 / 35.2 ✗ | 10.5 / 15.5 / 17.5 | 15.5 / 27.9 / 29.5 ✗ | 14.9 / 23.9 / 26.9 ✗ | 14.7 / 27.0 / 29.7 ✗ |
+| Switch theme, shapes in full | 12.0 / 23.9 / 30.0 ✗ | 14.0 / 29.8 / 33.7 ✗ | 14.6 / 28.8 / 29.6 ✗ | 9.9 / 15.8 / 27.9 | 9.1 / 13.1 / 25.8 |
+| Switch theme, names shown | 11.7 / 20.1 / 20.9 ✗ | 20.1 / 34.9 / 51.1 ✗ | 8.1 / 13.7 / 13.7 | 8.6 / 12.3 / 12.3 | 7.9 / 10.7 / 10.7 |
+| Pan after a switch, names shown | 6.3 / 9.3 / 17.1 | 5.6 / 9.9 / 53.9 ✗ | 2.1 / 3.0 / 11.5 | 2.2 / 3.1 / 10.1 | 3.5 / 6.9 / 11.9 |
+| Zoom in after a switch, to names shown | 4.2 / 6.2 / 22.3 | 2.3 / 4.6 / 17.1 | 2.2 / 4.7 / 15.7 | 2.4 / 4.8 / 15.5 | 5.7 / 10.0 / 34.8 ✗ |
+| Select everything, dark theme | 7.1 / 9.0 / 12.8 | 2.3 / 4.2 / 7.4 | 2.4 / 4.2 / 11.7 | 4.8 / 8.7 / 12.3 | 2.4 / 4.3 / 7.2 |
+| Zoom, everything selected, dark theme | 5.1 / 6.4 / 7.6 | 4.5 / 9.2 / 37.6 ✗ | 2.7 / 5.6 / 16.4 | 2.5 / 5.3 / 16.2 | 2.7 / 5.2 / 16.1 |
+| Recolor every Service, frames after it | 8.4 / 13.6 / 18.1 | 4.6 / 12.0 / 22.2 | 4.0 / 10.0 / 14.0 | 4.8 / 10.6 / 16.9 | 4.7 / 13.5 / 26.3 |
+| Resize a shape, guides shown | – | 4.0 / 6.0 / 7.6 | 5.8 / 9.0 / 12.2 | 6.4 / 9.3 / 13.2 | 5.3 / 7.9 / 11.7 |
+| Pan, whole view, 1,000 routed lines | 4.4 / 5.4 / 14.6 | 2.5 / 3.8 / 9.6 | 2.9 / 3.8 / 12.3 | 2.7 / 3.9 / 10.1 | 2.4 / 2.7 / 8.7 |
+| Zoom, whole view, 1,000 routed lines | 3.9 / 4.6 / 5.2 | 2.2 / 4.6 / 11.4 | 5.3 / 9.9 / 35.0 ✗ | 2.7 / 5.8 / 14.2 | 2.7 / 5.9 / 14.4 |
+| Pan, details shown, 1,000 routed lines | 3.9 / 4.6 / 5.3 | 1.3 / 1.5 / 2.2 | 2.8 / 4.6 / 6.9 | 1.4 / 1.6 / 2.1 | 1.5 / 2.2 / 2.8 |
+| Drag a bend point of a routed line | 4.6 / 5.1 / 34.0 ✗ | 1.6 / 1.7 / 14.0 | 2.3 / 3.0 / 15.1 | 1.8 / 2.2 / 13.2 | 2.8 / 4.1 / 12.2 |
+| Overlay of color, frames after it | – | 3.3 / 6.8 / 11.6 | 2.3 / 5.8 / 12.0 | 2.4 / 6.4 / 10.2 | 2.0 / 4.3 / 6.4 |
+| Zoom across a level of detail | – | 5.4 / 8.3 / 11.3 | 3.0 / 7.5 / 11.5 | 5.9 / 10.0 / 13.3 | 5.0 / 7.1 / 10.1 |
+| Tour step gliding 111 shapes | – | 3.6 / 2.3 / 171 ✗ | 5.4 / 8.5 / 206 ✗ | 3.6 / 2.7 / 176 ✗ | 3.5 / 2.2 / 170 ✗ |
+| Pan before routes around shapes | – | 2.1 / 2.7 / 3.6 | 2.6 / 3.7 / 5.8 | 1.7 / 2.0 / 13.7 | 1.6 / 2.1 / 3.9 |
+| Pan while routes around shapes come in | – | 5.7 / 7.5 / 161 ✗ | 6.0 / 8.8 / 163 ✗ | 4.2 / 4.9 / 164 ✗ | 3.9 / 4.0 / 146 ✗ |
+
+| Timed action | Mark (p95) | benchmark-3, After, Default (reference laptop) | `cf6c8d7`, today | Now, run 1 | Now, run 2 | Now, run 3 |
+| --- | --- | --- | --- | --- | --- | --- |
+| One edit: a rename or a move | ≤ 50 | 50 / 68 / 68 ✗ | 30 / 39 / 39 | 32 / 41 / 41 | 30 / 36 / 36 | 26 / 32 / 32 |
+| Apply a layout: every shape moves | ≤ 150 | 302 / 308 / 308 ✗ | 123 / 141 / 141 | 119 / 254 / 254 ✗ | 159 / 193 / 193 ✗ | 142 / 178 / 178 ✗ |
+| Resize a shape: let go | ≤ 50 | – | 32 / 37 / 37 | 36 / 44 / 44 | 38 / 45 / 45 | 36 / 42 / 42 |
+| Scope: leave one element out of the view, and add it back | ≤ 50 | – | 65 / 80 / 80 ✗ | 61 / 76 / 76 ✗ | 62 / 94 / 94 ✗ | 61 / 82 / 82 ✗ |
+| Scope: leave a system out of the view, its contents into World, and add it back | ≤ 100 | – | 125 / 148 / 148 ✗ | 124 / 155 / 155 ✗ | 129 / 177 / 177 ✗ | 131 / 153 / 153 ✗ |
+| Scope: show only the Services, then the whole model | ≤ 150 | – | 116 / 133 / 133 | 115 / 260 / 260 ✗ | 116 / 325 / 325 ✗ | 107 / 302 / 302 ✗ |
+| Element list: 10000 rows and their columns | ≤ 50 | – | 0.5 / 1.9 / 1.9 | 1.3 / 2.6 / 2.6 | 0.5 / 1.4 / 1.4 | 1.5 / 2.8 / 2.8 |
+| Element list: sort by a column | ≤ 50 | – | 5.2 / 5.9 / 5.9 | 5.2 / 6.1 / 6.1 | 5.2 / 6.2 / 6.2 | 5.2 / 6.1 / 6.1 |
+| Element list: filter by words | ≤ 50 | – | 9.4 / 12 / 12 | 11 / 16 / 16 | 9.6 / 12 / 12 | 10 / 12 / 12 |
+| Element list: paste 100 rows of 2 cells, to the frame | ≤ 150 | – | 9.2 / 17 / 17 | 13 / 20 / 20 | 9.4 / 15 / 15 | 11 / 17 / 17 |
+| Destinations: 1,000 shapes marked, and unmarked, to the frame | ≤ 150 | – | 20 / 22 / 22 | 20 / 24 / 24 | 17 / 21 / 21 | 18 / 23 / 23 |
+| Restack: to the back, then to the front | ≤ 100 | 21 / 115 / 115 ✗ | 19 / 34 / 34 | 16 / 28 / 28 | 13 / 23 / 23 | 16 / 32 / 32 |
+| Export the whole view at 1× | none | 1 / 1 / 1 | 0.4 / 0.4 / 0.4 | 0.4 / 0.4 / 0.4 | 0.5 / 0.5 / 0.5 | 0.4 / 0.4 / 0.4 |
+| Export what is visible at 2×, names shown | none | 171 / 171 / 171 | 139 / 139 / 139 | 133 / 133 / 133 | 156 / 156 / 156 | 134 / 134 / 134 |
+| Export what is visible at 2×, whole view | none | 135 / 135 / 135 | 66 / 66 / 66 | 64 / 64 / 64 | 106 / 106 / 106 | 75 / 75 / 75 |
+| One route edit: a style or a bend point | ≤ 50 | 27 / 38 / 38 | 19 / 23 / 23 | 20 / 26 / 26 | 14 / 18 / 18 | 17 / 20 / 20 |
+| Show the view with routes | none | 478 / 478 / 478 | 259 / 259 / 259 | 204 / 204 / 204 | 218 / 218 / 218 | 203 / 203 / 203 |
+| Overlay: color 10,000 shapes by an attribute | ≤ 150 | – | 35 / 46 / 46 | 28 / 48 / 48 | 31 / 49 / 49 | 30 / 49 / 49 |
+| Overlay: size 10,000 shapes by an attribute | ≤ 150 | – | 121 / 138 / 138 | 117 / 137 / 137 | 119 / 144 / 144 | 111 / 134 / 134 |
+| Move one shape: routing’s own work on the main thread | ≤ 8 | – | 5.4 / 9.8 / 9.8 ✗ | 6.2 / 11.9 / 11.9 ✗ | 5.8 / 10.8 / 10.8 ✗ | 5.9 / 10.6 / 10.6 ✗ |
+| Move one shape: the frame with the routes around shapes that came | ≤ 50 | – | 12 / 17 / 17 | 14 / 17 / 17 | 14 / 16 / 16 | 13 / 18 / 18 |
+
+- **Other figures, now:** the scene built in the page in 129 to 130 ms (130 at `cf6c8d7`); selecting 0.09 to 0.11 ms at the median, 0.21 to 0.30 at the 95th percentile; restyles with 0 fallbacks and 0 stale tiles shown in every run; "Apply a layout": the scene 38 to 54 ms, its index 14 to 15 and the tiles and frame 84 to 98 on average (32, 14 and 79 at `cf6c8d7`).
+- **The grid's cost** (A3's mark: 0.5 ms a frame at the median) read 1.82 / 2.32 ms panning / zooming in the first run now, and −1.81 / −2.30 and −0.31 / 0.26 in the others (−0.38 / 0.05 at `cf6c8d7`). It is the difference of two medians measured apart, and headless frames of 1 to 5 ms swing by more than it between phases, as the grid phases' own rows show (pan with the grid 2.2 in one run, 4.8 in the next); on this machine headless it does not tell the grid's cost.
+
+### The app benchmark, measured again
+
+At 1600 by 900 pixels the app benchmark stops within its first clicks: "What the benchmark waited for never showed." A click it chose as clear of relations selects a relation instead (relation-3295, Element 0.16 → Element 0.19, "writes to"), so the inspector never shows the shape's name. It stops the same way on builds of `m3`, `m3c` and `m12` run headless at that size, so it is not A4's doing; at 1366 by 768, the reference laptop's display, it runs to its end. The benchmark finds its spots in the scene it builds itself, with the camera it works out for Fit and its zoom; at that size either a line the app draws passes a spot that scene leaves clear, or the app's camera is not the one the benchmark works out. Which was not diagnosed here; the earlier runs above were all at 1366 by 768, so the larger window may never have run. The runs below are at 1366 by 768 (1344 by 670 inside, the canvas 441 by 626 pixels between the app's panels and the results), shapes clicked at scale 0.585; the app mounted in 328 ms.
+
+| Interaction | Mark | Section 2's After (reference laptop, front window) | Now, run 1 | Now, run 2 |
+| --- | --- | --- | --- | --- |
+| Select by clicking | p95 ≤ 33.3, worst ≤ 50 | 33.8 / 82.2 / 152.7 (work p95 55.2) ✗ | 22.9 / 29.9 / 70.0 (work p95 28.7) ✗ | 23.0 / 55.8 / 201.3 (work p95 54.7) ✗ |
+| Select everything | worst ≤ 100 | 36.9 / 57.8 / 57.8 (work p95 53.5) | 13.7 / 23.8 / 23.8 (work p95 21.5) | 13.6 / 19.9 / 19.9 (work p95 18.1) |
+| Keyboard move | report only | 66.4 / 119.0 / 119.0 (work p95 116.4) | 73.9 / 102.6 / 102.6 (work p95 100.9) | 71.7 / 98.1 / 98.1 (work p95 96.3) |
+| One edit: a rename | report only | 84.0 / 118.3 / 118.3 (work p95 117.5) | 72.2 / 154.0 / 154.0 (work p95 148.2) | 72.4 / 202.8 / 202.8 (work p95 190.4) |
+| Import: read a 10,000-node flowchart | worst ≤ 1,000 | – | 44.3 / 54.0 / 54.0 | 44.2 / 52.7 / 52.7 |
+| Import: prepare a 10,000-node flowchart | worst ≤ 1,000 | – | 53.0 / 58.7 / 58.7 | 51.3 / 59.0 / 59.0 |
+| Import: read a 10,000-row spreadsheet | worst ≤ 1,000 | – | 40.6 / 48.8 / 48.8 | 39.5 / 48.7 / 48.7 |
+| Import: prepare a 10,000-row spreadsheet | worst ≤ 1,000 | – | 48.5 / 56.3 / 56.3 | 47.0 / 52.6 / 52.6 |
+
+| Pan and zoom, frames as shown (work avg / p95 / worst) | Section 2's After | Now, run 1 | Now, run 2 |
+| --- | --- | --- | --- |
+| Pan by dragging, one element selected | 16.7 / 16.8 / 16.8 (work 3.8 / 10.8 / 17.4) | 4.2 / 4.3 / 6.0 (work 1.2 / 1.5 / 3.5) | 4.2 / 4.7 / 6.8 (work 1.2 / 1.4 / 3.3) |
+| Pan with the wheel, one element selected | 16.9 / 16.8 / 66.8 (work 3.9 / 11.4 / 73.9) ✗ | 4.2 / 4.3 / 4.3 (work 1.1 / 3.3 / 5.4) | 4.2 / 4.3 / 4.3 (work 1.1 / 3.0 / 4.9) |
+| Zoom with the wheel, one element selected | 16.7 / 16.8 / 16.9 (work 3.0 / 3.6 / 10.2) | 4.3 / 4.3 / 33.3 (work 1.8 / 3.2 / 27.2) | 4.3 / 4.3 / 33.3 (work 1.8 / 2.6 / 25.8) |
+| Pan by dragging, everything selected | 16.7 / 16.8 / 17.0 (work 2.9 / 3.3 / 4.8) | 4.3 / 5.1 / 9.1 (work 1.5 / 2.6 / 4.7) | 4.2 / 4.9 / 9.0 (work 1.3 / 1.7 / 4.4) |
+| Pan with the wheel, everything selected | 16.7 / 16.8 / 16.9 (work 2.3 / 2.8 / 3.7) | 4.2 / 5.3 / 6.7 (work 1.0 / 1.4 / 4.5) | 4.2 / 5.0 / 6.1 (work 1.0 / 1.5 / 3.3) |
+| Zoom with the wheel, everything selected | 16.7 / 16.8 / 16.9 (work 2.9 / 3.4 / 5.0) | 4.2 / 4.3 / 4.9 (work 1.6 / 2.4 / 9.4) | 4.2 / 4.3 / 4.3 (work 1.6 / 2.2 / 9.2) |
+
+Where a change's time goes, now (p50 / p95, run 1): a keyboard move takes 2.4 / 8.0 ms in the core, 45.5 / 58.2 in the shell's render and commit (React's Profiler 44.7 / 56.4), 17.1 / 23.5 in the canvas update and the other effects and 7.2 / 12.9 in the frame; a rename 10.3 / 22.5, 46.4 / 114.7, 7.3 / 11.2 and 8.0 / 13.3.
+
+**What frames as shown can say here: not the 60 frames per second target.** Headless Chrome starts a frame every 4.2 ms, so a frame as shown is about 4.2 ms whatever the app does, and an interaction's "two frames after React committed" is 8.4 ms of waiting where a front window at 60 Hz waits 33.3. The rows above say that each input's work fits in the frames headless Chrome offers, and the work columns say what the app costs; whether the page keeps 60 frames a second in front, and the clicks' mark, which counts two of those frames, need the run in a front window at 60 Hz that the benchmark asks for, on a visible window this task does not open.
+
+### What it says, measured again
+
+- **No regression from A4 in the canvas benchmark:** now and `cf6c8d7` measured in the same hour are within each other's run-to-run spread in every phase. The one change of A4's last merges on the canvas's path, the check of a curve between the points of its flattening (`routing/rounded.ts`), runs only for automatic curved lines, which this view draws none of.
+- **Within the marks on this machine,** every phase of panning, zooming and selecting at 10,000 elements, with names, details, the grid and rulers, everything selected, and 1,000 routed lines: average 1 to 6 ms, p95 under 11, worst under 24 in every run but one frame of 35 ms zooming with routed lines in run 1.
+- **Missed now, as at `cf6c8d7` unless said:** a theme switch at the whole view (p95 24 to 28 against 16.7; met in `cf6c8d7`'s run, which missed it with names shown instead, by 35); the tour step's glide (one frame of 170 to 206 ms, its first) and panning while routes around shapes come in (one frame of 146 to 164 ms, when they come); "Apply a layout" at the 95th percentile, the slowest of four (178 to 254 against 141 in `cf6c8d7`'s one run; see `benchmark-5.md`); the scope's three actions (leaving one element out, 76 to 94 against 50; a system, 153 to 177 against 100; showing only the Services, 260 to 325 against 150, met at `cf6c8d7` with 133 in its one run, its median the same, 107 to 116); and routing's own work on the main thread when a shape moves, 10.6 to 11.9 against 8.
+- **The app benchmark** times a keyboard move at about 72 ms and a rename at about 72 ms at the median on this machine, most of it React's render and commit of the shell (about 45 ms); the clicks keep within 30 ms at the 95th percentile in one run and not the other (56), its worst 70 and 201 ms.

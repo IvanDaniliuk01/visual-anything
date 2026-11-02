@@ -169,3 +169,91 @@ The panel's phases of frames now draw a frame for every change, 180 in three sec
 - **A step's lines** cost the worker 1 to 2 ms a frame, its solids not drawn again; the panel keeps 60 frames a second as shown while the step plays, and the canvas beside it too.
 - **The single slow frames left** (264 ms turning the whole space, 111 ms zooming, 653 to 717 ms panning the canvas with names shown) came once each, as in the first run; they are not chased here.
 - **The cost:** the merged copy of small pieces, 26.8 MiB for this space, kept once for each solid and let go of with it; opening the panel still takes about 1.3 s for its first frame, which builds, merges, uploads and compiles.
+
+## Measured again (A4)
+
+Date: 2026-11-01. Measured by a builder, on `develop` at `98ceb85` with every other A4 task merged, the last task of A4, recorded and not held; nothing was optimized.
+
+- **Not the reference laptop:** the runs above were on the i5-1135G7; these are on an Intel Core i9-14900HX (32 logical processors, 32 GB) with an NVIDIA GeForce RTX 4060 Laptop GPU, Windows 11, on mains power in the balanced plan, the machine `benchmark-5.md` and `benchmark-12.md` measured A4 on. So "After the panel's speed work" above does not compare with these numbers; to read them against the code before A4's last merges, the build of `cf6c8d7` (A4's "The main thread") was measured again in work mode in the same hour.
+- **In Node:** `pnpm exec tsx packages/app/src/bench/space-timing.ts 10000 3`, Node 24.22.
+- **In the browser:** Chrome 156.0.8078.74 headless (`--headless=new`) on the RTX 4060 through ANGLE and Direct3D 11, a profile of its own on debugging port 9347, with `--disable-background-timer-throttling`, `--disable-renderer-backgrounding` and `--disable-backgrounding-occluded-windows`, 1600 by 900 pixels (1578 by 802 inside) at a pixel ratio of 1, cross-origin isolated; `pnpm bench`'s build served on 127.0.0.1:47721; `bench.html?space`, then `&mode=frames`. No browser window was visible. Headless Chrome offered frames every 4.2 ms, about 240 a second, so frames mode and the panel's phases time frames at that rate, not at 60 Hz, and the panel's floor of 16.7 ms in work mode above is 4.2 ms here.
+- **Alongside:** the OneDrive sync service (about one processor), the antivirus, Windows Update in the first minutes, and the person's own idle programs (their Visual Anything server on 52927, their browser, their editor). No test run, benchmark or other builder's work.
+- **What is not measured:** the panel's legend, which A4 added (`space/legend.ts`, ADR 0076's clarification "what M10 left"): the benchmark works out what the panel shows without mounting its component, and its view has no overlay that colors what the panel draws.
+
+### In Node, measured again
+
+| Step | After the speed work, reference laptop, median | Now, median | Now, 95th percentile |
+| --- | --- | --- | --- |
+| Making the twenty canonical files, 40.8 MiB | 563 (first run) | 218 | 270 |
+| Making them again, hashed, described, with the project | 10,400 | 3,207 | 3,207 |
+| `spaceOf`, from nothing, 2,201 entries | 81 (first run) | 19.7 | 26.4 |
+| The panel's states after a selection, from the emphasis | 3.3 (first run) | 1.5 | 5.1 |
+| The canvas's emphasis of a change of focus, for the panel | 4.9 (first run) | 1.7 | 5.1 |
+| Laying the space out from nothing, placing it and looking | 76 | 18.8 | 19.2 |
+| Placing it, from nothing | 39 | 14.8 | 15.6 |
+| Looking again after a selection, from the placement kept | 2.1 | 0.84 | 1.8 |
+| Merging each solid's pieces that draw alike, once, 26.8 MiB | 148 | 78 | 78 |
+| Making the space's scene, 22 batches for 200 solids | 9.7 | 4.3 | 12.9 |
+| The scene following a change of looks, in place | 1.2 | 0.30 | 0.63 |
+| The exploded view's moves, as a frame sends them | 2.3 (first run) | 1.2 | 2.7 |
+| The farthest solids boxed while the camera moves, 134 of 200 | 0.10 (first run) | 0.04 | 0.10 |
+| A pick, whole space, 4 of 200 found an element | 2.2 to 3.4 (first run) | 0.94 to 1.02 | 1.2 to 1.5, worst 1.8 to 45 |
+| A pick, close in on the holder at every cap, 40 of 200 found | 1.8 to 2.0 (first run) | 0.71 to 0.92 | 0.91 to 1.2, worst 4.9 to 25 |
+
+"First run" marks the rows the speed work did not measure again, read from the first table above.
+
+### In the browser, work mode, measured again
+
+| Phase, average / 95th percentile / worst | After the speed work, reference laptop | `cf6c8d7`, this machine, today | Now | Verdict now |
+| --- | --- | --- | --- | --- |
+| Panel: turn the camera, whole space | 18.1 / 20.1 / 264 | 4.5 / 6.2 / 35.4 | 4.4 / 5.3 / 29.7 | meets |
+| Panel: turn the camera, close in | 16.7 / 19.7 / 34.3 | 4.3 / 5.8 / 9.5 | 4.2 / 5.6 / 7.9 | meets |
+| Panel: zoom in and out, close in | 17.1 / 19.4 / 111 | 4.2 / 5.1 / 6.5 | 4.2 / 5.2 / 6.0 | meets |
+| Canvas, panel at rest: pan, whole view | 4.8 / 5.7 / 6.2 | 2.9 / 6.8 / 13.7 | 3.9 / 7.6 / 11.6 | meets |
+| Canvas, panel at rest: zoom, whole view | 7.1 / 12.0 / 48.5 | 1.9 / 3.6 / 17.8 | 3.7 / 7.9 / 20.7 | meets |
+| Canvas, panel at rest: select by clicking, whole view | 6.7 / 7.6 / 8.8 | 1.8 / 2.2 / 2.6 | 1.9 / 2.2 / 2.7 | meets |
+| Canvas, panel at rest: pan, names shown | 11.4 / 19.9 / 653 | 2.5 / 5.8 / 10.7 | 1.9 / 6.0 / 8.8 | meets |
+| Canvas, panel at rest: zoom, names shown | 4.5 / 7.1 / 21.7 | 2.0 / 3.7 / 8.6 | 1.1 / 2.3 / 4.1 | meets |
+| Canvas, panel at rest: select by clicking, names shown | 6.4 / 8.1 / 9.4 | 3.7 / 8.5 / 9.8 | 3.4 / 6.5 / 14.5 | meets |
+| Panel: play a step, its relations drawn in space | 21.4 / 33.5 / 36.8 | 5.5 / 10.3 / 20.5 | 6.5 / 11.1 / 17.4 | meets |
+| Canvas: play a step, its relations drawn in space | 12.9 / 16.9 / 19.0 | 1.9 / 2.5 / 2.9 | 1.9 / 2.6 / 2.7 | meets |
+
+| Change, median / 95th percentile / worst | After the speed work, reference laptop | `cf6c8d7`, today | Now | Mark |
+| --- | --- | --- | --- | --- |
+| Panel: the whole space drawn again at rest, 5.64 million triangles | 11 / 19 / 29 | 4 / 10 / 15 | 4 / 8 / 16 | 33 ms, meets |
+| A selection on the canvas, until the panel shows it | 14 / 50 / 95 | 5 / 8 / 8 | 5 / 7 / 8 | 33 ms, meets |
+| A change of focus on the canvas, until the panel shows it | 31 / 55 / 173 | 11 / 19 / 39 | 13 / 22 / 34 | 33 ms, meets |
+| A pick in the panel, answered | 1.4 / 3.7 / 43 | 1 / 2 / 20 | 1 / 1 / 19 | 16 ms, meets |
+
+The page's own work for a selection was 1.9 ms at the median now (2.3 at `cf6c8d7`, 5.1 on the reference laptop), and for a change of focus 8.3 ms (7.7, 20.9). The panel drew no frame while the canvas's phases ran.
+
+### In the browser, frames mode, measured again
+
+| Phase, average / 95th percentile / worst | After the speed work, reference laptop | Now | Verdict now |
+| --- | --- | --- | --- |
+| Panel: turn the camera, whole space | 16.7 / 19.8 / 31.6 | 4.4 / 6.1 / 23.9 | meets |
+| Panel: turn the camera, close in | 16.8 / 19.2 / 33.5 | 4.2 / 5.6 / 7.1 | meets |
+| Panel: zoom in and out, close in | 16.7 / 19.4 / 20.5 | 4.2 / 5.2 / 7.1 | meets |
+| Canvas, panel at rest: pan, whole view | 16.7 / 16.7 / 17.2 | 4.2 / 5.0 / 5.7 | meets |
+| Canvas, panel at rest: zoom, whole view | 16.9 / 16.7 / 50.0 | 4.2 / 4.4 / 17.7 | meets |
+| Canvas, panel at rest: select by clicking, whole view | 16.7 / 16.7 / 16.8 | 4.2 / 4.3 / 4.3 | meets |
+| Canvas, panel at rest: pan, names shown | 20.7 / 16.8 / 717 | 4.2 / 4.3 / 8.4 | meets |
+| Canvas, panel at rest: zoom, names shown | 16.7 / 16.7 / 16.8 | 4.2 / 4.2 / 4.4 | meets |
+| Canvas, panel at rest: select by clicking, names shown | 18.3 / 16.8 / 117 | 4.2 / 4.2 / 4.3 | meets |
+| Panel: play a step, its relations drawn in space | 16.7 / 18.0 / 35.6 | 4.2 / 4.4 / 8.3 | meets |
+| Canvas: play a step, its relations drawn in space | 16.7 / 16.7 / 16.8 | 4.2 / 4.9 / 6.1 | meets |
+
+| Change, median / 95th percentile / worst | After the speed work, reference laptop | Now | Mark |
+| --- | --- | --- | --- |
+| Panel: the whole space drawn again at rest | 14 / 20 / 32 | 5 / 8 / 11 | 33 ms, meets |
+| A selection on the canvas, until the panel shows it | 12 / 28 / 29 | 6 / 8 / 11 | 33 ms, meets |
+| A change of focus on the canvas, until the panel shows it | 29 / 58 / 180 | 13 / 20 / 39 | 33 ms, meets |
+| A pick in the panel, answered | 1.5 / 3.0 / 45 | 1 / 1 / 20 | 16 ms, meets |
+
+Turning the camera, 4 of the 180 changes at the whole space and 2 close in drew no frame of their own, the worker taking them in its next.
+
+### What it says, measured again
+
+- **On this machine every phase and every change meets its mark,** in work mode and frames mode, the panel's camera moving at the frame rate headless Chrome offers, about 240 a second, and a change of focus showing within two frames at the 95th percentile (20 to 22 ms), which missed on the reference laptop (55 to 58 ms).
+- **No regression from A4:** now and `cf6c8d7` measured in the same hour are within each other's spread in every row; the only miss of `cf6c8d7`'s run, one frame of 35 ms turning the whole space, did not come back now. A4 changed the panel's legend, its follower and its words for where an element is (`space/`), none of which the benchmark's phases draw or run.
+- **Against the reference laptop,** the numbers fell by three to five times, which is the machine, not A4; the reference laptop was not measured again in this task.
