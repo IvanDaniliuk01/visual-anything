@@ -43,9 +43,16 @@ export interface ItemConflict {
  * How a list inside an item merges where it is not a list of things with ids: as a set of values, or
  * as things keyed by another of their keys; either sorted again, where the file keeps it sorted.
  */
-export type ListRule =
+export type ListRule = (
   | { kind: 'set'; sorted?: boolean }
-  | { kind: 'keyed'; key: (item: JsonValue) => string; sorted?: boolean };
+  | { kind: 'keyed'; key: (item: JsonValue) => string; sorted?: boolean }
+) & {
+  /**
+   * Whether the file keeps this list when it holds nothing. Any other list that the merge empties,
+   * each side having removed what the other kept, is left out, as the files leave out an empty list.
+   */
+  keepsEmpty?: boolean;
+};
 
 /** How a merge reads an item: whose value stays where both changed, and how its lists merge. */
 export interface MergePolicy {
@@ -131,31 +138,46 @@ function mergeValue(
       );
       if (value !== undefined) merged[key] = value;
     }
-    return merged;
+    // An object each side emptied of what the other kept is left out, as a list is: no file keeps
+    // an empty object where it may leave it out.
+    const emptied =
+      Object.keys(merged).length === 0 &&
+      Object.keys(ours).length > 0 &&
+      Object.keys(theirs).length > 0;
+    return emptied ? undefined : merged;
   }
   if (Array.isArray(ours) && Array.isArray(theirs) && (base === undefined || Array.isArray(base))) {
     const rule = policy.lists?.(path);
+    // A list each side emptied of what the other kept is left out, unless the file keeps it empty.
+    const emptied = (merged: JsonValue[]) =>
+      merged.length === 0 && ours.length > 0 && theirs.length > 0 && rule?.keepsEmpty !== true
+        ? undefined
+        : merged;
     if (rule?.kind === 'set') {
       const merged = mergeSet(base ?? [], ours, theirs);
-      return rule.sorted === true
-        ? merged.sort((a, b) => byCodeUnits(keyText(a), keyText(b)))
-        : merged;
+      return emptied(
+        rule.sorted === true ? merged.sort((a, b) => byCodeUnits(keyText(a), keyText(b))) : merged,
+      );
     }
     if (rule?.kind === 'keyed') {
       const merged = mergeList(base ?? [], ours, theirs, rule.key, path, policy, conflicts);
-      return rule.sorted === true
-        ? merged.sort((a, b) => byCodeUnits(rule.key(a), rule.key(b)))
-        : merged;
+      return emptied(
+        rule.sorted === true
+          ? merged.sort((a, b) => byCodeUnits(rule.key(a), rule.key(b)))
+          : merged,
+      );
     }
     if (keyed(ours) && keyed(theirs) && (base === undefined || keyed(base))) {
-      return mergeList(
-        base ?? [],
-        ours,
-        theirs,
-        (each) => (each as { id: Id }).id,
-        path,
-        policy,
-        conflicts,
+      return emptied(
+        mergeList(
+          base ?? [],
+          ours,
+          theirs,
+          (each) => (each as { id: Id }).id,
+          path,
+          policy,
+          conflicts,
+        ),
       );
     }
   }
@@ -393,10 +415,10 @@ function listsOf(kind: FileKind): (path: readonly string[]) => ListRule | undefi
   const only = (path: readonly string[], key: string) => path.length === 1 && path[0] === key;
   switch (kind) {
     case 'project':
-      return (path) => (only(path, 'packages') ? { kind: 'set' } : undefined);
+      return (path) => (only(path, 'packages') ? { kind: 'set', keepsEmpty: true } : undefined);
     case 'view':
       return (path) => {
-        if (only(path, 'nestingRelationTypes')) return { kind: 'set' };
+        if (only(path, 'nestingRelationTypes')) return { kind: 'set', keepsEmpty: true };
         // The file keeps these sorted, as the commands that set them do.
         if (only(path, 'collapsed')) return { kind: 'set', sorted: true };
         if (
@@ -611,12 +633,9 @@ function mergePackage(
       policy,
       add,
     ),
-    ...(images.length > 0 || ours.images !== undefined || theirs.images !== undefined
-      ? { images }
-      : {}),
-    ...(solids.length > 0 || ours.solids !== undefined || theirs.solids !== undefined
-      ? { solids }
-      : {}),
+    // A package file leaves out a list of images or solids that holds none.
+    ...(images.length > 0 ? { images } : {}),
+    ...(solids.length > 0 ? { solids } : {}),
   };
 }
 
@@ -880,10 +899,34 @@ function mergeModel(
     return false;
   });
 
-  // Containment without a cycle: an addition of theirs that closes one is not applied.
-  if (nesting) {
+  // Containment without a cycle: an addition of theirs that closes one is not applied. Only the
+  // cycles the merge closed are its to break. A side never holds a cycle of what nests in its own
+  // packages, so a relation on a cycle one side already holds, as that side holds it, is of a type
+  // its packages made not nest, which the model file does not say: it is passed over here, and
+  // opening checks it with the merged packages.
+  if (nesting && nestingCycle(relations, nesting)) {
+    const heldBy = (side: ModelFile) => {
+      const own = new Map(side.relations.map((each) => [each.id, each]));
+      const onCycles = relationsOnCycles(side.relations, nesting);
+      return (relation: Relation) => {
+        const held = own.get(relation.id);
+        return (
+          held !== undefined &&
+          onCycles.has(relation.id) &&
+          held.from === relation.from &&
+          held.to === relation.to &&
+          held.relationType === relation.relationType
+        );
+      };
+    };
+    const heldByOurs = heldBy(ours);
+    const heldByTheirs = heldBy(theirs);
+    const held = (relation: Relation) => heldByOurs(relation) || heldByTheirs(relation);
     for (;;) {
-      const cycle = nestingCycle(relations, nesting);
+      const cycle = nestingCycle(
+        relations.filter((each) => !held(each)),
+        nesting,
+      );
       if (!cycle) break;
       const added =
         cycle.find(
@@ -940,6 +983,58 @@ function mergeModel(
     elements: merged.elements,
     relations,
   };
+}
+
+/**
+ * The nesting relations that lie on a cycle: those whose two ends are in one strongly connected
+ * part of the graph of nesting relations (Tarjan's algorithm), a relation from a thing to itself
+ * among them.
+ */
+function relationsOnCycles(relations: readonly Relation[], nesting: ReadonlySet<Id>): Set<Id> {
+  const nested = relations.filter((relation) => nesting.has(relation.relationType));
+  const out = new Map<Id, Id[]>();
+  for (const relation of nested) {
+    out.set(relation.from, [...(out.get(relation.from) ?? []), relation.to]);
+  }
+  const index = new Map<Id, number>();
+  const low = new Map<Id, number>();
+  const part = new Map<Id, number>();
+  const stack: Id[] = [];
+  const onStack = new Set<Id>();
+  let counter = 0;
+  let parts = 0;
+  const visit = (id: Id): void => {
+    index.set(id, counter);
+    low.set(id, counter);
+    counter += 1;
+    stack.push(id);
+    onStack.add(id);
+    for (const next of out.get(id) ?? []) {
+      if (!index.has(next)) {
+        visit(next);
+        low.set(id, Math.min(low.get(id)!, low.get(next)!));
+      } else if (onStack.has(next)) {
+        low.set(id, Math.min(low.get(id)!, index.get(next)!));
+      }
+    }
+    if (low.get(id) === index.get(id)) {
+      for (;;) {
+        const member = stack.pop()!;
+        onStack.delete(member);
+        part.set(member, parts);
+        if (member === id) break;
+      }
+      parts += 1;
+    }
+  };
+  for (const id of out.keys()) if (!index.has(id)) visit(id);
+  return new Set(
+    nested
+      .filter(
+        (relation) => part.has(relation.to) && part.get(relation.from) === part.get(relation.to),
+      )
+      .map((relation) => relation.id),
+  );
 }
 
 /** A cycle of nesting relations, from an element through its containers back to it, if there is one. */
