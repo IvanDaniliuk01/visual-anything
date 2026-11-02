@@ -70,7 +70,7 @@ export type {
   ChangesPreview,
   ExportFileInput,
   ImportFileInput,
-  PackageChanges,
+  PackageCodeChanges,
   PanelBlock,
   PanelInput,
   PanelSeries,

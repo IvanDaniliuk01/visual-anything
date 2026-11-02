@@ -8,7 +8,6 @@
 import { stripTypeScriptTypes } from 'node:module';
 import {
   CODE_LIMITS,
-  HOOK_NAMES,
   builtinPackage,
   checkAttributesAnswer,
   checkDrawAnswer,
@@ -29,11 +28,11 @@ import { z } from 'zod';
 import { READ, WRITE, act, fail, id, ok, tool } from './kit';
 import type { Tool, ToolHints } from './tools';
 
-/** The hooks run_package_code runs, one call each. */
-const RUN_HOOKS = HOOK_NAMES.filter((each) => each !== 'simulate') as [
-  Exclude<HookName, 'simulate'>,
-  ...Exclude<HookName, 'simulate'>[],
-];
+/**
+ * The hooks run_package_code runs, one call each, on an element: the canvas's. `simulate` has its
+ * own tool, and the hooks that add to the app (ADR 0089) are run by Claude through package actions.
+ */
+const RUN_HOOKS = ['attributes', 'check', 'draw'] as const satisfies readonly HookName[];
 
 /** Running a hook changes nothing, but runs code: it is not a read. */
 const RUN: ToolHints = {

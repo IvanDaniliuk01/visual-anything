@@ -15,7 +15,7 @@ import type {
   PanelInput,
   Problem,
   ProjectSnapshot,
-  previewPackageChanges,
+  PackageCodeChanges,
 } from '@visual-anything/core';
 import type { Capability, Id, PackageExtensions } from '@visual-anything/schema';
 import type { SimulationReply, SimulationRequest } from '../simulation/messages';
@@ -73,12 +73,8 @@ export type ExtensionRequest = {
   package: Id;
 } & ExtensionCall;
 
-/**
- * The changes an action or an importer answers (ADR 0089), as `previewPackageChanges` takes them for
- * the person's review. The core names them `PackageChanges` in its code, but its index gives that
- * name to what a shared package's update changes, so they are reached through the function here.
- */
-export type PackageCodeChanges = Parameters<typeof previewPackageChanges>[1];
+/** The changes an action or an importer answers (ADR 0089), for the person's review. */
+export type { PackageCodeChanges };
 
 /** What each hook that adds to the app answers, once checked. */
 export interface ExtensionValues {

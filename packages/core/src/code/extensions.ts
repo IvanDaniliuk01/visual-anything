@@ -179,7 +179,7 @@ export interface PanelInput {
 // ——— Answers ———
 
 /** Changes an action or an importer answers: commands, and how the history would name them. */
-export interface PackageChanges {
+export interface PackageCodeChanges {
   label: string;
   commands: Command[];
 }
@@ -202,7 +202,7 @@ const NEVER_FROM_CODE: ReadonlySet<string> = new Set([
 export function checkChangesAnswer(
   answer: unknown,
   fallbackLabel: string,
-): CheckedAnswer<PackageChanges> {
+): CheckedAnswer<PackageCodeChanges> {
   const size = plainSizeOf(answer, CODE_LIMITS.depth + 4, CODE_LIMITS.changesText);
   if (!size.ok) return { ok: false, reason: size.reason };
   if (!isRecord(answer)) return { ok: false, reason: 'it is not an object of commands' };
@@ -399,7 +399,7 @@ export type ChangesPreview =
  */
 export function previewPackageChanges(
   project: ProjectSnapshot,
-  changes: PackageChanges,
+  changes: PackageCodeChanges,
   context: CommandContext = {},
 ): ChangesPreview {
   const command: BatchCommand = { type: 'batch', label: changes.label, commands: changes.commands };
