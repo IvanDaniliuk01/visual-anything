@@ -2433,6 +2433,46 @@ export const ui: Catalog = {
   'Its components, relation types and images stay as they are.':
     'Sus componentes, tipos de relación e imágenes quedan como están.',
 
+  // M14.3 (ADR 0089): packages' actions in the menus, their importers and exporters, and the review
+  // of the changes an action or an importer proposes.
+  'From packages': 'De paquetes',
+  'From the package “{name}”: its changes wait for your review.':
+    'Del paquete “{name}”: sus cambios esperan una revisión.',
+  'Run its actions': 'Ejecutar sus acciones',
+  'Its changes wait for your review before anything changes.':
+    'Sus cambios esperan una revisión antes de que algo cambie.',
+  'Run “{label}”': 'Ejecutar “{label}”',
+  'Running “{label}”, of the package “{name}”…': 'Ejecutando “{label}”, del paquete “{name}”…',
+  '“{label}”, from the package “{name}”': '“{label}”, del paquete “{name}”',
+  'Decide about the changes of the package “{name}”':
+    'Decidir sobre los cambios del paquete “{name}”',
+  'The package “{name}” proposes: {label}': 'El paquete “{name}” propone: {label}',
+  'Nothing changes until you accept. Accepting makes its {count} commands one action of yours, which Undo takes back whole.':
+    {
+      one: 'Nada cambia hasta aceptarlo. Al aceptar, su único comando pasa a ser una acción propia, que Deshacer revierte entera.',
+      other:
+        'Nada cambia hasta aceptarlos. Al aceptar, sus {count} comandos pasan a ser una sola acción propia, que Deshacer revierte entera.',
+    },
+  Decline: 'Rechazar',
+  'The changes could not apply: the notice says why. Decline them, or try again.':
+    'Los cambios no se pudieron aplicar: el aviso dice por qué. Rechazarlos, o volver a intentarlo.',
+  'Another package’s action or importer is still running, so “{label}” did not start.':
+    'Todavía se está ejecutando la acción o el importador de otro paquete, así que “{label}” no empezó.',
+  '“{label}”, of the package “{name}”, proposes no changes.':
+    '“{label}”, del paquete “{name}”, no propone ningún cambio.',
+  'The changes “{label}”, of the package “{name}”, proposes cannot apply: {why}':
+    'Los cambios que propone “{label}”, del paquete “{name}”, no se pueden aplicar: {why}',
+  '{label} ({extensions}), from the package “{name}”':
+    '{label} ({extensions}), del paquete “{name}”',
+  'Packages read files too: their code reads the file, and what it would change opens for you to accept or decline.':
+    'Los paquetes también leen archivos: su código lee el archivo, y lo que cambiaría se abre para aceptarlo o rechazarlo.',
+  'Reading with “{label}”, of the package “{name}”…':
+    'Leyendo con “{label}”, del paquete “{name}”…',
+  'Written by the package “{name}”, as a {extension} file':
+    'Lo escribe el paquete “{name}”, como un archivo {extension}',
+  'What the file holds is what the package’s code writes: Visual Anything does not check it.':
+    'Lo que contiene el archivo es lo que escribe el código del paquete: Visual Anything no lo revisa.',
+
   // Tours (ADR 0058): the tours panel and full-screen playback.
   'These {count} tour steps name what goes. They are kept, flagged, and play without it:': {
     one: 'Este paso de recorrido nombra algo que se elimina. Se conserva, marcado, y se reproduce sin eso:',
@@ -4261,6 +4301,10 @@ export const messages: Catalog = {
   'A package holds a list of components and one of relation types.':
     'Un paquete tiene una lista de componentes y otra de tipos de relación.',
   'A package’s images are a list.': 'Las imágenes de un paquete son una lista.',
+  // M14.3: a shared package keeps its solids, crosswalks and code, checked as they are written.
+  'A package’s solids are a list.': 'Los sólidos de un paquete son una lista.',
+  'A package’s crosswalks are a list of tables, each mapping identifiers of one scheme to those of another.':
+    'Las tablas de correspondencias de un paquete son una lista de tablas, cada una de las cuales hace corresponder identificadores de un esquema con los de otro.',
   'Each definition and image of a package is an object.':
     'Cada definición e imagen de un paquete es un objeto JSON.',
   'An image is of the kind "svg" or "bitmap".': 'Una imagen es del tipo "svg" o "bitmap".',
@@ -5787,8 +5831,6 @@ export const messages: Catalog = {
   'And {n} more problems.': 'Y {n} problemas más.',
   'The package "{name}" holds solids, whose files a package file does not carry: add it from its project’s folder instead.':
     'El paquete "{name}" tiene sólidos, cuyos archivos no viajan en un archivo de paquete: agregarlo desde la carpeta de su proyecto.',
-  'The package "{name}" holds crosswalks, which cannot be added from a file yet.':
-    'El paquete "{name}" tiene tablas de correspondencias, que todavía no se pueden agregar desde un archivo.',
   'The package "{name}" holds conflicts from a merge: resolve them in its own project first.':
     'El paquete "{name}" tiene conflictos de una fusión: resolverlos antes en su propio proyecto.',
   // Drawing defaults (ADR 0086).

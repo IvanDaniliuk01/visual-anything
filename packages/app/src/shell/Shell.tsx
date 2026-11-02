@@ -84,6 +84,7 @@ import { comparisonExports } from '../versions/exports';
 import { CompareSession } from '../versions/session';
 import { ProposalButton } from '../proposals/ProposalButton';
 import { ProposalReviewer } from '../proposals/ProposalReviewer';
+import { PackageChangesReviewer } from '../packages/PackageChangesReview';
 import { ProposalReview, ProposalReviewContext } from '../proposals/review';
 import { ConflictsContext, ConflictsStore } from '../versions/conflicts/store';
 import { HoverContext, HoverStore } from '../editor/hover';
@@ -567,6 +568,7 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                     held={tours.playback.tour !== undefined}
                                   />
                                   <ProposalReviewer review={review} />
+                                  <PackageChangesReviewer />
                                   <CodeApproval />
                                   <ElementListPanel store={elementList} />
                                   {asking && (

@@ -314,6 +314,8 @@ describe('changes for review', () => {
     });
     expect(preview.comparison.changes.length).toBeGreaterThan(0);
     expect(project.model.elements.find((each) => each.id === 'api')?.name).toBe('API');
+    // The project with the changes, which the canvas draws as the newer version during the review.
+    expect(preview.project.model.elements.find((each) => each.id === 'api')?.name).toBe('Gateway');
     const accepted = executeCommand(project, preview.command, {
       newId: sequentialIds(),
       author: 'user',

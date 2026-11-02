@@ -54,6 +54,7 @@ import {
 import type { ImageMaker, ImageSource } from './source';
 import { solidPainterOf } from './solid-painter';
 import { useSolidClient, useSolidFiles } from '../canvas/solids/useSolidClient';
+import { usePackageFileExports } from '../packages/exporters';
 
 /** What exporting the read-only page needs of the shell, besides the project. */
 export interface PageSource {
@@ -120,6 +121,8 @@ export function ExportControl({
     [solidFiles, solids],
   );
   const drawnWith = drawn && { ...drawn, ...(solids ? { solids } : {}) };
+  // The exporters packages add (ADR 0089), offered after the app's own formats.
+  const packageFiles = usePackageFileExports(project);
   const opener = useRef<HTMLButtonElement>(null);
   const available = viewName !== undefined;
 
@@ -160,7 +163,10 @@ export function ExportControl({
             : {})}
           files={
             drawnWith && project
-              ? files.map((format) => ({ format, context: { project, ...drawnWith } }))
+              ? [...files, ...packageFiles].map((format) => ({
+                  format,
+                  context: { project, ...drawnWith },
+                }))
               : []
           }
           {...(drawnWith && project && comparison

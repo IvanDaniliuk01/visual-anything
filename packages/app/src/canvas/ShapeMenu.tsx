@@ -19,6 +19,7 @@ import type { IndexedScene } from './hit';
 import type { ElementShape } from './scene';
 import { scopeActions, type ScopeAction, type ScopeActions } from './scopeActions';
 import { describeDestination, elementDestinations } from '../destinations/follow';
+import type { OfferedAction } from '../packages/offered';
 import { STACKING_MOVES, STACKING_NAMES, type StackingAction, type StackingMove } from './stacking';
 
 export interface ShapeMenuProps {
@@ -81,6 +82,12 @@ export interface ShapeMenuProps {
    */
   showInSpace?: { frames: boolean };
   onShowInSpace?: () => void;
+  /**
+   * The actions packages offer for the selection (ADR 0089), each in its package's words, and what
+   * pressing one does: runs it, and its changes wait for the person's review.
+   */
+  packageActions?: readonly OfferedAction[];
+  onPackageAction?: (action: OfferedAction) => void;
 }
 
 /** How many of the other shapes under the pointer the menu lists. */
@@ -124,10 +131,13 @@ export function ShapeMenu({
   onPlay,
   showInSpace,
   onShowInSpace,
+  packageActions,
+  onPackageAction,
 }: ShapeMenuProps) {
   const t = useT();
   const menu = useMenuInsideFrame<HTMLDivElement>(at);
   const underId = useId();
+  const packagesId = useId();
   useOutsidePress(menu, onClose);
   useEffect(() => {
     menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
@@ -238,6 +248,30 @@ export function ShapeMenu({
             }
             onPress={onShowInSpace}
           />
+          <div role="separator" className="canvas-menu-separator" />
+        </>
+      )}
+      {onPackageAction && packageActions && packageActions.length > 0 && (
+        <>
+          <div role="group" aria-labelledby={packagesId}>
+            <p id={packagesId} className="canvas-menu-title">
+              {t('From packages')}
+            </p>
+            {packageActions.map((action) => (
+              <Item
+                key={`${action.package.id} ${action.declared.id}`}
+                label={action.declared.label}
+                title={
+                  action.declared.description ??
+                  t('From the package “{name}”: its changes wait for your review.', {
+                    name: action.package.name,
+                  })
+                }
+                readOnly={!editable}
+                onPress={() => onPackageAction(action)}
+              />
+            ))}
+          </div>
           <div role="separator" className="canvas-menu-separator" />
         </>
       )}

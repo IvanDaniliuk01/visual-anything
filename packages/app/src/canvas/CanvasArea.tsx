@@ -40,7 +40,9 @@ import {
 } from 'react';
 import { useEmphasis, type Emphasis } from '../editor/emphasis';
 import { useHover, useHoverStore } from '../editor/hover';
-import { useCodeDrawings } from '../code/context';
+import { useCode, useCodeDrawings } from '../code/context';
+import { selectionActions, selectionIds, type OfferedAction } from '../packages/offered';
+import { useRunPackageAction } from '../packages/run';
 import { elementDestinations } from '../destinations/follow';
 import { useFollow } from '../destinations/follower';
 import { useLendRenderer } from '../export/source';
@@ -607,6 +609,9 @@ export function CanvasArea({
     controllerRef.current?.renderer.setLinkedHover(linkedHover);
   }, [linkedHover]);
 
+  // The actions packages offer in the shape menu for the selection (ADR 0089); none in a comparison.
+  const packageCode = useCode();
+  const runPackageAction = useRunPackageAction();
   // What package code draws inside shapes (ADR 0054).
   const codeDrawings = useCodeDrawings();
   useEffect(() => {
@@ -1248,6 +1253,15 @@ export function CanvasArea({
                 onShowInSpace: () => {
                   closeMenu();
                   showInSpace(spacePanel, project, view, menuShape.element);
+                },
+              }
+            : {})}
+          {...(runPackageAction && packageCode && comparison === undefined
+            ? {
+                packageActions: selectionActions(project, packageCode.packages, selection),
+                onPackageAction: (action: OfferedAction) => {
+                  closeMenu();
+                  runPackageAction(action, selectionIds(selection), view.id);
                 },
               }
             : {})}

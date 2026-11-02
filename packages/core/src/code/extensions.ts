@@ -388,6 +388,11 @@ export type ChangesPreview =
       command: BatchCommand;
       /** What would change, as versions compare two projects (ADR 0070). */
       comparison: Comparison;
+      /**
+       * The project with the changes, which the comparison is of: what the canvas draws as the newer
+       * version while the person reviews them (M14.3).
+       */
+      project: ProjectSnapshot;
       warnings: Problem[];
     }
   | { ok: false; problems: Problem[] };
@@ -409,6 +414,7 @@ export function previewPackageChanges(
     ok: true,
     command,
     comparison: compareProjects(project, outcome.state),
+    project: outcome.state,
     warnings: outcome.warnings,
   };
 }

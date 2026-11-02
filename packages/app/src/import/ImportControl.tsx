@@ -27,6 +27,14 @@ import { DrawingImport, type MakeDrawing } from './DrawingImport';
 import { SolidImport, type PrepareSolid } from './SolidImport';
 import { SOLID_FILE_TYPES, isSolidFileName } from '../shell/definitions/solidCommands';
 import { ImportIcon } from '../shell/icons';
+import { useCode, usePackageCalls, usePackageChanges } from '../code/context';
+import {
+  offeredImporters,
+  offeredKey,
+  packageImporterFor,
+  type OfferedImporter,
+} from '../packages/offered';
+import { importRequest, outcomeText } from '../packages/run';
 import {
   ACCEPTED,
   LIVE_MESSAGE_LIMIT,
@@ -58,7 +66,6 @@ interface ImportControlProps {
 
 /** The format the dialog offers for HTML, imported as a drawing. */
 const DRAWING_FORMAT = 'html';
-
 /** The header's Import button, and the dialog it opens. */
 export function ImportControl({
   project,
@@ -153,6 +160,15 @@ function ImportDialog({
   // A glTF file chosen, which imports as a solid (ADR 0075), and whether its step is open.
   const [solidFile, setSolidFile] = useState<File>();
   const [solidOpen, setSolidOpen] = useState(false);
+  // The importers packages add (ADR 0089): their code reads the file, and its changes are reviewed.
+  const code = useCode();
+  const calls = usePackageCalls();
+  const packageChanges = usePackageChanges();
+  const importers = useMemo(
+    () => (code && calls && packageChanges ? offeredImporters(project, code.packages) : []),
+    [code, calls, packageChanges, project],
+  );
+  const [packageReading, setPackageReading] = useState<OfferedImporter>();
   const step = solidOpen
     ? 'solid'
     : drawing !== undefined
@@ -181,6 +197,12 @@ function ImportDialog({
       return;
     }
     if (input === undefined) return;
+    // A package's importer, chosen or the one for a name no built-in format reads (ADR 0089).
+    const importer = packageImporterFor(importers, format, input.name);
+    if (importer !== undefined) {
+      void readWithPackage(importer, input);
+      return;
+    }
     // HTML becomes a drawing, which the local program makes (ADR 0068).
     if (format === DRAWING_FORMAT || (format === '' && isDrawingFile(input.name))) {
       setProblems([]);
@@ -213,6 +235,28 @@ function ImportDialog({
           },
     );
     setReading(result.reading);
+  }
+
+  /**
+   * Reads the file with a package's importer: its code runs, up to 2 s, and its changes open for
+   * review on the canvas once the dialog closes; what leaves nothing to review is said here.
+   */
+  async function readWithPackage(
+    importer: OfferedImporter,
+    file: { name: string; text: string },
+  ): Promise<void> {
+    if (!calls || !packageChanges || packageReading !== undefined) return;
+    setProblems([]);
+    setPackageReading(importer);
+    const request = importRequest(calls, importer, file);
+    const outcome = await packageChanges.run(request);
+    setPackageReading(undefined);
+    if (outcome.kind === 'review') {
+      onClose();
+      return;
+    }
+    const said = outcomeText(t, request, outcome);
+    if (said !== undefined) setProblems([said]);
   }
 
   const prepared = useMemo(
@@ -350,7 +394,11 @@ function ImportDialog({
                 <span>{t('File')}</span>
                 <input
                   type="file"
-                  accept={prepareSolid === undefined ? ACCEPTED : `${ACCEPTED},${SOLID_FILE_TYPES}`}
+                  accept={[
+                    ACCEPTED,
+                    ...(prepareSolid === undefined ? [] : [SOLID_FILE_TYPES]),
+                    ...new Set(importers.flatMap((each) => each.declared.extensions)),
+                  ].join(',')}
                   onChange={(event) => {
                     const chosen = event.target.files?.[0];
                     setProblems([]);
@@ -403,8 +451,32 @@ function ImportDialog({
                 {makeDrawing !== undefined && (
                   <option value={DRAWING_FORMAT}>{t('HTML, as a drawing')}</option>
                 )}
+                {importers.map((importer) => (
+                  <option key={offeredKey(importer)} value={offeredKey(importer)}>
+                    {t('{label} ({extensions}), from the package “{name}”', {
+                      label: importer.declared.label,
+                      extensions: importer.declared.extensions.join(', '),
+                      name: importer.package.name,
+                    })}
+                  </option>
+                ))}
               </select>
             </label>
+            {importers.length > 0 && (
+              <p className="dialog-note">
+                {t(
+                  'Packages read files too: their code reads the file, and what it would change opens for you to accept or decline.',
+                )}
+              </p>
+            )}
+            {packageReading !== undefined && (
+              <p className="dialog-note" role="status">
+                {t('Reading with “{label}”, of the package “{name}”…', {
+                  label: packageReading.declared.label,
+                  name: packageReading.package.name,
+                })}
+              </p>
+            )}
             {file?.ok === false && source === 'file' && (
               <p className="import-problem" role="alert">
                 {file.problem === 'too-large'
@@ -421,11 +493,12 @@ function ImportDialog({
                 type="button"
                 className="dialog-confirm"
                 aria-disabled={
-                  input === undefined && !(source === 'file' && solidFile !== undefined)
+                  packageReading !== undefined ||
+                  (input === undefined && !(source === 'file' && solidFile !== undefined))
                     ? true
                     : undefined
                 }
-                onClick={() => read()}
+                onClick={packageReading === undefined ? () => read() : undefined}
               >
                 {t('Read')}
               </button>
