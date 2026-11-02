@@ -290,7 +290,7 @@ describe('the count badge of an aggregated relation (A5.2)', () => {
     const aggregated = scene.relations.filter((line) => line.aggregate);
     expect(aggregated.length).toBeGreaterThan(0);
     for (const line of aggregated) {
-      expect(line.badge).toBe(true);
+      expect(line.countBadge).toBe(true);
       expect(line.label).toBe(String(line.aggregate?.relations.length));
       expect(line.width).toBe(DRAWING_PRESETS.clean.lines.width);
     }
@@ -299,7 +299,7 @@ describe('the count badge of an aggregated relation (A5.2)', () => {
       kinds.push(kind);
       return undefined;
     });
-    expect(new Set(kinds)).toEqual(new Set(['badge']));
+    expect(new Set(kinds)).toEqual(new Set(['count-badge']));
   });
 
   it('is a rounded rectangle in the SVG, bordered in its line’s color over the canvas', () => {
@@ -319,10 +319,10 @@ describe('the count badge of an aggregated relation (A5.2)', () => {
   it('grows the line with its count in Expressive, and writes ×N as a label in High contrast', () => {
     const expressive = buildSceneAfresh(preset(collapsedSample(), 'expressive'), SAMPLE_VIEW);
     const grown = expressive.relations.filter((line) => line.aggregate);
-    expect(grown.every((line) => line.badge && line.width > 2)).toBe(true);
+    expect(grown.every((line) => line.countBadge && line.width > 2)).toBe(true);
     const high = buildSceneAfresh(preset(collapsedSample(), 'high-contrast'), SAMPLE_VIEW);
     const labelled = high.relations.filter((line) => line.aggregate);
-    expect(labelled.every((line) => !line.badge && line.label?.startsWith('×'))).toBe(true);
+    expect(labelled.every((line) => !line.countBadge && line.label?.startsWith('×'))).toBe(true);
   });
 });
 

@@ -124,7 +124,7 @@ import { SANS_FAMILY } from './robotoFonts';
 export const FONT_FAMILY = [...SANS_FAMILY];
 
 /** What a label names: an element, its component, a relation, or how many an aggregated one stands for. */
-export type LabelKind = 'name' | 'detail' | 'relation' | 'badge';
+export type LabelKind = 'name' | 'detail' | 'relation' | 'count-badge';
 
 /**
  * Makes what a label is drawn with, from text laid out by this module. `room` is the height the label
@@ -735,7 +735,7 @@ export function writeRelationLabels(
 ): Container[] {
   return lines.flatMap((line) => {
     // An aggregated relation's count badge (ADR 0086): a pill bordered in its line's color.
-    const badge = line.badge === true;
+    const countBadge = line.countBadge === true;
     const text =
       line.label &&
       make(
@@ -751,10 +751,10 @@ export function writeRelationLabels(
             stroke: { color: colors.back, width: 4, join: 'round' },
           },
         },
-        badge ? 'badge' : 'relation',
+        countBadge ? 'count-badge' : 'relation',
       );
     if (!text) return [];
-    if (badge) paintBadgeBorder(text, line.stroke);
+    if (countBadge) paintCountBadgeBorder(text, line.stroke);
     written?.(text, line);
     return [text];
   });
@@ -766,7 +766,7 @@ interface Bordered {
 }
 
 /** Draws a count badge's border in a color: its line's, in the theme the label is drawn in. */
-export function paintBadgeBorder(label: Container, color: Color): void {
+export function paintCountBadgeBorder(label: Container, color: Color): void {
   if ('paintBorder' in label) (label as Container & Bordered).paintBorder(color);
 }
 

@@ -193,13 +193,13 @@ describe('a region’s tab at the largest sizes (A5 review)', () => {
       expect(tab.detail?.text).toBe(region.detail);
       const kept = keptLabels(region, drawing);
       expect(kept.some((text) => text.startsWith(region.name.slice(0, 3)))).toBe(true);
-      expect(kept.some((text) => text.startsWith(region.detail.slice(0, 3)))).toBe(true);
+      expect(kept.some((text) => text.startsWith((region.detail ?? '').slice(0, 3)))).toBe(true);
       const svg = new DOMParser().parseFromString(writeSvg(project, view).text, 'image/svg+xml');
       const texts = [
         ...(svg.querySelector(`[data-shape="${region.key}"]`)?.querySelectorAll('text') ?? []),
       ].map((text) => text.textContent ?? '');
       expect(texts.some((text) => text.startsWith(region.name.slice(0, 3)))).toBe(true);
-      expect(texts.some((text) => text.startsWith(region.detail.slice(0, 3)))).toBe(true);
+      expect(texts.some((text) => text.startsWith((region.detail ?? '').slice(0, 3)))).toBe(true);
     },
   );
 

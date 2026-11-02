@@ -90,14 +90,14 @@ import {
   type RowColumns,
 } from '../canvas/fit';
 import {
-  BADGE_PADDING,
+  COUNT_BADGE_PADDING,
   CASING_EXTRA,
   DASH_PATTERNS,
   PLATE_RADIUS,
   RELATION_LABEL_BACK,
   SOFT_SHADOW,
   TOGGLE_LOOK,
-  badgeSize,
+  countBadgeSize,
   fontFamilyOf,
   headerPlacesOf,
   headerRoomsOf,
@@ -2571,8 +2571,8 @@ function relationLabel(writer: Writer, line: RelationLine): string {
   const [first] = laidOut.lines;
   if (!first) return '';
   // An aggregated relation's count badge: a pill bordered in its line's color (ADR 0086).
-  if (line.badge) {
-    const pill = badgeSize(textWidth(first.text, size), laidOut.lineHeight);
+  if (line.countBadge) {
+    const pill = countBadgeSize(textWidth(first.text, size), laidOut.lineHeight);
     return (
       empty('rect', {
         'data-part': 'count-badge',
@@ -2583,7 +2583,7 @@ function relationLabel(writer: Writer, line: RelationLine): string {
         rx: pill.height / 2,
         fill: back,
         stroke: lineStroke(line, writer.theme.name),
-        'stroke-width': BADGE_PADDING.border,
+        'stroke-width': COUNT_BADGE_PADDING.border,
       }) + writer.text({ ...spec, fill: text })
     );
   }

@@ -149,12 +149,12 @@ export const DASH_PATTERNS: Readonly<Record<'dashed' | 'dotted', { on: number; p
  */
 export const SOFT_SHADOW = { offset: 2, alpha: 0.12, layers: 3 } as const;
 /** How far a count badge's pill reaches past its count, across and down, and its border's width. */
-export const BADGE_PADDING = { x: 5, y: 2, border: 1 } as const;
+export const COUNT_BADGE_PADDING = { x: 5, y: 2, border: 1 } as const;
 
 /** How large a count badge's pill is around a count this large: never narrower than tall. */
-export function badgeSize(width: number, height: number): { width: number; height: number } {
-  const tall = height + 2 * BADGE_PADDING.y;
-  return { width: Math.max(tall, width + 2 * BADGE_PADDING.x), height: tall };
+export function countBadgeSize(width: number, height: number): { width: number; height: number } {
+  const tall = height + 2 * COUNT_BADGE_PADDING.y;
+  return { width: Math.max(tall, width + 2 * COUNT_BADGE_PADDING.x), height: tall };
 }
 
 /** The bundled Roboto first, then the system's fonts until it is loaded (`robotoFonts.ts`). */

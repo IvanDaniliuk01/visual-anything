@@ -248,7 +248,7 @@ describe('a collapsed container', () => {
     });
     // A count badge in Clean, at its type's own width, which grows with no count (ADR 0086).
     expect(calling?.label).toBe('2');
-    expect(calling?.badge).toBe(true);
+    expect(calling?.countBadge).toBe(true);
     expect(calling?.width).toBe(2 + aggregatedExtraWidth(2));
     expect(calling?.arrowhead).toBeDefined();
     expect(calling?.relation.startsWith(AGGREGATED)).toBe(true);

@@ -434,7 +434,7 @@ export interface RelationLine {
    * Present on an aggregated relation drawn with a count badge (ADR 0086): a pill at its middle that
    * writes how many relations it stands for, its `label`.
    */
-  badge?: true;
+  countBadge?: true;
   /**
    * What the route runs between, so that it can be routed again while one end is dragged: each end's
    * shape or relation, and how far the route runs beside others between the same ends.
@@ -3495,9 +3495,13 @@ function lineBetween(
       ? relationType.origins
       : relationAppearanceOriginsOf(relation, definitions);
   const own = builtInTrait(origins.width) ? laying.lines.width : appearance.width;
-  const badge = members !== undefined && laying.aggregated.count === 'badge';
+  const countBadge = members !== undefined && laying.aggregated.count === 'badge';
   const width = own + (members ? aggregatedExtraWidth(members.length, laying) : 0);
-  const label = members ? (badge ? `${members.length}` : `×${members.length}`) : relation?.name;
+  const label = members
+    ? countBadge
+      ? `${members.length}`
+      : `×${members.length}`
+    : relation?.name;
   // A relation's own stroke is drawn as stored; an aggregated relation takes its relation type's.
   const typeDark =
     relation === undefined || members
@@ -3518,7 +3522,7 @@ function lineBetween(
     ends: { from: drawnEnd(spec.from), to: drawnEnd(spec.to), offset },
   };
   if (label) line.label = label;
-  if (badge) line.badge = true;
+  if (countBadge) line.countBadge = true;
   if (darkStroke !== stroke) line.darkStroke = darkStroke;
   if (neutral) line.typeStroke = typeStrokeOf(appearance.stroke, typeDark);
   if (routed?.style) line.style = routed.style;

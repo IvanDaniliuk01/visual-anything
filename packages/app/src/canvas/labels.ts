@@ -18,13 +18,13 @@ import { parseEmphasis, type EmphasisRun } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import { FONT_FAMILY, fitText, noteTextPlace, type LabelKind, type TextFactory } from './draw';
 import { ROBOTO, ROBOTO_MONO } from './robotoFonts';
-import { BADGE_PADDING, RELATION_LABEL_BACK, badgeSize } from './drawing';
+import { COUNT_BADGE_PADDING, RELATION_LABEL_BACK, countBadgeSize } from './drawing';
 import { emphasisLabel, noteLabel } from './emphasisLabels';
 import { canvasMeasure } from './textBlock';
 import { RELATION_LABEL_HALO, RELATION_LABEL_TEXT } from './colors';
 
 /** The kinds of label that have a font of their own: a count badge writes in a relation's. */
-type FontKind = Exclude<LabelKind, 'badge'>;
+type FontKind = Exclude<LabelKind, 'count-badge'>;
 
 const FONTS: Record<FontKind, string> = {
   name: 'visual-anything-name',
@@ -90,7 +90,7 @@ function commonOptions() {
  * as 400; a style that names none, or the normal weight, takes the kind's own font.
  */
 export function labelFontOf(asked: LabelKind, style: TextStyleOptions): string {
-  const kind: FontKind = asked === 'badge' ? 'relation' : asked;
+  const kind: FontKind = asked === 'count-badge' ? 'relation' : asked;
   const weight = loadedWeight(style.fontWeight, WEIGHTS[kind]);
   const families = Array.isArray(style.fontFamily) ? style.fontFamily : [style.fontFamily];
   const first = families[0];
@@ -155,7 +155,7 @@ export class RelationLabel extends Container {
  * An aggregated relation's count badge (ADR 0086): its count over a pill in the canvas's color, with
  * a border in its line's, each drawn white and tinted, so that a theme switch only tints them again.
  */
-export class BadgeLabel extends RelationLabel {
+export class CountBadgeLabel extends RelationLabel {
   constructor(
     back: Container,
     readonly border: Container,
@@ -194,7 +194,7 @@ export const bitmapText: TextFactory = (options, kind, room, runs) => {
       ...(style.breakWords === undefined ? {} : { breakWords: style.breakWords }),
     },
   });
-  if (kind === 'badge') return badgeLabel(text, style);
+  if (kind === 'count-badge') return countBadgeLabel(text, style);
   if (kind !== 'relation') {
     if (typeof style.fill === 'string') text.tint = style.fill;
     return fitText(text, room);
@@ -203,18 +203,18 @@ export const bitmapText: TextFactory = (options, kind, room, runs) => {
 };
 
 /** A count badge: its count over a pill as tall as its line and its padding, round at both ends. */
-function badgeLabel(text: BitmapText, style: TextStyleOptions): BadgeLabel {
+function countBadgeLabel(text: BitmapText, style: TextStyleOptions): CountBadgeLabel {
   const { x, y } = text.position;
   text.anchor.set(0.5);
   text.position.set(0, 0);
-  const { width, height } = badgeSize(text.width, text.height);
+  const { width, height } = countBadgeSize(text.width, text.height);
   const back = new Graphics()
     .roundRect(-width / 2, -height / 2, width, height, height / 2)
     .fill(0xffffff);
   const border = new Graphics()
     .roundRect(-width / 2, -height / 2, width, height, height / 2)
-    .stroke({ color: 0xffffff, width: BADGE_PADDING.border });
-  const label = new BadgeLabel(back, border, text);
+    .stroke({ color: 0xffffff, width: COUNT_BADGE_PADDING.border });
+  const label = new CountBadgeLabel(back, border, text);
   label.position.set(x, y);
   label.paint(
     typeof style.fill === 'string' ? style.fill : RELATION_LABEL_TEXT,

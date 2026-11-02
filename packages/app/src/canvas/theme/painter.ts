@@ -24,7 +24,7 @@ import {
   drawShapeBlocks,
   drawShapeOutlines,
   fillOf,
-  paintBadgeBorder,
+  paintCountBadgeBorder,
   writeNoteTexts,
   writeRelationLabels,
   writeShapeLabels,
@@ -287,7 +287,7 @@ export class Painter {
         if (label instanceof RelationLabel)
           label.paint(theme.relationLabelText, theme.relationLabelBack);
         else tintLabel(label, theme.relationLabelText);
-        if (record.line) paintBadgeBorder(label, lineStroke(record.line, this.name));
+        if (record.line) paintCountBadgeBorder(label, lineStroke(record.line, this.name));
         continue;
       }
       if (record.role === 'note') {
