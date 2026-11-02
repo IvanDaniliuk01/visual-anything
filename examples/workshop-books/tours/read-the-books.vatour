@@ -1,0 +1,74 @@
+{
+  "id": "read-the-books",
+  "name": "Read the books",
+  "description": "The workshop’s general ledger, one invoice followed through its payment, and the reserve it keeps.",
+  "steps": [
+    {
+      "id": "the-ledger",
+      "viewState": {
+        "view": "invoice-to-ledger"
+      },
+      "caption": {
+        "title": "The general ledger",
+        "text": "The workshop keeps its books by double entry. The general ledger holds its accounts, of five kinds:\n\n- assets and expenses, which a debit increases;\n- liabilities, equity and revenue, which a credit increases.\n\nEach journal entry draws its lines as rows: each line debits (Dr) or credits (Cr) one account, and an entry’s debits and credits always balance.",
+        "pointTo": "general-ledger"
+      },
+      "marks": [
+        "general-ledger",
+        "je-0107"
+      ]
+    },
+    {
+      "id": "an-invoice-paid",
+      "viewState": {
+        "view": "invoice-to-ledger",
+        "scenario": "invoice-to-ledger",
+        "step": "issue"
+      },
+      "caption": {
+        "title": "From invoice to ledger",
+        "text": "Follow invoice INV-0107:\n\n1. the workshop issues it, and JE-0107 records it;\n2. the café pays it;\n3. payment matching finds the invoice the payment names;\n4. JE-0112 records the payment and clears what the café owed."
+      },
+      "play": {
+        "scenario": "invoice-to-ledger"
+      }
+    },
+    {
+      "id": "when-nothing-matches",
+      "viewState": {
+        "view": "invoice-to-ledger",
+        "scenario": "invoice-to-ledger",
+        "step": "match",
+        "choices": {
+          "matches-invoice": "unmatched"
+        }
+      },
+      "caption": {
+        "title": "When no invoice matches",
+        "text": "When the payment’s reference names no open invoice, the money is in the bank all the same: JE-0113 records it as an unapplied receipt, a liability, until someone matches it by hand. The invoice stays open."
+      },
+      "play": {
+        "scenario": "invoice-to-ledger",
+        "from": "match",
+        "to": "post-unmatched",
+        "choices": {
+          "matches-invoice": "unmatched"
+        }
+      }
+    },
+    {
+      "id": "the-reserve",
+      "viewState": {
+        "view": "reserve-portfolio"
+      },
+      "caption": {
+        "title": "The reserve",
+        "text": "The workshop keeps the money it does not need this year in a small portfolio. Each position holds one instrument, each instrument is exposed to a risk, and a control mitigates each risk.",
+        "pointTo": "reserve-portfolio"
+      },
+      "marks": [
+        "reserve-portfolio"
+      ]
+    }
+  ]
+}

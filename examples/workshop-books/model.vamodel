@@ -1,0 +1,731 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "World"
+  },
+  "elements": [
+    {
+      "id": "workshop",
+      "component": "finance.party",
+      "name": "Workshop",
+      "description": "The furniture workshop whose books these are. It, its customer and every amount here are invented.",
+      "attributes": {
+        "role": "company"
+      }
+    },
+    {
+      "id": "cafe",
+      "component": "finance.party",
+      "name": "Café",
+      "description": "A café that bought four oak tables from the workshop; invented.",
+      "attributes": {
+        "role": "customer"
+      }
+    },
+    {
+      "id": "inv-0107",
+      "component": "finance.invoice",
+      "name": "Invoice INV-0107",
+      "description": "Four oak tables for the café: 2,000 and 400 of VAT, due at the end of April.",
+      "attributes": {
+        "amount": 2400,
+        "currency": "EUR",
+        "dueDate": "2026-04-30",
+        "number": "INV-0107",
+        "status": "open"
+      }
+    },
+    {
+      "id": "pay-0112",
+      "component": "finance.payment",
+      "name": "Payment PAY-0112",
+      "description": "The café’s bank transfer, as the bank statement shows it.",
+      "attributes": {
+        "amount": 2400,
+        "currency": "EUR",
+        "date": "2026-04-28",
+        "kind": "transfer",
+        "method": "transfer"
+      }
+    },
+    {
+      "id": "general-ledger",
+      "component": "finance.ledger",
+      "name": "General ledger",
+      "description": "The workshop’s accounts, one or two of each kind.",
+      "attributes": {
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "bank-account",
+      "component": "finance.asset-account",
+      "name": "Bank account",
+      "description": "The money the workshop keeps at its bank.",
+      "attributes": {
+        "code": "1010"
+      }
+    },
+    {
+      "id": "accounts-receivable",
+      "component": "finance.asset-account",
+      "name": "Accounts receivable",
+      "description": "What customers owe the workshop for invoices not yet paid.",
+      "attributes": {
+        "code": "1200"
+      }
+    },
+    {
+      "id": "vat-payable",
+      "component": "finance.liability-account",
+      "name": "VAT payable",
+      "description": "The VAT the workshop has charged, which it owes the tax office.",
+      "attributes": {
+        "code": "2200"
+      }
+    },
+    {
+      "id": "unapplied-receipts",
+      "component": "finance.liability-account",
+      "name": "Unapplied receipts",
+      "description": "Money received that no invoice has been matched to yet.",
+      "attributes": {
+        "code": "2400"
+      }
+    },
+    {
+      "id": "owners-capital",
+      "component": "finance.equity-account",
+      "name": "Owner’s capital",
+      "description": "What the owner has put into the workshop.",
+      "attributes": {
+        "code": "3000"
+      }
+    },
+    {
+      "id": "sales",
+      "component": "finance.revenue-account",
+      "name": "Sales",
+      "description": "What the workshop earns from the furniture it sells.",
+      "attributes": {
+        "code": "4000"
+      }
+    },
+    {
+      "id": "timber",
+      "component": "finance.expense-account",
+      "name": "Timber and materials",
+      "description": "What the workshop spends on wood, glue and finishes.",
+      "attributes": {
+        "code": "5000"
+      }
+    },
+    {
+      "id": "je-0107",
+      "component": "finance.journal-entry",
+      "name": "JE-0107 Invoice",
+      "description": "Records invoice INV-0107: what the café owes, the sale and the VAT on it.",
+      "attributes": {
+        "date": "2026-03-31",
+        "number": "JE-0107"
+      }
+    },
+    {
+      "id": "je-0107-receivable",
+      "component": "finance.entry-line",
+      "name": "Accounts receivable",
+      "description": "Debits the account “Accounts receivable” by 2,400.",
+      "attributes": {
+        "amount": 2400
+      }
+    },
+    {
+      "id": "je-0107-sales",
+      "component": "finance.entry-line",
+      "name": "Sales",
+      "description": "Credits the account “Sales” by 2,000.",
+      "attributes": {
+        "amount": 2000
+      }
+    },
+    {
+      "id": "je-0107-vat",
+      "component": "finance.entry-line",
+      "name": "VAT payable",
+      "description": "Credits the account “VAT payable” by 400.",
+      "attributes": {
+        "amount": 400
+      }
+    },
+    {
+      "id": "je-0112",
+      "component": "finance.journal-entry",
+      "name": "JE-0112 Payment",
+      "description": "Records payment PAY-0112 against invoice INV-0107.",
+      "attributes": {
+        "date": "2026-04-28",
+        "number": "JE-0112"
+      }
+    },
+    {
+      "id": "je-0112-bank",
+      "component": "finance.entry-line",
+      "name": "Bank account",
+      "description": "Debits the account “Bank account” by 2,400.",
+      "attributes": {
+        "amount": 2400
+      }
+    },
+    {
+      "id": "je-0112-receivable",
+      "component": "finance.entry-line",
+      "name": "Accounts receivable",
+      "description": "Credits the account “Accounts receivable” by 2,400.",
+      "attributes": {
+        "amount": 2400
+      }
+    },
+    {
+      "id": "je-0113",
+      "component": "finance.journal-entry",
+      "name": "JE-0113 Unmatched",
+      "description": "Records payment PAY-0112 while no invoice is matched to it.",
+      "attributes": {
+        "date": "2026-04-28",
+        "number": "JE-0113"
+      }
+    },
+    {
+      "id": "je-0113-bank",
+      "component": "finance.entry-line",
+      "name": "Bank account",
+      "description": "Debits the account “Bank account” by 2,400.",
+      "attributes": {
+        "amount": 2400
+      }
+    },
+    {
+      "id": "je-0113-unapplied",
+      "component": "finance.entry-line",
+      "name": "Unapplied receipts",
+      "description": "Credits the account “Unapplied receipts” by 2,400.",
+      "attributes": {
+        "amount": 2400
+      }
+    },
+    {
+      "id": "payment-matching",
+      "component": "finance.control",
+      "name": "Payment matching",
+      "description": "Matches each payment that comes in to the open invoice its reference names.",
+      "attributes": {
+        "frequency": "each payment",
+        "kind": "detective"
+      }
+    },
+    {
+      "id": "bank-reconciliation",
+      "component": "finance.control",
+      "name": "Bank reconciliation",
+      "description": "Compares the bank account in the ledger with the bank’s statement, line by line.",
+      "attributes": {
+        "frequency": "monthly",
+        "kind": "detective"
+      }
+    },
+    {
+      "id": "credit-check",
+      "component": "finance.control",
+      "name": "Credit check",
+      "description": "Checks a new customer before the workshop sells to it on credit.",
+      "attributes": {
+        "frequency": "each new customer",
+        "kind": "preventive"
+      }
+    },
+    {
+      "id": "vat-review",
+      "component": "finance.control",
+      "name": "VAT review",
+      "description": "Checks the VAT charged against the sales before the return is filed.",
+      "attributes": {
+        "frequency": "quarterly",
+        "kind": "detective"
+      }
+    },
+    {
+      "id": "misapplied-receipt",
+      "component": "finance.risk",
+      "name": "Misapplied receipt",
+      "description": "A payment is set against the wrong invoice, or against none.",
+      "attributes": {
+        "category": "operational",
+        "impact": "low",
+        "likelihood": "medium"
+      }
+    },
+    {
+      "id": "customer-default",
+      "component": "finance.risk",
+      "name": "Customer does not pay",
+      "description": "An invoice is never paid.",
+      "attributes": {
+        "category": "credit",
+        "impact": "medium",
+        "likelihood": "low"
+      }
+    },
+    {
+      "id": "vat-misstated",
+      "component": "finance.risk",
+      "name": "VAT misstated",
+      "description": "The VAT return says more or less than was charged.",
+      "attributes": {
+        "category": "compliance",
+        "impact": "medium",
+        "likelihood": "low"
+      }
+    },
+    {
+      "id": "reserve-portfolio",
+      "component": "finance.portfolio",
+      "name": "Reserve portfolio",
+      "description": "Where the workshop keeps the money it does not need this year.",
+      "attributes": {
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "government-bond",
+      "component": "finance.instrument",
+      "name": "Government bond, 2031",
+      "description": "A bond that pays a fixed interest each year and its face value in 2031; invented.",
+      "attributes": {
+        "currency": "EUR",
+        "kind": "bond"
+      }
+    },
+    {
+      "id": "equity-index-fund",
+      "component": "finance.instrument",
+      "name": "Global equity index fund",
+      "description": "A fund that holds shares of companies across the world, as an index weighs them; invented.",
+      "attributes": {
+        "currency": "EUR",
+        "kind": "fund"
+      }
+    },
+    {
+      "id": "money-market-fund",
+      "component": "finance.instrument",
+      "name": "Money market fund",
+      "description": "A fund that holds deposits and short loans, which can be sold any day; invented.",
+      "attributes": {
+        "currency": "EUR",
+        "kind": "fund"
+      }
+    },
+    {
+      "id": "bond-position",
+      "component": "finance.position",
+      "name": "Bond position",
+      "description": "40 bonds, bought to be held until they mature.",
+      "attributes": {
+        "quantity": 40,
+        "value": 3960
+      }
+    },
+    {
+      "id": "fund-position",
+      "component": "finance.position",
+      "name": "Index fund position",
+      "description": "120 units of the index fund.",
+      "attributes": {
+        "quantity": 120,
+        "value": 3120
+      }
+    },
+    {
+      "id": "cash-position",
+      "component": "finance.position",
+      "name": "Money market position",
+      "description": "Three months of the workshop’s costs, ready to be sold.",
+      "attributes": {
+        "quantity": 300,
+        "value": 3000
+      }
+    },
+    {
+      "id": "interest-rate-risk",
+      "component": "finance.risk",
+      "name": "Interest rate risk",
+      "description": "Rates rise, and a bond that pays a fixed rate is worth less.",
+      "attributes": {
+        "category": "market",
+        "impact": "low",
+        "likelihood": "medium"
+      }
+    },
+    {
+      "id": "equity-market-risk",
+      "component": "finance.risk",
+      "name": "Equity market risk",
+      "description": "Share prices fall, and the fund with them.",
+      "attributes": {
+        "category": "market",
+        "impact": "medium",
+        "likelihood": "medium"
+      }
+    },
+    {
+      "id": "liquidity-risk",
+      "component": "finance.risk",
+      "name": "Liquidity risk",
+      "description": "The workshop needs cash at a time when what it holds is hard to sell, or sells low.",
+      "attributes": {
+        "category": "liquidity",
+        "impact": "high",
+        "likelihood": "low"
+      }
+    },
+    {
+      "id": "hold-to-maturity",
+      "component": "finance.control",
+      "name": "Hold to maturity",
+      "description": "The bonds are kept until they pay back their face value, whatever their price meanwhile.",
+      "attributes": {
+        "frequency": "each purchase",
+        "kind": "preventive"
+      }
+    },
+    {
+      "id": "allocation-limit",
+      "component": "finance.control",
+      "name": "Allocation limit",
+      "description": "No more than a third of the reserve is held in shares; the reserve is rebalanced when it drifts past.",
+      "attributes": {
+        "frequency": "quarterly",
+        "kind": "preventive"
+      }
+    },
+    {
+      "id": "cash-buffer",
+      "component": "finance.control",
+      "name": "Cash buffer",
+      "description": "Three months of costs are kept in the money market fund, which can be sold any day.",
+      "attributes": {
+        "frequency": "monthly",
+        "kind": "preventive"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "bank-account-in-ledger",
+      "relationType": "finance.is-part-of",
+      "from": "bank-account",
+      "to": "general-ledger"
+    },
+    {
+      "id": "accounts-receivable-in-ledger",
+      "relationType": "finance.is-part-of",
+      "from": "accounts-receivable",
+      "to": "general-ledger"
+    },
+    {
+      "id": "vat-payable-in-ledger",
+      "relationType": "finance.is-part-of",
+      "from": "vat-payable",
+      "to": "general-ledger"
+    },
+    {
+      "id": "unapplied-receipts-in-ledger",
+      "relationType": "finance.is-part-of",
+      "from": "unapplied-receipts",
+      "to": "general-ledger"
+    },
+    {
+      "id": "owners-capital-in-ledger",
+      "relationType": "finance.is-part-of",
+      "from": "owners-capital",
+      "to": "general-ledger"
+    },
+    {
+      "id": "sales-in-ledger",
+      "relationType": "finance.is-part-of",
+      "from": "sales",
+      "to": "general-ledger"
+    },
+    {
+      "id": "timber-in-ledger",
+      "relationType": "finance.is-part-of",
+      "from": "timber",
+      "to": "general-ledger"
+    },
+    {
+      "id": "je-0107-posts",
+      "relationType": "finance.posts-to",
+      "from": "je-0107",
+      "to": "general-ledger"
+    },
+    {
+      "id": "je-0107-receivable-in-entry",
+      "relationType": "finance.is-part-of",
+      "from": "je-0107-receivable",
+      "to": "je-0107"
+    },
+    {
+      "id": "je-0107-receivable-debits",
+      "relationType": "finance.debits",
+      "from": "je-0107-receivable",
+      "to": "accounts-receivable"
+    },
+    {
+      "id": "je-0107-sales-in-entry",
+      "relationType": "finance.is-part-of",
+      "from": "je-0107-sales",
+      "to": "je-0107"
+    },
+    {
+      "id": "je-0107-sales-credits",
+      "relationType": "finance.credits",
+      "from": "je-0107-sales",
+      "to": "sales"
+    },
+    {
+      "id": "je-0107-vat-in-entry",
+      "relationType": "finance.is-part-of",
+      "from": "je-0107-vat",
+      "to": "je-0107"
+    },
+    {
+      "id": "je-0107-vat-credits",
+      "relationType": "finance.credits",
+      "from": "je-0107-vat",
+      "to": "vat-payable"
+    },
+    {
+      "id": "je-0112-posts",
+      "relationType": "finance.posts-to",
+      "from": "je-0112",
+      "to": "general-ledger"
+    },
+    {
+      "id": "je-0112-bank-in-entry",
+      "relationType": "finance.is-part-of",
+      "from": "je-0112-bank",
+      "to": "je-0112"
+    },
+    {
+      "id": "je-0112-bank-debits",
+      "relationType": "finance.debits",
+      "from": "je-0112-bank",
+      "to": "bank-account"
+    },
+    {
+      "id": "je-0112-receivable-in-entry",
+      "relationType": "finance.is-part-of",
+      "from": "je-0112-receivable",
+      "to": "je-0112"
+    },
+    {
+      "id": "je-0112-receivable-credits",
+      "relationType": "finance.credits",
+      "from": "je-0112-receivable",
+      "to": "accounts-receivable"
+    },
+    {
+      "id": "je-0113-posts",
+      "relationType": "finance.posts-to",
+      "from": "je-0113",
+      "to": "general-ledger"
+    },
+    {
+      "id": "je-0113-bank-in-entry",
+      "relationType": "finance.is-part-of",
+      "from": "je-0113-bank",
+      "to": "je-0113"
+    },
+    {
+      "id": "je-0113-bank-debits",
+      "relationType": "finance.debits",
+      "from": "je-0113-bank",
+      "to": "bank-account"
+    },
+    {
+      "id": "je-0113-unapplied-in-entry",
+      "relationType": "finance.is-part-of",
+      "from": "je-0113-unapplied",
+      "to": "je-0113"
+    },
+    {
+      "id": "je-0113-unapplied-credits",
+      "relationType": "finance.credits",
+      "from": "je-0113-unapplied",
+      "to": "unapplied-receipts"
+    },
+    {
+      "id": "workshop-issues-invoice",
+      "relationType": "finance.issues",
+      "from": "workshop",
+      "to": "inv-0107"
+    },
+    {
+      "id": "je-0107-records-invoice",
+      "relationType": "finance.records",
+      "from": "je-0107",
+      "to": "inv-0107"
+    },
+    {
+      "id": "cafe-pays-invoice",
+      "relationType": "finance.pays",
+      "from": "cafe",
+      "to": "inv-0107"
+    },
+    {
+      "id": "payment-settles-invoice",
+      "relationType": "finance.settles",
+      "from": "pay-0112",
+      "to": "inv-0107"
+    },
+    {
+      "id": "je-0112-records-payment",
+      "relationType": "finance.records",
+      "from": "je-0112",
+      "to": "pay-0112"
+    },
+    {
+      "id": "je-0113-records-payment",
+      "relationType": "finance.records",
+      "from": "je-0113",
+      "to": "pay-0112"
+    },
+    {
+      "id": "matching-checks-payment",
+      "relationType": "finance.checks",
+      "from": "payment-matching",
+      "to": "pay-0112"
+    },
+    {
+      "id": "matching-mitigates",
+      "relationType": "finance.mitigates",
+      "from": "payment-matching",
+      "to": "misapplied-receipt"
+    },
+    {
+      "id": "reconciliation-mitigates",
+      "relationType": "finance.mitigates",
+      "from": "bank-reconciliation",
+      "to": "misapplied-receipt"
+    },
+    {
+      "id": "credit-check-mitigates",
+      "relationType": "finance.mitigates",
+      "from": "credit-check",
+      "to": "customer-default"
+    },
+    {
+      "id": "vat-review-mitigates",
+      "relationType": "finance.mitigates",
+      "from": "vat-review",
+      "to": "vat-misstated"
+    },
+    {
+      "id": "receivable-exposed-to-default",
+      "relationType": "finance.is-exposed-to",
+      "from": "accounts-receivable",
+      "to": "customer-default"
+    },
+    {
+      "id": "receipts-exposed-to-misapplied",
+      "relationType": "finance.is-exposed-to",
+      "from": "unapplied-receipts",
+      "to": "misapplied-receipt"
+    },
+    {
+      "id": "vat-exposed",
+      "relationType": "finance.is-exposed-to",
+      "from": "vat-payable",
+      "to": "vat-misstated"
+    },
+    {
+      "id": "workshop-holds-reserve",
+      "relationType": "finance.holds",
+      "from": "workshop",
+      "to": "reserve-portfolio"
+    },
+    {
+      "id": "bond-position-in-portfolio",
+      "relationType": "finance.is-part-of",
+      "from": "bond-position",
+      "to": "reserve-portfolio"
+    },
+    {
+      "id": "bond-position-holds",
+      "relationType": "finance.holds",
+      "from": "bond-position",
+      "to": "government-bond"
+    },
+    {
+      "id": "fund-position-in-portfolio",
+      "relationType": "finance.is-part-of",
+      "from": "fund-position",
+      "to": "reserve-portfolio"
+    },
+    {
+      "id": "fund-position-holds",
+      "relationType": "finance.holds",
+      "from": "fund-position",
+      "to": "equity-index-fund"
+    },
+    {
+      "id": "cash-position-in-portfolio",
+      "relationType": "finance.is-part-of",
+      "from": "cash-position",
+      "to": "reserve-portfolio"
+    },
+    {
+      "id": "cash-position-holds",
+      "relationType": "finance.holds",
+      "from": "cash-position",
+      "to": "money-market-fund"
+    },
+    {
+      "id": "bond-exposed",
+      "relationType": "finance.is-exposed-to",
+      "from": "government-bond",
+      "to": "interest-rate-risk"
+    },
+    {
+      "id": "fund-exposed",
+      "relationType": "finance.is-exposed-to",
+      "from": "equity-index-fund",
+      "to": "equity-market-risk"
+    },
+    {
+      "id": "reserve-exposed",
+      "relationType": "finance.is-exposed-to",
+      "from": "reserve-portfolio",
+      "to": "liquidity-risk"
+    },
+    {
+      "id": "maturity-mitigates",
+      "relationType": "finance.mitigates",
+      "from": "hold-to-maturity",
+      "to": "interest-rate-risk"
+    },
+    {
+      "id": "allocation-mitigates",
+      "relationType": "finance.mitigates",
+      "from": "allocation-limit",
+      "to": "equity-market-risk"
+    },
+    {
+      "id": "buffer-mitigates",
+      "relationType": "finance.mitigates",
+      "from": "cash-buffer",
+      "to": "liquidity-risk"
+    }
+  ]
+}

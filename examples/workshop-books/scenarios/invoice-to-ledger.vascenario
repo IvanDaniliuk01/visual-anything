@@ -1,0 +1,156 @@
+{
+  "id": "invoice-to-ledger",
+  "name": "From invoice to ledger",
+  "description": "An invoice is recorded and posted, the café pays it, and payment matching decides how the payment is recorded: against the invoice, or as an unapplied receipt.",
+  "view": "invoice-to-ledger",
+  "steps": [
+    {
+      "id": "issue",
+      "description": "The workshop issues invoice INV-0107 to the café for four oak tables: 2,000, and 400 of VAT.",
+      "relations": [
+        "workshop-issues-invoice"
+      ],
+      "dataOut": {
+        "amount": 2400,
+        "dueDate": "2026-04-30",
+        "invoice": "INV-0107"
+      }
+    },
+    {
+      "id": "record-invoice",
+      "description": "Journal entry JE-0107 records the invoice. Its first line debits accounts receivable by 2,400: the café owes it.",
+      "relations": [
+        "je-0107-records-invoice",
+        "je-0107-receivable-debits"
+      ]
+    },
+    {
+      "id": "credit-sales",
+      "description": "Its other lines credit sales by 2,000 and VAT payable by 400, so its debits and its credits balance at 2,400.",
+      "relations": [
+        "je-0107-sales-credits",
+        "je-0107-vat-credits"
+      ],
+      "dataOut": {
+        "credits": 2400,
+        "debits": 2400
+      }
+    },
+    {
+      "id": "post-invoice",
+      "description": "JE-0107 posts to the general ledger.",
+      "relations": [
+        "je-0107-posts"
+      ]
+    },
+    {
+      "id": "pay",
+      "description": "The café pays the invoice by bank transfer: payment PAY-0112 of 2,400 reaches the workshop’s bank account.",
+      "relations": [
+        "cafe-pays-invoice"
+      ],
+      "dataOut": {
+        "amount": 2400,
+        "payment": "PAY-0112"
+      }
+    },
+    {
+      "id": "match",
+      "description": "Payment matching reads the payment’s reference and looks for the open invoice it names.",
+      "relations": [
+        "matching-checks-payment"
+      ],
+      "dataIn": {
+        "payment": "PAY-0112"
+      }
+    },
+    {
+      "id": "settle",
+      "description": "The reference names INV-0107: the payment settles the invoice, which is now paid.",
+      "relations": [
+        "payment-settles-invoice"
+      ],
+      "dataOut": {
+        "status": "paid"
+      }
+    },
+    {
+      "id": "record-payment",
+      "description": "Journal entry JE-0112 records the payment. Its first line debits the bank account by 2,400.",
+      "relations": [
+        "je-0112-records-payment",
+        "je-0112-bank-debits"
+      ]
+    },
+    {
+      "id": "clear-receivable",
+      "description": "Its second line credits accounts receivable by 2,400: the café owes nothing more.",
+      "relations": [
+        "je-0112-receivable-credits"
+      ],
+      "dataOut": {
+        "owed": 0
+      }
+    },
+    {
+      "id": "post-payment",
+      "description": "JE-0112 posts to the general ledger.",
+      "relations": [
+        "je-0112-posts"
+      ]
+    },
+    {
+      "id": "record-unmatched",
+      "description": "Journal entry JE-0113 records the payment all the same. Its first line debits the bank account by 2,400.",
+      "relations": [
+        "je-0113-records-payment",
+        "je-0113-bank-debits"
+      ]
+    },
+    {
+      "id": "hold-unapplied",
+      "description": "Its second line credits unapplied receipts by 2,400 until someone matches the payment by hand; the invoice stays open.",
+      "relations": [
+        "je-0113-unapplied-credits"
+      ],
+      "dataOut": {
+        "status": "open"
+      }
+    },
+    {
+      "id": "post-unmatched",
+      "description": "JE-0113 posts to the general ledger.",
+      "relations": [
+        "je-0113-posts"
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "id": "matches-invoice",
+      "kind": "decision",
+      "question": "Does the payment match an open invoice?",
+      "alternatives": [
+        {
+          "id": "matched",
+          "label": "Yes, INV-0107",
+          "steps": [
+            "settle",
+            "record-payment",
+            "clear-receivable",
+            "post-payment"
+          ]
+        },
+        {
+          "id": "unmatched",
+          "label": "No invoice matches",
+          "steps": [
+            "record-unmatched",
+            "hold-unapplied",
+            "post-unmatched"
+          ]
+        }
+      ]
+    }
+  ]
+}

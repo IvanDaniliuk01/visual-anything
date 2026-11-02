@@ -7,6 +7,7 @@ import { PHYSICAL_AI } from './physical-ai';
 import { PROCESS } from './process';
 import { SYSTEMS } from './systems';
 import { HEALTHCARE } from './healthcare';
+import { FINANCE } from './finance';
 
 export { C4 } from './c4';
 export { DATA_MODELING } from './data-modeling';
@@ -17,6 +18,7 @@ export { PHYSICAL_AI } from './physical-ai';
 export { PROCESS } from './process';
 export { SYSTEMS } from './systems';
 export { HEALTHCARE } from './healthcare';
+export { FINANCE } from './finance';
 
 /**
  * The packages built into Visual Anything. A project uses one by listing its id; the package is not
@@ -31,6 +33,7 @@ export const BUILTIN_PACKAGES: readonly PackageFile[] = [
   PHYSICAL_AI,
   PROCESS,
   HEALTHCARE,
+  FINANCE,
 ];
 
 /** The built-in package with this id, if there is one. */
@@ -59,4 +62,6 @@ export const RESERVED_PACKAGE_IDS: ReadonlySet<Id> = new Set([
   'anatomy',
   // Track P5 (ADR 0079's clarification of 2026-11-02).
   'healthcare',
+  // Finance (P6).
+  'finance',
 ]);

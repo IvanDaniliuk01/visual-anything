@@ -1,0 +1,107 @@
+{
+  "id": "reserve-portfolio",
+  "name": "Reserve portfolio",
+  "description": "The portfolio that holds the workshop’s reserve: each position holds an instrument, each instrument is exposed to a risk, and a control mitigates each risk.",
+  "perspective": {
+    "name": "Holdings"
+  },
+  "nestingRelationTypes": [
+    "finance.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "bond-position",
+      "container": "reserve-portfolio",
+      "x": 24,
+      "y": 168
+    },
+    {
+      "element": "fund-position",
+      "container": "reserve-portfolio",
+      "x": 24,
+      "y": 56
+    },
+    {
+      "element": "cash-position",
+      "container": "reserve-portfolio",
+      "x": 24,
+      "y": 280
+    },
+    {
+      "element": "workshop",
+      "x": 0,
+      "y": 160
+    },
+    {
+      "element": "reserve-portfolio",
+      "x": 240,
+      "y": 112
+    },
+    {
+      "element": "government-bond",
+      "x": 552,
+      "y": 352
+    },
+    {
+      "element": "equity-index-fund",
+      "x": 552,
+      "y": 128
+    },
+    {
+      "element": "money-market-fund",
+      "x": 552,
+      "y": 464
+    },
+    {
+      "element": "interest-rate-risk",
+      "x": 808,
+      "y": 360
+    },
+    {
+      "element": "equity-market-risk",
+      "x": 808,
+      "y": 224
+    },
+    {
+      "element": "liquidity-risk",
+      "x": 520,
+      "y": 16
+    },
+    {
+      "element": "hold-to-maturity",
+      "x": 584,
+      "y": 576
+    },
+    {
+      "element": "allocation-limit",
+      "x": 552,
+      "y": 240
+    },
+    {
+      "element": "cash-buffer",
+      "x": 264,
+      "y": 0
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "include": [
+      {
+        "kind": "contents",
+        "container": "reserve-portfolio"
+      }
+    ],
+    "added": [
+      "allocation-limit",
+      "cash-buffer",
+      "equity-index-fund",
+      "equity-market-risk",
+      "government-bond",
+      "hold-to-maturity",
+      "interest-rate-risk",
+      "liquidity-risk",
+      "money-market-fund",
+      "workshop"
+    ]
+  }
+}

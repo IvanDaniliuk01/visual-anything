@@ -176,6 +176,10 @@ export const ui: Catalog = {
   'Healthcare: a clinic’s claim': 'Salud: la reclamación de una clínica',
   'An invented clinic bills an invented insurer for a knee MRI, from the visit through its authorization to payment or denial, with the audit that reviews the claim and the patient’s care plan.':
     'Una clínica inventada le factura a una aseguradora inventada una resonancia de rodilla, desde la consulta, pasando por su autorización, hasta el pago o el rechazo, con la auditoría que revisa la reclamación y el plan de cuidados de la paciente.',
+  // P6: the sample of Finance.
+  'Finance: a workshop’s books': 'Finanzas: los libros de un taller',
+  'An invented furniture workshop’s books, from an invoice through its payment to the general ledger by double entry, and the small portfolio that holds its reserve, with a scenario that decides how a payment is recorded.':
+    'Los libros de un taller de muebles inventado, desde una factura, pasando por su pago, hasta el libro mayor por partida doble, y la pequeña cartera que guarda su reserva, con un escenario que decide cómo se registra un pago.',
   'Start from the sample “{name}”': 'Empezar a partir del proyecto de muestra “{name}”',
   'Start from this sample': 'Empezar a partir de este proyecto de muestra',
   'Starting…': 'Empezando…',
@@ -8008,5 +8012,203 @@ export const builtins: Readonly<
     name: 'es parte de',
     description:
       'Ubica a un profesional en su organización, un plan o una auditoría en su financiador, una línea en su reclamación, un hallazgo en su auditoría, un objetivo en su plan de cuidados o un registro clínico en su encuentro.',
+  // P6: Finance (ADR 0079). A transaction is an "operación", since "transacción" is the word the
+  // glossary avoids for an action, and a party an "interviniente", since a "parte" is a drawing's.
+  finance: {
+    name: 'Finanzas',
+    description:
+      'Libros mayores y las cuentas que contienen, asientos contables cuyas líneas debitan y acreditan cuentas por partida doble, operaciones, pagos y facturas, instrumentos que las carteras tienen por medio de posiciones, y los riesgos y los controles sobre todo ello.',
+  },
+  'finance.ledger': {
+    name: 'Libro mayor',
+    description:
+      'Un libro de cuentas, como el libro mayor general de una empresa, con sus cuentas; los asientos contables se contabilizan en él.',
+    attributes: { currency: 'La moneda de sus importes, en un código de tres letras como "EUR".' },
+  },
+  'finance.account': {
+    name: 'Cuenta',
+    description:
+      'Un registro en un libro mayor de lo que se tiene, se debe, se gana o se gasta, que los asientos contables debitan y acreditan. Cada tipo de cuenta deriva de ella.',
+    attributes: {
+      code: 'Su código en el plan de cuentas, como "1200".',
+      balance:
+        'Su saldo al cierre del período, en la moneda de su libro mayor, del lado que la aumenta.',
+    },
+  },
+  'finance.asset-account': {
+    name: 'Cuenta de activo',
+    description:
+      'Lo que la empresa tiene o le deben, como el dinero en el banco o lo que deben los clientes; un débito la aumenta.',
+  },
+  'finance.liability-account': {
+    name: 'Cuenta de pasivo',
+    description:
+      'Lo que la empresa les debe a otros, como impuestos por pagar o un préstamo; un crédito la aumenta.',
+  },
+  'finance.equity-account': {
+    name: 'Cuenta de patrimonio neto',
+    description: 'Lo que aportaron los dueños y las ganancias retenidas; un crédito la aumenta.',
+  },
+  'finance.revenue-account': {
+    name: 'Cuenta de ingresos',
+    description: 'Lo que se gana, como las ventas; un crédito la aumenta.',
+  },
+  'finance.expense-account': {
+    name: 'Cuenta de gastos',
+    description: 'Lo que se gasta para ganarlo, como materiales o alquiler; un débito la aumenta.',
+  },
+  'finance.journal-entry': {
+    name: 'Asiento contable',
+    description:
+      'El registro de un hecho en los libros, como una factura o un pago, con fecha y número. Sus líneas debitan y acreditan cuentas por totales iguales, y se contabiliza en un libro mayor. Dibuja sus líneas como sus filas.',
+    attributes: {
+      number: 'El número con el que se archiva, como "JE-0107" o "INV-0107".',
+      date: 'Cuándo ocurrió, como la fecha "2026-03-31".',
+    },
+  },
+  'finance.entry-line': {
+    name: 'Línea de asiento',
+    description:
+      'Una línea de un asiento contable: debita o acredita una cuenta por su importe. Su fila escribe el importe, y "Dr" o "Cr" según la relación que inicia.',
+    attributes: { amount: 'Cuánto debita o acredita, en la moneda de su libro mayor.' },
+  },
+  'finance.transaction': {
+    name: 'Operación',
+    description:
+      'Un intercambio de valor, como una venta, una compra, una transferencia o una compraventa de valores, que los asientos contables registran.',
+    attributes: {
+      kind: 'Qué es: "sale", una venta; "purchase", una compra; "transfer", una transferencia; o "trade", una compraventa de valores.',
+      amount: 'Cuánto, en su moneda.',
+      currency: 'La moneda de sus importes, en un código de tres letras como "EUR".',
+      date: 'Cuándo ocurrió, como la fecha "2026-03-31".',
+    },
+  },
+  'finance.payment': {
+    name: 'Pago',
+    description: 'Dinero que pasa de un interviniente a otro, que salda una factura o una deuda.',
+    attributes: {
+      method:
+        'Cómo se paga: "transfer", por transferencia bancaria; "card", con tarjeta; "direct debit", por débito automático; o "cash", en efectivo.',
+    },
+  },
+  'finance.invoice': {
+    name: 'Factura',
+    description:
+      'Lo que un interviniente le cobra a otro por lo que vendió, con el importe a pagar y la fecha en que vence; un pago la salda.',
+    attributes: {
+      number: 'El número con el que se archiva, como "JE-0107" o "INV-0107".',
+      amount: 'Cuánto, en su moneda.',
+      currency: 'La moneda de sus importes, en un código de tres letras como "EUR".',
+      dueDate: 'Cuándo vence, como "2026-04-30".',
+      status:
+        'En qué estado está: "open", abierta; "paid", pagada; "overdue", vencida; o "cancelled", anulada.',
+    },
+  },
+  'finance.party': {
+    name: 'Interviniente',
+    description:
+      'Una persona o una organización con la que tratan los libros, como un cliente, un proveedor, un banco o la empresa que los lleva.',
+    attributes: {
+      role: 'Quién es para los libros: "company", la empresa que los lleva; "customer", un cliente; "supplier", un proveedor; "bank", un banco; "broker", un agente de bolsa; "employee", un empleado; o "authority", una autoridad, como el fisco.',
+    },
+  },
+  'finance.instrument': {
+    name: 'Instrumento',
+    description:
+      'Algo que se tiene y tiene un precio, como una acción, un bono, un fondo de inversión o un depósito; las posiciones lo tienen.',
+    attributes: {
+      kind: 'Qué es: "share", una acción; "bond", un bono; "fund", un fondo de inversión; "deposit", un depósito; o "derivative", un derivado.',
+      identifier: 'Su identificador donde se negocia, como un ISIN.',
+      currency: 'La moneda de sus importes, en un código de tres letras como "EUR".',
+    },
+  },
+  'finance.portfolio': {
+    name: 'Cartera',
+    description: 'Inversiones que se tienen y se administran juntas, con sus posiciones.',
+    attributes: { currency: 'La moneda de sus importes, en un código de tres letras como "EUR".' },
+  },
+  'finance.position': {
+    name: 'Posición',
+    description: 'Cuánto de un instrumento tiene una cartera, y cuánto vale.',
+    attributes: {
+      quantity: 'Cuántas unidades del instrumento.',
+      value: 'Cuánto vale al último precio, en la moneda de su cartera.',
+    },
+  },
+  'finance.risk': {
+    name: 'Riesgo',
+    description:
+      'Algo que podría costar dinero, como que bajen los precios, que un cliente no pague o que un pago se pierda.',
+    attributes: {
+      category:
+        'Qué tipo de riesgo es: "market", de mercado; "credit", de crédito; "liquidity", de liquidez; "operational", operativo; o "compliance", de cumplimiento normativo.',
+      likelihood: 'Qué tan probable es: "low", poco; "medium", algo; o "high", muy probable.',
+      impact: 'Cuánto costaría si ocurriera: "low", poco; "medium", algo; o "high", mucho.',
+    },
+  },
+  'finance.control': {
+    name: 'Control',
+    description:
+      'Una verificación que mantiene a raya un riesgo, como aplicar los pagos a sus facturas o conciliar la cuenta bancaria; mitiga riesgos y verifica lo que resguarda.',
+    attributes: {
+      kind: 'Cómo actúa: "preventive", antes de que algo salga mal; "detective", descubriéndolo después; o "corrective", corrigiéndolo.',
+      frequency: 'Cada cuánto se aplica, como "en cada pago" o "mensual".',
+    },
+  },
+  'finance.posts-to': {
+    name: 'se contabiliza en',
+    description:
+      'Pasa un asiento contable al libro mayor cuyas cuentas debitan y acreditan sus líneas.',
+  },
+  'finance.debits': {
+    name: 'debita',
+    description:
+      'Una línea de un asiento contable anota su importe en el lado izquierdo de una cuenta, el debe: aumenta un activo o un gasto, y disminuye las demás.',
+  },
+  'finance.credits': {
+    name: 'acredita',
+    description:
+      'Una línea de un asiento contable anota su importe en el lado derecho de una cuenta, el haber: aumenta un pasivo, el patrimonio neto o un ingreso, y disminuye las demás.',
+  },
+  'finance.records': {
+    name: 'registra',
+    description:
+      'Un asiento contable registra en los libros la operación, el pago o la factura de la que surge.',
+  },
+  'finance.issues': {
+    name: 'emite',
+    description: 'Un interviniente le cobra a otro con una factura.',
+  },
+  'finance.pays': {
+    name: 'paga',
+    description: 'Un interviniente paga una factura, o le paga a otro interviniente.',
+  },
+  'finance.settles': {
+    name: 'salda',
+    description:
+      'Un pago, u otra operación, cancela lo que se debe: una factura, o una operación que cierra.',
+  },
+  'finance.holds': {
+    name: 'tiene',
+    description:
+      'Una posición tiene su instrumento; un interviniente tiene una cartera o una cuenta que le pertenece.',
+  },
+  'finance.is-exposed-to': {
+    name: 'está expuesto a',
+    description:
+      'Podría perder valor si el riesgo ocurriera: una cuenta, una posición, un instrumento, un pago.',
+  },
+  'finance.mitigates': {
+    name: 'mitiga',
+    description: 'Un control hace que un riesgo sea menos probable, o menos costoso si ocurre.',
+  },
+  'finance.checks': {
+    name: 'verifica',
+    description: 'Un control revisa lo que resguarda, como cada pago que entra.',
+  },
+  'finance.is-part-of': {
+    name: 'es parte de',
+    description:
+      'Ubica una cuenta en su libro mayor, una línea en su asiento contable o una posición en su cartera.',
   },
 };

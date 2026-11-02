@@ -35,6 +35,10 @@ const SAMPLE_TEXTS: Readonly<Record<string, { title: string; description: string
     title: 'Healthcare: a clinic’s claim',
     description:
       'An invented clinic bills an invented insurer for a knee MRI, from the visit through its authorization to payment or denial, with the audit that reviews the claim and the patient’s care plan.',
+  'workshop-books': {
+    title: 'Finance: a workshop’s books',
+    description:
+      'An invented furniture workshop’s books, from an invoice through its payment to the general ledger by double entry, and the small portfolio that holds its reserve, with a scenario that decides how a payment is recorded.',
   },
 };
 

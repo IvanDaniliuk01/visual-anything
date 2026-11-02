@@ -22,6 +22,7 @@ export const SAMPLE_IDS = [
   'robot-arm',
   'order-process',
   'clinic-claim',
+  'workshop-books',
 ] as const;
 
 /** A sample project the local program holds. */

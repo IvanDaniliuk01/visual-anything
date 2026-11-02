@@ -428,7 +428,8 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   { word: /\bl[aá]minas?\b|\bplacas?\b/i },
   { word: /\batlas\b/i },
   { word: /\bmapas?\b/i, unless: /\bmapas? de bits\b/i },
-  { word: /\bfondos?\b/i, unless: /\b(al|del|desde el) fondo\b/i },
+  // Finance's funds are "fondos de inversión" (P6).
+  { word: /\bfondos?\b/i, unless: /\b(al|del|desde el) fondo\b|\bfondos? de inversión\b/i },
   { word: /\b[aá]reas? mapeadas?\b|\bzonas? mapeadas?\b/i },
   { word: /\bvistas? web\b/i },
   { word: /\bincrust/i, unless: /\bcompartir, incrustar y leer\b/i },

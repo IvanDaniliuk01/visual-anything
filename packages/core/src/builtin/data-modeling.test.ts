@@ -514,6 +514,7 @@ describe('the built-in Data modeling package', () => {
       'control-and-circuits',
       'anatomy',
       'healthcare',
+      'finance',
     ]);
     for (const builtin of BUILTIN_PACKAGES) expect(RESERVED_PACKAGE_IDS.has(builtin.id)).toBe(true);
   });
