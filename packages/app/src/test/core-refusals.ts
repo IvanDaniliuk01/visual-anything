@@ -1155,6 +1155,17 @@ function inOrderOn(sample: ProjectSnapshot): [string, ProjectSnapshot, readonly 
       sample,
       [{ type: 'add-package', package: mallShowing({ image: 'gone.logo' }) }],
     ],
+    // M14.3: what a shared package holds beyond its definitions and images is checked too.
+    [
+      'a shared package with crosswalks that are not tables',
+      sample,
+      [{ type: 'add-package', package: { ...MALL, crosswalks: [{ from: 'a', to: 'a' }] } }],
+    ],
+    [
+      'a shared package whose solids are not a list',
+      sample,
+      [{ type: 'add-package', package: { ...MALL, solids: {} } }],
+    ],
   ];
 }
 

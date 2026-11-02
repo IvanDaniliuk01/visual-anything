@@ -187,3 +187,100 @@
   outline: var(--stroke-thick) solid var(--focus-ring);
   outline-offset: var(--stroke-thin);
 }
+
+/* Actions, importers and exporters of packages (ADR 0089's M14.3 clarification). */
+.packages-run {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-50);
+  margin-top: var(--space-50);
+}
+
+/* While a package's action or importer runs, which may take up to 2 s. */
+.package-running {
+  position: fixed;
+  bottom: var(--space-100);
+  left: 50%;
+  z-index: var(--z-notices);
+  max-width: min(var(--size-2400), calc(100vw - var(--space-200)));
+  margin: 0;
+  padding: var(--space-50) var(--space-75);
+  border: var(--stroke-thin) solid var(--border);
+  border-left: var(--stroke-bar) solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+  overflow-wrap: anywhere;
+  transform: translateX(-50%);
+}
+
+/* Accept and Decline, above the changes a package proposes in the Changes tab. */
+.package-decision {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-50);
+  margin: 0 var(--space-100) var(--space-50);
+}
+
+.package-decision-label,
+.package-decision-note,
+.package-decision-problem {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.package-decision-note {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.package-decision-problem {
+  color: var(--problem);
+}
+
+.package-decision-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-50);
+}
+
+.package-decision-buttons button {
+  min-height: var(--control-sm);
+  padding: var(--space-25) var(--space-75);
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.package-decision-buttons button:hover:not([aria-disabled='true']) {
+  background: var(--surface-hover);
+}
+
+.package-decision-buttons button:active:not([aria-disabled='true']) {
+  background: var(--surface-pressed);
+}
+
+.package-decision-buttons button[aria-disabled='true'] {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.package-decision-buttons button:focus-visible {
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: var(--stroke-thin);
+}
+
+.package-decision-buttons .package-accept:not([aria-disabled='true']) {
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+.package-decision-buttons .package-accept:not([aria-disabled='true']):is(:hover, :active) {
+  border-color: var(--accent-fill-hover);
+  background: var(--accent-fill-hover);
+}

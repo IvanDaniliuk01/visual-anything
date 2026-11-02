@@ -302,8 +302,8 @@ describe('add-package', () => {
   });
 
   it('refuses keys a package does not have', () => {
-    expect(refused(add({ ...SHOP, code: 'alert(1)' } as never))).toEqual([
-      expect.objectContaining({ code: 'invalid-command', message: 'A package has no "code".' }),
+    expect(refused(add({ ...SHOP, script: 'alert(1)' } as never))).toEqual([
+      expect.objectContaining({ code: 'invalid-command', message: 'A package has no "script".' }),
     ]);
   });
 

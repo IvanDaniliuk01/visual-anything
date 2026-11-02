@@ -16,6 +16,7 @@ import {
 import type { Capability, Id } from '@visual-anything/schema';
 import { useContext, useSyncExternalStore } from 'react';
 import { EditorContext } from '../editor/EditorContext';
+import { PackageChangesStore } from '../packages/changes';
 import type { PackageCalls } from './client';
 import type { ElementAnswers, PackageAnswer, PackageRun } from './messages';
 
@@ -103,6 +104,11 @@ export class CodeStore {
     packagePanel: (pkg, input) =>
       this.turnedOff(pkg) ?? this.host?.packagePanel(pkg, input) ?? this.notRunning(pkg),
   };
+  /**
+   * What an action or an importer of a package answers, on its way to the person's review (ADR
+   * 0089's M14.3 clarification): the run under way, or the changes shown.
+   */
+  readonly changes = new PackageChangesStore();
   readonly actions: CodeActions = {
     review: (pkg) => this.review(pkg),
     approve: (pkg, reviewed, shown, granted) => this.kept.approve(pkg, reviewed, shown, granted),
@@ -209,6 +215,14 @@ export function useCode(): CodeContextValue | null {
  */
 export function usePackageCalls(): PackageCalls | null {
   return useStore()?.calls ?? null;
+}
+
+/**
+ * Where the changes of packages' actions and importers go for review (ADR 0089's M14.3
+ * clarification): null where the editor carries no store. It never changes.
+ */
+export function usePackageChanges(): PackageChangesStore | null {
+  return useStore()?.changes ?? null;
 }
 
 /** What package code draws inside shapes, by element: none where the editor carries no store. */

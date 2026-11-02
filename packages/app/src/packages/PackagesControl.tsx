@@ -32,6 +32,8 @@ import {
   type PackagePlan,
 } from './packageFiles';
 import { packageRowsOf, type PackageRow } from './packageList';
+import { menuActions, selectionIds, type OfferedAction } from './offered';
+import { useRunPackageAction } from './run';
 import './packages.css';
 
 /** The header's Packages… button, and the dialog it opens. */
@@ -83,9 +85,15 @@ export function PackagesDialog({ onClose }: { onClose: () => void }) {
   const addId = useId();
   const dialog = useRef<HTMLDivElement>(null);
   useModalFocus(dialog);
-  const { project, send } = useEditor();
+  const { project, send, selection, viewId } = useEditor();
   const code = useCode();
   const live = useContext(LiveContext);
+  // The actions packages offer here (ADR 0089): those of approved code that runs on this computer.
+  const runAction = useRunPackageAction();
+  const offeredActions = useMemo(
+    () => menuActions(project, code?.packages ?? new Map()),
+    [project, code?.packages],
+  );
   const readPackageFile = live?.status === 'open' ? live.readPackageFile : undefined;
   const connected = readPackageFile !== undefined && send !== undefined;
   const rows = useMemo(
@@ -197,6 +205,16 @@ export function PackagesDialog({ onClose }: { onClose: () => void }) {
                     reviewedFrom.current = from;
                     code?.review(row.file.id);
                   }}
+                  actions={offeredActions.filter((each) => each.package.id === row.file.id)}
+                  {...(runAction
+                    ? {
+                        // The dialog closes, so that the review shows on the canvas behind it.
+                        onRun: (action: OfferedAction) => {
+                          onClose();
+                          runAction(action, selectionIds(selection), viewId);
+                        },
+                      }
+                    : {})}
                 />
               </li>
             ))}
@@ -316,13 +334,20 @@ function PackageItem({
   row,
   code,
   onReview,
+  actions,
+  onRun,
 }: {
   row: PackageRow;
   code: CodeContextValue | null;
   onReview: (from: HTMLElement) => void;
+  /** Its actions offered in this dialog, which its approved code runs (ADR 0089). */
+  actions: readonly OfferedAction[];
+  onRun?: (action: OfferedAction) => void;
 }) {
   const t = useT();
   const nameId = useId();
+  // Its changes are sent once accepted, which the project must be open to take.
+  const { send } = useEditor();
   const { file, builtIn, view, standing } = row;
   const extensions = view?.code.extensions ?? file.extensions;
   const capabilities: readonly Capability[] = view?.code.capabilities ?? [];
@@ -359,6 +384,26 @@ function PackageItem({
           <Adds term={t('Exporters')} labels={extensions.exporters?.map((each) => each.label)} />
           <Adds term={t('Panels')} labels={extensions.panels?.map((each) => each.label)} />
         </dl>
+      )}
+      {onRun && actions.length > 0 && (
+        <div className="packages-run" role="group" aria-label={t('Run its actions')}>
+          {actions.map((action) => (
+            <button
+              key={action.declared.id}
+              type="button"
+              className="packages-action"
+              aria-describedby={nameId}
+              title={
+                action.declared.description ??
+                t('Its changes wait for your review before anything changes.')
+              }
+              aria-disabled={send === undefined ? true : undefined}
+              onClick={send === undefined ? undefined : () => onRun(action)}
+            >
+              {t('Run “{label}”', { label: action.declared.label })}
+            </button>
+          ))}
+        </div>
       )}
       {capabilities.length > 0 && (
         <ul className="packages-capabilities" aria-label={t('What its code may reach')}>

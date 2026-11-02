@@ -6,11 +6,15 @@
  * trusted.
  */
 import type {
+  Capability,
   Component,
+  Crosswalk,
   Id,
   ImageDefinition,
+  PackageExtensions,
   PackageFile,
   RelationType,
+  SolidDefinition,
 } from '@visual-anything/schema';
 import { RESERVED_PACKAGE_IDS, builtinPackage } from '../builtin';
 import { isId } from '../ids';
@@ -18,6 +22,8 @@ import { imagesIn } from '../images/catalog';
 import { packageNeeds } from '../package-sharing';
 import { problem } from '../problems';
 import { allUsers, usersOfDefinition } from '../rules';
+import { MAX_PACKAGE_SOLIDS, MAX_PACKAGE_SOLID_BYTES } from '../solids/caps';
+import { solidUsers } from '../solids/catalog';
 import type { ProjectSnapshot } from '../snapshot';
 import {
   afterComponentChange,
@@ -26,9 +32,11 @@ import {
   checkedRelationType,
   describeUsers,
 } from './definitions';
-import { compact, reject, requireName, sameJson, type Draft } from './draft';
+import { checkedCapabilities, checkedPackageExtensions, linesOf } from './code';
+import { compact, count, reject, requireName, sameJson, type Draft } from './draft';
 import { checkImageCaps, cleanedImage } from './images';
 import { checkedPackageAbout } from './package-properties';
+import { checkedDefinition as checkedSolid } from './solids';
 import type { AddPackageCommand, ReplacePackageCommand } from './types';
 
 export function addPackage(draft: Draft, command: AddPackageCommand): string {
@@ -56,6 +64,7 @@ export function addPackage(draft: Draft, command: AddPackageCommand): string {
   checkIds(draft, given, name, 'added');
   const needs = needsOf(draft.state, given, name);
   const images = cleanedImages(draft, given, name);
+  const carried = carriedOf(given, name);
 
   const before = draft.state;
   useBuiltIn(draft, needs);
@@ -69,7 +78,12 @@ export function addPackage(draft: Draft, command: AddPackageCommand): string {
       ...about,
       components: given.components,
       relationTypes: given.relationTypes,
+      crosswalks: carried.crosswalks,
       images: images.length === 0 ? undefined : images,
+      solids: carried.solids,
+      code: carried.code,
+      capabilities: carried.capabilities,
+      extensions: carried.extensions,
     }),
   });
   draft.apply({
@@ -93,13 +107,21 @@ export function replacePackage(draft: Draft, command: ReplacePackageCommand): st
   const needs = needsOf(draft.state, given, current.name);
   checkRemovedUnused(draft.state, current, given);
   const images = cleanedImages(draft, given, current.name);
+  const carried = carriedOf(given, current.name);
+  // What the file holds beyond its definitions and images is the package's from now on too, its
+  // code included: approved by its hash, code that changed asks for the person's approval again.
   const next: PackageFile = compact({
     id: current.id,
     name,
     ...about,
     components: given.components,
     relationTypes: given.relationTypes,
+    crosswalks: carried.crosswalks,
     images: images.length === 0 ? undefined : images,
+    solids: carried.solids,
+    code: carried.code,
+    capabilities: carried.capabilities,
+    extensions: carried.extensions,
   });
   const label = `Update the package "${current.name}"`;
   if (sameJson(next, current)) return label;
@@ -114,17 +136,137 @@ export function replacePackage(draft: Draft, command: ReplacePackageCommand): st
   }
   draft.apply({ op: 'replace', collection: { name: 'packages' }, item: next });
   checkDefinitions(draft, before, current.id);
+  checkRemovedSolids(draft, current, next);
   const had = new Set([
     ...current.components.map((each) => each.id),
     ...current.relationTypes.map((each) => each.id),
     ...(current.images ?? []).map((each) => each.id),
+    ...(current.solids ?? []).map((each) => each.id),
   ]);
   draft.created.push(
-    ...[...next.components, ...next.relationTypes, ...(next.images ?? [])]
+    ...[...next.components, ...next.relationTypes, ...(next.images ?? []), ...(next.solids ?? [])]
       .map((each) => each.id)
       .filter((each) => !had.has(each)),
   );
   return label;
+}
+
+/** What a package file holds beyond its definitions and images, checked; each absent when it has none. */
+interface Carried {
+  crosswalks?: Crosswalk[];
+  solids?: SolidDefinition[];
+  code?: string[];
+  capabilities?: Capability[];
+  extensions?: PackageExtensions;
+}
+
+/**
+ * The crosswalks, solids, code, capabilities and extensions of a package file, each checked as the
+ * command that writes it checks it: `define-solid` for each solid, and `set-package-code` for the
+ * code, whose capabilities and extensions go with it (ADR 0054, ADR 0089). A solid whose file the
+ * project's folder does not hold draws its placeholder, and the local program warns of it as opening
+ * does (ADR 0075).
+ */
+function carriedOf(given: PackageFile, name: string): Carried {
+  const file: PackageFile = { ...given, name };
+  const code = given.code === undefined ? undefined : linesOf(given.code, file);
+  let capabilities =
+    given.capabilities === undefined ? undefined : checkedCapabilities(given.capabilities);
+  if (capabilities !== undefined && capabilities.length === 0) capabilities = undefined;
+  const extensions =
+    given.extensions === undefined ? undefined : checkedPackageExtensions(given.extensions, file);
+  // Capabilities and what the code adds go with the code they were declared for.
+  if (code === undefined && capabilities !== undefined) {
+    reject('invalid-code', `The package "${name}" has no code to give capabilities to.`, [
+      given.id,
+    ]);
+  }
+  if (code === undefined && extensions !== undefined) {
+    reject('invalid-code', `The package "${name}" has no code to add anything to the app.`, [
+      given.id,
+    ]);
+  }
+  const solids = given.solids?.map((each: unknown) => checkedSolid(each));
+  if (solids !== undefined && solids.length > MAX_PACKAGE_SOLIDS) {
+    reject('solid-too-large', `A package holds at most ${MAX_PACKAGE_SOLIDS} solids.`, [given.id]);
+  }
+  const bytes = (solids ?? []).reduce((sum, each) => sum + each.bytes, 0);
+  if (bytes > MAX_PACKAGE_SOLID_BYTES) {
+    reject(
+      'solid-too-large',
+      `The solids of "${name}" would name ${bytes} bytes of files, past ${MAX_PACKAGE_SOLID_BYTES}.`,
+      [given.id],
+    );
+  }
+  return compact({
+    crosswalks: given.crosswalks === undefined ? undefined : checkedCrosswalks(given.crosswalks),
+    solids: solids === undefined || solids.length === 0 ? undefined : solids,
+    code,
+    capabilities,
+    extensions,
+  });
+}
+
+const SCHEME = /^[a-z][a-z0-9_-]{0,31}$/;
+/** An external identifier: 1 to 200 characters, none of them a control character. */
+// eslint-disable-next-line no-control-regex
+const EXTERNAL_ID = /^[^\x00-\x1f\x7f]{1,200}$/;
+const CROSSWALK_KEYS: ReadonlySet<string> = new Set(['from', 'to', 'source', 'entries']);
+const MAX_CROSSWALK_ENTRIES = 100_000;
+const CROSSWALKS_PROBLEM =
+  'A package’s crosswalks are a list of tables, each mapping identifiers of one scheme to those of another.';
+
+/** A package's crosswalks (ADR 0056), checked as the package file's schema checks them. */
+function checkedCrosswalks(value: unknown): Crosswalk[] {
+  if (!Array.isArray(value)) reject('invalid-command', CROSSWALKS_PROBLEM);
+  return (value as unknown[]).map((each) => {
+    const table = crosswalkOf(each);
+    if (table === undefined) reject('invalid-command', CROSSWALKS_PROBLEM);
+    return table;
+  });
+}
+
+/** One crosswalk, rebuilt from its parts; undefined when it is not one. */
+function crosswalkOf(value: unknown): Crosswalk | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const table = value as Record<string, unknown>;
+  if (Object.keys(table).some((key) => !CROSSWALK_KEYS.has(key))) return undefined;
+  const { from, to, source, entries } = table;
+  if (typeof from !== 'string' || typeof to !== 'string') return undefined;
+  if (!SCHEME.test(from) || !SCHEME.test(to) || from === to) return undefined;
+  if (source !== undefined && (typeof source !== 'string' || source.length > 2000)) {
+    return undefined;
+  }
+  if (typeof entries !== 'object' || entries === null || Array.isArray(entries)) return undefined;
+  const pairs = Object.entries(entries);
+  if (pairs.length === 0 || pairs.length > MAX_CROSSWALK_ENTRIES) return undefined;
+  const ok = pairs.every(
+    ([key, mapped]) =>
+      EXTERNAL_ID.test(key) && typeof mapped === 'string' && EXTERNAL_ID.test(mapped),
+  );
+  if (!ok) return undefined;
+  return compact({
+    from,
+    to,
+    source,
+    entries: Object.fromEntries(pairs),
+  });
+}
+
+/** Refuses an update that removes a solid something in the project still shows, as `remove-solid` does. */
+function checkRemovedSolids(draft: Draft, current: PackageFile, next: PackageFile): void {
+  const kept = new Set((next.solids ?? []).map((each) => each.id));
+  for (const removed of current.solids ?? []) {
+    if (kept.has(removed.id)) continue;
+    const users = solidUsers(draft.state, removed.id);
+    if (users.length > 0) {
+      reject(
+        'in-use',
+        `The solid "${removed.name}" cannot be removed: ${count(users.length, 'component or element', 'components or elements')} show it.`,
+        users,
+      );
+    }
+  }
 }
 
 /** Starts using built-in packages, as `update-project` does; the project file is set after. */
@@ -149,7 +291,12 @@ const PACKAGE_KEYS: readonly string[] = [
   'attribution',
   'components',
   'relationTypes',
+  'crosswalks',
   'images',
+  'solids',
+  'code',
+  'capabilities',
+  'extensions',
 ];
 
 /** A package as a command gives it: an object with an id, a name and lists of definitions. */
@@ -168,10 +315,14 @@ function shapeOf(value: unknown, command: string): PackageFile {
   if (file.images !== undefined && !Array.isArray(file.images)) {
     reject('invalid-command', 'A package’s images are a list.');
   }
+  if (file.solids !== undefined && !Array.isArray(file.solids)) {
+    reject('invalid-command', 'A package’s solids are a list.');
+  }
   for (const each of [
     ...(file.components as unknown[]),
     ...(file.relationTypes as unknown[]),
     ...((file.images as unknown[] | undefined) ?? []),
+    ...((file.solids as unknown[] | undefined) ?? []),
   ]) {
     if (typeof each !== 'object' || each === null || Array.isArray(each)) {
       reject('invalid-command', 'Each definition and image of a package is an object.');
@@ -196,6 +347,7 @@ function checkIds(
     ...file.components.map((each) => each.id),
     ...file.relationTypes.map((each) => each.id),
     ...(file.images ?? []).map((each) => each.id),
+    ...(file.solids ?? []).map((each) => each.id),
   ];
   const invalid = ids.filter((id) => !isId(id));
   if (invalid.length > 0) {
@@ -226,6 +378,7 @@ function checkIds(
           ...replaced.components.map((each) => each.id),
           ...replaced.relationTypes.map((each) => each.id),
           ...(replaced.images ?? []).map((each) => each.id),
+          ...(replaced.solids ?? []).map((each) => each.id),
         ],
   );
   const taken = ids.filter((id) => !own.has(id) && draft.isTaken(id));
