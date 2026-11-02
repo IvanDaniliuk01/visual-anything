@@ -2473,6 +2473,24 @@ export const ui: Catalog = {
   'What the file holds is what the package’s code writes: Visual Anything does not check it.':
     'Lo que contiene el archivo es lo que escribe el código del paquete: Visual Anything no lo revisa.',
 
+  // M14.4 (ADR 0089): packages' panels in the inspector, drawn from what their code answers.
+  'from the package “{name}”': 'del paquete “{name}”',
+  'Asking the package’s code…': 'Consultando el código del paquete…',
+  'The package shows nothing here for this element.':
+    'El paquete no muestra nada aquí para este elemento.',
+  'Show again': 'Mostrar de nuevo',
+  'No rows.': 'Sin filas.',
+  'From {low} to {high}': 'De {low} a {high}',
+  'Bar chart of {series}, over {count} labels. {range}.': {
+    one: 'Gráfico de barras de {series}, en {count} etiqueta. {range}.',
+    other: 'Gráfico de barras de {series}, en {count} etiquetas. {range}.',
+  },
+  'Line chart of {series}, over {count} labels. {range}.': {
+    one: 'Gráfico de líneas de {series}, en {count} etiqueta. {range}.',
+    other: 'Gráfico de líneas de {series}, en {count} etiquetas. {range}.',
+  },
+  '{series}, {label}: {value}': '{series}, {label}: {value}',
+
   // Tours (ADR 0058): the tours panel and full-screen playback.
   'These {count} tour steps name what goes. They are kept, flagged, and play without it:': {
     one: 'Este paso de recorrido nombra algo que se elimina. Se conserva, marcado, y se reproduce sin eso:',

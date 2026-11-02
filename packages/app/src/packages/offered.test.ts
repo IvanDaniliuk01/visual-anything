@@ -16,6 +16,7 @@ import type { PackageCodeView } from '../code/context';
 import { codeProject, gaugesPackage } from '../code/test/project';
 import { EMPTY_SELECTION, type Selection } from '../editor/selection';
 import {
+  elementPanels,
   importerFor,
   menuActions,
   offeredExporters,
@@ -38,6 +39,11 @@ const EXTENSIONS: PackageExtensions = {
   ],
   importers: [{ id: 'lines', label: 'Lines', extensions: ['.lines', '.csv'] }],
   exporters: [{ id: 'csv', label: 'As CSV', extension: '.csv' }],
+  panels: [
+    { id: 'any', label: 'Any element' },
+    { id: 'readings', label: 'Readings', components: ['gauges.thermometer'] },
+    { id: 'probes', label: 'Probes', components: ['gauges.oven-thermometer'] },
+  ],
 };
 
 /** Gauges with a thermometer derived from the thermometer, and the actions above. */
@@ -163,5 +169,32 @@ describe('the importers and exporters offered', () => {
       importers[0],
     );
     expect(packageImporterFor(importers, 'mermaid', 'readings.lines')).toBeUndefined();
+  });
+});
+
+describe('the panels offered for an element', () => {
+  it('are those naming no components, or its component or one it derives from', () => {
+    const state = project();
+    const code = views(state);
+    expect(ids(elementPanels(state, code, 'kitchen'))).toEqual(['any']);
+    expect(ids(elementPanels(state, code, 'oven'))).toEqual(['any', 'readings']);
+    // An oven thermometer derives from a thermometer.
+    expect(ids(elementPanels(state, code, 'probe'))).toEqual(['any', 'readings', 'probes']);
+    expect(elementPanels(state, code, 'missing')).toEqual([]);
+  });
+
+  it('carry their package and the actions it declares, which their buttons run', () => {
+    const state = project();
+    const [panel] = elementPanels(state, views(state), 'oven');
+    expect(panel?.package).toEqual({ id: 'gauges', name: 'Gauges' });
+    expect(panel?.actions.map((each) => each.id)).toEqual(['anywhere', 'menu', 'thermometers']);
+  });
+
+  it('are none of code that waits for approval, is turned off here, or is off after its calls stopped', () => {
+    const state = project();
+    for (const how of ['unapproved', 'turned-off', 'off'] as const) {
+      expect(elementPanels(state, views(state, how), 'oven')).toEqual([]);
+    }
+    expect(elementPanels(state, new Map(), 'oven')).toEqual([]);
   });
 });
