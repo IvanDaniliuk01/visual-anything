@@ -1536,6 +1536,14 @@ export const ui: Catalog = {
   'About Z': 'Alrededor de Z',
   'Place in physical space': 'Ubicar en el espacio físico',
   'Take out of physical space': 'Sacar del espacio físico',
+  'Select something on the canvas or here: what is in physical space can be moved, rotated or taken out, and anything else placed.':
+    'Seleccionar algo en el lienzo o aquí: lo que está en el espacio físico se puede mover, rotar o sacar, y lo demás, ubicar.',
+  'What is selected is drawn as a part of its solid and moves with it: select the element that shows the solid to move or rotate it.':
+    'Lo seleccionado se dibuja como parte de su sólido y se mueve con él: seleccionar el elemento que muestra el sólido para moverlo o rotarlo.',
+  'What is selected is what the panel shows everything inside; it does not move in it.':
+    'Lo seleccionado es aquello dentro de lo cual el panel muestra todo; no se mueve dentro de sí.',
+  'Nothing selected can be posed here: select one element in physical space, or one that is not there yet.':
+    'Nada de lo seleccionado se puede posar aquí: seleccionar un elemento del espacio físico, o uno que todavía no esté en él.',
   'Pose in World where it was': 'Ubicar en Mundo donde estaba',
   'Not in physical space: it has no pose.': 'No está en el espacio físico: no tiene ubicación.',
   'Physical space is measured from World, which has no pose of its own.':

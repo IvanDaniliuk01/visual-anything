@@ -12,6 +12,7 @@ import { useT } from '../i18n';
 import type { SpaceControl } from './control';
 import { handleTargetOf } from './drag';
 import { placeable, placeCommand, removable, takeOutCommand } from './place';
+import { posingHint } from './posingHint';
 import type { HandleMode } from './useSpaceInteraction';
 
 interface SpaceToolsProps {
@@ -46,6 +47,10 @@ export function SpaceTools({
   const toPlace = placeable(project, space, selection.elements);
   const toTakeOut = removable(space, selection.elements);
   const moves = editable && handleTargetOf(space, selection.elements) !== undefined;
+  const hintKey = editable
+    ? posingHint(space, selection.elements, moves || toPlace.length > 0 || toTakeOut.length > 0)
+    : undefined;
+  const hint = hintKey === undefined ? undefined : t(hintKey);
   const onCanvas = [...selection.elements]
     .map((element) => scene?.shapes.find((shape) => shape.element === element)?.key)
     .find((key) => key !== undefined);
@@ -122,7 +127,7 @@ export function SpaceTools({
             type="button"
             className="space-panel-tool"
             aria-pressed={mode === 'move'}
-            title={t('Move with the handles (M)')}
+            title={hint ?? t('Move with the handles (M)')}
             disabled={!moves}
             onClick={() => setMode('move')}
           >
@@ -132,7 +137,7 @@ export function SpaceTools({
             type="button"
             className="space-panel-tool"
             aria-pressed={mode === 'rotate'}
-            title={t('Rotate with the handles (R)')}
+            title={hint ?? t('Rotate with the handles (R)')}
             disabled={!moves}
             onClick={() => setMode('rotate')}
           >
@@ -141,6 +146,7 @@ export function SpaceTools({
           <button
             type="button"
             className="space-panel-tool"
+            title={hint}
             disabled={!editable || toPlace.length === 0}
             onClick={() => void place()}
           >
@@ -149,11 +155,17 @@ export function SpaceTools({
           <button
             type="button"
             className="space-panel-tool"
+            title={hint}
             disabled={!editable || toTakeOut.length === 0}
             onClick={() => void takeOut()}
           >
             {t('Take out of physical space')}
           </button>
+          {hint !== undefined && (
+            <p className="space-panel-tools-hint" aria-live="polite">
+              {hint}
+            </p>
+          )}
         </>
       )}
     </div>

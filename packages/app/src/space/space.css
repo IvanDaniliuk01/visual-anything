@@ -161,6 +161,14 @@
   flex: 1;
 }
 
+/* Why the posing tools cannot act on the selection, on a line of its own under them. */
+.space-panel-tools-hint {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
 .space-panel-tool {
   height: var(--control-sm);
   padding: 0 var(--space-50);
