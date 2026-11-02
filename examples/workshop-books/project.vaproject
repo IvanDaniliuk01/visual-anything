@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "name": "Workshop books",
+  "description": "A sample of the finance package: an invented furniture workshop’s books, from an invoice through its payment to the general ledger by double entry, the small portfolio that holds its reserve, and the risks and controls over both. The company, its customer and every amount are invented.",
+  "packages": [
+    "finance"
+  ]
+}

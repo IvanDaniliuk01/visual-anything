@@ -41,6 +41,7 @@ describe('the sample projects the program holds', () => {
       { id: 'churn-classifier', packages: ['data-science', 'machine-learning'] },
       { id: 'robot-arm', packages: ['physical-ai', 'robot-arm'] },
       { id: 'order-process', packages: ['process'] },
+      { id: 'workshop-books', packages: ['finance'] },
     ]);
     expect(SAMPLE_IDS).toEqual([
       'c4-architecture',
@@ -48,6 +49,7 @@ describe('the sample projects the program holds', () => {
       'churn-classifier',
       'robot-arm',
       'order-process',
+      'workshop-books',
     ]);
     expect(sampleOf('my-systems')).toBeUndefined();
   });
