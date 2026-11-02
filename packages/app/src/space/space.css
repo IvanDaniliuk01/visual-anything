@@ -302,6 +302,12 @@
   cursor: pointer;
 }
 
+.space-panel-joints-toggle:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.6;
+}
+
 .space-panel-joints-toggle[aria-expanded='false'] > .icon {
   transform: rotate(-90deg);
 }

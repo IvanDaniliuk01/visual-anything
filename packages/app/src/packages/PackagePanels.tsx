@@ -9,6 +9,7 @@
  * at a time for each panel, and only the answer of the call asked for last is shown. A call that
  * failed is not made again by itself: Show again, or another element, calls it again.
  */
+import { ChevronDownIcon, ChevronRightIcon } from '../shell/icons';
 import type { PanelBlock, Problem } from '@visual-anything/core';
 import type { Element, Id } from '@visual-anything/schema';
 import { useEffect, useId, useMemo, useState } from 'react';
@@ -128,6 +129,7 @@ function PackagePanel({ panel, element, calls }: PackagePanelProps) {
           aria-controls={bodyId}
           onClick={toggle}
         >
+          {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
           <span className="package-panel-label">{declared.label}</span>{' '}
           <span className="package-panel-from">
             {t('from the package “{name}”', { name: pkg.name })}

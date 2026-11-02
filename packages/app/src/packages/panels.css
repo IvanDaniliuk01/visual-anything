@@ -22,13 +22,9 @@
   cursor: pointer;
 }
 
-.package-panel-toggle::before {
-  content: '▾' / '';
+.package-panel-toggle .icon {
   color: var(--text-muted);
-}
-
-.package-panel-toggle[aria-expanded='false']::before {
-  content: '▸' / '';
+  vertical-align: middle;
 }
 
 .package-panel-toggle:hover:not(:disabled) {
