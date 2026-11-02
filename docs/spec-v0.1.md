@@ -867,6 +867,16 @@ Its tasks run in this order:
 
 **P4 · Control and circuits.** (Dropped by the user on 2026-10-30: not built unless they ask again.) Done when `control-and-circuits` ships with control blocks drawn with free geometry, circuit symbols drawn for Visual Anything in the IEC style, microcontrollers whose pins are rows (ADR 0023), and a development board drawn with parts whose pins relations attach to.
 
+**P5 · Healthcare.** Planned on 2026-11-02, after A4, for the open-source release (the roadmap's sixth wave). Its commits start with `P5:`. Done when `healthcare` ships built in, as ADR 0051 and the Track's rules above say, and its sample opens with no warnings, with a scenario that plays and a tour:
+
+- [ ] **The package** (`healthcare`): patients, encounters, providers (people and organizations), payers and plans, claims and their lines, authorizations, audits and their findings, care plans and their goals, and records (observations, conditions, procedures, medications), with relation types between them such as treats, is covered by, bills, authorizes, audits, finds in, and is part of; names in English and Spanish; icons drawn for Visual Anything or from a set ADR 0079 allows. Never real data, and nothing from the user's own models.
+- [ ] **The sample** (`examples/` and the samples the program holds): an invented clinic and payer, with two or three views laid out, a scenario that follows a claim from an encounter through its authorization to payment or denial, as a decision (ADR 0078), and a tour; the README section says where its pictures come from.
+
+**P6 · Finance.** Planned on 2026-11-02, beside P5. Its commits start with `P6:`. Done when `finance` ships built in, as ADR 0051 and the Track's rules above say, and its sample opens with no warnings, with a scenario that plays and a tour:
+
+- [ ] **The package** (`finance`): accounts and their kinds, ledgers, journal entries and their lines, transactions, payments, invoices, instruments, portfolios and positions, risks and controls, with relation types between them such as posts to, debits, credits, pays, settles, holds, is exposed to, mitigates, and is part of; names in English and Spanish; icons drawn for Visual Anything or from a set ADR 0079 allows. Never real data.
+- [ ] **The sample** (`examples/` and the samples the program holds): an invented company's books and a small portfolio, with two or three views laid out, a scenario that follows an invoice through its payment to the ledger, with a decision, and a tour; the README section says where its pictures come from.
+
 **M9 · Physical space inside components.** Planned for the fourth wave, beside M12; M10 builds on it. Its two seams, in the schema and the core, then in the scene and the solid worker's interface, go first and in order, in the main session, since every other task cleans, draws, points at, edits or exports what they define; the next seven tasks then run in parallel, and the benchmark is measured once they are merged. Done when:
 
 - a package defines solids (ADR 0075): glTF 2.0 files, `.glb` or `.gltf` with embedded data, that the local program cleans into a canonical GLB kept as `solids/<hash>.glb`, with its description, named parts, source, license and camera in the package:
