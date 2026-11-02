@@ -139,3 +139,21 @@ The overhaul also takes the app's own panels and toolbars to the Clean look, thr
   | Switch theme, shapes in full | 9.1 / 14.4 / 15.7 | 9.2 / 12.6 / 15.9 · 8.9 / 12.4 / 14.2 | 9.1 / 14.0 / 16.4 | 15.5 / 24.5 / 29.4 · 14.6 / 29.7 / 30.4 |
 
   Every pan, zoom and select phase stays within 16.7 ms at the 95th percentile in both presets. Two earlier builds of this work were measured too: dots without `DOT_LEAST_GAP`, 30,000 of them, gave "Zoom with the grid" 8.0 / 18.2 / 29.0 in Clean and 7.9 / 17.5 / 25.8 in Expressive, and regions that followed the theme gave Clean's "Switch theme, shapes in full" 16.0 / 30.8 / 32.8. Expressive's theme switch with shapes in full was slower in both runs after than before, though Expressive draws no region and, at 10,000 shapes, no shadow; a restyle is judged by its own budget, and the phases of a switch with the whole view or names shown missed it before this work too. The machine was shared throughout, so a phase's numbers vary between runs by a few milliseconds.
+
+- 2026-11-02 (A5.5, the main session): **judged on the user's model.** Pictures of the same views of the user's data model, from a temporary copy outside the repository, drawn by `a4` and by A5, light and dark: the overview with its schemas collapsed, one schema's tables whole and close, and both scenario views. Clean reads as asked: thin neutral lines with a legend, the database as a quiet region with its icon, collapsed schemas that say what they hold ("14 × Vista"), counts in small pills, and names at 500. What a package colors stays its own: the user's package colors its relation types and triggers, which win over the drawing defaults as decided. Two faults were found and fixed:
+  - **The legend's line under its title** said "Line color and dash by relation type" where lines are neutral; it now says that the dash shows the type, and the color when a line is pointed at or selected.
+  - **Glyphs drawn too narrow.** The text of faces, notes and details with emphasis is laid out in the core's Roboto widths and drawn glyph by glyph from a bitmap font; each glyph was scaled from the font metrics' size, Roboto's ascent and descent together, about 1.17 em, rather than the size PixiJS measures the font at, so each was drawn some 15 % narrower than its advance. Tables and notes read as widely spaced since faces came in (M3e); they now read as the font does.
+  - **Left as follow-ups:** a neutral line at the whole view of a large view is drawn under a pixel wide and nearly vanishes on the dark canvas, so a line should keep at least a screen pixel; an aggregated relation's count badge can sit over a note's text at its end.
+  - **The canvas benchmark again**, at 10,000 elements, the bench build on 127.0.0.1:47727, headless Chrome 156 with a profile of its own at 1600 by 900, while two idle app tabs ran elsewhere. Average / 95th percentile / worst, in milliseconds:
+
+  | Phase | Clean | Expressive |
+  |---|---|---|
+  | Pan, whole view | 4.7 / 6.7 / 7.9 | 4.2 / 5.1 / 8.2 |
+  | Zoom, whole view | 5.0 / 10.1 / 14.8 | 4.8 / 9.2 / 12.6 |
+  | Zoom with the grid | 2.8 / 6.8 / 8.1 | 2.5 / 6.1 / 7.5 |
+  | Select everything | 3.5 / 7.6 / 14.8 | 2.1 / 6.2 / 12.3 |
+  | Switch theme, whole view | 11.2 / 17.0 / 19.3 | 15.9 / 28.6 / 30.3 |
+  | Switch theme, shapes in full | 8.9 / 12.3 / 15.3 | 8.7 / 13.3 / 14.1 |
+  | Switch theme, names shown | 9.5 / 15.1 / 15.1 | 17.1 / 34.7 / 34.7 |
+
+  Every pan, zoom and select phase is within 16.7 ms at the 95th percentile in both. Expressive's "shapes in full" switch, 25 to 30 ms in A5.2's runs on a shared machine, is 13.3 here, so that was noise; its "whole view" and "names shown" switches miss the restyle budget, as they did before A5. The dot grid costs 0.95 ms a frame zooming in Clean, over its 0.5 ms; recorded, not held.
