@@ -18,6 +18,7 @@ import { ExportControl } from '../export/ExportControl';
 import { fragmentOf } from '../export/page-export';
 import { ImageSource, ImageSourceContext } from '../export/source';
 import { ImportControl } from '../import/ImportControl';
+import { PackagesControl } from '../packages/PackagesControl';
 import { DefinitionProvider } from './definitions/DefinitionProvider';
 import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import { GuidanceLayer } from '../guidance/GuidanceLayer';
@@ -442,6 +443,8 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                         />
                                         {exportTool}
                                         {view && <CopyAddress link={viewState} />}
+                                        <HeaderSeparator />
+                                        <PackagesControl />
                                       </>
                                     }
                                   />

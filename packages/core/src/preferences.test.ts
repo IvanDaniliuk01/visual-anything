@@ -63,6 +63,10 @@ const preferences: fc.Arbitrary<Preferences> = fc.record({
   reviewClaude: fc.boolean(),
   // The side panels' widths and strips (ADR 0032's clarification of 2026-10-30).
   sidePanels: fc.record({ model: sidePanel(), inspector: sidePanel() }),
+  // The packages whose code this computer does not run (ADR 0089's M14.2 clarification), sorted.
+  codeTurnedOff: fc
+    .uniqueArray(fc.constantFrom('gauges', 'clinic', 'sensors.v2', 'a-b'), { maxLength: 4 })
+    .map((ids) => [...ids].sort()),
 });
 
 function sidePanel() {
@@ -110,6 +114,7 @@ describe('DEFAULT_PREFERENCES', () => {
         model: { width: 288, collapsed: false },
         inspector: { width: 320, collapsed: false },
       },
+      codeTurnedOff: [],
     });
     expect(PREFERENCE_NAMES).toEqual(Object.keys(DEFAULT_PREFERENCES));
   });
@@ -181,6 +186,7 @@ describe('readPreferences', () => {
         model: { width: 200, collapsed: true },
         inspector: { width: 2000, collapsed: false },
       },
+      codeTurnedOff: ['gauges', 'clinic', 'gauges'],
     });
     expect(read.preferences).toEqual({
       theme: 'light',
@@ -198,6 +204,7 @@ describe('readPreferences', () => {
         model: { width: 200, collapsed: true },
         inspector: { width: 2000, collapsed: false },
       },
+      codeTurnedOff: ['clinic', 'gauges'],
     });
     expect(read.unread).toEqual([]);
   });
@@ -331,6 +338,7 @@ describe('formatPreferences', () => {
         '      "collapsed": false',
         '    }',
         '  },',
+        '  "codeTurnedOff": [],',
         '  "apple": [',
         '    1,',
         '    2',
@@ -400,6 +408,13 @@ describe('checkPreferenceChanges', () => {
     expect(checkPreferenceChanges({ author: null })).toEqual({
       ok: true,
       changes: { author: null },
+    });
+  });
+
+  it('keeps the packages turned off sorted, by id (ADR 0089)', () => {
+    expect(checkPreferenceChanges({ codeTurnedOff: ['sensors.v2', 'clinic'] })).toEqual({
+      ok: true,
+      changes: { codeTurnedOff: ['clinic', 'sensors.v2'] },
     });
   });
 
@@ -540,6 +555,26 @@ describe('checkPreferenceChanges', () => {
       'an author with an email that is not one',
       { author: { name: 'Ana', email: 'ana at example' } },
       '"author" has an email that is not one: "ana at example".',
+    ],
+    [
+      'packages turned off that are not a list',
+      { codeTurnedOff: 'gauges' },
+      '"codeTurnedOff" must be a list of package ids.',
+    ],
+    [
+      'a package turned off that is no id',
+      { codeTurnedOff: ['gauges', 'not an id'] },
+      '"codeTurnedOff" must be a list of package ids.',
+    ],
+    [
+      'a package turned off twice',
+      { codeTurnedOff: ['gauges', 'gauges'] },
+      '"codeTurnedOff" names gauges twice.',
+    ],
+    [
+      'too many packages turned off',
+      { codeTurnedOff: Array.from({ length: 257 }, (_, n) => `p${n}`) },
+      '"codeTurnedOff" holds 257 packages, more than 256.',
     ],
   ])('refuses %s', (_, value, message) => {
     expect(checkPreferenceChanges(value)).toEqual({

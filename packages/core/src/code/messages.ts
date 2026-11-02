@@ -112,6 +112,18 @@ export function notApprovedProblem(pkg: Named): Problem {
   );
 }
 
+/**
+ * The person turned the package's code off on this computer (ADR 0089's M14.2 clarification): it
+ * stays in the project, and its hooks are not run.
+ */
+export function turnedOffProblem(pkg: Named): Problem {
+  return problem(
+    'code-off',
+    `The code of the package ${JSON.stringify(pkg.name)} is turned off on this computer: it runs again once it is turned on in Packages….`,
+    [pkg.id],
+  );
+}
+
 /** The package's code is too large to run. */
 export function tooLargeProblem(pkg: Named): Problem {
   return problem(

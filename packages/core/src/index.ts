@@ -154,6 +154,13 @@ export type {
   PropertyChange,
 } from './package-sharing';
 export { compareVersions, packageChanges, packageNeeds } from './package-sharing';
+export type { PackageReadAnswerMessage, PackageReadMessage } from './package-file-messages';
+export {
+  MAX_PACKAGE_FILE_NAME,
+  MAX_PACKAGE_FILE_PROBLEMS,
+  MAX_PACKAGE_FILE_TEXT,
+  packageFileProblems,
+} from './package-file-messages';
 
 export type { IdGenerator } from './ids';
 export { ID_PATTERN, definitionIdFor, freshId, isId, randomIds, slug } from './ids';

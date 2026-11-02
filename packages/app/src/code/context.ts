@@ -8,6 +8,7 @@
  */
 import {
   notApprovedProblem,
+  turnedOffProblem,
   type CodeStatus,
   type Drawing,
   type PackageCode,
@@ -25,6 +26,11 @@ export interface PackageCodeView {
   status: CodeStatus;
   /** What the worker says of it, once it runs. */
   run?: PackageRun;
+  /**
+   * Whether the person turned its code off on this computer (ADR 0089's M14.2 clarification): it
+   * stays in the project, approved or not, and the worker is never asked to load it.
+   */
+  turnedOff?: true;
 }
 
 /** What package code stands at and answered, at one moment. */
@@ -57,7 +63,15 @@ export interface CodeActions {
   ) => boolean;
   /** Withdraws the approval of a package's code as it is now: it stops running. */
   withdraw: (pkg: Id) => void;
+  /**
+   * Turns a package's code off on this computer, or on again, as the person's preference (ADR 0089):
+   * while it is off, its hooks never run, whatever its approval.
+   */
+  turnOff: (pkg: Id, off: boolean) => void;
 }
+
+/** How approving, withdrawing and turning code off are done, which change the person's preferences. */
+type KeptActions = Omit<CodeActions, 'review' | 'turnOff'> & Partial<Pick<CodeActions, 'turnOff'>>;
 
 export type CodeContextValue = CodeState & CodeActions;
 
@@ -71,7 +85,7 @@ export const NO_CODE: CodeState = Object.freeze({
 export class CodeStore {
   private state: CodeState = NO_CODE;
   private readonly listeners = new Set<() => void>();
-  private kept: Omit<CodeActions, 'review'> = { approve: () => false, withdraw: () => {} };
+  private kept: KeptActions = { approve: () => false, withdraw: () => {} };
   /** The host of the code worker, lent while the shell is mounted. */
   private host: PackageCalls | undefined;
   /**
@@ -81,17 +95,19 @@ export class CodeStore {
    */
   readonly calls: PackageCalls = {
     runPackageAction: (pkg, input) =>
-      this.host?.runPackageAction(pkg, input) ?? this.notRunning(pkg),
+      this.turnedOff(pkg) ?? this.host?.runPackageAction(pkg, input) ?? this.notRunning(pkg),
     readFileWithPackage: (pkg, input) =>
-      this.host?.readFileWithPackage(pkg, input) ?? this.notRunning(pkg),
+      this.turnedOff(pkg) ?? this.host?.readFileWithPackage(pkg, input) ?? this.notRunning(pkg),
     writeFileWithPackage: (pkg, input) =>
-      this.host?.writeFileWithPackage(pkg, input) ?? this.notRunning(pkg),
-    packagePanel: (pkg, input) => this.host?.packagePanel(pkg, input) ?? this.notRunning(pkg),
+      this.turnedOff(pkg) ?? this.host?.writeFileWithPackage(pkg, input) ?? this.notRunning(pkg),
+    packagePanel: (pkg, input) =>
+      this.turnedOff(pkg) ?? this.host?.packagePanel(pkg, input) ?? this.notRunning(pkg),
   };
   readonly actions: CodeActions = {
     review: (pkg) => this.review(pkg),
     approve: (pkg, reviewed, shown, granted) => this.kept.approve(pkg, reviewed, shown, granted),
     withdraw: (pkg) => this.kept.withdraw(pkg),
+    turnOff: (pkg, off) => this.kept.turnOff?.(pkg, off),
   };
 
   readonly subscribe = (listener: () => void): (() => void) => {
@@ -122,8 +138,8 @@ export class CodeStore {
     });
   }
 
-  /** How approving and withdrawing are done, which change the person's preferences. */
-  setActions(actions: Omit<CodeActions, 'review'>): void {
+  /** How approving, withdrawing and turning code off are done, which change the person's preferences. */
+  setActions(actions: KeptActions): void {
     this.kept = actions;
   }
 
@@ -133,6 +149,14 @@ export class CodeStore {
     return () => {
       if (this.host === host) this.host = undefined;
     };
+  }
+
+  /** That a package's code is turned off on this computer, for a call of it; nothing otherwise. */
+  private turnedOff<T>(pkg: Id): Promise<PackageAnswer<T>> | undefined {
+    const view = this.state.packages.get(pkg);
+    if (view?.turnedOff !== true) return undefined;
+    const named = { id: pkg, name: view.code.name };
+    return Promise.resolve({ ok: false, problem: turnedOffProblem(named) });
   }
 
   private notRunning<T>(pkg: Id): Promise<PackageAnswer<T>> {

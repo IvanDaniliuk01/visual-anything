@@ -4,9 +4,10 @@
  * files, the undo history or Claude's tools. This module holds their shape and their rules, with no I/O:
  * reading the file leniently, checking changes an app sends strictly, and writing the file's text.
  */
-import type { Color } from '@visual-anything/schema';
+import type { Color, Id } from '@visual-anything/schema';
 import { checkCodeApprovals, readCodeApprovals, type CodeApproval } from './code/approvals';
 import { MAX_AUTHOR_NAME, checkPerson } from './comments/authors';
+import { isId } from './ids';
 import type { Problem } from './problems';
 
 /** The themes the app and the canvas can be drawn in. */
@@ -64,7 +65,15 @@ export interface Preferences {
    * 0032's clarification of 2026-10-30). The app shows a panel no wider than half the window.
    */
   sidePanels: SidePanelsPreference;
+  /**
+   * The packages whose code this computer does not run, by id, sorted (ADR 0089's M14.2
+   * clarification): their hooks stay off while the packages stay in the project, approved or not.
+   */
+  codeTurnedOff: Id[];
 }
+
+/** The most packages whose code can be turned off. */
+export const MAX_CODE_TURNED_OFF = 256;
 
 /** One side panel: its width in whole pixels, and whether it is collapsed to a strip. */
 export interface SidePanelPreference {
@@ -119,6 +128,7 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
     model: Object.freeze({ width: 288, collapsed: false }),
     inspector: Object.freeze({ width: 320, collapsed: false }),
   }),
+  codeTurnedOff: Object.freeze([]) as unknown as Id[],
 });
 
 /** The known names, in the order the file writes them. */
@@ -135,6 +145,7 @@ export const PREFERENCE_NAMES: readonly PreferenceName[] = Object.freeze([
   'fades',
   'reviewClaude',
   'sidePanels',
+  'codeTurnedOff',
 ]);
 
 /** What the preferences file holds, read leniently. */
@@ -315,6 +326,10 @@ const LENIENT: Record<PreferenceName, Lenient> = {
     const checked = checkSidePanels(value);
     return checked.ok ? checked.value : undefined;
   },
+  codeTurnedOff: (value) => {
+    if (!Array.isArray(value) || !(value as unknown[]).every(isId)) return undefined;
+    return [...new Set(value as Id[])].sort(compareText).slice(0, MAX_CODE_TURNED_OFF);
+  },
 };
 
 type Checked = { ok: true; value: unknown } | { ok: false; message: string };
@@ -402,7 +417,27 @@ const STRICT: Record<PreferenceName, (value: unknown) => Checked> = {
   fades: (value) => strictBoolean('fades', value),
   reviewClaude: (value) => strictBoolean('reviewClaude', value),
   sidePanels: checkSidePanels,
+  codeTurnedOff: checkCodeTurnedOff,
 };
+
+/** Checks the packages whose code is turned off: ids, each once, at most 256; kept sorted. */
+function checkCodeTurnedOff(value: unknown): Checked {
+  if (!Array.isArray(value) || !(value as unknown[]).every(isId)) {
+    return { ok: false, message: '"codeTurnedOff" must be a list of package ids.' };
+  }
+  const ids = value as Id[];
+  const twice = ids.find((id, at) => ids.indexOf(id) !== at);
+  if (twice !== undefined) {
+    return { ok: false, message: `"codeTurnedOff" names ${twice} twice.` };
+  }
+  if (ids.length > MAX_CODE_TURNED_OFF) {
+    return {
+      ok: false,
+      message: `"codeTurnedOff" holds ${ids.length} packages, more than ${MAX_CODE_TURNED_OFF}.`,
+    };
+  }
+  return { ok: true, value: [...ids].sort(compareText) };
+}
 
 const SIDE_PANELS = ['model', 'inspector'] as const;
 
@@ -486,6 +521,7 @@ function copyOf(preferences: Readonly<Preferences>): Preferences {
       model: { ...preferences.sidePanels.model },
       inspector: { ...preferences.sidePanels.inspector },
     },
+    codeTurnedOff: [...preferences.codeTurnedOff],
   };
 }
 

@@ -4,6 +4,9 @@
  * what it answers. Code that is not approved never reaches the worker, and the app says so once when
  * the project opens.
  *
+ * A package whose code the person turned off on this computer (ADR 0089's M14.2 clarification)
+ * stays in the project and is never handed to the worker, whatever its approval.
+ *
  * For code granted an origin (ADR 0063), the addresses it reads are fetched through the local program,
  * never from the page, and the live values it made of them are sent to the program as the package's.
  */
@@ -71,6 +74,7 @@ export function usePackageCode({
   const live = useContext(LiveContext);
   const { preferences, change } = usePreferences();
   const approvals = preferences.codeApprovals;
+  const turnedOff = preferences.codeTurnedOff;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- the code follows the packages only
   const codes = useMemo(() => packagesWithCode(project), [project.packages]);
   const [host] = useState(makeHost);
@@ -100,20 +104,23 @@ export function usePackageCode({
     for (const code of codes) {
       const status = codeStatusOf(code, approvals);
       const run = answers.packages.get(code.package);
+      const off = turnedOff.includes(code.package);
       views.set(code.package, {
         code,
         status,
-        ...(status.state === 'approved' && run ? { run } : {}),
+        ...(status.state === 'approved' && run && !off ? { run } : {}),
+        ...(off ? { turnedOff: true as const } : {}),
       });
     }
     return views;
-  }, [codes, approvals, answers.packages]);
+  }, [codes, approvals, turnedOff, answers.packages]);
 
   const approved = useMemo(
     () =>
       codes.flatMap((code) => {
         const status = codeStatusOf(code, approvals);
-        return status.state === 'approved'
+        // Code turned off on this computer is never handed to the worker (ADR 0089).
+        return status.state === 'approved' && !turnedOff.includes(code.package)
           ? [
               {
                 package: code.package,
@@ -127,7 +134,7 @@ export function usePackageCode({
             ]
           : [];
       }),
-    [codes, approvals],
+    [codes, approvals, turnedOff],
   );
 
   useEffect(() => {
@@ -205,7 +212,11 @@ export function usePackageCode({
     if (!notify || sent === undefined) return;
     const known = [...approvals, ...sent];
     for (const code of codes) {
-      if (codeStatusOf(code, known).state !== 'unapproved' || TOLD.has(code.hash)) {
+      if (
+        codeStatusOf(code, known).state !== 'unapproved' ||
+        turnedOff.includes(code.package) ||
+        TOLD.has(code.hash)
+      ) {
         continue;
       }
       TOLD.add(code.hash);
@@ -217,7 +228,7 @@ export function usePackageCode({
         ),
       );
     }
-  }, [codes, approvals, notify, sent, t]);
+  }, [codes, approvals, turnedOff, notify, sent, t]);
 
   // The approval is of the code the person read: refused when the package's code is another now.
   const approve = useCallback(
@@ -241,7 +252,19 @@ export function usePackageCode({
     },
     [codes, approvals, change],
   );
+  // Turning a package's code off, or on again, on this computer: a preference, never the project's.
+  const turnOff = useCallback(
+    (pkg: Id, off: boolean) => {
+      if (turnedOff.includes(pkg) === off) return;
+      change({
+        codeTurnedOff: off
+          ? [...turnedOff, pkg].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+          : turnedOff.filter((each) => each !== pkg),
+      });
+    },
+    [turnedOff, change],
+  );
   useEffect(() => {
-    store.setActions({ approve, withdraw });
-  }, [store, approve, withdraw]);
+    store.setActions({ approve, withdraw, turnOff });
+  }, [store, approve, withdraw, turnOff]);
 }

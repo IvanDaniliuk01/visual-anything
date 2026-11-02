@@ -18,6 +18,7 @@ import {
   loadProblem,
   notApprovedProblem,
   offProblem,
+  turnedOffProblem,
   stalledProblem,
   tooLargeProblem,
   hookInputOf,
@@ -107,6 +108,7 @@ function messages(): string[] {
     notApprovedProblem(pkg).message,
     tooLargeProblem(pkg).message,
     stalledProblem(pkg).message,
+    turnedOffProblem(pkg).message,
   );
   const files = codeProject(
     gaugesPackage(['export const a = 1;'], ['time', 'network:https://bad-.example.com']),

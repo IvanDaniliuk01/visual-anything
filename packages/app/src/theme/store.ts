@@ -47,6 +47,10 @@ export const GRID_NOT_CONNECTED =
 export const APPROVAL_NOT_CONNECTED =
   'Your approval of package code applies to this tab only: Visual Anything is not connected.';
 
+/** What turning a package's code on or off says while the tab is not connected (ADR 0089). */
+export const CODE_OFF_NOT_CONNECTED =
+  'Turning package code on or off applies to this tab only: Visual Anything is not connected.';
+
 /** What a change of the name the person's comments are signed with says while not connected (ADR 0059). */
 export const AUTHOR_NOT_CONNECTED =
   'Your name for comments applies to this tab only: Visual Anything is not connected.';
@@ -63,6 +67,7 @@ export const MOTION_NOT_CONNECTED =
 function notConnected(changes: PreferenceChanges): string | undefined {
   if (Object.keys(changes).every((name) => name === 'sidePanels')) return undefined;
   if (changes.codeApprovals !== undefined) return APPROVAL_NOT_CONNECTED;
+  if (changes.codeTurnedOff !== undefined) return CODE_OFF_NOT_CONNECTED;
   if (changes.author !== undefined) return AUTHOR_NOT_CONNECTED;
   if (changes.theme !== undefined) return NOT_CONNECTED;
   if (changes.language !== undefined) return LANGUAGE_NOT_CONNECTED;
@@ -457,6 +462,8 @@ function samePreferences(a: Preferences, b: Preferences): boolean {
     a.sidePanels.model.width === b.sidePanels.model.width &&
     a.sidePanels.model.collapsed === b.sidePanels.model.collapsed &&
     a.sidePanels.inspector.width === b.sidePanels.inspector.width &&
-    a.sidePanels.inspector.collapsed === b.sidePanels.inspector.collapsed
+    a.sidePanels.inspector.collapsed === b.sidePanels.inspector.collapsed &&
+    // The packages whose code this computer does not run (ADR 0089).
+    a.codeTurnedOff.join(' ') === b.codeTurnedOff.join(' ')
   );
 }

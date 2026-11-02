@@ -3,6 +3,7 @@ import type { Id } from '@visual-anything/schema';
 import { createContext, useContext } from 'react';
 import type {
   DrawingMadeMessage,
+  PackageReadAnswerMessage,
   LiveFetchedMessage,
   LiveKeptMessage,
   SolidFilesListedMessage,
@@ -95,6 +96,11 @@ export interface Live extends LiveState {
     html: string,
     width: number,
   ) => Promise<LiveResult<DrawingMadeMessage>>;
+  /**
+   * Asks the local program to read a package file the person chose (ADR 0089), which changes
+   * nothing; absent where there is no live session to ask.
+   */
+  readPackageFile?: (name: string, text: string) => Promise<LiveResult<PackageReadAnswerMessage>>;
   /** Fetches for approved package code granted an origin, through the local program (ADR 0063). */
   fetchForPackage?: (pkg: Id, url: string) => Promise<LiveResult<LiveFetchedMessage>>;
   /** Sends the live values approved package code made of what it fetched. */
