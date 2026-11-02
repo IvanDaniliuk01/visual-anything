@@ -60,8 +60,24 @@ export function frameOf(region: CaptureRegion, seen: CaptureSeen): Framed {
   let right = -Infinity;
   let bottom = -Infinity;
   const missing: Id[] = [];
+  // Free shapes are framed by their id too, as highlight and tours mark them (the user's note 15).
+  const notes = new Map(indexed.scene.notes.map((note) => [note.id, note.rect]));
+  const arrows = new Map(
+    indexed.scene.arrows.map((arrow) => [
+      arrow.id,
+      {
+        x: Math.min(arrow.from.x, arrow.to.x),
+        y: Math.min(arrow.from.y, arrow.to.y),
+        width: Math.abs(arrow.to.x - arrow.from.x),
+        height: Math.abs(arrow.to.y - arrow.from.y),
+      },
+    ]),
+  );
   for (const element of new Set(region)) {
-    const shapes = (indexed.byElement.get(element) ?? []).filter((each) => !hidden.has(each.key));
+    const free = notes.get(element) ?? arrows.get(element);
+    const shapes = free
+      ? [{ rect: free }]
+      : (indexed.byElement.get(element) ?? []).filter((each) => !hidden.has(each.key));
     if (shapes.length === 0) missing.push(element);
     for (const { rect } of shapes) {
       left = Math.min(left, rect.x);

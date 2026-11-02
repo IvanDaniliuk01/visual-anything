@@ -28,7 +28,11 @@ function seen(
             Math.min(...all.map((each) => each.y)),
         };
   const indexed = {
-    scene: { bounds },
+    scene: {
+      bounds,
+      notes: [{ id: 'note', rect: { x: 500, y: 300, width: 100, height: 40 }, text: 'Hi' }],
+      arrows: [{ id: 'arrow', from: { x: 700, y: 50 }, to: { x: 650, y: 10 }, arrowhead: 'end' }],
+    },
     byElement: new Map(
       Object.entries(shapes).map(([element, list]) => [
         element,
@@ -91,6 +95,17 @@ describe('frameOf', () => {
       whole: false,
       missing: ['gone'],
     });
+  });
+
+  it('frames notes and arrows by their ids, as it frames elements', () => {
+    const framed = frameOf(['note', 'arrow'], seen(SHOP));
+    expect(framed.ok).toBe(true);
+    if (!framed.ok) return;
+    expect(framed.missing).toBeUndefined();
+    expect(framed.frame.x).toBeLessThan(500);
+    expect(framed.frame.x + framed.frame.width).toBeGreaterThan(700);
+    expect(framed.frame.y).toBeLessThan(10);
+    expect(framed.frame.y + framed.frame.height).toBeGreaterThan(340);
   });
 
   it('says why it frames nothing', () => {

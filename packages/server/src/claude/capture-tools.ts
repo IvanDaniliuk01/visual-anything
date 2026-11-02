@@ -32,7 +32,7 @@ const captureView = tool({
   title: 'See a view as the app draws it',
   description: `Answers a picture of a view as the app the person has open draws it, as a PNG image you can look at: its shapes, lines, names and details as the canvas writes them at that size, the theme, the overlays and their legend, what is collapsed, and what filters and focus hide or dim, without the selection's or guidance's marks. The tab the person used last draws it off screen, so their tab neither moves nor flickers, and nothing changes: no view, no history, no camera. Use it to check a view after you build it or lay it out (lay_out_view), before you tell the person it is done, and look for overlapping shapes, lines across names, and what reads badly.
 
-region is "whole" (the default), "viewport" (what the tab shows now), or a list of element ids whose shapes to frame, to read a part closely. width is the picture's width in pixels, ${CAPTURE_WIDTH.least} to ${CAPTURE_WIDTH.most}, ${CAPTURE_WIDTH.initial} by default; a region taller than ${MAX_CAPTURE_HEIGHT} pixels at that width is drawn narrower. The canvas writes names only where shapes are large enough on screen, so a large view seen whole shows blocks: frame some elements, or widen it, to read them. A picture past ${MAX_CAPTURE_BYTES / MIB} MiB is refused, saying so. It pictures only a view a tab shows: with view left out, the one the tab shows; it never opens another, nor a browser. With no app open, open_app opens one.
+region is "whole" (the default), "viewport" (what the tab shows now), or a list of ids of elements, notes and arrows whose shapes to frame, to read a part closely. width is the picture's width in pixels, ${CAPTURE_WIDTH.least} to ${CAPTURE_WIDTH.most}, ${CAPTURE_WIDTH.initial} by default; a region taller than ${MAX_CAPTURE_HEIGHT} pixels at that width is drawn narrower. The canvas writes names only where shapes are large enough on screen, so a large view seen whole shows blocks: frame some elements, or widen it, to read them. A picture past ${MAX_CAPTURE_BYTES / MIB} MiB is refused, saying so. It pictures only a view a tab shows: with view left out, the one the tab shows; it never opens another, nor a browser. With no app open, open_app opens one.
 
 Example: { "view": "system-overview" }
 Example: { "view": "system-overview", "region": ["checkout", "payments"], "width": 1600 }
@@ -47,7 +47,7 @@ Example: { "region": "viewport", "theme": "dark" }`,
       .union([z.enum(['whole', 'viewport']), z.array(id()).min(1).max(MAX_CAPTURE_ELEMENTS)])
       .optional()
       .describe(
-        'What the picture shows: "whole" (the default), "viewport", or element ids whose shapes it frames.',
+        'What the picture shows: "whole" (the default), "viewport", or ids of elements, notes and arrows whose shapes it frames.',
       ),
     width: z
       .number()
@@ -70,10 +70,12 @@ Example: { "region": "viewport", "theme": "dark" }`,
     const region: CaptureRegion = args.region ?? 'whole';
     if (Array.isArray(region)) {
       const index = modelIndexOf(state);
-      const unknown = region.filter((each) => index.element(each) === undefined);
+      // Notes and arrows are framed by their ids too, in any view that holds them.
+      const free = new Set(state.views.flatMap((view) => view.freeShapes.map((shape) => shape.id)));
+      const unknown = region.filter((each) => index.element(each) === undefined && !free.has(each));
       if (unknown.length > 0) {
         return fail(
-          `No element has these ids: ${unknown.join(', ')}. Use find_elements or read_view to find the right ones.`,
+          `No element, note or arrow has these ids: ${unknown.join(', ')}. Use find_elements or read_view to find the right ones.`,
         );
       }
     }

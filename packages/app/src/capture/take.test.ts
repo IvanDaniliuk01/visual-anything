@@ -13,7 +13,7 @@ import { takeCapture, type CaptureCanvas } from './take';
 
 /** A scene of two shapes, holding only what framing reads. */
 const indexed = {
-  scene: { bounds: { x: 0, y: 0, width: 936, height: 436 } },
+  scene: { bounds: { x: 0, y: 0, width: 936, height: 436 }, notes: [], arrows: [] },
   byElement: new Map([
     ['api', [{ key: 'api', rect: { x: 0, y: 0, width: 200, height: 100 } }]],
     ['db', [{ key: 'db', rect: { x: 736, y: 336, width: 200, height: 100 } }]],
@@ -112,7 +112,10 @@ describe('takeCapture', () => {
     expect(await takeCapture({ ...ASK, region: ['ghost'] }, canvas().target)).toEqual({
       failed: 'not-drawn',
     });
-    const empty = { ...indexed, scene: { bounds: undefined } } as unknown as IndexedScene;
+    const empty = {
+      ...indexed,
+      scene: { bounds: undefined, notes: [], arrows: [] },
+    } as unknown as IndexedScene;
     const nothing = canvas({
       seen: () => ({
         indexed: empty,
