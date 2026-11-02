@@ -11,7 +11,8 @@ import { loadSample } from '../test/sample';
 import { drawShapeOutlines } from './draw';
 import { holdsAsDrawn, selectedBoxOf } from './hit';
 import { tagReachOf } from './layout/input';
-import { drawnBoundsOf } from './nameTags';
+import { drawnBoundsOf, nameTagOn } from './nameTags';
+import { endOutline } from './routing/outline-ends';
 import { buildScene, type ElementShape } from './scene';
 import {
   isTurned,
@@ -243,6 +244,50 @@ describe('layout and routing', () => {
         level.y > rect.y + 2 &&
         level.y < rect.y + rect.height - 2;
       expect(inside).toBe(false);
+    }
+  });
+});
+
+describe('a tagged ellipse', () => {
+  it('ends its lines on its curve or its tag, never on its box’s corners alone', () => {
+    const outcome = executeCommand(sample, {
+      type: 'update-element',
+      id: ELEMENT,
+      changes: { appearanceTraits: { shape: 'ellipse', text: { position: 'right' } } },
+    });
+    if (!outcome.ok) throw new Error('refused');
+    const scene = buildScene(outcome.state, VIEW);
+    const shape = scene.shapes.find((each) => each.element === ELEMENT) as ElementShape;
+    const tag = nameTagOn(shape) as NonNullable<ReturnType<typeof nameTagOn>>;
+    const { rect } = shape;
+    const ends = scene.relations.flatMap((line) => {
+      const points: { x: number; y: number }[] = [];
+      if (line.ends?.from.kind === 'shape' && line.ends.from.key === shape.key) {
+        points.push(line.route[0] as { x: number; y: number });
+      }
+      if (line.ends?.to.kind === 'shape' && line.ends.to.key === shape.key) {
+        points.push(line.route.at(-1) as { x: number; y: number });
+      }
+      return points;
+    });
+    expect(ends.length).toBeGreaterThan(0);
+    // What lines attach to holds the ellipse and the tag, not the box's corners.
+    const attached = endOutline(shape, rect) as NonNullable<ReturnType<typeof endOutline>>;
+    const holds = (point: { x: number; y: number }) =>
+      outlineHolds(attached.fitted, { x: point.x - attached.x, y: point.y - attached.y });
+    expect(holds({ x: rect.x + 2, y: rect.y + 2 })).toBe(false);
+    expect(holds({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 })).toBe(true);
+    expect(holds({ x: tag.x + tag.width / 2, y: tag.y + tag.height / 2 })).toBe(true);
+    for (const end of ends) {
+      const onTag =
+        end.x >= tag.x - 1 &&
+        end.x <= tag.x + tag.width + 1 &&
+        end.y >= tag.y - 1 &&
+        end.y <= tag.y + tag.height + 1;
+      const dx = (end.x - (rect.x + rect.width / 2)) / (rect.width / 2);
+      const dy = (end.y - (rect.y + rect.height / 2)) / (rect.height / 2);
+      const onCurve = Math.abs(Math.hypot(dx, dy) - 1) < 0.05;
+      expect(onTag || onCurve).toBe(true);
     }
   });
 });
