@@ -76,8 +76,15 @@ export interface LayoutShape {
    */
   partAt?: { x: number; y: number };
   /**
-   * On a drawing with parts (ADR 0067): where its picture ends, from its top. Its contents that are
-   * not anchored parts are arranged below it.
+   * On a callout around its drawing's picture that layout may move (ADR 0091): it stands where the
+   * scene puts it beside its part, `x` and `y`, which layout keeps as it keeps a pinned shape and
+   * gives back as where it goes, rather than arranging it.
+   */
+  callout?: true;
+  /**
+   * On a drawing with parts (ADR 0067): where its picture ends, from its top, or below it the
+   * callouts layout places around it (ADR 0091). Its contents that are not anchored parts nor
+   * callouts are arranged below it.
    */
   pictureBottom?: number;
   /**

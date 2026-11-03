@@ -172,9 +172,17 @@ function shapeEndsOf(
   return found;
 }
 
-/** Whether a line takes an automatic orthogonal route: drawn so, or with rounded corners (ADR 0080). */
+/**
+ * Whether a line takes an automatic orthogonal route: drawn so, or with rounded corners (ADR 0080);
+ * not a callout's, which keeps its way outside its picture (ADR 0091).
+ */
 function automatic(line: RelationLine): boolean {
-  return !line.hand && line.style === undefined && (!line.curve || line.rounded !== undefined);
+  return (
+    !line.hand &&
+    line.callout !== true &&
+    line.style === undefined &&
+    (!line.curve || line.rounded !== undefined)
+  );
 }
 
 /**

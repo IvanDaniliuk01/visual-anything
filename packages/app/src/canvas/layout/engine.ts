@@ -208,7 +208,7 @@ export async function layOut(
     elkMs: 0,
     totalMs: 0,
   };
-  const placed: LaidOutShape[] = [];
+  const placed: LaidOutShape[] = calloutsPlaced(input);
   const progress = { done: 0, total: tree.levelsToArrange() };
   const report = (done: number) => {
     progress.done += done;
@@ -1037,6 +1037,31 @@ export function carried(route: readonly Point[], by: Point): Point[] {
  * tag sits `tagLeft` right of its box, and `tagTop` below its top for one whose tag is above it
  * (ADR 0066's clarification of 2026-10-27, ADR 0088).
  */
+/**
+ * Where the callouts layout may move go (ADR 0091): where the scene put each beside its part, which
+ * layout kept as it keeps a pinned shape. Once for each element in each container, as the copies of a
+ * container share their contents' positions.
+ */
+function calloutsPlaced(input: LayoutInput): LaidOutShape[] {
+  const placed: LaidOutShape[] = [];
+  const seen = new Set<string>();
+  for (const shape of input.shapes) {
+    if (!shape.callout) continue;
+    const container = input.shapes[shape.parent]?.element;
+    const key = `${shape.element}\u0000${container ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    placed.push({
+      key: shape.key,
+      element: shape.element,
+      ...(container === undefined ? {} : { container }),
+      x: shape.x,
+      y: shape.y,
+    });
+  }
+  return placed;
+}
+
 function withoutTagRoom(input: LayoutInput, placed: LaidOutShape[]): LaidOutShape[] {
   const shifts = new Map<string, { x: number; y: number }>();
   for (const shape of input.shapes) {

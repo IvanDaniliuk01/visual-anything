@@ -221,8 +221,12 @@ A piece of an SVG image with an id of its own, such as the left ventricle in a p
 _Avoid_: layer, region (a region is a container drawn as an area), hotspot, sub-image, mesh
 
 **Drawing with parts**:
-A shape that shows an image or a solid with its named parts: the picture fills its body under its name, and those of its contents anchored to its named parts are drawn as those parts, in place, as a page of an anatomical atlas names the organs it shows. Its other contents sit below the picture. Layout takes it as one block.
+A shape that shows an image or a solid with its named parts: the picture fills its body under its name, and those of its contents anchored to its named parts are drawn as those parts, in place, as a page of an anatomical atlas names the organs it shows. Of a solid's drawing, the contents that relate to its parts are callouts around the picture; its other contents sit below the picture. Layout takes it as one block.
 _Avoid_: plate, atlas, map, background
+
+**Callout**:
+A content of a drawing with parts that shows a solid, not an anchored part itself, with a relation drawn in the view to one of its anchored parts, such as the motor that drives an arm's joint: it stands around the picture beside that part, rather than below it, and its line runs to the part's point from outside the picture, the line's name written only on hover and selection (ADR 0091). It is a shape of its element like any other.
+_Avoid_: badge (a badge is a text in a shape's detail), label, annotation, tag (a name tag writes a name)
 
 **Anchored part**:
 An element's shape drawn as a named part, because its appearance names that part: inside a drawing with parts, in the part's place and at its size, with no position of its own in the view, as a row has none; elsewhere on its own, with the part's outline as its free geometry and the part's picture inside it. A part of a solid is drawn in the solid's picture, where relations end at its point, and in the physical-space panel in its place in the solid. It is selected, related, focused, filtered and colored as any shape of its element.

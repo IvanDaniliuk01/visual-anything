@@ -92,11 +92,18 @@ describe('the physical-ai sample', () => {
       points.add(`${point?.x} ${point?.y}`);
     }
     expect(points.size).toBe(ANCHORED.length);
-    // The motors and the encoders sit below the picture, clear of it.
+    // The motors and the encoders stand around the picture as callouts, clear of it (ADR 0091).
     for (const key of [1, 2, 3, 4, 5, 6].flatMap((n) => [`arm/motor-${n}`, `arm/encoder-${n}`])) {
       const shape = shapeOf(scene, key);
       expect(shape.part, key).toBeUndefined();
-      expect(shape.rect.y, key).toBeGreaterThanOrEqual(picture.y + picture.height);
+      expect(shape.callout, key).toBeDefined();
+      const { rect } = shape;
+      const clear =
+        rect.x + rect.width <= picture.x ||
+        rect.x >= picture.x + picture.width ||
+        rect.y + rect.height <= picture.y ||
+        rect.y >= picture.y + picture.height;
+      expect(clear, key).toBe(true);
     }
     // An anchored part has no place of its own in the view.
     const view = project.views.find((each) => each.id === 'structure');

@@ -200,6 +200,8 @@ import {
   type SolidLook,
 } from './shape-solids';
 import type { Flip } from './turn';
+import { calloutRoute, calloutSideAgainst, placeCallouts } from './callouts';
+import { LAYOUT_STEP } from './layout/types';
 
 /** Everything a view draws. */
 export interface Scene {
@@ -373,6 +375,11 @@ export interface ElementShape {
    */
   picture?: DrawingPicture;
   /**
+   * On a callout (ADR 0091): a content of a drawing with parts that shows a solid, not an anchored
+   * part itself, with a relation to one. It stands around the picture, beside that part.
+   */
+  callout?: ShapeCallout;
+  /**
    * In a view with a scope (ADR-0040): the relations that leave the view from its element, because
    * their other end is out of scope, in model order (`scope.ts`); its mark counts them. Absent when
    * none leave.
@@ -414,6 +421,17 @@ export interface ElementShape {
 }
 
 /**
+ * What makes a shape a callout around its drawing's picture (ADR 0091): the anchored part it relates
+ * to first, in the model's order, and where layout puts it, from its drawing's top left as positions
+ * are stored, beside that part's point (`callouts.ts`).
+ */
+export interface ShapeCallout {
+  /** The element of the anchored part it stands beside. */
+  part: Id;
+  at: Point;
+}
+
+/**
  * How a collapsed container shows that it holds more (ADR 0086): `contents` shapes would sit directly
  * in it. With no `look`, a sheet shows behind it (`stack`); `count` draws a second border inside it
  * instead, and `stack-and-count` both. `component` names the component every one of them comes from,
@@ -434,6 +452,18 @@ export interface RelationLine {
   relation: Id;
   /** The relation's name, shown at the middle of its route; `×3` on an aggregated relation. */
   label?: string;
+  /**
+   * On a line between a callout and a part of its drawing (ADR 0091), in place of `label`: its name,
+   * written only while the pointer or the selection is on the line or on one of its shapes, so that
+   * no name covers the picture otherwise.
+   */
+  quietLabel?: string;
+  /**
+   * Present on an automatic line between a callout and a part of its drawing (ADR 0091): it runs
+   * from the callout to the part's point outside the picture but for its last segment
+   * (`calloutRoute`), and is never routed around shapes.
+   */
+  callout?: true;
   /** The route from start to end, through its bends. */
   route: Point[];
   /** Where the route starts: on a shape's border, or at the middle of the relation it starts from. */
@@ -1761,6 +1791,11 @@ export interface Box {
   offset: Point | undefined;
   /** Whether the view stores its position. */
   stored: boolean;
+  /**
+   * For a callout around its drawing's picture (ADR 0091): its part, and where layout puts it, set
+   * by its drawing whether the box is measured again or kept.
+   */
+  callout?: ShapeCallout;
   /** Absent for a box kept from the last build, whose shape says the rest. */
   measured?: Measured;
 }
@@ -1807,6 +1842,11 @@ interface Shaping {
   partOf: (content: Placement) => ResolvedAppearance['part'];
   /** The component a content's element comes from. */
   componentOf: (content: Placement) => Id;
+  /**
+   * The elements an element's relations drawn as lines in the view lead to, in the model's order,
+   * both ways: what a callout's part is found among (ADR 0091).
+   */
+  linkedTo: (element: Id) => readonly Id[];
 }
 
 /** How a collapsed container shows what it holds, by the drawing defaults it is laid out with. */
@@ -2011,6 +2051,20 @@ function measured(
   if (solid) {
     const picture = solidPictureIn(appearance, position, roomOf(laying));
     const anchors = solidAnchorsIn(solid, picture, placement.contents, shaping.partOf);
+    const callouts = calloutPartsIn(placement, anchors, shaping);
+    if (callouts) {
+      return calloutsBox(
+        placement,
+        element,
+        look,
+        detail,
+        position,
+        solid,
+        callouts,
+        contentsOf,
+        shaping,
+      );
+    }
     return drawingBox(placement, element, look, detail, position, picture, anchors, contentsOf);
   }
   const contents = contentsOf(() => undefined);
@@ -2136,6 +2190,155 @@ function drawingBox(
   };
 }
 
+/**
+ * The part each content of a drawing that shows a solid stands beside as a callout (ADR 0091): for a
+ * content that is not an anchored part, the first anchored part its relations drawn in the view lead
+ * to, in the model's order. Undefined when no content is a callout.
+ */
+function calloutPartsIn(
+  placement: Placement,
+  anchors: readonly (SolidAnchor | undefined)[],
+  shaping: Shaping,
+): (Id | undefined)[] | undefined {
+  const parts = new Set<Id>();
+  placement.contents.forEach((content, at) => {
+    if (anchors[at]) parts.add(content.element);
+  });
+  if (parts.size === 0) return undefined;
+  let any = false;
+  const found = placement.contents.map((content, at) => {
+    if (anchors[at]) return undefined;
+    const part = shaping.linkedTo(content.element).find((other) => parts.has(other));
+    if (part !== undefined) any = true;
+    return part;
+  });
+  return any ? found : undefined;
+}
+
+/** A number rounded to layout's step, as layout stores positions. */
+function onStep(value: number): number {
+  return Math.round(value / LAYOUT_STEP) * LAYOUT_STEP;
+}
+
+/**
+ * A drawing with parts that shows a solid and holds callouts (ADR 0091): its picture inset by the room
+ * its callouts take left of and above it, its anchored parts over it, each callout beside its part's
+ * point, around the picture (`placeCallouts`), where the view stores no position for it, and its
+ * other contents below the picture and the callouts. A drawing whose size the view stores fits its
+ * picture to what its callouts leave of its body.
+ */
+function calloutsBox(
+  placement: Placement,
+  element: Element,
+  look: Look,
+  detail: string,
+  position: ShapePosition | undefined,
+  solid: SolidLook,
+  callouts: readonly (Id | undefined)[],
+  contentsOf: (modeOf: (at: number) => ContentMode) => Box[],
+  shaping: Shaping,
+): Box {
+  const { appearance } = look;
+  const room = roomOf(laying);
+  const { contents: placements } = placement;
+  const anchorsOn = (picture: DrawingPicture) =>
+    solidAnchorsIn(solid, picture, placements, shaping.partOf);
+  // Measured once: an anchored part's box takes its place from its anchor, set again below.
+  const measuredWith = anchorsOn(solidPictureIn(appearance, position, room));
+  const contents = contentsOf((at) => measuredWith[at]);
+  const placeAround = (picture: DrawingPicture) => {
+    const atOrigin = { ...picture, rect: { ...picture.rect, x: 0, y: 0 } };
+    const anchors = anchorsOn(atOrigin);
+    const points = new Map<Id, Point>();
+    anchors.forEach((anchor, at) => {
+      if (!anchor) return;
+      const dot = { ...anchor.offset, width: anchor.width, height: anchor.height };
+      points.set((placements[at] as Placement).element, solidPointOf(dot));
+    });
+    const members: number[] = [];
+    callouts.forEach((part, at) => {
+      if (part !== undefined && points.has(part)) members.push(at);
+    });
+    const placed = placeCallouts(
+      picture.rect,
+      members.map((at) => {
+        const box = contents[at] as Box;
+        const point = points.get(callouts[at] as Id) as Point;
+        return { width: box.width, height: box.height, point };
+      }),
+    );
+    let left = 0;
+    let top = 0;
+    let right = 0;
+    let bottom = 0;
+    placed.forEach((place, each) => {
+      const box = contents[members[each] as number] as Box;
+      left = Math.max(left, -place.x);
+      top = Math.max(top, -place.y);
+      right = Math.max(right, place.x + box.width - picture.rect.width);
+      bottom = Math.max(bottom, place.y + box.height - picture.rect.height);
+    });
+    return { anchors, members, placed, room: { left, top, right, bottom } };
+  };
+  let picture = solidPictureIn(appearance, position, room);
+  let around = placeAround(picture);
+  if (position?.width !== undefined || position?.height !== undefined) {
+    // The body the view stores holds the callouts too: the picture fits what they leave of it.
+    const { left, top, right, bottom } = around.room;
+    picture = solidPictureIn(
+      appearance,
+      {
+        ...position,
+        ...(position.width === undefined ? {} : { width: position.width - left - right }),
+        ...(position.height === undefined ? {} : { height: position.height - top - bottom }),
+      },
+      room,
+    );
+    around = placeAround(picture);
+  }
+  const shift = {
+    x: room.padding + Math.ceil(around.room.left / LAYOUT_STEP) * LAYOUT_STEP,
+    y: room.header + Math.ceil(around.room.top / LAYOUT_STEP) * LAYOUT_STEP,
+  };
+  const rect = { ...picture.rect, x: shift.x, y: shift.y };
+  const drawn: DrawingPicture = { ...picture, rect };
+  around.anchors.forEach((anchor, at) => {
+    const box = contents[at] as Box;
+    if (anchor) box.offset = { x: anchor.offset.x + shift.x, y: anchor.offset.y + shift.y };
+  });
+  let below = rect.y + rect.height;
+  around.placed.forEach((place, each) => {
+    const at = around.members[each] as number;
+    const box = contents[at] as Box;
+    const spot = { x: onStep(shift.x + place.x), y: onStep(shift.y + place.y) };
+    if (!box.stored) box.offset = spot;
+    box.callout = { part: callouts[at] as Id, at: spot };
+    below = Math.max(below, (box.offset?.y ?? spot.y) + box.height);
+  });
+  arrangeContents(
+    contents.filter((box, at) => around.anchors[at] === undefined && box.callout === undefined),
+    below + STAND_IN_GAP,
+  );
+  let right: number | undefined;
+  let bottom: number | undefined;
+  for (const box of contents) {
+    const boxRight = (box.offset?.x ?? 0) + box.width;
+    const boxBottom = (box.offset?.y ?? 0) + box.height;
+    if (right === undefined || boxRight > right) right = boxRight;
+    if (bottom === undefined || boxBottom > bottom) bottom = boxBottom;
+  }
+  const width = Math.max(appearance.width, rect.x + rect.width + room.padding);
+  const height = Math.max(appearance.height, rect.y + rect.height + room.padding);
+  return {
+    placement,
+    width: containerSize(position?.width, width, right),
+    height: containerSize(position?.height, height, bottom),
+    offset: position ? { x: position.x, y: position.y } : undefined,
+    stored: position !== undefined,
+    measured: { element, look, detail, position, contents, drawing: drawn },
+  };
+}
+
 /** Lays out World's stand-in row: below every positioned shape directly in World and every free shape. */
 function standInWorld(
   boxes: Box[],
@@ -2179,7 +2382,7 @@ function placeShapes(
   const positions = positionsOf(view, model.world.id);
   const kept = looksOf(definitions, keep);
   const started = startedOf(model.relations);
-  const shaping = shapingOf(project, definitions, elements, kept);
+  const shaping = shapingOf(project, view, definitions, elements, kept);
 
   const measure = (placement: Placement, mode?: ContentMode): Box => {
     const element = elementAt(elements, placement);
@@ -2303,16 +2506,43 @@ function elementAt(elements: ReadonlyMap<Id, Element>, placement: Placement): El
 /** What measuring a build reads beyond each element. */
 function shapingOf(
   project: ProjectSnapshot,
+  view: ViewFile,
   definitions: Definitions,
   elements: ReadonlyMap<Id, Element>,
   kept: WeakMap<Element, Look>,
 ): Shaping {
+  let links: Map<Id, Id[]> | undefined;
   return {
     definitions,
     drawnAsKind: geometryFindings(project).drawnAsKind,
     partOf: (content) => lookOf(elementAt(elements, content), definitions, kept).appearance.part,
     componentOf: (content) => elementAt(elements, content).component,
+    linkedTo: (element) => {
+      links ??= linksOf(project, view);
+      return links.get(element) ?? NO_IDS;
+    },
   };
+}
+
+/**
+ * The elements each element's relations lead to, both ways, in the model's order, of the relations a
+ * view draws as lines: neither those it nests by nor those of the types it leaves out.
+ */
+function linksOf(project: ProjectSnapshot, view: ViewFile): Map<Id, Id[]> {
+  const nesting = new Set(nestingTypesInView(project, view));
+  const leftOut = relationTypesLeftOutBy(project, view);
+  const links = new Map<Id, Id[]>();
+  const add = (from: Id, to: Id) => {
+    const list = links.get(from);
+    if (list) list.push(to);
+    else links.set(from, [to]);
+  };
+  for (const relation of project.model.relations) {
+    if (nesting.has(relation.relationType) || leftOut.has(relation.relationType)) continue;
+    add(relation.from, relation.to);
+    add(relation.to, relation.from);
+  }
+  return links;
 }
 
 /** Where each placement sits in a containment tree, and the placements of each element. */
@@ -2392,6 +2622,18 @@ function replaceShapes(
     };
     for (const id of after.keys()) differ(id);
     for (const id of before.keys()) if (!after.has(id)) differ(id);
+    // A relation to an anchored part of a solid makes a callout, or unmakes one (ADR 0091).
+    if (base.layout.shapes.some((shape) => shape.solid?.placement === 'parts')) {
+      const kept = new Set(base.model.relations);
+      const still = new Set(model.relations);
+      const markEnds = (relation: Relation) => {
+        for (const id of [relation.from, relation.to]) {
+          for (const placement of index.byElement.get(id) ?? []) mark(placement);
+        }
+      };
+      for (const relation of model.relations) if (!kept.has(relation)) markEnds(relation);
+      for (const relation of base.model.relations) if (!still.has(relation)) markEnds(relation);
+    }
   }
   // The elements whose relations that leave the view changed (ADR-0040).
   if (base.leaving !== leaving) {
@@ -2426,7 +2668,7 @@ function replaceShapes(
   const elements = elementsById(now);
   const kept = looksOf(definitions, true);
   const started = startedOf(model.relations);
-  const shaping = shapingOf(project, definitions, elements, kept);
+  const shaping = shapingOf(project, view, definitions, elements, kept);
   const old = base.base;
   const { contents, inWorld } = base.layout;
   const collapsed = base.collapsed;
@@ -2544,6 +2786,14 @@ function replaceShapes(
     if (!box.measured) {
       if (x !== shape.rect.x || y !== shape.rect.y || !samePoint(offset, shape.offset)) {
         translate(at, x, y, offset);
+      }
+      // A callout kept as it was may still stand elsewhere around its picture (ADR 0091).
+      const now = current(at);
+      if (!sameCallout(now.callout, box.callout)) {
+        const shape = { ...now };
+        if (box.callout) shape.callout = box.callout;
+        else delete shape.callout;
+        write(at, shape);
       }
       return;
     }
@@ -2731,6 +2981,10 @@ function shapeFor(
       ? before.points
       : pointsOf(appearance.connectionPoints);
   const positioned = position ? (position.pinned ? 'pinned' : 'stored') : 'placed';
+  const callout =
+    before?.callout && box.callout && sameCallout(before.callout, box.callout)
+      ? before.callout
+      : box.callout;
   const container = box.placement.container;
   const holdsContents = parts.contents.length > 0;
   // An anchored part, as a row, does not draw what it holds (ADR 0067).
@@ -2826,6 +3080,7 @@ function shapeFor(
     before.outline === outline &&
     before.part === part &&
     before.picture === picture &&
+    before.callout === callout &&
     before.face === face &&
     before.header === header
   ) {
@@ -2885,12 +3140,25 @@ function shapeFor(
   if (outline) shape.outline = outline;
   if (part) shape.part = part;
   if (picture) shape.picture = picture;
+  if (callout) shape.callout = callout;
   if (face) shape.face = face;
   if (header !== undefined) shape.header = header;
   return shape;
 }
 
 const NO_IDS: readonly Id[] = [];
+
+/** Whether two callouts stand beside the same part, put in the same place by layout. */
+function sameCallout(a: ShapeCallout | undefined, b: ShapeCallout | undefined): boolean {
+  if (a === b) return true;
+  return (
+    a !== undefined &&
+    b !== undefined &&
+    a.part === b.part &&
+    a.at.x === b.at.x &&
+    a.at.y === b.at.y
+  );
+}
 
 /** The fields a shape takes from its rows, with what an anchored part holds and does not draw. */
 function withUndrawn(fields: RowFields, anchored: Anchored | undefined): RowFields {
@@ -3165,6 +3433,11 @@ function drawRelations(
     const previous = previousAt?.get(spec.key);
     const shapeOf = (end: EndRef) => (end.kind === 'shape' ? shapes[end.at] : undefined);
     const relation = spec.relation === undefined ? undefined : byId.get(spec.relation);
+    // A line between a callout and a part of its drawing runs outside the picture (ADR 0091).
+    const callout =
+      from && to && spec.members === undefined && !routing.byHand(spec.relation ?? '')
+        ? calloutPlanOf(shapeOf(spec.from), shapeOf(spec.to), shapes)
+        : undefined;
     const drawnAs = (round: RoundedBecause | undefined) =>
       from && to
         ? lineBetween(
@@ -3174,21 +3447,22 @@ function drawRelations(
             definitions,
             relation,
             previous === undefined ? undefined : previousLines?.[previous],
-            routing.plan({
-              relation: spec.relation,
-              // An aggregated relation takes its relation type's style, or else the view's; past
-              // the curves a container can hold, orthogonal, drawn with rounded corners.
-              automatic: round
-                ? 'orthogonal'
-                : routing.automaticStyle(
-                    relation && !spec.members ? relation : { relationType: spec.relationType },
-                  ),
-              offset: spec.offset,
-              fromShape: shapeOf(spec.from),
-              toShape: shapeOf(spec.to),
-              from,
-              to,
-            }),
+            callout ??
+              routing.plan({
+                relation: spec.relation,
+                // An aggregated relation takes its relation type's style, or else the view's; past
+                // the curves a container can hold, orthogonal, drawn with rounded corners.
+                automatic: round
+                  ? 'orthogonal'
+                  : routing.automaticStyle(
+                      relation && !spec.members ? relation : { relationType: spec.relationType },
+                    ),
+                offset: spec.offset,
+                fromShape: shapeOf(spec.from),
+                toShape: shapeOf(spec.to),
+                from,
+                to,
+              }),
             round,
           )
         : undefined;
@@ -3622,7 +3896,13 @@ function lineBetween(
     dash,
     ends: { from: drawnEnd(spec.from), to: drawnEnd(spec.to), offset },
   };
-  if (label) line.label = label;
+  // A callout's line writes its name only on hover and selection (ADR 0091).
+  const quiet = planned !== undefined && calloutPlans.has(planned);
+  if (quiet) line.callout = true;
+  if (label) {
+    if (quiet) line.quietLabel = label;
+    else line.label = label;
+  }
   if (appearance.opacity < 1) line.opacity = appearance.opacity;
   if (countBadge) line.countBadge = true;
   if (darkStroke !== stroke) line.darkStroke = darkStroke;
@@ -3643,6 +3923,41 @@ function lineBetween(
   }
   lineInputs.set(line, inputs);
   return line;
+}
+
+/** The plans of lines between callouts and the parts of their drawings (ADR 0091). */
+const calloutPlans = new WeakSet<LinePlan>();
+
+/**
+ * How a line between a callout and an anchored part of its drawing runs (ADR 0091): from the
+ * callout's side that faces the picture to the part's point, outside the picture but for its last
+ * segment (`calloutRoute`). Undefined for any other line, and for a callout that covers the picture.
+ */
+function calloutPlanOf(
+  fromShape: ElementShape | undefined,
+  toShape: ElementShape | undefined,
+  shapes: readonly ElementShape[],
+): LinePlan | undefined {
+  const partIn = (shape: ElementShape | undefined) =>
+    shape?.part?.solid !== undefined && shape.part.inDrawing ? shape.part.point : undefined;
+  const forward = fromShape?.callout !== undefined && partIn(toShape) !== undefined;
+  const callout = forward ? fromShape : toShape;
+  const point = partIn(forward ? toShape : fromShape);
+  const holderKey = callout?.containerShape;
+  if (!callout?.callout || !point || holderKey === undefined) return undefined;
+  if ((forward ? toShape : fromShape)?.containerShape !== holderKey) return undefined;
+  const picture = shapes[keyIndexOf(shapes).get(holderKey) ?? -1]?.picture?.rect;
+  if (!picture) return undefined;
+  const side = calloutSideAgainst(callout.rect, picture);
+  if (!side) return undefined;
+  const route = calloutRoute(callout.rect, side, point, picture);
+  if (!forward) route.reverse();
+  const plan: LinePlan = {
+    signature: `callout ${side} ${picture.x} ${picture.y} ${picture.width} ${picture.height}`,
+    route: () => ({ route }),
+  };
+  calloutPlans.add(plan);
+  return plan;
 }
 
 /**

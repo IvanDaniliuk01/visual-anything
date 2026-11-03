@@ -17,74 +17,74 @@
     {
       "element": "motor-1",
       "container": "arm",
-      "x": 24,
-      "y": 392
+      "x": 216,
+      "y": 520
     },
     {
       "element": "motor-2",
       "container": "arm",
-      "x": 24,
-      "y": 480
+      "x": 600,
+      "y": 328
     },
     {
       "element": "motor-3",
       "container": "arm",
-      "x": 24,
-      "y": 568
+      "x": 600,
+      "y": 152
     },
     {
       "element": "motor-4",
       "container": "arm",
-      "x": 24,
-      "y": 656
+      "x": 216,
+      "y": 48
     },
     {
       "element": "motor-5",
       "container": "arm",
       "x": 24,
-      "y": 744
+      "y": 152
     },
     {
       "element": "motor-6",
       "container": "arm",
       "x": 24,
-      "y": 832
+      "y": 328
     },
     {
       "element": "encoder-1",
       "container": "arm",
-      "x": 224,
-      "y": 392
+      "x": 408,
+      "y": 520
     },
     {
       "element": "encoder-2",
       "container": "arm",
-      "x": 224,
-      "y": 480
+      "x": 600,
+      "y": 416
     },
     {
       "element": "encoder-3",
       "container": "arm",
-      "x": 224,
-      "y": 568
+      "x": 600,
+      "y": 240
     },
     {
       "element": "encoder-4",
       "container": "arm",
-      "x": 224,
-      "y": 656
+      "x": 408,
+      "y": 48
     },
     {
       "element": "encoder-5",
       "container": "arm",
-      "x": 224,
-      "y": 744
+      "x": 24,
+      "y": 240
     },
     {
       "element": "encoder-6",
       "container": "arm",
-      "x": 224,
-      "y": 832
+      "x": 24,
+      "y": 416
     }
   ],
   "freeShapes": [],

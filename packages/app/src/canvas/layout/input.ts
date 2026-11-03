@@ -143,8 +143,11 @@ export function layoutInput(
     // A row has no position of its own: it moves with the shape that draws it (ADR 0023); nor has
     // an anchored part, which lies in its part's place in its drawing (ADR 0067).
     const anchored = shape.part?.inDrawing === true;
-    const isFree = shape.row === undefined && !anchored && free(shape);
-    anyFree ||= isFree;
+    const movable = shape.row === undefined && !anchored && free(shape);
+    // A callout layout may move goes where the scene puts it beside its part (ADR 0091), kept there.
+    const callout = movable ? shape.callout : undefined;
+    const isFree = movable && callout === undefined;
+    anyFree ||= movable;
     const parent =
       shape.containerShape === undefined ? undefined : indexes.get(shape.containerShape);
     // Layout never sees an overlay's size (ADR 0055): the rectangle it gave the shape. A shape is
@@ -156,15 +159,22 @@ export function layoutInput(
       element: shape.element,
       parent: parent ?? -1,
       free: isFree,
-      x: shape.offset.x - reach.left,
-      y: shape.offset.y - reach.top,
+      x: (callout?.at.x ?? shape.offset.x) - reach.left,
+      y: (callout?.at.y ?? shape.offset.y) - reach.top,
       width: laidOut.width + reach.left + reach.right,
       height: laidOut.height + reach.top + reach.bottom,
     };
     if (reach.left > 0) laidShape.tagLeft = reach.left;
     if (reach.top > 0) laidShape.tagTop = reach.top;
+    if (callout) laidShape.callout = true;
     // A shape kept where the view stores it, unpinned, may move aside for a container that grows.
-    if (!isFree && shape.row === undefined && !anchored && shape.positioned === 'stored') {
+    if (
+      !isFree &&
+      !callout &&
+      shape.row === undefined &&
+      !anchored &&
+      shape.positioned === 'stored'
+    ) {
       laidShape.aside = true;
     }
     const stored = shape.storedSize;
@@ -205,6 +215,13 @@ export function layoutInput(
   });
   // An expanding container whose contents are all pinned still moves aside what it now covers.
   if (!anyFree && scope.kind !== 'expand') return undefined;
+  // What else a drawing holds goes below the callouts layout places around its picture (ADR 0091).
+  for (const shape of laid) {
+    const holder = shape.callout ? laid[shape.parent] : undefined;
+    if (holder?.pictureBottom !== undefined) {
+      holder.pictureBottom = Math.max(holder.pictureBottom, shape.y + shape.height);
+    }
+  }
 
   const relations: LayoutRelation[] = [];
   for (const line of scene.relations) {

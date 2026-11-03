@@ -157,6 +157,36 @@ export function accentsOf(
   return { lines, othersAlpha: fading ? FADED_OTHERS : 1 };
 }
 
+/** Whether a scene draws any line whose name only the pointer and the selection write. */
+const quietScenes = new WeakMap<readonly RelationLine[], boolean>();
+
+/**
+ * The lines whose names the pointer and the selection write now (ADR 0091): of the lines between a
+ * callout and a part of its drawing, which write their names only then, those the pointer is on or
+ * touches and those the selection holds or touches, each with its name as its `label`, as it is
+ * written. `hidden` lines are written nowhere.
+ */
+export function quietLabelsShown(
+  scene: Scene,
+  pointed: Pointed,
+  hidden: ReadonlySet<string>,
+): RelationLine[] {
+  let quiet = quietScenes.get(scene.relations);
+  if (quiet === undefined) {
+    quiet = scene.relations.some((line) => line.quietLabel !== undefined);
+    quietScenes.set(scene.relations, quiet);
+  }
+  if (!quiet) return [];
+  const lines = pointedLines(scene, pointed);
+  for (const line of selectedLines(scene, pointed)) lines.add(line);
+  const shown: RelationLine[] = [];
+  for (const line of lines) {
+    if (line.quietLabel === undefined || hidden.has(line.relation)) continue;
+    shown.push({ ...line, label: line.quietLabel });
+  }
+  return shown;
+}
+
 /** The color a line takes on hover and selection: its type's, or the color it is drawn in. */
 export function accentStroke(line: RelationLine, theme: ThemeName): Color {
   const type = line.typeStroke;
