@@ -84,3 +84,5 @@ Decided by Claude while building them, under the user's standing delegation:
 - **The recent list** holds every project the program opens, from home or from the command line, by its real path, the latest first, compared without case on Windows and macOS. It lives in `preferences.json` as `recentProjects`, beside the preferences the core knows rather than among them, since only the program changes it: an app's `preferences/set` cannot.
 - **"Projects…"** is in the header's menu above "Connect Claude…", shown while a project or a start screen is open. The menu, which now holds more than the language and the theme, is named "Menu".
 - **At home, a command line `--view`** is refused, since home has no view; `visual-anything .` opens the current folder as before.
+
+- 2026-11-03 (the Projects screen polished): **a new project starts in one click.** The name is optional; left empty, it takes the sample's title, or "My project" for an empty one, and `home/create` still always carries a name. A sample's card names the world its title names ("Machine learning: churn classifier"), and the world of its packages only when its title names none.

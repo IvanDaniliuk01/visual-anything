@@ -63,6 +63,16 @@ function cardTitle(title: string): string {
   return rest.charAt(0).toLocaleUpperCase() + rest.slice(1);
 }
 
+/**
+ * The world a sample's card names: its title's own, before the colon ("Machine learning: churn
+ * classifier"), since a sample's packages alone can name another (the churn classifier's first is
+ * Data science pipelines); the world of its packages when its title names none.
+ */
+function cardWorld(title: string): string | undefined {
+  const cut = title.indexOf(': ');
+  return cut < 0 ? undefined : title.slice(0, cut);
+}
+
 export function ProjectsScreen({
   offer,
   openProject,
@@ -390,7 +400,10 @@ function SampleCard({ sample, disabled, starting, describedBy, onStart }: Sample
   const title = texts === undefined ? sample.name : t(texts.title);
   return (
     <li className="projects-card projects-sample">
-      <span className="projects-world">{worldName(t, worldOf(sample.packages))}</span>
+      <span className="projects-world">
+        {(texts === undefined ? undefined : cardWorld(title)) ??
+          worldName(t, worldOf(sample.packages))}
+      </span>
       <h4>{texts === undefined ? title : cardTitle(title)}</h4>
       {texts !== undefined && <p className="projects-muted">{t(texts.summary)}</p>}
       <button
