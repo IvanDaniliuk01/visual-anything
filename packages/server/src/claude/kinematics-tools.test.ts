@@ -11,6 +11,7 @@ import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Element } from '@visual-anything/schema';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { loadProject } from '../project';
+import { chainOf } from './kinematics-tools';
 import { startToolHarness, type ToolHarness } from './tool-harness';
 import { TOOLS } from './tools';
 
@@ -149,6 +150,81 @@ describe('get_kinematics’ warnings', () => {
         elements: ['joint-2'],
       },
     ]);
+  });
+});
+
+describe('the chain get_kinematics reads (M15’s review)', () => {
+  /** The sample with joints added, each attached to the one before it, the first to the base. */
+  function withLongChain(length: number, closed = false): ProjectSnapshot {
+    const ids = Array.from({ length }, (_, at) => `deep-${at}`);
+    return {
+      ...sample,
+      model: {
+        ...sample.model,
+        elements: [
+          ...sample.model.elements,
+          ...ids.map((id) => ({
+            id,
+            component: 'physical-ai.joint',
+            name: id,
+            attributes: { kind: 'revolute', axis: '0 1 0' },
+          })),
+        ],
+        relations: [
+          ...sample.model.relations,
+          ...ids.map((id, at) => ({
+            id: `${id}-on`,
+            relationType: 'physical-ai.is-attached-to',
+            from: id,
+            to: at === 0 ? (closed ? (ids.at(-1) as string) : 'base') : (ids[at - 1] as string),
+          })),
+        ],
+      },
+    };
+  }
+
+  it('walks a chain of 100,000 joints in linear time', () => {
+    const project = withLongChain(100_000);
+    const started = performance.now();
+    const { links } = chainOf(project, undefined);
+    const took = performance.now() - started;
+    // Measured at well under a second; walking up from every joint took minutes.
+    expect(took).toBeLessThan(10_000);
+    const deepest = links.find((each) => each.element.id === 'deep-99999');
+    expect(deepest?.parent).toBe('deep-99998');
+    expect(deepest?.depth).toBe(
+      (links.find((each) => each.element.id === 'base')?.depth ?? 0) + 100_000,
+    );
+  });
+
+  it('lists each element of a cycle of attachments once, from where the walk entered it', () => {
+    const { links } = chainOf(withLongChain(50, true), undefined);
+    const deep = links.filter((each) => each.element.id.startsWith('deep-'));
+    expect(deep).toHaveLength(50);
+    expect(new Set(deep.map((each) => each.element.id)).size).toBe(50);
+  });
+
+  it('hangs an element from what it is posed in only where that pose is usable', () => {
+    // The camera posed "in" Link 1, which does not contain it: the pose is not used, as the core's
+    // chain does not use it, and the camera hangs from nothing.
+    const project: ProjectSnapshot = {
+      ...sample,
+      model: {
+        ...sample.model,
+        elements: [
+          ...sample.model.elements,
+          {
+            id: 'loose-camera',
+            component: 'physical-ai.joint',
+            name: 'Loose camera',
+            attributes: { kind: 'revolute', axis: '0 1 0' },
+            pose: { at: { x: 0, y: 0, z: 0 }, in: 'link-1' },
+          },
+        ],
+      },
+    };
+    const { links } = chainOf(project, undefined);
+    expect(links.find((each) => each.element.id === 'loose-camera')?.parent).toBeUndefined();
   });
 });
 

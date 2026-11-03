@@ -530,10 +530,16 @@
     "JointPositions": {
       "type": "object",
       "additionalProperties": {
-        "type": "number"
+        "$ref": "#/definitions/JointPosition"
       },
       "description": "Positions of joints by their ids.",
       "maxProperties": 200
+    },
+    "JointPosition": {
+      "type": "number",
+      "description": "A joint's position: degrees for a joint that turns, meters for one that slides, within the bound every joint's position keeps (the core's `MAX_JOINT_POSITION`).",
+      "minimum": -100000,
+      "maximum": 100000
     },
     "SavedSimulation": {
       "type": "object",

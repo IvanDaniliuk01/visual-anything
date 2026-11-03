@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_JOINT_POSITION } from '../space/kinematics';
 import { checkSimulateAnswer } from './answer';
 import { QUEUE } from '../test/simulation';
 import { SIMULATION_LIMITS } from './limits';
@@ -121,9 +122,24 @@ describe('checkSimulateAnswer', () => {
     });
     expect(check({ values: {}, joints: { e1: Number.NaN } })).toEqual({
       kind: 'dropped',
-      reason: 'the position of "e1" is not a finite number',
+      reason: 'the position of "e1" is not a finite number from -100000 to 100000',
     });
     expect(check({ values: {}, joints: [1] })).toMatchObject({ kind: 'dropped' });
+  });
+
+  it('drops an answer that moves a joint past MAX_JOINT_POSITION either way (M15 review)', () => {
+    expect(check({ values: {}, joints: { e1: MAX_JOINT_POSITION } })).toMatchObject({
+      kind: 'tick',
+      tick: { joints: { e1: MAX_JOINT_POSITION } },
+    });
+    expect(check({ values: {}, joints: { e1: -MAX_JOINT_POSITION } })).toMatchObject({
+      kind: 'tick',
+    });
+    expect(check({ values: {}, joints: { e1: MAX_JOINT_POSITION + 1 } })).toEqual({
+      kind: 'dropped',
+      reason: 'the position of "e1" is not a finite number from -100000 to 100000',
+    });
+    expect(check({ values: {}, joints: { q1: -1e9 } })).toMatchObject({ kind: 'dropped' });
   });
 
   it('keeps a copy of the state, sharing nothing with what was answered', () => {

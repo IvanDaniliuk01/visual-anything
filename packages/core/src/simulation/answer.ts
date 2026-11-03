@@ -2,12 +2,14 @@
  * The check of what `simulate` answers for one tick (ADR 0085). The answer comes from code nobody
  * trusts: it is kept only when it is plain data within its caps, naming only declared values of
  * their types and marking only what lies around the element. It may also answer joints' positions
- * (ADR 0090), by joint among what it may mark, which the physical-space panel follows. A number past its limits, a string not
- * among its choices or a number that is not finite stops the run cleanly; anything else wrong drops
- * the answer as a failure of the code.
+ * (ADR 0090), by joint among what it may mark, which the physical-space panel follows. A number past
+ * its limits, a string not among its choices or a number that is not finite stops the run cleanly;
+ * anything else wrong drops the answer as a failure of the code, a joint's position past
+ * `MAX_JOINT_POSITION` either way among it.
  */
 import type { Id, JsonValue, SimulationDefinition } from '@visual-anything/schema';
 import { plainSizeOf } from '../code/answers';
+import { MAX_JOINT_POSITION } from '../space/kinematics';
 import { SIMULATION_LIMITS } from './limits';
 
 /** A simulated value as a tick answers it. */
@@ -149,8 +151,16 @@ export function checkSimulateAnswer(
       if (!markable.has(joint)) {
         return dropped(`it moves ${JSON.stringify(joint)}, which is not the element or around it`);
       }
-      if (typeof position !== 'number' || !Number.isFinite(position)) {
-        return dropped(`the position of ${JSON.stringify(joint)} is not a finite number`);
+      // Past the bound every joint's position keeps, the answer is dropped, as a position that is
+      // not a number is: joints have no declared limits that would stop the run (M15's review).
+      if (
+        typeof position !== 'number' ||
+        !Number.isFinite(position) ||
+        Math.abs(position) > MAX_JOINT_POSITION
+      ) {
+        return dropped(
+          `the position of ${JSON.stringify(joint)} is not a finite number from ${-MAX_JOINT_POSITION} to ${MAX_JOINT_POSITION}`,
+        );
       }
       Object.defineProperty(joints, joint, {
         value: position,

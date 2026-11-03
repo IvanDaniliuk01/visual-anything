@@ -13,6 +13,7 @@
  */
 import {
   MAX_GUIDANCE_TARGETS,
+  MAX_JOINT_POSITION,
   MAX_SPACE_DISTANCE,
   MAX_VIEW_STATE_JOINTS,
   degreesOfRotation,
@@ -36,9 +37,6 @@ export const MAX_SPACE_LISTED = 500;
 
 /** The most posed elements a write tool's answer gives back one by one. */
 const MAX_POSED_ANSWERED = 50;
-
-/** The farthest a joint's position in a view state goes either way, as the core checks it. */
-const MAX_JOINT_POSITION = 100_000;
 
 /** How physical space measures, as each tool says it. */
 const UNITS =

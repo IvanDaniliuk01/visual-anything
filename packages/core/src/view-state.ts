@@ -65,7 +65,7 @@ import {
 } from './protocol';
 import { DECISION_CAPS, knownChoices, playedSteps } from './scenarios/blocks';
 import { MAX_SPACE_DISTANCE, readSpaceCamera } from './space/camera';
-import { isJoint } from './space/kinematics';
+import { MAX_JOINT_POSITION, isJoint } from './space/kinematics';
 import { simulationOf } from './simulation/definition';
 import { checkParameters } from './simulation/parameters';
 import { copiedSimulation, own, readSavedSimulation } from './simulation/saved';
@@ -755,9 +755,6 @@ function checkSpace(value: unknown): ViewSpace {
   }
   return space;
 }
-
-/** The furthest a joint's position given in a view state goes either way: degrees or meters. */
-const MAX_JOINT_POSITION = 100_000;
 
 /**
  * Joints' positions (ADR 0090): at most {@link MAX_VIEW_STATE_JOINTS}, each a joint's id and a finite

@@ -159,5 +159,14 @@ export interface SavedSpace {
  * @maxProperties 200
  */
 export interface JointPositions {
-  [joint: string]: number;
+  [joint: string]: JointPosition;
 }
+
+/**
+ * A joint's position: degrees for a joint that turns, meters for one that slides, within the bound
+ * every joint's position keeps (the core's `MAX_JOINT_POSITION`).
+ *
+ * @minimum -100000
+ * @maximum 100000
+ */
+export type JointPosition = number;

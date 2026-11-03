@@ -4,12 +4,13 @@
  * given over the joints' own, and warned about past them; attachments in a cycle followed by none.
  */
 import type { Element, PackageFile } from '@visual-anything/schema';
+import tourSchema from '@visual-anything/schema/schemas/tour.schema.json' with { type: 'json' };
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { builtinPackage } from '../builtin';
 import { checkProject } from '../check';
 import type { ProjectSnapshot } from '../snapshot';
-import { kinematicsWarnings, jointMotionOf, motionsOf } from './kinematics';
+import { MAX_JOINT_POSITION, kinematicsWarnings, jointMotionOf, motionsOf } from './kinematics';
 import { matrixOf, transformPoint, type Matrix } from './math';
 import { spaceOf } from './space';
 import { definitionsIn } from '../state';
@@ -133,6 +134,26 @@ describe('forward kinematics', () => {
     );
   });
 
+  it('reads limits written the wrong way round as the right way, drawing and warning alike (M15 review)', () => {
+    const project = robot({ j1: 50 });
+    const definitions = definitionsIn(project);
+    const j1 = project.model.elements.find((each) => each.id === 'j1') as Element;
+    j1.attributes = { ...j1.attributes, lowerLimit: 90, upperLimit: -90 };
+    expect(jointMotionOf(j1, definitions)).toMatchObject({ position: 50, lower: -90, upper: 90 });
+    expect(kinematicsWarnings(project)).toEqual([]);
+    j1.attributes = { ...j1.attributes, position: 120 };
+    expect(jointMotionOf(j1, definitions)?.position).toBe(90);
+    expect(kinematicsWarnings(project).map((each) => each.message)).toEqual([
+      'The position of "j1", 120, is outside its limits, from -90 to 90; it is drawn at the nearest one.',
+    ]);
+  });
+
+  it('keeps the one bound of a joint position that the schema says', () => {
+    const joint = (tourSchema as { definitions: Record<string, Record<string, unknown>> })
+      .definitions.JointPosition;
+    expect(joint).toMatchObject({ minimum: -MAX_JOINT_POSITION, maximum: MAX_JOINT_POSITION });
+  });
+
   it('moves nothing for a fixed joint or one without an axis it can read', () => {
     const fixed = robot({ j1: 90 });
     const j1 = fixed.model.elements.find((each) => each.id === 'j1') as Element;
@@ -203,6 +224,81 @@ describe('forward kinematics', () => {
     expect(motionsOf(project, rest).size).toBe(0);
     expect(performance.now() - started).toBeLessThan(10_000);
     expect(cycle?.message).toMatch(/99995 more are attached to each other in a cycle/);
+  });
+
+  it('ends on any graph of attachments, cycles kept still and warned of once each (property)', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 24 }).chain((count) =>
+          fc.tuple(
+            fc.constant(count),
+            fc.array(fc.option(fc.integer({ min: 0, max: count - 1 }), { nil: undefined }), {
+              minLength: count,
+              maxLength: count,
+            }),
+          ),
+        ),
+        ([count, targets]) => {
+          const ids = Array.from({ length: count }, (_, each) => `p${each}`);
+          const project = robot();
+          project.model.elements = [
+            ...project.model.elements.slice(0, 1),
+            ...ids.map((id, each) => joint(id, each, { position: 30 })),
+          ];
+          project.model.relations = [
+            ...ids.map((id) => ({
+              id: `${id}-in-robot`,
+              relationType: 'physical-ai.is-part-of',
+              from: id,
+              to: 'robot',
+            })),
+            ...ids.flatMap((id, each) => {
+              const target = targets[each];
+              return target === undefined
+                ? []
+                : [
+                    {
+                      id: `${id}-on`,
+                      relationType: 'physical-ai.is-attached-to',
+                      from: id,
+                      to: `p${target}`,
+                    },
+                  ];
+            }),
+          ];
+          // The cycles of the graph, each found once: what each element is attached to, itself left out.
+          const next = ids.map((_, each) => {
+            const target = targets[each];
+            return target === undefined || target === each ? undefined : target;
+          });
+          const inCycle = new Set<number>();
+          let cycles = 0;
+          const state = ids.map(() => 0);
+          for (let start = 0; start < count; start++) {
+            const walk: number[] = [];
+            let step: number | undefined = start;
+            while (step !== undefined && state[step] === 0) {
+              state[step] = 1;
+              walk.push(step);
+              step = next[step];
+            }
+            if (step !== undefined && state[step] === 1) {
+              cycles += 1;
+              for (const member of walk.slice(walk.indexOf(step))) inCycle.add(member);
+            }
+            for (const each of walk) state[each] = 2;
+          }
+          const warned = kinematicsWarnings(project).filter(
+            (each) => each.code === 'attachment-cycle',
+          );
+          expect(warned).toHaveLength(cycles);
+          const space = spaceOf(project);
+          for (const member of inCycle)
+            expect(space.motions?.has(`p${member}`) ?? false).toBe(false);
+        },
+      ),
+      { numRuns: 200 },
+    );
   });
 
   it('keeps the distance between consecutive parts of the chain, whatever the positions', () => {
