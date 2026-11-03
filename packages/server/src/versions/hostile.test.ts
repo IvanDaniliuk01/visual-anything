@@ -94,7 +94,9 @@ function plainGit(cwd: string, ...args: string[]): void {
   }
 }
 
-describe.skipIf(NO_GIT)('a hostile repository', () => {
+// Each test starts git several times, which took up to four seconds a start on a loaded Windows
+// machine, as in versions.test.ts; nothing here is timed.
+describe.skipIf(NO_GIT)('a hostile repository', { timeout: 300_000 }, () => {
   it('starts no program from its configuration or attributes', async () => {
     const project = testProject();
     await commitProject(repo, project);

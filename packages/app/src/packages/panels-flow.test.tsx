@@ -40,8 +40,8 @@ import {
 import { PackageChangesReviewer } from './PackageChangesReview';
 import { PackagePanels } from './PackagePanels';
 
-/** Generous: the engine is slow under load. */
-const PATIENCE = { timeout: 20_000 };
+/** Generous: the engine is slow under load; the full suite once took more than 20 s to draw the panel. */
+const PATIENCE = { timeout: 60_000 };
 
 let engine: QuickJSWASMModule;
 
@@ -187,7 +187,7 @@ function setUp() {
   return { send };
 }
 
-describe('a package’s panel, run by its code', () => {
+describe('a package’s panel, run by its code', { timeout: 180_000 }, () => {
   it('is drawn from what the code answers about the element, and its button runs the package’s action into the review', async () => {
     const { send } = setUp();
     const region = screen.getByRole('region', { name: /^Readings/ });
