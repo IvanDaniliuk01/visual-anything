@@ -4,7 +4,10 @@
  *
  * - The box keeps its corner, its top left unless its container has more free room to its left or
  *   above it, and grows toward that room (`engine.ts`'s `growToward`).
- * - Its unpinned contents are laid out inside it, in one pass with only them in the run.
+ * - Its contents keep the places the view stores for them, pinned or not; only those with none, and
+ *   those whose stored place covers one kept before it, are laid out inside it, in one pass with
+ *   only them in the run (ADR 0080's clarification of 2026-11-02). A collapse followed by an
+ *   expansion so leaves its contents where they were.
  * - Level by level up to World, the siblings it now comes within 40 units of move right or down by
  *   the least, keeping their order; pinned shapes, rows, notes and arrows never move, and containers
  *   grow around what moved (ADR 0015's moving aside).

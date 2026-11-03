@@ -43,8 +43,9 @@ import { isTurned, turnedBounds } from '../turn';
  *   these keys sits without a position. Every shape with a position stays where it is, unless a
  *   container beside it grows with what layout placed: then an unpinned one moves aside, right or
  *   down, so that nothing overlaps.
- * - `expand`: the shapes inside containers that are expanding, at every depth, that are not pinned,
- *   laid out inside them; every other shape with a position stays where it is, unless an expanding
+ * - `expand`: the shapes inside containers that are expanding, at every depth, that the view stores
+ *   no position for, laid out inside them among those it keeps (ADR 0080's clarification of
+ *   2026-11-02); every other shape with a position stays where it is, unless an expanding
  *   container now comes near it: then an unpinned one moves aside, right or down (ADR 0080, section
  *   4). `containers` holds the keys of the expanding containers' shapes, and `collapsed` the size each
  *   was drawn at while collapsed; without one, the size its appearance gives it.
@@ -116,8 +117,12 @@ export function layoutInput(
     case 'expand': {
       const prefixes = [...scope.containers].map((key) => `${key}/`);
       if (prefixes.length === 0) return undefined;
-      free = (shape) =>
-        shape.positioned !== 'pinned' && prefixes.some((prefix) => shape.key.startsWith(prefix));
+      // Only what the view stores no place for, and what would cover a content kept before it: the
+      // rest keeps its place, pinned or not (ADR 0080's clarifications of 2026-11-02).
+      const within = (shape: ElementShape) =>
+        prefixes.some((prefix) => shape.key.startsWith(prefix));
+      const crowded = crowdedContents(all.filter(within));
+      free = (shape) => within(shape) && (shape.positioned === 'placed' || crowded.has(shape.key));
       break;
     }
   }
@@ -242,6 +247,49 @@ export function layoutInput(
     ...(padding === CONTENTS_ORIGIN.x ? {} : { padding }),
     ...(header === CONTENTS_ORIGIN.y ? {} : { header }),
   };
+}
+
+/**
+ * The contents of expanding containers whose stored place would cover another content kept at their
+ * level (ADR 0080's clarification of 2026-11-02): pinned ones are kept first, then the others in
+ * reading order, down then across, each kept unless it covers one kept before it. A place stored
+ * while the contents were drawn smaller, as tables collapsed, covers its neighbours once they open;
+ * such a content is laid out as one without a place is. Rows and anchored parts have no place.
+ */
+function crowdedContents(contents: readonly ElementShape[]): Set<string> {
+  const byLevel = new Map<string, ElementShape[]>();
+  for (const shape of contents) {
+    if (shape.row !== undefined || shape.part?.inDrawing === true) continue;
+    if (shape.positioned === 'placed') continue;
+    const level = shape.containerShape ?? IN_WORLD;
+    const list = byLevel.get(level) ?? [];
+    list.push(shape);
+    byLevel.set(level, list);
+  }
+  const crowded = new Set<string>();
+  for (const shapes of byLevel.values()) {
+    const ordered = shapes
+      .map((shape) => ({ shape, rect: laidOutRect(shape) }))
+      .sort(
+        (a, b) =>
+          Number(b.shape.positioned === 'pinned') - Number(a.shape.positioned === 'pinned') ||
+          a.rect.y - b.rect.y ||
+          a.rect.x - b.rect.x,
+      );
+    const kept: Rect[] = [];
+    for (const { shape, rect } of ordered) {
+      const covers = kept.some(
+        (other) =>
+          rect.x < other.x + other.width &&
+          other.x < rect.x + rect.width &&
+          rect.y < other.y + other.height &&
+          other.y < rect.y + rect.height,
+      );
+      if (covers && shape.positioned !== 'pinned') crowded.add(shape.key);
+      else kept.push(rect);
+    }
+  }
+  return crowded;
 }
 
 const NO_REACH = { left: 0, right: 0, top: 0, bottom: 0 } as const;
