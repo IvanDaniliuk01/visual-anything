@@ -16,6 +16,7 @@
     "bench": "pnpm --filter @visual-anything/app run bench",
     "package": "pnpm build && tsx packages/server/scripts/package.ts",
     "smoke": "tsx packages/server/scripts/smoke.ts",
+    "notices": "tsx packages/server/scripts/notices-write.ts",
     "test": "vitest run --reporter=default --reporter=./scripts/skipped-tests-reporter.ts",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",

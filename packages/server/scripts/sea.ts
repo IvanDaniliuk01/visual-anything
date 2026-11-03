@@ -14,6 +14,7 @@ import { bundleSolidWorker } from '../src/solids/bundle';
 import { SOLID_WORKER_ASSET, SOLID_WORKER_FILE } from '../src/solids/cleaner';
 import { APP_ASSET_PREFIX, NOTICES_ASSET } from '../src/executable';
 import { bundledPackages, noticeText, packageFolders } from './notices';
+import { THIRD_PARTY_FILE, unnamedPackages } from './third-party';
 
 /** The repository's root folder. */
 export const REPOSITORY = fileURLToPath(new URL('../../..', import.meta.url));
@@ -98,9 +99,22 @@ export async function writeNotices(
   metafiles: readonly Metafile[],
   outfile: string,
   nodeVersion: string = process.versions.node,
+  thirdParty?: string,
 ): Promise<string> {
   const packages = await bundledPackages(packageFolders(metafiles, process.cwd()));
-  const text = noticeText(packages, nodeVersion);
+  let text = noticeText(packages, nodeVersion);
+  if (thirdParty !== undefined) {
+    // The repository's notice (ADR 0047's clarification of 2026-11-03) follows, the app's packages
+    // and the license texts among it; it must name every package these bundles hold.
+    const missing = unnamedPackages(packages, thirdParty);
+    if (missing.length > 0) {
+      throw new Error(
+        `${THIRD_PARTY_FILE} does not name ${missing.join(', ')}: run pnpm notices and commit it.`,
+      );
+    }
+    text = `${text}
+${thirdParty}`;
+  }
   await writeFile(outfile, text);
   return text;
 }
