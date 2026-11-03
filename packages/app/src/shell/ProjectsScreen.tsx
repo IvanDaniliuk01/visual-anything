@@ -10,7 +10,7 @@ import { useId, useState, type FormEvent } from 'react';
 import { useT, type Translator } from '../i18n';
 import type { CommandResult, HomeOffer, NewProjectChoice } from '../live/connection';
 import { Header } from './Header';
-import { SAMPLE_TEXTS } from './StartScreen';
+import { SAMPLE_TEXTS } from './sampleTexts';
 import './start.css';
 import './projects.css';
 
@@ -71,7 +71,9 @@ export function ProjectsScreen({
   const create = (key: string, choice: Omit<NewProjectChoice, 'name'>) =>
     void run(
       key,
-      createProject === undefined ? undefined : () => createProject({ name: name.trim(), ...choice }),
+      createProject === undefined
+        ? undefined
+        : () => createProject({ name: name.trim(), ...choice }),
     );
 
   const disabled = busy !== undefined;
@@ -281,7 +283,14 @@ interface ProjectRowProps {
 }
 
 /** A project to open: its name, its world, when it last changed, and Open. */
-function ProjectRow({ project, showPath, disabled, opening, describedBy, onOpen }: ProjectRowProps) {
+function ProjectRow({
+  project,
+  showPath,
+  disabled,
+  opening,
+  describedBy,
+  onOpen,
+}: ProjectRowProps) {
   const t = useT();
   const world = worldName(t, project.world);
   const details = [

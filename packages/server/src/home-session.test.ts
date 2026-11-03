@@ -8,7 +8,12 @@ import { join } from 'node:path';
 import { PROTOCOL_VERSION, type ServerMessage } from '@visual-anything/core';
 import { translateMessage, untranslatedParts } from '@visual-anything/app/src/i18n/translate';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { HomeSession, NO_PROJECT_FOR_CLAUDE, NO_PROJECT_OPEN, type HomeOptions } from './home-session';
+import {
+  HomeSession,
+  NO_PROJECT_FOR_CLAUDE,
+  NO_PROJECT_OPEN,
+  type HomeOptions,
+} from './home-session';
 import { PREFERENCES_FILE, openPreferences, type PreferencesStore } from './preferences';
 import { openSession, type Session, type SessionClient } from './session';
 import { testProject, writeProjectFolder } from './test-support';
@@ -110,12 +115,16 @@ describe('a program at home', () => {
     expect(second.last('project/opened')).toBeDefined();
     expect(opened.map((each) => each.folder)).toEqual([folder]);
     expect(preferences.recentProjects?.()).toEqual([folder]);
-    const file = JSON.parse(await readFile(join(root, 'config', PREFERENCES_FILE), 'utf8'));
+    const file = JSON.parse(await readFile(join(root, 'config', PREFERENCES_FILE), 'utf8')) as {
+      recentProjects: string[];
+    };
     expect(file.recentProjects).toEqual([folder]);
     // Its commands go to the project now.
     await session.receive(
       first,
-      message('command', { command: { type: 'update-element', id: 'api', changes: { name: 'G' } } }),
+      message('command', {
+        command: { type: 'update-element', id: 'api', changes: { name: 'G' } },
+      }),
     );
     expect(second.last('project/changed')).toBeDefined();
   });
@@ -139,7 +148,10 @@ describe('a program at home', () => {
   it('refuses commands, and refuses a project another program has open', async () => {
     const folder = await shop();
     const { session } = home({
-      elsewhere: () => Promise.resolve('Visual Anything already runs on “Shop” in another program, so it opened a tab there.'),
+      elsewhere: () =>
+        Promise.resolve(
+          'Visual Anything already runs on “Shop” in another program, so it opened a tab there.',
+        ),
     });
     const client = app();
     session.connect(client);
@@ -149,7 +161,7 @@ describe('a program at home', () => {
     });
     await session.receive(client, message('home/open', { path: folder }));
     expect(client.last('command/rejected')).toMatchObject({
-      problems: [{ message: expect.stringMatching(/opened a tab there/) }],
+      problems: [{ message: expect.stringMatching(/opened a tab there/) as string }],
     });
     expect(session.atHome).toBe(true);
   });
@@ -172,7 +184,10 @@ describe('a program at home', () => {
     const { session } = home();
     const client = app();
     session.connect(client);
-    await session.receive(client, message('home/create', { name: 'Auditoría: médica', view: 'Vista' }));
+    await session.receive(
+      client,
+      message('home/create', { name: 'Auditoría: médica', view: 'Vista' }),
+    );
     expect(client.last('project/opened')).toMatchObject({
       project: { project: { name: 'Auditoría: médica' }, views: [{ name: 'Vista' }] },
     });
@@ -226,7 +241,10 @@ describe('a program at home', () => {
     expect(first.last('project/changed')).toBeDefined();
     const model = await readFile(join(folder, 'model.vamodel'), 'utf8');
     expect(model).toContain('Gateway');
-    expect(second.last('home/offered')).toMatchObject({ requestId: 'h', recent: [{ path: folder }] });
+    expect(second.last('home/offered')).toMatchObject({
+      requestId: 'h',
+      recent: [{ path: folder }],
+    });
     expect(first.last('home/offered')).not.toHaveProperty('requestId');
     expect(claude.messages.filter((each) => each.type === 'project/closed')).toHaveLength(2);
     expect(closed).toEqual([folder]);

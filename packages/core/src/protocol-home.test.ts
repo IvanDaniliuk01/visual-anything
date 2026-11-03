@@ -16,7 +16,12 @@ const offered: ServerMessage = {
   protocolVersion: PROTOCOL_VERSION,
   folder: 'C:/Users/ana/Documents/Visual Anything',
   projects: [
-    { path: 'C:/Users/ana/Documents/Visual Anything/Audit', name: 'Audit', world: 'healthcare', changed: 5 },
+    {
+      path: 'C:/Users/ana/Documents/Visual Anything/Audit',
+      name: 'Audit',
+      world: 'healthcare',
+      changed: 5,
+    },
     { path: 'C:/Users/ana/Documents/Visual Anything/Mine', name: 'Mine', changed: 3 },
   ],
   recent: [

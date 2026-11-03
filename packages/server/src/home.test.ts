@@ -87,7 +87,7 @@ describe('listProjects and describeProject', () => {
     await mkdir(join(root, '.hidden'));
     const listed = await listProjects(root);
     expect(listed).toEqual([
-      { path: shop, name: testProject().project.name, changed: expect.any(Number) },
+      { path: shop, name: testProject().project.name, changed: expect.any(Number) as number },
     ]);
     expect(await describeProject(join(root, 'notes'))).toBeUndefined();
     expect(await listProjects(join(root, 'missing'))).toEqual([]);

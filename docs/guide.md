@@ -6,6 +6,17 @@ Everything the [README](../README.md) leaves out: opening and starting projects,
 
 Run `pnpm dev` (or `pnpm start`) at the repository root. Visual Anything opens your browser on the sample project at an address that works once, within two minutes. In the terminal where it runs, press `o` to open another tab, or `a` to print another such address; with `--no-open` it prints one at start. The session token never appears on screen or in an address: the tab gets it when it opens and keeps it for reloads.
 
+### Home and the Projects screen
+
+Started with no folder, as a double-click on the executable does, Visual Anything starts at **home** and the browser shows the **Projects** screen (ADR 0093):
+
+- **Your projects**: the projects in the projects folder, `Documents/Visual Anything` in your home folder (made the first time a project is written there), each with its world and when it last changed.
+- **Recent projects**: the last 10 opened, wherever they are. One whose folder is gone is marked missing, and **Remove from the list** takes it off.
+- **New project**: give it a name, then start it empty or from a sample, shown by world. It is written as a subfolder of the projects folder named from the project's name (`Name 2` when `Name` is taken).
+- **Open a folder…**: paste the whole path of a folder that holds a project, or nothing yet, which shows the start screen there.
+
+Choosing a project opens it in every tab, and Claude can attach to it. **Projects…**, in the header's **Menu**, closes the project once every change is saved and takes every tab back to the Projects screen; Claude is told that no project is open until you open one. An absolute `VISUAL_ANYTHING_PROJECTS` names another projects folder.
+
 ## Starting a new project
 
 `visual-anything new <folder>` starts a new project in a folder that does not exist yet or holds nothing, then opens it; with `--from <sample>`, one of `c4-architecture`, `data-science-pipeline`, `churn-classifier`, `robot-arm`, `order-process`, `clinic-claim`, `workshop-books` and `bookshop-database`, it starts from that sample project (ADR 0051). From the repository, run `pnpm exec tsx packages/server/src/cli.ts new <folder> --from <sample>`. Opening a folder that holds nothing yet, as `visual-anything <folder>`, shows a start screen in the browser instead, with the same choices.
@@ -79,7 +90,7 @@ Run it in a terminal, in the folder where it is or with its full path:
 visual-anything [open] [folder] [--view <id> [--select <id>]...] [--port <n>] [--no-open] [--log <file>]
 ```
 
-It opens the project in `folder` (the current folder when left out), serves it on 127.0.0.1 and opens your browser, as `pnpm start` does; with `--no-open` it prints an address that works once instead. `--view` opens the app at a view, and `--select` selects an element, relation or free shape there (give it again for more), as a view address does. When it already runs on that folder, it opens a new tab in the one running instead of starting another. Press Ctrl+C to stop it. `visual-anything mcp` is the MCP server Claude starts, and `visual-anything setup-claude` adds it to Claude Desktop (see below); to open a folder that is named `mcp`, write `./mcp`. The executable serves the app it was built with, so `--dev` works only from the repository.
+It opens the project in `folder` (home, the Projects screen, when left out; `.` is the current folder), serves it on 127.0.0.1 and opens your browser, as `pnpm start` does; with `--no-open` it prints an address that works once instead. `--view` opens the app at a view, and `--select` selects an element, relation or free shape there (give it again for more), as a view address does. When it already runs on that folder, it opens a new tab in the one running instead of starting another. Press Ctrl+C to stop it. `visual-anything mcp` is the MCP server Claude starts, and `visual-anything setup-claude` adds it to Claude Desktop (see below); to open a folder that is named `mcp`, write `./mcp`. The executable serves the app it was built with, so `--dev` works only from the repository.
 
 With `--log <file>`, it appends one JSON line to the file for each action done, undone or redone (with its author, label, number of operations and the ids it created, and for a layout that joined an action, that action), each command refused (with its problems' codes), each app or Claude attached or gone, and each file of the project changed on disk; the time comes first on each line. It never writes a token, a launch code, a credential, a preference or what a file holds, so a log can be pasted to show the path a command took. `pnpm exec tsx packages/server/src/cli.ts <folder> --log program.log` does the same from the repository.
 

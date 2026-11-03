@@ -86,7 +86,9 @@ describe('LiveConnection at home', () => {
       encodeServerMessage({
         type: 'command/rejected',
         requestId,
-        problems: [{ code: 'invalid-command', message: 'There is no sample "nothing" to start from.' }],
+        problems: [
+          { code: 'invalid-command', message: 'There is no sample "nothing" to start from.' },
+        ],
       }),
     );
     expect(await creating).toMatchObject({ ok: false });

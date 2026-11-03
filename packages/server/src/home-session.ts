@@ -37,13 +37,7 @@ import type { Id, ProjectFile } from '@visual-anything/schema';
 import { formatFile } from '@visual-anything/schema/format';
 import type { MadeDrawing } from './drawings/make';
 import { errorReason } from './errors';
-import {
-  checkHomeFolder,
-  describeProject,
-  folderNameFor,
-  listProjects,
-  samePath,
-} from './home';
+import { checkHomeFolder, describeProject, folderNameFor, listProjects, samePath } from './home';
 import type { LayoutGuidance } from './layout-waits';
 import type { LiveKept, LiveListing } from './live';
 import { toForwardSlashes } from './paths';
@@ -458,7 +452,7 @@ export class HomeSession implements LiveSession {
     }
     if (checked.holds === 'nothing') {
       const starting = new StartingSession(checked.folder, {
-        open: this.#options.open,
+        open: (folder) => this.#options.open(folder),
         ...(this.#options.preferences === undefined
           ? {}
           : { preferences: this.#options.preferences }),
@@ -603,7 +597,8 @@ export class HomeSession implements LiveSession {
       this.#tokens.delete(app);
       this.#apps.set(app, inner.connect(app, token === undefined ? {} : { token }));
     }
-    for (const claude of this.#claudes.keys()) this.#claudes.set(claude, inner.attachClaude(claude));
+    for (const claude of this.#claudes.keys())
+      this.#claudes.set(claude, inner.attachClaude(claude));
   }
 
   /** A project is open: it joins the recent list, and whoever listens hears of it. */

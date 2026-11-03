@@ -481,6 +481,22 @@ _Avoid_: template, demo, example (as a product term)
 What the app shows while the local program runs on a folder that holds no project yet: the sample projects a project there can start from, and an empty project (ADR 0051).
 _Avoid_: welcome screen, wizard
 
+**Home**:
+Where the local program is when no project is open: started with no folder, or after "Projects…". The app shows the Projects screen (ADR 0093).
+_Avoid_: launcher, dashboard
+
+**Projects screen**:
+What the app shows at home: the projects in the projects folder, the recent projects, a new project from a sample or empty, and a folder to open by its path (ADR 0093).
+_Avoid_: welcome screen, project picker
+
+**Projects folder**:
+`Documents/Visual Anything` in the person's home folder, where the Projects screen lists projects and writes new ones (ADR 0093).
+_Avoid_: workspace
+
+**Recent projects**:
+The last 10 projects the program opened, as absolute paths, kept in the preferences; one whose folder is gone is missing (ADR 0093).
+_Avoid_: history (which is the undo history)
+
 **Shared package**:
 A package of a project's own copied from another project, with its images and its ids, and updated from there after a preview of what changed; the two copies live apart (ADR 0051).
 _Avoid_: linked package, imported package, dependency

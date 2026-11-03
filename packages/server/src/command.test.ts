@@ -23,7 +23,7 @@ import {
 } from './command';
 import type { AppSource } from './server';
 import { openSession } from './session';
-import { openLive, send, testProject, writeProjectFolder } from './test-support';
+import { openLive, send, testProject, textOf, writeProjectFolder } from './test-support';
 
 const REPOSITORY = fileURLToPath(new URL('../../..', import.meta.url));
 const SAMPLE = 'examples/my-systems';
@@ -442,7 +442,7 @@ describe('runCommand', { timeout: 20_000 }, () => {
     if (!outcome.open) throw new Error('The tab was refused.');
     expect(decodeServerMessage(outcome.firstMessage).type).toBe('preferences/changed');
     const received: string[] = [];
-    outcome.socket.on('message', (data) => received.push(String(data)));
+    outcome.socket.on('message', (data) => received.push(textOf(data)));
     const types = () => received.map((text) => decodeServerMessage(text).type);
     await expect.poll(types, STARTING).toContain('home/offered');
 
@@ -450,9 +450,7 @@ describe('runCommand', { timeout: 20_000 }, () => {
     await expect.poll(types, STARTING).toContain('project/opened');
     await expect.poll(() => listProgramRecords(runtime)).toHaveLength(1);
     const [record] = await listProgramRecords(runtime);
-    expect(record?.folder).toBe(
-      (await realpath(join(projects, 'Mine'))).replaceAll('\\', '/'),
-    );
+    expect(record?.folder).toBe((await realpath(join(projects, 'Mine'))).replaceAll('\\', '/'));
 
     outcome.socket.send(JSON.stringify({ type: 'home/close', requestId: 'h' }));
     await expect.poll(() => types().filter((type) => type === 'home/offered').length).toBe(2);

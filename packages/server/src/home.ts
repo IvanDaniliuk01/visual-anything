@@ -7,7 +7,12 @@
 import { existsSync, statSync } from 'node:fs';
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { basename, join, posix, resolve, win32 } from 'node:path';
-import { MAX_HOME_PATH, MAX_HOME_PROJECTS, builtinPackage, type HomeProject } from '@visual-anything/core';
+import {
+  MAX_HOME_PATH,
+  MAX_HOME_PROJECTS,
+  builtinPackage,
+  type HomeProject,
+} from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { errorCode, errorReason } from './errors';
 import { toForwardSlashes } from './paths';
@@ -107,7 +112,7 @@ async function readSmallJson(path: string): Promise<Record<string, unknown> | un
   try {
     const info = await handle.stat();
     if (!info.isFile() || info.size > MAX_PROJECT_FILE) return undefined;
-    const text = (await handle.readFile()).toString('utf8').replace(/^﻿/, '');
+    const text = (await handle.readFile()).toString('utf8').replace(/^\uFEFF/, '');
     const value: unknown = JSON.parse(text);
     return typeof value === 'object' && value !== null && !Array.isArray(value)
       ? (value as Record<string, unknown>)
@@ -172,8 +177,7 @@ export function folderNameFor(name: string): string {
 
 /** What a folder an app named on the Projects screen holds, once checked. */
 export type HomeFolder =
-  | { ok: true; folder: string; holds: 'project' | 'nothing' }
-  | { ok: false; message: string };
+  { ok: true; folder: string; holds: 'project' | 'nothing' } | { ok: false; message: string };
 
 /**
  * Checks a folder an app named to open (ADR 0093): an absolute path, not of the network nor of a

@@ -312,7 +312,8 @@ async function runWithLog(
   const { store: preferences, warning } = await openPreferences(location.folder);
   if (warning !== undefined) environment.err(`Warning: ${warning}`);
 
-  const folder = options.folder === undefined ? undefined : resolve(environment.cwd, options.folder);
+  const folder =
+    options.folder === undefined ? undefined : resolve(environment.cwd, options.folder);
   const stopper = new Stopper();
   const idle = options.stopWhenIdle
     ? new IdleStop(
@@ -354,7 +355,8 @@ async function runWithLog(
   }
   // The record that lets Claude attach, for the project open now; at home there is none (ADR 0093).
   let record: string | undefined;
-  let running: RunningServer | undefined;
+  // The server, once it runs: the record for Claude names its port and credential.
+  const running: { server?: RunningServer } = {};
   // A folder that holds nothing yet gets the start screen, from which the person starts a project
   // there, from a sample or empty (ADR 0051).
   const starting =
@@ -382,9 +384,9 @@ async function runWithLog(
         );
         if (record !== undefined) await removeProgramRecord(record, process.pid);
         record =
-          running === undefined
+          running.server === undefined
             ? undefined
-            : await recordForClaude(environment, running, opened.folder);
+            : await recordForClaude(environment, running.server, opened.folder);
       },
       onClosed: async (closed) => {
         if (record !== undefined) await removeProgramRecord(record, process.pid);
@@ -452,7 +454,7 @@ async function runWithLog(
     environment.err(describeStartFailure(error, options.port));
     return 1;
   }
-  running = server;
+  running.server = server;
   stopper.onSignals(environment.signals);
   // Every address that works once carries the view state asked for, beside its launch code.
   const launchUrl = () =>
