@@ -15,8 +15,8 @@ import {
 } from './protocol';
 
 describe('layout guidance with an answer', () => {
-  it('stays in protocol 7, since no build of 7 has shipped', () => {
-    expect(PROTOCOL_VERSION).toBe(7);
+  it('came in protocol 7, since no build of 7 had shipped', () => {
+    expect(PROTOCOL_VERSION).toBeGreaterThanOrEqual(7);
   });
 
   it('carries the id the app answers by, and reads without one as before', () => {

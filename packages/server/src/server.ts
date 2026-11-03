@@ -20,6 +20,8 @@ import {
 import type { Id } from '@visual-anything/schema';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { attachClaude } from './claude/endpoint';
+import type { ClaudeSetup } from './claude-setup';
+import { answerClaudeSetup, claudeSetupAsked } from './claude-setup-answer';
 import { CLAUDE_MAX_PAYLOAD, CLAUDE_PATH, encodeClaudeMessage } from './claude/messages';
 import { toForwardSlashes } from './paths';
 import { refuseUpgrade, sendText, setSecurityHeaders } from './responses';
@@ -90,6 +92,12 @@ export interface ServerOptions {
    * 0089), whose code Claude's tools then run neither.
    */
   codeTurnedOff?: () => readonly Id[];
+  /**
+   * Adds this program to Claude Desktop's configuration, as `setup-claude` does, when an app asks
+   * with `claude/setup` (ADR 0093). Whatever is open, or nothing, the program answers it itself;
+   * absent, it refuses to.
+   */
+  setupClaude?: () => Promise<ClaudeSetup>;
 }
 
 /** A theme the page can paint its first frame in. */
@@ -182,7 +190,13 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     const disconnect = options.session.connect(client, via === 'launch' ? { token } : {});
     socket.on('close', disconnect);
     socket.on('message', (data) => {
-      options.session.receive(client, textOf(data)).catch((error: unknown) => {
+      const text = textOf(data);
+      const setup = claudeSetupAsked(text);
+      const received =
+        setup === undefined
+          ? options.session.receive(client, text)
+          : answerClaudeSetup(client, setup, options.setupClaude);
+      received.catch((error: unknown) => {
         console.error(error);
       });
     });

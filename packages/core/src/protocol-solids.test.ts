@@ -1,6 +1,6 @@
 /**
  * The five messages about solids on the live connection (ADR 0075): each side's decoder takes them,
- * read strictly by the core's readers, and the protocol stays at version 7 (ADR 0075's clarification).
+ * read strictly by the core's readers, and they came in version 7 of the protocol (ADR 0075's clarification).
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -26,8 +26,8 @@ function reason(read: () => unknown): string {
 }
 
 describe('solids over the live connection (ADR 0075)', () => {
-  it('stays at version 7', () => {
-    expect(PROTOCOL_VERSION).toBe(7);
+  it('came in version 7', () => {
+    expect(PROTOCOL_VERSION).toBeGreaterThanOrEqual(7);
   });
 
   it('reads solid/get and solid/prepare from an app', () => {

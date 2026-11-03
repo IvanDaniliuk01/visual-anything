@@ -31,8 +31,8 @@ const project: ProjectSnapshot = {
 };
 
 describe('PROTOCOL_VERSION', () => {
-  it('is 7, since project files can hold free geometry, named parts and automatic route styles', () => {
-    expect(PROTOCOL_VERSION).toBe(7);
+  it('is 8, since an app can ask the program to connect Claude Desktop (ADR 0093)', () => {
+    expect(PROTOCOL_VERSION).toBe(8);
   });
 
   it('names the launch code and the token in the address and on the live connection', () => {

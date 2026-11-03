@@ -11,6 +11,7 @@
  *   visual-anything import <folder> <file> [--map <kind>=<id>]... [--dry-run]
  *   visual-anything live <folder> [--fresh-for <seconds>] < values.jsonl
  *   visual-anything notices
+ *   visual-anything setup-claude
  *   visual-anything merge-driver <ancestor> <ours> <theirs> <path> [<ours' name> <theirs' name>]
  *   visual-anything merge-driver --install [--global] [--no-attributes] | --uninstall [--global]
  *
@@ -24,7 +25,8 @@
  * (ADR-0042); `live` pipes live values into the program running on the folder
  * (`live-command.ts`, ADR 0057); and `merge-driver` is what git runs to merge two edits of a project
  * file by id, once `merge-driver --install` defines it in the person's git configuration
- * (`merge-driver.ts`, ADR 0072).
+ * (`merge-driver.ts`, ADR 0072); and `setup-claude` adds this executable to Claude Desktop's
+ * configuration (`claude-setup.ts`, ADR 0093).
  */
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
@@ -33,6 +35,14 @@ import open from 'open';
 import { ProgramBridge } from './claude/bridge';
 import { runtimeFolder } from './claude/discovery';
 import { MCP_USAGE, createMcpServer, parseMcpCommandLine } from './claude/mcp';
+import {
+  SETUP_CLAUDE_COMMAND,
+  claudeDesktopFolder,
+  runSetupClaude,
+  setUpClaude,
+  sourcesEntry,
+  type ClaudeSetup,
+} from './claude-setup';
 import { parseCommandLine, runCommand, type KeyInput } from './command';
 import { runImport } from './import-command';
 import { errorCode } from './errors';
@@ -78,7 +88,8 @@ export interface Entry {
     | 'import'
     | 'live'
     | 'notices'
-    | 'merge-driver';
+    | 'merge-driver'
+    | 'setup-claude';
   argv: string[];
 }
 
@@ -99,6 +110,7 @@ export function entryOf(argv: readonly string[]): Entry {
   if (argv[0] === LIVE_COMMAND) return { kind: 'live', argv: argv.slice(1) };
   if (argv[0] === NOTICES_COMMAND) return { kind: 'notices', argv: argv.slice(1) };
   if (argv[0] === MERGE_DRIVER_COMMAND) return { kind: 'merge-driver', argv: argv.slice(1) };
+  if (argv[0] === SETUP_CLAUDE_COMMAND) return { kind: 'setup-claude', argv: argv.slice(1) };
   return { kind: 'program', argv: [...argv] };
 }
 
@@ -127,11 +139,17 @@ export function main(argv: readonly string[]): void {
                 ? Promise.resolve(printNotices())
                 : entry.kind === 'merge-driver'
                   ? runMergeDriverCommand(entry.argv)
-                  : runProgram(
-                      entry.argv,
-                      isExecutable(),
-                      entry.kind === 'new' ? runNewCommand : runCommand,
-                    );
+                  : entry.kind === 'setup-claude'
+                    ? runSetupClaude(entry.argv, {
+                        out: (line) => console.log(line),
+                        err: (line) => console.error(line),
+                        setUp: () => setUpClaudeHere(),
+                      })
+                    : runProgram(
+                        entry.argv,
+                        isExecutable(),
+                        entry.kind === 'new' ? runNewCommand : runCommand,
+                      );
   void run.then((code) => {
     if (code !== undefined) process.exitCode = code;
   });
@@ -174,6 +192,19 @@ export async function runMergeDriverCommand(argv: readonly string[]): Promise<nu
     cwd: process.cwd(),
     out: (line) => console.log(line),
     err: (line) => console.error(line),
+  });
+}
+
+/**
+ * Adds this program to the Claude Desktop configuration of the person running it (ADR 0093): the
+ * single executable by its absolute path; from the sources, it writes nothing and says what to add.
+ */
+export function setUpClaudeHere(executable: boolean = isExecutable()): Promise<ClaudeSetup> {
+  return setUpClaude({
+    folder: claudeDesktopFolder(process.platform, process.env, homedir()),
+    program: executable
+      ? { executable: true, path: process.execPath }
+      : { executable: false, entry: sourcesEntry() },
   });
 }
 
@@ -224,6 +255,8 @@ export async function runProgram(
     runtimeFolder: runtime,
     // The executable starts itself for another project a destination opens (ADR 0056).
     ...(executable ? { startProgram: startProgramWith(runtime) } : {}),
+    // "Connect Claude…" in the app runs what setup-claude runs (ADR 0093).
+    setupClaude: () => setUpClaudeHere(executable),
   });
 }
 
