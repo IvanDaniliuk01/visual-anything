@@ -297,7 +297,7 @@ describe('a shape’s turn and mirroring in a view', () => {
   it('refuses what is not a rotation or a flip', () => {
     expect(refusal(place({ rotation: 'left' }))).toContain('rotation');
     expect(refusal(place({ rotation: 4000 }))).toContain('rotation');
-    expect(refusal(place({ flip: 'diagonal' }))).toContain('flipped');
+    expect(refusal(place({ flip: 'diagonal' }))).toContain('mirrored');
   });
 
   it('never lets a turn ride on another action as a placement', () => {

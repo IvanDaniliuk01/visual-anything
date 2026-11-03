@@ -241,7 +241,7 @@
 }
 
 .package-decision-moved {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .package-decision-buttons {
