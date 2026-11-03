@@ -139,7 +139,30 @@ function comment(lines, description) {
 // A value written as SQL itself (a type, a default, a check) that could end its statement or
 // begin a comment is left out, with a note, so that an exported script runs only what it shows.
 function safeSql(value) {
-  return value !== '' && !/;|--|\/\*|\*\/|\u0085/.test(value);
+  if (value === '' || /;|--|\/\*|\*\/|\$|\\|\u0085/.test(value)) return false;
+  // Quotes balanced, so that no string or quoted name opens here and closes in what follows.
+  if ((value.match(/'/g) || []).length % 2 !== 0 || (value.match(/"/g) || []).length % 2 !== 0) {
+    return false;
+  }
+  // Parentheses balanced outside quotes, so that a check never closes its own early.
+  let depth = 0;
+  let quote = '';
+  for (const character of value) {
+    if (quote !== '') {
+      if (character === quote) quote = '';
+    } else if (character === "'" || character === '"') quote = character;
+    else if (character === '(') depth += 1;
+    else if (character === ')') {
+      depth -= 1;
+      if (depth < 0) return false;
+    }
+  }
+  return depth === 0;
+}
+
+// A type is a name, with an optional size or precision and array brackets, such as numeric(10, 2).
+function safeType(value) {
+  return /^[A-Za-z_][A-Za-z0-9_ .]*(\(\s*\d+(\s*,\s*\d+)?\s*\))?(\s*\[\])*$/.test(value);
 }
 
 const ON_DELETE = new Set(['no action', 'restrict', 'cascade', 'set null', 'set default']);
@@ -152,7 +175,7 @@ function columnLine(column) {
   const values = column.attributes;
   const notes = [];
   let type = text(values.type);
-  if (type !== '' && !safeSql(type)) {
+  if (type !== '' && !safeType(type)) {
     notes.push('its type is not written, as it holds what could end the statement');
     type = '';
   } else if (type === '') notes.push('the model gives it no type');

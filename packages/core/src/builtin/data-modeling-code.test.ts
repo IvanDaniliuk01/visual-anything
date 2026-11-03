@@ -202,6 +202,45 @@ describe('the code of the built-in Data modeling package', () => {
     expect(sql).toContain('its ON DELETE is not one SQL knows');
   });
 
+  it('never lets a quote one value opens be closed by what follows it', () => {
+    const state = shop();
+    let first = true;
+    for (const element of state.model.elements) {
+      element.description = "x' ; DROP TABLE described; --";
+      if (element.attributes && 'type' in element.attributes) {
+        element.attributes = first
+          ? { ...element.attributes, default: "'", check: 'a $$ b', type: 'int) ; x' }
+          : { ...element.attributes, default: "'it''s'" };
+        first = false;
+      }
+    }
+    const sql = hooks().exportFile(
+      { exporter: 'sql-ddl' },
+      { model: modelReaderOf(state) },
+    ) as string;
+    const outsideComments = sql
+      .split(String.fromCharCode(10))
+      .map((line) => (line.includes('--') ? line.slice(0, line.indexOf('--')) : line))
+      .join(String.fromCharCode(10));
+    expect((outsideComments.match(/'/g) ?? []).length % 2).toBe(0);
+    expect(outsideComments).not.toMatch(/DROP|\$\$/);
+    expect(sql).toContain("DEFAULT 'it''s'");
+    const closing = shop();
+    for (const element of closing.model.elements) {
+      if (element.attributes && 'check' in element.attributes) {
+        element.attributes = {
+          ...element.attributes,
+          check: 'total_cents >= 0) , x int CHECK (true',
+        };
+      }
+    }
+    const closed = hooks().exportFile(
+      { exporter: 'sql-ddl' },
+      { model: modelReaderOf(closing) },
+    ) as string;
+    expect(closed).not.toContain('x int');
+  });
+
   it('says so of a model with no tables, and of a reference between tables without columns', () => {
     const empty = hooks().exportFile(
       { exporter: 'sql-ddl' },
