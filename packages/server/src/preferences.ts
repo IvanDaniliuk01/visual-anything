@@ -219,8 +219,11 @@ class Store implements PreferencesStore {
     const base = read === undefined ? this.recent : readRecentProjects(read.kept[RECENT_PROJECTS]);
     const next = readRecentProjects(update(base));
     this.recent = next;
-    // Never written: no file, or one a newer Visual Anything wrote.
-    if (this.#file === null || read?.newer === true) return [...next];
+    // Never written: no file, one a newer Visual Anything wrote, or one that cannot be read, which
+    // is left as it is until the person changes a preference.
+    if (this.#file === null || read?.newer === true || found?.state === 'unreadable') {
+      return [...next];
+    }
     const preferences = read?.preferences ?? this.#preferences;
     const kept = { ...(read?.kept ?? {}), [RECENT_PROJECTS]: next };
     try {

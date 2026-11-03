@@ -140,6 +140,8 @@ describe('preferences over the live connection', { timeout: 20_000 }, () => {
       schemaVersion: 1,
       ...DEFAULT_PREFERENCES,
       theme: 'dark',
+      // The project it opened is the first of the recent projects (ADR 0093).
+      recentProjects: [expect.any(String) as string],
     });
     const again = run({ preferences: { folder: nested } });
     expect(fragmentOf(await again.printedUrl()).get(THEME_PARAM)).toBe('dark');
