@@ -30,8 +30,17 @@
   cursor: pointer;
 }
 
-.connect-claude-copyable button:hover {
+.connect-claude-copyable button:hover:not(:disabled) {
   background: var(--surface-hover);
+}
+
+.connect-claude-copyable button:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.connect-claude-copyable button:disabled {
+  color: var(--text-muted);
+  cursor: default;
 }
 
 .connect-claude-copyable [role='alert'] {
@@ -57,6 +66,15 @@
   cursor: pointer;
 }
 
-.preferences-action:hover {
+.preferences-action:hover:not(:disabled) {
   background: var(--surface-hover);
+}
+
+.preferences-action:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.preferences-action:disabled {
+  color: var(--text-muted);
+  cursor: default;
 }
