@@ -207,7 +207,7 @@ A component that extends a declarative one with its own code to draw itself or s
 
 **Package**:
 A set of components and relation types from one domain, shared as a unit: "Neuroscience", "Data modeling".
-_Avoid_: library, plugin, extension
+_Avoid_: library, plugin, extension. The package file's key `extensions`, and the type `PackageExtensions`, keep that word on purpose: they hold what a package's code adds to the app (its package actions, importers, exporters and package panels), not the package itself (ADR 0089).
 
 **Built-in package**:
 A package that comes with Visual Anything, such as "Systems". A project uses it by listing its id; it is never copied into the project folder.
@@ -561,12 +561,32 @@ What package code may reach beyond its element, declared by its package and appr
 _Avoid_: permission (alone), scope (a view's)
 
 **Hook**:
-One of the three functions package code may export, each called with a frozen copy of an element and what lies around it, and answering plain data: `attributes` computes values, `check` finds problems, and `draw` says what to draw inside the element's shapes. It runs on the elements created from its package's components, and from components derived from them. Package code may also export `actions`, `import`, `export` and `panel`, which answer a proposal, a file's text or a panel's data (ADR 0089).
+One of the functions package code may export, each a pure function called with a frozen copy of what it needs and answering plain data: `attributes` computes values, `check` finds problems and `draw` says what to draw inside an element's shapes, on the elements created from its package's components and from components derived from them; `simulate` works a simulation out tick by tick (ADR 0085); `act`, `importFile`, `exportFile` and `panel` run a package action, an importer, an exporter or a package panel, called with the id its package file declares (ADR 0089).
 _Avoid_: callback, handler, script
 
 **Package action**:
-A named action package code offers in the canvas menu or the Packages menu, which answers a proposal the person reviews and never changes the model by itself (ADR 0089).
-_Avoid_: plugin command, macro, script
+A named action package code offers in the canvas menu, in "Packages…" or in a package panel, run by the hook `act`. It answers changes the person reviews, as a comparison with Accept and Decline, and accepting makes them one action of the person's; it never changes the model by itself (ADR 0089).
+_Avoid_: plugin command, macro, script, proposal (which is Claude's)
+
+**Importer**:
+What package code adds to Import…: the file extensions it reads, declared in its package file, and the hook `importFile`, which turns a file's text into changes the person reviews as a package action's (ADR 0089).
+_Avoid_: import plugin, parser, converter
+
+**Exporter**:
+What package code adds to Export…: a format's name and extension, declared in its package file, and the hook `exportFile`, which answers the file's text from the model and the open view; the browser saves it as every export is, and the code writes no file itself (ADR 0089).
+_Avoid_: export plugin, writer
+
+**Package panel**:
+A section of the inspector that package code adds for one selected element, answered by the hook `panel` as data (headings, texts, values, tables, charts and buttons that run its package actions) and drawn with the app's own controls; package code never touches the page (ADR 0089).
+_Avoid_: widget, plugin panel, custom view
+
+**Turned off** (package code):
+Package code this computer does not run, whatever its approval, set by "Run its code on this computer" in "Packages…" and kept by package id in the preference `codeTurnedOff` (ADR 0032, ADR 0089). Neither the app nor the local program runs it, for the person or for Claude, until it is turned on again under the approval it kept.
+_Avoid_: disabled, blocked, uninstalled
+
+**Built-in code**:
+The code of a built-in package, recognised by its hash as the code the program ships: it is part of the program, so it runs without the person's approval, in the same sandbox and within the same limits, and can be turned off as any package's code (ADR 0089, ADR 0018).
+_Avoid_: trusted code, system plugin, core code
 
 **Swatch**:
 One of the twelve colors every color field of the format panel offers first, before the project's colors and recent ones, each reading on both canvases (`core/src/palette.ts`, ADR 0088).
@@ -589,5 +609,5 @@ An attribute's value that a hook of package code computed: shown with a mark nam
 _Avoid_: derived attribute, formula
 
 **Approval**:
-The person's consent that a package's code may run, given in the app after reading it, by the hash of its text and capabilities, with the capabilities they grant. It is a preference, never part of the project, so any change to the code asks again, and Claude cannot give one (ADR 0060).
+The person's consent that a package's code may run, given in the app after reading it, by the hash of its text, its capabilities and, when declared, what it adds (ADR 0089), with the capabilities they grant. Built-in code needs none. It is a preference, never part of the project, so any change to the code asks again, and Claude cannot give one (ADR 0060).
 _Avoid_: permission (alone), trust, whitelist

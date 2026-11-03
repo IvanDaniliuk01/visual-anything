@@ -76,3 +76,7 @@ M8's live values (W37) settled these; ADR-0063 holds the rest.
 
 - **`network:<origin>` fetches now,** through the local program and never from the page or the worker: `attributes` reads `context.fetched(url, { every })`, what the program last fetched from an address on an origin granted, or `undefined` until it has. What such a call answers is live values of the package, not computed values (ADR-0063). Where the program may connect is ADR-0057's clarification on addresses. `check`, `draw` and Claude's `run_package_code` have no `context.fetched`.
 - **Computed values are read like stored ones** by the canvas's detail, with the mark `ƒ`, and by filters and time ranges, through the app's attribute lookup, under live values and over stored ones. Overlays read through the same lookup once they are in.
+
+<!-- Decided by Claude on 2026-11-02 under the user's standing delegation of design decisions, in M14's review. -->
+
+- 2026-11-02 (M14's review): **built-in code runs without an approval.** The code of a built-in package, recognised by its hash as the code the program ships, runs as the program's own (ADR 0018), in the same sandbox and within the same limits, as ADR 0089's M14.6 clarification has it; the approval this ADR asks for stays for every other package's code. Code turned off on this computer (the preference `codeTurnedOff`, ADR 0089's M14.2 clarification) runs nowhere, approved or built in: not in the app, nor for Claude's `run_package_code` and `run_simulation`, nor for what the local program fetches or takes as live values for it.
