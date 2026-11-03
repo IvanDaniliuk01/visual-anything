@@ -89,6 +89,7 @@ export const SCALE = {
     3600: '36rem',
     4000: '40rem',
     4400: '44rem',
+    7800: '78rem',
   },
   radius: { xs: '0.2rem', sm: '0.25rem', md: '0.4rem', lg: '0.6rem', full: '999px' },
   /**
@@ -104,8 +105,15 @@ export const SCALE = {
     bar: '4px',
     dash: '4 3',
   },
-  /** 12, 13, 14, 16 and 18 px at the default text size; 12 px is the floor. */
-  text: { xs: '0.857rem', sm: '0.929rem', md: '1rem', lg: '1.143rem', xl: '1.286rem' },
+  /** 12, 13, 14, 16, 18 and 24 px at the default text size; 12 px is the floor. */
+  text: {
+    xs: '0.857rem',
+    sm: '0.929rem',
+    md: '1rem',
+    lg: '1.143rem',
+    xl: '1.286rem',
+    '2xl': '1.714rem',
+  },
   /**
    * Lengths relative to the text they sit in, for text that takes emphasis (ADR 0082): its headings,
    * its code and its padding, a link's underline, and the gutter of line numbers beside code.

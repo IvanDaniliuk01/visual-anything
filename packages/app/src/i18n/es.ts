@@ -192,28 +192,57 @@ export const ui: Catalog = {
     'Usa el paquete incorporado Sistemas y tiene una vista; la pestaña Componentes agrega más paquetes.',
   'Start an empty project': 'Empezar un proyecto vacío',
   Overview: 'Vista general',
+  // Each sample in one short line, on the Projects screen's cards (ADR 0093).
+  'From the people who use a bank’s internet banking down to its servers.':
+    'Desde las personas que usan la banca por internet de un banco hasta sus servidores.',
+  'How a subscription business turns its data into a churn model.':
+    'Cómo un negocio de suscripciones convierte sus datos en un modelo de bajas.',
+  'A Transformer that reads each customer’s last events to tell who will cancel.':
+    'Un Transformer que lee los últimos eventos de cada cliente para predecir quién se dará de baja.',
+  'A six-axis arm drawn as a solid that turns, with its motors, control loop and software.':
+    'Un brazo de seis ejes dibujado como un sólido que gira, con sus motores, su lazo de control y su software.',
+  'An online order, from its stock check to shipping, and the states it goes through.':
+    'Un pedido en línea, desde su control de stock hasta el envío, y los estados por los que pasa.',
+  'A clinic’s claim for a knee MRI, from the visit to payment or denial, and its audit.':
+    'La factura de una clínica por una resonancia de rodilla, desde la consulta hasta el pago o el rechazo, y su auditoría.',
+  'A workshop’s books, from an invoice to the general ledger by double entry.':
+    'Los libros de un taller, desde una factura hasta el libro mayor por partida doble.',
+  'A bookshop’s tables in two schemas, their keys and the foreign keys between them.':
+    'Las tablas de una librería en dos esquemas, sus claves y las claves foráneas entre ellas.',
 
   // The Projects screen, at home (ADR 0093), and the header's menu.
   Menu: 'Menú',
   'Projects…': 'Proyectos…',
   Projects: 'Proyectos',
+  'Make any concept or system visual, and explore it.':
+    'Hacer visible cualquier concepto o sistema, y explorarlo.',
   'Your projects': 'Proyectos propios',
-  'No projects in {folder} yet.': 'Todavía no hay proyectos en {folder}.',
+  'Projects folder': 'Carpeta de proyectos',
+  'Copy the projects folder’s path': 'Copiar la ruta de la carpeta de proyectos',
+  'Copy path': 'Copiar ruta',
+  'No projects yet. Start from a sample below.':
+    'Todavía no hay proyectos. Empezar a partir de un proyecto de muestra, más abajo.',
   'Recent projects': 'Proyectos recientes',
   'Missing: its folder is gone, or holds no project now.':
     'No está: su carpeta ya no existe, o ya no tiene ningún proyecto.',
   'Remove “{name}” from the recent list': 'Quitar “{name}” de la lista de recientes',
   'Remove from the list': 'Quitar de la lista',
-  'New project': 'Proyecto nuevo',
-  'It is written in a folder of its name in {folder}.':
-    'Se guarda en una carpeta con su nombre dentro de {folder}.',
-  'Give the new project a name first.': 'Primero darle un nombre al proyecto nuevo.',
+  'Start something new': 'Empezar algo nuevo',
+  'Name of the new project': 'Nombre del proyecto nuevo',
+  'Optional: left empty, it takes the sample’s title, or “{name}”.':
+    'Opcional: si queda vacío, toma el título del proyecto de muestra, o “{name}”.',
+  'My project': 'Mi proyecto',
+  'From nothing': 'Desde cero',
+  'The built-in Systems package and one view, to fill as you go.':
+    'El paquete incorporado Sistemas y una vista, para completar sobre la marcha.',
   'Open a folder…': 'Abrir una carpeta…',
   'The whole path of a folder that holds a project, or nothing yet':
     'La ruta completa de una carpeta que tiene un proyecto, o que todavía está vacía',
   'Opening…': 'Abriendo…',
-  'Changed {when}': 'Modificado el {when}',
+  'Changed {ago}': 'Modificado {ago}',
   'Open “{name}”': 'Abrir “{name}”',
+  'Open project': 'Abrir proyecto',
+  'Open this folder': 'Abrir esta carpeta',
 
   // A package from another project (ADR 0051), and what a package is shared under (ADR 0047).
   'Add from another project…': 'Agregar de otro proyecto…',
