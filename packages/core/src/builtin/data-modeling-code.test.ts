@@ -265,6 +265,58 @@ describe('the code of the built-in Data modeling package', () => {
     }
   });
 
+  it('names an unnamed column by its id in its primary and foreign keys too (M14’s review)', () => {
+    const state = project(
+      [
+        table('a', 'a'),
+        column('a-id', '', { type: 'uuid', primaryKey: true }),
+        table('b', 'b'),
+        column('b-a', '', { type: 'uuid' }),
+      ],
+      [
+        columnOf('a-id', 'a'),
+        columnOf('b-a', 'b'),
+        { id: 'ba', relationType: 'data-modeling.references', from: 'b-a', to: 'a-id' },
+      ],
+    );
+    const sql = hooks().exportFile({ exporter: 'sql-ddl' }, { model: modelReaderOf(state) });
+    expect(sql).not.toContain('""');
+    expect(sql).toContain('  "a-id" uuid,\n  PRIMARY KEY ("a-id")');
+    expect(sql).toContain('ADD FOREIGN KEY ("b-a") REFERENCES a ("a-id");');
+  });
+
+  it('keeps on one line, past every line ending SQL reads, what a comment says (M14’s review)', () => {
+    const state = project(
+      [table('a', 'a'), { ...table('b', 'b'), name: 'b\u0085DROP TABLE x;' }],
+      [{ id: 'ab', relationType: 'data-modeling.references', from: 'a', to: 'b' }],
+    );
+    const sql = hooks().exportFile(
+      { exporter: 'sql-ddl' },
+      { model: modelReaderOf(state) },
+    ) as string;
+    // NEL, a line ending to SQL readers though no white space to JavaScript, is folded too.
+    expect(sql).not.toContain(String.fromCharCode(0x85));
+    expect(sql).toContain('-- a references "b DROP TABLE x;", with no columns');
+  });
+
+  it('leaves out, with a note, the enum values that hold a backslash (M14’s review)', () => {
+    const state = project(
+      [
+        {
+          id: 'status',
+          component: 'data-modeling.enum',
+          name: 'status',
+          attributes: { values: 'open, it\\, x, closed' },
+        },
+      ],
+      [],
+    );
+    const sql = hooks().exportFile({ exporter: 'sql-ddl' }, { model: modelReaderOf(state) });
+    expect(sql).toContain(
+      "-- 1 of its values is left out, as it holds a backslash, which some SQL readers take as an escape.\nCREATE TYPE status AS ENUM ('open', 'x', 'closed');",
+    );
+  });
+
   it('says so of a model with no tables, and of a reference between tables without columns', () => {
     const empty = hooks().exportFile(
       { exporter: 'sql-ddl' },
