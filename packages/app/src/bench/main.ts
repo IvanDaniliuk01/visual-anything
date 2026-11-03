@@ -39,6 +39,11 @@
  * drawings with parts and relations on outlines, through the phases of `beyond.ts` alone. `?curves`
  * makes the view curve every automatic route that no appearance gives a style (ADR 0069), with
  * `?geometry` or without it.
+ * `?traits` gives every shape every Style and Text trait of its own and turns or mirrors some
+ * (`traits.ts`, ADR 0088), and stops after the theme switches: pan, zoom, select and switch with
+ * every trait set; `?traits=unshadowed` sets them all with no shadow, to say what own shadows cost,
+ * `?traits=none` none, the same phases on the plain project to read them against, and
+ * `?traits=gradient,turn` (or `border`, `radius`, `opacity`, `shadow`, `text`) only those.
  *
  * Work mode, the default, measures the work of each frame: it moves the camera, draws the frame and
  * waits until the GPU has drawn it, so the result does not depend on how often the browser offers
@@ -82,6 +87,7 @@ import {
   withLiveDetail,
 } from './live';
 import { withEmphasisDetail } from './emphasis';
+import { TRAIT_GROUPS, withEveryTrait, type TraitGroup } from './traits';
 import { faceCounts, resetFaceCounts } from '../canvas/faces';
 import { hitRate, measureFacesScene, withBenchFaces } from './faces';
 import '../theme/tokens.css';
@@ -244,7 +250,18 @@ const synthetic = solidsMade
         ? syntheticGeometry({ elements: size })
         : syntheticProject({ elements: size, overlap, tables, images });
 const drawnFrom = preset === undefined ? synthetic : withPreset(synthetic, preset);
-let project: ProjectSnapshot = curves ? withCurves(drawnFrom) : drawnFrom;
+// `?traits` sets every Style and Text trait on every shape (A6.5); `?traits=unshadowed` no shadow;
+// `?traits=none` none, the same phases on the plain project, to read the others against.
+const traits = search.has('traits');
+const traitsAsked = search.get('traits');
+const styled =
+  traits && traitsAsked !== 'none'
+    ? withEveryTrait(drawnFrom, {
+        shadow: traitsAsked !== 'unshadowed',
+        ...traitGroupsOf(traitsAsked),
+      })
+    : drawnFrom;
+let project: ProjectSnapshot = curves ? withCurves(styled) : styled;
 const VIEW = project.views[0]?.id ?? 'everything';
 /**
  * Where names and details show: the reading levels of the drawing the view is drawn with, so that
@@ -329,7 +346,7 @@ async function run(): Promise<void> {
   phases.push(await measure('Zoom, whole view', 180, zoom));
   // The same with the grid, then with the rulers too, from the same camera (A3).
   const withGrid: Phase[] = [];
-  if (!gridOn) {
+  if (!gridOn && !traits) {
     controller.setGrid({ grid: true, snapToGrid: true, rulers: false });
     await settle(300);
     withGrid.push(await measure('Pan with the grid', 180, pan));
@@ -596,6 +613,10 @@ async function run(): Promise<void> {
   await switchPhase('Switch theme, whole view', () => controller.fitWhole());
   await switchPhase('Switch theme, shapes in full', () => move(cameraAt(COARSE_BELOW * 1.04)));
   await switchPhase('Switch theme, names shown', () => move(cameraAt(NAMES_FROM * 1.3)));
+  if (traits) {
+    report(phases, [], latency, themeNotes);
+    return;
+  }
 
   // Right after a switch, what comes on screen is drawn again before it shows.
   move(cameraAt(NAMES_FROM * 1.3));
@@ -1532,6 +1553,7 @@ function report(phases: Phase[], timed: Timed[], latency: number[], themeNotes: 
       images,
       geometry,
       curves,
+      traits: traits ? traitsAsked || 'every' : undefined,
       ...(images || geometry ? { imageMemory: memory } : {}),
       prepared,
       rows,
@@ -1552,6 +1574,13 @@ function report(phases: Phase[], timed: Timed[], latency: number[], themeNotes: 
       passed,
     }),
   );
+}
+
+/** The groups of traits `?traits=gradient,turn` names, to set those alone; none named, all of them. */
+function traitGroupsOf(asked: string | null): { only?: TraitGroup[] } {
+  const named = (asked ?? '').split(',');
+  const only = TRAIT_GROUPS.filter((group) => named.includes(group));
+  return only.length > 0 ? { only } : {};
 }
 
 /** The project drawn from a drawing preset it names (ADR 0086). */

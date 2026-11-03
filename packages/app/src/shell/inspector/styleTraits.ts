@@ -16,6 +16,7 @@ import {
 import {
   MINIMUM_MARK_CONTRAST,
   THEME_NAMES,
+  adaptedForDark,
   componentOrEssence,
   contrastRatio,
   definitionsIn,
@@ -32,6 +33,7 @@ import {
   type ResolvedAppearance,
   type ResolvedDrawing,
   type ShapeColors,
+  type StoredColorsInDark,
   type ThemeName,
 } from '@visual-anything/core';
 import { t } from '../../i18n';
@@ -377,16 +379,30 @@ const BORDER_HINTS: Readonly<Record<ThemeName, string>> = {
 };
 
 /**
- * The hints for a shape drawn with no border, one for each canvas its fill, and its gradient's color,
- * do not stand out from: with no border, only its fill tells it from the canvas.
+ * The second color of a gradient as each canvas draws it: as stored on the light one, and on the dark
+ * one adapted where the drawing defaults adapt stored colors there (ADR 0087), as the canvas draws it
+ * (`shapeStyleOf`). None for no gradient.
+ */
+export function gradientColorsOf(
+  to: Color | undefined,
+  storedInDark: StoredColorsInDark,
+): Readonly<Record<ThemeName, Color | undefined>> {
+  if (to === undefined) return { light: undefined, dark: undefined };
+  return { light: to, dark: storedInDark === 'adapted' ? adaptedForDark(to) : to };
+}
+
+/**
+ * The hints for a shape drawn with no border, one for each canvas its fill, and its gradient's color
+ * as that canvas draws it (`gradientColorsOf`), do not stand out from: with no border, only its fill
+ * tells it from the canvas.
  */
 export function borderlessHints(
   colors: Readonly<Record<ThemeName, ShapeColors>>,
-  gradientTo: Color | undefined,
+  gradientTo: Readonly<Record<ThemeName, Color | undefined>>,
 ): string[] {
   return THEME_NAMES.flatMap((theme) => {
-    const fills =
-      gradientTo === undefined ? [colors[theme].fill] : [colors[theme].fill, gradientTo];
+    const to = gradientTo[theme];
+    const fills = to === undefined ? [colors[theme].fill] : [colors[theme].fill, to];
     const blends = fills.every((fill) => legibility(fill)[theme] < MINIMUM_MARK_CONTRAST);
     return blends ? [t(BORDERLESS_HINTS[theme])] : [];
   });

@@ -12,6 +12,7 @@ import { loadSample } from '../../test/sample';
 import {
   borderHints,
   borderlessHints,
+  gradientColorsOf,
   componentStyleCommand,
   elementsStyleCommand,
   gradientColorFor,
@@ -241,7 +242,38 @@ describe('the contrast hints of a border', () => {
   });
 
   it('points out a shape with no border whose fill blends into the canvas, its gradient counted', () => {
-    expect(borderlessHints({ light: pale, dark }, undefined)).toHaveLength(2);
-    expect(borderlessHints({ light: pale, dark }, '#3E63DD')).toEqual([]);
+    const none = gradientColorsOf(undefined, 'adapted');
+    expect(borderlessHints({ light: pale, dark }, none)).toHaveLength(2);
+    expect(borderlessHints({ light: pale, dark }, gradientColorsOf('#3E63DD', 'adapted'))).toEqual(
+      [],
+    );
+    // A gradient as pale as the light canvas does not help there; on the dark one it stands out.
+    expect(
+      borderlessHints({ light: pale, dark }, gradientColorsOf('#F4F4F4', 'as-stored')),
+    ).toEqual([expect.stringMatching(/^Blends into the light canvas/)]);
+  });
+
+  it('reads a gradient’s second color on the dark canvas as the canvas draws it', () => {
+    // #1A1A1A stands out on the light canvas; on the dark one only once adapted (to #E4E4E4).
+    expect(gradientColorsOf('#1A1A1A', 'as-stored')).toEqual({ light: '#1A1A1A', dark: '#1A1A1A' });
+    expect(gradientColorsOf('#1A1A1A', 'adapted')).toEqual({ light: '#1A1A1A', dark: '#E4E4E4' });
+    expect(
+      borderlessHints({ light: pale, dark }, gradientColorsOf('#1A1A1A', 'as-stored')),
+    ).toEqual([expect.stringMatching(/^Blends into the dark canvas/)]);
+    expect(borderlessHints({ light: pale, dark }, gradientColorsOf('#1A1A1A', 'adapted'))).toEqual(
+      [],
+    );
+  });
+
+  it('points out no border that shows on its fill though not on the canvas', () => {
+    expect(
+      borderHints(
+        {
+          light: { fill: '#1A1A1A', stroke: '#F4F4F4' },
+          dark: { fill: '#F4F4F4', stroke: '#1C2026' },
+        },
+        2,
+      ),
+    ).toEqual([]);
   });
 });

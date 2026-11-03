@@ -4604,10 +4604,10 @@ export const messages: Catalog = {
     'El texto de {of} se alinea a la izquierda ("left"), al centro ("center") o a la derecha ("right").',
   'The text of {of} is written "inside", "above", "below", to the "left" or to the "right".':
     'El texto de {of} se escribe dentro ("inside"), arriba ("above"), abajo ("below"), a la izquierda ("left") o a la derecha ("right").',
-  'A rotation is a number of degrees from -3,600 to 3,600.':
-    'Una rotación es un número de grados de -3.600 a 3.600.',
-  'A shape is flipped "horizontal", "vertical", "both" or "none".':
-    'Una forma se voltea en "horizontal", "vertical", "both" o "none".',
+  'A turn (rotation) is a number of degrees from -3,600 to 3,600.':
+    'Un giro (rotation) es un número de grados de -3.600 a 3.600.',
+  'A shape is mirrored (flip) "horizontal", "vertical", "both" or "none".':
+    'Una forma se refleja (flip) en "horizontal", "vertical", "both" o "none".',
   '{Of} has at most 32 connection points.': '{Of} tiene como máximo 32 puntos de conexión.',
   'A connection point of {of} has no "{key}".': 'Un punto de conexión de {of} no tiene "{key}".',
   'A connection point of {of} has a name of 1 to 32 characters.':

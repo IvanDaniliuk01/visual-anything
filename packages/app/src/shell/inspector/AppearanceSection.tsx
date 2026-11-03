@@ -10,6 +10,7 @@ import {
   type Definitions,
   type ModelIndex,
   type ResolvedAppearance,
+  type StoredColorsInDark,
   type TraitOrigin,
   type UpdateElementCommand,
 } from '@visual-anything/core';
@@ -44,6 +45,7 @@ import {
   borderHints,
   borderlessHints,
   componentStyleCommand,
+  gradientColorsOf,
   projectDefaultCommand,
   shapeStyleValues,
   storedStyleAt,
@@ -174,8 +176,15 @@ function styleSource(
 }
 
 /** The contrast hints of a shape's colors and style: blending in, and a border no one sees. */
-function styleHints(colors: Parameters<typeof shapeHints>[0], values: ShapeStyleValues): string[] {
-  const gradientTo = values.gradient === 'none' ? undefined : values.gradient.to;
+function styleHints(
+  colors: Parameters<typeof shapeHints>[0],
+  values: ShapeStyleValues,
+  storedInDark: StoredColorsInDark,
+): string[] {
+  const gradientTo = gradientColorsOf(
+    values.gradient === 'none' ? undefined : values.gradient.to,
+    storedInDark,
+  );
   const blending =
     values.borderWidth <= 0 ? borderlessHints(colors, gradientTo) : shapeHints(colors);
   return [...blending, ...borderHints(colors, values.borderWidth)];
@@ -213,6 +222,7 @@ function OwnTraits({
       dark: drawnColorsOf(element, definitions, 'dark', storedInDark),
     },
     values,
+    storedInDark,
   );
   const changing = (traits: AppearanceChanges): Command => ({
     type: 'update-element',
@@ -421,6 +431,7 @@ function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
       dark: drawnColorsOf({ component: id }, definitions, 'dark', storedInDark),
     },
     values,
+    storedInDark,
   );
   const keeps = (trait: 'shape' | ColorTrait | ShapeStyleTrait, what: string) =>
     own[trait] === undefined
