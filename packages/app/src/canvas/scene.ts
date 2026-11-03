@@ -200,7 +200,7 @@ import {
   type SolidLook,
 } from './shape-solids';
 import type { Flip } from './turn';
-import { calloutRoute, calloutSideAgainst, placeCallouts } from './callouts';
+import { MAX_CALLOUTS, calloutRoute, calloutSideAgainst, placeCallouts } from './callouts';
 import { LAYOUT_STEP } from './layout/types';
 
 /** Everything a view draws. */
@@ -2193,7 +2193,7 @@ function drawingBox(
 /**
  * The part each content of a drawing that shows a solid stands beside as a callout (ADR 0091): for a
  * content that is not an anchored part, the first anchored part its relations drawn in the view lead
- * to, in the model's order. Undefined when no content is a callout.
+ * to, in the model's order, for the first `MAX_CALLOUTS` of them. Undefined when no content is a callout.
  */
 function calloutPartsIn(
   placement: Placement,
@@ -2205,14 +2205,15 @@ function calloutPartsIn(
     if (anchors[at]) parts.add(content.element);
   });
   if (parts.size === 0) return undefined;
-  let any = false;
+  let count = 0;
   const found = placement.contents.map((content, at) => {
-    if (anchors[at]) return undefined;
+    // Past MAX_CALLOUTS (M15's review), contents are laid out below the picture, as before.
+    if (anchors[at] || count >= MAX_CALLOUTS) return undefined;
     const part = shaping.linkedTo(content.element).find((other) => parts.has(other));
-    if (part !== undefined) any = true;
+    if (part !== undefined) count += 1;
     return part;
   });
-  return any ? found : undefined;
+  return count > 0 ? found : undefined;
 }
 
 /** A number rounded to layout's step, as layout stores positions. */

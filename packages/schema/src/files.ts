@@ -32,6 +32,7 @@ export type {
   TickLength,
 } from './simulation';
 export type {
+  JointPosition,
   JointPositions,
   Pose,
   PosePoint,

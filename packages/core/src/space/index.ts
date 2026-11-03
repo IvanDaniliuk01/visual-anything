@@ -14,6 +14,7 @@ export { pointInSpace, poseIn, spaceOf, type Space, type SpaceEntry, type SpaceH
 export {
   ATTACHED_TO,
   JOINT_COMPONENT,
+  MAX_JOINT_POSITION,
   attachmentsOf,
   axisOf,
   isJoint,

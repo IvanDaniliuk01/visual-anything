@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CALLOUT_GAP,
   CALLOUT_SPACING,
+  MAX_CALLOUTS,
   calloutRoute,
   calloutSideOf,
   placeCallouts,
@@ -119,6 +120,50 @@ describe('placeCallouts', () => {
       ),
       { numRuns: 300 },
     );
+  });
+
+  it('places thousands of callouts in time, none over another (M15 review)', () => {
+    // A seeded spread of points and sizes, crowding every side many times over.
+    let seed = 7;
+    const next = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    const picture = { x: 0, y: 0, width: 480, height: 360 };
+    const many = Array.from({ length: 2000 }, () => ({
+      width: 60 + Math.round(next() * 140),
+      height: 24 + Math.round(next() * 40),
+      point: { x: next() * picture.width, y: next() * picture.height },
+    }));
+    const started = performance.now();
+    const placed = placeCallouts(picture, many);
+    const took = performance.now() - started;
+    // Measured at about 110 ms; the cubic placement it replaces took minutes for as many.
+    expect(took).toBeLessThan(1500);
+    const rects = placed.map((place, at) => ({
+      x: place.x,
+      y: place.y,
+      width: (many[at] as CalloutToPlace).width,
+      height: (many[at] as CalloutToPlace).height,
+    }));
+    // None over the picture, and none over another: sorted by left edge, each checked only against
+    // those that start before it ends.
+    const order = rects
+      .map((_, at) => at)
+      .sort((a, b) => (rects[a] as Rect).x - (rects[b] as Rect).x);
+    for (const [step, at] of order.entries()) {
+      const rect = rects[at] as Rect;
+      expect(overlap(rect, picture)).toBe(false);
+      for (const other of order.slice(step + 1)) {
+        const them = rects[other] as Rect;
+        if (them.x >= rect.x + rect.width) break;
+        expect(overlap(rect, them)).toBe(false);
+      }
+    }
+  });
+
+  it('caps the callouts of a drawing at a few hundred', () => {
+    expect(MAX_CALLOUTS).toBe(200);
   });
 });
 

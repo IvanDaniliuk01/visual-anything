@@ -8,7 +8,7 @@ import { executeCommand, type Command, type ProjectSnapshot } from '@visual-anyt
 import { describe, expect, it } from 'vitest';
 import { CALLOUTS, withCallouts, withSolids } from '../test/solids';
 import { svgOfScene } from '../export/svg';
-import { CALLOUT_GAP } from './callouts';
+import { CALLOUT_GAP, MAX_CALLOUTS } from './callouts';
 import type { Rect } from './geometry';
 import { pageScene } from './routing/avoided';
 import { buildScene, buildSceneAfresh, type ElementShape, type Scene } from './scene';
@@ -199,6 +199,44 @@ describe('callouts around a solid picture (ADR 0091)', () => {
     expect(after.shapes.map((shape) => [shape.key, shape.rect, shape.callout])).toEqual(
       afresh.shapes.map((shape) => [shape.key, shape.rect, shape.callout]),
     );
+  });
+
+  it('places at most MAX_CALLOUTS callouts, the contents past them below the picture as before', () => {
+    const base = withCallouts(VIEW);
+    const model = base.model;
+    const template = model.elements.find((each) => each.id === 'm-base');
+    const inArm = model.relations.find((each) => each.from === 'm-base' && each.to === 'arm');
+    const drives = model.relations.find((each) => each.id === 'm-base-drives-base');
+    if (!template || !inArm || !drives) throw new Error('No callout to copy.');
+    const more = Array.from({ length: MAX_CALLOUTS }, (_, at) => `more-${at}`);
+    const state: ProjectSnapshot = {
+      ...base,
+      model: {
+        ...model,
+        elements: [...model.elements, ...more.map((id) => ({ ...template, id, name: id }))],
+        relations: [
+          ...model.relations,
+          ...more.flatMap((id) => [
+            { ...inArm, id: `${id}-in-arm`, from: id },
+            { ...drives, id: `${id}-drives-base`, from: id, name: undefined },
+          ]),
+        ],
+      },
+    };
+    const started = performance.now();
+    const scene = buildScene(state, VIEW);
+    // Well within a frame's worth of work for the placement itself, on a weak laptop too.
+    expect(performance.now() - started).toBeLessThan(5000);
+    const keys = [...CALLOUTS, ...more].map((id) => `arm/${id}`);
+    const shapes = keys.map((key) => shapeOf(scene, key));
+    expect(shapes.filter((shape) => shape.callout !== undefined)).toHaveLength(MAX_CALLOUTS);
+    // The first ones, in the model's order, are callouts; the rest lie below the picture.
+    expect(shapes.slice(0, MAX_CALLOUTS).every((shape) => shape.callout !== undefined)).toBe(true);
+    const picture = shapeOf(scene, 'arm').picture?.rect as Rect;
+    for (const shape of shapes.slice(MAX_CALLOUTS)) {
+      expect(shape.callout).toBeUndefined();
+      expect(shape.rect.y).toBeGreaterThan(picture.y + picture.height);
+    }
   });
 
   it('keeps the callouts’ lines as they run on the read-only page and in the SVG, without their names', () => {

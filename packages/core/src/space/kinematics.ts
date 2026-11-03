@@ -25,6 +25,12 @@ export const JOINT_COMPONENT = 'physical-ai.joint';
 /** The relation type every attachment is, or derives from. */
 export const ATTACHED_TO = 'physical-ai.is-attached-to';
 
+/**
+ * The farthest a joint's position goes either way, in degrees or meters (M15's review): the one bound
+ * a view state's joints, a simulation's answer and Claude's tools all keep, as the schema says.
+ */
+export const MAX_JOINT_POSITION = 100_000;
+
 /** How a joint moves, with its position, kept within its limits. */
 export interface JointMotion {
   kind: 'revolute' | 'continuous' | 'prismatic';
@@ -56,8 +62,7 @@ export function jointMotionOf(
   if (kind !== 'revolute' && kind !== 'continuous' && kind !== 'prismatic') return undefined;
   const axis = axisOf(values.axis);
   if (axis === undefined) return undefined;
-  const lower = finite(values.lowerLimit);
-  const upper = finite(values.upperLimit);
+  const { lower, upper } = limitsOf(values);
   const asked = finite(position) ?? finite(values.position) ?? 0;
   let kept = asked;
   if (kind !== 'continuous') {
@@ -83,6 +88,22 @@ export function axisOf(value: unknown): SpacePoint | undefined {
   const length = Math.hypot(x, y, z);
   if (length < 1e-9) return undefined;
   return { x: x / length, y: y / length, z: z / length };
+}
+
+/**
+ * A joint's limits, each when it is a finite number; written the wrong way round, the lower above the
+ * upper, they are read the right way round (M15's review), as the panel's slider reads them.
+ */
+function limitsOf(values: Readonly<Record<string, unknown>>): { lower?: number; upper?: number } {
+  const lower = finite(values.lowerLimit);
+  const upper = finite(values.upperLimit);
+  if (lower !== undefined && upper !== undefined && lower > upper) {
+    return { lower: upper, upper: lower };
+  }
+  return {
+    ...(lower === undefined ? {} : { lower }),
+    ...(upper === undefined ? {} : { upper }),
+  };
 }
 
 function finite(value: unknown): number | undefined {
@@ -266,8 +287,7 @@ export function kinematicsWarnings(project: ProjectSnapshot): Problem[] {
     const position = finite(element.attributes?.position);
     const kind = element.attributes?.kind ?? 'revolute';
     if (position === undefined || kind === 'continuous' || kind === 'fixed') continue;
-    const lower = finite(element.attributes?.lowerLimit);
-    const upper = finite(element.attributes?.upperLimit);
+    const { lower, upper } = limitsOf(element.attributes ?? {});
     if ((lower !== undefined && position < lower) || (upper !== undefined && position > upper)) {
       warnings.push(
         problem(

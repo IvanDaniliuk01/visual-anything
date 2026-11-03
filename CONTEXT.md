@@ -263,10 +263,22 @@ _Avoid_: 3D (as a generic synonym)
 
 **Pose**:
 Where an element really is in physical space and which way it faces: a point in meters and a rotation, measured from one of its containers or from World. It is part of the model, one per element whatever its containers; an element anchored to a solid's named part is where its part is instead (ADR 0076).
-_Avoid_: position (a shape's, in a view), placement (how a shape shows an image or a solid), transform, location
+_Avoid_: position (a shape's, in a view; a joint's, how far it has turned or slid), placement (how a shape shows an image or a solid), transform, location
+
+**Joint position**:
+How far a joint of the Physical AI package has turned or slid: degrees for one that turns, meters for one that slides, 0 by default, from −100,000 to 100,000, stored in its `position` attribute and drawn within its limits, which only warn (ADR 0090). The physical-space panel's sliders, a tour's step, an address and a simulation may show other positions over it without storing them. It is neither a shape's position in a view nor a pose: a pose says where an element is at rest, and a joint's position moves what it carries from there. Called a joint's position, or its position where the joint is plain.
+_Avoid_: angle (alone: a joint may slide), pose, offset, value, state (a run's state is what a tick keeps)
+
+**Chain**:
+What carries what in physical space: an element hangs from what it is attached to, through "is attached to" or a relation type derived from it, or else from what it is posed or anchored in, and a joint carries everything that hangs from it at any depth (ADR 0090). It is read from the model and never stored; an attachment that closes a cycle is not followed and is warned about.
+_Avoid_: tree (alone), hierarchy, skeleton, rig, kinematic tree, parent (alone: a parent component is something else)
+
+**Joint motion**:
+How a joint moves what it carries: about its axis through its origin by its position for one that turns, or along its axis for one that slides; none for a fixed joint or one without an axis it can read (ADR 0090). An element's motion is the product of the motions of the joints above it in its chain, applied to where it is at rest.
+_Avoid_: animation (a solid's file may hold animations of its own), transform, physics, simulation (a simulation is a run of package code)
 
 **Physical-space panel**:
-A panel beside the canvas that shows the elements of the open view that are in physical space, where they really are: their solids, posed or as the named parts of their containers' solids, under World or one element. It shares the selection, focus, filters, overlays, scenario playback and guidance with the canvas, edits only poses, and view states carry where it looks (ADR 0076).
+A panel beside the canvas that shows the elements of the open view that are in physical space, where they really are: their solids, posed or as the named parts of their containers' solids, under World or one element. It shares the selection, focus, filters, overlays, scenario playback and guidance with the canvas, edits poses and keeps joints' positions ("Keep these positions", ADR 0090), and view states carry where it looks and the joints' positions it shows, `joints` (ADR 0076).
 _Avoid_: 3D view, 3D mode, 3D panel, viewport, scene
 
 **Exploded view**:
@@ -342,7 +354,7 @@ A part of a tour step's marks that shows on its own press forward, with an optio
 _Avoid_: build, fragment, animation
 
 **Glide**:
-How a tour step's transition moves the shapes it shares with the step before, matched by element, from their places before to their places after, while the camera moves; the shapes it does not share fade (ADR 0084).
+How a tour step's transition moves the shapes it shares with the step before, matched by element, from their places before to their places after, while the camera moves; the shapes it does not share fade (ADR 0084). Joints the physical-space panel shows glide between a tour's steps too, from their positions before to their positions after, with their own timing: longer the farther they travel, up to 1,200 ms (ADR 0090).
 _Avoid_: morph, magic move
 
 **Pulse**:
