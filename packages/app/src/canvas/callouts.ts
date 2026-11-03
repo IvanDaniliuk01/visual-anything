@@ -15,6 +15,9 @@
  * - **Their lines** leave the callout's side that faces the picture, run outside it to the height,
  *   or the place across, of the part's point, and enter the picture only in their last segment
  *   (`calloutRoute`).
+ * - **In time.** Placing takes about n log n (M15's review: 2,000 callouts in about a tenth of a
+ *   second), and a drawing places at most `MAX_CALLOUTS`; its contents past them are laid out below
+ *   the picture, as its other contents are.
  *
  * Pure, with no PixiJS, as the scene is: the scene places callouts that the view stores no position
  * for, and layout stores where they go (`layout/input.ts`).
@@ -29,6 +32,12 @@ export const CALLOUT_GAP = 40;
 
 /** Between two callouts on one side, in canvas units. */
 export const CALLOUT_SPACING = 16;
+
+/**
+ * The most callouts a drawing places around its picture (M15's review): its contents past them are
+ * laid out below the picture, as a drawing's other contents are.
+ */
+export const MAX_CALLOUTS = 200;
 
 /** How far inside its callout's side a line may leave it, from the side's ends. */
 const LINE_INSET = 6;
@@ -162,6 +171,11 @@ function alongOn(side: CalloutSide, exit: Exit, picture: Size): number {
  * past the picture's span along it: then they move to the sides beside it, one at a time, the one
  * whose part lies nearest its new side first, while that side then runs past its span by less than
  * theirs did, so that the callouts spread around the picture rather than in one long row.
+ *
+ * In about n log n (M15's review): each side keeps the running length of its callouts, so what a
+ * side needs is known at once, and each move is picked from lists sorted once, by how near each
+ * callout lies to a side, of the callouts on the side beside it, those since moved away dropped as
+ * they are passed and those moved onto it added.
  */
 function balancedSides(
   picture: Size,
@@ -173,40 +187,112 @@ function balancedSides(
     side === 'left' || side === 'right' ? callout.height : callout.width;
   const spanOf = (side: CalloutSide) =>
     side === 'left' || side === 'right' ? picture.height : picture.width;
-  const need = (side: CalloutSide, extra?: CalloutToPlace) => {
-    let total = 0;
-    let count = 0;
-    callouts.forEach((callout, at) => {
-      if (sides[at] !== side) return;
-      total += lengthOn(side, callout);
-      count += 1;
-    });
-    if (extra) {
-      total += lengthOn(side, extra);
-      count += 1;
-    }
-    return total + Math.max(0, count - 1) * CALLOUT_SPACING;
+  // The length of each side's callouts end to end, and how many it holds.
+  const total: Record<CalloutSide, number> = { left: 0, right: 0, top: 0, bottom: 0 };
+  const count: Record<CalloutSide, number> = { left: 0, right: 0, top: 0, bottom: 0 };
+  callouts.forEach((callout, at) => {
+    const side = sides[at] as CalloutSide;
+    total[side] += lengthOn(side, callout);
+    count[side] += 1;
+  });
+  const over = (side: CalloutSide, extra?: CalloutToPlace) => {
+    const length = total[side] + (extra ? lengthOn(side, extra) : 0);
+    const many = count[side] + (extra ? 1 : 0);
+    return Math.max(0, length + Math.max(0, many - 1) * CALLOUT_SPACING - spanOf(side));
   };
-  const over = (side: CalloutSide, extra?: CalloutToPlace) =>
-    Math.max(0, need(side, extra) - spanOf(side));
+  // How far a callout's part lies from a side, along the picture's outline: the cost of moving it.
+  const costs: Record<CalloutSide, number[]> = { left: [], right: [], top: [], bottom: [] };
+  for (const to of SIDES) {
+    costs[to] = exits.map((exit) => {
+      const along = alongOn(to, exit, picture);
+      return along < 0 ? -along : along - spanOf(to);
+    });
+  }
+  // For each side and each side beside it, the callouts on the first, nearest the second first, the
+  // model's order between equals; `listed` says which each holds, kept as `nearest` drops and `add`
+  // adds.
+  const lists = new Map<CalloutSide, Map<CalloutSide, number[]>>();
+  const listed = new Map<CalloutSide, Map<CalloutSide, Set<number>>>();
+  const byCost = (to: CalloutSide) => (a: number, b: number) =>
+    (costs[to][a] as number) - (costs[to][b] as number) || a - b;
+  for (const from of SIDES) {
+    const fromLists = new Map<CalloutSide, number[]>();
+    const fromListed = new Map<CalloutSide, Set<number>>();
+    for (const to of NEIGHBOURS[from]) {
+      const members = callouts.map((_, at) => at).filter((at) => sides[at] === from);
+      fromLists.set(to, members.sort(byCost(to)));
+      fromListed.set(to, new Set(members));
+    }
+    lists.set(from, fromLists);
+    listed.set(from, fromListed);
+  }
+  const listOf = (from: CalloutSide, to: CalloutSide) => lists.get(from)?.get(to) as number[];
+  const holdsOf = (from: CalloutSide, to: CalloutSide) => listed.get(from)?.get(to) as Set<number>;
+  const add = (from: CalloutSide, to: CalloutSide, at: number) => {
+    const holds = holdsOf(from, to);
+    if (holds.has(at)) return;
+    holds.add(at);
+    const list = listOf(from, to);
+    const compare = byCost(to);
+    let low = 0;
+    let high = list.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (compare(list[middle] as number, at) < 0) low = middle + 1;
+      else high = middle;
+    }
+    list.splice(low, 0, at);
+  };
+  /** The nearest callout on `from` that `to` takes for less than `past`, dropping those moved away. */
+  const nearest = (from: CalloutSide, to: CalloutSide, past: number): number | undefined => {
+    const list = listOf(from, to);
+    const holds = holdsOf(from, to);
+    let kept = 0;
+    let read = 0;
+    let found: number | undefined;
+    while (read < list.length && found === undefined) {
+      const at = list[read] as number;
+      read += 1;
+      if (sides[at] !== from) {
+        holds.delete(at);
+        continue;
+      }
+      list[kept] = at;
+      kept += 1;
+      if (over(to, callouts[at]) < past) found = at;
+    }
+    // Close the gap those dropped left, keeping the rest unread.
+    if (kept < read) list.splice(kept, read - kept);
+    return found;
+  };
   // Each move lowers the most a side runs past its span, so a few always suffice.
   for (let moves = callouts.length * 2; moves > 0; moves--) {
-    let best: { at: number; to: CalloutSide; cost: number } | undefined;
-    for (const side of SIDES) {
-      const past = over(side);
+    let best: { at: number; from: CalloutSide; to: CalloutSide; cost: number } | undefined;
+    for (const from of SIDES) {
+      const past = over(from);
       if (past <= 0) continue;
-      callouts.forEach((callout, at) => {
-        if (sides[at] !== side) return;
-        for (const to of NEIGHBOURS[side]) {
-          if (over(to, callout) >= past) continue;
-          const along = alongOn(to, exits[at] as Exit, picture);
-          const cost = along < 0 ? -along : along - spanOf(to);
-          if (!best || cost < best.cost) best = { at, to, cost };
+      for (const to of NEIGHBOURS[from]) {
+        const at = nearest(from, to, past);
+        if (at === undefined) continue;
+        const cost = costs[to][at] as number;
+        // The first side, then the model's first callout, then the first side beside it win a tie.
+        if (
+          !best ||
+          cost < best.cost ||
+          (cost === best.cost && from === best.from && at < best.at)
+        ) {
+          best = { at, from, to, cost };
         }
-      });
+      }
     }
     if (!best) break;
+    const callout = callouts[best.at] as CalloutToPlace;
+    total[best.from] -= lengthOn(best.from, callout);
+    count[best.from] -= 1;
+    total[best.to] += lengthOn(best.to, callout);
+    count[best.to] += 1;
     sides[best.at] = best.to;
+    for (const next of NEIGHBOURS[best.to]) add(best.to, next, best.at);
   }
   return sides;
 }
@@ -246,14 +332,42 @@ function spread(wanted: readonly number[], sizes: readonly number[], span: numbe
  * Moves outward, away from the picture, each callout that would cover one placed before it, as two
  * sides that both ran past their ends would at a corner. Each move goes outward by what they overlap,
  * so a few always suffice.
+ *
+ * The callouts placed so far are kept in a grid of cells about a callout's size (M15's review), so
+ * that each looks only at those near it rather than at all of them; the one it covers is still the
+ * first placed of those it covers.
  */
 function apart(callouts: readonly CalloutToPlace[], placed: PlacedCallout[]): PlacedCallout[] {
+  if (callouts.length === 0) return placed;
+  const typical =
+    callouts.reduce((sum, each) => sum + Math.max(each.width, each.height), 0) / callouts.length;
+  const cell = Math.max(32, typical + CALLOUT_SPACING);
+  const grid = new Map<string, number[]>();
   const rects: Rect[] = [];
+  /** The cells a rectangle, grown by the spacing, reaches. */
+  const cellsOf = (rect: Rect, visit: (key: string) => void) => {
+    const left = Math.floor((rect.x - CALLOUT_SPACING) / cell);
+    const right = Math.floor((rect.x + rect.width + CALLOUT_SPACING) / cell);
+    const top = Math.floor((rect.y - CALLOUT_SPACING) / cell);
+    const bottom = Math.floor((rect.y + rect.height + CALLOUT_SPACING) / cell);
+    for (let x = left; x <= right; x++) for (let y = top; y <= bottom; y++) visit(`${x},${y}`);
+  };
+  /** The first placed of the callouts a rectangle covers. */
+  const coveredBy = (rect: Rect): Rect | undefined => {
+    let first: number | undefined;
+    cellsOf(rect, (key) => {
+      for (const at of grid.get(key) ?? []) {
+        if (first !== undefined && at >= first) continue;
+        if (overlapping(rect, rects[at] as Rect)) first = at;
+      }
+    });
+    return first === undefined ? undefined : rects[first];
+  };
   placed.forEach((place, at) => {
     const { width, height } = callouts[at] as CalloutToPlace;
     let rect: Rect = { x: place.x, y: place.y, width, height };
     for (let tries = rects.length; tries >= 0; tries--) {
-      const covered = rects.find((other) => overlapping(rect, other));
+      const covered = coveredBy(rect);
       if (!covered) break;
       switch (place.side) {
         case 'left':
@@ -273,6 +387,11 @@ function apart(callouts: readonly CalloutToPlace[], placed: PlacedCallout[]): Pl
     place.x = rect.x;
     place.y = rect.y;
     rects.push(rect);
+    cellsOf(rect, (key) => {
+      const list = grid.get(key);
+      if (list) list.push(at);
+      else grid.set(key, [at]);
+    });
   });
   return placed;
 }
