@@ -230,7 +230,7 @@ function turnOf(
   if (change.rotation !== undefined) {
     const { rotation: asked } = change;
     if (typeof asked !== 'number' || !Number.isFinite(asked) || Math.abs(asked) > 3600) {
-      reject('invalid-command', 'A rotation is a number of degrees from -3,600 to 3,600.');
+      reject('invalid-command', 'A turn (rotation) is a number of degrees from -3,600 to 3,600.');
     }
     const turned = ((asked % 360) + 360) % 360;
     rotation = turned === 0 ? undefined : turned;
@@ -238,7 +238,10 @@ function turnOf(
   let flip = stored?.flip;
   if (change.flip !== undefined) {
     if (change.flip !== 'none' && !FLIPS.includes(change.flip)) {
-      reject('invalid-command', 'A shape is flipped "horizontal", "vertical", "both" or "none".');
+      reject(
+        'invalid-command',
+        'A shape is mirrored (flip) "horizontal", "vertical", "both" or "none".',
+      );
     }
     flip = change.flip === 'none' ? undefined : change.flip;
   }
