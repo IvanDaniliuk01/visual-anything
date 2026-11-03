@@ -28,7 +28,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/app.png" width="900" alt="The app: a view of a model on the canvas, with the inspector beside it">
+  <img src="docs/images/hero.svg" width="900" alt="A claim's journey from a visit to its payment, as the canvas draws it in the dark theme">
 </p>
 
 ## Features

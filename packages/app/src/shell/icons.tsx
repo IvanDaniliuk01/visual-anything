@@ -61,16 +61,8 @@ function productMark() {
         stroke="currentColor"
         strokeWidth="1.75"
       >
-        <rect x="1.5" y="1.5" width="11" height="11" rx="2.5" />
-        <rect
-          x="7.5"
-          y="7.5"
-          width="11"
-          height="11"
-          rx="2.5"
-          fill="currentColor"
-          fillOpacity="0.3"
-        />
+        <path d="M1.5 10 Q10 2.5 18.5 10 Q10 17.5 1.5 10Z" strokeLinejoin="round" />
+        <circle cx="10" cy="10" r="2.75" fill="currentColor" stroke="none" />
       </svg>
     );
   }
@@ -78,8 +70,9 @@ function productMark() {
 }
 
 /**
- * The product's mark: two overlapping rounded squares, in the accent color, drawn for Visual Anything
- * (not from Lucide). The header and the read-only page show it before their names.
+ * The product's mark: an eye whose pupil is a node, in the accent color, drawn for Visual Anything
+ * (not from Lucide); `docs/images/logo.svg` is its full form. The header and the read-only page show it
+ * before their names.
  */
 export const ProductMark = productMark();
 
