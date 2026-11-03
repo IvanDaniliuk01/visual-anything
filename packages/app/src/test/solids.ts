@@ -183,3 +183,39 @@ export function withSolids(
     comments: [],
   };
 }
+
+/** The contents of `withCallouts`'s arm that are callouts, in the model's order. */
+export const CALLOUTS = ['m-base', 'm-link', 'm-gripper', 'm-tip', 'm-tip-2', 'sees'] as const;
+
+/**
+ * The test arm with callouts around its picture (ADR 0091): `m-base`, `m-link` and `m-gripper`
+ * drive those parts, `m-tip` and `m-tip-2` both drive the wrist, the gripper relates to `sees`, and
+ * `extra` and `twin` relate to no part.
+ */
+export function withCallouts(view = 'robot'): ProjectSnapshot {
+  const base = withSolids(view);
+  const drives = (from: string, to: string, name?: string): Relation => ({
+    id: `${from}-drives-${to}`,
+    relationType: 'robotics.drives',
+    from,
+    to,
+    ...(name ? { name } : {}),
+  });
+  return {
+    ...base,
+    model: {
+      ...base.model,
+      elements: [...base.model.elements, ...CALLOUTS.map((id) => link(id))],
+      relations: [
+        ...base.model.relations,
+        ...CALLOUTS.map((id) => inside(id, 'arm')),
+        drives('m-base', 'base', 'Torque'),
+        drives('m-link', 'link'),
+        drives('m-gripper', 'gripper'),
+        drives('m-tip', 'wrist'),
+        drives('m-tip-2', 'wrist'),
+        drives('gripper', 'sees', 'Angle'),
+      ],
+    },
+  };
+}

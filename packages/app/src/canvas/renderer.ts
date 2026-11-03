@@ -69,7 +69,8 @@ import {
   type Lit,
 } from './emphasize';
 import { drawRelationRoutes, traceMark, type MarkTarget, type TextFactory } from './draw';
-import { accentsOf } from './lineAccents';
+import { accentsOf, quietLabelsShown } from './lineAccents';
+import { calloutRoute, calloutSideAgainst } from './callouts';
 import { MOST_NAMES_BESIDE, NamesBeside, namedBeside } from './namesBeside';
 import { FarNames, farNameOrder, farOut, placeFarNames } from './farNames';
 import {
@@ -535,6 +536,13 @@ export class CanvasRenderer {
   /** The line under the pointer, by its key. */
   private hoveredLine: string | undefined;
   /**
+   * The names of the callouts' lines the pointer and the selection are on (ADR 0091), the lines they
+   * were written for, and in which theme.
+   */
+  private readonly quietLabels = new Container();
+  private quietShown: readonly RelationLine[] = [];
+  private quietTheme: ThemeName | undefined;
+  /**
    * What the emphasis highlights, under the hover mark: its shapes and notes, then its lines and
    * arrows, each drawn again only when what it draws changed (`emphasisMarks.ts`). Its markers go
    * above the selection's marks.
@@ -774,6 +782,7 @@ export class CanvasRenderer {
     this.arriving.addChild(this.arrivingMarks);
     this.marks.addChild(
       this.accentLines,
+      this.quietLabels,
       this.emphasisShapeMarks,
       this.litLines.container,
       this.arriving,
@@ -1006,6 +1015,7 @@ export class CanvasRenderer {
     const indexed = this.indexed;
     if (!indexed) {
       this.relations.container.alpha = 1;
+      this.showQuietLabels([]);
       return;
     }
     const selectedShapes = new Set<string>();
@@ -1014,20 +1024,20 @@ export class CanvasRenderer {
     }
     const hidden = this.hiddenNow().relations;
     const unseen = this.emphasized.hidden.relations;
-    const accents = accentsOf(
-      indexed.scene,
-      {
-        ...(this.hovered === undefined ? {} : { shape: this.hovered }),
-        ...(this.hoveredLine === undefined ? {} : { line: this.hoveredLine }),
-        selectedShapes,
-        selectedRelations: this.selection.relations,
-      },
-      {
-        fadeOthers: this.painter.drawing.lines.fadeOthers,
-        theme: this.painter.name,
-        hidden: unseen.size === 0 ? hidden : unite(hidden, unseen),
-      },
-    );
+    const pointed = {
+      ...(this.hovered === undefined ? {} : { shape: this.hovered }),
+      ...(this.hoveredLine === undefined ? {} : { line: this.hoveredLine }),
+      selectedShapes,
+      selectedRelations: this.selection.relations,
+    };
+    const unshown = unseen.size === 0 ? hidden : unite(hidden, unseen);
+    // A callout's line writes its name while the pointer or the selection is on it (ADR 0091).
+    this.showQuietLabels(quietLabelsShown(indexed.scene, pointed, unshown));
+    const accents = accentsOf(indexed.scene, pointed, {
+      fadeOthers: this.painter.drawing.lines.fadeOthers,
+      theme: this.painter.name,
+      hidden: unshown,
+    });
     this.relations.container.alpha = accents.othersAlpha;
     if (accents.lines.length === 0) return;
     drawRelationRoutes(
@@ -1036,6 +1046,34 @@ export class CanvasRenderer {
         line.stroke === stroke ? line : { ...line, stroke },
       ),
     );
+  }
+
+  /**
+   * Writes the names of the callouts' lines the pointer and the selection are on (ADR 0091), over the
+   * tiles, which write none of them, in the theme shown; none takes them away.
+   */
+  private showQuietLabels(lines: readonly RelationLine[]): void {
+    const unchanged =
+      this.quietTheme === this.painter.name &&
+      lines.length === this.quietShown.length &&
+      lines.every((line, at) => {
+        const was = this.quietShown[at];
+        return was?.relation === line.relation && was.middle === line.middle;
+      });
+    if (unchanged) return;
+    this.quietShown = lines;
+    this.quietTheme = this.painter.name;
+    for (const label of this.quietLabels.removeChildren()) label.destroy({ children: true });
+    if (lines.length === 0) return;
+    for (const text of this.painter.relationLabels(lines, this.text)) {
+      if (text instanceof Text) text.resolution = this.textResolution();
+      this.quietLabels.addChild(text);
+    }
+  }
+
+  /** The names of callouts' lines written now, for the tests. */
+  get quietLabelsWritten(): readonly RelationLine[] {
+    return this.quietShown;
   }
 
   /** The shapes the hover marks: the one under the pointer, and each of the element hovered elsewhere. */
@@ -3496,6 +3534,29 @@ export class CanvasRenderer {
       if (!how.rerouted.has(end.relation)) return { point: other.middle };
       return { point: lineFor(other).middle };
     };
+    // A callout's line between its ends as they are now, outside its drawing's picture (ADR 0091).
+    const calloutRouteOf = (
+      ends: NonNullable<RelationLine['ends']>,
+      start: object,
+      stop: object,
+    ): Point[] | undefined => {
+      const rectOf = (end: object) => ('rect' in end ? (end as { rect: Rect }).rect : undefined);
+      const pointAt = (end: object) =>
+        'point' in end ? (end as { point: Point }).point : undefined;
+      const forward = rectOf(start) !== undefined && pointAt(stop) !== undefined;
+      const box = rectOf(forward ? start : stop);
+      const point = pointAt(forward ? stop : start);
+      if (!box || !point) return undefined;
+      const callout = shapeOf(forward ? ends.from : ends.to);
+      const holder = callout?.containerShape;
+      const picture = holder === undefined ? undefined : indexed.byKey.get(holder)?.picture?.rect;
+      if (!picture || holder === undefined) return undefined;
+      const now = carried.has(holder) ? moved(picture, delta) : picture;
+      const side = calloutSideAgainst(box, now);
+      if (!side) return undefined;
+      const route = calloutRoute(box, side, point, now);
+      return forward ? route : route.reverse();
+    };
     const lineFor = (line: RelationLine): RelationLine => {
       const known = routed.get(line.relation);
       if (known) return known;
@@ -3519,7 +3580,10 @@ export class CanvasRenderer {
         );
         // Routed by hand, through its bend points, or to connection points, where it is so.
         const byHand = rerouted(line, start, stop, shapeOf(line.ends.from), shapeOf(line.ends.to));
-        const route = byHand?.route ?? routeWithSides(start, stop, line.ends.offset);
+        // A callout's line keeps outside its picture, to where its part's point is now (ADR 0091).
+        const callout =
+          !byHand && line.callout ? calloutRouteOf(line.ends, start, stop) : undefined;
+        const route = byHand?.route ?? callout ?? routeWithSides(start, stop, line.ends.offset);
         const end = route.at(-1) as Point;
         const beforeEnd = route.at(-2) as Point;
         if (directionOf(beforeEnd, end)) {
@@ -4781,6 +4845,8 @@ export class CanvasRenderer {
     this.comparison.setTheme(this.painter.theme);
     this.themeGrid(this.painter.theme);
     this.showNamesBeside();
+    // The callouts' lines' names written now, again in this theme (ADR 0091).
+    if (this.quietShown.length > 0) this.showQuietLabels(this.quietShown);
   }
 
   /** The casings under a tile's relations: white, tinted to the canvas, the same in every theme. */
