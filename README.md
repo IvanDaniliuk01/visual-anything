@@ -18,6 +18,7 @@
 </p>
 
 <p align="center">
+  <a href="#download">Download</a> ·
   <a href="#features">Features</a> ·
   <a href="#worlds">Worlds</a> ·
   <a href="#get-started">Get started</a> ·
@@ -26,6 +27,39 @@
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="#license">License</a>
 </p>
+
+## Download
+
+### For everyone
+
+You need no programming and nothing else installed.
+
+1. **Download the file for your system** from the [Releases page](../../releases/latest):
+
+   | Your computer | The file to download |
+   | --- | --- |
+   | Windows | `visual-anything-windows-x64.exe` |
+   | Mac with Apple silicon (M1 or later) | `visual-anything-macos-arm64` |
+   | Mac with Intel | `visual-anything-macos-x64` |
+   | Linux | `visual-anything-linux-x64` |
+   | Linux on ARM (64-bit) | `visual-anything-linux-arm64` |
+
+2. **Open it** with a double-click. It opens your browser at the Projects screen. Nothing leaves your computer.
+3. **Pick a sample from your world**, such as healthcare, finance or systems architecture, and start exploring. Or start an empty project.
+
+### The first time you open it
+
+The file is not signed yet, so your system warns you once:
+
+- **Windows** says "Windows protected your PC". Choose **More info**, then **Run anyway**.
+- **macOS** says it "could not verify" the file. Open **System Settings**, then **Privacy & Security**, choose **Open Anyway**, and open the file again.
+- **Linux** does not warn, but the file must be made executable first: `chmod +x visual-anything-linux-x64`.
+
+The [guide](docs/guide.md#running-the-executable) has the details, and what to do if your system still refuses.
+
+### Connect Claude Desktop
+
+To have Claude work on your project with you, use **Connect Claude…** in the app's menu (the icon at the top right), or run `visual-anything setup-claude` in a terminal. Then restart Claude Desktop.
 
 <p align="center">
   <img src="docs/images/hero.svg" width="900" alt="A claim's journey from a visit to its payment, as the canvas draws it in the dark theme">
@@ -120,7 +154,7 @@ Or take the single executable for your system, which needs nothing else installe
 
 ## Claude through MCP
 
-Claude Code or Claude Desktop starts Visual Anything's MCP server and works on the project you have open:
+Claude Code or Claude Desktop starts Visual Anything's MCP server and works on the project you have open. `visual-anything setup-claude`, or **Connect Claude…** in the app, adds it to Claude Desktop and prints the command for Claude Code; or add it yourself:
 
 ```sh
 claude mcp add visual-anything -- <executable> mcp <project>

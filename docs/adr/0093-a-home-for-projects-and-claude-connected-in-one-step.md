@@ -56,3 +56,15 @@ The README starts with **Download** and three steps: download the file for your 
 - The live protocol gains `home/offered`, `home/open`, `home/close`, `claude/setup` and their answers, so its version goes up.
 - The preferences gain `recentProjects`.
 - The executable's double-click is the main way in for people who never use a terminal; signing it (D3) matters more now.
+
+## Clarification of 2026-11-03: building sections 3 and 4
+
+Decided by Claude while building them, under the user's standing delegation:
+
+- **Telling the executable from the sources** is `node:sea`'s `isSea()`, as `isExecutable()` already does. From the sources, `setup-claude` and "Connect Claude…" write nothing and give the entry to add by hand: Node.js by its absolute path, running `packages/server/src/mcp-cli.ts` through the repository's `tsx`, with `TSX_TSCONFIG_PATH` set, as the guide writes it.
+- **Claude Desktop's folder** is `%APPDATA%\Claude` on Windows (`~\AppData\Roaming\Claude` when `APPDATA` is not an absolute path), `~/Library/Application Support/Claude` on macOS, and `$XDG_CONFIG_HOME/Claude` or `~/.config/Claude` elsewhere, where Electron keeps an application's data. A relative variable is passed over.
+- **What "changes nothing" means.** An entry for `visual-anything` that is already exactly `{ command: <this executable>, args: ["mcp"] }` is left as it is, with no backup made. Any other entry under that name, such as one naming a project or an older executable, is replaced, after the backup. A missing file is created, with its folder, and there is nothing to back up. The file is written atomically, with two spaces of indentation; the order of its keys is kept. A file over 4 MiB, a top level that is not a JSON object, or an `mcpServers` that is not one is refused like JSON that does not parse.
+- **The live messages** are `claude/setup`, which holds only its request id, and its answer `claude/setup-answer`, with `outcome` (`written`, `already`, `from-sources` or `refused`), the configuration's path, the backup's when one was made, the entry, the Claude Code command, and `why` for a refusal. The protocol goes to version 8.
+- **Who answers it.** The HTTP server answers `claude/setup` itself, before the message reaches whatever is open (a project, the start screen, or home), since it touches no project. One request runs at a time. A program given no way to set Claude up (tests) refuses with why.
+- **Where "Connect Claude…" is.** It is the last item of the header's menu, under the language and the theme, shown only while the local program is connected. The menu keeps its name, "Language and theme", until home's "Projects…" joins it; naming the menu then is left to that change.
+- **The README's warnings** are the short form of the guide's; Smart App Control and quarantine removal stay in the guide.

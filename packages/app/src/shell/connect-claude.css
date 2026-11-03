@@ -1,0 +1,62 @@
+/* "Connect Claude…": what there is to copy, as it is, with its button beside it (ADR 0093). */
+.connect-claude-copyable {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: var(--space-40);
+  margin: var(--space-50) 0;
+}
+
+.connect-claude-copyable pre {
+  margin: 0;
+  padding: var(--space-50);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.connect-claude-copyable button {
+  min-height: var(--control-md);
+  padding: var(--space-40) var(--space-90);
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.connect-claude-copyable button:hover {
+  background: var(--surface-hover);
+}
+
+.connect-claude-copyable [role='alert'] {
+  grid-column: 1 / -1;
+}
+
+.connect-claude-file {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+/* The menu's own action, under the language and the theme. */
+.preferences-action {
+  min-height: var(--control-md);
+  padding: var(--space-40) var(--space-60);
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.preferences-action:hover {
+  background: var(--surface-hover);
+}

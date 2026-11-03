@@ -19,6 +19,7 @@ import {
   type AppMessage,
   type CaptureAsk,
   type CaptureRequestMessage,
+  type ClaudeSetupAnswerMessage,
   type Command,
   type CommandRejectedMessage,
   type HistorySummary,
@@ -294,6 +295,7 @@ type Waiting =
   | { kind: 'compare'; resolve: (result: ComparedResult) => void }
   | { kind: 'solid-prepare'; resolve: (result: LiveResult<SolidPreparedMessage>) => void }
   | { kind: 'solid-files'; resolve: (result: LiveResult<SolidFilesListedMessage>) => void }
+  | { kind: 'claude-setup'; resolve: (result: LiveResult<ClaudeSetupAnswerMessage>) => void }
   | SolidFileWaiting;
 
 /** A solid's file asked for (ADR 0075): its pieces as they come, until the last one. */
@@ -305,10 +307,11 @@ interface SolidFileWaiting {
   resolve: (result: LiveResult<Uint8Array>) => void;
 }
 
-/** What each request about versions resolves with. */
+/** What each request {@link LiveConnection.ask} sends resolves with. */
 interface VersionAnswers {
   versions: LiveResult<VersionsListedMessage>;
   compare: ComparedResult;
+  'claude-setup': LiveResult<ClaudeSetupAnswerMessage>;
 }
 
 /** Answers go back to the socket that asked, so request ids only need to be unique in the tab. */
@@ -802,6 +805,13 @@ export class LiveConnection {
       ...(view === undefined ? {} : { view }),
     }));
 
+  /**
+   * Asks the local program to add itself to Claude Desktop's configuration (ADR 0093), as
+   * `visual-anything setup-claude` does: resolves with what that came to, which changes no project.
+   */
+  readonly setUpClaude = (): Promise<LiveResult<ClaudeSetupAnswerMessage>> =>
+    this.ask('claude-setup', (requestId) => ({ type: 'claude/setup', requestId }));
+
   /** Sends a request and waits for the answer of its kind, or says it is not connected. */
   private ask<K extends keyof VersionAnswers>(
     kind: K,
@@ -1093,6 +1103,11 @@ export class LiveConnection {
         if (answered?.kind === 'drawing') answered.resolve({ ok: true, answer: message });
         break;
       }
+      case 'claude/setup-answer': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'claude-setup') answered.resolve({ ok: true, answer: message });
+        break;
+      }
       case 'package/read-answer': {
         const answered = this.take(message.requestId);
         if (answered?.kind === 'package-read') answered.resolve({ ok: true, answer: message });
@@ -1201,7 +1216,8 @@ export class LiveConnection {
       taken.kind === 'proposal' ||
       taken.kind === 'solid' ||
       taken.kind === 'solid-prepare' ||
-      taken.kind === 'solid-files'
+      taken.kind === 'solid-files' ||
+      taken.kind === 'claude-setup'
         ? undefined
         : taken;
     let next: ProjectSnapshot;

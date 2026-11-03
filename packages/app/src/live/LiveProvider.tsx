@@ -84,6 +84,7 @@ export function LiveProvider({
       prepareSolid: connection.prepareSolid,
       listSolidFiles: connection.listSolidFiles,
       removeSolidFiles: connection.removeSolidFiles,
+      setUpClaude: connection.setUpClaude,
     }),
     [state, connection],
   );

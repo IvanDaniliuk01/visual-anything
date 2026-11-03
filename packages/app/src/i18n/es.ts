@@ -319,6 +319,37 @@ export const ui: Catalog = {
   Dark: 'Oscuro',
   System: 'Sistema',
   'Language and theme': 'Idioma y tema',
+  // "Connect Claude…" in the header's menu (ADR 0093).
+  'Connect Claude…': 'Conectar Claude…',
+  'Connect Claude': 'Conectar Claude',
+  'Claude Desktop can work on the project Visual Anything has open: read it, change it as one action you can undo, and show you around it.':
+    'Claude Desktop puede trabajar en el proyecto que Visual Anything tiene abierto: leerlo, cambiarlo en una acción que se puede deshacer y guiar por él.',
+  'Connecting adds Visual Anything to Claude Desktop’s configuration on this computer, and keeps a copy of the file as it was. Nothing else in it changes.':
+    'Conectar agrega Visual Anything a la configuración de Claude Desktop en esta computadora, y guarda una copia del archivo como estaba. Nada más cambia en él.',
+  'Then restart Claude Desktop: quit it fully, and open it again.':
+    'Después, reiniciar Claude Desktop: cerrarlo por completo y volver a abrirlo.',
+  'Connecting…': 'Conectando…',
+  'Connect Claude Desktop': 'Conectar Claude Desktop',
+  'Visual Anything is now in Claude Desktop’s configuration.':
+    'Visual Anything ya está en la configuración de Claude Desktop.',
+  'The file as it was is kept in {path}.': 'El archivo como estaba se guarda en {path}.',
+  'Restart Claude Desktop to use it: quit it fully, and open it again.':
+    'Para usarlo, reiniciar Claude Desktop: cerrarlo por completo y volver a abrirlo.',
+  'Claude Desktop’s configuration already has Visual Anything: nothing was changed.':
+    'La configuración de Claude Desktop ya tiene Visual Anything: no se cambió nada.',
+  'If Claude Desktop does not show it, restart it: quit it fully, and open it again.':
+    'Si Claude Desktop no lo muestra, reiniciarlo: cerrarlo por completo y volver a abrirlo.',
+  'This Visual Anything runs from its sources, so nothing was written: connecting names the single executable, which Claude starts by itself.':
+    'Este Visual Anything se ejecuta desde sus fuentes, así que no se escribió nada: conectar nombra el ejecutable único, que Claude inicia por su cuenta.',
+  'To have Claude Desktop start these sources instead, add this to “mcpServers” in its configuration:':
+    'Para que Claude Desktop inicie estas fuentes, agregar esto a “mcpServers” en su configuración:',
+  'Claude Desktop’s entry': 'Entrada de Claude Desktop',
+  'Claude Desktop’s configuration: {path}': 'Configuración de Claude Desktop: {path}',
+  'For Claude Code, run this in a terminal:': 'Para Claude Code, ejecutar esto en una terminal:',
+  'Claude Code’s command': 'Comando de Claude Code',
+  'Copy {what}': 'Copiar {what}',
+  'Could not copy: select the text and copy it by hand.':
+    'No se pudo copiar: seleccionar el texto y copiarlo a mano.',
   '{count} warnings': { one: '{count} advertencia', other: '{count} advertencias' },
   Hide: 'Ocultar',
   Copy: 'Copiar',
@@ -3962,6 +3993,30 @@ export const ui: Catalog = {
  * holds there; see `translateMessage`.
  */
 export const messages: Catalog = {
+  // Why connecting Claude Desktop changed nothing (ADR 0093), and the protocol's reasons about it.
+  'There is no folder for Claude Desktop’s configuration on this computer.':
+    'No hay una carpeta para la configuración de Claude Desktop en esta computadora.',
+  'Claude Desktop’s configuration is larger than 4 MiB, so nothing was changed.':
+    'La configuración de Claude Desktop ocupa más de 4 MiB, así que no se cambió nada.',
+  'Could not read Claude Desktop’s configuration, so nothing was changed: {reason}':
+    'No se pudo leer la configuración de Claude Desktop, así que no se cambió nada: {reason}',
+  'Claude Desktop’s configuration is not valid JSON, so nothing was changed: {reason}':
+    'La configuración de Claude Desktop no es JSON válido, así que no se cambió nada: {reason}',
+  'Claude Desktop’s configuration is not a JSON object, so nothing was changed.':
+    'La configuración de Claude Desktop no es un objeto JSON, así que no se cambió nada.',
+  'The servers in Claude Desktop’s configuration, its "mcpServers", are not a JSON object, so nothing was changed.':
+    'Los servidores de la configuración de Claude Desktop, su "mcpServers", no son un objeto JSON, así que no se cambió nada.',
+  'Could not write Claude Desktop’s configuration: {reason}':
+    'No se pudo escribir la configuración de Claude Desktop: {reason}',
+  'This Visual Anything cannot set up Claude Desktop.':
+    'Este Visual Anything no puede configurar Claude Desktop.',
+  'Could not set up Claude Desktop: {reason}': 'No se pudo configurar Claude Desktop: {reason}',
+  'Setting up Claude ends written, already there, from the sources or refused.':
+    'Configurar Claude termina escrito, ya presente, desde las fuentes o rechazado.',
+  'Setting up Claude answers with paths and words as text.':
+    'Configurar Claude responde con rutas y palabras como texto.',
+  'Setting up Claude answers with the server’s command and arguments.':
+    'Configurar Claude responde con el comando y los argumentos del servidor.',
   // What the app keeps in English and shows later: its notices, and its labels in the undo history.
   'Could not undo: {why}': 'No se pudo deshacer: {why}',
   'Could not redo: {why}': 'No se pudo rehacer: {why}',

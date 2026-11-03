@@ -107,7 +107,9 @@ const DRAWINGS = (view: string) => [
   `${view}.comparison.svg`,
 ];
 
-describe.skipIf(NO_GIT)('comparing two commits', () => {
+// Each test starts git several times, which took up to four seconds a start on a loaded Windows
+// machine, as in versions.test.ts; nothing here is timed.
+describe.skipIf(NO_GIT)('comparing two commits', { timeout: 300_000 }, () => {
   it('writes the summary and the three drawings of each view that changed', async () => {
     const { base, head } = await twoCommits();
     const result = await compare(

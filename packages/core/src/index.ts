@@ -161,6 +161,14 @@ export {
   MAX_PACKAGE_FILE_TEXT,
   packageFileProblems,
 } from './package-file-messages';
+// Connecting Claude Desktop from the app (ADR 0093, protocol version 8).
+export type {
+  ClaudeServerEntry,
+  ClaudeSetupAnswerMessage,
+  ClaudeSetupMessage,
+  ClaudeSetupOutcome,
+} from './claude-setup-messages';
+export { CLAUDE_SETUP_OUTCOMES, MAX_CLAUDE_SETUP_TEXT } from './claude-setup-messages';
 
 export type { IdGenerator } from './ids';
 export { ID_PATTERN, definitionIdFor, freshId, isId, randomIds, slug } from './ids';
