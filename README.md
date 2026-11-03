@@ -71,7 +71,7 @@ To have Claude work on your project with you, use **Connect Claude…** in the a
 - **A canvas for large models.** 10,000 elements in a view pan, zoom and select at 60 fps. Containers collapse and expand, detail fades as you zoom out, and lines go around shapes or follow the route you give them.
 - **Every world in one tool.** Systems architecture and C4, data science and machine learning, data modeling with SQL export, processes and state machines, physical AI with solids and joints, healthcare and finance.
 - **Scenarios, tours and simulation.** Play a sequence of steps over a view, choose between alternatives, guide someone through your views, or let a programmable component simulate tick by tick in a sandbox.
-- **Physical space.** A component draws its 3D solid inside its shape, and a panel shows elements where they really are; turning a joint moves everything it carries.
+- **Physical space.** A component draws its 3D solid inside its shape, and a panel shows elements where they really are; turning a joint moves everything it carries. [See it.](#physical-ai)
 - **Yours, on your computer.** It runs on 127.0.0.1, keeps your project as JSON files a git merge driver understands, compares versions between commits, and exports SVG, PDF, Mermaid, Structurizr and a read-only page that connects nowhere.
 - **Extensible and safe.** Packages add components, actions, importers, exporters and panels; their code runs sandboxed, only after you approve it.
 - **Claude as a collaborator.** Claude reads and edits the same model through MCP; every change it makes is one action in your undo history, and you can review its proposals before they apply.
@@ -119,9 +119,13 @@ Each world has a sample project. `pnpm exec tsx packages/server/src/cli.ts new <
 
 ### Physical AI
 
-`robot-arm`: a six-axis arm's control loop. In the app, its solid turns and its joints move.
+`robot-arm`: a six-axis arm drawn as its 3D solid, with the motors and encoders that drive and sense each joint placed around it. The physical-space panel beside the canvas shows where everything really is, and its sliders turn each joint, moving everything the joint carries.
 
-![Physical AI: the robot-arm sample](docs/images/robot-arm.svg)
+![Physical AI: the robot-arm sample's 3D solid on the canvas, with the physical-space panel and its joints beside it](docs/images/physical-space.png)
+
+Its control loop, from the grasp policy through the joint controller to each motor:
+
+![Physical AI: the robot-arm sample's control loop](docs/images/robot-arm.svg)
 
 ### Healthcare
 
