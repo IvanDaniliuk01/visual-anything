@@ -190,6 +190,7 @@
   --size-3600: 36rem;
   --size-4000: 40rem;
   --size-4400: 44rem;
+  --size-7800: 78rem;
   --size-hidden: 1px;
   --radius-xs: 0.2rem;
   --radius-sm: 0.25rem;
@@ -207,6 +208,7 @@
   --text-md: 1rem;
   --text-lg: 1.143rem;
   --text-xl: 1.286rem;
+  --text-2xl: 1.714rem;
   --em-heading-1: 1.3em;
   --em-heading-2: 1.15em;
   --em-code: 0.92em;

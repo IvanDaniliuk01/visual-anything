@@ -401,14 +401,25 @@ dd {
   color: var(--problem);
 }
 
-/* Status screens: connecting, or why the project cannot be shown */
+/*
+ * Status screens: connecting, why the project cannot be shown, the start screen and the Projects
+ * screen. The header takes the area named "header", as in the shell; without that area here its
+ * `grid-area: header` would put it in a row and a column after the screen's own, at the bottom right.
+ */
 
 .status-screen {
   display: grid;
+  grid-template-areas:
+    'header'
+    'main';
   grid-template-rows: auto minmax(0, 1fr);
   height: 100vh;
   height: 100dvh;
   background: var(--panel);
+}
+
+.status-screen > main {
+  grid-area: main;
 }
 
 .status-main {

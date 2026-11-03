@@ -1,67 +1,150 @@
-/* The Projects screen (ADR 0093), on the status screen's card, which scrolls when it is long. */
+/*
+ * The Projects screen (ADR 0093): under the header, a page centered in the window that scrolls when it
+ * is long. A welcome with the product's mark, then the projects and the recent ones as cards, the
+ * samples as cards labelled by world, and "Open a folder…" folded away at its end.
+ */
 .projects-main {
-  display: grid;
-  justify-items: center;
-  align-items: start;
   overflow: auto;
-  padding: var(--space-200) var(--space-100);
+  padding: var(--space-200) var(--space-150);
 }
 
-.projects-card {
+.projects-page {
+  display: grid;
+  gap: var(--space-275);
   width: 100%;
-  max-width: var(--size-4400);
-  overflow: visible;
+  max-width: var(--size-7800);
+  margin: 0 auto;
+  padding-bottom: var(--space-200);
+}
+
+/* The welcome: the mark, larger, beside the product's name and what it does. */
+.projects-welcome {
+  display: flex;
+  gap: var(--space-100);
+  align-items: center;
+}
+
+.projects-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--size-400);
+  height: var(--size-400);
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+}
+
+.projects-mark .shell-mark {
+  width: var(--size-275);
+  height: var(--size-275);
+}
+
+.projects-product {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-heading);
+  letter-spacing: var(--tracking-title);
+  line-height: var(--line-tight);
+}
+
+.projects-tagline {
+  margin-top: var(--space-25);
+  color: var(--text-muted);
+  font-size: var(--text-lg);
+}
+
+.projects-problem {
+  padding: var(--space-60) var(--space-100);
+  border: var(--stroke-thin) solid var(--problem);
+  border-radius: var(--radius-md);
+  background: var(--problem-soft);
 }
 
 .projects-section {
   display: grid;
-  gap: var(--space-60);
-  padding-top: var(--space-75);
-  border-top: var(--stroke-thin) solid var(--border);
+  gap: var(--space-100);
 }
 
-.projects-section h3,
-.projects-world h4,
-.start-choice h4,
-.start-choice h5 {
+.projects-section h3 {
   margin: 0;
-  font-size: var(--text-md);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-heading);
 }
 
-.projects-world {
-  display: grid;
-  gap: var(--space-50);
+.projects-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-50) var(--space-150);
+  align-items: baseline;
+  justify-content: space-between;
 }
 
-.projects-list {
+/* The projects folder, once, small and secondary, with a way to copy its path. */
+.projects-folder-path {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-25) var(--space-50);
+  align-items: baseline;
+  min-width: 0;
+  font-size: var(--text-xs);
+}
+
+.projects-folder-path .projects-path {
+  max-width: var(--size-3400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projects-copy {
+  margin-top: 0;
+}
+
+.projects-grid {
   display: grid;
-  gap: var(--space-50);
+  grid-template-columns: repeat(auto-fill, minmax(var(--size-1600), 1fr));
+  gap: var(--space-100);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.projects-row {
-  display: flex;
-  gap: var(--space-75);
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-50) var(--space-75);
-  border: var(--stroke-thin) solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--panel);
+.projects-samples {
+  grid-template-columns: repeat(auto-fill, minmax(var(--size-2000), 1fr));
 }
 
-.projects-what {
-  display: grid;
+/* A card: what it is on top, its button at its foot, so that the buttons of a row line up. */
+.projects-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-40);
   min-width: 0;
+  padding: var(--space-100) var(--space-120);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-1);
+}
+
+.projects-card h4 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-strong);
+  line-height: var(--line-tight);
 }
 
 .projects-name {
   overflow: hidden;
-  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The world a card belongs to, set small in capitals above its title. */
+.projects-world {
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
 }
 
 .projects-muted {
@@ -70,23 +153,81 @@
 }
 
 .projects-path {
-  overflow-wrap: anywhere;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.projects-missing .projects-name {
+.projects-empty {
+  padding: var(--space-150) var(--space-120);
+  border: var(--stroke-thin) dashed var(--border);
+  border-radius: var(--radius-lg);
   color: var(--text-muted);
-  font-weight: 400;
+  text-align: center;
+}
+
+.projects-missing {
+  background: var(--panel);
+  box-shadow: none;
+}
+
+.projects-card > button {
+  align-self: flex-start;
+  margin-top: auto;
+}
+
+/* The least room above a card's button, whose automatic margin takes what is left. */
+.projects-card > :nth-last-child(2) {
+  margin-bottom: var(--space-60);
+}
+
+.projects-empty-project {
+  border-style: dashed;
+  background: var(--panel);
+  box-shadow: none;
+}
+
+/* A card's button: the one clear way to go on from it. */
+.projects-start {
+  padding: var(--space-35) var(--space-100);
+  border: var(--stroke-thin) solid var(--accent-fill);
+  border-radius: var(--radius-md);
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  font: inherit;
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.projects-start:is(:hover, :active):not(:disabled) {
+  border-color: var(--accent-fill-hover);
+  background: var(--accent-fill-hover);
+}
+
+.projects-start:disabled {
+  border-color: var(--border);
+  background: var(--panel);
+  color: var(--text-muted);
 }
 
 .projects-field {
   display: grid;
   gap: var(--space-25);
+  max-width: var(--size-3400);
+}
+
+.projects-field label {
+  font-weight: var(--weight-medium);
 }
 
 .projects-field input {
   box-sizing: border-box;
   width: 100%;
-  padding: var(--space-25) var(--space-50);
+  padding: var(--space-40) var(--space-60);
   border: var(--stroke-thin) solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -94,16 +235,43 @@
   font: inherit;
 }
 
+.projects-field input:is(:hover, :active) {
+  border-color: var(--text-muted);
+}
+
 .projects-field input:focus-visible {
   outline: var(--stroke-medium) solid var(--focus-ring);
 }
 
+.projects-field .projects-muted {
+  font-size: var(--text-xs);
+}
+
+/* "Open a folder…", folded away: a link-like line that opens the path to type. */
+.projects-open-folder {
+  padding-top: var(--space-100);
+  border-top: var(--stroke-thin) solid var(--border);
+}
+
+.projects-open-folder > summary {
+  width: fit-content;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.projects-open-folder > summary:is(:hover, :active) {
+  text-decoration: underline;
+}
+
 .projects-folder {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-50);
   align-items: end;
+  margin-top: var(--space-75);
 }
 
 .projects-folder .projects-field {
   flex: 1;
+  max-width: var(--size-4400);
 }
