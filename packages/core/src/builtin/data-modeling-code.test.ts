@@ -239,6 +239,17 @@ describe('the code of the built-in Data modeling package', () => {
       { model: modelReaderOf(closing) },
     ) as string;
     expect(closed).not.toContain('x int');
+    const crossed = shop();
+    for (const element of crossed.model.elements) {
+      if (element.attributes && 'default' in element.attributes) {
+        element.attributes = { ...element.attributes, default: `'"'"` };
+      }
+    }
+    const written = hooks().exportFile(
+      { exporter: 'sql-ddl' },
+      { model: modelReaderOf(crossed) },
+    ) as string;
+    expect(written).not.toContain(`DEFAULT '"'"`);
   });
 
   it('says so of a model with no tables, and of a reference between tables without columns', () => {
