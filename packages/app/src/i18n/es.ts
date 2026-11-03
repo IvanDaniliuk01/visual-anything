@@ -7033,8 +7033,8 @@ export const messages: Catalog = {
   'The pose of "{name}" is measured from "{container}", which no longer holds it; it is kept, and "{element}" is not in physical space until it is posed again.':
     'La ubicación de "{name}" se mide desde "{container}", que ya no lo contiene; se conserva, y "{element}" no está en el espacio físico hasta que se lo ubique de nuevo.',
   // M10 seam 1: the physical-space panel in a view state and its address (ADR 0076).
-  'The physical-space panel holds root, camera, cut, explode, relations and names, or is open alone, not "{name}".':
-    'El panel del espacio físico tiene root, camera, cut, explode, relations y names, o está abierto solo, no "{name}".',
+  'The physical-space panel holds root, camera, cut, explode, relations, names and joints, or is open alone, not "{name}".':
+    'El panel del espacio físico tiene root, camera, cut, explode, relations, names y joints, o está abierto solo, no "{name}".',
   'The physical-space panel holds "{name}" twice.':
     'El panel del espacio físico tiene "{name}" dos veces.',
   '"{name}" in the physical-space panel takes no value.':
