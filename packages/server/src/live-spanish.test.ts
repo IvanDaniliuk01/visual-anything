@@ -44,10 +44,16 @@ describe('what the program says of live values, in Spanish', () => {
     const code = file === undefined ? undefined : packageCodeOf(file);
     const said: string[] = [];
     for (const approvals of [[], [{ hash: code?.hash ?? '', package: 'shop', capabilities: [] }]]) {
-      const grant = networkGrantOf(project, approvals, 'shop');
+      const grant = networkGrantOf(
+        project,
+        { codeApprovals: approvals, codeTurnedOff: [] },
+        'shop',
+      );
       if (!grant.ok) said.push(grant.problem.message);
     }
-    const none = networkGrantOf(project, [], 'nothing');
+    const off = networkGrantOf(project, { codeApprovals: [], codeTurnedOff: ['shop'] }, 'shop');
+    if (!off.ok) said.push(off.problem.message);
+    const none = networkGrantOf(project, { codeApprovals: [], codeTurnedOff: [] }, 'nothing');
     if (!none.ok) said.push(none.problem.message);
     const pkg = (granted: Capability[]) => ({ id: 'shop', name: 'Shop', granted });
     const addresses = [

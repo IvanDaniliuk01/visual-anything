@@ -177,6 +177,11 @@ export interface Program {
    */
   codeApprovals?(): Promise<CodeApproval[]>;
   /**
+   * The project's packages whose code the person turned off on this computer (ADR 0089): it runs for
+   * Claude neither, approved or not. Absent where it cannot ask, and then none is turned off.
+   */
+  codeTurnedOff?(): Promise<Id[]>;
+  /**
    * Sends live values (ADR 0057), as Claude's or the command line's: the program keeps them while the
    * project is open, never in a file or the history. Absent where it cannot.
    */
@@ -552,6 +557,15 @@ export class ProgramBridge implements Program {
   async codeApprovals(): Promise<CodeApproval[]> {
     const answer = await this.#request((requestId) => ({ type: 'code-approvals', requestId }));
     if (answer.type === 'code/approvals') return answer.approvals;
+    if (answer.type === 'command/rejected') {
+      throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  async codeTurnedOff(): Promise<Id[]> {
+    const answer = await this.#request((requestId) => ({ type: 'code-approvals', requestId }));
+    if (answer.type === 'code/approvals') return answer.turnedOff ?? [];
     if (answer.type === 'command/rejected') {
       throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
     }

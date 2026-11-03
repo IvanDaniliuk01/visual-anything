@@ -61,6 +61,8 @@ export async function startToolHarness(
   options: {
     /** The person's approvals of package code, as their preferences hold them (ADR 0054). */
     codeApprovals?: () => readonly CodeApproval[];
+    /** The packages whose code the person turned off on this computer (ADR 0089). */
+    codeTurnedOff?: () => readonly string[];
     /** The person's preferences (ADR-0032), such as whether they review Claude's changes. */
     preferences?: PreferencesStore;
   } = {},
@@ -89,6 +91,7 @@ export async function startToolHarness(
       return Promise.resolve();
     },
     ...(options.codeApprovals === undefined ? {} : { codeApprovals: options.codeApprovals }),
+    ...(options.codeTurnedOff === undefined ? {} : { codeTurnedOff: options.codeTurnedOff }),
   });
   const runtime = join(profile, 'run');
   const context = { ...currentContext(), home: profile };

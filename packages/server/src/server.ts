@@ -17,6 +17,7 @@ import {
   withViewState,
   type CodeApproval,
 } from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { attachClaude } from './claude/endpoint';
 import { CLAUDE_MAX_PAYLOAD, CLAUDE_PATH, encodeClaudeMessage } from './claude/messages';
@@ -84,6 +85,11 @@ export interface ServerOptions {
    * about for the project's own code only (ADR 0054); absent, no code is approved for Claude.
    */
   codeApprovals?: () => readonly CodeApproval[];
+  /**
+   * The packages whose code the person turned off on this computer, from their preferences (ADR
+   * 0089), whose code Claude's tools then run neither.
+   */
+  codeTurnedOff?: () => readonly Id[];
 }
 
 /** A theme the page can paint its first frame in. */
@@ -203,6 +209,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
               },
             }),
         ...(options.codeApprovals === undefined ? {} : { codeApprovals: options.codeApprovals }),
+        ...(options.codeTurnedOff === undefined ? {} : { codeTurnedOff: options.codeTurnedOff }),
       },
     );
     socket.on('close', () => connection.detach());

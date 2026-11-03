@@ -24,9 +24,10 @@ import { FakeClient, filesIn, testProject, writeProjectFolder } from './test-sup
 let folder: string;
 const opened: Session[] = [];
 let approvals: CodeApproval[] = [];
+let turnedOff: string[] = [];
 
 const preferences: PreferencesStore = {
-  current: () => ({ ...DEFAULT_PREFERENCES, codeApprovals: approvals }),
+  current: () => ({ ...DEFAULT_PREFERENCES, codeApprovals: approvals, codeTurnedOff: turnedOff }),
   set: () => Promise.reject(new Error('Not in these tests.')),
   close: () => Promise.resolve(),
 };
@@ -34,6 +35,7 @@ const preferences: PreferencesStore = {
 beforeEach(async () => {
   folder = await mkdtemp(join(tmpdir(), 'va-live-'));
   approvals = [];
+  turnedOff = [];
 });
 
 afterEach(async () => {
@@ -263,6 +265,36 @@ describe('fetching for package code', () => {
     expect(app.ofType('command/rejected').at(-1)?.problems[0]?.message).toBe(
       'The package "nothing" holds no code.',
     );
+  });
+
+  it('neither fetches nor takes live values for code turned off on this computer (M14’s review)', async () => {
+    const session = await open(withCode([`network:${origin}`]));
+    const app = new FakeClient();
+    session.connect(app);
+    approve(session, [`network:${origin}`]);
+    turnedOff = ['shop'];
+    const off =
+      'The code of the package "Shop" is turned off on this computer: it runs again once it is turned on in Packages….';
+    expect(await fetchAs(session, app, `${origin}/latency`, 'r1')).toMatchObject({
+      type: 'command/rejected',
+      problems: [{ code: 'code-off', message: off }],
+    });
+    await session.receive(
+      app,
+      encodeMessage({
+        type: 'live/set',
+        requestId: 'r2',
+        package: 'shop',
+        values: [{ target: 'cart', attribute: 'items', value: 4 }],
+      }),
+    );
+    expect(app.ofType('command/rejected').at(-1)?.problems[0]?.message).toBe(off);
+    expect(requests).toEqual([]);
+    // Turned on again, the approval it kept holds.
+    turnedOff = [];
+    expect(await fetchAs(session, app, `${origin}/latency`, 'r3')).toMatchObject({
+      type: 'live/fetched',
+    });
   });
 
   it('never fetches from the program itself, whatever is granted', async () => {

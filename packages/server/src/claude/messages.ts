@@ -21,6 +21,7 @@ import {
   FRESHNESS,
   LIVE_LIMITS,
   LiveProtocolProblem,
+  MAX_CODE_TURNED_OFF,
   ProtocolError,
   checkViewState,
   decodeServerMessage,
@@ -197,12 +198,15 @@ export interface ImportMessageRequest {
 
 /**
  * The answer to `code-approvals`: the person's approvals of the code the project's packages hold now,
- * and of no other code.
+ * and of no other code; and, of the project's packages, those whose code the person turned off on
+ * this computer (ADR 0089), which run for no one, approved or not. A program older than M14's review
+ * leaves `turnedOff` out.
  */
 export interface CodeApprovalsMessage {
   type: 'code/approvals';
   requestId: string;
   approvals: CodeApproval[];
+  turnedOff?: Id[];
 }
 
 /**
@@ -375,10 +379,24 @@ export function decodeProgramMessage(text: string): ProgramMessage {
     case 'code/approvals': {
       const requestId = requestIdOf(message);
       const approvals = readCodeApprovals(message.approvals);
-      if (requestId === undefined || approvals === undefined) {
+      const { turnedOff } = message;
+      const turnedOffRead =
+        turnedOff === undefined
+          ? undefined
+          : Array.isArray(turnedOff) &&
+              turnedOff.length <= MAX_CODE_TURNED_OFF &&
+              turnedOff.every(isId)
+            ? turnedOff
+            : null;
+      if (requestId === undefined || approvals === undefined || turnedOffRead === null) {
         throw new ProtocolError('The answer about approvals of package code is not valid.');
       }
-      return { type: 'code/approvals', requestId, approvals };
+      return {
+        type: 'code/approvals',
+        requestId,
+        approvals,
+        ...(turnedOffRead === undefined ? {} : { turnedOff: turnedOffRead }),
+      };
     }
     case 'live/cleared': {
       const requestId = requestIdOf(message);

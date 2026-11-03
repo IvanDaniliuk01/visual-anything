@@ -14,6 +14,7 @@ const SAMPLE = resolve(import.meta.dirname, '../../../../examples/simulate');
 let sample: ProjectSnapshot;
 let tools: ToolHarness;
 let approvals: CodeApproval[];
+let turnedOff: string[];
 
 beforeAll(async () => {
   const opened = await openSession(SAMPLE, { watch: false, out: () => {}, err: () => {} });
@@ -24,7 +25,11 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   approvals = [];
-  tools = await startToolHarness(sample, { codeApprovals: () => approvals });
+  turnedOff = [];
+  tools = await startToolHarness(sample, {
+    codeApprovals: () => approvals,
+    codeTurnedOff: () => turnedOff,
+  });
 }, 30_000);
 
 afterEach(async () => {
@@ -80,6 +85,18 @@ describe('run_simulation', () => {
     expect(await tools.failure('run_simulation', { element: 'audit-queue' })).toMatch(
       /not approved.*Claude cannot approve it/,
     );
+  });
+
+  it('runs nothing turned off on this computer, approved or not (ADR 0089, M14’s review)', async () => {
+    approveAsPerson();
+    turnedOff = ['flow'];
+    expect(await tools.failure('run_simulation', { element: 'audit-queue' })).toMatch(
+      /is turned off on this computer/,
+    );
+    expect(await tools.value('get_simulation', { element: 'audit-queue' })).toMatchObject({
+      approved: false,
+      why: expect.stringMatching(/is turned off on this computer/) as unknown,
+    });
   });
 
   it('runs the sample’s code in QuickJS: a queue past its limit, with its numbers and ticks sampled', async () => {

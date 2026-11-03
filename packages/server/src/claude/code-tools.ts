@@ -19,6 +19,7 @@ import {
   modelIndexOf,
   modelReaderOf,
   packageCodeOf,
+  turnedOffProblem,
   type CodeFailure,
   type HookName,
 } from '@visual-anything/core';
@@ -90,7 +91,7 @@ Example: { "package": "gauges" }`,
 const writePackageCode = tool({
   name: 'write_package_code',
   title: 'Write a package’s code',
-  description: `Writes the code of one of the project's own packages, its capabilities, or both, as one undoable action of Claude's (ADR 0054). It runs nothing: the person approves the code in the app before it runs, by its hash, and any later change to the code or its capabilities asks them again. Write one module of JavaScript, or TypeScript with "typescript": true, whose types are stripped; it may import nothing, and may not wait at its top. Each hook gets 50 ms and its package 32 MiB; an answer that is not plain data within its cap is dropped. Built-in packages hold no code.
+  description: `Writes the code of one of the project's own packages, its capabilities, or both, as one undoable action of Claude's (ADR 0054). It runs nothing: the person approves the code in the app before it runs, by its hash, and any later change to the code or its capabilities asks them again. Write one module of JavaScript, or TypeScript with "typescript": true, whose types are stripped; it may import nothing, and may not wait at its top. Each hook gets 50 ms and its package 32 MiB; an answer that is not plain data within its cap is dropped. Built-in packages ship with Visual Anything and cannot be changed, their code included.
 
 Capabilities: "model:read" (the whole model, read-only), "time" (the clock), "network:<origin>" (kept for live values; nothing fetches yet). Declare only what the code needs: the person grants each.
 
@@ -116,7 +117,9 @@ Example: { "package": "gauges", "code": null }`,
   hints: WRITE,
   run: async ({ package: pkg, code, typescript, capabilities }, program) => {
     if (builtinPackage(pkg)) {
-      return fail(`The package "${pkg}" is built in: it holds no code and cannot be changed.`);
+      return fail(
+        `The package "${pkg}" is built in: it ships with Visual Anything, and neither it nor its code can be changed.`,
+      );
     }
     let text = code;
     if (typeof text === 'string' && typescript === true) {
@@ -169,6 +172,10 @@ Example: { "package": "gauges", "element": "oven", "hook": "draw", "view": "kitc
       return fail(
         `The code of "${pkg}" does not run on "${element}": the element's component, and those it derives from, come from other packages.`,
       );
+    }
+    // Turned off on this computer, it runs for no one, approved or not (ADR 0089).
+    if (((await program.codeTurnedOff?.()) ?? []).includes(pkg)) {
+      return fail(turnedOffProblem({ id: pkg, name: file.name }).message);
     }
     // The approval is of this code, by this hash: the code run is the code whose hash was checked.
     const approvals = (await program.codeApprovals?.()) ?? [];

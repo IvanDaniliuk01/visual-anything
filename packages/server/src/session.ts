@@ -12,6 +12,7 @@ import { readdir, realpath } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import {
+  DEFAULT_PREFERENCES,
   EMPTY_HISTORY,
   PROTOCOL_VERSION,
   applyOperations,
@@ -1433,7 +1434,7 @@ export class Session implements LiveSession {
       this.#send(client, { type: 'command/rejected', requestId, problems });
     const grant = networkGrantOf(
       this.#state,
-      this.#options.preferences?.current().codeApprovals ?? [],
+      this.#options.preferences?.current() ?? DEFAULT_PREFERENCES,
       message.package,
     );
     if (!grant.ok) {
@@ -1461,7 +1462,7 @@ export class Session implements LiveSession {
     const { requestId } = message;
     const grant = networkGrantOf(
       this.#state,
-      this.#options.preferences?.current().codeApprovals ?? [],
+      this.#options.preferences?.current() ?? DEFAULT_PREFERENCES,
       message.package,
     );
     if (!grant.ok) {
