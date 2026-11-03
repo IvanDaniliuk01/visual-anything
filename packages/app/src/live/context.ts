@@ -20,6 +20,7 @@ import type {
   ComparedResult,
   LiveResult,
   LiveState,
+  NewProjectChoice,
   NoticeLevel,
   OtherProjectResult,
   SendOptions,
@@ -78,6 +79,20 @@ export interface Live extends LiveState {
    * no project yet (ADR 0051); absent where there is no live session to ask.
    */
   startProject?: (choice: StartChoice) => Promise<CommandResult>;
+  /**
+   * Opens the project in a folder from the Projects screen, while the program is at home (ADR 0093);
+   * absent where there is no live session to ask.
+   */
+  openProject?: (path: string) => Promise<CommandResult>;
+  /** Starts a new project in the projects folder and opens it (ADR 0093). */
+  createProject?: (choice: NewProjectChoice) => Promise<CommandResult>;
+  /** Takes a project off the recent list (ADR 0093). */
+  forgetRecent?: (path: string) => Promise<CommandResult>;
+  /**
+   * Closes the open project once its writes have landed and takes every tab to the Projects screen:
+   * the header menu's "Projects…" (ADR 0093).
+   */
+  goHome?: () => Promise<CommandResult>;
   /**
    * Asks the local program to open another project in a tab of its own program, as a destination
    * names it (ADR 0056); absent where there is no live session to ask.

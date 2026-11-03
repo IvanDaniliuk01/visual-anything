@@ -36,7 +36,7 @@ function renderApp(live: Live, language?: 'en' | 'es') {
 
 /** The Language control's radios, in the header's Language and theme, opened if it is not (A5). */
 function languageChoices(): HTMLElement {
-  const button = screen.getByRole('button', { name: /^(Language and theme|Idioma y tema)$/ });
+  const button = screen.getByRole('button', { name: /^(Menu|Menú)$/ });
   if (button.getAttribute('aria-expanded') !== 'true') fireEvent.click(button);
   return screen.getByRole('radiogroup', { name: /^(Language|Idioma)$/ });
 }

@@ -193,6 +193,28 @@ export const ui: Catalog = {
   'Start an empty project': 'Empezar un proyecto vacío',
   Overview: 'Vista general',
 
+  // The Projects screen, at home (ADR 0093), and the header's menu.
+  Menu: 'Menú',
+  'Projects…': 'Proyectos…',
+  Projects: 'Proyectos',
+  'Your projects': 'Proyectos propios',
+  'No projects in {folder} yet.': 'Todavía no hay proyectos en {folder}.',
+  'Recent projects': 'Proyectos recientes',
+  'Missing: its folder is gone, or holds no project now.':
+    'No está: su carpeta ya no existe, o ya no tiene ningún proyecto.',
+  'Remove “{name}” from the recent list': 'Quitar “{name}” de la lista de recientes',
+  'Remove from the list': 'Quitar de la lista',
+  'New project': 'Proyecto nuevo',
+  'It is written in a folder of its name in {folder}.':
+    'Se guarda en una carpeta con su nombre dentro de {folder}.',
+  'Give the new project a name first.': 'Primero darle un nombre al proyecto nuevo.',
+  'Open a folder…': 'Abrir una carpeta…',
+  'The whole path of a folder that holds a project, or nothing yet':
+    'La ruta completa de una carpeta que tiene un proyecto, o que todavía está vacía',
+  'Opening…': 'Abriendo…',
+  'Changed {when}': 'Modificado el {when}',
+  'Open “{name}”': 'Abrir “{name}”',
+
   // A package from another project (ADR 0051), and what a package is shared under (ADR 0047).
   'Add from another project…': 'Agregar de otro proyecto…',
   'Update from another project…': 'Actualizar desde otro proyecto…',

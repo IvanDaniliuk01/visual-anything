@@ -1,0 +1,109 @@
+/* The Projects screen (ADR 0093), on the status screen's card, which scrolls when it is long. */
+.projects-main {
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  overflow: auto;
+  padding: var(--space-200) var(--space-100);
+}
+
+.projects-card {
+  width: 100%;
+  max-width: var(--size-4400);
+  overflow: visible;
+}
+
+.projects-section {
+  display: grid;
+  gap: var(--space-60);
+  padding-top: var(--space-75);
+  border-top: var(--stroke-thin) solid var(--border);
+}
+
+.projects-section h3,
+.projects-world h4,
+.start-choice h4,
+.start-choice h5 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.projects-world {
+  display: grid;
+  gap: var(--space-50);
+}
+
+.projects-list {
+  display: grid;
+  gap: var(--space-50);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.projects-row {
+  display: flex;
+  gap: var(--space-75);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-50) var(--space-75);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+}
+
+.projects-what {
+  display: grid;
+  min-width: 0;
+}
+
+.projects-name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projects-muted {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.projects-path {
+  overflow-wrap: anywhere;
+}
+
+.projects-missing .projects-name {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.projects-field {
+  display: grid;
+  gap: var(--space-25);
+}
+
+.projects-field input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-25) var(--space-50);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.projects-field input:focus-visible {
+  outline: var(--stroke-medium) solid var(--focus-ring);
+}
+
+.projects-folder {
+  display: flex;
+  gap: var(--space-50);
+  align-items: end;
+}
+
+.projects-folder .projects-field {
+  flex: 1;
+}

@@ -5,7 +5,7 @@ import { Header } from './Header';
 import './start.css';
 
 /** What the start screen says about each sample the program holds, by its id. */
-const SAMPLE_TEXTS: Readonly<Record<string, { title: string; description: string }>> = {
+export const SAMPLE_TEXTS: Readonly<Record<string, { title: string; description: string }>> = {
   'c4-architecture': {
     title: 'C4 architecture: internet banking',
     description:

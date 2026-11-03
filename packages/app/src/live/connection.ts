@@ -1373,9 +1373,8 @@ export class LiveConnection {
       proposal: undefined,
       proposalEnded: undefined,
     });
-    if (message.requestId !== undefined) {
-      this.take(message.requestId)?.resolve({ ok: true, created: [], warnings: [] } as never);
-    }
+    const answered = message.requestId === undefined ? undefined : this.take(message.requestId);
+    if (answered?.kind === 'home') answered.resolve({ ok: true, created: [], warnings: [] });
   }
 
   /**

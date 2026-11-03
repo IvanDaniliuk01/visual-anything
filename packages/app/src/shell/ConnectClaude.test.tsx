@@ -63,7 +63,7 @@ describe('Connect Claude…', () => {
         <Header projectName="My systems" />
       </LiveContext>,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Language and theme' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
     fireEvent.click(screen.getByRole('button', { name: 'Connect Claude…' }));
     expect(screen.getByRole('dialog', { name: 'Connect Claude' })).toBeTruthy();
   });
@@ -74,7 +74,7 @@ describe('Connect Claude…', () => {
         <Header projectName="My systems" />
       </LiveContext>,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Language and theme' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
     expect(screen.queryByRole('button', { name: 'Connect Claude…' })).toBeNull();
   });
 

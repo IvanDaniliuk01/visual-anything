@@ -1,9 +1,10 @@
 /**
- * Language and theme, at the header's end (A5): one quiet icon button that opens a small panel under
+ * The header's menu, at its end (A5), named "Menu": one quiet icon button that opens a small panel under
  * it with the same choices the header showed before, the theme as three radios and the language as
  * three more. Each choice applies at once, as it did. Escape or a press outside closes the panel, and
  * the focus goes back to the button; opening it moves the focus to the theme chosen, so the arrow keys
- * move through each group as through any radios. Under them, while the local program is connected,
+ * move through each group as through any radios. Under them, while a project or a start screen is
+ * open, "Projects…" goes back to the Projects screen, and while the local program is connected,
  * "Connect Claude…" closes the panel and opens its dialog (ADR 0093).
  */
 import { useContext, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
@@ -15,7 +16,7 @@ import { ThemeControl } from '../theme/ThemeControl';
 import { ConnectClaudeDialog } from './ConnectClaude';
 import { PreferencesIcon } from './icons';
 
-const NAME = 'Language and theme';
+const NAME = 'Menu';
 
 export function PreferencesMenu() {
   const t = useT();
@@ -70,6 +71,25 @@ export function PreferencesMenu() {
             {t('Language')}
           </p>
           <LanguageControl />
+          {live?.goHome !== undefined &&
+            live.status === 'open' &&
+            (live.project !== undefined || live.start !== undefined) && (
+              <button
+                type="button"
+                className="preferences-action"
+                onClick={() => {
+                  setOpen(false);
+                  const notify = live.notify;
+                  void live.goHome?.().then((result) => {
+                    if (!result.ok) {
+                      notify('error', result.problems.map((each) => each.message).join(' '));
+                    }
+                  });
+                }}
+              >
+                {t('Projects…')}
+              </button>
+            )}
           {live?.setUpClaude !== undefined && (
             <button
               type="button"

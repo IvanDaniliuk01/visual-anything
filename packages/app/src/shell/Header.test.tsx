@@ -277,7 +277,7 @@ describe('the product and the tab', () => {
 
 /** Opens the header's Language and theme, unless it is open already. */
 function openPreferences(): void {
-  const button = screen.getByRole('button', { name: 'Language and theme' });
+  const button = screen.getByRole('button', { name: 'Menu' });
   if (button.getAttribute('aria-expanded') !== 'true') fireEvent.click(button);
 }
 
@@ -384,7 +384,7 @@ describe('the Theme control', () => {
 
 describe('Language and theme (A5)', () => {
   function menuButton(): HTMLElement {
-    return screen.getByRole('button', { name: 'Language and theme' });
+    return screen.getByRole('button', { name: 'Menu' });
   }
 
   it('is one icon button at the header’s end, with no select of languages in the header', () => {
@@ -392,7 +392,7 @@ describe('Language and theme (A5)', () => {
     const banner = screen.getByRole('banner');
     expect(within(banner).queryByRole('combobox')).not.toBeInTheDocument();
     expect(menuButton()).toHaveAttribute('aria-expanded', 'false');
-    expect(menuButton()).toHaveAttribute('title', 'Language and theme');
+    expect(menuButton()).toHaveAttribute('title', 'Menu');
     expect(menuButton().querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
     const actions = banner.querySelector('.shell-actions');
     expect(actions?.lastElementChild).toContainElement(menuButton());
@@ -402,7 +402,7 @@ describe('Language and theme (A5)', () => {
     renderHeader(fakeLive());
     fireEvent.click(menuButton());
     expect(menuButton()).toHaveAttribute('aria-expanded', 'true');
-    const panel = screen.getByRole('group', { name: 'Language and theme' });
+    const panel = screen.getByRole('group', { name: 'Menu' });
     expect(menuButton()).toHaveAttribute('aria-controls', panel.id);
     expect(within(panel).getByRole('radio', { name: 'Match the system' })).toHaveFocus();
     const languages = within(panel).getByRole('radiogroup', { name: 'Language' });
@@ -434,13 +434,13 @@ describe('Language and theme (A5)', () => {
     const dark = screen.getByRole('radio', { name: 'Dark' });
     dark.focus();
     fireEvent.keyDown(dark, { key: 'Escape' });
-    expect(screen.queryByRole('group', { name: 'Language and theme' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Menu' })).not.toBeInTheDocument();
     expect(menuButton()).toHaveFocus();
     expect(menuButton()).toHaveAttribute('aria-expanded', 'false');
 
     fireEvent.click(menuButton());
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Elsewhere' }));
-    expect(screen.queryByRole('group', { name: 'Language and theme' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Menu' })).not.toBeInTheDocument();
   });
 });
 

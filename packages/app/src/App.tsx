@@ -7,6 +7,7 @@ import { useLive } from './live/context';
 import { LiveProvider } from './live/LiveProvider';
 import type { LiveCredential } from './live/session';
 import { Notices } from './shell/Notices';
+import { ProjectsScreen } from './shell/ProjectsScreen';
 import { ProjectErrorBoundary } from './shell/ProjectErrorBoundary';
 import { Shell } from './shell/Shell';
 import { StartScreen } from './shell/StartScreen';
@@ -51,7 +52,8 @@ export function App({ token }: AppProps) {
 
 function LiveApp() {
   const t = useT();
-  const { failure, project, status, send, notify, joining, start, startProject } = useLive();
+  const live = useLive();
+  const { failure, project, status, send, notify, joining, start, startProject, home } = live;
   // The canvas learns whether a command was done, and the user reads why one was refused; the live
   // session already shows the rules a done command breaks that only warn.
   const onCommand = useCallback<SendCommand>(
@@ -64,6 +66,18 @@ function LiveApp() {
     [send, notify],
   );
   if (failure !== undefined) return <Failure failure={failure} />;
+  // At home, with no project open: the Projects screen (ADR 0093).
+  if (project === undefined && home !== undefined) {
+    const connected = status === 'open';
+    return (
+      <ProjectsScreen
+        offer={home}
+        openProject={connected ? live.openProject : undefined}
+        createProject={connected ? live.createProject : undefined}
+        forgetRecent={connected ? live.forgetRecent : undefined}
+      />
+    );
+  }
   // A folder that holds no project yet: the start screen (ADR 0051).
   if (project === undefined && start !== undefined) {
     return (
