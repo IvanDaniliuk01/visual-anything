@@ -1,0 +1,61 @@
+{
+  "id": "an-order",
+  "name": "An order, key by key",
+  "description": "Follows the foreign keys of one line of an order, from the order to its customer and from the book it sells to its author and publisher.",
+  "view": "overview",
+  "steps": [
+    {
+      "id": "customer",
+      "description": "Order 1001 names the customer who placed it: its customer_id is the id of a row in customers.",
+      "relations": [
+        "order-customer"
+      ],
+      "dataOut": {
+        "customer_id": 42,
+        "order": 1001
+      }
+    },
+    {
+      "id": "line",
+      "description": "Its first line names the order it belongs to, so deleting the order deletes the line too.",
+      "relations": [
+        "line-order"
+      ],
+      "dataIn": {
+        "order_id": 1001
+      }
+    },
+    {
+      "id": "book",
+      "description": "The line names the book it sold, two copies at the price of the day.",
+      "relations": [
+        "line-book"
+      ],
+      "dataOut": {
+        "book_id": 7,
+        "quantity": 2,
+        "unit_price_cents": 1850
+      }
+    },
+    {
+      "id": "author",
+      "description": "The book names its author, who cannot be deleted while a book names them.",
+      "relations": [
+        "book-author"
+      ],
+      "dataIn": {
+        "author_id": 3
+      }
+    },
+    {
+      "id": "publisher",
+      "description": "And its publisher: deleting the publisher would leave the book without one.",
+      "relations": [
+        "book-publisher"
+      ],
+      "dataIn": {
+        "publisher_id": 5
+      }
+    }
+  ]
+}

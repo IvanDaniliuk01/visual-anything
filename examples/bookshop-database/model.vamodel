@@ -1,0 +1,539 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "World"
+  },
+  "elements": [
+    {
+      "id": "catalog",
+      "component": "data-modeling.schema",
+      "name": "catalog",
+      "description": "What the shop sells: its books, who wrote them and who published them."
+    },
+    {
+      "id": "sales",
+      "component": "data-modeling.schema",
+      "name": "sales",
+      "description": "Who buys, and what they bought: customers, their orders and each order’s lines."
+    },
+    {
+      "id": "authors",
+      "component": "data-modeling.table",
+      "name": "authors",
+      "description": "The people who write the books the shop sells.",
+      "attributes": {
+        "schema": "catalog"
+      }
+    },
+    {
+      "id": "authors-id",
+      "component": "data-modeling.column",
+      "name": "id",
+      "attributes": {
+        "notNull": true,
+        "primaryKey": true,
+        "type": "bigint"
+      }
+    },
+    {
+      "id": "authors-full-name",
+      "component": "data-modeling.column",
+      "name": "full_name",
+      "attributes": {
+        "notNull": true,
+        "type": "varchar(200)"
+      }
+    },
+    {
+      "id": "authors-country",
+      "component": "data-modeling.column",
+      "name": "country",
+      "description": "The country the author lives in, as its two-letter code.",
+      "attributes": {
+        "type": "char(2)"
+      }
+    },
+    {
+      "id": "publishers",
+      "component": "data-modeling.table",
+      "name": "publishers",
+      "description": "The houses that publish the books.",
+      "attributes": {
+        "schema": "catalog"
+      }
+    },
+    {
+      "id": "publishers-id",
+      "component": "data-modeling.column",
+      "name": "id",
+      "attributes": {
+        "notNull": true,
+        "primaryKey": true,
+        "type": "bigint"
+      }
+    },
+    {
+      "id": "publishers-name",
+      "component": "data-modeling.column",
+      "name": "name",
+      "attributes": {
+        "notNull": true,
+        "type": "varchar(200)",
+        "unique": true
+      }
+    },
+    {
+      "id": "books",
+      "component": "data-modeling.table",
+      "name": "books",
+      "description": "Each title the shop sells, at its current price.",
+      "attributes": {
+        "schema": "catalog"
+      }
+    },
+    {
+      "id": "books-id",
+      "component": "data-modeling.column",
+      "name": "id",
+      "attributes": {
+        "notNull": true,
+        "primaryKey": true,
+        "type": "bigint"
+      }
+    },
+    {
+      "id": "books-isbn",
+      "component": "data-modeling.column",
+      "name": "isbn",
+      "attributes": {
+        "notNull": true,
+        "type": "char(13)",
+        "unique": true
+      }
+    },
+    {
+      "id": "books-title",
+      "component": "data-modeling.column",
+      "name": "title",
+      "attributes": {
+        "notNull": true,
+        "type": "varchar(300)"
+      }
+    },
+    {
+      "id": "books-author-id",
+      "component": "data-modeling.column",
+      "name": "author_id",
+      "attributes": {
+        "notNull": true,
+        "type": "bigint"
+      }
+    },
+    {
+      "id": "books-publisher-id",
+      "component": "data-modeling.column",
+      "name": "publisher_id",
+      "attributes": {
+        "type": "bigint"
+      }
+    },
+    {
+      "id": "books-price-cents",
+      "component": "data-modeling.column",
+      "name": "price_cents",
+      "attributes": {
+        "check": "price_cents >= 0",
+        "notNull": true,
+        "type": "integer"
+      }
+    },
+    {
+      "id": "books-published-on",
+      "component": "data-modeling.column",
+      "name": "published_on",
+      "attributes": {
+        "type": "date"
+      }
+    },
+    {
+      "id": "customers",
+      "component": "data-modeling.table",
+      "name": "customers",
+      "description": "The people who buy from the shop.",
+      "attributes": {
+        "schema": "sales"
+      }
+    },
+    {
+      "id": "customers-id",
+      "component": "data-modeling.column",
+      "name": "id",
+      "attributes": {
+        "notNull": true,
+        "primaryKey": true,
+        "type": "bigint"
+      }
+    },
+    {
+      "id": "customers-email",
+      "component": "data-modeling.column",
+      "name": "email",
+      "attributes": {
+        "notNull": true,
+        "type": "varchar(255)",
+        "unique": true
+      }
+    },
+    {
+      "id": "customers-full-name",
+      "component": "data-modeling.column",
+      "name": "full_name",
+      "attributes": {
+        "notNull": true,
+        "type": "varchar(200)"
+      }
+    },
+    {
+      "id": "customers-created-at",
+      "component": "data-modeling.column",
+      "name": "created_at",
+      "attributes": {
+        "default": "now()",
+        "notNull": true,
+        "type": "timestamptz"
+      }
+    },
+    {
+      "id": "orders",
+      "component": "data-modeling.table",
+      "name": "orders",
+      "description": "An order a customer places, and where it stands.",
+      "attributes": {
+        "schema": "sales"
+      }
+    },
+    {
+      "id": "orders-id",
+      "component": "data-modeling.column",
+      "name": "id",
+      "attributes": {
+        "notNull": true,
+        "primaryKey": true,
+        "type": "bigint"
+      }
+    },
+    {
+      "id": "orders-customer-id",
+      "component": "data-modeling.column",
+      "name": "customer_id",
+      "attributes": {
+        "notNull": true,
+        "type": "bigint"
+      }
+    },
+    {
+      "id": "orders-status",
+      "component": "data-modeling.column",
+      "name": "status",
+      "attributes": {
+        "check": "status in ('placed', 'paid', 'shipped', 'cancelled')",
+        "default": "'placed'",
+        "notNull": true,
+        "type": "varchar(20)"
+      }
+    },
+    {
+      "id": "orders-placed-at",
+      "component": "data-modeling.column",
+      "name": "placed_at",
+      "attributes": {
+        "default": "now()",
+        "notNull": true,
+        "type": "timestamptz"
+      }
+    },
+    {
+      "id": "order-lines",
+      "component": "data-modeling.table",
+      "name": "order_lines",
+      "description": "One book of an order, how many copies, and the price it sold at.",
+      "attributes": {
+        "schema": "sales"
+      }
+    },
+    {
+      "id": "order-lines-order-id",
+      "component": "data-modeling.column",
+      "name": "order_id",
+      "attributes": {
+        "notNull": true,
+        "primaryKey": true,
+        "type": "bigint"
+      }
+    },
+    {
+      "id": "order-lines-book-id",
+      "component": "data-modeling.column",
+      "name": "book_id",
+      "attributes": {
+        "notNull": true,
+        "primaryKey": true,
+        "type": "bigint"
+      }
+    },
+    {
+      "id": "order-lines-quantity",
+      "component": "data-modeling.column",
+      "name": "quantity",
+      "attributes": {
+        "check": "quantity > 0",
+        "notNull": true,
+        "type": "integer"
+      }
+    },
+    {
+      "id": "order-lines-unit-price-cents",
+      "component": "data-modeling.column",
+      "name": "unit_price_cents",
+      "description": "The book’s price when the order was placed, which a later change of price leaves as it was.",
+      "attributes": {
+        "check": "unit_price_cents >= 0",
+        "notNull": true,
+        "type": "integer"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "authors-in-catalog",
+      "relationType": "systems.is-part-of",
+      "from": "authors",
+      "to": "catalog"
+    },
+    {
+      "id": "authors-id-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "authors-id",
+      "to": "authors"
+    },
+    {
+      "id": "authors-full-name-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "authors-full-name",
+      "to": "authors"
+    },
+    {
+      "id": "authors-country-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "authors-country",
+      "to": "authors"
+    },
+    {
+      "id": "publishers-in-catalog",
+      "relationType": "systems.is-part-of",
+      "from": "publishers",
+      "to": "catalog"
+    },
+    {
+      "id": "publishers-id-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "publishers-id",
+      "to": "publishers"
+    },
+    {
+      "id": "publishers-name-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "publishers-name",
+      "to": "publishers"
+    },
+    {
+      "id": "books-in-catalog",
+      "relationType": "systems.is-part-of",
+      "from": "books",
+      "to": "catalog"
+    },
+    {
+      "id": "books-id-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "books-id",
+      "to": "books"
+    },
+    {
+      "id": "books-isbn-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "books-isbn",
+      "to": "books"
+    },
+    {
+      "id": "books-title-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "books-title",
+      "to": "books"
+    },
+    {
+      "id": "books-author-id-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "books-author-id",
+      "to": "books"
+    },
+    {
+      "id": "books-publisher-id-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "books-publisher-id",
+      "to": "books"
+    },
+    {
+      "id": "books-price-cents-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "books-price-cents",
+      "to": "books"
+    },
+    {
+      "id": "books-published-on-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "books-published-on",
+      "to": "books"
+    },
+    {
+      "id": "customers-in-sales",
+      "relationType": "systems.is-part-of",
+      "from": "customers",
+      "to": "sales"
+    },
+    {
+      "id": "customers-id-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "customers-id",
+      "to": "customers"
+    },
+    {
+      "id": "customers-email-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "customers-email",
+      "to": "customers"
+    },
+    {
+      "id": "customers-full-name-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "customers-full-name",
+      "to": "customers"
+    },
+    {
+      "id": "customers-created-at-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "customers-created-at",
+      "to": "customers"
+    },
+    {
+      "id": "orders-in-sales",
+      "relationType": "systems.is-part-of",
+      "from": "orders",
+      "to": "sales"
+    },
+    {
+      "id": "orders-id-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "orders-id",
+      "to": "orders"
+    },
+    {
+      "id": "orders-customer-id-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "orders-customer-id",
+      "to": "orders"
+    },
+    {
+      "id": "orders-status-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "orders-status",
+      "to": "orders"
+    },
+    {
+      "id": "orders-placed-at-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "orders-placed-at",
+      "to": "orders"
+    },
+    {
+      "id": "order-lines-in-sales",
+      "relationType": "systems.is-part-of",
+      "from": "order-lines",
+      "to": "sales"
+    },
+    {
+      "id": "order-lines-order-id-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "order-lines-order-id",
+      "to": "order-lines"
+    },
+    {
+      "id": "order-lines-book-id-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "order-lines-book-id",
+      "to": "order-lines"
+    },
+    {
+      "id": "order-lines-quantity-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "order-lines-quantity",
+      "to": "order-lines"
+    },
+    {
+      "id": "order-lines-unit-price-cents-of",
+      "relationType": "data-modeling.is-column-of",
+      "from": "order-lines-unit-price-cents",
+      "to": "order-lines"
+    },
+    {
+      "id": "book-author",
+      "relationType": "data-modeling.references",
+      "from": "books-author-id",
+      "to": "authors-id",
+      "description": "A book names its author, who cannot be deleted while a book names them.",
+      "attributes": {
+        "onDelete": "restrict"
+      }
+    },
+    {
+      "id": "book-publisher",
+      "relationType": "data-modeling.references",
+      "from": "books-publisher-id",
+      "to": "publishers-id",
+      "description": "A book names its publisher, if it has one; deleting the publisher leaves the book without one.",
+      "attributes": {
+        "onDelete": "set null"
+      }
+    },
+    {
+      "id": "order-customer",
+      "relationType": "data-modeling.references",
+      "from": "orders-customer-id",
+      "to": "customers-id",
+      "description": "An order names the customer who placed it, who cannot be deleted while an order names them.",
+      "attributes": {
+        "onDelete": "restrict"
+      }
+    },
+    {
+      "id": "line-order",
+      "relationType": "data-modeling.references",
+      "from": "order-lines-order-id",
+      "to": "orders-id",
+      "description": "A line names its order, and goes with it when the order is deleted.",
+      "attributes": {
+        "onDelete": "cascade"
+      }
+    },
+    {
+      "id": "line-book",
+      "relationType": "data-modeling.references",
+      "from": "order-lines-book-id",
+      "to": "books-id",
+      "description": "A line names the book it sold, which cannot be deleted while a line names it.",
+      "attributes": {
+        "onDelete": "restrict"
+      }
+    }
+  ]
+}

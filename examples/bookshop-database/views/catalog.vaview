@@ -1,0 +1,46 @@
+{
+  "id": "catalog",
+  "name": "Catalog",
+  "description": "The catalog schema: books, their authors and their publishers.",
+  "perspective": {
+    "name": "Catalog"
+  },
+  "nestingRelationTypes": [
+    "systems.is-part-of",
+    "data-modeling.is-column-of"
+  ],
+  "positions": [
+    {
+      "element": "authors",
+      "container": "catalog",
+      "x": 328,
+      "y": 56
+    },
+    {
+      "element": "publishers",
+      "container": "catalog",
+      "x": 328,
+      "y": 208
+    },
+    {
+      "element": "books",
+      "container": "catalog",
+      "x": 24,
+      "y": 112
+    },
+    {
+      "element": "catalog",
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "include": [
+      {
+        "kind": "contents",
+        "container": "catalog"
+      }
+    ]
+  }
+}

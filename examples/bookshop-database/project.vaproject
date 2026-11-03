@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "name": "Bookshop database",
+  "description": "A sample of the data modeling package: an invented online bookshop’s database, its catalog and its sales in two schemas, with the columns of each table, their keys and the foreign keys between them.",
+  "packages": [
+    "systems",
+    "data-modeling"
+  ]
+}

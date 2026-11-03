@@ -41,6 +41,11 @@ const SAMPLE_TEXTS: Readonly<Record<string, { title: string; description: string
     description:
       'An invented furniture workshop’s books, from an invoice through its payment to the general ledger by double entry, and the small portfolio that holds its reserve, with a scenario that decides how a payment is recorded.',
   },
+  'bookshop-database': {
+    title: 'Data modeling: a bookshop’s database',
+    description:
+      'An invented online bookshop’s tables in two schemas, its catalog and its sales, with their columns, keys and the foreign keys between them, and a scenario that follows an order’s keys from its customer to a book’s author.',
+  },
 };
 
 interface StartScreenProps {

@@ -69,6 +69,11 @@ describe('a program on a folder that holds no project yet', () => {
           { id: 'order-process', name: 'Online order', packages: ['process'] },
           { id: 'clinic-claim', name: 'Clinic claim', packages: ['healthcare'] },
           { id: 'workshop-books', name: 'Workshop books', packages: ['finance'] },
+          {
+            id: 'bookshop-database',
+            name: 'Bookshop database',
+            packages: ['systems', 'data-modeling'],
+          },
         ],
         token: 'secret',
       },

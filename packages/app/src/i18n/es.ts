@@ -180,6 +180,10 @@ export const ui: Catalog = {
   'Finance: a workshop’s books': 'Finanzas: los libros de un taller',
   'An invented furniture workshop’s books, from an invoice through its payment to the general ledger by double entry, and the small portfolio that holds its reserve, with a scenario that decides how a payment is recorded.':
     'Los libros de un taller de muebles inventado, desde una factura, pasando por su pago, hasta el libro mayor por partida doble, y la pequeña cartera que guarda su reserva, con un escenario que decide cómo se registra un pago.',
+  // R1: the sample of Data modeling.
+  'Data modeling: a bookshop’s database': 'Modelado de datos: la base de datos de una librería',
+  'An invented online bookshop’s tables in two schemas, its catalog and its sales, with their columns, keys and the foreign keys between them, and a scenario that follows an order’s keys from its customer to a book’s author.':
+    'Las tablas de una librería en línea inventada, en dos esquemas, su catálogo y sus ventas, con sus columnas, sus claves y las claves foráneas entre ellas, y un escenario que sigue las claves de un pedido desde su cliente hasta el autor de un libro.',
   'Start from the sample “{name}”': 'Empezar a partir del proyecto de muestra “{name}”',
   'Start from this sample': 'Empezar a partir de este proyecto de muestra',
   'Starting…': 'Empezando…',
