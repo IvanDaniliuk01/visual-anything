@@ -5,9 +5,24 @@
  */
 import { resolve } from 'node:path';
 import { packageCodeOf, type CodeApproval, type ProjectSnapshot } from '@visual-anything/core';
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openSession } from '../session';
 import { startToolHarness, type ToolHarness } from './tool-harness';
+
+// These tests judge what runs answer, not the call limit (the app's sandbox tests judge that): the
+// program's calls into package code may take 500 ms here, timed as the least of the clock and the
+// process's time (the app's test/cpu.ts). On a loaded machine a run's first tick took 64 ms on both,
+// past the 50 ms a call has, and the run failed for time.
+vi.mock('@visual-anything/app/src/code/sandbox', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@visual-anything/app/src/code/sandbox')>();
+  const { stopwatch } = await import('@visual-anything/app/src/test/cpu');
+  class LeastTimedSandbox extends actual.CodeSandbox {
+    constructor(...[module, options]: ConstructorParameters<typeof actual.CodeSandbox>) {
+      super(module, { now: stopwatch(), callMs: 500, ...options });
+    }
+  }
+  return { ...actual, CodeSandbox: LeastTimedSandbox };
+});
 
 const SAMPLE = resolve(import.meta.dirname, '../../../../examples/simulate');
 

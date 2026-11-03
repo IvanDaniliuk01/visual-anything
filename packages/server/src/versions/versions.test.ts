@@ -65,7 +65,10 @@ function holdingSpawn(hold: () => boolean): { spawn: Spawn; calls: RecordedCall[
   return { spawn, calls: recording.calls };
 }
 
-describe.skipIf(NO_GIT)('reading versions', () => {
+// Each test starts git several times, and git started on a loaded Windows machine took up to four
+// seconds each time: "keeps the commits of its last five listings", which starts it for two commits,
+// a reset, six listings and two reads, ran past 20 s, and once past 90 s. Nothing here is timed.
+describe.skipIf(NO_GIT)('reading versions', { timeout: 300_000 }, () => {
   it('refuses a commit not in the latest listing before git hears of it', async () => {
     const first = await commitProject(root, testProject());
     const { spawn, calls } = recordingSpawn();
