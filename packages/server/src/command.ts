@@ -12,7 +12,11 @@
  * When a program already runs on the folder, the command starts no second one: it asks that program
  * to open a tab at the view state, as Claude's `open_app` does, or with `--no-open` prints its view
  * address (ADR-0044).
+ *
+ * Given no folder, the program starts at home (ADR 0093): the app shows the Projects screen, from
+ * which the person opens a project, or starts one, and to which the header's "Projects…" goes back.
  */
+import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import {
@@ -32,6 +36,8 @@ import {
 } from './claude/bridge';
 import { removeProgramRecord, writeProgramRecord } from './claude/discovery';
 import { errorCode, errorReason } from './errors';
+import { projectsFolder } from './home';
+import { HomeSession, rememberProject } from './home-session';
 import { otherProjectOpener } from './other-project';
 import { toForwardSlashes } from './paths';
 import { openPreferences, themeHintOf, type PreferencesLocation } from './preferences';
@@ -54,9 +60,9 @@ export const USAGE = `Usage: visual-anything [open] [folder] [--view <id> [--sel
        visual-anything live <folder> [--fresh-for <seconds>] < values.jsonl
        visual-anything notices
 
-Opens the project in folder (the current folder when left out) and serves the app on 127.0.0.1.
-When Visual Anything already runs on that folder, it opens a new tab there instead, at the view
-asked for. With mcp, runs the MCP server Claude Code and Claude Desktop start instead;
+Opens the project in folder and serves the app on 127.0.0.1; with no folder, it starts at home,
+where the Projects screen opens a project, or starts one in Documents/Visual Anything. When Visual
+Anything already runs on that folder, it opens a new tab there instead, at the view asked for. With mcp, runs the MCP server Claude Code and Claude Desktop start instead;
 visual-anything mcp --help says more. With new, starts a new project in a folder that holds
 nothing yet, from a sample or empty, then opens it; visual-anything new --help says more. With
 export, writes a view as SVG, PDF or text; visual-anything export --help says more. With import,
@@ -85,8 +91,8 @@ opened as ./open, ./new, ./mcp, ./export, ./import, ./live or ./notices.
 
 /** What the command line asks for. */
 export interface CommandLine {
-  /** The project folder, as written; relative to the working folder. */
-  folder: string;
+  /** The project folder, as written, relative to the working folder; absent, the program starts at home. */
+  folder?: string;
   port: number;
   /** Whether to open the browser. */
   open: boolean;
@@ -152,6 +158,11 @@ export interface CommandEnvironment {
    * default a background process of this command's own program; the executable starts itself.
    */
   startProgram?: StartProgram;
+  /**
+   * The projects folder home writes new projects in (ADR 0093); by default `Documents/Visual
+   * Anything` in the person's home folder, as `projectsFolder` works it out.
+   */
+  projectsFolder?: string;
 }
 
 /** How long a program started with `--stop-when-idle` waits with nothing connected. */
@@ -208,7 +219,7 @@ export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
   return {
     ok: true,
     value: {
-      folder: positionals[0] ?? '.',
+      ...(positionals[0] === undefined ? {} : { folder: positionals[0] }),
       port,
       open: values['no-open'] !== true,
       dev: values.dev === true,
@@ -258,8 +269,10 @@ export async function runCommand(
     return 0;
   }
   // A program running on the folder already opens the tab, so that one program owns its files.
-  const joined = await openInRunningProgram(environment, options);
-  if (joined !== undefined) return joined;
+  if (options.folder !== undefined) {
+    const joined = await openInRunningProgram(environment, options, options.folder);
+    if (joined !== undefined) return joined;
+  }
 
   // The program's log, with --log: one JSON line per event (ADR-0016's clarification of W46).
   let programLog: ProgramLog | undefined;
@@ -293,7 +306,7 @@ async function runWithLog(
   const { store: preferences, warning } = await openPreferences(location.folder);
   if (warning !== undefined) environment.err(`Warning: ${warning}`);
 
-  const folder = resolve(environment.cwd, options.folder);
+  const folder = options.folder === undefined ? undefined : resolve(environment.cwd, options.folder);
   const stopper = new Stopper();
   const idle = options.stopWhenIdle
     ? new IdleStop(
@@ -326,22 +339,55 @@ async function runWithLog(
     ...(programLog === undefined ? {} : { log: programLog.write }),
   };
   const { state } = options;
-  // A folder that holds nothing yet gets the start screen, from which the person starts a project
-  // there, from a sample or empty (ADR 0051).
-  const starting = await startingOn(
-    folder,
-    (each) => openSession(each, sessionOptions),
-    preferences,
-  );
-  if (starting !== undefined && state !== undefined) {
+  if (folder === undefined && state !== undefined) {
     environment.err(
-      `${toForwardSlashes(folder)} holds no project yet, so it has no view to open: leave out --view, and start a project in the browser.`,
+      'With no folder, Visual Anything starts at home, which has no view to open: give the project folder with --view.',
     );
     await preferences.close();
     return 2;
   }
-  let session: Session | StartingSession;
-  if (starting !== undefined) {
+  // The record that lets Claude attach, for the project open now; at home there is none (ADR 0093).
+  let record: string | undefined;
+  let running: RunningServer | undefined;
+  // A folder that holds nothing yet gets the start screen, from which the person starts a project
+  // there, from a sample or empty (ADR 0051).
+  const starting =
+    folder === undefined
+      ? undefined
+      : await startingOn(folder, (each) => openSession(each, sessionOptions), preferences);
+  if (starting !== undefined && state !== undefined) {
+    environment.err(
+      `${toForwardSlashes(starting.folder)} holds no project yet, so it has no view to open: leave out --view, and start a project in the browser.`,
+    );
+    await preferences.close();
+    return 2;
+  }
+  const projectsRoot =
+    environment.projectsFolder ?? projectsFolder(process.platform, process.env, homedir());
+  let session: Session | StartingSession | HomeSession;
+  if (folder === undefined) {
+    session = new HomeSession({
+      projectsFolder: projectsRoot,
+      open: (each) => openSession(each, sessionOptions),
+      preferences,
+      onOpened: async (opened) => {
+        environment.out(
+          `Opened "${opened.snapshot.project.name}" from ${toForwardSlashes(opened.folder)}.`,
+        );
+        if (record !== undefined) await removeProgramRecord(record, process.pid);
+        record =
+          running === undefined
+            ? undefined
+            : await recordForClaude(environment, running, opened.folder);
+      },
+      onClosed: async (closed) => {
+        if (record !== undefined) await removeProgramRecord(record, process.pid);
+        record = undefined;
+        environment.out(`Closed the project in ${toForwardSlashes(closed)}; back at home.`);
+      },
+      elsewhere: (each) => runningElsewhere(environment, each),
+    });
+  } else if (starting !== undefined) {
     session = starting;
   } else {
     const opened = await openSession(folder, sessionOptions);
@@ -352,6 +398,7 @@ async function runWithLog(
       return 1;
     }
     session = opened.session;
+    await rememberProject(preferences, session.folder);
   }
   const problems = state === undefined ? [] : viewStateProblems(session.snapshot, state);
   if (problems.length > 0) {
@@ -398,26 +445,33 @@ async function runWithLog(
     environment.err(describeStartFailure(error, options.port));
     return 1;
   }
+  running = server;
   stopper.onSignals(environment.signals);
   // Every address that works once carries the view state asked for, beside its launch code.
   const launchUrl = () =>
     state === undefined ? server.launchUrl() : withViewState(server.launchUrl(), state);
   // Before saying it runs, so that Claude can attach as soon as it does.
-  let record: string | undefined;
-  if (session instanceof StartingSession) {
+  if (session instanceof HomeSession) {
     environment.out(
-      `${toForwardSlashes(folder)} holds no project yet: start one in the browser, from a sample or empty.`,
+      `No project is open: choose one in the browser, or start one in ${toForwardSlashes(projectsRoot)}.`,
+    );
+  } else if (session instanceof StartingSession) {
+    environment.out(
+      `${toForwardSlashes(session.folder)} holds no project yet: start one in the browser, from a sample or empty.`,
     );
     // Claude can attach once there is a project to attach to.
     void session.started.then(async (started) => {
       environment.out(
         `Started "${started.snapshot.project.name}" in ${toForwardSlashes(started.folder)}.`,
       );
+      await rememberProject(preferences, started.folder);
       record = await recordForClaude(environment, server, started.folder);
     });
   } else {
     record = await recordForClaude(environment, server, session.folder);
-    environment.out(`Opened "${session.snapshot.project.name}" from ${toForwardSlashes(folder)}.`);
+    environment.out(
+      `Opened "${session.snapshot.project.name}" from ${toForwardSlashes(session.folder)}.`,
+    );
     for (const warning of session.warnings()) {
       environment.err(`Warning: ${formatProjectProblem(warning)}`);
     }
@@ -430,7 +484,11 @@ async function runWithLog(
     }
   }
   environment.out(`Visual Anything is running at ${server.address}`);
-  programLog?.write({ event: 'started', folder: toForwardSlashes(folder), port: server.port });
+  programLog?.write({
+    event: 'started',
+    ...(folder === undefined ? {} : { folder: toForwardSlashes(folder) }),
+    port: server.port,
+  });
   if (options.dev) {
     environment.out('Dev mode: Vite serves the app from its sources, with hot reload.');
   }
@@ -479,11 +537,12 @@ async function runWithLog(
 async function openInRunningProgram(
   environment: CommandEnvironment,
   options: CommandLine,
+  folder: string,
 ): Promise<number | undefined> {
   const runtime = environment.runtimeFolder;
   if (runtime === undefined || runtime === null) return undefined;
   const bridge = new ProgramBridge({
-    folder: resolve(environment.cwd, options.folder),
+    folder: resolve(environment.cwd, folder),
     runtime,
     attachOnly: true,
   });
@@ -546,6 +605,39 @@ async function openInRunningProgram(
       return 1;
     }
     return 0;
+  } finally {
+    bridge.close();
+  }
+}
+
+/**
+ * Whether another Visual Anything runs on a folder home is asked to open (ADR 0093, ADR-0044): then it
+ * asks that one to open a tab, and says so, so that one program owns the folder's files; undefined
+ * when none runs there, or none answers.
+ */
+async function runningElsewhere(
+  environment: CommandEnvironment,
+  folder: string,
+): Promise<string | undefined> {
+  const runtime = environment.runtimeFolder;
+  if (runtime === undefined || runtime === null) return undefined;
+  const bridge = new ProgramBridge({ folder, runtime, attachOnly: true });
+  try {
+    let name: string;
+    try {
+      name = (await bridge.project()).project.name;
+    } catch (error) {
+      if (error instanceof OtherBuildError) {
+        return 'A Visual Anything of another build already runs on this project. Stop it, then open the project again.';
+      }
+      return undefined;
+    }
+    try {
+      await bridge.openApp();
+    } catch {
+      return `Visual Anything already runs on “${name}” in another program, and it could not open a tab there: switch to that tab, or stop that program and open the project again.`;
+    }
+    return `Visual Anything already runs on “${name}” in another program, so it opened a tab there.`;
   } finally {
     bridge.close();
   }

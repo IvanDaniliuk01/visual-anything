@@ -62,7 +62,7 @@ export interface StartOptions {
 }
 
 /** The project nobody has started yet, which no app ever sees: what `snapshot` gives until then. */
-const NO_PROJECT: ProjectSnapshot = {
+export const NO_PROJECT: ProjectSnapshot = {
   project: { schemaVersion: 1, name: 'New project', packages: [] },
   model: {
     world: { id: 'world', component: 'essence', name: 'World' },

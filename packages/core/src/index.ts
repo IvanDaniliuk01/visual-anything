@@ -319,6 +319,18 @@ export type { HistoryListedMessage, ListedAction } from './protocol';
 // The start screen of a folder that holds no project yet (ADR 0051).
 export type { OfferedSample, StartCreateMessage, StartOfferedMessage } from './protocol';
 export { MAX_START_NAME } from './protocol';
+// Home and the Projects screen (version 8, ADR 0093).
+export type {
+  HomeCloseMessage,
+  HomeCreateMessage,
+  HomeForgetMessage,
+  HomeOfferedMessage,
+  HomeOpenMessage,
+  HomeProject,
+  ProjectClosedMessage,
+  RecentProject,
+} from './protocol';
+export { MAX_HOME_PATH, MAX_HOME_PROJECTS } from './protocol';
 // Following a destination to another project (version 6, ADR 0056).
 export type { OpenOtherProjectMessage, OtherProjectOpenedMessage } from './protocol';
 export { readListedActions } from './protocol';

@@ -55,7 +55,7 @@ export type ProgramEvent =
     }
   | { event: 'attached' | 'gone'; who: 'app' | 'claude'; apps: number; claudes: number }
   | { event: 'files-changed'; files: string[]; reloaded: boolean }
-  | { event: 'started'; folder: string; port: number }
+  | { event: 'started'; folder?: string; port: number }
   | { event: 'stopped' };
 
 /** Where events go: a function the session and the command call. */

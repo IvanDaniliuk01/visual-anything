@@ -6,6 +6,10 @@
  * program, a value this build cannot read is kept as found, and a file of a newer format is never
  * written. Each change reads the file again and merges by name before writing it atomically, so that
  * two running programs keep each other's changes.
+ *
+ * The file also holds the projects opened last, `recentProjects` (ADR 0093): absolute paths, the
+ * latest first, at most ten. Only the program changes them, never an app's `preferences/set`, so they
+ * are kept here beside the preferences the core knows rather than among them.
  */
 import { readFile, stat } from 'node:fs/promises';
 import { join, posix, win32 } from 'node:path';
@@ -28,6 +32,15 @@ export const PREFERENCES_FILE = 'preferences.json';
 
 /** The largest preferences file read; a larger one is not a preferences file. */
 export const MAX_PREFERENCES_BYTES = 64 * 1024;
+
+/** The name the projects opened last are kept under in the preferences file (ADR 0093). */
+export const RECENT_PROJECTS = 'recentProjects';
+
+/** The most projects the recent list keeps. */
+export const MAX_RECENT_PROJECTS = 10;
+
+/** The longest path the recent list keeps. */
+const MAX_RECENT_PATH = 4096;
 
 /** Where the preferences are kept, and what to say about it when the choice needs saying. */
 export interface PreferencesLocation {
@@ -103,6 +116,36 @@ export interface PreferencesStore {
   set(changes: PreferenceChanges): Promise<SetPreferencesResult>;
   /** Resolves once the changes already asked for are done. */
   close(): Promise<void>;
+  /**
+   * The projects opened last, as absolute paths, the latest first (ADR 0093); absent where the
+   * program keeps none, as in tests that give a store of their own.
+   */
+  recentProjects?(): string[];
+  /**
+   * Changes the projects opened last: `update` gets the list as the file holds it now, so that
+   * another program's change is kept, and gives the list to keep. It is cleaned to absolute paths,
+   * each once, at most ten. When the file cannot be written the list still applies until the program
+   * stops. Resolves with the list kept.
+   */
+  updateRecentProjects?(update: (paths: readonly string[]) => readonly string[]): Promise<string[]>;
+}
+
+/** The recent list a file's value gives: absolute paths, each once, the first ten; none for others. */
+export function readRecentProjects(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const paths: string[] = [];
+  for (const each of value as unknown[]) {
+    if (
+      typeof each !== 'string' ||
+      each.length > MAX_RECENT_PATH ||
+      each.includes('\0') ||
+      !(win32.isAbsolute(each) || posix.isAbsolute(each))
+    ) {
+      continue;
+    }
+    if (!paths.includes(each)) paths.push(each);
+  }
+  return paths.slice(0, MAX_RECENT_PROJECTS);
 }
 
 export interface PreferencesOptions {
@@ -123,6 +166,7 @@ export async function openPreferences(
   const found = await readPreferencesFile(file);
   const preferences = found.state === 'read' ? found.read.preferences : DEFAULT_PREFERENCES;
   const store = new Store(file, preferences, options);
+  if (found.state === 'read') store.recent = readRecentProjects(found.read.kept[RECENT_PROJECTS]);
   const warning = warningFor(file, found);
   return warning === undefined ? { store } : { store, warning };
 }
@@ -132,6 +176,8 @@ class Store implements PreferencesStore {
   readonly #options: PreferencesOptions;
   #preferences: Preferences;
   #queue: Promise<unknown> = Promise.resolve();
+  /** The projects opened last, as last read or kept. */
+  recent: string[] = [];
 
   constructor(
     file: string | null,
@@ -155,6 +201,38 @@ class Store implements PreferencesStore {
 
   close(): Promise<void> {
     return this.#queue.then(() => undefined);
+  }
+
+  recentProjects(): string[] {
+    return [...this.recent];
+  }
+
+  updateRecentProjects(update: (paths: readonly string[]) => readonly string[]): Promise<string[]> {
+    const run = this.#queue.then(() => this.#updateRecent(update));
+    this.#queue = run.catch(() => undefined);
+    return run;
+  }
+
+  async #updateRecent(update: (paths: readonly string[]) => readonly string[]): Promise<string[]> {
+    const found = this.#file === null ? undefined : await readPreferencesFile(this.#file);
+    const read = found?.state === 'read' ? found.read : undefined;
+    const base = read === undefined ? this.recent : readRecentProjects(read.kept[RECENT_PROJECTS]);
+    const next = readRecentProjects(update(base));
+    this.recent = next;
+    // Never written: no file, or one a newer Visual Anything wrote.
+    if (this.#file === null || read?.newer === true) return [...next];
+    const preferences = read?.preferences ?? this.#preferences;
+    const kept = { ...(read?.kept ?? {}), [RECENT_PROJECTS]: next };
+    try {
+      await writeFileAtomic(
+        this.#file,
+        Buffer.from(formatPreferences(preferences, kept), 'utf8'),
+        this.#options.writer,
+      );
+    } catch {
+      // The list applies until the program stops, as a preference that cannot be saved does.
+    }
+    return [...next];
   }
 
   async #set(changes: PreferenceChanges): Promise<SetPreferencesResult> {

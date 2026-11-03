@@ -274,6 +274,11 @@ interface Attached {
   ended?: ProposalEnding;
   /** The reads waiting for the proposal to be shown again, or to close. */
   settled: (() => void)[];
+  /**
+   * Set while the program has no project open, once the person went home (ADR 0093): why, which
+   * every request is refused with until the program opens a project again.
+   */
+  closed?: string;
 }
 
 const START_TIMEOUT = 60_000;
@@ -707,8 +712,14 @@ export class ProgramBridge implements Program {
     return answer;
   }
 
-  /** The attached program, attaching first if needed. */
-  #attached(): Promise<Attached> {
+  /** The attached program, attaching first if needed; refused while it has no project open. */
+  async #attached(): Promise<Attached> {
+    const attached = await this.#attachOnce();
+    if (attached.closed !== undefined) throw new ProgramUnavailableError(attached.closed);
+    return attached;
+  }
+
+  #attachOnce(): Promise<Attached> {
     this.#attaching ??= this.#attach().then(
       (attached) => {
         this.#current = attached;
@@ -895,6 +906,19 @@ export class ProgramBridge implements Program {
       case 'project/reloaded':
         attached.snapshot = message.project;
         if (attached.proposal !== undefined) delete attached.proposal.proposed;
+        break;
+      // The program went home, and later opened a project again, maybe another (ADR 0093).
+      case 'project/closed':
+        attached.closed = message.message;
+        delete attached.proposal;
+        delete attached.ended;
+        for (const read of attached.settled.splice(0)) read();
+        break;
+      case 'project/opened':
+        attached.snapshot = message.project;
+        delete attached.closed;
+        delete attached.proposal;
+        delete attached.ended;
         break;
       case 'proposal/shown':
         try {

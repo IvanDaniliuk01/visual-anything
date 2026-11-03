@@ -133,8 +133,12 @@ import { readSpaceCamera } from './space/camera';
  *    which an older app of 7 would refuse when it opens them.
  *    And reading a package file the person chose (M14.2, ADR 0089), `package/read` and its answer
  *    `package/read-answer`, in 7 too, since no build of 7 shipped.
+ * 8: home (R0, ADR 0093): the program may run with no project open, and then greets each app with
+ *    `home/offered`, what the Projects screen offers; an app answers with `home/open`, `home/create`
+ *    or `home/forget`, and goes back home from a project with `home/close`. Claude, attached to the
+ *    project that closed, is told with `project/closed`.
  */
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';
@@ -171,6 +175,8 @@ export type ServerMessage =
   | GuidanceMessage
   | HistoryListedMessage
   | StartOfferedMessage
+  | HomeOfferedMessage
+  | ProjectClosedMessage
   | OtherProjectOpenedMessage
   | LiveValuesMessage
   | LiveKeptMessage
@@ -211,6 +217,67 @@ export interface OfferedSample {
   /** The packages it uses. */
   packages: Id[];
 }
+
+/**
+ * Sent in place of `project/opened` while the local program is at home, with no project open (ADR
+ * 0093): what the Projects screen offers. It is sent again to every app at home whenever what it
+ * offers changes, and to every app once a project closes.
+ */
+export interface HomeOfferedMessage {
+  type: 'home/offered';
+  protocolVersion: typeof PROTOCOL_VERSION;
+  /** The projects folder, as an absolute path: where new projects are written. */
+  folder: string;
+  /** The projects in the projects folder, by name. */
+  projects: HomeProject[];
+  /** The projects opened last, the latest first. */
+  recent: RecentProject[];
+  /** The samples a new project can start from. */
+  samples: OfferedSample[];
+  /** The session token, as `project/opened` hands it to a page that opened with a launch code. */
+  token?: string;
+  /** The request this answers, `home/close` or `home/forget`; only the app that sent it gets it. */
+  requestId?: string;
+}
+
+/**
+ * Sent to Claude, attached through its own endpoint, when the open project closes and the program goes
+ * home (ADR 0093): no project is open until the person opens one, and then Claude gets
+ * `project/opened` with it. Apps get `home/offered` instead.
+ */
+export interface ProjectClosedMessage {
+  type: 'project/closed';
+  /** What to tell Claude, in English. */
+  message: string;
+}
+
+/** A project the Projects screen offers to open. */
+export interface HomeProject {
+  /** Its folder, as an absolute path. */
+  path: string;
+  /** Its name, as its project file gives it. */
+  name: string;
+  /** Its world: the first built-in package it uses besides Systems; absent when it uses none. */
+  world?: Id;
+  /** When its files last changed, in milliseconds since 1970. */
+  changed: number;
+}
+
+/** A project opened lately; one whose folder is gone, or holds no project now, is missing. */
+export interface RecentProject {
+  path: string;
+  /** Absent for a missing project. */
+  name?: string;
+  world?: Id;
+  changed?: number;
+  missing: boolean;
+}
+
+/** The longest path a home message carries. */
+export const MAX_HOME_PATH = 4096;
+
+/** The most projects `home/offered` lists. */
+export const MAX_HOME_PROJECTS = 500;
 
 /** Sent when the live connection opens: the project as it is now. */
 export interface ProjectOpenedMessage {
@@ -874,6 +941,10 @@ export type AppMessage =
   | { type: 'redo'; requestId: string; to?: number }
   | PreferencesSetMessage
   | StartCreateMessage
+  | HomeOpenMessage
+  | HomeCreateMessage
+  | HomeForgetMessage
+  | HomeCloseMessage
   | OpenOtherProjectMessage
   | LiveFetchMessage
   | LiveSetMessage
@@ -904,6 +975,52 @@ export interface StartCreateMessage {
   sample?: Id;
   /** For an empty project: its name, the folder's by default, and its first view's. */
   names?: { project?: string; view?: string };
+}
+
+/**
+ * Asks the local program at home to open the project in a folder (ADR 0093): one the Projects screen
+ * listed, or one the person typed. It is answered with `project/opened` to every app, or with
+ * `start/offered` for a folder that holds nothing yet, or with `command/rejected` and why.
+ */
+export interface HomeOpenMessage {
+  type: 'home/open';
+  requestId: string;
+  /** The folder, as an absolute path; the program checks it and only ever reads a folder from it. */
+  path: string;
+}
+
+/**
+ * Asks the local program at home to start a new project in the projects folder, in a subfolder named
+ * from its name (ADR 0093): from the sample with this id, or empty when `sample` is left out. It is
+ * answered as `home/open` is.
+ */
+export interface HomeCreateMessage {
+  type: 'home/create';
+  requestId: string;
+  /** The project's name. */
+  name: string;
+  sample?: Id;
+  /** For an empty project, its first view's name. */
+  view?: string;
+}
+
+/**
+ * Asks the local program at home to take a project off the recent list. It is answered with
+ * `home/offered`, or with `command/rejected`.
+ */
+export interface HomeForgetMessage {
+  type: 'home/forget';
+  requestId: string;
+  path: string;
+}
+
+/**
+ * Asks the local program to close the open project, once every write has landed, and go home (ADR
+ * 0093). It is answered with `home/offered`, to every app, or with `command/rejected`.
+ */
+export interface HomeCloseMessage {
+  type: 'home/close';
+  requestId: string;
 }
 
 /**
@@ -967,6 +1084,8 @@ const SERVER_TYPES = new Set<string>([
   'guidance',
   'history/listed',
   'start/offered',
+  'home/offered',
+  'project/closed',
   'other-project/opened',
   'live/values',
   'live/kept',
@@ -1031,6 +1150,13 @@ export function decodeServerMessage(text: string): ServerMessage {
       break;
     case 'start/offered':
       return readStartOffered(message);
+    case 'home/offered':
+      return readHomeOffered(message);
+    case 'project/closed':
+      if (typeof message.message !== 'string') {
+        throw new ProtocolError('The message says why no project is open.');
+      }
+      return { type: 'project/closed', message: message.message };
     case 'other-project/opened':
       if (typeof message.requestId !== 'string' || typeof message.name !== 'string') {
         throw new ProtocolError('The message names the request and the project that opened.');
@@ -1120,6 +1246,13 @@ export function decodeAppMessage(text: string): AppMessage {
       return message as unknown as AppMessage;
     case 'start/create':
       return readStartCreate(message, message.requestId);
+    case 'home/open':
+    case 'home/forget':
+      return { type: message.type, requestId: message.requestId, path: homePathOf(message.path) };
+    case 'home/create':
+      return readHomeCreate(message, message.requestId);
+    case 'home/close':
+      return { type: 'home/close', requestId: message.requestId };
     case 'project/open-other': {
       // The path itself is checked by the local program, against the real folders, where it is used.
       const { project, view } = message;
@@ -1335,6 +1468,95 @@ function readStartOffered(message: Record<string, unknown>): StartOfferedMessage
     folder: message.folder,
     samples,
     ...(message.token === undefined ? {} : { token: message.token }),
+  };
+}
+
+/** Reads a path a home message carries: text, not empty, of at most {@link MAX_HOME_PATH}. */
+function homePathOf(value: unknown): string {
+  if (typeof value !== 'string' || value === '' || value.length > MAX_HOME_PATH) {
+    throw new ProtocolError(
+      `A folder is named by its path, as text of at most ${MAX_HOME_PATH} characters.`,
+    );
+  }
+  if (value.includes('\0')) throw new ProtocolError('A path holds no NUL character.');
+  return value;
+}
+
+/** Reads a new project's name and how it starts, as the Projects screen asks for it. */
+function readHomeCreate(message: Record<string, unknown>, requestId: string): HomeCreateMessage {
+  const { name, sample, view } = message;
+  if (typeof name !== 'string' || name.trim() === '' || name.length > MAX_START_NAME) {
+    throw new ProtocolError(`A new project's name is text of 1 to ${MAX_START_NAME} characters.`);
+  }
+  if (sample !== undefined && !isId(sample)) throw new ProtocolError('A sample is named by its id.');
+  if (view !== undefined && (typeof view !== 'string' || view.length > MAX_START_NAME)) {
+    throw new ProtocolError(
+      `A new project's first view's name is text of at most ${MAX_START_NAME} characters.`,
+    );
+  }
+  return {
+    type: 'home/create',
+    requestId,
+    name,
+    ...(sample === undefined ? {} : { sample }),
+    ...(view === undefined ? {} : { view }),
+  };
+}
+
+/** Reads what the Projects screen offers: the projects folder, its projects, the recent ones, samples. */
+function readHomeOffered(message: Record<string, unknown>): HomeOfferedMessage {
+  const { folder, projects, recent, token, requestId } = message;
+  // The version, the folder, the token and the samples are read as the start screen's are.
+  const offered = readStartOffered(message);
+  if (requestId !== undefined && typeof requestId !== 'string') {
+    throw new ProtocolError('The request is named by text.');
+  }
+  if (
+    !Array.isArray(projects) ||
+    !Array.isArray(recent) ||
+    projects.length > MAX_HOME_PROJECTS ||
+    recent.length > MAX_HOME_PROJECTS
+  ) {
+    throw new ProtocolError('The message has no list of projects.');
+  }
+  return {
+    type: 'home/offered',
+    protocolVersion: PROTOCOL_VERSION,
+    folder: folder as string,
+    projects: projects.map((each: unknown): HomeProject => {
+      if (
+        !isRecord(each) ||
+        typeof each.path !== 'string' ||
+        typeof each.name !== 'string' ||
+        typeof each.changed !== 'number' ||
+        !Number.isFinite(each.changed)
+      ) {
+        throw new ProtocolError('A project has a path, a name and when it last changed.');
+      }
+      return {
+        path: each.path,
+        name: each.name,
+        ...(isId(each.world) ? { world: each.world } : {}),
+        changed: each.changed,
+      };
+    }),
+    recent: recent.map((each: unknown): RecentProject => {
+      if (!isRecord(each) || typeof each.path !== 'string' || typeof each.missing !== 'boolean') {
+        throw new ProtocolError('A recent project has a path, and says whether it is missing.');
+      }
+      return {
+        path: each.path,
+        ...(typeof each.name === 'string' ? { name: each.name } : {}),
+        ...(isId(each.world) ? { world: each.world } : {}),
+        ...(typeof each.changed === 'number' && Number.isFinite(each.changed)
+          ? { changed: each.changed }
+          : {}),
+        missing: each.missing,
+      };
+    }),
+    samples: offered.samples,
+    ...(token === undefined ? {} : { token: token as string }),
+    ...(requestId === undefined ? {} : { requestId }),
   };
 }
 
