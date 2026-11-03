@@ -250,6 +250,19 @@ describe('the code of the built-in Data modeling package', () => {
       { model: modelReaderOf(crossed) },
     ) as string;
     expect(written).not.toContain(`DEFAULT '"'"`);
+    for (const dialect of ['`x', '0 # y', '[a']) {
+      const other = shop();
+      for (const element of other.model.elements) {
+        if (element.attributes && 'default' in element.attributes) {
+          element.attributes = { ...element.attributes, default: dialect };
+        }
+      }
+      const text = hooks().exportFile(
+        { exporter: 'sql-ddl' },
+        { model: modelReaderOf(other) },
+      ) as string;
+      expect(text).not.toContain(`DEFAULT ${dialect}`);
+    }
   });
 
   it('says so of a model with no tables, and of a reference between tables without columns', () => {

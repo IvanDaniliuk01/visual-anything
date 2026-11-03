@@ -139,7 +139,8 @@ function comment(lines, description) {
 // A value written as SQL itself (a type, a default, a check) that could end its statement or
 // begin a comment is left out, with a note, so that an exported script runs only what it shows.
 function safeSql(value) {
-  if (value === '' || /;|--|\/\*|\*\/|\$|\\|\u0085/.test(value)) return false;
+  // Also what other SQL dialects read as quotes or comments: backticks, brackets and #.
+  if (value === '' || /;|--|#|`|\[|\]|\/\*|\*\/|\$|\\|\u0085/.test(value)) return false;
   // Read as SQL reads it: quotes closed, and parentheses balanced outside them, so that no string or
   // quoted name opens here and closes in what follows, and a check never closes its own early. A
   // doubled quote inside a string closes and opens it again, which is how SQL escapes it.
