@@ -186,6 +186,21 @@ describe('what the hooks answer', () => {
       { commands: [{ type: 'batch', label: 'x', commands: [{ type: 'set-package-code' }] }] },
       '"set-package-code"',
     ],
+    [
+      'a whole package added',
+      { commands: [{ type: 'add-package', package: {} }] },
+      '"add-package"',
+    ],
+    [
+      'a whole package replaced, even in a batch',
+      {
+        commands: [
+          { type: 'update-element', id: 'api', changes: { name: 'Gateway' } },
+          { type: 'batch', label: 'x', commands: [{ type: 'replace-package', package: {} }] },
+        ],
+      },
+      '"replace-package"',
+    ],
     ['a function', { commands: [() => 1] }, 'plain data'],
   ])('drops changes with %s', (_, answer, words) => {
     const checked = checkChangesAnswer(answer, 'Act');

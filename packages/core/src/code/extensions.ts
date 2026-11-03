@@ -184,7 +184,12 @@ export interface PackageCodeChanges {
   commands: Command[];
 }
 
-/** Commands that never come from package code: comments are people's and Claude's, and code is approved. */
+/**
+ * Commands that never come from package code: comments are people's and Claude's, conflicts are the
+ * person's, and code is approved, so nothing that can write a package's code, capabilities or what
+ * it adds may come from code: `set-package-code`, and `add-package` and `replace-package`, which
+ * carry a package whole (M14.3), and which a review would not show as a change of code.
+ */
 const NEVER_FROM_CODE: ReadonlySet<string> = new Set([
   'create-thread',
   'add-comment',
@@ -193,6 +198,8 @@ const NEVER_FROM_CODE: ReadonlySet<string> = new Set([
   'delete-thread',
   'resolve-conflicts',
   'set-package-code',
+  'add-package',
+  'replace-package',
 ]);
 
 /**
