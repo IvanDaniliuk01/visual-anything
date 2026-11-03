@@ -7,6 +7,64 @@ Make any concept or system visual and explore it interactively. Open source unde
 - v0.1 scope, milestones and tasks: [docs/spec-v0.1.md](docs/spec-v0.1.md)
 - Building it with Claude Code: [docs/playbook.md](docs/playbook.md), with the agent rules in [CLAUDE.md](CLAUDE.md)
 
+## Worlds
+
+Each world has a sample project. `pnpm exec tsx packages/server/src/cli.ts new <folder> --from <sample>` copies one, and these pictures are its views exported as SVG in the Clean look.
+
+### Systems architecture
+
+`my-systems`: services, stores and queues, nested in their systems.
+
+![Systems architecture: the my-systems sample](docs/images/my-systems.svg)
+
+### C4
+
+`c4-architecture`: the containers of a system, C4-style.
+
+![C4: the c4-architecture sample](docs/images/c4-architecture.svg)
+
+### Data science
+
+`data-science-pipeline`: data from its sources to a trained model.
+
+![Data science: the data-science-pipeline sample](docs/images/data-science-pipeline.svg)
+
+### Machine learning
+
+`churn-classifier`: how a churn classifier is trained.
+
+![Machine learning: the churn-classifier sample](docs/images/churn-classifier.svg)
+
+### Data modeling
+
+`bookshop-database`: a bookshop's tables, columns and foreign keys, which export as SQL.
+
+![Data modeling: the bookshop-database sample](docs/images/bookshop-database.svg)
+
+### Processes
+
+`order-process`: an order from placing it to delivery.
+
+![Processes: the order-process sample](docs/images/order-process.svg)
+
+### Physical AI
+
+`robot-arm`: a six-axis arm's control loop. In the app, its solid turns and its joints move.
+
+![Physical AI: the robot-arm sample](docs/images/robot-arm.svg)
+
+### Healthcare
+
+`clinic-claim`: a claim's journey from a visit to its payment.
+
+![Healthcare: the clinic-claim sample](docs/images/clinic-claim.svg)
+
+### Finance
+
+`workshop-books`: from an invoice to the ledger.
+
+![Finance: the workshop-books sample](docs/images/workshop-books.svg)
+
 ## Opening a project
 
 Run `pnpm dev` (or `pnpm start`) at the repository root. Visual Anything opens your browser on the sample project at an address that works once, within two minutes. In the terminal where it runs, press `o` to open another tab, or `a` to print another such address; with `--no-open` it prints one at start. The session token never appears on screen or in an address: the tab gets it when it opens and keeps it for reloads.
