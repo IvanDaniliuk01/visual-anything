@@ -1,6 +1,6 @@
 {
   "name": "@visual-anything/app",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "The browser app: React panels and the PixiJS canvas. It sends commands to the local program and renders what comes back.",
   "license": "MIT",

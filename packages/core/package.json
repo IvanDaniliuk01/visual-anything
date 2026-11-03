@@ -1,6 +1,6 @@
 {
   "name": "@visual-anything/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "The model, its commands, invariants and undo history. Pure TypeScript with no I/O.",
   "license": "MIT",
