@@ -2,7 +2,7 @@
 status: accepted
 ---
 
-<!-- Asked by the user on 2026-11-03, after comparing with draw.io's latest connector work: "siento que la experiencia nuestra no está tan bien afinada aún, tenemos muchos problemas con el tema de las flechas, la reorganización automática", and then "para la versión 0.1 es sumamente necesario realizarlo". Decided by Claude under the user's standing delegation of design decisions, from an inventory of the app's lines and layout and a reading of draw.io's `dev` branch (commit 3e707fd). -->
+<!-- Asked by the user on 2026-11-03, after comparing with draw.io's latest connector work: "siento que la experiencia nuestra no está tan bien afinada aún, tenemos muchos problemas con el tema de las flechas, la reorganización automática", Decided by Claude under the user's standing delegation of design decisions, from an inventory of the app's lines and layout and a reading of draw.io's `dev` branch (commit 3e707fd). -->
 
 # Lines and layout keep the person's picture
 
@@ -97,4 +97,4 @@ Coordinates that were equal stay equal, so an orthogonal route stays orthogonal.
 - The view file gains two optional keys, `layout` and `lineJumps`. The format stays at version 1. Builds older than this refuse a view that sets them, and the live protocol's version goes up.
 - `keptRoutes.ts` and the "ELK's routes until something moves" of ADR 0080, section 1, are superseded by section 4. ADR 0080's clarification "Layout … is a request to arrange afresh" is superseded by section 3 for the Layout button, and holds for Layout from scratch.
 - ADR 0039's "the corner next to each end that moved moves along its axis" is superseded by section 5.
-- R1 waits for this milestone, as the user asked.
+- The user decided on 2026-11-03 that v0.1 does not need it: milestone A7 is built after R1.
