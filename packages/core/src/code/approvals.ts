@@ -25,7 +25,15 @@ export const MAX_CODE_APPROVALS = 256;
 /** Where a package's code stands: approved, with what it may reach, or not. */
 export type CodeStatus =
   | { state: 'unapproved' }
-  | { state: 'approved'; granted: Capability[] }
+  | {
+      state: 'approved';
+      granted: Capability[];
+      /**
+       * Built-in code (ADR 0089's M14.6 clarification): the program's own, which runs without an
+       * approval and with every capability it declares.
+       */
+      builtIn?: true;
+    }
   /** Over 256 KiB: it never runs, approved or not. */
   | { state: 'too-large' };
 
@@ -34,6 +42,9 @@ const HASH = /^[0-9a-f]{64}$/;
 /** Where a package's code stands under these approvals. */
 export function codeStatusOf(code: PackageCode, approvals: readonly CodeApproval[]): CodeStatus {
   if (code.tooLarge) return { state: 'too-large' };
+  if (code.builtIn === true) {
+    return { state: 'approved', granted: [...code.capabilities], builtIn: true };
+  }
   const approval = approvals.find((each) => each.hash === code.hash);
   if (!approval) return { state: 'unapproved' };
   return {

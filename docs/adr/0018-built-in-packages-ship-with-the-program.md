@@ -20,3 +20,4 @@ Sharing a project assumes the recipient's Visual Anything has the built-in packa
 <!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
 
 - 2026-10-25 (W31): the built-in packages are Systems, Data modeling and the starter packages C4 architecture (`c4`) and Data science pipelines (`data-science`) (ADR 0051). `c4` joins the reserved package ids, before `data-science`, `neuroscience` and `physical-ai`. A package copied from another project (ADR 0051) is a package of the project's own, in its folder, and may never take a built-in or reserved id.
+- 2026-11-02 (ADR 0089's M14.6 clarification): a built-in package may hold code, which is part of the program as the rest of the package is: it runs without the person's approval, recognized by its hash, and can be turned off on a computer like any package's code.

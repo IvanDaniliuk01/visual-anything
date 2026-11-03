@@ -4,6 +4,7 @@
  * whose components come from several packages with code runs each, nearest first.
  */
 import type { Capability, Id, PackageExtensions, PackageFile } from '@visual-anything/schema';
+import { builtinPackage } from '../builtin';
 import { componentOrEssence } from '../definitions';
 import type { ProjectSnapshot } from '../snapshot';
 import { definitionsIn, modelIndexOf } from '../state';
@@ -28,6 +29,28 @@ export interface PackageCode {
   tooLarge: boolean;
   /** What it adds to the app (ADR 0089), part of what the hash is made of; absent when nothing. */
   extensions?: PackageExtensions;
+  /**
+   * Whether it is the code a built-in package ships with, by its hash (ADR 0089's M14.6
+   * clarification): the program's own, which runs without the person's approval.
+   */
+  builtIn?: true;
+}
+
+/** The hash of each built-in package's code, worked out once. */
+const BUILT_IN_HASHES = new Map<Id, string | null>();
+
+/** The hash of the code the built-in package with this id ships with; undefined for none. */
+function builtInCodeHash(id: Id): string | undefined {
+  let known = BUILT_IN_HASHES.get(id);
+  if (known === undefined) {
+    const builtin = builtinPackage(id);
+    known =
+      builtin?.code === undefined || builtin.code.length === 0
+        ? null
+        : codeHash(builtin.code, builtin.capabilities ?? [], builtin.extensions);
+    BUILT_IN_HASHES.set(id, known);
+  }
+  return known ?? undefined;
 }
 
 /** A package's code; undefined for a package without any. */
@@ -36,11 +59,12 @@ export function packageCodeOf(file: PackageFile): PackageCode | undefined {
   if (code === undefined || code.length === 0) return undefined;
   const text = code.join('\n');
   const declared = file.capabilities ?? [];
+  const hash = codeHash(code, declared, file.extensions);
   return {
     package: file.id,
     name: file.name,
     text,
-    hash: codeHash(code, declared, file.extensions),
+    hash,
     capabilities: sortedCapabilities(declared.filter(isCapability)),
     declared: [...declared],
     tooLarge:
@@ -48,6 +72,8 @@ export function packageCodeOf(file: PackageFile): PackageCode | undefined {
       code.length > CODE_LIMITS.lines ||
       code.some((line) => line.length > CODE_LIMITS.lineLength),
     ...(file.extensions === undefined ? {} : { extensions: file.extensions }),
+    // Only the very code the program ships with: a package of the same id with other code is not.
+    ...(builtInCodeHash(file.id) === hash ? { builtIn: true as const } : {}),
   };
 }
 

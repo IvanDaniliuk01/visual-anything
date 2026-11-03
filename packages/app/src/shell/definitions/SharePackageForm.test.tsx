@@ -8,6 +8,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import type { SendCommand } from '../../canvas/CanvasArea';
 import type { Selection } from '../../editor/selection';
+import { LiveContext, type Live } from '../../live/context';
 import { DefinitionsHarness } from '../../test/DefinitionsHarness';
 import { loadSample } from '../../test/sample';
 
@@ -24,9 +25,9 @@ const SHOP: PackageFile = {
   relationTypes: [],
 };
 
-function renderTab(project: ProjectSnapshot = sample) {
+function renderTab(project: ProjectSnapshot = sample, live?: Partial<Live>) {
   const send = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
-  render(
+  const harness = (
     <DefinitionsHarness
       project={project}
       selected={[]}
@@ -34,8 +35,9 @@ function renderTab(project: ProjectSnapshot = sample) {
       send={send}
       select={vi.fn<(selection: Selection) => void>()}
       onReady={() => {}}
-    />,
+    />
   );
+  render(live === undefined ? harness : <LiveContext value={live as Live}>{harness}</LiveContext>);
   return {
     send,
     tab: screen.getByRole('region', { name: 'Components tab' }),
@@ -49,7 +51,10 @@ function sent(send: Mock<SendCommand>): Command[] {
 
 /** A file of a folder the person chose, as a folder picker lists it. */
 function chosenFile(path: string, value: unknown): File {
-  const file = new File([JSON.stringify(value)], path.split('/').at(-1) ?? path);
+  const file = new File(
+    [value instanceof Uint8Array ? (value as Uint8Array<ArrayBuffer>) : JSON.stringify(value)],
+    path.split('/').at(-1) ?? path,
+  );
   Object.defineProperty(file, 'webkitRelativePath', { value: path });
   return file;
 }
@@ -164,5 +169,159 @@ describe('updating a package from the project it came from', () => {
     await waitFor(() =>
       expect(within(inspector).getByText('That project has no package “clinic”.')).toBeVisible(),
     );
+  });
+});
+
+describe('updating a package whose code changed (ADR 0089’s M14.6 clarification)', () => {
+  /** The sample, its Clinic package holding code. */
+  function withCode(code: string[]): ProjectSnapshot {
+    return {
+      ...sample,
+      packages: sample.packages.map((each) => (each.id === 'clinic' ? { ...each, code } : each)),
+    };
+  }
+
+  async function update(project: ProjectSnapshot, next: PackageFile) {
+    const rendered = renderTab(project);
+    await openClinic(rendered.tab);
+    await click(
+      within(rendered.inspector).getByRole('button', { name: 'Update from another project…' }),
+    );
+    await chooseFolder(rendered.inspector, [chosenFile('source/packages/clinic.vapackage', next)]);
+    return rendered;
+  }
+
+  it('says that changed code asks for approval again, and applies it though nothing else differs', async () => {
+    const project = withCode(['// one']);
+    const current = project.packages.find((each) => each.id === 'clinic') as PackageFile;
+    const next: PackageFile = { ...current, code: ['// two'] };
+    const { inspector, send } = await update(project, next);
+    await waitFor(() =>
+      expect(
+        within(inspector).getByText(
+          'Its code changed, so it asks for your approval again before it runs.',
+        ),
+      ).toBeVisible(),
+    );
+    await click(within(inspector).getByRole('button', { name: 'Apply the update' }));
+    expect(sent(send)).toEqual([{ type: 'replace-package', package: next }]);
+  });
+
+  it('says so of what its code may reach', async () => {
+    const project = withCode(['// one']);
+    const current = project.packages.find((each) => each.id === 'clinic') as PackageFile;
+    const { inspector } = await update(project, { ...current, capabilities: ['model:read'] });
+    await waitFor(() =>
+      expect(
+        within(inspector).getByText(
+          'What its code may reach changed, so it asks for your approval again before it runs.',
+        ),
+      ).toBeVisible(),
+    );
+  });
+
+  it('says what adding code does, for a package that had none', async () => {
+    const { inspector } = await update(sample, { ...CLINIC, code: ['// new'] });
+    await waitFor(() =>
+      expect(
+        within(inspector).getByText('It adds code, which runs only once you approve it.'),
+      ).toBeVisible(),
+    );
+    expect(within(inspector).getByRole('button', { name: 'Apply the update' })).toBeEnabled();
+  });
+});
+
+describe('a package with solids from another project (ADR 0089’s M14.6 clarification)', () => {
+  const HASH = 'b'.repeat(64);
+  const MISSING = 'c'.repeat(64);
+  const solid = (id: string, hash: string) => ({
+    id,
+    name: 'Arm',
+    hash,
+    bytes: 3,
+    bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } },
+    counts: { triangles: 1, vertices: 3, nodes: 1, textures: 0 },
+    parts: [],
+    camera: { azimuth: 30, elevation: 20 },
+  });
+  const ROBOTS: PackageFile = {
+    ...SHOP,
+    id: 'robots',
+    name: 'Robots',
+    components: [{ id: 'robots.arm-box', name: 'Arm box', derivesFrom: 'systems.box' }],
+    solids: [solid('robots.arm', HASH), solid('robots.leg', MISSING)],
+  };
+  const PREPARED = {
+    type: 'solid/prepared' as const,
+    requestId: 'r',
+    hash: HASH,
+    bytes: 3,
+    bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } },
+    counts: { triangles: 1, vertices: 3, nodes: 1, textures: 0 },
+    parts: [],
+    report: [],
+  };
+
+  it('copies the files the folder holds through the local program, then adds the package', async () => {
+    const prepareSolid = vi.fn<NonNullable<Live['prepareSolid']>>(() =>
+      Promise.resolve({ ok: true, answer: PREPARED }),
+    );
+    const { tab, inspector, send } = renderTab(sample, { prepareSolid });
+    await click(within(tab).getByRole('button', { name: 'Add from another project…' }));
+    await chooseFolder(inspector, [
+      chosenFile('robots/project.vaproject', { name: 'Robots' }),
+      chosenFile('robots/packages/robots.vapackage', ROBOTS),
+      chosenFile(`robots/solids/${HASH}.glb`, new Uint8Array([1, 2, 3])),
+    ]);
+    await waitFor(() =>
+      expect(
+        within(inspector).getByText(
+          'The file of 1 of its solids is copied into this project’s solids folder, checked by Visual Anything first.',
+        ),
+      ).toBeVisible(),
+    );
+    expect(
+      within(inspector).getByText(
+        'That folder holds no file for 1 of its solids: it draws its placeholder until its file is in this project’s solids folder.',
+      ),
+    ).toBeVisible();
+    await click(within(inspector).getByRole('button', { name: 'Add this package' }));
+    await waitFor(() => expect(send).toHaveBeenCalled());
+    expect(prepareSolid).toHaveBeenCalledTimes(1);
+    const [name, bytes, options] = prepareSolid.mock.calls[0] ?? [];
+    expect(name).toBe(`${HASH}.glb`);
+    expect([...(bytes ?? [])]).toEqual([1, 2, 3]);
+    expect(options).toEqual({ keep: HASH });
+    expect(sent(send)).toEqual([{ type: 'add-package', package: ROBOTS }]);
+  });
+
+  it('adds nothing when the local program refuses a file, and says why', async () => {
+    const prepareSolid = vi.fn<NonNullable<Live['prepareSolid']>>(() =>
+      Promise.resolve({
+        ok: false,
+        problems: [
+          {
+            code: 'solid-not-clean',
+            message: 'The solid file is not one Visual Anything cleaned.',
+          },
+        ],
+      }),
+    );
+    const { tab, inspector, send } = renderTab(sample, { prepareSolid });
+    await click(within(tab).getByRole('button', { name: 'Add from another project…' }));
+    await chooseFolder(inspector, [
+      chosenFile('robots/packages/robots.vapackage', ROBOTS),
+      chosenFile(`robots/solids/${HASH}.glb`, new Uint8Array([1, 2, 3])),
+    ]);
+    await waitFor(() =>
+      expect(within(inspector).getByRole('button', { name: 'Add this package' })).toBeEnabled(),
+    );
+    await click(within(inspector).getByRole('button', { name: 'Add this package' }));
+    await waitFor(() =>
+      expect(
+        within(inspector).getByText('The solid file is not one Visual Anything cleaned.'),
+      ).toBeVisible(),
+    );
+    expect(send).not.toHaveBeenCalled();
   });
 });

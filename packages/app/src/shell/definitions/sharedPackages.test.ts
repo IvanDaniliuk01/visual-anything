@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { MAX_SHARED_PACKAGE, readChosenProject, type ChosenFile } from './sharedPackages';
+import { SOLID_CAPS } from '@visual-anything/core';
+import type { PackageFile, SolidDefinition } from '@visual-anything/schema';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  MAX_SHARED_PACKAGE,
+  copySolidFiles,
+  namedSolidFiles,
+  readChosenProject,
+  solidFilesOf,
+  type ChosenFile,
+  type SendSolidFile,
+} from './sharedPackages';
 
 const SHOP = {
   id: 'shop',
@@ -47,6 +57,7 @@ describe('readChosenProject', () => {
       name: 'Other shop',
       packages: [{ path: 'packages/shop.vapackage', file: SHOP }],
       problems: [],
+      solids: new Map(),
     });
   });
 
@@ -73,6 +84,7 @@ describe('readChosenProject', () => {
         { path: 'packages/b.vapackage', message: 'The file holds no package.' },
         { path: 'packages/c.vapackage', message: 'The file is over 4 MiB.' },
       ],
+      solids: new Map(),
     });
   });
 
@@ -82,5 +94,91 @@ describe('readChosenProject', () => {
     ]);
     expect(chosen.name).toBeUndefined();
     expect(chosen.packages).toHaveLength(1);
+  });
+});
+
+describe('a package’s solid files from the folder chosen (ADR 0089’s M14.6 clarification)', () => {
+  const A = 'a'.repeat(64);
+  const B = 'b'.repeat(64);
+  const C = 'c'.repeat(64);
+  const solid = (id: string, hash: string): SolidDefinition => ({
+    id,
+    name: id,
+    hash,
+    bytes: 3,
+    bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } },
+    counts: { triangles: 1, vertices: 3, nodes: 1, textures: 0 },
+    parts: [],
+    camera: { azimuth: 30, elevation: 20 },
+  });
+  const withBytes = (path: string, bytes: number[], size = bytes.length): ChosenFile => ({
+    ...unread(path),
+    size,
+    bytes: () => Promise.resolve(new Uint8Array(bytes)),
+  });
+
+  it('keeps the solids folder’s files named by a hash, unread, and passes over the others', async () => {
+    const chosen = await readChosenProject([
+      file('shop/project.vaproject', JSON.stringify({ name: 'Shop' })),
+      withBytes(`shop/solids/${A}.glb`, [1]),
+      unread('shop/solids/arm.glb'),
+      unread(`shop/solids/deeper/${B}.glb`),
+      unread(`shop/other/${C}.glb`),
+    ]);
+    expect([...chosen.solids.keys()]).toEqual([A]);
+  });
+
+  it('copies each file once, but those the project names already, and lists those it lacks', async () => {
+    const chosen = await readChosenProject([
+      withBytes(`shop/solids/${A}.glb`, [1]),
+      withBytes(`shop/solids/${B}.glb`, [2]),
+    ]);
+    const pkg: PackageFile = {
+      ...SHOP,
+      solids: [solid('shop.a', A), solid('shop.a2', A), solid('shop.b', B), solid('shop.c', C)],
+    };
+    const named = namedSolidFiles([{ ...SHOP, id: 'other', solids: [solid('other.b', B)] }]);
+    const files = solidFilesOf(chosen, pkg, named);
+    expect(files.copy.map((each) => each.hash)).toEqual([A]);
+    expect(files.missing.map((each) => each.id)).toEqual(['shop.c']);
+  });
+
+  it('sends each file kept by its hash, and stops at the first the local program refuses', async () => {
+    const send = vi.fn<SendSolidFile>((name) =>
+      Promise.resolve(
+        name.startsWith('b')
+          ? { ok: false as const, problems: [{ message: 'Not clean.' }] }
+          : {
+              ok: true as const,
+              answer: {
+                type: 'solid/prepared' as const,
+                requestId: 'r',
+                hash: A,
+                bytes: 1,
+                bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } },
+                counts: { triangles: 1, vertices: 3, nodes: 1, textures: 0 },
+                parts: [],
+                report: [],
+              },
+            },
+      ),
+    );
+    const copy = [
+      { hash: A, file: withBytes(`s/solids/${A}.glb`, [1]) },
+      { hash: B, file: withBytes(`s/solids/${B}.glb`, [2]) },
+      { hash: C, file: withBytes(`s/solids/${C}.glb`, [3]) },
+    ];
+    expect(await copySolidFiles(copy, send)).toEqual({ ok: false, message: 'Not clean.' });
+    expect(send.mock.calls.map(([name, , options]) => [name, options])).toEqual([
+      [`${A}.glb`, { keep: A }],
+      [`${B}.glb`, { keep: B }],
+    ]);
+    // A file past the cleaned file's cap is refused unread.
+    const large = [{ hash: C, file: withBytes(`s/solids/${C}.glb`, [], SOLID_CAPS.fileBytes + 1) }];
+    expect(await copySolidFiles(large, send)).toEqual({
+      ok: false,
+      message: `The solid file "solids/${C}.glb" is over ${SOLID_CAPS.fileBytes} bytes, the most a cleaned file holds.`,
+    });
+    expect(send).toHaveBeenCalledTimes(2);
   });
 });

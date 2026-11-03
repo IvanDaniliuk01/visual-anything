@@ -89,7 +89,7 @@ async function sendFile(
   client: FakeClient,
   bytes: Uint8Array,
   requestId = 'p1',
-  options?: { units?: 'mm'; up?: 'z'; simplify?: boolean },
+  options?: { units?: 'mm'; up?: 'z'; simplify?: boolean; keep?: string },
 ): Promise<void> {
   const count = Math.max(1, Math.ceil(bytes.length / SOLID_PIECE_BYTES));
   for (let index = 0; index < count; index++) {
@@ -357,6 +357,68 @@ describe('solid/prepare and define-solid (ADR 0075)', () => {
     expect(stored?.id).toMatch(/^shop\.arm-[a-z0-9]+$/);
     expect(stored?.camera).toEqual({ azimuth: 30, elevation: 20 });
     expect((await stat(solidFilePath(at, prepared.prepared.hash))).isFile()).toBe(true);
+  }, 60_000);
+});
+
+describe('a solid kept from another project (ADR 0089’s M14.6 clarification)', () => {
+  it('checks its cleaned file rather than cleaning it, and writes it to solids/ under its hash', async () => {
+    const { bytes, hash, description } = await canonical();
+    const { session: opened, folder: at } = await open();
+    const client = new FakeClient();
+    await sendFile(opened, client, bytes, 'k1', { keep: hash });
+    expect(client.ofType('solid/refused')).toEqual([]);
+    const prepared = client.ofType('solid/prepared')[0];
+    expect(prepared).toMatchObject({ hash, bytes: bytes.length, parts: description.parts });
+    expect(prepared?.report).toEqual([]);
+    const written = await readFile(solidFilePath(at, hash));
+    expect(solidHash(written)).toBe(hash);
+
+    // The package that names it then comes in with its solid drawn, not its placeholder.
+    const solid = definition(hash, {
+      bytes: bytes.length,
+      bounds: description.bounds,
+      counts: description.counts,
+      parts: description.parts,
+    });
+    await ask(opened, client, {
+      type: 'command',
+      requestId: 'c1',
+      command: {
+        type: 'add-package',
+        package: {
+          id: 'robots',
+          name: 'Robots',
+          components: [],
+          relationTypes: [],
+          solids: [{ ...solid, id: 'robots.arm' }],
+        },
+      },
+    });
+    expect(client.ofType('command/rejected')).toEqual([]);
+    expect(opened.warnings().map((each) => each.message)).toEqual([]);
+  }, 60_000);
+
+  it('refuses a file that is not canonical, or not the one its hash names, and writes nothing', async () => {
+    const { session: opened, folder: at } = await open();
+    const client = new FakeClient();
+    // A file no program cleaned, though named by its own hash.
+    const raw = solidHash(ARM);
+    await sendFile(opened, client, ARM, 'k1', { keep: raw });
+    expect(client.ofType('solid/refused')[0]).toMatchObject({
+      requestId: 'k1',
+      code: 'solid-not-clean',
+    });
+    await expect(stat(solidFilePath(at, raw))).rejects.toThrow();
+    // A canonical file under another file's name.
+    const { bytes } = await canonical();
+    const other = 'a'.repeat(64);
+    await sendFile(opened, client, bytes, 'k2', { keep: other });
+    expect(client.ofType('solid/refused')[1]).toMatchObject({
+      requestId: 'k2',
+      code: 'solid-not-clean',
+      message: `The bytes of the solid file "solids/${other}.glb" are not the ones its name says.`,
+    });
+    await expect(stat(solidFilePath(at, other))).rejects.toThrow();
   }, 60_000);
 });
 

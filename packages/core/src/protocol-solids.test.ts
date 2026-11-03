@@ -41,6 +41,26 @@ describe('solids over the live connection (ADR 0075)', () => {
       options: { units: 'mm', up: 'z', simplify: true },
     };
     expect(decodeAppMessage(encodeMessage(prepare))).toEqual(prepare);
+    // A solid kept from another project, by the hash its file is named by (ADR 0089).
+    const keep: AppMessage = { ...prepare, options: { keep: HASH } };
+    expect(decodeAppMessage(encodeMessage(keep))).toEqual(keep);
+  });
+
+  it('refuses keeping a solid by something that is no hash, or with other options', () => {
+    const prepare = {
+      type: 'solid/prepare',
+      requestId: 'r',
+      fileName: 'arm.glb',
+      piece: { index: 0, count: 1, data: '' },
+    };
+    expect(
+      reason(() => decodeAppMessage(JSON.stringify({ ...prepare, options: { keep: '../x' } }))),
+    ).toBe('Keep is the hash a solid’s file is named by.');
+    expect(
+      reason(() =>
+        decodeAppMessage(JSON.stringify({ ...prepare, options: { keep: HASH, units: 'mm' } })),
+      ),
+    ).toBe('A solid kept from another project is taken as it is, without other options.');
   });
 
   it('refuses an app’s solid messages that the core’s readers refuse', () => {

@@ -9,7 +9,7 @@ import type { PackageFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { codeProject, gaugesPackage } from '../code/test/project';
 import type { ChosenFile } from '../shell/definitions/sharedPackages';
-import { packageFilesIn, packagePlanOf } from './packageFiles';
+import { changedPartOf, codeChangeOf, packageFilesIn, packagePlanOf } from './packageFiles';
 
 /** A package of its own, for a project that does not have it yet. */
 const METERS: PackageFile = {
@@ -170,5 +170,32 @@ describe('packageFilesIn', () => {
       file(`f/p${String(n).padStart(2, '0')}.vapackage`),
     );
     expect(packageFilesIn(many)).toHaveLength(32);
+  });
+});
+
+describe('what an update does to the code (ADR 0089’s M14.6 clarification)', () => {
+  it('says whether its text, what it may reach or what it adds changed', () => {
+    expect(codeChangeOf(METERS, METERS)).toBe('same');
+    expect(changedPartOf(METERS, METERS)).toBeUndefined();
+    expect(changedPartOf(METERS, { ...METERS, code: ['// other'] })).toBe('code');
+    expect(changedPartOf(METERS, { ...METERS, capabilities: ['model:read', 'time'] })).toBe(
+      'capabilities',
+    );
+    const more: PackageFile = {
+      ...METERS,
+      extensions: {
+        ...METERS.extensions,
+        exporters: [{ id: 'csv', label: 'CSV', extension: '.csv' }],
+      },
+    };
+    expect(codeChangeOf(METERS, more)).toBe('changed');
+    expect(changedPartOf(METERS, more)).toBe('extensions');
+    const none: PackageFile = { ...METERS };
+    delete none.code;
+    delete none.capabilities;
+    delete none.extensions;
+    expect(codeChangeOf(none, METERS)).toBe('added');
+    expect(codeChangeOf(METERS, none)).toBe('removed');
+    expect(codeChangeOf(none, none)).toBe('none');
   });
 });

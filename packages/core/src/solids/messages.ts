@@ -45,6 +45,13 @@ export interface SolidImportOptions {
   units?: 'm' | 'cm' | 'mm' | 'in';
   up?: 'y' | 'z';
   simplify?: boolean;
+  /**
+   * For a solid kept from another project (ADR 0089's M14.6 clarification): the hash its file is
+   * named by there. The program does not clean the file again: it checks it with the core's strict
+   * reader, as a file of `solids/` is checked, within the cleaned file's caps, and writes it to this
+   * project's `solids/` only when it is canonical and its bytes hash to this. Never with the others.
+   */
+  keep?: string;
 }
 
 export interface SolidPrepareMessage {
@@ -161,9 +168,17 @@ export function readSolidPrepare(message: Record<string, unknown>): Read<SolidPr
     if (
       typeof given !== 'object' ||
       given === null ||
-      !onlyKeys(given, ['units', 'up', 'simplify'])
+      !onlyKeys(given, ['units', 'up', 'simplify', 'keep'])
     ) {
-      return fail('Options are units, up and simplify.');
+      return fail('Options are units, up, simplify and keep.');
+    }
+    if (given.keep !== undefined) {
+      if (typeof given.keep !== 'string' || !HASH.test(given.keep)) {
+        return fail('Keep is the hash a solid’s file is named by.');
+      }
+      if (given.units !== undefined || given.up !== undefined || given.simplify !== undefined) {
+        return fail('A solid kept from another project is taken as it is, without other options.');
+      }
     }
     if (given.units !== undefined && !['m', 'cm', 'mm', 'in'].includes(given.units as string)) {
       return fail('Units are m, cm, mm or in.');

@@ -180,6 +180,39 @@ describe('Packages…', () => {
     expect(document.activeElement).toBe(review);
   });
 
+  it('runs a built-in package’s code as the program’s own, shown and turned off, never approved', () => {
+    // ADR 0089's M14.6 clarification: Data modeling ships with code, which needs no approval.
+    const dataModeling = builtinPackage('data-modeling')!;
+    setUp({ ...codeProject(), packages: [dataModeling] });
+    const builtIn = item('Data modeling');
+    expect(builtIn.textContent).toContain('Built-in package');
+    expect(builtIn.textContent).toContain('ActionsFind tables no relation reaches');
+    expect(builtIn.textContent).toContain('ExportersSQL DDL (CREATE TABLE)');
+    expect(builtIn.textContent).toContain(
+      'Built into Visual Anything: its code runs as part of the program once the worker starts.',
+    );
+    expect(builtIn.textContent).not.toContain('not granted');
+    // Its action is offered at once, with no approval asked for.
+    expect(
+      within(builtIn).getByRole('button', { name: 'Run “Find tables no relation reaches”' }),
+    ).toBeTruthy();
+
+    fireEvent.click(within(builtIn).getByRole('button', { name: 'Show the code…' }));
+    const shown = screen.getByRole('dialog', { name: 'The code of “Data modeling”' });
+    expect(shown.textContent).toContain('It is built into Visual Anything');
+    expect(within(shown).queryByRole('button', { name: /Approve|Withdraw/ })).toBeNull();
+    expect(within(shown).queryByRole('checkbox')).toBeNull();
+    fireEvent.click(within(shown).getByRole('button', { name: 'Close' }));
+
+    fireEvent.click(
+      within(item('Data modeling')).getByRole('checkbox', {
+        name: 'Run its code on this computer',
+      }),
+    );
+    expect(appliedPreferences().preferences.codeTurnedOff).toEqual(['data-modeling']);
+    expect(item('Data modeling').textContent).toContain('Turned off on this computer');
+  });
+
   it('says what to do when the project uses no package', () => {
     setUp({ ...codeProject(), packages: [] });
     expect(packagesDialog().textContent).toContain(

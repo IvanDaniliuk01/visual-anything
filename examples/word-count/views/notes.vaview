@@ -1,0 +1,41 @@
+{
+  "id": "notes",
+  "name": "Notes",
+  "description": "Every note, with the count its package stores.",
+  "perspective": {
+    "name": "Writing",
+    "description": "What each note says, and how many words it holds."
+  },
+  "nestingRelationTypes": [],
+  "positions": [
+    {
+      "element": "welcome",
+      "x": 40,
+      "y": 40,
+      "pinned": true
+    },
+    {
+      "element": "how",
+      "x": 300,
+      "y": 40,
+      "pinned": true
+    },
+    {
+      "element": "try",
+      "x": 560,
+      "y": 40,
+      "pinned": true
+    }
+  ],
+  "freeShapes": [
+    {
+      "kind": "note",
+      "id": "about-code",
+      "x": 40,
+      "y": 152,
+      "width": 740,
+      "height": 96,
+      "text": "The Word count package holds code that adds to the app. It runs only once you approve it: open Packages… in the header and choose Review and approve the code."
+    }
+  ]
+}

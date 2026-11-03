@@ -3,6 +3,9 @@
  * capability it declares, which the person grants on their own; fetching from a web origin is off
  * until they turn it on. Approving keeps the hash in their preferences, never in the project, and any
  * change to the code or its capabilities asks again.
+ *
+ * A built-in package's code (ADR 0089's M14.6 clarification) ships with the program and runs as its
+ * own: the dialog shows it and what it may reach, and says so, with nothing to approve or withdraw.
  */
 import { readCapability } from '@visual-anything/core';
 import type { Capability } from '@visual-anything/schema';
@@ -65,6 +68,7 @@ export function ApprovalDialog({
   const codeId = useId();
   const { code, status } = view;
   const approved = status.state === 'approved';
+  const builtIn = approved && status.builtIn === true;
   const [granted, setGranted] = useState<ReadonlySet<Capability>>(
     () =>
       new Set(
@@ -96,9 +100,13 @@ export function ApprovalDialog({
           </p>
         )}
         <p>
-          {t(
-            'It runs in a sandbox, with no access to your files, the page or the network beyond what you grant below. Approve it only if you trust where it comes from.',
-          )}
+          {builtIn
+            ? t(
+                'It is built into Visual Anything and runs as part of the program, in the same sandbox as any package’s code, without an approval. You can turn it off on this computer in Packages….',
+              )
+            : t(
+                'It runs in a sandbox, with no access to your files, the page or the network beyond what you grant below. Approve it only if you trust where it comes from.',
+              )}
         </p>
         {status.state === 'too-large' && (
           <p className="inspector-warning">
@@ -113,7 +121,17 @@ export function ApprovalDialog({
         <pre className="code-approval-text" id={codeId} tabIndex={0} aria-label={t('Its code')}>
           <code>{code.text}</code>
         </pre>
-        {code.capabilities.length > 0 ? (
+        {builtIn ? (
+          code.capabilities.length > 0 ? (
+            <ul className="code-values" aria-label={t('What it may reach beyond its element')}>
+              {code.capabilities.map((capability) => (
+                <li key={capability}>{capabilityText(t, capability)}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="dialog-note">{t('It reaches nothing beyond its element.')}</p>
+          )
+        ) : code.capabilities.length > 0 ? (
           <fieldset className="code-approval-capabilities">
             <legend>{t('What it may reach beyond its element')}</legend>
             {code.capabilities.map((capability) => (
@@ -139,15 +157,22 @@ export function ApprovalDialog({
           <p className="dialog-note">{t('It reaches nothing beyond its element.')}</p>
         )}
         <div className="dialog-actions">
-          {approved && (
+          {builtIn && (
+            <button type="button" className="dialog-confirm" onClick={onClose}>
+              {t('Close')}
+            </button>
+          )}
+          {approved && !builtIn && (
             <button type="button" onClick={onWithdraw}>
               {t('Withdraw approval')}
             </button>
           )}
-          <button type="button" onClick={onClose}>
-            {t('Cancel')}
-          </button>
-          {status.state !== 'too-large' && (
+          {!builtIn && (
+            <button type="button" onClick={onClose}>
+              {t('Cancel')}
+            </button>
+          )}
+          {status.state !== 'too-large' && !builtIn && (
             <button
               type="button"
               className="dialog-confirm"
