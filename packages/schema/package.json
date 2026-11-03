@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Project file types and the JSON Schema generated from them.",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "exports": {

@@ -2,7 +2,7 @@
 
 ## What this is
 
-Visual Anything: an open-source, local-first tool to make any concept or system visual and explore it interactively (data science, physical AI, neuroscience, data modeling, systems architecture). Solo project, private for now. Everything in this repository is written in English, with American spelling (color, behavior).
+Visual Anything: an open-source, local-first tool to make any concept or system visual and explore it interactively (data science, machine learning, physical AI, data modeling, systems architecture, processes, healthcare, finance). Solo project, published under the MIT license. Everything in this repository is written in English, with American spelling (color, behavior).
 
 ## Read before working
 

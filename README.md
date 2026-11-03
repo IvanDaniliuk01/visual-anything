@@ -1,6 +1,6 @@
 # Visual Anything
 
-Make any concept or system visual and explore it interactively. Private, work in progress toward v0.1.
+Make any concept or system visual and explore it interactively. Open source under the [MIT license](LICENSE); what it ships from others is listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), and what changed in each version in [CHANGELOG.md](CHANGELOG.md).
 
 - Domain language: [CONTEXT.md](CONTEXT.md)
 - Decisions: [docs/adr/](docs/adr/)
@@ -313,17 +313,16 @@ The tools' descriptions sum the recipes up too, so asking in your own words work
 
 ### Moving a database model onto Data modeling's components
 
-Data modeling holds a whole database: Schema, Table, Column, View, Materialized view, Enum, Function, Trigger and Sequence, with "reads from", "writes to", "fires on" and "runs" (ADR 0023). Built-in packages are closed, so a project adds what one lacks by deriving in a package of its own. A model made that way before these existed, such as one with a `postgres` package (`postgres.esquema`, `postgres.tabla`, `postgres.vista`, `postgres.funcion`, `postgres.trigger`, and relations `lee-de`, `lee`, `escribe`, `se-dispara-en` and `ejecuta`), keeps opening as it is. To move it, ask Claude to change each element's component with `update_element` (`{ "id": "…", "component": "data-modeling.view" }`, and likewise `data-modeling.schema`, `data-modeling.function` and `data-modeling.trigger`; a table whose component derives from Table can stay as it is, or become `data-modeling.table`), copying the attributes it needs into the built-in ones (`lenguaje` into `language`, `momento` into `timing`, in lower case) with `removeAttributes` for the old names, and each relation's type with `update_relation` (`lee-de` and `lee` become `data-modeling.reads-from`, `escribe` `data-modeling.writes-to`, `se-dispara-en` `data-modeling.fires-on`, and `ejecuta` `data-modeling.runs`). Schemas stay inside their database, and what they hold inside them, through `systems.is-part-of`, as before. Once nothing is made from one of the project's own components or relation types, nothing derives from it and no view nests by it, `remove_definition` takes it away.
+Data modeling holds a whole database: Schema, Table, Column, View, Materialized view, Enum, Function, Trigger and Sequence, with "reads from", "writes to", "fires on" and "runs" (ADR 0023). Built-in packages are closed, so a project adds what one lacks by deriving in a package of its own. A model made that way before these existed, with a package of its own for schemas, tables, views, functions and triggers and relation types for what reads, writes, fires on and runs, keeps opening as it is. To move it, ask Claude to change each element's component with `update_element` (`{ "id": "…", "component": "data-modeling.view" }`, and likewise `data-modeling.schema`, `data-modeling.function` and `data-modeling.trigger`; a table whose component derives from Table can stay as it is, or become `data-modeling.table`), copying the attributes it needs into the built-in ones, such as `language` and `timing`, in lower case, with `removeAttributes` for the old names, and each relation's type with `update_relation` (into `data-modeling.reads-from`, `data-modeling.writes-to`, `data-modeling.fires-on` and `data-modeling.runs`). Schemas stay inside their database, and what they hold inside them, through `systems.is-part-of`, as before. Once nothing is made from one of the project's own components or relation types, nothing derives from it and no view nests by it, `remove_definition` takes it away.
 
 ## Contributor notes
 
 The commands are in [CLAUDE.md](CLAUDE.md). Two of them make and check the executable for the system you are on: `pnpm package` builds the app and writes `dist-exe/visual-anything` (`.exe` on Windows), and `pnpm smoke` starts it on a copy of `examples/my-systems` with no Node.js on its search path, checks that it answers on 127.0.0.1 and that `visual-anything mcp` lists its tools and reads the project, and stops it. `pnpm smoke --browser` also checks that it opens the browser: on macOS and Linux through a stand-in for `open` or `xdg-open` that records the address, on Windows by opening yours.
 
-The repository is private on GitHub's free plan, which gives about 2,000 Actions minutes a month and counts a minute on Windows twice and one on macOS ten times. So CI runs on each system only where it is worth it:
+CI runs on each system only where it is worth it, since a minute on Windows counts twice and one on macOS ten times:
 
 | Trigger | What runs | About |
 | --- | --- | --- |
-| Push to any branch, including `develop` | `CI`: Linux only, Node 22 and 24: install, typecheck, lint, test, build. | 10 minutes |
 | Pull request to `master`, or `workflow_dispatch` | `CI`: the full matrix, Windows, macOS and Linux (D1). | 90 minutes |
 | Pushed tag `v*`, or `workflow_dispatch` | `Executables`: build and smoke-test the five executables, then attach them with `SHA256SUMS` to the tag's release (D2). | 140 minutes |
 

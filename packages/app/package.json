@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The browser app: React panels and the PixiJS canvas. It sends commands to the local program and renders what comes back.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "build": "vite build && vite build --config vite.viewer.config.ts && vite build --config vite.solid-worker.config.ts",
