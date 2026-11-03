@@ -37,6 +37,7 @@ import {
   seaConfig,
   writeNotices,
 } from './sea';
+import { THIRD_PARTY_FILE } from './third-party';
 
 const { values } = parseArgs({ options: { 'no-code-cache': { type: 'boolean' } } });
 const started = performance.now();
@@ -65,7 +66,12 @@ say(
   `Bundling the solid cleaner's worker, with the glTF reader and meshoptimizer, into ${shown(solidWorker.file)}`,
 );
 const notices = join(OUT_DIR, NOTICES_FILE);
-await writeNotices([server, worker.metafile, solidWorker.metafile], notices);
+await writeNotices(
+  [server, worker.metafile, solidWorker.metafile],
+  notices,
+  process.versions.node,
+  await readFile(join(REPOSITORY, THIRD_PARTY_FILE), 'utf8'),
+);
 say(`Writing the notice of the code it bundles to ${shown(notices)}`);
 
 const app = await collectAppAssets(APP_DIST);

@@ -12,6 +12,7 @@ import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
+import { shippedModules } from './vite.shipped.ts';
 
 /** The module the viewer imports its validators from. */
 export const VALIDATORS_MODULE = 'virtual:visual-anything/validators';
@@ -35,7 +36,13 @@ const VALIDATED = {
 export const MODULES_LIST = 'VISUAL_ANYTHING_VIEWER_MODULES';
 
 export default defineConfig({
-  plugins: [react(), validators(), scriptAndStyleOnly(), listModules(process.env[MODULES_LIST])],
+  plugins: [
+    react(),
+    validators(),
+    scriptAndStyleOnly(),
+    listModules(process.env[MODULES_LIST]),
+    shippedModules('viewer'),
+  ],
   // The app package, wherever the build is started from.
   root: fileURLToPath(new URL('.', import.meta.url)),
   base: './',

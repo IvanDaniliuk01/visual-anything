@@ -7,10 +7,12 @@
 // `pnpm build` builds it after the viewer, into the viewer's folder, which it leaves as it is.
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
+import { shippedModules } from './vite.shipped.ts';
 
 export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
   base: './',
+  plugins: [shippedModules('viewer-solid-worker')],
   publicDir: false,
   build: {
     outDir: 'dist/viewer',
