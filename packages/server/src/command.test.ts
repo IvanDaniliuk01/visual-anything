@@ -120,11 +120,12 @@ function fakeKeys() {
 }
 
 describe('parseCommandLine', () => {
-  it('opens the current folder on any free port and opens the browser by default', () => {
+  it('starts at home on any free port and opens the browser by default', () => {
     expect(parseCommandLine([])).toEqual({
       ok: true,
-      value: { folder: '.', port: 0, open: true, dev: false, stopWhenIdle: false, help: false },
+      value: { port: 0, open: true, dev: false, stopWhenIdle: false, help: false },
     });
+    expect(parseCommandLine(['.'])).toMatchObject({ ok: true, value: { folder: '.' } });
   });
 
   it('takes the folder, the port, --no-open, --dev and --stop-when-idle', () => {
@@ -410,17 +411,62 @@ describe('runCommand', { timeout: 20_000 }, () => {
     await expect(exit).resolves.toBe(0);
   });
 
-  it('opens the folder it runs in when given none', async () => {
+  it('opens the folder it runs in when given .', async () => {
     const { out, signals, environment, printedUrl } = harness({
       cwd: join(REPOSITORY, SAMPLE),
     });
-    const exit = runCommand(['--no-open'], environment);
+    const exit = runCommand(['.', '--no-open'], environment);
 
     await printedUrl();
     expect(out.some((line) => line.includes('"My systems"'))).toBe(true);
 
     signals.emit('SIGINT');
     await expect(exit).resolves.toBe(0);
+  });
+
+  it('starts at home when given no folder, and moves Claude\u2019s record with the project open', async () => {
+    const runtime = join(folder, 'home-runtime');
+    const projects = join(folder, 'home-projects');
+    const { out, signals, environment, printedLaunchUrls } = harness({
+      runtimeFolder: runtime,
+      projectsFolder: projects,
+    });
+    const exit = runCommand(['--no-open'], environment);
+
+    const [url] = await printedLaunchUrls();
+    expect(out).toContain(
+      `No project is open: choose one in the browser, or start one in ${projects.replaceAll('\\', '/')}.`,
+    );
+    expect(await listProgramRecords(runtime)).toEqual([]);
+    const outcome = await redeem(url as URL);
+    if (!outcome.open) throw new Error('The tab was refused.');
+    expect(decodeServerMessage(outcome.firstMessage).type).toBe('preferences/changed');
+    const received: string[] = [];
+    outcome.socket.on('message', (data) => received.push(String(data)));
+    const types = () => received.map((text) => decodeServerMessage(text).type);
+    await expect.poll(types, STARTING).toContain('home/offered');
+
+    outcome.socket.send(JSON.stringify({ type: 'home/create', requestId: 'n', name: 'Mine' }));
+    await expect.poll(types, STARTING).toContain('project/opened');
+    await expect.poll(() => listProgramRecords(runtime)).toHaveLength(1);
+    const [record] = await listProgramRecords(runtime);
+    expect(record?.folder).toBe(
+      (await realpath(join(projects, 'Mine'))).replaceAll('\\', '/'),
+    );
+
+    outcome.socket.send(JSON.stringify({ type: 'home/close', requestId: 'h' }));
+    await expect.poll(() => types().filter((type) => type === 'home/offered').length).toBe(2);
+    expect(await listProgramRecords(runtime)).toEqual([]);
+    outcome.socket.close();
+
+    signals.emit('SIGINT');
+    await expect(exit).resolves.toBe(0);
+  });
+
+  it('refuses --view at home, which has no view to open', async () => {
+    const { err, environment } = harness();
+    await expect(runCommand(['--view', 'overview'], environment)).resolves.toBe(2);
+    expect(err[0]).toMatch(/starts at home/);
   });
 
   it('keeps running when the browser cannot be opened', async () => {

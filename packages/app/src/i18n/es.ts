@@ -4919,6 +4919,34 @@ export const messages: Catalog = {
   'More than one step in the tour "{name}" has the id "{key}".':
     'Más de un paso en el recorrido "{name}" tiene el id "{key}".',
 
+  // What the local program says at home (ADR 0093).
+  'No project is open: open one from the Projects screen first.':
+    'No hay ningún proyecto abierto: primero abrir uno desde la pantalla Proyectos.',
+  'Visual Anything is opening or closing a project already.':
+    'Visual Anything ya está abriendo o cerrando un proyecto.',
+  'That is not the path of a folder.': 'Esa no es la ruta de una carpeta.',
+  'Give the whole path of the folder, from the top of its drive, not {folder}.':
+    'Escribir la ruta completa de la carpeta, desde la raíz de su unidad, no {folder}.',
+  'Visual Anything opens folders on this computer, not on the network: {folder}.':
+    'Visual Anything abre carpetas de esta computadora, no de la red: {folder}.',
+  '{folder} is a file, not a folder.': '{folder} es un archivo, no una carpeta.',
+  'There is no folder {folder}.': 'No existe la carpeta {folder}.',
+  'The folder {folder} could not be read: {reason}': 'No se pudo leer la carpeta {folder}: {reason}',
+  '{folder} holds no project: a folder opens when it holds a .vaproject file, or nothing yet to start a project in.':
+    '{folder} no tiene ningún proyecto: una carpeta se abre cuando tiene un archivo .vaproject, o cuando todavía está vacía para empezar un proyecto en ella.',
+  'The project in {folder} could not be opened: {why}':
+    'No se pudo abrir el proyecto de {folder}: {why}',
+  'The projects folder {folder} could not be made: {reason}':
+    'No se pudo crear la carpeta de proyectos {folder}: {reason}',
+  'The projects folder holds too many folders named “{name}”: choose another name.':
+    'La carpeta de proyectos tiene demasiadas carpetas llamadas “{name}”: elegir otro nombre.',
+  'Visual Anything already runs on “{name}” in another program, so it opened a tab there.':
+    'Visual Anything ya se está ejecutando con “{name}” en otro programa, así que abrió una pestaña allí.',
+  'Visual Anything already runs on “{name}” in another program, and it could not open a tab there: switch to that tab, or stop that program and open the project again.':
+    'Visual Anything ya se está ejecutando con “{name}” en otro programa, y no pudo abrir una pestaña allí: ir a esa pestaña, o detener ese programa y volver a abrir el proyecto.',
+  'A Visual Anything of another build already runs on this project. Stop it, then open the project again.':
+    'Un Visual Anything de otra compilación ya se está ejecutando con este proyecto. Detenerlo y volver a abrir el proyecto.',
+
   // What the local program says.
   'No project is open here yet: choose how to start one first.':
     'Todavía no hay ningún proyecto abierto aquí: primero elegir cómo empezar uno.',

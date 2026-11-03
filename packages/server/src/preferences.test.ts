@@ -9,6 +9,7 @@ import {
   PREFERENCES_FILE,
   openPreferences,
   preferencesFolder,
+  readRecentProjects,
   themeHintOf,
 } from './preferences';
 import type { WriterFs } from './writer';
@@ -372,5 +373,38 @@ describe('openPreferences', () => {
     release();
     await closing;
     expect(await pending).toMatchObject({ saved: true });
+  });
+});
+
+describe('recent projects (ADR 0093)', () => {
+  it('reads absolute paths only, each once, the first ten', () => {
+    const paths = Array.from({ length: 12 }, (_, at) => `/p/${at}`);
+    expect(readRecentProjects(['relative', 'C:\\a', '/b', '/b', 3, ...paths])).toEqual([
+      'C:\\a',
+      '/b',
+      ...paths.slice(0, 8),
+    ]);
+    expect(readRecentProjects('nothing')).toEqual([]);
+  });
+
+  it('keeps them in the preferences file, beside the preferences, and another program’s change', async () => {
+    const { store } = await openPreferences(folder);
+    expect(store.recentProjects?.()).toEqual([]);
+    expect(await store.updateRecentProjects?.(() => ['/a'])).toEqual(['/a']);
+    await store.set({ theme: 'dark' });
+    expect(JSON.parse(await readFile(file, 'utf8'))).toMatchObject({
+      theme: 'dark',
+      recentProjects: ['/a'],
+    });
+    const text = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(file, JSON.stringify({ ...text, recentProjects: ['/b', '/a'] }));
+    expect(await store.updateRecentProjects?.((paths) => ['/c', ...paths])).toEqual([
+      '/c',
+      '/b',
+      '/a',
+    ]);
+    const reopened = await openPreferences(folder);
+    expect(reopened.store.recentProjects?.()).toEqual(['/c', '/b', '/a']);
+    expect(reopened.warning).toBeUndefined();
   });
 });

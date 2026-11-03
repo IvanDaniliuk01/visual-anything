@@ -470,7 +470,7 @@ async function runWithLog(
   } else {
     record = await recordForClaude(environment, server, session.folder);
     environment.out(
-      `Opened "${session.snapshot.project.name}" from ${toForwardSlashes(session.folder)}.`,
+      `Opened "${session.snapshot.project.name}" from ${toForwardSlashes(folder ?? session.folder)}.`,
     );
     for (const warning of session.warnings()) {
       environment.err(`Warning: ${formatProjectProblem(warning)}`);
