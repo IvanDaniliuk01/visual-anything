@@ -84,7 +84,8 @@
 
 .canvas-legend-entries > li {
   display: grid;
-  grid-template-columns: var(--size-160) 1fr auto;
+  /* A badge's text is wider than a swatch's room: the first column grows to it, never over the label. */
+  grid-template-columns: minmax(var(--size-160), max-content) minmax(0, 1fr) auto;
   gap: var(--space-50);
   align-items: center;
 }
