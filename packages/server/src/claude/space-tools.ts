@@ -14,6 +14,7 @@
 import {
   MAX_GUIDANCE_TARGETS,
   MAX_SPACE_DISTANCE,
+  MAX_VIEW_STATE_JOINTS,
   degreesOfRotation,
   modelIndexOf,
   poseIn,
@@ -35,6 +36,9 @@ export const MAX_SPACE_LISTED = 500;
 
 /** The most posed elements a write tool's answer gives back one by one. */
 const MAX_POSED_ANSWERED = 50;
+
+/** The farthest a joint's position in a view state goes either way, as the core checks it. */
+const MAX_JOINT_POSITION = 100_000;
 
 /** How physical space measures, as each tool says it. */
 const UNITS =
@@ -118,6 +122,12 @@ export const SPACE_PART = z
       .describe('How far each part moves away from the middle of what holds it: 0 to 2.'),
     relations: z.boolean().optional().describe('Draws the selection’s relations in space.'),
     names: z.boolean().optional().describe('Writes names for the parts nearest the camera.'),
+    joints: z
+      .record(id(), z.number().min(-MAX_JOINT_POSITION).max(MAX_JOINT_POSITION))
+      .optional()
+      .describe(
+        `Joints' positions the panel shows over their stored ones, by joint id (get_kinematics lists them): degrees for a joint that turns, meters for one that slides; at most ${MAX_VIEW_STATE_JOINTS}. Nothing is stored; a tour's step glides them from the step before.`,
+      ),
   })
   .describe(
     'The physical-space panel, open beside the canvas: {} opens it as it opens; left out, it is closed.',
@@ -125,7 +135,7 @@ export const SPACE_PART = z
 
 /** What get_view_address and open_app say of the panel in a view state. */
 export const SPACE_HELP =
-  'space opens the physical-space panel beside the canvas, which shows the elements in physical space where they are: root is the element it shows (World when left out), camera where it looks from, in meters in that element’s coordinates, cut a cutting plane, explode an exploded view, relations and names what it draws; { "space": {} } opens it alone.';
+  'space opens the physical-space panel beside the canvas, which shows the elements in physical space where they are: root is the element it shows (World when left out), camera where it looks from, in meters in that element’s coordinates, cut a cutting plane, explode an exploded view, relations and names what it draws, joints the positions its joints are shown at; { "space": {} } opens it alone.';
 
 const getSpace = tool({
   name: 'get_space',
