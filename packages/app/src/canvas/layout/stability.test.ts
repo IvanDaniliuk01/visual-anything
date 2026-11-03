@@ -45,9 +45,12 @@ async function laidOut(
   const scene = buildSceneAfresh(project, viewId);
   const input = layoutInput(scene, project, scope);
   if (!input) return project;
-  let result = await layOut(input, elk);
+  // Without ELK's time limit, which packs in rows what a loaded machine leaves unfinished: what
+  // these properties judge is where layout puts shapes, the same however busy the machine is.
+  const untimed = { timeLimit: Number.POSITIVE_INFINITY };
+  let result = await layOut(input, elk, untimed);
   const again = inputAfter(project, viewId, scene, scope, input, result.shapes);
-  if (again) result = await layOut(again, elk);
+  if (again) result = await layOut(again, elk, untimed);
   const action = layoutCommand(project, viewId, scene, scope, result.shapes);
   return action ? apply(project, action.command) : project;
 }

@@ -317,6 +317,57 @@ describe('levels of detail on the scene', () => {
   });
 });
 
+describe('a look that leaves a shape or a line as it was', () => {
+  // Found by "equals one built from nothing" with seed 1712769506: a load of 999 fades by 0.9992,
+  // which rounds to the colors the shape already had, and the shape was made again as an equal one.
+  const nearlyOpaque = (of: 'elements' | 'relations'): Overlay => ({
+    id: `fade-${of}`,
+    of,
+    attribute: 'load',
+    channel: 'opacity',
+    mapping: {
+      kind: 'continuous',
+      stops: [
+        { at: 0, opacity: 0.2 },
+        { at: 1000, opacity: 1 },
+      ],
+    },
+  });
+  const loaded = (): ProjectSnapshot => {
+    const project = loadSample();
+    return {
+      ...project,
+      model: {
+        ...project.model,
+        elements: project.model.elements.map((element) =>
+          element.id === 'clinic-booking'
+            ? { ...element, attributes: { ...element.attributes, load: 999 } }
+            : element,
+        ),
+        relations: project.model.relations.map((relation) => ({
+          ...relation,
+          attributes: { ...relation.attributes, load: 999 },
+        })),
+      },
+    };
+  };
+
+  it('keeps the shape and the line as the same objects', () => {
+    const project = loaded();
+    const plain = buildScene(project, VIEW);
+    const faded = buildScene(
+      withView(project, (view) => ({
+        ...view,
+        overlays: [nearlyOpaque('elements'), nearlyOpaque('relations')],
+      })),
+      VIEW,
+    );
+    expect(shapeOf(faded, 'clinic-booking')).toBe(shapeOf(plain, 'clinic-booking'));
+    expect(faded.relations.length).toBeGreaterThan(0);
+    faded.relations.forEach((line, at) => expect(line).toBe(plain.relations[at]));
+  });
+});
+
 describe('expanding by zoom on the scene', () => {
   it('draws a collapsed container expanded, the view still keeping it collapsed', () => {
     const project = withView(loadSample(), (view) => ({ ...view, collapsed: ['scheduling'] }));

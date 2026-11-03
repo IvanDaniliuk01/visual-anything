@@ -249,13 +249,16 @@ export function decorateShape(
         ? levelsOf(element, inputs.definitions)
         : undefined;
   const made = withLook(shape, look, levels, holder, element, inputs.definitions, inputs.drawing);
-  // Made again for other inputs, as after a change of definitions, it is the same if it draws alike.
+  // Made again for other inputs, as after a change of definitions, it is the same if it draws alike;
+  // and a look that leaves the shape as it was, as a fade that rounds to its own colors, gives it.
   const decorated =
-    stored && sameDecoration(stored.shape, made)
-      ? stored.shape
-      : known && sameDecoration(known.shape, made)
-        ? known.shape
-        : made;
+    made !== shape && sameDecoration(shape, made)
+      ? shape
+      : stored && sameDecoration(stored.shape, made)
+        ? stored.shape
+        : known && sameDecoration(known.shape, made)
+          ? known.shape
+          : made;
   cache.set(shape, {
     overlays: inputs.overlays,
     definitions: inputs.definitions,
@@ -928,12 +931,15 @@ export function decorateLine(line: RelationLine, inputs: LineInputs): RelationLi
   const known = cache === madeLines ? stored : cache.get(line);
   if (known && lineMadeFrom(known, inputs, relation, look)) return known.line;
   const made = look === undefined ? line : lineWithLook(line, look, relation?.name, inputs.drawing);
+  // A look that leaves the line as it was, as a fade that rounds to its own color, gives it.
   const decorated =
-    stored && sameLine(stored.line, made)
-      ? stored.line
-      : known && sameLine(known.line, made)
-        ? known.line
-        : made;
+    made !== line && sameLine(line, made)
+      ? line
+      : stored && sameLine(stored.line, made)
+        ? stored.line
+        : known && sameLine(known.line, made)
+          ? known.line
+          : made;
   cache.set(line, {
     overlays: inputs.overlays,
     definitions: inputs.definitions,

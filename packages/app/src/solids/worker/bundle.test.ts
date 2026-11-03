@@ -4,15 +4,17 @@
 // everything it runs, loads no code of its own, and has nothing that makes a connection, as the
 // policy of every worker forbids (ADR 0027, ADR 0054).
 import { build } from 'esbuild';
-import { readdir, readFile } from 'node:fs/promises';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const SRC = join(import.meta.dirname, '..', '..');
 const WORKER = join(import.meta.dirname, 'solid.worker.ts');
 
-async function sources(folder: string): Promise<string[]> {
-  const entries = await readdir(folder, { withFileTypes: true, recursive: true });
+// Read at once: awaiting each of a thousand files in turn took past the test's time on a loaded
+// machine, where each wait for the event loop could take a timer's step of about 16 ms.
+function sources(folder: string): string[] {
+  const entries = readdirSync(folder, { withFileTypes: true, recursive: true });
   return entries
     .filter(
       (entry) => entry.isFile() && /\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name),
@@ -21,10 +23,10 @@ async function sources(folder: string): Promise<string[]> {
 }
 
 describe('the solid worker’s bundle', () => {
-  it('is the only place that imports three.js or three-mesh-bvh', async () => {
+  it('is the only place that imports three.js or three-mesh-bvh', () => {
     const importers: string[] = [];
-    for (const file of await sources(SRC)) {
-      const text = await readFile(file, 'utf8');
+    for (const file of sources(SRC)) {
+      const text = readFileSync(file, 'utf8');
       if (/from '(three|three-mesh-bvh)(\/[^']*)?'/.test(text)) {
         importers.push(relative(SRC, file).replaceAll('\\', '/'));
       }

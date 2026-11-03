@@ -326,7 +326,8 @@ describe('runCommand', { timeout: 20_000 }, () => {
   });
 
   it('with --stop-when-idle, stops once nothing has been connected for a while', async () => {
-    const { out, environment, printedLaunchUrls } = harness({ idleStopDelay: 300 });
+    // Two seconds idle, so that the tab connects before the program stops, on a loaded machine too.
+    const { out, environment, printedLaunchUrls } = harness({ idleStopDelay: 2000 });
     const exit = runCommand([SAMPLE, '--no-open', '--stop-when-idle'], environment);
 
     const [url] = await printedLaunchUrls();
@@ -334,7 +335,7 @@ describe('runCommand', { timeout: 20_000 }, () => {
     const outcome = await redeem(url);
     if (!outcome.open) throw new Error('The live connection was refused.');
     // Connected for longer than the delay: still running.
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await new Promise((resolve) => setTimeout(resolve, 2500));
     expect(out).not.toContain('Visual Anything stopped.');
     outcome.socket.close();
 
@@ -346,10 +347,12 @@ describe('runCommand', { timeout: 20_000 }, () => {
     const runtime = join(folder, 'runtime-proposal');
     const project = join(folder, 'proposal-project');
     await writeProjectFolder(project, testProject());
+    // Two seconds idle, so that Claude's bridge attaches before the program stops: at 100 ms, a
+    // loaded machine let it stop first, and the bridge found no program running.
     const { out, environment, printedUrl } = harness({
       runtimeFolder: runtime,
-      idleStopDelay: 100,
-      proposalIdleLimit: 1500,
+      idleStopDelay: 2000,
+      proposalIdleLimit: 4000,
     });
     const exit = runCommand([project, '--no-open', '--stop-when-idle'], environment);
     await printedUrl();
@@ -367,11 +370,12 @@ describe('runCommand', { timeout: 20_000 }, () => {
     expect(answer).toMatchObject({ ok: true, proposed: { changes: ['element:api changed'] } });
     const proposedAt = Date.now();
     bridge.close();
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    // Past the idle delay, the proposal still holds the program.
+    await new Promise((resolve) => setTimeout(resolve, 2500));
     expect(stopped).toBe(false);
 
     await expect(exit).resolves.toBe(0);
-    expect(Date.now() - proposedAt).toBeGreaterThanOrEqual(1400);
+    expect(Date.now() - proposedAt).toBeGreaterThanOrEqual(3900);
     expect(out).toContain(
       'Nothing has been connected for a while, and Claude’s proposal has waited an hour since its last change, so Visual Anything stops.',
     );
@@ -382,7 +386,7 @@ describe('runCommand', { timeout: 20_000 }, () => {
     const reopened = await openSession(project, { watch: false, out: () => {}, err: () => {} });
     expect(reopened.ok && reopened.session.snapshot).toEqual(testProject());
     if (reopened.ok) await reopened.session.close();
-  });
+  }, 60_000);
 
   it('listens on the port given with --port', async () => {
     const port = await freePort();
