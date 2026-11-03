@@ -93,6 +93,13 @@ import {
   type PackageReadAnswerMessage,
   type PackageReadMessage,
 } from './package-file-messages';
+import {
+  readClaudeSetup,
+  readClaudeSetupAnswer,
+  type ClaudeSetupAnswerMessage,
+  type ClaudeSetupMessage,
+  type ClaudeSetupRead,
+} from './claude-setup-messages';
 import { readSolidCamera } from './solids/camera';
 import { readSpaceCamera } from './space/camera';
 
@@ -133,8 +140,10 @@ import { readSpaceCamera } from './space/camera';
  *    which an older app of 7 would refuse when it opens them.
  *    And reading a package file the person chose (M14.2, ADR 0089), `package/read` and its answer
  *    `package/read-answer`, in 7 too, since no build of 7 shipped.
+ * 8: connecting Claude Desktop from the app (ADR 0093, section 3), `claude/setup` and its answer
+ *    `claude/setup-answer`.
  */
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';
@@ -186,7 +195,8 @@ export type ServerMessage =
   | SolidPieceMessage
   | SolidRefusedMessage
   | SolidFilesListedMessage
-  | PackageReadAnswerMessage;
+  | PackageReadAnswerMessage
+  | ClaudeSetupAnswerMessage;
 
 /**
  * Sent in place of `project/opened` while the local program runs on a folder that holds no project yet
@@ -888,7 +898,8 @@ export type AppMessage =
   | SolidGetMessage
   | SolidFilesListMessage
   | SolidFilesRemoveMessage
-  | PackageReadMessage;
+  | PackageReadMessage
+  | ClaudeSetupMessage;
 
 /** The longest name the start screen may give a new project or its first view. */
 export const MAX_START_NAME = 200;
@@ -983,6 +994,7 @@ const SERVER_TYPES = new Set<string>([
   'solid/refused',
   'solid-files/listed',
   'package/read-answer',
+  'claude/setup-answer',
 ]);
 
 /**
@@ -1076,6 +1088,13 @@ export function decodeServerMessage(text: string): ServerMessage {
         throw new ProtocolError('The answer has no valid request id.');
       }
       return readPackageMessage(readPackageReadAnswer(message, requestId));
+    }
+    case 'claude/setup-answer': {
+      const { requestId } = message;
+      if (typeof requestId !== 'string' || requestId === '' || requestId.length > MAX_REQUEST_ID) {
+        throw new ProtocolError('The answer has no valid request id.');
+      }
+      return readClaudeSetupMessage(readClaudeSetupAnswer(message, requestId));
     }
   }
   return message as unknown as ServerMessage;
@@ -1176,6 +1195,8 @@ export function decodeAppMessage(text: string): AppMessage {
       return readSolidMessage(readSolidFilesRemove(message));
     case 'package/read':
       return readPackageMessage(readPackageRead(message, message.requestId));
+    case 'claude/setup':
+      return readClaudeSetupMessage(readClaudeSetup(message.requestId));
     default:
       throw new ProtocolError(`Unknown message type: ${JSON.stringify(message.type)}.`);
   }
@@ -1183,6 +1204,12 @@ export function decodeAppMessage(text: string): AppMessage {
 
 /** A message about a package file (ADR 0089), or the {@link ProtocolError} of why it cannot be read. */
 function readPackageMessage<T>(read: PackageMessageRead<T>): T {
+  if (!read.ok) throw new ProtocolError(read.reason);
+  return read.message;
+}
+
+/** A message about connecting Claude (ADR 0093), or the {@link ProtocolError} of why it cannot be read. */
+function readClaudeSetupMessage<T>(read: ClaudeSetupRead<T>): T {
   if (!read.ok) throw new ProtocolError(read.reason);
   return read.message;
 }

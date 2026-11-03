@@ -27,8 +27,8 @@ const PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 describe('the capture messages', () => {
-  it('stay in protocol 7, since no build of 7 has shipped', () => {
-    expect(PROTOCOL_VERSION).toBe(7);
+  it('came in protocol 7, since no build of 7 had shipped', () => {
+    expect(PROTOCOL_VERSION).toBeGreaterThanOrEqual(7);
   });
 
   it('ask for a view, a region, a width and a theme, and read back as sent', () => {

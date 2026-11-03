@@ -36,6 +36,7 @@ import { otherProjectOpener } from './other-project';
 import { toForwardSlashes } from './paths';
 import { openPreferences, themeHintOf, type PreferencesLocation } from './preferences';
 import { formatProjectProblem } from './project';
+import type { ClaudeSetup } from './claude-setup';
 import { startServer, type AppSource, type RunningServer } from './server';
 import { openSession, type Session } from './session';
 import { ProgramLog } from './program-log';
@@ -152,6 +153,11 @@ export interface CommandEnvironment {
    * default a background process of this command's own program; the executable starts itself.
    */
   startProgram?: StartProgram;
+  /**
+   * Adds this program to Claude Desktop's configuration, when an app asks with `claude/setup` (ADR
+   * 0093); absent, the program refuses to.
+   */
+  setupClaude?: () => Promise<ClaudeSetup>;
 }
 
 /** How long a program started with `--stop-when-idle` waits with nothing connected. */
@@ -390,6 +396,7 @@ async function runWithLog(
       // What Claude's tools may run of package code (ADR 0054).
       codeApprovals: () => preferences.current().codeApprovals,
       codeTurnedOff: () => preferences.current().codeTurnedOff,
+      ...(environment.setupClaude === undefined ? {} : { setupClaude: environment.setupClaude }),
     });
   } catch (error) {
     idle?.cancel();

@@ -2,6 +2,7 @@ import type { Command, PreferenceChanges, Preferences } from '@visual-anything/c
 import type { Id } from '@visual-anything/schema';
 import { createContext, useContext } from 'react';
 import type {
+  ClaudeSetupAnswerMessage,
   DrawingMadeMessage,
   PackageReadAnswerMessage,
   LiveFetchedMessage,
@@ -148,6 +149,11 @@ export interface Live extends LiveState {
   listSolidFiles?: () => Promise<LiveResult<SolidFilesListedMessage>>;
   /** Removes files in `solids/` that no package names, which cannot be undone. */
   removeSolidFiles?: (hashes: readonly string[]) => Promise<LiveResult<SolidFilesListedMessage>>;
+  /**
+   * Asks the local program to add itself to Claude Desktop's configuration (ADR 0093); absent where
+   * there is no live session to ask.
+   */
+  setUpClaude?: () => Promise<LiveResult<ClaudeSetupAnswerMessage>>;
 }
 
 /**
