@@ -5003,7 +5003,7 @@ export const messages: Catalog = {
     'Visual Anything ya está abriendo o cerrando un proyecto.',
   'That is not the path of a folder.': 'Esa no es la ruta de una carpeta.',
   'Give the whole path of the folder, from the top of its drive, not {folder}.':
-    'Escribir la ruta completa de la carpeta, desde la raíz de su unidad, no {folder}.',
+    'Escribir la ruta completa de la carpeta, desde el comienzo de su unidad, no {folder}.',
   'Visual Anything opens folders on this computer, not on the network: {folder}.':
     'Visual Anything abre carpetas de esta computadora, no de la red: {folder}.',
   '{folder} is a file, not a folder.': '{folder} es un archivo, no una carpeta.',
