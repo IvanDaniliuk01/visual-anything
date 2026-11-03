@@ -22,6 +22,8 @@ import {
   type Command,
   type CommandRejectedMessage,
   type HistorySummary,
+  type HomeOfferedMessage,
+  type HomeProject,
   type ListedAction,
   type DrawingMadeMessage,
   type PackageReadAnswerMessage,
@@ -33,6 +35,7 @@ import {
   type Problem,
   type ProjectChangedMessage,
   type ProjectSnapshot,
+  type RecentProject,
   type ProposalClosedMessage,
   type ProposalShownMessage,
   type ServerMessage,
@@ -128,6 +131,11 @@ export interface LiveState {
    */
   readonly start?: StartOffer | undefined;
   /**
+   * What the Projects screen offers, while the local program is at home with no project open (ADR
+   * 0093); absent otherwise.
+   */
+  readonly home?: HomeOffer | undefined;
+  /**
    * Claude's proposal that waits (ADR 0073), as the program showed it last; absent while none waits.
    */
   readonly proposal?: WaitingProposal | undefined;
@@ -164,6 +172,25 @@ export interface StartOffer {
   /** The folder's name. */
   readonly folder: string;
   readonly samples: readonly OfferedSample[];
+}
+
+/**
+ * What the Projects screen offers (ADR 0093): the projects folder, the projects in it, the projects
+ * opened last, and the samples a new project can start from.
+ */
+export interface HomeOffer {
+  readonly folder: string;
+  readonly projects: readonly HomeProject[];
+  readonly recent: readonly RecentProject[];
+  readonly samples: readonly OfferedSample[];
+}
+
+/** A new project the Projects screen starts: its name, and its sample, or empty with a first view. */
+export interface NewProjectChoice {
+  name: string;
+  sample?: string;
+  /** For an empty project, its first view's name, in the language the app reads in. */
+  view?: string;
 }
 
 /** How to start the new project: from a sample, or empty when `sample` is left out. */
@@ -253,7 +280,7 @@ export const MAX_NOTICES = 5;
 export type OtherProjectResult =
   { ok: true; name: string } | { ok: false; problems: RequestProblem[] };
 
-type RequestKind = 'command' | 'undo' | 'redo' | 'start' | 'proposal';
+type RequestKind = 'command' | 'undo' | 'redo' | 'start' | 'home' | 'proposal';
 
 type Waiting =
   | { kind: RequestKind; resolve: (result: CommandResult) => void }
@@ -534,6 +561,28 @@ export class LiveConnection {
    */
   readonly startProject = (choice: StartChoice): Promise<CommandResult> =>
     this.request('start', (requestId) => ({ type: 'start/create', requestId, ...choice }));
+
+  /**
+   * Opens the project in a folder from the Projects screen (ADR 0093): resolves once every tab shows
+   * it, or the start screen of a folder that holds nothing yet, or with why it could not.
+   */
+  readonly openProject = (path: string): Promise<CommandResult> =>
+    this.request('home', (requestId) => ({ type: 'home/open', requestId, path }));
+
+  /** Starts a new project in the projects folder, and opens it, as `openProject` does. */
+  readonly createProject = (choice: NewProjectChoice): Promise<CommandResult> =>
+    this.request('home', (requestId) => ({ type: 'home/create', requestId, ...choice }));
+
+  /** Takes a project off the recent list; resolves once the Projects screen shows the list. */
+  readonly forgetRecent = (path: string): Promise<CommandResult> =>
+    this.request('home', (requestId) => ({ type: 'home/forget', requestId, path }));
+
+  /**
+   * Closes the open project, once its writes have landed, and takes every tab to the Projects
+   * screen (ADR 0093); resolves once this tab shows it.
+   */
+  readonly goHome = (): Promise<CommandResult> =>
+    this.request('home', (requestId) => ({ type: 'home/close', requestId }));
   /**
    * Asks the local program to open another project, as a destination names it, in a tab of that
    * project's own program (ADR 0056); the person agreed first. Resolves with the project's name once
@@ -943,7 +992,7 @@ export class LiveConnection {
     this.liveValues.clear();
     // Claude's marks and caption no longer come from a live session.
     this.update(
-      this.state.project === undefined
+      this.state.project === undefined && this.state.home === undefined
         ? { status: 'failed', failure: { reason: 'refused' }, guidance: NO_GUIDANCE }
         : { status: 'closed', guidance: NO_GUIDANCE },
     );
@@ -978,6 +1027,7 @@ export class LiveConnection {
           project: message.project,
           history: message.history,
           start: undefined,
+          home: undefined,
           // The program shows the proposal that waits, if any, right after the project.
           proposal: undefined,
         });
@@ -990,7 +1040,15 @@ export class LiveConnection {
         this.update({
           status: 'open',
           start: { folder: message.folder, samples: message.samples },
+          home: undefined,
         });
+        this.started();
+        break;
+      case 'home/offered':
+        this.atHome(message);
+        break;
+      case 'project/closed':
+        // Only Claude is told so; an app gets `home/offered`.
         break;
       case 'project/changed':
         this.change(message);
@@ -1278,10 +1336,39 @@ export class LiveConnection {
     waiting.resolve({ ok: true, answer: whole });
   }
 
-  /** The project the start screen asked for is open: every start request waiting is done. */
+  /**
+   * The program is at home (ADR 0093): the project, its history, Claude's guidance and proposal and
+   * the live values are gone from this tab, which shows the Projects screen.
+   */
+  private atHome(message: HomeOfferedMessage): void {
+    if (message.token !== undefined && this.options.onToken !== undefined) {
+      this.url = this.options.onToken(message.token);
+    }
+    this.liveValues.clear();
+    const { folder, projects, recent, samples } = message;
+    this.update({
+      status: 'open',
+      home: { folder, projects, recent, samples },
+      project: undefined,
+      start: undefined,
+      history: {},
+      actions: undefined,
+      guidance: NO_GUIDANCE,
+      proposal: undefined,
+      proposalEnded: undefined,
+    });
+    if (message.requestId !== undefined) {
+      this.take(message.requestId)?.resolve({ ok: true, created: [], warnings: [] } as never);
+    }
+  }
+
+  /**
+   * The project, or the start screen, that the start screen or the Projects screen asked for is
+   * shown: every such request waiting is done.
+   */
   private started(): void {
     for (const [requestId, each] of this.waiting) {
-      if (each.kind !== 'start') continue;
+      if (each.kind !== 'start' && each.kind !== 'home') continue;
       this.waiting.delete(requestId);
       each.resolve({ ok: true, created: [], warnings: [] });
     }

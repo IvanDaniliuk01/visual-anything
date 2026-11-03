@@ -4931,7 +4931,6 @@ export const messages: Catalog = {
     'Visual Anything abre carpetas de esta computadora, no de la red: {folder}.',
   '{folder} is a file, not a folder.': '{folder} es un archivo, no una carpeta.',
   'There is no folder {folder}.': 'No existe la carpeta {folder}.',
-  'The folder {folder} could not be read: {reason}': 'No se pudo leer la carpeta {folder}: {reason}',
   '{folder} holds no project: a folder opens when it holds a .vaproject file, or nothing yet to start a project in.':
     '{folder} no tiene ningún proyecto: una carpeta se abre cuando tiene un archivo .vaproject, o cuando todavía está vacía para empezar un proyecto en ella.',
   'The project in {folder} could not be opened: {why}':
