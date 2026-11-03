@@ -224,6 +224,7 @@
 }
 
 .package-decision-label,
+.package-decision-moved,
 .package-decision-note,
 .package-decision-problem {
   margin: 0;
@@ -237,6 +238,10 @@
 
 .package-decision-problem {
   color: var(--problem);
+}
+
+.package-decision-moved {
+  font-weight: 600;
 }
 
 .package-decision-buttons {

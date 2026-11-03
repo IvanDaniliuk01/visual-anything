@@ -5,6 +5,11 @@
  * project now and with the changes, and the one command that applies them all as the person's
  * action. The review shows them as Compare with… shows a comparison, with Accept and Decline. Nothing
  * changes until the person accepts; declining drops them.
+ *
+ * Accepting first previews the changes again on the project as it is then (ADR 0089, M14's review):
+ * the project may have changed under the review, by Undo, by another tab or by Claude. Only when the
+ * comparison is the one shown is the command sent; otherwise the review shows the new comparison in
+ * its place, saying the project changed, and the person accepts again what they now see.
  */
 import {
   previewPackageChanges,
@@ -34,7 +39,23 @@ export interface PackageChangesReview {
   preview: Extract<ChangesPreview, { ok: true }>;
   /** The project the changes were previewed on: the older side of the comparison. */
   older: ProjectSnapshot;
+  /**
+   * Whether this preview took the place of one shown before, since the project changed under it and
+   * the changes no longer came to the comparison shown.
+   */
+  moved?: true;
 }
+
+/** What previewing the changes under review again, as the person accepts them, came to. */
+export type PackageRecheck =
+  /** The comparison is the one shown: the command may be sent. */
+  | { kind: 'same'; command: Extract<ChangesPreview, { ok: true }>['command'] }
+  /** The project changed so that the comparison differs: the review now shows the new one. */
+  | { kind: 'moved' }
+  /** The changes no longer apply to the project as it is: why. The review stays. */
+  | { kind: 'refused'; problems: Problem[] }
+  /** There is no review, or no project, to preview them on. */
+  | { kind: 'gone' };
 
 export type PackageChangesState =
   | { state: 'idle' }
@@ -95,6 +116,33 @@ export class PackageChangesStore {
     const outcome = this.reviewOf(request, answer);
     if (outcome.kind !== 'review') this.change(IDLE);
     return outcome;
+  }
+
+  /**
+   * Previews the changes under review again on the project as it is now, as the person accepts
+   * them: the same comparison lets the command go; a different one replaces the review, marked as
+   * moved, so that what is applied is always what the person saw.
+   */
+  recheck(): PackageRecheck {
+    const shown = this.state;
+    if (shown.state !== 'reviewing') return { kind: 'gone' };
+    const now = this.project();
+    if (now === undefined) return { kind: 'gone' };
+    if (now === shown.older) return { kind: 'same', command: shown.preview.command };
+    const preview = previewPackageChanges(now, shown.changes);
+    if (!preview.ok) return { kind: 'refused', problems: preview.problems };
+    if (JSON.stringify(preview.comparison) === JSON.stringify(shown.preview.comparison)) {
+      return { kind: 'same', command: preview.command };
+    }
+    this.change({
+      state: 'reviewing',
+      request: shown.request,
+      changes: shown.changes,
+      preview,
+      older: now,
+      moved: true,
+    });
+    return { kind: 'moved' };
   }
 
   /** Drops the changes under review, or forgets a run under way: nothing is applied. */

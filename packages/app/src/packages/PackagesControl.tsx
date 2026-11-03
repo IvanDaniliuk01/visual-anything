@@ -188,7 +188,7 @@ export function PackagesDialog({ onClose }: { onClose: () => void }) {
         <h2 id={titleId}>{t('Packages')}</h2>
         <p className="dialog-note">
           {t(
-            'What each package adds to the project, and its code. Package code runs only once you approve it, and you can turn it off on this computer.',
+            'What each package adds to the project, and its code. Package code runs only once you approve it; built-in code is part of Visual Anything and needs no approval. You can turn any package’s code off on this computer.',
           )}
         </p>
         {rows.length === 0 ? (
