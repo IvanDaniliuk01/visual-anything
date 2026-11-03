@@ -1,0 +1,196 @@
+{
+  "id": "word-count",
+  "name": "Word count",
+  "description": "A sample package whose code adds an action, an importer, an exporter and a panel: notes that count their words.",
+  "version": "1.0.0",
+  "license": "CC0-1.0",
+  "attribution": "Written for Visual Anything as a sample of a package that extends the app.",
+  "components": [
+    {
+      "id": "word-count.note",
+      "name": "Note",
+      "derivesFrom": "essence",
+      "description": "A piece of writing, whose words its package counts.",
+      "attributes": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "What the note says."
+        },
+        {
+          "name": "words",
+          "type": "number",
+          "description": "How many words it holds, as \"Count the words\" last stored it."
+        }
+      ],
+      "appearance": {
+        "shape": "rounded-rectangle",
+        "fill": "#FFF6D6",
+        "stroke": "#8A6A00",
+        "width": 220,
+        "height": 72,
+        "detail": {
+          "attributes": [
+            "words"
+          ]
+        }
+      }
+    }
+  ],
+  "relationTypes": [],
+  "code": [
+    "/**",
+    " * A sample package that extends Visual Anything (ADR 0089): notes that count their words. Its code",
+    " * adds one action, one importer, one exporter and one panel. Every hook is a pure function: it reads",
+    " * what it is given, and the model through context.model (the \"model:read\" capability), and answers",
+    " * plain data. Nothing here touches files, the page or the network.",
+    " */",
+    "const NOTE = 'word-count.note';",
+    "",
+    "/** The words of a text: runs of letters, digits and apostrophes, in lower case. */",
+    "function wordsOf(text) {",
+    "  if (typeof text !== 'string') return [];",
+    "  return text.toLowerCase().match(/[\\p{L}\\p{N}']+/gu) || [];",
+    "}",
+    "",
+    "function textOf(element) {",
+    "  const text = element.attributes.text;",
+    "  return typeof text === 'string' ? text : '';",
+    "}",
+    "",
+    "/** The notes of the model, or those of the selection when it holds any. */",
+    "function notesOf(model, selection) {",
+    "  const all = model.elements(NOTE);",
+    "  const chosen = selection.filter(function (id) { return all.indexOf(id) >= 0; });",
+    "  return (chosen.length > 0 ? chosen : all).map(function (id) { return model.element(id); });",
+    "}",
+    "",
+    "/**",
+    " * The action \"Count the words\": stores each note's count in its \"words\" attribute. It answers",
+    " * changes, which the person reviews before anything changes.",
+    " */",
+    "export function act(input, context) {",
+    "  if (input.action !== 'count-words') throw new Error('No action \"' + input.action + '\".');",
+    "  const commands = [];",
+    "  const notes = notesOf(context.model, input.selection);",
+    "  for (let at = 0; at < notes.length; at += 1) {",
+    "    const note = notes[at];",
+    "    const words = wordsOf(textOf(note)).length;",
+    "    if (note.attributes.words === words) continue;",
+    "    commands.push({ type: 'update-element', id: note.id, changes: { attributes: { words: words } } });",
+    "  }",
+    "  return { label: 'Count the words of ' + notes.length + ' notes', commands: commands };",
+    "}",
+    "",
+    "/** The importer: a plain text file, one note for each paragraph, named by its first words. */",
+    "export function importFile(input) {",
+    "  const paragraphs = input.text.split(/\\r?\\n\\s*\\r?\\n/).map(function (each) { return each.trim(); });",
+    "  const commands = [];",
+    "  for (let at = 0; at < paragraphs.length; at += 1) {",
+    "    const text = paragraphs[at];",
+    "    if (text === '') continue;",
+    "    const words = wordsOf(text);",
+    "    commands.push({",
+    "      type: 'create-element',",
+    "      element: {",
+    "        component: NOTE,",
+    "        name: words.slice(0, 4).join(' ') || 'Note',",
+    "        attributes: { text: text, words: words.length },",
+    "      },",
+    "    });",
+    "  }",
+    "  return { label: 'Import the notes of ' + input.name, commands: commands };",
+    "}",
+    "",
+    "/** The exporter: every note as a Markdown section, with its count. */",
+    "export function exportFile(input, context) {",
+    "  const notes = notesOf(context.model, []);",
+    "  const lines = ['# Notes', ''];",
+    "  for (let at = 0; at < notes.length; at += 1) {",
+    "    const note = notes[at];",
+    "    const text = textOf(note);",
+    "    lines.push('## ' + note.name, '', '_' + wordsOf(text).length + ' words_', '', text, '');",
+    "  }",
+    "  return lines.join('\\n');",
+    "}",
+    "",
+    "/** The panel \"Words\": the count, the longest word and the words used most, as a chart. */",
+    "export function panel(input, context) {",
+    "  const note = context.model.element(input.element);",
+    "  if (!note) return [{ kind: 'text', text: 'This note is no longer in the model.' }];",
+    "  const words = wordsOf(textOf(note));",
+    "  const counts = new Map();",
+    "  let longest = '';",
+    "  for (let at = 0; at < words.length; at += 1) {",
+    "    const word = words[at];",
+    "    counts.set(word, (counts.get(word) || 0) + 1);",
+    "    if (word.length > longest.length) longest = word;",
+    "  }",
+    "  const most = Array.from(counts.entries())",
+    "    .sort(function (a, b) { return b[1] - a[1] || (a[0] < b[0] ? -1 : 1); })",
+    "    .slice(0, 5);",
+    "  const blocks = [",
+    "    { kind: 'value', label: 'Words', value: words.length },",
+    "    { kind: 'value', label: 'Different words', value: counts.size },",
+    "    { kind: 'value', label: 'Longest word', value: longest || '—' },",
+    "  ];",
+    "  if (most.length > 0) {",
+    "    blocks.push({",
+    "      kind: 'chart',",
+    "      chart: 'bar',",
+    "      labels: most.map(function (each) { return each[0]; }),",
+    "      series: [{ name: 'Times used', values: most.map(function (each) { return each[1]; }) }],",
+    "    });",
+    "  }",
+    "  if (note.attributes.words !== words.length) {",
+    "    blocks.push({ kind: 'text', text: 'Its stored count is out of date.' });",
+    "    blocks.push({ kind: 'button', label: 'Count the words', action: 'count-words' });",
+    "  }",
+    "  return blocks;",
+    "}"
+  ],
+  "capabilities": [
+    "model:read"
+  ],
+  "extensions": {
+    "actions": [
+      {
+        "id": "count-words",
+        "label": "Count the words",
+        "description": "Stores how many words each note holds: those selected, or every note.",
+        "where": [
+          "selection",
+          "packages-menu"
+        ],
+        "components": [
+          "word-count.note"
+        ]
+      }
+    ],
+    "importers": [
+      {
+        "id": "paragraphs",
+        "label": "Notes, one a paragraph",
+        "extensions": [
+          ".txt"
+        ]
+      }
+    ],
+    "exporters": [
+      {
+        "id": "markdown",
+        "label": "Notes as Markdown",
+        "extension": ".md"
+      }
+    ],
+    "panels": [
+      {
+        "id": "words",
+        "label": "Words",
+        "components": [
+          "word-count.note"
+        ]
+      }
+    ]
+  }
+}

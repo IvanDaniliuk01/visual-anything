@@ -124,6 +124,42 @@ my-metrics-script | visual-anything live <folder> [--fresh-for <seconds>]
 
 A running system's numbers, such as a service's latency now, can show over the attributes they name while the project is open (ADR 0057): in the detail of shapes, in filters and in the inspector, each with a live mark (● on the canvas) and its age, fading (○, with how old it is) once older than its freshness, one minute by default. They are never saved and never enter the history; the inspector's Keep as attribute turns one into an ordinary, undoable edit. `visual-anything live` reads them from standard input, one JSON object a line, `{"target": "api", "attribute": "latency", "value": 120}`, with `"measuredAt"` when known, and sends them to the Visual Anything running on the folder. Claude sends them with `set_live_values`, and package code granted an origin makes them of what the local program fetched for it from that origin (ADR 0063).
 
+## Writing a package that extends Visual Anything
+
+A package (ADR 0012, ADR 0051) holds components and relation types, and may hold code: one JavaScript module, in its `.vapackage` file's `code`, one item a line. Besides computing attributes, checking elements, drawing inside shapes and simulating (ADR 0054, ADR 0085), its code can add four things a person uses (ADR 0089): **actions**, **importers**, **exporters** and **panels**. `examples/word-count` is a small project whose package adds one of each; open it with `pnpm exec tsx packages/server/src/cli.ts examples/word-count`, or add its `packages/word-count.vapackage` to any project from "Packages…" in the header.
+
+**Declare what it adds.** The app lists what a package adds from its file, before its code runs, so each one is declared in `extensions`:
+
+```json
+"capabilities": ["model:read"],
+"extensions": {
+  "actions": [{ "id": "count-words", "label": "Count the words", "description": "…",
+                "where": ["selection", "packages-menu"], "components": ["word-count.note"] }],
+  "importers": [{ "id": "paragraphs", "label": "Notes, one a paragraph", "extensions": [".txt"] }],
+  "exporters": [{ "id": "markdown", "label": "Notes as Markdown", "extension": ".md" }],
+  "panels": [{ "id": "words", "label": "Words", "components": ["word-count.note"] }]
+}
+```
+
+Ids are lower case letters, digits and `-`, unique within their kind; labels are 1 to 60 characters, in the package's own words. A package declares at most 32 actions and 8 of each other kind. An action is offered in the shape menu's "From packages" (`selection`), as a "Run" button in its package's entry of "Packages…" (`packages-menu`), or both; with `components`, only for a selection whose elements are of those components or of components derived from them. A panel with `components` shows only for their elements.
+
+**Write one hook for each kind.** Each is an exported function called `hook(input, context)`, with `input` frozen; `context.model` is there only with the `model:read` capability, and reads the project without changing it: `element(id)`, `relation(id)`, `elements(component?)` (ids, World first, created from that component or one derived from it) and `relationsOn(id)` (the ids of the relations that end on it). Each answers plain data, and never writes anything itself.
+
+| Hook | Called with | Answers |
+| --- | --- | --- |
+| `act` | `{ action, selection, view? }`: the action's id, the selected elements then relations, the open view | `{ label?, commands }`: commands, as Claude's tools send them, which the person reviews on the canvas and the Changes tab and accepts as one action of theirs, or declines |
+| `importFile` | `{ importer, name, text }`: the importer's id and the file's name and text | `{ label?, commands }`, reviewed the same way |
+| `exportFile` | `{ exporter, view? }` | the file's text, which the browser saves with the declared extension |
+| `panel` | `{ panel, element }`: the panel's id and the one selected element | a list of blocks the inspector draws with its own controls: `{ kind: "heading", text }`, `{ kind: "text", text }`, `{ kind: "value", label, value }`, `{ kind: "table", columns, rows }`, `{ kind: "chart", chart: "bar" or "line", labels, series: [{ name, values }] }` and `{ kind: "button", label, action }`, which runs one of the package's actions on the element |
+
+An action that answers no commands says so in a notice. A failure, a stop or an answer the app drops is said once, naming the package, and is not retried.
+
+**Limits.** Each call runs in QuickJS, in the app's code worker, with no access to files, the page or the network, within 32 MiB: `act`, `importFile` and `exportFile` for up to 2 s, `panel` for 50 ms, as it is called as the selection changes. Changes hold at most 500 commands within 1 MiB as JSON, and never comments, conflicts or package code; an importer reads and an exporter writes at most 4 Mi characters; a panel holds at most 64 blocks, tables up to 12 columns and 200 rows, charts up to 6 series of 200 values. The code itself is at most 256 KiB. Code stopped for its time or memory three calls in a row is turned off, and the app says so.
+
+**Approval.** The code runs only once the person reads it and approves it, in "Packages…" or the inspector, with each capability granted on its own. The approval is kept in their preferences by the hash of the code, its capabilities and its `extensions`, so changing any of them, or updating the package from a file or another project, asks again. "Run its code on this computer" turns a package's code off without removing it. The code of a built-in package, such as Data modeling's SQL DDL exporter and "Find tables no relation reaches", ships with the program and runs as its own, without an approval; "Packages…" says so, shows it, and turns it off the same way.
+
+**Testing it locally.** Edit the `.vapackage` file in a project folder while `pnpm dev` serves it: the app reads the change, asks for approval again, and runs the new code. To test its hooks without the app, run them as `packages/server/src/word-count-sample.test.ts` does, through the same QuickJS sandbox and the core's checks: `pnpm exec vitest run packages/server/src/word-count-sample.test.ts`.
+
 ## Merging project files with git
 
 Git merges JSON line by line: two branches that each add elements to one model file meet in a conflict, and the markers git writes break the file. The merge driver merges the project files by id instead (ADR 0072). Changes to different elements, or to different values of one, join; what both sides changed differently stays in the file as conflicts, kept as data, and the file still opens. Install it once in each repository, in a terminal at its top:

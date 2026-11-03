@@ -10,6 +10,7 @@ import {
   builtinPackage,
   packageCodeOf,
   type Command,
+  type PackageCode,
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { PackageFile } from '@visual-anything/schema';
@@ -41,6 +42,15 @@ export function packageFilesIn(files: readonly ChosenFile[]): ChosenFile[] {
     .slice(0, MAX_FOLDER_PACKAGES);
 }
 
+/** How updating a package changes its code, by the hash an approval is given to. */
+export type CodeChange = 'same' | 'changed' | 'added' | 'removed' | 'none';
+
+/**
+ * What changed in code whose hash changed, the first of: its text, the capabilities it declares, or
+ * what it adds to the app (ADR 0089). Any of them asks for approval again.
+ */
+export type ChangedPart = 'code' | 'capabilities' | 'extensions';
+
 /** What a package file does to the project: adds a package, or updates one of its own. */
 export type PackagePlan =
   | {
@@ -57,7 +67,9 @@ export type PackagePlan =
       current: PackageFile;
       command: Command;
       /** How its code changes: approved by another hash from now on, or not. */
-      code: 'same' | 'changed' | 'added' | 'removed' | 'none';
+      code: CodeChange;
+      /** For code that changed, what in it did: its text, what it may reach, or what it adds. */
+      changed?: ChangedPart;
     }
   /** What a file holds that cannot come in this way, in English. */
   | { ok: false; message: string };
@@ -90,24 +102,37 @@ export function packagePlanOf(project: ProjectSnapshot, file: PackageFile): Pack
   if (current === undefined) {
     return { ok: true, kind: 'add', file, command: { type: 'add-package', package: file } };
   }
+  const code = codeChangeOf(current, file);
+  const changed = code === 'changed' ? changedPartOf(current, file) : undefined;
   return {
     ok: true,
     kind: 'update',
     file,
     current,
     command: { type: 'replace-package', package: file },
-    code: codeChange(current, file),
+    code,
+    ...(changed === undefined ? {} : { changed }),
   };
 }
 
-/** How updating a package changes its code, by the hash an approval is given to. */
-function codeChange(
-  current: PackageFile,
-  file: PackageFile,
-): 'same' | 'changed' | 'added' | 'removed' | 'none' {
+/**
+ * How updating the package `current` to `file` changes its code, by the hash an approval is given
+ * to: "Packages…" and "Update from another project" (ADR 0051) both say it before anything changes.
+ */
+export function codeChangeOf(current: PackageFile, file: PackageFile): CodeChange {
   const before = packageCodeOf(current);
   const after = packageCodeOf(file);
   if (before === undefined) return after === undefined ? 'none' : 'added';
   if (after === undefined) return 'removed';
   return before.hash === after.hash ? 'same' : 'changed';
+}
+
+/** What changed in code whose hash changed; undefined when its hash did not. */
+export function changedPartOf(current: PackageFile, file: PackageFile): ChangedPart | undefined {
+  const before = packageCodeOf(current);
+  const after = packageCodeOf(file);
+  if (before === undefined || after === undefined || before.hash === after.hash) return undefined;
+  if (before.text !== after.text) return 'code';
+  const declared = (each: PackageCode) => JSON.stringify([...new Set(each.declared)].sort());
+  return declared(before) !== declared(after) ? 'capabilities' : 'extensions';
 }

@@ -7,9 +7,18 @@ import {
   type PackageProperty,
 } from '@visual-anything/core';
 import type { Id, PackageFile } from '@visual-anything/schema';
-import { useEffect, useId, useMemo, useRef, useState, type Ref } from 'react';
+import { useContext, useEffect, useId, useMemo, useRef, useState, type Ref } from 'react';
+import { useCode } from '../../code/context';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
+import { LiveContext } from '../../live/context';
+import { CodeChangeNote } from '../../packages/CodeChangeNote';
+import {
+  changedPartOf,
+  codeChangeOf,
+  type ChangedPart,
+  type CodeChange,
+} from '../../packages/packageFiles';
 import { InlineProblem } from '../inspector/controls';
 import { Detail, Title } from '../inspector/parts';
 import { refusalOf } from './commands';
@@ -17,8 +26,11 @@ import { useOpenDefinition } from './opened';
 import {
   addPackageCommand,
   chosenFilesOf,
+  copySolidFiles,
+  namedSolidFiles,
   packageWithId,
   readChosenProject,
+  solidFilesOf,
   updatePackageCommand,
   type ChosenProject,
 } from './sharedPackages';
@@ -49,6 +61,8 @@ export function SharePackageForm({ mode, titleRef }: SharePackageFormProps) {
   const [chosen, setChosen] = useState<ChosenProject>();
   const [reading, setReading] = useState(false);
   const [picked, setPicked] = useState<Id>();
+  const [copying, setCopying] = useState(false);
+  const prepareSolid = useContext(LiveContext)?.prepareSolid;
   const current =
     mode.kind === 'update' ? project.packages.find((each) => each.id === mode.id) : undefined;
 
@@ -92,9 +106,43 @@ export function SharePackageForm({ mode, titleRef }: SharePackageFormProps) {
         : undefined,
     [current, incoming],
   );
+  // Its code, its capabilities and what it adds are approved by one hash (ADR 0089), as Packages… says.
+  const code = useMemo(
+    () =>
+      current !== undefined && incoming !== undefined
+        ? { change: codeChangeOf(current, incoming), changed: changedPartOf(current, incoming) }
+        : undefined,
+    [current, incoming],
+  );
+  const same = changes?.same === true && (code?.change === 'same' || code?.change === 'none');
+
+  // Its solids' files, copied into this project's solids/ through the local program (ADR 0089).
+  const solidFiles = useMemo(
+    () =>
+      chosen === undefined || incoming === undefined
+        ? undefined
+        : solidFilesOf(chosen, incoming, namedSolidFiles(project.packages)),
+    [chosen, incoming, project.packages],
+  );
 
   const apply = async () => {
     if (command === undefined || incoming === undefined) return;
+    if (solidFiles !== undefined && solidFiles.copy.length > 0) {
+      if (prepareSolid === undefined) {
+        sender.refuse('Visual Anything cannot copy solid files here: open the project through it.');
+        return;
+      }
+      setCopying(true);
+      try {
+        const copied = await copySolidFiles(solidFiles.copy, prepareSolid);
+        if (!copied.ok) {
+          sender.refuse(copied.message);
+          return;
+        }
+      } finally {
+        setCopying(false);
+      }
+    }
     if (await sender.send(command)) open?.({ kind: 'package', id: incoming.id }, { focus: true });
   };
 
@@ -192,9 +240,24 @@ export function SharePackageForm({ mode, titleRef }: SharePackageFormProps) {
             <AddPreview file={incoming} />
           ) : (
             current !== undefined &&
-            changes !== undefined && (
-              <UpdatePreview current={current} incoming={incoming} changes={changes} />
+            changes !== undefined &&
+            code !== undefined && (
+              <UpdatePreview
+                current={current}
+                incoming={incoming}
+                changes={changes}
+                code={code}
+                same={same}
+              />
             )
+          )}
+          {solidFiles !== undefined && (
+            <SolidFilesNote copy={solidFiles.copy.length} missing={solidFiles.missing.length} />
+          )}
+          {copying && (
+            <p className="inspector-notes" role="status">
+              {t('Copying its solids’ files…')}
+            </p>
           )}
           {refusal !== undefined && (
             <InlineProblem id={problemId} text={t.message(refusal.message)} />
@@ -206,7 +269,7 @@ export function SharePackageForm({ mode, titleRef }: SharePackageFormProps) {
             <button
               type="button"
               className="inspector-action"
-              disabled={send === undefined || refusal !== undefined || changes?.same === true}
+              disabled={send === undefined || refusal !== undefined || same || copying}
               aria-describedby={refusal === undefined ? undefined : problemId}
               onClick={() => void apply()}
             >
@@ -252,6 +315,44 @@ function AddPreview({ file }: { file: PackageFile }) {
           })}
         </p>
       )}
+      {file.code !== undefined && file.code.length > 0 && (
+        <p className="inspector-notes">
+          {t('It holds code, which runs only once you approve it, after reading it.')}
+        </p>
+      )}
+    </>
+  );
+}
+
+/** What becomes of a package's solids' files: copied into this project, or drawn as placeholders. */
+function SolidFilesNote({ copy, missing }: { copy: number; missing: number }) {
+  const t = useT();
+  return (
+    <>
+      {copy > 0 && (
+        <p className="inspector-notes">
+          {t(
+            {
+              one: 'The file of {count} of its solids is copied into this project’s solids folder, checked by Visual Anything first.',
+              other:
+                'The files of {count} of its solids are copied into this project’s solids folder, each checked by Visual Anything first.',
+            },
+            { count: copy },
+          )}
+        </p>
+      )}
+      {missing > 0 && (
+        <p className="inspector-warning">
+          {t(
+            {
+              one: 'That folder holds no file for {count} of its solids: it draws its placeholder until its file is in this project’s solids folder.',
+              other:
+                'That folder holds no file for {count} of its solids: they draw their placeholders until their files are in this project’s solids folder.',
+            },
+            { count: missing },
+          )}
+        </p>
+      )}
     </>
   );
 }
@@ -291,13 +392,19 @@ function UpdatePreview({
   current,
   incoming,
   changes,
+  code,
+  same,
 }: {
   current: PackageFile;
   incoming: PackageFile;
   changes: PackageChanges;
+  code: { change: CodeChange; changed: ChangedPart | undefined };
+  /** Whether nothing differs, its code included. */
+  same: boolean;
 }) {
   const t = useT();
-  if (changes.same) {
+  const approved = useCode()?.packages.get(current.id)?.status.state === 'approved';
+  if (same) {
     return (
       <p className="inspector-notes">{t('Nothing differs: the package is the same there.')}</p>
     );
@@ -329,6 +436,12 @@ function UpdatePreview({
       <ChangeList heading={t('Components')} changes={changes.components} />
       <ChangeList heading={t('Relation types')} changes={changes.relationTypes} />
       <ChangeList heading={t('Images')} changes={changes.images} />
+      <CodeChangeNote
+        change={code.change}
+        changed={code.changed}
+        approved={approved}
+        className={{ note: 'inspector-notes', warning: 'inspector-warning' }}
+      />
     </>
   );
 }

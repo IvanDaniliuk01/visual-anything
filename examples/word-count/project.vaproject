@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "name": "Word count",
+  "description": "A sample project whose package adds to the app (ADR 0089): the action \"Count the words\", an importer of plain text, an exporter of Markdown and the panel \"Words\".",
+  "packages": [
+    "word-count"
+  ]
+}

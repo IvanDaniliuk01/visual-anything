@@ -18,11 +18,17 @@ export function CodeSection({ element }: { element: Element }) {
   const { project } = useEditor();
   const headingId = useId();
   if (!code) return null;
+  const answers = code.elements.get(element.id);
   const running = codePackagesOn(project, element.id)
     .map((id) => code.packages.get(id))
-    .filter((each): each is PackageCodeView => each !== undefined);
-  if (running.length === 0) return null;
-  const answers = code.elements.get(element.id);
+    .filter((each): each is PackageCodeView => each !== undefined)
+    // Built-in code that runs is the program's own (ADR 0089): said only when it does not run.
+    .filter(
+      (each) =>
+        !(each.status.state === 'approved' && each.status.builtIn === true) ||
+        standingText(t, each) !== undefined,
+    );
+  if (running.length === 0 && (answers === undefined || isEmpty(answers))) return null;
   const names = new Map(running.map((each) => [each.code.package, each.code.name]));
 
   return (
@@ -91,6 +97,10 @@ function Standing({ view }: { view: PackageCodeView }) {
       )}
     </div>
   );
+}
+
+function isEmpty(answers: { attributes: readonly unknown[]; problems: readonly unknown[] }) {
+  return answers.attributes.length === 0 && answers.problems.length === 0;
 }
 
 function valueText(value: JsonValue): string {

@@ -1,0 +1,35 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "Word count"
+  },
+  "elements": [
+    {
+      "id": "welcome",
+      "component": "word-count.note",
+      "name": "Welcome",
+      "attributes": {
+        "text": "This project shows a package that extends Visual Anything. Its code counts the words of each note.",
+        "words": 17
+      }
+    },
+    {
+      "id": "how",
+      "component": "word-count.note",
+      "name": "How it runs",
+      "attributes": {
+        "text": "The code runs in a sandbox only once you approve it. Every change it proposes waits for your review."
+      }
+    },
+    {
+      "id": "try",
+      "component": "word-count.note",
+      "name": "Try it",
+      "attributes": {
+        "text": "Select a note and open the Words panel in the inspector, or choose Count the words from the shape menu."
+      }
+    }
+  ],
+  "relations": []
+}

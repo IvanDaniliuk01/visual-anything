@@ -2389,6 +2389,18 @@ export const ui: Catalog = {
     'Aprobado: se ejecuta en cuanto arranca el proceso que ejecuta el código.',
   'Review the code…': 'Revisar el código…',
   'Review and approve the code…': 'Revisar y aprobar el código…',
+  // Built-in package code (ADR 0089's M14.6 clarification): the program's own, never approved.
+  'Built into Visual Anything: it runs as part of the program, without an approval.':
+    'Incluido en Visual Anything: se ejecuta como parte del programa, sin aprobación.',
+  'Built into Visual Anything: it runs as part of the program once the worker starts.':
+    'Incluido en Visual Anything: se ejecuta como parte del programa en cuanto arranca el proceso que ejecuta el código.',
+  'Built into Visual Anything: its code runs as part of the program.':
+    'Incluido en Visual Anything: su código se ejecuta como parte del programa.',
+  'Built into Visual Anything: its code runs as part of the program once the worker starts.':
+    'Incluido en Visual Anything: su código se ejecuta como parte del programa en cuanto arranca el proceso que ejecuta el código.',
+  'Show the code…': 'Ver el código…',
+  'It is built into Visual Anything and runs as part of the program, in the same sandbox as any package’s code, without an approval. You can turn it off on this computer in Packages….':
+    'Está incluido en Visual Anything y se ejecuta como parte del programa, aislado como el código de cualquier paquete, sin aprobación. Se puede desactivar en esta computadora desde Paquetes….',
   'The package “{name}” holds code that is not approved, so it does not run. Review it from one of its elements in the inspector, or from the package in the Components tab.':
     'El paquete “{name}” tiene código que no está aprobado, así que no se ejecuta. Revisarlo desde uno de sus elementos en el inspector, o desde el paquete en la pestaña Componentes.',
 
@@ -2438,6 +2450,24 @@ export const ui: Catalog = {
   'Its code stays the same.': 'Su código no cambia.',
   'Its code changed, so it asks for your approval again before it runs.':
     'Su código cambió, así que vuelve a pedir aprobación antes de ejecutarse.',
+  'What its code may reach changed, so it asks for your approval again before it runs.':
+    'Cambió a qué puede llegar su código, así que vuelve a pedir aprobación antes de ejecutarse.',
+  'What its code adds to the app changed, so it asks for your approval again before it runs.':
+    'Cambió lo que su código agrega a la aplicación, así que vuelve a pedir aprobación antes de ejecutarse.',
+  // A package's solids from another project (ADR 0089's M14.6 clarification).
+  'Copying its solids’ files…': 'Copiando los archivos de sus sólidos…',
+  'The files of {count} of its solids are copied into this project’s solids folder, each checked by Visual Anything first.':
+    {
+      one: 'El archivo de {count} de sus sólidos se copia en la carpeta solids de este proyecto, revisado antes por Visual Anything.',
+      other:
+        'Los archivos de {count} de sus sólidos se copian en la carpeta solids de este proyecto, cada uno revisado antes por Visual Anything.',
+    },
+  'That folder holds no file for {count} of its solids: they draw their placeholders until their files are in this project’s solids folder.':
+    {
+      one: 'Esa carpeta no tiene el archivo de {count} de sus sólidos: se dibuja su marcador hasta que su archivo esté en la carpeta solids de este proyecto.',
+      other:
+        'Esa carpeta no tiene los archivos de {count} de sus sólidos: se dibujan sus marcadores hasta que sus archivos estén en la carpeta solids de este proyecto.',
+    },
   'The file’s version, {there}, is older than this one, {here}.':
     'La versión del archivo, {there}, es anterior a esta, {here}.',
   'Its components, relation types and images stay as they are.':
@@ -6458,6 +6488,16 @@ export const messages: Catalog = {
     'El nombre de un archivo es su propio nombre, sin carpeta.',
   'Options come with the first piece only.': 'Las opciones llegan solo con el primer trozo.',
   'Options are units, up and simplify.': 'Las opciones son units, up y simplify.',
+  'Options are units, up, simplify and keep.': 'Las opciones son units, up, simplify y keep.',
+  'Keep is the hash a solid’s file is named by.':
+    'Keep es el resumen por el que se nombra el archivo de un sólido.',
+  'A solid kept from another project is taken as it is, without other options.':
+    'Un sólido que se conserva de otro proyecto se toma tal como está, sin otras opciones.',
+  'The solid file "solids/{hash}.glb" is over {n} bytes, the most a cleaned file holds.':
+    'El archivo de sólido "solids/{hash}.glb" pasa de {n} bytes, lo máximo que tiene un archivo limpio.',
+  '"solids/{hash}.glb" was refused.': 'Se rechazó "solids/{hash}.glb".',
+  'Visual Anything cannot copy solid files here: open the project through it.':
+    'Visual Anything no puede copiar archivos de sólidos aquí: abrir el proyecto con él.',
   'Units are m, cm, mm or in.': 'Las unidades son m, cm, mm o in.',
   'Up is y or z.': 'El eje hacia arriba es y o z.',
   'Simplify is true or false.': 'Simplificar es true o false.',

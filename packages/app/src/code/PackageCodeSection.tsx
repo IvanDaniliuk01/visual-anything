@@ -1,6 +1,8 @@
 /**
  * A package's code in the component editor (ADR 0054): how long it is, its hash, what it may reach,
- * whether it is approved and runs, and the way to review it, approve it or withdraw the approval.
+ * whether it is approved and runs, and the way to review it, approve it or withdraw the approval. A
+ * built-in package's code is the program's own (ADR 0089's M14.6 clarification): it says so, and its
+ * code can be read, never approved.
  */
 import type { Id } from '@visual-anything/schema';
 import { useId } from 'react';
@@ -18,6 +20,7 @@ export function PackageCodeSection({ id }: { id: Id }) {
   const { status, run } = view;
   const lines = view.code.text.split('\n').length;
   const said = standingText(t, view);
+  const builtIn = status.state === 'approved' && status.builtIn === true;
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
@@ -34,7 +37,7 @@ export function PackageCodeSection({ id }: { id: Id }) {
           {view.code.capabilities.map((capability) => (
             <li key={capability}>
               <span>{capabilityText(t, capability)}</span>
-              {status.state === 'approved' && !status.granted.includes(capability) && (
+              {status.state === 'approved' && !builtIn && !status.granted.includes(capability) && (
                 <span className="code-mark">{t('not granted')}</span>
               )}
             </li>
@@ -45,9 +48,17 @@ export function PackageCodeSection({ id }: { id: Id }) {
         <p className="inspector-warning">{said}</p>
       ) : (
         <p className="inspector-notes">
-          {run?.state === 'running'
-            ? t('Approved, and running.')
-            : t('Approved: it runs once the worker starts.')}
+          {builtIn
+            ? run?.state === 'running'
+              ? t(
+                  'Built into Visual Anything: it runs as part of the program, without an approval.',
+                )
+              : t(
+                  'Built into Visual Anything: it runs as part of the program once the worker starts.',
+                )
+            : run?.state === 'running'
+              ? t('Approved, and running.')
+              : t('Approved: it runs once the worker starts.')}
         </p>
       )}
       {run?.problem && run.state === 'running' && (
@@ -55,7 +66,11 @@ export function PackageCodeSection({ id }: { id: Id }) {
       )}
       {status.state !== 'too-large' && (
         <button type="button" className="inspector-action" onClick={() => code.review(id)}>
-          {status.state === 'approved' ? t('Review the code…') : t('Review and approve the code…')}
+          {builtIn
+            ? t('Show the code…')
+            : status.state === 'approved'
+              ? t('Review the code…')
+              : t('Review and approve the code…')}
         </button>
       )}
     </section>

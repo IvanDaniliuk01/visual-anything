@@ -31,6 +31,7 @@ import {
   packagePlanOf,
   type PackagePlan,
 } from './packageFiles';
+import { CodeChangeNote } from './CodeChangeNote';
 import { packageRowsOf, type PackageRow } from './packageList';
 import { menuActions, selectionIds, type OfferedAction } from './offered';
 import { useRunPackageAction } from './run';
@@ -352,6 +353,8 @@ function PackageItem({
   const extensions = view?.code.extensions ?? file.extensions;
   const capabilities: readonly Capability[] = view?.code.capabilities ?? [];
   const granted = view?.status.state === 'approved' ? view.status.granted : undefined;
+  // Built-in code is the program's own (ADR 0089's M14.6 clarification): shown, never approved.
+  const builtInCode = view?.status.state === 'approved' && view.status.builtIn === true;
   return (
     <article className="packages-item" aria-labelledby={nameId}>
       <h3 id={nameId} className="packages-name">
@@ -433,9 +436,11 @@ function PackageItem({
               onClick={(event) => onReview(event.currentTarget)}
               aria-describedby={nameId}
             >
-              {view.status.state === 'approved'
-                ? t('Review the code…')
-                : t('Review and approve the code…')}
+              {builtInCode
+                ? t('Show the code…')
+                : view.status.state === 'approved'
+                  ? t('Review the code…')
+                  : t('Review and approve the code…')}
             </button>
           )}
           <label className="packages-check">
@@ -475,14 +480,25 @@ function standingWords(t: Translator, row: PackageRow): string {
     case 'waiting':
       return t('Its code waits for approval, so it does not run.');
     case 'running':
-      return t('Approved, and running.');
+      return builtIn(view)
+        ? t('Built into Visual Anything: its code runs as part of the program.')
+        : t('Approved, and running.');
     case 'approved':
-      return t('Approved: it runs once the worker starts.');
+      return builtIn(view)
+        ? t(
+            'Built into Visual Anything: its code runs as part of the program once the worker starts.',
+          )
+        : t('Approved: it runs once the worker starts.');
     case 'too-large':
     case 'off':
     case 'failed':
       return (view && standingText(t, view)) ?? '';
   }
+}
+
+/** Whether a package's code is the program's own, built in (ADR 0089). */
+function builtIn(view: PackageRow['view']): boolean {
+  return view?.status.state === 'approved' && view.status.builtIn === true;
 }
 
 /** The package files a folder holds, to choose one of. */
@@ -651,30 +667,14 @@ function CodeNote({
     );
   }
   const approved = code?.packages.get(plan.current.id)?.status.state === 'approved';
-  switch (plan.code) {
-    case 'none':
-      return null;
-    case 'added':
-      return (
-        <p className="dialog-note">{t('It adds code, which runs only once you approve it.')}</p>
-      );
-    case 'removed':
-      return <p className="dialog-note">{t('Its code is removed.')}</p>;
-    case 'same':
-      return (
-        <p className="dialog-note">
-          {approved
-            ? t('Its code stays the same, and so does its approval.')
-            : t('Its code stays the same.')}
-        </p>
-      );
-    case 'changed':
-      return (
-        <p className="packages-standing">
-          {t('Its code changed, so it asks for your approval again before it runs.')}
-        </p>
-      );
-  }
+  return (
+    <CodeChangeNote
+      change={plan.code}
+      changed={plan.changed}
+      approved={approved}
+      className={{ note: 'dialog-note', warning: 'packages-standing' }}
+    />
+  );
 }
 
 /** What updating changes: properties, then definitions and images, and an older version said. */

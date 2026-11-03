@@ -15,9 +15,14 @@
  *
  * Once projects use these ids, they change only by additions: built-in packages have no versions yet
  * (ADR 0018).
+ *
+ * Its code (ADR 0089's M14.6 clarification) adds an exporter of SQL DDL and the action "Find tables
+ * no relation reaches", through the hooks any package's code may use. It is the program's own: it
+ * runs without the person's approval, and can be turned off on a computer in "Packages…".
  */
 import type { Face, PackageFile, SvgImage } from '@visual-anything/schema';
 import { OWN_CREDITS, OWN_LICENSE, OWN_SOURCE } from './credits';
+import { DATA_MODELING_CODE, DATA_MODELING_EXTENSIONS } from './data-modeling-code';
 
 /** An icon of this package, drawn for Visual Anything, in the cleaned SVG text given. */
 function icon(id: string, name: string, svg: string): SvgImage {
@@ -467,4 +472,7 @@ export const DATA_MODELING: PackageFile = {
     DATA_MODELING_ICONS.trigger,
     DATA_MODELING_ICONS.sequence,
   ],
+  code: [...DATA_MODELING_CODE],
+  capabilities: ['model:read'],
+  extensions: DATA_MODELING_EXTENSIONS,
 };

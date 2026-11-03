@@ -1,0 +1,3 @@
+Packages extend Visual Anything with actions, importers, exporters and panels.
+
+Each one is declared in the package file, and runs through one hook of its code.

@@ -5,6 +5,11 @@
  *   the program cleans it in its worker thread, one file at a time, and holds what it made in
  *   memory, at most two files for ten minutes, while the person reads the preview and the report
  *   (`solid/prepared`). The command line and Claude prepare a file the same way.
+ * - **Keeping.** A solid kept from another project (ADR 0089's M14.6 clarification) comes as its
+ *   cleaned file, with the hash it is named by there (`keep`): the program does not clean it again,
+ *   it checks it with the core's strict reader in its worker, as a file of `solids/` is checked, and
+ *   writes it to this project's `solids/` once it is canonical and its bytes hash to that name. It is
+ *   held as a prepared file is, so that the package that names it can come in afterwards.
  * - **Holding.** The program takes `define-solid` only for a file it holds: one it prepared, which it
  *   then writes to `solids/`, or one in `solids/` it read and checked. Each definition then takes the
  *   description the program worked out, so that an app or Claude cannot define a solid it did not
@@ -17,6 +22,7 @@
 import { isDeepStrictEqual } from 'node:util';
 import {
   MAX_SOLID_INPUT_BYTES,
+  SOLID_CAPS,
   SOLID_PIECE_BYTES,
   decodeBase64,
   encodeBase64,
@@ -221,8 +227,9 @@ export class SolidStore {
     }
     this.#waiting += 1;
     const clean = this.#options.clean ?? ((given, chosen) => cleanInWorker(given, chosen));
+    const kept = options.keep;
     const turn = this.#cleaning
-      .then(() => clean(bytes, options))
+      .then(() => (kept === undefined ? clean(bytes, options) : this.#keep(bytes, kept)))
       .then((cleaned): Preparing => {
         if (!cleaned.ok) return cleaned;
         const prepared: PreparedSolid = {
@@ -250,6 +257,54 @@ export class SolidStore {
       });
     this.#cleaning = turn;
     return turn;
+  }
+
+  /**
+   * A file kept from another project, checked rather than cleaned: canonical, within the cleaned
+   * file's caps, and its bytes those of its name, then written to `solids/`; or why it is refused.
+   */
+  async #keep(bytes: Uint8Array, hash: string): Promise<CleanedSolid> {
+    const name = solidFileName(hash);
+    if (bytes.length > SOLID_CAPS.fileBytes) {
+      return {
+        ok: false,
+        problems: [
+          {
+            code: 'solid-too-large',
+            message: `The solid file "${name}" is over ${SOLID_CAPS.fileBytes} bytes, the most a cleaned file holds.`,
+          },
+        ],
+      };
+    }
+    if (bytes.length === 0 || hashOf(bytes) !== hash) {
+      return {
+        ok: false,
+        problems: [
+          {
+            code: 'solid-not-clean',
+            message: `The bytes of the solid file "${name}" are not the ones its name says.`,
+          },
+        ],
+      };
+    }
+    const check = this.#options.check ?? ((given) => checkInWorker(given));
+    const checked = await check(bytes);
+    if (!checked.ok || checked.hash !== hash) {
+      const why = checked.ok ? 'its hash is not its name' : (checked.problems[0]?.message ?? '');
+      return {
+        ok: false,
+        problems: [
+          {
+            code: 'solid-not-clean',
+            message: `The solid file "${name}" is not one Visual Anything cleaned: ${why}`,
+          },
+        ],
+      };
+    }
+    await writeSolidFile(this.#folder, hash, bytes, this.#options.writer);
+    this.#checked.set(hash, checked.description);
+    this.#notClean.delete(hash);
+    return { ok: true, hash, bytes, description: checked.description, report: [] };
   }
 
   #hold(prepared: PreparedSolid): void {
