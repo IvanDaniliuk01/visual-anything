@@ -1,0 +1,55 @@
+{
+  "id": "sales",
+  "name": "Sales",
+  "description": "The sales schema: customers, their orders and each order’s lines, with the books the lines sell.",
+  "perspective": {
+    "name": "Sales"
+  },
+  "nestingRelationTypes": [
+    "systems.is-part-of",
+    "data-modeling.is-column-of"
+  ],
+  "positions": [
+    {
+      "element": "customers",
+      "container": "sales",
+      "x": 632,
+      "y": 80
+    },
+    {
+      "element": "orders",
+      "container": "sales",
+      "x": 328,
+      "y": 56
+    },
+    {
+      "element": "order-lines",
+      "container": "sales",
+      "x": 24,
+      "y": 56
+    },
+    {
+      "element": "sales",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "books",
+      "x": 968,
+      "y": 184
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "include": [
+      {
+        "kind": "contents",
+        "container": "sales"
+      },
+      {
+        "kind": "contents",
+        "container": "books"
+      }
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "id": "overview",
+  "name": "Overview",
+  "description": "Both schemas and every table, with the foreign keys between them.",
+  "perspective": {
+    "name": "Database"
+  },
+  "nestingRelationTypes": [
+    "systems.is-part-of",
+    "data-modeling.is-column-of"
+  ],
+  "positions": [
+    {
+      "element": "authors",
+      "container": "catalog",
+      "x": 328,
+      "y": 56
+    },
+    {
+      "element": "publishers",
+      "container": "catalog",
+      "x": 328,
+      "y": 208
+    },
+    {
+      "element": "books",
+      "container": "catalog",
+      "x": 24,
+      "y": 112
+    },
+    {
+      "element": "customers",
+      "container": "sales",
+      "x": 632,
+      "y": 80
+    },
+    {
+      "element": "orders",
+      "container": "sales",
+      "x": 328,
+      "y": 56
+    },
+    {
+      "element": "order-lines",
+      "container": "sales",
+      "x": 24,
+      "y": 56
+    },
+    {
+      "element": "catalog",
+      "x": 976,
+      "y": 80
+    },
+    {
+      "element": "sales",
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "freeShapes": []
+}
