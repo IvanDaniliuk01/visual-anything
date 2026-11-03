@@ -18,6 +18,7 @@ import {
   packageCodeOf,
   simulationOf,
   ticksOf,
+  turnedOffProblem,
   type ComponentSimulation,
   type Guidance,
   type ProjectSnapshot,
@@ -105,6 +106,15 @@ async function approvalOf(
   const code = file ? packageCodeOf(file) : undefined;
   if (!code) {
     return { approved: false, granted: [], reason: 'Its package holds no code to work it out.' };
+  }
+  // Turned off on this computer, it runs for no one, approved or not (ADR 0089).
+  if (((await program.codeTurnedOff?.()) ?? []).includes(simulation.package)) {
+    return {
+      approved: false,
+      granted: [],
+      reason: turnedOffProblem({ id: simulation.package, name: file?.name ?? simulation.package })
+        .message,
+    };
   }
   const status = codeStatusOf(code, (await program.codeApprovals?.()) ?? []);
   if (status.state === 'too-large') {

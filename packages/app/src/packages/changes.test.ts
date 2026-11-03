@@ -3,7 +3,13 @@
  * a time; the changes previewed on the project as the tab holds it when the code answers; and a run
  * that leaves nothing to review says why, in the language read in.
  */
-import { notApprovedProblem, type PackageCodeChanges } from '@visual-anything/core';
+import {
+  executeCommand,
+  notApprovedProblem,
+  type Command,
+  type PackageCodeChanges,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
 import type { PackageAnswer } from '../code/messages';
 import { codeProject } from '../code/test/project';
@@ -122,5 +128,57 @@ describe('the changes of a package’s action', () => {
       /^Los cambios que propone “Check them”, del paquete “Gauges”, no se pueden aplicar: /,
     );
     expect(changes.snapshot()).toEqual({ state: 'idle' });
+  });
+});
+
+describe('accepting changes under review (M14’s review)', () => {
+  /** A store whose project the test changes, as the tab's changes under a review. */
+  async function reviewing() {
+    const made = new PackageChangesStore();
+    let project: ProjectSnapshot = codeProject();
+    made.attach(() => project);
+    expect(await made.run(request({ ok: true, value: RENAME }))).toEqual({ kind: 'review' });
+    const apply = (command: Command) => {
+      const outcome = executeCommand(project, command, { author: 'user' });
+      if (!outcome.ok) throw new Error(JSON.stringify(outcome.problems));
+      project = outcome.state;
+    };
+    return { store: made, apply, now: () => project };
+  }
+
+  it('lets the command go when the project is the one previewed', async () => {
+    const { store: changes } = await reviewing();
+    expect(changes.recheck()).toEqual({ kind: 'same', command: { type: 'batch', ...RENAME } });
+  });
+
+  it('lets it go when the project changed elsewhere, the comparison being the same', async () => {
+    const { store: changes, apply } = await reviewing();
+    const shown = changes.snapshot();
+    apply({ type: 'update-element', id: 'fridge', changes: { description: 'Cold.' } });
+    expect(changes.recheck()).toMatchObject({ kind: 'same' });
+    expect(changes.snapshot()).toBe(shown);
+  });
+
+  it('shows the new comparison in place of the one shown, rather than applying it', async () => {
+    const { store: changes, apply, now } = await reviewing();
+    const shown = changes.snapshot();
+    apply({ type: 'update-element', id: 'oven', changes: { description: 'Hot.', name: 'Range' } });
+    expect(changes.recheck()).toEqual({ kind: 'moved' });
+    const moved = changes.snapshot();
+    if (moved.state !== 'reviewing' || shown.state !== 'reviewing') throw new Error('No review');
+    expect(moved.moved).toBe(true);
+    expect(moved.older).toBe(now());
+    expect(moved.preview.comparison).not.toEqual(shown.preview.comparison);
+    // Accepted again, what the person now sees goes.
+    expect(changes.recheck()).toMatchObject({ kind: 'same' });
+  });
+
+  it('says why when the changes no longer apply, keeping the review', async () => {
+    const { store: changes, apply } = await reviewing();
+    const shown = changes.snapshot();
+    apply({ type: 'delete', elements: ['oven'] });
+    const rechecked = changes.recheck();
+    expect(rechecked.kind).toBe('refused');
+    expect(changes.snapshot()).toBe(shown);
   });
 });

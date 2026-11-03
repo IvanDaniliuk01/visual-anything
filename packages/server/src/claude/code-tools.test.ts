@@ -9,10 +9,15 @@ import { startToolHarness, type ToolHarness } from './tool-harness';
 
 let tools: ToolHarness;
 let approvals: CodeApproval[];
+let turnedOff: string[];
 
 beforeEach(async () => {
   approvals = [];
-  tools = await startToolHarness(testProject(), { codeApprovals: () => approvals });
+  turnedOff = [];
+  tools = await startToolHarness(testProject(), {
+    codeApprovals: () => approvals,
+    codeTurnedOff: () => turnedOff,
+  });
 });
 
 afterEach(async () => {
@@ -103,6 +108,25 @@ describe('run_package_code', () => {
     expect(
       await tools.failure('run_package_code', { package: 'shop', element: 'cart', hook: 'check' }),
     ).toMatch(/is not approved/);
+  });
+
+  it('runs nothing turned off on this computer, approved or not (ADR 0089, M14’s review)', async () => {
+    approveAsPerson();
+    turnedOff = ['shop'];
+    expect(
+      await tools.failure('run_package_code', {
+        package: 'shop',
+        element: 'cart',
+        hook: 'attributes',
+      }),
+    ).toBe(
+      'The code of the package "Shop" is turned off on this computer: it runs again once it is turned on in Packages….',
+    );
+    // Turned on again, it runs under the approval it kept.
+    turnedOff = [];
+    expect(
+      await tools.value('run_package_code', { package: 'shop', element: 'cart', hook: 'check' }),
+    ).toMatchObject({ answer: [] });
   });
 
   it('runs a hook of approved code on an element, and checks its answer as the app does', async () => {

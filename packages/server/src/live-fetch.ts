@@ -32,7 +32,8 @@ import {
   checkFetchAddress,
   codeStatusOf,
   packagesWithCode,
-  type CodeApproval,
+  turnedOffProblem,
+  type Preferences,
   type Problem,
   type ProjectSnapshot,
 } from '@visual-anything/core';
@@ -72,19 +73,26 @@ export interface Destination {
   family: 4 | 6;
 }
 
+/** What of the person's preferences says whether a package's code runs on this computer. */
+export type CodePreferences = Pick<Preferences, 'codeApprovals' | 'codeTurnedOff'>;
+
 /**
  * What the code of a package may do with the network now: the capabilities the person granted the
- * code it holds now, or why it may do nothing.
+ * code it holds now, or why it may do nothing, turned off on this computer included (ADR 0089).
  */
 export function networkGrantOf(
   project: ProjectSnapshot,
-  approvals: readonly CodeApproval[],
+  preferences: CodePreferences,
   pkg: Id,
 ): { ok: true; name: string; granted: Capability[] } | { ok: false; problem: Problem } {
   const code = packagesWithCode(project).find((each) => each.package === pkg);
   if (code === undefined) {
     return refused('live-refused', `The package "${pkg}" holds no code.`, [pkg]);
   }
+  if (preferences.codeTurnedOff.includes(pkg)) {
+    return { ok: false, problem: turnedOffProblem({ id: pkg, name: code.name }) };
+  }
+  const approvals = preferences.codeApprovals;
   const status = codeStatusOf(code, approvals);
   if (status.state !== 'approved') {
     return refused(

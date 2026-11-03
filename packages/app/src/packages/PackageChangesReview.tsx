@@ -4,7 +4,10 @@
  * of the project now with the project with them (ADR 0070), and the Changes tab lists them with
  * Accept and Decline, as Claude's proposals are reviewed (ADR 0073). Accept sends the one command the
  * core previewed, as one action of the person's, which Undo takes back whole; Decline, the
- * comparison's End button or Escape drop the changes, and nothing is sent.
+ * comparison's End button or Escape drop the changes, and nothing is sent. Accept first previews the
+ * changes again on the project as it is (M14's review): when the project changed so that the
+ * comparison differs, the review shows the new one, saying so, and nothing is sent until the person
+ * accepts what they now see.
  */
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ComparisonContext, type ComparisonHandle } from '../canvas/comparison/mode';
@@ -113,14 +116,23 @@ export function PackageChangesDecision({
   const { send } = useEditor();
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState(false);
+  const [noLonger, setNoLonger] = useState<string | undefined>(undefined);
   const usable = send !== undefined && !busy;
   const accept = async () => {
     if (!send || busy) return;
-    setBusy(true);
     setRefused(false);
+    setNoLonger(undefined);
+    // What is applied is what the person saw: previewed again on the project as it is now.
+    const rechecked = store.recheck();
+    if (rechecked.kind === 'moved' || rechecked.kind === 'gone') return;
+    if (rechecked.kind === 'refused') {
+      setNoLonger(rechecked.problems.map((each) => t.message(each.message)).join(' '));
+      return;
+    }
+    setBusy(true);
     try {
       // One action of the person's: the core checks the changes again as it applies them.
-      const result = await send(review.preview.command);
+      const result = await send(rechecked.command);
       if (result.ok) store.close();
       else setRefused(true);
     } finally {
@@ -142,6 +154,13 @@ export function PackageChangesDecision({
           label: review.changes.label,
         })}
       </p>
+      {review.moved === true && (
+        <p className="package-decision-moved" role="status">
+          {t(
+            'The project changed since these changes were shown, so they are shown again on the project as it is now. Accept them again to apply what you see.',
+          )}
+        </p>
+      )}
       <p className="package-decision-note">
         {t(
           {
@@ -166,6 +185,13 @@ export function PackageChangesDecision({
           {t('Decline')}
         </button>
       </div>
+      {noLonger !== undefined && (
+        <p className="package-decision-problem" role="alert">
+          {t('The project changed, and the changes no longer apply to it: {why}', {
+            why: noLonger,
+          })}
+        </p>
+      )}
       {refused && (
         <p className="package-decision-problem" role="alert">
           {t('The changes could not apply: the notice says why. Decline them, or try again.')}

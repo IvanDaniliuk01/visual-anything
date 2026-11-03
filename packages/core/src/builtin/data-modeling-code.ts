@@ -107,14 +107,21 @@ function positions(model, component) {
 
 // ——— The exporter ———
 
+// Every white space folds to one space, and every line ending LINE_ENDS names with it: NEL is no
+// white space to JavaScript, so it is named, so that no name or text ends a comment early.
 function oneLine(text) {
-  return String(text).replace(/\s+/g, ' ').trim();
+  return String(text).replace(/[\s\u0085]+/g, ' ').trim();
 }
 
 function name(text) {
   const plain = oneLine(text);
   if (/^[a-z_][a-z0-9_]*$/.test(plain) && !RESERVED.has(plain)) return plain;
   return '"' + plain.replace(/"/g, '""') + '"';
+}
+
+// A column's name, or its id when it has none, as in its line, its primary key and foreign keys.
+function columnName(column) {
+  return name(column.name === '' ? column.id : column.name);
 }
 
 function qualified(element) {
@@ -178,7 +185,7 @@ function columnLine(column) {
     notes.push('its type is not written, as it holds what could end the statement');
     type = '';
   } else if (type === '') notes.push('the model gives it no type');
-  const parts = [name(column.name === '' ? column.id : column.name), type === '' ? 'text' : type];
+  const parts = [columnName(column), type === '' ? 'text' : type];
   if (values.notNull === true) parts.push('NOT NULL');
   if (values.unique === true) parts.push('UNIQUE');
   const fallback = text(values.default);
@@ -198,7 +205,7 @@ function tableStatement(model, table, order) {
   const keys = columns.filter(function (column) { return column.attributes.primaryKey === true; });
   if (keys.length > 0) {
     entries.push({
-      sql: 'PRIMARY KEY (' + keys.map(function (column) { return name(column.name); }).join(', ') + ')',
+      sql: 'PRIMARY KEY (' + keys.map(columnName).join(', ') + ')',
     });
   }
   if (entries.length === 0) {
@@ -244,8 +251,8 @@ function foreignKeys(model, tables, order) {
         const onDelete = text(relation.attributes.onDelete).toLowerCase();
         const known = ON_DELETE.has(onDelete);
         lines.push(
-          'ALTER TABLE ' + qualified(fromTable) + '\n  ADD FOREIGN KEY (' + name(from.name) +
-            ') REFERENCES ' + qualified(toTable) + ' (' + name(to.name) + ')' +
+          'ALTER TABLE ' + qualified(fromTable) + '\n  ADD FOREIGN KEY (' + columnName(from) +
+            ') REFERENCES ' + qualified(toTable) + ' (' + columnName(to) + ')' +
             (known ? ' ON DELETE ' + onDelete.toUpperCase() : '') + ';' +
             (onDelete !== '' && !known ? ' -- its ON DELETE is not one SQL knows, so it is not written' : ''),
         );
@@ -264,9 +271,18 @@ function foreignKeys(model, tables, order) {
 
 function enumStatement(element) {
   const values = text(element.attributes.values);
-  const list = values === '' ? [] : values.split(',').map(function (each) { return each.trim(); }).filter(Boolean);
+  const all = values === '' ? [] : values.split(',').map(function (each) { return each.trim(); }).filter(Boolean);
+  // A backslash is an escape to some SQL readers, which could end the literal early, as safeSql
+  // refuses it elsewhere: a value holding one is left out, with a note.
+  const list = all.filter(function (each) { return each.indexOf('\\') < 0; });
   const lines = [];
   comment(lines, element.description);
+  const left = all.length - list.length;
+  if (left === 1) {
+    lines.push('-- 1 of its values is left out, as it holds a backslash, which some SQL readers take as an escape.');
+  } else if (left > 1) {
+    lines.push('-- ' + left + ' of its values are left out, as they hold a backslash, which some SQL readers take as an escape.');
+  }
   lines.push('CREATE TYPE ' + qualified(element) + ' AS ENUM (' + list.map(literal).join(', ') + ');');
   return lines.join('\n');
 }

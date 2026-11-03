@@ -20,6 +20,7 @@ import {
   type ServerMessage,
   type ViewState,
 } from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
 import { isDrawingImport, prepareMadeDrawing } from '../drawings/import';
 import { previewImport, type ImportRequest } from '../import';
 import type { LiveSession, SessionClient } from '../session';
@@ -50,6 +51,11 @@ export interface ClaudeActions {
    * program keeps none, and then no code is approved.
    */
   codeApprovals?: () => readonly CodeApproval[];
+  /**
+   * The packages whose code the person turned off on this computer, from their preferences (ADR
+   * 0089): their code runs for Claude neither, approved or not. Absent, none is turned off.
+   */
+  codeTurnedOff?: () => readonly Id[];
 }
 
 /** An attached Claude: what to call with each message it sends, and when it detaches. */
@@ -308,7 +314,15 @@ export function attachClaude(
         // Only the approvals of the code the project holds now: nothing of the person's other projects.
         const hashes = new Set(packagesWithCode(session.snapshot).map((each) => each.hash));
         const approvals = (actions.codeApprovals?.() ?? []).filter((each) => hashes.has(each.hash));
-        send({ type: 'code/approvals', requestId: message.requestId, approvals: [...approvals] });
+        // Of the packages turned off on this computer, only the project's own.
+        const packages = new Set(session.snapshot.packages.map((each) => each.id));
+        const turnedOff = (actions.codeTurnedOff?.() ?? []).filter((each) => packages.has(each));
+        send({
+          type: 'code/approvals',
+          requestId: message.requestId,
+          approvals: [...approvals],
+          turnedOff,
+        });
         return;
       }
       case 'open-app': {

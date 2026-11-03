@@ -250,6 +250,7 @@ export type {
 } from './preferences';
 export {
   DEFAULT_PREFERENCES,
+  MAX_CODE_TURNED_OFF,
   MAX_RECENT_COLORS,
   MAX_SIDE_PANEL_WIDTH,
   MIN_SIDE_PANEL_WIDTH,

@@ -2406,8 +2406,8 @@ export const ui: Catalog = {
 
   // Packages… (ADR 0089): the project's packages, their code, and adding or updating one from a file.
   'Packages…': 'Paquetes…',
-  'What each package adds to the project, and its code. Package code runs only once you approve it, and you can turn it off on this computer.':
-    'Lo que cada paquete agrega al proyecto, y su código. El código de un paquete se ejecuta solo después de aprobarlo, y se puede desactivar en esta computadora.',
+  'What each package adds to the project, and its code. Package code runs only once you approve it; built-in code is part of Visual Anything and needs no approval. You can turn any package’s code off on this computer.':
+    'Lo que cada paquete agrega al proyecto, y su código. El código de un paquete se ejecuta solo después de aprobarlo; el código incluido en Visual Anything es parte del programa y no necesita aprobación. El código de cualquier paquete se puede desactivar en esta computadora.',
   'This project uses no package yet. Add one from a package file or a folder below.':
     'Este proyecto todavía no usa ningún paquete. Agregar uno desde un archivo de paquete o una carpeta, aquí abajo.',
   'Packages of the project': 'Paquetes del proyecto',
@@ -2494,6 +2494,10 @@ export const ui: Catalog = {
         'Nada cambia hasta aceptarlos. Al aceptar, sus {count} comandos pasan a ser una sola acción propia, que Deshacer revierte entera.',
     },
   Decline: 'Rechazar',
+  'The project changed since these changes were shown, so they are shown again on the project as it is now. Accept them again to apply what you see.':
+    'El proyecto cambió desde que se mostraron estos cambios, así que se muestran de nuevo sobre el proyecto tal como está ahora. Aceptarlos otra vez aplica lo que se ve.',
+  'The project changed, and the changes no longer apply to it: {why}':
+    'El proyecto cambió, y los cambios ya no se le pueden aplicar: {why}',
   'The changes could not apply: the notice says why. Decline them, or try again.':
     'Los cambios no se pudieron aplicar: el aviso dice por qué. Rechazarlos, o volver a intentarlo.',
   'Another package’s action or importer is still running, so “{label}” did not start.':

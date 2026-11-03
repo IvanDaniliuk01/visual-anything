@@ -389,6 +389,7 @@ async function runWithLog(
       themeHint: () => themeHintOf(preferences.current()),
       // What Claude's tools may run of package code (ADR 0054).
       codeApprovals: () => preferences.current().codeApprovals,
+      codeTurnedOff: () => preferences.current().codeTurnedOff,
     });
   } catch (error) {
     idle?.cancel();
