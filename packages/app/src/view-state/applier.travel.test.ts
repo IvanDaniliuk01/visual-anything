@@ -7,6 +7,7 @@ import { buildScene } from '../canvas/scene';
 import { EmphasisStore } from '../editor/emphasis';
 import { EMPTY_SELECTION } from '../editor/selection';
 import { ScenarioSession } from '../scenarios/session';
+import { jointStepGlide } from '../space/joints';
 import { SpacePanelStore } from '../space/store';
 import { loadSample } from '../test/sample';
 import { ViewStateApplier, type ApplyContext, type Travel } from './applier';
@@ -301,6 +302,86 @@ describe('the physical-space panel of a view state (ADR 0076)', () => {
       state: { view: VIEW, space: { root: 'booking-agent', camera: { ...AT } } },
     });
     expect(space.state(VIEW)).toBe(shown);
+  });
+
+  describe('the joints of a tour’s step (ADR 0090)', () => {
+    const arm = loadSample('robot-arm');
+    const CELL = 'workcell';
+    const REACH = { 'joint-1': -34, 'joint-2': 28, 'joint-3': 18, 'joint-5': 36 };
+
+    function withArm(reduced = false) {
+      let time = 0;
+      const frames: (() => void)[] = [];
+      const space = new SpacePanelStore({
+        frames: { request: (callback) => frames.push(callback), cancel: () => undefined },
+        windowWidth: () => 1600,
+        now: () => time,
+      });
+      const context = { ...contextOf(arm, fakeCanvas(), CELL), space, reduced };
+      const tick = (ms: number) => {
+        time += ms;
+        for (const frame of frames.splice(0)) frame();
+      };
+      const go = (request: Parameters<ViewStateApplier['goTo']>[0]) => {
+        const applier = new ViewStateApplier();
+        applier.goTo(request, context);
+        applier.sync(context);
+      };
+      return { space, tick, go };
+    }
+
+    it('glide from the step before to the step’s own, on the tour’s ease, ending on them', () => {
+      const { space, tick, go } = withArm();
+      space.set(CELL, { names: true });
+      go({
+        kind: 'address',
+        state: { view: CELL, space: { names: true, joints: REACH } },
+        travel: TRAVEL,
+      });
+      // They start where they were, at their stored positions, and glide.
+      expect(space.state(CELL)?.joints).toBeUndefined();
+      expect(space.joints.gliding(CELL)).toBe(true);
+      const time = jointStepGlide(arm, undefined, REACH);
+      expect(time).toBeGreaterThan(250);
+      tick(time / 2);
+      const shoulder = space.state(CELL)?.joints?.['joint-2'] ?? 0;
+      expect(shoulder).toBeGreaterThan(0);
+      expect(shoulder).toBeLessThan(28);
+      tick(time);
+      expect(space.state(CELL)).toEqual({ names: true, joints: REACH });
+      // A step that gives none glides back to the stored positions.
+      go({ kind: 'address', state: { view: CELL, space: { names: true } }, travel: TRAVEL });
+      expect(space.state(CELL)?.joints).toEqual(REACH);
+      tick(time * 2);
+      expect(space.state(CELL)).toEqual({ names: true });
+    });
+
+    it('jump under reduced motion, for a step that always cuts, and for an address', () => {
+      const reduced = withArm(true);
+      reduced.space.set(CELL, {});
+      reduced.go({
+        kind: 'address',
+        state: { view: CELL, space: { joints: REACH } },
+        travel: TRAVEL,
+      });
+      expect(reduced.space.state(CELL)?.joints).toEqual(REACH);
+      expect(reduced.space.joints.gliding(CELL)).toBe(false);
+
+      const cutting = withArm();
+      cutting.space.set(CELL, {});
+      cutting.go({
+        kind: 'address',
+        state: { view: CELL, space: { joints: REACH } },
+        travel: { ...TRAVEL, cutsSpace: () => true },
+      });
+      expect(cutting.space.state(CELL)?.joints).toEqual(REACH);
+
+      const address = withArm();
+      address.space.set(CELL, {});
+      address.go({ kind: 'address', state: { view: CELL, space: { joints: REACH } } });
+      expect(address.space.state(CELL)?.joints).toEqual(REACH);
+      expect(address.space.joints.gliding(CELL)).toBe(false);
+    });
   });
 
   it('leaves the panel alone when search jumps', () => {

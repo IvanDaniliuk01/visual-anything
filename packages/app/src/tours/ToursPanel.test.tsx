@@ -1,7 +1,7 @@
 import type { Command, ProjectSnapshot } from '@visual-anything/core';
 import type { TourFile } from '@visual-anything/schema';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SendCommand } from '../canvas/CanvasArea';
 import { LiveContext } from '../live/context';
 import { Shell } from '../shell/Shell';
@@ -354,5 +354,63 @@ describe('full-screen playback', () => {
     fireEvent.keyDown(document.body, { key: 'Escape' });
     // The scenario the step opened closes again with the view state from before the tour.
     await waitFor(() => expect(opened()).toBeNull());
+  });
+});
+
+describe('a step’s joints’ positions (ADR 0090)', () => {
+  const arm = loadSample('robot-arm');
+
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+  });
+
+  /** The shell on the robot-arm sample, the workcell's panel open with joint 2 at 30°. */
+  function openArm() {
+    window.history.replaceState(null, '', '/#view=workcell&space=joints:joint-2=30');
+    const opened = openTours(arm);
+    fireEvent.click(within(opened.tab).getByRole('button', { name: /^Pick a part/ }));
+    return opened;
+  }
+
+  it('gives a step the positions the panel shows its joints at, and changes nothing else', async () => {
+    const { tab, sent } = openArm();
+    const first = within(tab).getByRole('group', { name: 'Step 1' });
+    const use = within(first).getByRole('button', { name: 'Use the joints’ positions here' });
+    expect(use).toBeEnabled();
+    fireEvent.click(use);
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    const command = sent[0];
+    const steps = command?.type === 'update-tour' ? (command.changes.steps ?? []) : [];
+    const before = arm.tours.find((each) => each.id === 'pick-a-part')?.steps[0];
+    expect(steps[0]).toEqual({
+      ...before,
+      viewState: {
+        ...before?.viewState,
+        space: {
+          ...before?.viewState.space,
+          joints: {
+            'joint-1': 0,
+            'joint-2': 30,
+            'joint-3': 0,
+            'joint-4': 0,
+            'joint-5': 0,
+            'joint-6': 0,
+          },
+        },
+      },
+    });
+    await waitFor(() =>
+      expect(document.body).toHaveTextContent('Step 1 gives the positions of 6 joints.'),
+    );
+  });
+
+  it('is disabled, saying why, while the panel of the step’s view is closed', () => {
+    const { tab } = openArm();
+    const third = within(tab).getByRole('group', { name: 'Step 3' });
+    const use = within(third).getByRole('button', { name: 'Use the joints’ positions here' });
+    expect(use).toBeDisabled();
+    expect(use).toHaveAccessibleDescription(
+      'Open the physical-space panel of “Control loop” to take its joints’ positions.',
+    );
   });
 });

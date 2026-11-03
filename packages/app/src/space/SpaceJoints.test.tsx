@@ -6,7 +6,13 @@
  * stored positions" glides back over a moment, or jumps while motion is reduced; the read-only page
  * moves the chain and keeps nothing.
  */
-import type { Command, ProjectSnapshot } from '@visual-anything/core';
+import {
+  definitionsIn,
+  simulationOf,
+  type Command,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
+import type { SimulationDefinition } from '@visual-anything/schema';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { buildScene } from '../canvas/scene';
@@ -23,11 +29,21 @@ import { SpacePanelContext } from './context';
 import { JOINT_GLIDE, KEEP_POSITIONS_LABEL } from './joints';
 import { SpacePanel } from './SpacePanel';
 import { SpacePanelStore } from './store';
+import { SimulationContext } from '../simulation/context';
+import { StandInSimulation } from '../simulation/stand-in';
+import { SimulationStore } from '../simulation/store';
 
 const VIEW = 'structure';
 
-function setUp(options: { reduced?: boolean; readOnly?: boolean } = {}) {
-  const project: ProjectSnapshot = loadSample('robot-arm');
+function setUp(
+  options: {
+    reduced?: boolean;
+    readOnly?: boolean;
+    project?: ProjectSnapshot;
+    simulations?: SimulationStore;
+  } = {},
+) {
+  const project: ProjectSnapshot = options.project ?? loadSample('robot-arm');
   const view = project.views.find((each) => each.id === VIEW);
   if (!view) throw new Error('The sample has a structure view.');
   let time = 0;
@@ -60,26 +76,28 @@ function setUp(options: { reduced?: boolean; readOnly?: boolean } = {}) {
     ...(options.readOnly ? {} : { send }),
   } as unknown as Editor;
   render(
-    <MotionContext value={{ motion: options.reduced ? 'reduced' : 'full', fades: true }}>
-      <EditorContext.Provider value={editor}>
-        <EmphasisContext.Provider value={new EmphasisStore()}>
-          <SpacePanelContext value={store}>
-            <HoverContext value={new HoverStore()}>
-              <SpacePanel
-                id="space-panel"
-                store={store}
-                project={project}
-                view={view}
-                scene={buildScene(project, VIEW)}
-                selection={EMPTY_SELECTION}
-                client={client}
-                readOnly={options.readOnly}
-              />
-            </HoverContext>
-          </SpacePanelContext>
-        </EmphasisContext.Provider>
-      </EditorContext.Provider>
-    </MotionContext>,
+    <SimulationContext value={options.simulations ?? null}>
+      <MotionContext value={{ motion: options.reduced ? 'reduced' : 'full', fades: true }}>
+        <EditorContext.Provider value={editor}>
+          <EmphasisContext.Provider value={new EmphasisStore()}>
+            <SpacePanelContext value={store}>
+              <HoverContext value={new HoverStore()}>
+                <SpacePanel
+                  id="space-panel"
+                  store={store}
+                  project={project}
+                  view={view}
+                  scene={buildScene(project, VIEW)}
+                  selection={EMPTY_SELECTION}
+                  client={client}
+                  readOnly={options.readOnly}
+                />
+              </HoverContext>
+            </SpacePanelContext>
+          </EmphasisContext.Provider>
+        </EditorContext.Provider>
+      </MotionContext>
+    </SimulationContext>,
   );
   const tick = (ms: number) =>
     act(() => {
@@ -215,5 +233,62 @@ describe('the joints’ sliders', () => {
     fireEvent.change(slider('Joint 1'), { target: { value: '90' } });
     expect(entry('gripper')?.motion).toHaveLength(16);
     expect(within(joints()).queryByRole('button', { name: 'Keep these positions' })).toBeNull();
+  });
+});
+
+describe('a simulation moving the joints (ADR 0085, ADR 0090)', () => {
+  /** The robot-arm sample, its joints simulating a sweep: each tick turns the joint 10° further. */
+  function sweeping() {
+    const sample = loadSample('robot-arm');
+    const sweep: SimulationDefinition = {
+      description: 'A sweep.',
+      parameters: [],
+      values: [{ name: 'angle', type: 'number' }],
+      ticks: 10,
+    };
+    const project: ProjectSnapshot = {
+      ...sample,
+      packages: sample.packages.map((pkg) => ({
+        ...pkg,
+        components: pkg.components.map((each) =>
+          each.id === 'physical-ai.joint' ? { ...each, simulation: sweep } : each,
+        ),
+      })),
+    };
+    const worker = new StandInSimulation(project, (input) => {
+      const angle = 10 * (input.context.tick + 1);
+      return { values: { angle }, joints: { [input.element.id]: angle } };
+    });
+    const simulations = new SimulationStore(worker);
+    const simulation = simulationOf(definitionsIn(project), 'physical-ai.joint');
+    if (!simulation) throw new Error('The joint simulates.');
+    return { project, worker, simulations, simulation };
+  }
+
+  it('draws the positions a run’s tick answers, under the panel’s own', async () => {
+    const { project, worker, simulations, simulation } = sweeping();
+    const { store, entry } = setUp({ project, simulations });
+    act(() => store.open(VIEW, {}));
+    await settle();
+    const rest = origin(entry('gripper'));
+    act(() => {
+      simulations.open('joint-2', simulation);
+      worker.work();
+    });
+    await settle();
+    // The tick shown turns joint 2 by 10°: the slider says so, and what it carries moves.
+    expect(simulations.joints().get('joint-2')).toBe(10);
+    expect(slider('Joint 2')).toHaveAttribute('aria-valuetext', '10°');
+    expect(entry('gripper')?.motion).toHaveLength(16);
+    expect(origin(entry('gripper'))).not.toEqual(rest);
+    // A position the panel gives is drawn over the run's.
+    fireEvent.change(slider('Joint 2'), { target: { value: '-20' } });
+    expect(slider('Joint 2')).toHaveAttribute('aria-valuetext', '-20°');
+    // Closed, the run moves nothing: the panel's own position stays.
+    act(() => store.set(VIEW, {}));
+    act(() => simulations.close('joint-2'));
+    await settle();
+    expect(slider('Joint 2')).toHaveAttribute('aria-valuetext', '0°');
+    expect(origin(entry('gripper'))).toEqual(rest);
   });
 });

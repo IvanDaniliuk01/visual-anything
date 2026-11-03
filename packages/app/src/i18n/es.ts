@@ -2611,6 +2611,18 @@ export const ui: Catalog = {
   'Step {n} marks nothing.': 'El paso {n} no marca nada.',
   'Take the canvas': 'Tomar el lienzo',
   'Step {n} shows the canvas as it is now.': 'El paso {n} muestra el lienzo tal como está ahora.',
+  // The tour editor's joints' positions (ADR 0090).
+  'Use the joints’ positions here': 'Usar aquí las posiciones de las articulaciones',
+  'Step {n} gives the positions of {count} joints.': {
+    one: 'El paso {n} da la posición de {count} articulación.',
+    other: 'El paso {n} da las posiciones de {count} articulaciones.',
+  },
+  'This step does not show the physical-space panel: take the canvas with the panel open first.':
+    'Este paso no muestra el panel del espacio físico: primero tomar el lienzo con el panel abierto.',
+  'Open the physical-space panel of “{view}” to take its joints’ positions.':
+    'Abrir el panel del espacio físico de “{view}” para tomar las posiciones de sus articulaciones.',
+  'The physical-space panel shows no joints.':
+    'El panel del espacio físico no muestra articulaciones.',
   Duplicate: 'Duplicar',
   'a place on the canvas': 'un lugar del lienzo',
   '{count} selected': { one: '{count} seleccionado', other: '{count} seleccionados' },
