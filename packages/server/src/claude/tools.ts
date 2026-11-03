@@ -64,6 +64,7 @@ import { PART_TOOLS } from './part-tools';
 import { SOLID_TOOLS } from './solid-tools';
 import { SIMULATION_TOOLS } from './simulation-tools';
 import { SPACE_TOOLS } from './space-tools';
+import { KINEMATICS_TOOLS } from './kinematics-tools';
 import { PROPOSAL_TOOLS, proposalNoteOf } from './proposal-tools';
 import { VERSION_TOOLS } from './version-tools';
 import { CONFLICT_TOOLS } from './conflict-tools';
@@ -1828,6 +1829,8 @@ export const TOOLS: readonly Tool[] = [
   ...SOLID_TOOLS,
   // Physical space: poses, and the panel beside the canvas (ADR 0076).
   ...SPACE_TOOLS,
+  // Joints and what they carry (ADR 0090).
+  ...KINEMATICS_TOOLS,
   ...CODE_TOOLS,
   ...SIMULATION_TOOLS,
   // Threads of comments (ADR 0059).

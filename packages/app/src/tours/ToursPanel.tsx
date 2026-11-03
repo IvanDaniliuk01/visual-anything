@@ -52,6 +52,10 @@ import { useToursHost } from './context';
 import { describeMarks } from './describe';
 import { drawnBounds, drawnShapes } from './drawn-bounds';
 import { MotionPreferences } from './MotionPreferences';
+import { stepJointsFrom, withStepJoints } from './step-joints';
+import { useSpacePanel, useSpacePanelState } from '../space/context';
+import { NO_POSITIONS } from '../space/joints';
+import { useSimulations, useSimulationVersion } from '../simulation/context';
 import { EmphasisPreview } from '../text/EmphasisText';
 import { useEmphasisKeys } from '../text/useEmphasisKeys';
 import './tours.css';
@@ -519,6 +523,7 @@ function StepItem({
         >
           {t('Take the canvas')}
         </button>
+        <UseJointsButton step={step} n={n} editable={editable} change={change} />
         <PlayButton tour={tour} step={at} label={t('Play full screen from step {n}', { n })} />
         <StepButton disabled={!editable || at === 0} onClick={() => moved(-1)}>
           {t('Move up')}
@@ -718,6 +723,70 @@ function StepExplains({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * "Use the joints' positions here" (ADR 0090): gives the step, as its `space.joints`, the positions
+ * the physical-space panel of its view shows its joints at now, and changes nothing else of it;
+ * disabled, saying why, while that cannot be done.
+ */
+function UseJointsButton({
+  step,
+  n,
+  editable,
+  change,
+}: {
+  step: TourStep;
+  n: number;
+  editable: boolean;
+  change: (update: (step: TourStep) => TourStep, done: string) => void;
+}) {
+  const t = useT();
+  const { project } = useEditor();
+  const reasonId = useId();
+  const store = useSpacePanel();
+  const panel = useSpacePanelState(store, step.viewState.view);
+  const simulations = useSimulations();
+  // The simulations' version changes with their joints' positions, and renders this again.
+  useSimulationVersion(simulations);
+  const simulated = simulations?.joints() ?? NO_POSITIONS;
+  // Worked out once for each change of what it reads: it walks the panel's space.
+  const taken = useMemo(
+    () => stepJointsFrom(project, step, panel, simulated),
+    [project, step, panel, simulated],
+  );
+  const reason = taken.ok ? undefined : t(taken.reason, { view: taken.view ?? '' });
+  return (
+    <>
+      <button
+        type="button"
+        className="tour-button"
+        disabled={!editable || !taken.ok}
+        aria-describedby={reason === undefined ? undefined : reasonId}
+        title={reason}
+        onClick={() => {
+          if (!taken.ok) return;
+          change(
+            (each) => withStepJoints(each, taken.joints),
+            t(
+              {
+                one: 'Step {n} gives the position of {count} joint.',
+                other: 'Step {n} gives the positions of {count} joints.',
+              },
+              { n, count: taken.count },
+            ),
+          );
+        }}
+      >
+        {t('Use the joints’ positions here')}
+      </button>
+      {reason !== undefined && (
+        <span id={reasonId} className="visually-hidden">
+          {reason}
+        </span>
+      )}
+    </>
   );
 }
 

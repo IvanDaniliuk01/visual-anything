@@ -208,14 +208,26 @@ describe('list_solids and list_solid_parts', () => {
       total: 4,
     });
     expect(
-      (parts.parts as { name: string; index: number; parent?: string; point?: unknown }[]).map(
-        ({ name, index, parent, point }) => [name, index, parent, point !== undefined],
-      ),
+      (
+        parts.parts as {
+          name: string;
+          index: number;
+          parent?: string;
+          point?: unknown;
+          origin?: unknown;
+        }[]
+      ).map(({ name, index, parent, point, origin }) => [
+        name,
+        index,
+        parent,
+        point !== undefined,
+        origin !== undefined,
+      ]),
     ).toEqual([
-      ['frame', 0, undefined, true],
-      ['api', 1, 'frame', true],
-      ['db', 2, 'frame', true],
-      ['cache', 3, 'frame', true],
+      ['frame', 0, undefined, true, true],
+      ['api', 1, 'frame', true, true],
+      ['db', 2, 'frame', true, true],
+      ['cache', 3, 'frame', true, true],
     ]);
     expect(tools.session.snapshot).toBe(before);
   });

@@ -252,7 +252,7 @@ Example: { "package": "robotics" }`,
 const listSolidParts = tool({
   name: 'list_solid_parts',
   title: 'List the named parts of a solid',
-  description: `Lists the named parts of a solid, in depth-first order: each part's name, which is its id, its index, the part that holds it (parent), its point in meters (where relations end and its name is written; left out for a part that draws nothing of its own), and the elements drawn as it, with the views where each is drawn as it, anchored in a drawing with parts or on its own. It gives the bounds of the solid as a whole; a part's own bounds are worked out from the file when it is drawn, and are not kept. Pass solid for a solid's id (list_solids lists them), or drawing for an element that shows its solid with its parts. ${DATA}
+  description: `Lists the named parts of a solid, in depth-first order: each part's name, which is its id, its index, the part that holds it (parent), its point in meters (where relations end and its name is written; left out for a part that draws nothing of its own), its origin in meters (its node's origin at rest, which a joint anchored to it turns about; left out in a solid defined before origins, whose joints turn about the point), and the elements drawn as it, with the views where each is drawn as it, anchored in a drawing with parts or on its own. It gives the bounds of the solid as a whole; a part's own bounds are worked out from the file when it is drawn, and are not kept. Pass solid for a solid's id (list_solids lists them), or drawing for an element that shows its solid with its parts. ${DATA}
 
 Then anchor_parts draws a drawing's contents as its parts.
 
@@ -321,6 +321,7 @@ Example: { "solid": "anatomy.body-k3f9q2", "offset": 500, "limit": 500 }`,
           ? {}
           : { parent: definition.parts[part.parent]?.name ?? part.parent }),
         ...(part.point === undefined ? {} : { point: part.point }),
+        ...(part.origin === undefined ? {} : { origin: part.origin }),
         drawnAs: drawnAs.get(part.name) ?? [],
       })),
       ...(more > 0 ? { more, next: `Call again with offset ${offset + listed.length}.` } : {}),

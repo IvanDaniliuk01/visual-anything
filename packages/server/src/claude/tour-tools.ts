@@ -75,7 +75,7 @@ const viewState = () =>
   z
     .object({ view: id().describe('The view the step shows.'), ...STATE_PARTS })
     .describe(
-      'Where the step takes the canvas, and how it reads there: a view, and if you like where the canvas looks, a selection, filters, focus, a scenario open at a step, and the physical-space panel open beside the canvas (space). Left out, the canvas shows the selection, or else the whole view.',
+      'Where the step takes the canvas, and how it reads there: a view, and if you like where the canvas looks, a selection, filters, focus, a scenario open at a step, and the physical-space panel open beside the canvas (space), with its joints’ positions (space.joints), which glide from the step before. Left out, the canvas shows the selection, or else the whole view.',
     );
 
 const caption = () => ({
