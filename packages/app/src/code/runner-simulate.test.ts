@@ -15,6 +15,7 @@ import type { Id } from '@visual-anything/schema';
 import type { QuickJSWASMModule } from 'quickjs-emscripten-core';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { SimulationReply, SimulationRequest } from '../simulation/messages';
+import { stopwatch } from '../test/cpu';
 import { loadNodeEngine } from './engine-node';
 import type { CodeReply, ElementAnswers, PackageRun, RunPackage } from './messages';
 import { CodeRunner, type RunnerOptions } from './runner';
@@ -35,7 +36,9 @@ class NotingSandbox extends CodeSandbox {
     callMs: number,
     private readonly noted: number[],
   ) {
-    super(module, { callMs });
+    // Calls are timed as the least of the clock and the process's time (test/cpu.ts): a loaded
+    // machine stretched the clock alone past a call's 50 ms, and runs stopped for time.
+    super(module, { callMs, now: stopwatch() });
   }
 
   override simulate(
@@ -230,8 +233,11 @@ describe('simulation runs in the code runner', () => {
   const hostile: [string, string, string[]][] = [
     ['a loop', 'for (;;) {}', ['time']],
     [
+      // In small arrays: the interpreter looks at its deadline every few thousand steps, and an array
+      // of 100,000 filled in one step left it seconds between looks (the client's watchdog stops a
+      // worker that stays silent that long; client.ts).
       'an allocation bomb',
-      'const all = []; for (;;) all.push(new Array(100000).fill(1));',
+      'const all = []; for (;;) all.push(new Array(1000).fill(1));',
       ['memory', 'time'],
     ],
     // Writing 4 MiB of state out may itself run past the call's time.
@@ -391,7 +397,10 @@ describe('simulation runs in the code runner', () => {
       // Each look at the clock is a millisecond: slices of a few ticks, the same on any machine.
       now: () => (clock += 1),
       sliceMs: 8,
-      pause: () => new Promise((resolve) => setTimeout(resolve, 0)),
+      // A turn of the event loop between slices, as the worker's timer gives, without waiting on the
+      // system's timer: on Windows a timer of 0 ms waits up to 16 ms, and hundreds of them stretched
+      // this test past its time.
+      pause: () => new Promise((resolve) => setImmediate(resolve)),
     });
     await it.run(
       { kind: 'project', project: simulationProject(code) },
@@ -403,7 +412,7 @@ describe('simulation runs in the code runner', () => {
     it.runner.receive(start('loose', { ticks: 2_000, until: 2_000 }));
     const until = async (done: () => boolean) => {
       for (let wait = 0; wait < 10_000 && !done(); wait += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise((resolve) => setImmediate(resolve));
         it.absorb();
       }
     };
