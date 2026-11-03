@@ -171,6 +171,37 @@ describe('the code of the built-in Data modeling package', () => {
     );
   });
 
+  it('never writes a value of the model as SQL that could end its statement or a comment', () => {
+    const state = shop();
+    const hostile = 'x; DROP TABLE shop.customers; --';
+    for (const element of state.model.elements) {
+      element.description = 'Notes\rDROP TABLE first;\u2028DROP TABLE second;';
+      if (element.attributes && 'type' in element.attributes) {
+        element.attributes = {
+          ...element.attributes,
+          type: hostile,
+          default: hostile,
+          check: hostile,
+        };
+      }
+    }
+    for (const relation of state.model.relations) {
+      relation.attributes = { ...relation.attributes, onDelete: 'cascade; DROP TABLE third' };
+    }
+    const sql = hooks().exportFile(
+      { exporter: 'sql-ddl' },
+      { model: modelReaderOf(state) },
+    ) as string;
+    // Every line ending a SQL reader may take, control characters included, on purpose.
+    // eslint-disable-next-line no-control-regex
+    for (const line of sql.split(/\r\n|[\n\r\u000b\u000c\u0085\u2028\u2029]/)) {
+      const code = line.includes('--') ? line.slice(0, line.indexOf('--')) : line;
+      expect(code).not.toMatch(/DROP/);
+    }
+    expect(sql).toContain('is not written, as it holds what could end the statement');
+    expect(sql).toContain('its ON DELETE is not one SQL knows');
+  });
+
   it('says so of a model with no tables, and of a reference between tables without columns', () => {
     const empty = hooks().exportFile(
       { exporter: 'sql-ddl' },

@@ -127,11 +127,22 @@ function text(value) {
   return typeof value === 'string' ? oneLine(value) : '';
 }
 
+// Every line ending a SQL reader may take, so that no text of the model ends a comment early.
+const LINE_ENDS = /\r\n|[\n\r\u000b\u000c\u0085\u2028\u2029]/;
+
 function comment(lines, description) {
   if (typeof description !== 'string' || description.trim() === '') return;
-  const parts = description.split(/\r?\n/);
-  for (let at = 0; at < parts.length; at += 1) lines.push('-- ' + parts[at].trim());
+  const parts = description.split(LINE_ENDS);
+  for (let at = 0; at < parts.length; at += 1) lines.push('-- ' + oneLine(parts[at]));
 }
+
+// A value written as SQL itself (a type, a default, a check) that could end its statement or
+// begin a comment is left out, with a note, so that an exported script runs only what it shows.
+function safeSql(value) {
+  return value !== '' && !/;|--|\/\*|\*\/|\u0085/.test(value);
+}
+
+const ON_DELETE = new Set(['no action', 'restrict', 'cascade', 'set null', 'set default']);
 
 function literal(value) {
   return "'" + value.replace(/'/g, "''") + "'";
@@ -139,15 +150,22 @@ function literal(value) {
 
 function columnLine(column) {
   const values = column.attributes;
-  const type = text(values.type);
+  const notes = [];
+  let type = text(values.type);
+  if (type !== '' && !safeSql(type)) {
+    notes.push('its type is not written, as it holds what could end the statement');
+    type = '';
+  } else if (type === '') notes.push('the model gives it no type');
   const parts = [name(column.name === '' ? column.id : column.name), type === '' ? 'text' : type];
   if (values.notNull === true) parts.push('NOT NULL');
   if (values.unique === true) parts.push('UNIQUE');
   const fallback = text(values.default);
-  if (fallback !== '') parts.push('DEFAULT ' + fallback);
+  if (safeSql(fallback)) parts.push('DEFAULT ' + fallback);
+  else if (fallback !== '') notes.push('its default is not written, as it holds what could end the statement');
   const check = text(values.check);
-  if (check !== '') parts.push('CHECK (' + check + ')');
-  return { sql: parts.join(' '), note: type === '' ? 'the model gives it no type' : undefined };
+  if (safeSql(check)) parts.push('CHECK (' + check + ')');
+  else if (check !== '') notes.push('its check is not written, as it holds what could end the statement');
+  return { sql: parts.join(' '), note: notes.length === 0 ? undefined : notes.join('; ') };
 }
 
 function tableStatement(model, table, order) {
@@ -201,11 +219,13 @@ function foreignKeys(model, tables, order) {
       if (fromTable && toTable) {
         const from = model.element(relation.from);
         const to = model.element(relation.to);
-        const onDelete = text(relation.attributes.onDelete);
+        const onDelete = text(relation.attributes.onDelete).toLowerCase();
+        const known = ON_DELETE.has(onDelete);
         lines.push(
           'ALTER TABLE ' + qualified(fromTable) + '\n  ADD FOREIGN KEY (' + name(from.name) +
             ') REFERENCES ' + qualified(toTable) + ' (' + name(to.name) + ')' +
-            (onDelete === '' ? '' : ' ON DELETE ' + onDelete.toUpperCase()) + ';',
+            (known ? ' ON DELETE ' + onDelete.toUpperCase() : '') + ';' +
+            (onDelete !== '' && !known ? ' -- its ON DELETE is not one SQL knows, so it is not written' : ''),
         );
       } else {
         const from = model.element(relation.from);
