@@ -184,7 +184,18 @@ export function checkMediaFile(
   if (mediaFormatOf(bytes) !== format) return notClean(`is not a ${format.toUpperCase()} file.`);
   const result = cleanMedia(bytes);
   if (!result.ok) return notClean(`no longer passes its reader: ${result.problem.message}`);
+  // A file put in `media/` by hand, under its own hash, that the reader takes but would rewrite is
+  // not served: only what cleaning writes leaves the program.
+  if (result.ref.hash !== hash || !sameBytes(result.bytes, bytes)) {
+    return notClean('is not as cleaning writes it.');
+  }
   return { ok: true };
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let at = 0; at < a.length; at++) if (a[at] !== b[at]) return false;
+  return true;
 }
 
 /** The most a side of a picture takes on the canvas when it is added (ADR 0098). */
