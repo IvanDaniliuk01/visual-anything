@@ -232,6 +232,12 @@ export interface LiveSession {
     options: SolidImportOptions,
   ): Promise<void>;
   /**
+   * Reads an image file inside the project folder, by its path from the folder, for Claude's
+   * `add_picture` (ADR 0098), cleans it and writes it to `media/`, and answers through the client with
+   * `media/stored` or `media/refused`. It changes no project file.
+   */
+  keepPictureFile?(client: SessionClient, requestId: string, path: string): Promise<void>;
+  /**
    * Defines a file the program prepared as a solid, as one action (ADR 0075), in the turn of the queue
    * that runs it. Absent where the program cleans no solid.
    */
@@ -879,6 +885,11 @@ export class Session implements LiveSession {
     if (!read.ok) return read;
     const kept = await this.#media.keep(read.bytes);
     return kept.ok ? { ...kept, fileName: read.fileName } : kept;
+  }
+
+  /** {@link keepProjectPicture}, answered through the client, for the Claude endpoint. */
+  async keepPictureFile(client: SessionClient, requestId: string, path: string): Promise<void> {
+    this.#sendKept(client, requestId, await this.keepProjectPicture(path));
   }
 
   /** A media file's bytes, checked as `media/get` serves them (ADR 0098). */
