@@ -76,6 +76,21 @@
   padding: var(--space-40) var(--space-100);
 }
 
+/*
+ * Every tab scrolls sideways as well as down: narrower than the panel starts, a tab keeps its content
+ * at that width and scrolls to it, rather than squeezing or cutting it off. Trees scroll to their
+ * longest row instead (below).
+ */
+.panel-tab-content :is(.model-tab, .components-tab, .history-list, .comments-tab, .tours-panel) {
+  overflow: auto;
+}
+
+.panel-tab-content
+  :is(.model-tab, .components-tab, .history-list, .comments-tab, .tours-panel)
+  > :not(.tree-viewport) {
+  min-width: var(--size-1600);
+}
+
 /* The Model tab: World's tree takes the room the views and scenarios leave it. */
 
 .model-tab {
@@ -123,8 +138,10 @@
 
 .tree-row {
   position: absolute;
-  right: 0;
   left: 0;
+  /* As wide as its text, and the tree at least: the viewport scrolls sideways to the longest row. */
+  width: max-content;
+  min-width: 100%;
   display: flex;
   align-items: center;
   gap: var(--space-15);
@@ -170,8 +187,6 @@
 
 .tree-row-text {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .outline-arrow {
