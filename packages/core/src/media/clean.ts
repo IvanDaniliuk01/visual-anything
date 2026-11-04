@@ -77,7 +77,7 @@ export function mediaFormatOf(bytes: Uint8Array): MediaFormat | undefined {
   // comments or a doctype, is an element: `cleanSvg` decides whether it is an `svg`.
   const head = new TextDecoder('utf-8', { fatal: false })
     .decode(bytes.subarray(0, 1024))
-    .replace(/^﻿/, '')
+    .replace(/^\uFEFF/, '')
     .trimStart();
   if (head.startsWith('<') && /<svg[\s>/]/.test(head)) return 'svg';
   return undefined;
@@ -134,7 +134,7 @@ function cleanAs(bytes: Uint8Array, format: MediaFormat): MediaCleaning {
   } else if (format === 'svg') {
     let text: string;
     try {
-      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes).replace(/^﻿/, '');
+      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes).replace(/^\uFEFF/, '');
     } catch {
       return { ok: false, problem: problem('invalid-image', 'The SVG picture is not UTF-8 text.') };
     }

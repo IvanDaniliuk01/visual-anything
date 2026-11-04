@@ -10,7 +10,6 @@ import {
   gif,
   gifFrame,
   gifScreen,
-  loopBlock,
   lzw,
   subBlocks,
 } from './test/gifs';
@@ -141,7 +140,7 @@ describe('readGif', () => {
     const frame = gifFrame({ width: 1, height: 1, indices: [0] });
     const many = bytesOf(
       gifScreen({ width: 1, height: 1, palette: PALETTE }),
-      ...new Array(GIF_CAPS.frames + 1).fill(frame),
+      ...new Array<Uint8Array>(GIF_CAPS.frames + 1).fill(frame),
       TRAILER,
     );
     expect(refusal(many)).toBe('image-too-large');

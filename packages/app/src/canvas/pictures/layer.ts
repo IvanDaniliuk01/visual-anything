@@ -482,7 +482,7 @@ export function browserPicturePlatform(): PicturePlatform {
 
 function canvasTexture(canvas: HTMLCanvasElement | OffscreenCanvas): Texture {
   const source: TextureSource = new CanvasSource({
-    resource: canvas as HTMLCanvasElement,
+    resource: canvas,
     scaleMode: 'linear',
   });
   return new Texture({ source });

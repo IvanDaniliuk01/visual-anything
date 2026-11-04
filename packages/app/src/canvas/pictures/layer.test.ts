@@ -120,8 +120,10 @@ describe('PictureLayer', () => {
     await settle();
     layer.frame(VIEW);
     expect(layer.isMissing('gone')).toBe(true);
-    const texts = layer.container.children[0]?.children.filter((each) => each instanceof Text);
-    expect(texts?.map((each) => (each as Text).text)).toEqual(['gone name']);
+    const texts = layer.container.children[0]?.children.filter(
+      (each): each is Text => each instanceof Text,
+    );
+    expect(texts?.map((each) => each.text)).toEqual(['gone name']);
   });
 
   it('plays a GIF while it is on screen, and under reduced motion only while hovered', async () => {

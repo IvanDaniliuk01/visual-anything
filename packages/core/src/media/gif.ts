@@ -371,7 +371,6 @@ export function decodeGifFrame(frame: GifFrame): Uint8Array {
     stack[depth++] = current;
     first = current;
     while (depth > 0 && written < total) out[written++] = stack[--depth] as number;
-    depth = 0;
     if (next < 4096) {
       prefix[next] = previous;
       suffix[next] = first;

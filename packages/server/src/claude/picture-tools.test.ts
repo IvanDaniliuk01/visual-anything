@@ -4,7 +4,7 @@
  * as one undoable action of Claude's; read_view lists pictures; update_free_shape names one and
  * delete_free_shapes deletes it, keeping its file. A path outside the folder is refused.
  */
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { decodeBase64 } from '@visual-anything/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';

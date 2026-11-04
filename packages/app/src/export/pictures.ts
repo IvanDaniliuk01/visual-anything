@@ -27,8 +27,9 @@ export async function exportedMediaOf(
         media.set(hash, { kind: 'svg', svg: new TextDecoder().decode(bytes) });
       } else if (ref.format === 'gif') {
         const document = parseGif(bytes);
-        const first = composeGifFrames(document).next().value;
-        if (!first) continue;
+        const step = composeGifFrames(document).next();
+        if (step.done === true) continue;
+        const first: Uint8ClampedArray = step.value;
         const png = await encodePng(first, document.width, document.height);
         media.set(hash, {
           kind: 'bitmap',

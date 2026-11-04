@@ -70,10 +70,8 @@ describe('GifPlayer', () => {
     expect(once.index).toBe(2);
     const twice = new GifPlayer({ ...three, loop: 1 });
     twice.first(0);
-    let now = 0;
     for (let step = 0; step < 10; step++) {
-      now = twice.due;
-      twice.advance(now);
+      twice.advance(twice.due);
     }
     expect(twice.done).toBe(true);
   });
