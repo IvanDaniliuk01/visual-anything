@@ -138,7 +138,9 @@ export function TourStage({
   }>();
   // The room inside the card that a face is laid out in (ADR 0096), measured as it changes.
   const [faceBox, setFaceBox] = useState({ width: FACE_WIDTH, height: 0 });
-  const faced = tour.captionFace !== undefined;
+  // A card is measured while the tour, or any of its steps, gives captions a look.
+  const faced =
+    tour.captionFace !== undefined || tour.steps.some((each) => each.caption.face !== undefined);
   useEffect(() => {
     const card = stage.current?.querySelector<HTMLElement>('.tour-card');
     if (!faced || !card || typeof ResizeObserver === 'undefined') return;
@@ -321,7 +323,8 @@ export function TourStage({
     '--card-w': size === undefined ? undefined : String(size.width),
     '--card-h': size?.height === undefined ? undefined : String(size.height),
   };
-  const face = tour.captionFace;
+  // The step's own look, else the tour's (ADR 0096).
+  const face = captioned.caption.face ?? tour.captionFace;
   const position = t('Step {n} of {total}', { n: step + 1, total });
   const revealTexts = (captioned.reveal ?? [])
     .slice(0, revealed)

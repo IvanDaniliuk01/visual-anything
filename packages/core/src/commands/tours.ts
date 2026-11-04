@@ -269,11 +269,11 @@ function checkedCaption(value: unknown, where: string): TourCaption {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     reject('invalid-command', `${where} needs a caption with a title.`);
   }
-  const { title, text, place, pointTo, size, ...rest } = value as Record<string, unknown>;
+  const { title, text, place, pointTo, size, face, ...rest } = value as Record<string, unknown>;
   if (Object.keys(rest).length > 0) {
     reject(
       'invalid-command',
-      'A caption holds a title, a text, a place, the mark it points at and a size, nothing else.',
+      'A caption holds a title, a text, a place, the mark it points at, a size and a look, nothing else.',
     );
   }
   if (pointTo !== undefined && !isId(pointTo)) {
@@ -299,6 +299,7 @@ function checkedCaption(value: unknown, where: string): TourCaption {
     place: corner,
     pointTo: pointTo,
     size: checkedSize(size),
+    face: checkedCaptionFace(face),
   });
 }
 

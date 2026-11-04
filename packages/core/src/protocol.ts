@@ -148,7 +148,7 @@ import { readSpaceCamera } from './space/camera';
  *    project that closed, is told with `project/closed`.
  * 9: a caption card dragged to a place of its own (ADR 0095): a tour step's `caption.place` may be
  *    `{ x, y }`, which an app of 8 would refuse when it opens the tour file. And, in 9 too, since no
- *    build of 9 shipped, a tour's `captionFace` and a caption's `size` (ADR 0096).
+ *    build of 9 shipped, a tour's `captionFace` and a caption's `face` and `size` (ADR 0096).
  */
 export const PROTOCOL_VERSION = 9;
 

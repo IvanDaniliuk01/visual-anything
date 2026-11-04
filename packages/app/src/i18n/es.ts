@@ -2700,13 +2700,20 @@ export const ui: Catalog = {
   'Fit to its content': 'Ajustar a su contenido',
   'Step {n}’s caption fits its content again.':
     'El rótulo del paso {n} vuelve a ajustarse a su contenido.',
-  'Caption look': 'Aspecto del rótulo',
-  'The captions show their title and text. Give them a look of your own, in the HTML and CSS of faces: {title} is the title, {text} the text, {step} and {steps} where the step is.':
-    'Los rótulos muestran su título y su texto. Dales un aspecto propio, con el HTML y el CSS de las caras: {title} es el título, {text} el texto, {step} y {steps} en qué paso está.',
+  'Look of the tour’s captions': 'Aspecto de los rótulos del recorrido',
+  'The captions show their title and text. A look given here is taken by every step without one of its own.':
+    'Los rótulos muestran su título y su texto. El aspecto que le des acá lo toma cada paso que no tenga uno propio.',
+  'Look of this caption': 'Aspecto de este rótulo',
+  'It shows its title and text.': 'Muestra su título y su texto.',
+  'It takes the look of the tour’s captions.': 'Toma el aspecto de los rótulos del recorrido.',
+  'Step {n}’s caption takes the tour’s look again.':
+    'El rótulo del paso {n} vuelve a tomar el aspecto del recorrido.',
+  'Step {n}’s caption takes a look of its own.': 'El rótulo del paso {n} toma un aspecto propio.',
+  'Write it in the HTML and CSS of faces: {title} is the title, {text} the text, {step} and {steps} where the step is.':
+    'Escribilo con el HTML y el CSS de las caras: {title} es el título, {text} el texto, {step} y {steps} en qué paso está.',
   'Start a look': 'Empezar un aspecto',
   Markup: 'Markup',
   'What the look’s HTML and CSS say': 'Lo que dicen el HTML y el CSS del aspecto',
-  'Preview on the first step': 'Vista previa en el primer paso',
   'The captions of “{name}” take this look.': 'Los rótulos de “{name}” toman este aspecto.',
   'The captions of “{name}” show their title and text again.':
     'Los rótulos de “{name}” vuelven a mostrar su título y su texto.',
@@ -4951,8 +4958,8 @@ export const messages: Catalog = {
   'A view state is an object.': 'Un estado de vista es un objeto JSON.',
   'Step {n} of the tour needs a caption with a title.':
     'El paso {n} del recorrido necesita un rótulo con un título.',
-  'A caption holds a title, a text, a place, the mark it points at and a size, nothing else.':
-    'Un rótulo tiene un título, un texto, un lugar, la marca a la que apunta y un tamaño, nada más.',
+  'A caption holds a title, a text, a place, the mark it points at, a size and a look, nothing else.':
+    'Un rótulo tiene un título, un texto, un lugar, la marca a la que apunta, un tamaño y un aspecto, nada más.',
   "A caption card's size is { width, height }, each from 0.1 to 1 of the screen, the height left out for as tall as its content.":
     'El tamaño de la tarjeta de un rótulo es { width, height }, cada uno de 0,1 a 1 de la pantalla; sin height, es tan alta como su contenido.',
   "A tour's caption look is an object with its markup and style.":

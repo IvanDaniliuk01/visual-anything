@@ -37,6 +37,11 @@ function titlesIn(command: Command | undefined): string[] {
   return (command.changes.steps ?? []).map((step) => step.caption.title);
 }
 
+/** The section of a caption look, by its heading. */
+function lookOf(within_: HTMLElement, label: string): HTMLElement {
+  return within(within_).getByText(label).closest('details') as HTMLElement;
+}
+
 describe('the tours panel', () => {
   it('lists the project’s tours, and starts one from what the canvas shows', async () => {
     const { tab, sent } = openTours();
@@ -58,21 +63,49 @@ describe('the tours panel', () => {
   it('gives the tour’s captions a look in the HTML and CSS of faces (ADR 0096)', async () => {
     const { tab, sent } = openTours();
     fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
-    fireEvent.click(within(tab).getByRole('button', { name: 'Start a look' }));
-    const markup = within(tab).getByLabelText('Markup');
+    const look = lookOf(tab, 'Look of the tour’s captions');
+    fireEvent.click(within(look).getByRole('button', { name: 'Start a look' }));
+    const markup = within(look).getByLabelText('Markup');
     fireEvent.change(markup, { target: { value: '<script>' } });
-    within(tab).getByRole('list', { name: 'What the look’s HTML and CSS say' });
-    expect(within(tab).getByRole('button', { name: 'Apply' })).toBeDisabled();
+    within(look).getByRole('list', { name: 'What the look’s HTML and CSS say' });
+    expect(within(look).getByRole('button', { name: 'Apply' })).toBeDisabled();
     fireEvent.change(markup, { target: { value: '<p>{{step}}: {{name}}</p>' } });
-    fireEvent.change(within(tab).getByLabelText('Style'), { target: { value: '' } });
-    within(tab).getByRole('img', { name: `1: ${tour.steps[0]?.caption.title ?? ''}` });
-    fireEvent.click(within(tab).getByRole('button', { name: 'Apply' }));
+    fireEvent.change(within(look).getByLabelText('Style'), { target: { value: '' } });
+    within(look).getByRole('img', { name: `1: ${tour.steps[0]?.caption.title ?? ''}` });
+    fireEvent.click(within(look).getByRole('button', { name: 'Apply' }));
     await vi.waitFor(() => expect(sent).toHaveLength(1));
     expect(sent[0]).toEqual({
       type: 'update-tour',
       id: tour.id,
       changes: { captionFace: { markup: ['<p>{{step}}: {{name}}</p>'] } },
     });
+  });
+
+  it('gives one step’s caption a look of its own, starting from the tour’s (ADR 0096)', async () => {
+    const looked: ProjectSnapshot = {
+      ...sample,
+      tours: sample.tours.map((each) =>
+        each.id === tour.id ? { ...each, captionFace: { markup: ['<p>{{name}}</p>'] } } : each,
+      ),
+    };
+    const { tab, sent } = openTours(looked);
+    fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
+    const steps = within(tab).getByRole('list', { name: 'Steps of “How booking works”' });
+    const [second] = within(steps).getAllByText('Look of this caption');
+    const look = (second as HTMLElement).closest('details') as HTMLElement;
+    within(look).getByText('It takes the look of the tour’s captions.');
+    fireEvent.click(within(look).getByRole('button', { name: 'Start a look' }));
+    const markup = within(look).getByLabelText('Markup');
+    expect(markup).toHaveValue('<p>{{name}}</p>');
+    fireEvent.change(markup, { target: { value: '<p><b>{{name}}</b></p>' } });
+    fireEvent.click(within(look).getByRole('button', { name: 'Apply' }));
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    const command = sent[0];
+    expect(command?.type === 'update-tour' && command.changes.steps?.[0]?.caption).toEqual({
+      ...tour.steps[0]?.caption,
+      face: { markup: ['<p><b>{{name}}</b></p>'] },
+    });
+    expect(command?.type === 'update-tour' && command.changes.steps?.[1]).toBe(tour.steps[1]);
   });
 
   it('shows a step’s size, and fits it to its content again (ADR 0096)', async () => {

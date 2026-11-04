@@ -441,7 +441,7 @@ describe('create-tour', () => {
         tour: { name: 'T', steps: [{ ...START, caption: { title: 'T', html: '<b>' } as never }] },
       },
       'invalid-command',
-      'A caption holds a title, a text, a place, the mark it points at and a size, nothing else.',
+      'A caption holds a title, a text, a place, the mark it points at, a size and a look, nothing else.',
     ],
     [
       'a malformed view state',

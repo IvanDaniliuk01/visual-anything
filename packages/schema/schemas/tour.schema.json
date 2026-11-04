@@ -27,7 +27,7 @@
     },
     "captionFace": {
       "$ref": "#/definitions/CaptionFace",
-      "description": "How its caption cards look (ADR 0096): a face, filled from each step's caption."
+      "description": "How its caption cards look (ADR 0096): a face, filled from each step's caption, which every step without a look of its own takes."
     },
     "conflicts": {
       "type": "array",
@@ -627,6 +627,10 @@
         "size": {
           "$ref": "#/definitions/CaptionSize",
           "description": "How big the card is (ADR 0096); left out, as wide as the stage makes it and as tall as its content."
+        },
+        "face": {
+          "$ref": "#/definitions/CaptionFace",
+          "description": "How this step's card looks (ADR 0096); left out, as the tour's `captionFace` says."
         }
       },
       "required": [
@@ -686,6 +690,36 @@
       ],
       "additionalProperties": false,
       "description": "The size a caption card was given (ADR 0096), as fractions of the screen, so that it keeps its proportions on any screen."
+    },
+    "CaptionFace": {
+      "type": "object",
+      "properties": {
+        "markup": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FaceLine"
+          },
+          "description": "Its markup, a line each."
+        },
+        "style": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FaceLine"
+          },
+          "description": "Its style rules, a line each."
+        }
+      },
+      "required": [
+        "markup"
+      ],
+      "additionalProperties": false,
+      "description": "How a tour's caption cards look (ADR 0096): markup and style in a face's subset (ADR 0083), filled with `{{name}}`, the step's title, `{{text}}`, its text, `{{step}}` and `{{steps}}`, and `{{component}}`, the tour's name."
+    },
+    "FaceLine": {
+      "type": "string",
+      "description": "One line of a face's markup or style, without its line ending.",
+      "maxLength": 2000,
+      "pattern": "^[^\\r\\n]*$"
     },
     "TourPlayback": {
       "type": "object",
@@ -780,36 +814,6 @@
       ],
       "additionalProperties": false,
       "description": "A pulse (ADR 0084): a marker travels along each relation of a chain in turn, to show what follows what within one step."
-    },
-    "CaptionFace": {
-      "type": "object",
-      "properties": {
-        "markup": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/FaceLine"
-          },
-          "description": "Its markup, a line each."
-        },
-        "style": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/FaceLine"
-          },
-          "description": "Its style rules, a line each."
-        }
-      },
-      "required": [
-        "markup"
-      ],
-      "additionalProperties": false,
-      "description": "How a tour's caption cards look (ADR 0096): markup and style in a face's subset (ADR 0083), filled with `{{name}}`, the step's title, `{{text}}`, its text, `{{step}}` and `{{steps}}`, and `{{component}}`, the tour's name."
-    },
-    "FaceLine": {
-      "type": "string",
-      "description": "One line of a face's markup or style, without its line ending.",
-      "maxLength": 2000,
-      "pattern": "^[^\\r\\n]*$"
     },
     "FileConflict": {
       "type": "object",

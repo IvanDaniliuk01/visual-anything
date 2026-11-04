@@ -11,6 +11,7 @@
  */
 import {
   MAX_CAPTION_TEXT,
+  STARTING_CAPTION_FACE,
   MAX_CAPTION_TITLE,
   MAX_SPEAKER_NOTES,
   MAX_TOUR_MARKS,
@@ -277,8 +278,22 @@ function OpenTour({
       />
       <CaptionLook
         tour={tour}
+        stored={tour.captionFace}
+        start={STARTING_CAPTION_FACE}
+        step={0}
+        label={t('Look of the tour’s captions')}
+        hint={t(
+          'The captions show their title and text. A look given here is taken by every step without one of its own.',
+        )}
         editable={editable}
-        send={(command, done) => void send(command, done)}
+        onApply={(captionFace) =>
+          void send(
+            { type: 'update-tour', id: tour.id, changes: { captionFace } },
+            captionFace === null
+              ? t('The captions of “{name}” show their title and text again.', { name: tour.name })
+              : t('The captions of “{name}” take this look.', { name: tour.name }),
+          )
+        }
       />
       {checks && tour.steps.length > 0 && (
         <p className="tour-check-summary">
@@ -504,6 +519,32 @@ function StepItem({
         )}
       </div>
       <StepExplains step={step} n={n} editable={editable} change={change} />
+      <CaptionLook
+        tour={tour}
+        stored={step.caption.face}
+        start={tour.captionFace ?? STARTING_CAPTION_FACE}
+        step={at}
+        label={t('Look of this caption')}
+        hint={
+          tour.captionFace === undefined
+            ? t('It shows its title and text.')
+            : t('It takes the look of the tour’s captions.')
+        }
+        editable={editable}
+        onApply={(face) =>
+          change(
+            (each) => {
+              const caption: TourStep['caption'] = { ...each.caption };
+              if (face === null) delete caption.face;
+              else caption.face = face;
+              return { ...each, caption };
+            },
+            face === null
+              ? t('Step {n}’s caption takes the tour’s look again.', { n })
+              : t('Step {n}’s caption takes a look of its own.', { n }),
+          )
+        }
+      />
       <div className="tour-step-actions" role="group" aria-label={t('Step {n}', { n })}>
         <button
           type="button"

@@ -581,6 +581,24 @@ describe('TourStage’s reveals, scenario card and controls', () => {
       expect(screen.getByRole('img', { name: `1: ${title}` })).toHaveClass('tour-card-face');
       expect(screen.getByRole('heading', { name: title })).toHaveClass('visually-hidden');
     });
+
+    it('draws a step by its own look rather than the tour’s', () => {
+      const looked: TourFile = {
+        ...tour,
+        captionFace: { markup: ['<p>{{step}}: {{name}}</p>'] },
+        steps: tour.steps.map((step, at) =>
+          at === 0
+            ? { ...step, caption: { ...step.caption, face: { markup: ['<p>Own</p>'] } } }
+            : step,
+        ),
+      };
+      const { rerender } = render(
+        <TourStage project={sample} tour={looked} step={0} onAction={vi.fn()} />,
+      );
+      screen.getByRole('img', { name: 'Own' });
+      rerender(<TourStage project={sample} tour={looked} step={1} onAction={vi.fn()} />);
+      screen.getByRole('img', { name: `2: ${tour.steps[1]?.caption.title ?? ''}` });
+    });
   });
 
   describe('what screen readers hear', () => {

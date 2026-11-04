@@ -1935,7 +1935,10 @@ export interface TourFile {
    * @maxItems 1000
    */
   steps: TourStep[];
-  /** How its caption cards look (ADR 0096): a face, filled from each step's caption. */
+  /**
+   * How its caption cards look (ADR 0096): a face, filled from each step's caption, which every step
+   * without a look of its own takes.
+   */
   captionFace?: CaptionFace;
   /**
    * What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what
@@ -2020,6 +2023,8 @@ export interface TourCaption {
   pointTo?: Id;
   /** How big the card is (ADR 0096); left out, as wide as the stage makes it and as tall as its content. */
   size?: CaptionSize;
+  /** How this step's card looks (ADR 0096); left out, as the tour's `captionFace` says. */
+  face?: CaptionFace;
 }
 
 /**

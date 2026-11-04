@@ -1,15 +1,10 @@
 /**
- * The look of an open tour's caption cards (ADR 0096): a face's markup and style, each in a text
- * area, with the problems the faces' subset finds at their lines and a preview on the first step's
- * caption. Nothing is sent while typing: Apply sends the look as one `update-tour`, and Remove takes
- * it away, back to the plain card.
+ * The look of caption cards (ADR 0096), the tour's, which every step without one of its own takes,
+ * or a step's own: a face's markup and style, each in a text area, with the problems the faces'
+ * subset finds at their lines and a preview on a step's caption. Nothing is sent while typing: Apply
+ * sends the look as one action, and Remove takes it away.
  */
-import {
-  STARTING_CAPTION_FACE,
-  compileCaptionFace,
-  faceMessage,
-  type Command,
-} from '@visual-anything/core';
+import { compileCaptionFace, faceMessage } from '@visual-anything/core';
 import type { CaptionFace, TourFile } from '@visual-anything/schema';
 import { useId, useMemo, useState } from 'react';
 import { useT } from '../i18n';
@@ -18,38 +13,40 @@ import { CaptionFaceDrawing } from './CaptionFace';
 /** How wide the preview lays the face out, in pixels: about a card at a side of the screen. */
 const PREVIEW_WIDTH = 280;
 
-export function CaptionLook({
-  tour,
-  editable,
-  send,
-}: {
+export interface CaptionLookProps {
   tour: TourFile;
+  /** The look this level keeps; none while it keeps none. */
+  stored: CaptionFace | undefined;
+  /** What a new look starts from: the tour's for a step, else the starting look. */
+  start: CaptionFace;
+  /** The step whose caption the preview shows. */
+  step: number;
+  /** The heading of its section. */
+  label: string;
+  /** What the section says while this level keeps no look. */
+  hint: string;
   editable: boolean;
-  send: (command: Command, done: string) => void;
-}) {
+  /** Keeps a look, or takes it away with `null`. */
+  onApply: (face: CaptionFace | null) => void;
+}
+
+export function CaptionLook(props: CaptionLookProps) {
   // A new draft for each look stored, so that an Apply, an undo or Claude's change starts it again.
-  return (
-    <CaptionLookDraft
-      key={JSON.stringify(tour.captionFace ?? null)}
-      tour={tour}
-      editable={editable}
-      send={send}
-    />
-  );
+  return <CaptionLookDraft key={JSON.stringify(props.stored ?? null)} {...props} />;
 }
 
 function CaptionLookDraft({
   tour,
+  stored,
+  start,
+  step,
+  label,
+  hint,
   editable,
-  send,
-}: {
-  tour: TourFile;
-  editable: boolean;
-  send: (command: Command, done: string) => void;
-}) {
+  onApply,
+}: CaptionLookProps) {
   const t = useT();
   const ids = { markup: useId(), style: useId() };
-  const stored = tour.captionFace;
   const [markup, setMarkup] = useState((stored?.markup ?? []).join('\n'));
   const [style, setStyle] = useState((stored?.style ?? []).join('\n'));
   const draft = useMemo((): CaptionFace => {
@@ -62,17 +59,16 @@ function CaptionLookDraft({
   const problems = useMemo(() => compileCaptionFace(draft, false).problems, [draft]);
   const errors = problems.filter((each) => each.severity === 'error');
   const changed = JSON.stringify(draft) !== JSON.stringify(stored ?? null);
-  const apply = (captionFace: CaptionFace | null, done: string) =>
-    send({ type: 'update-tour', id: tour.id, changes: { captionFace } }, done);
 
   return (
     <details className="tour-caption-look">
-      <summary>{t('Caption look')}</summary>
+      <summary>{label}</summary>
       {stored === undefined && markup === '' ? (
         <div className="tour-field">
+          <p className="tour-field-hint">{hint}</p>
           <p className="tour-field-hint">
             {t(
-              'The captions show their title and text. Give them a look of your own, in the HTML and CSS of faces: {title} is the title, {text} the text, {step} and {steps} where the step is.',
+              'Write it in the HTML and CSS of faces: {title} is the title, {text} the text, {step} and {steps} where the step is.',
               { title: '{{name}}', text: '{{text}}', step: '{{step}}', steps: '{{steps}}' },
             )}
           </p>
@@ -81,8 +77,8 @@ function CaptionLookDraft({
             className="tour-button"
             disabled={!editable}
             onClick={() => {
-              setMarkup(STARTING_CAPTION_FACE.markup.join('\n'));
-              setStyle((STARTING_CAPTION_FACE.style ?? []).join('\n'));
+              setMarkup(start.markup.join('\n'));
+              setStyle((start.style ?? []).join('\n'));
             }}
           >
             {t('Start a look')}
@@ -123,9 +119,9 @@ function CaptionLookDraft({
               ))}
             </ul>
           )}
-          {errors.length === 0 && draft.markup.length > 0 && tour.steps.length > 0 && (
-            <div className="tour-look-preview" aria-label={t('Preview on the first step')}>
-              <CaptionFaceDrawing face={draft} tour={tour} step={0} width={PREVIEW_WIDTH} />
+          {errors.length === 0 && draft.markup.length > 0 && tour.steps[step] !== undefined && (
+            <div className="tour-look-preview" aria-label={t('Preview')}>
+              <CaptionFaceDrawing face={draft} tour={tour} step={step} width={PREVIEW_WIDTH} />
             </div>
           )}
           <div className="tour-actions">
@@ -133,9 +129,7 @@ function CaptionLookDraft({
               type="button"
               className="tour-button"
               disabled={!editable || !changed || errors.length > 0 || draft.markup.length === 0}
-              onClick={() =>
-                apply(draft, t('The captions of “{name}” take this look.', { name: tour.name }))
-              }
+              onClick={() => onApply(draft)}
             >
               {t('Apply')}
             </button>
@@ -144,14 +138,7 @@ function CaptionLookDraft({
                 type="button"
                 className="tour-button"
                 disabled={!editable}
-                onClick={() =>
-                  apply(
-                    null,
-                    t('The captions of “{name}” show their title and text again.', {
-                      name: tour.name,
-                    }),
-                  )
-                }
+                onClick={() => onApply(null)}
               >
                 {t('Remove the look')}
               </button>

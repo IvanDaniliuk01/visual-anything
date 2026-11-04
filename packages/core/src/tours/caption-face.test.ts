@@ -63,6 +63,28 @@ describe('a tour’s caption look (ADR 0096)', () => {
   });
 });
 
+describe('a step’s own caption look (ADR 0096)', () => {
+  it('is kept in its caption, and refused where the subset refuses it', () => {
+    const own = executeCommand(testProject(), {
+      type: 'create-tour',
+      tour: {
+        name: 'Own',
+        steps: [{ ...STEP, caption: { title: 'T', face: { markup: ['<p>{{name}}</p>'] } } }],
+      },
+    });
+    if (!own.ok) throw new Error(own.problems[0]?.message);
+    expect(own.state.tours[0]?.steps[0]?.caption.face).toEqual({ markup: ['<p>{{name}}</p>'] });
+    const bad = executeCommand(testProject(), {
+      type: 'create-tour',
+      tour: {
+        name: 'Bad',
+        steps: [{ ...STEP, caption: { title: 'T', face: { markup: ['<h1>'] } } }],
+      },
+    });
+    expect(bad.ok).toBe(false);
+  });
+});
+
 describe('a caption card’s size (ADR 0096)', () => {
   const sized = (size: unknown) =>
     executeCommand(testProject(), {
