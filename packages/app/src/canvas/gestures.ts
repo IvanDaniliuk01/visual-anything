@@ -158,6 +158,7 @@ function moved(shape: FreeShape, dx: number, dy: number): FreeShape {
     const note: Note = { ...shape, x: shape.x + dx, y: shape.y + dy };
     return note;
   }
+  if (shape.kind === 'picture') return { ...shape, x: shape.x + dx, y: shape.y + dy };
   const arrow: Arrow = {
     ...shape,
     from: { x: shape.from.x + dx, y: shape.from.y + dy },

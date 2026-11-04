@@ -14,7 +14,15 @@ import { boundsWithTag, drawnBoundsOf, nameTagOf, tagHolds } from './nameTags';
 import { OUTLINE_REACH, outlineBoundsOn, simplifiedHolds } from './outlined';
 import { shapeHolds } from './outlines';
 import { distanceToRoute } from './route';
-import type { ArrowShape, ElementShape, NoteShape, RelationLine, Scene } from './scene';
+import {
+  picturesOf,
+  type ArrowShape,
+  type ElementShape,
+  type NoteShape,
+  type PictureShape,
+  type RelationLine,
+  type Scene,
+} from './scene';
 import { holdsDrawn } from './shape-images';
 import { SpatialIndex, overlaps, rectAround, segmentsOf, within } from './spatial';
 import { isAnchoredSolidPart } from './solidMark';
@@ -26,7 +34,8 @@ export type Hit =
   | { kind: 'shape'; shape: ElementShape }
   | { kind: 'relation'; line: RelationLine }
   | { kind: 'note'; note: NoteShape }
-  | { kind: 'arrow'; arrow: ArrowShape };
+  | { kind: 'arrow'; arrow: ArrowShape }
+  | { kind: 'picture'; picture: PictureShape };
 
 /** A scene with a spatial index over everything it draws. */
 export interface IndexedScene {
@@ -492,6 +501,13 @@ export function hitAt(
     const note = scene.notes[notes[each] as number] as NoteShape;
     if (!hidden.has(note.id)) return { kind: 'note', note };
   }
+  // Pictures, under notes and arrows as they are drawn (ADR 0098); a view holds few, so no index.
+  const pictures = picturesOf(scene);
+  for (let each = pictures.length - 1; each >= 0; each--) {
+    const picture = pictures[each] as PictureShape;
+    if (!hidden.has(picture.id) && holdsPoint('rectangle', picture.rect, point))
+      return { kind: 'picture', picture };
+  }
 
   let nearest: { line: RelationLine; distance: number } | undefined;
   for (const at of indexed.relations.at(point, tolerance)) {
@@ -605,7 +621,12 @@ export function enclosedBy(
   indexed: IndexedScene,
   box: Rect,
   hidden: Skipped = NOTHING_SKIPPED,
-): { shapes: ElementShape[]; notes: NoteShape[]; arrows: ArrowShape[] } {
+): {
+  shapes: ElementShape[];
+  notes: NoteShape[];
+  arrows: ArrowShape[];
+  pictures: PictureShape[];
+} {
   const { scene } = indexed;
   const shapes = indexed.shapes
     .query(box)
@@ -629,6 +650,9 @@ export function enclosedBy(
       .query(box)
       .map((at) => scene.arrows[at] as ArrowShape)
       .filter((arrow) => !hidden.has(arrow.id) && within(rectAround([arrow.from, arrow.to]), box)),
+    pictures: picturesOf(scene).filter(
+      (picture) => !hidden.has(picture.id) && within(picture.rect, box),
+    ),
   };
 }
 

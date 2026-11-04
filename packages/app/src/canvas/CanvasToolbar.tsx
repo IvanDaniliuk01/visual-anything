@@ -9,6 +9,7 @@ import {
   FitIcon,
   LayoutIcon,
   NoteIcon,
+  PictureIcon,
   PlusIcon,
   SendBackwardIcon,
   SendToBackIcon,
@@ -56,6 +57,11 @@ export interface CanvasToolbarProps {
   onAdd: (component: Id) => void;
   onAddNote: () => void;
   onAddArrow: () => void;
+  /**
+   * Adds the image files chosen with Picture… (ADR 0098); absent, the toolbar has no Picture…, as
+   * where no program keeps media files.
+   */
+  onAddPictures?: (files: readonly File[]) => void;
   onZoom: (factor: number) => void;
   onFit: () => void;
   /** Where "Add element…" puts the new element; absent, directly in World. */
@@ -101,6 +107,7 @@ export function CanvasToolbar({
   onAdd,
   onAddNote,
   onAddArrow,
+  onAddPictures,
   onZoom,
   onFit,
   addPlace,
@@ -152,6 +159,7 @@ export function CanvasToolbar({
         <ArrowIcon />
         <span className="canvas-toolbar-label">{t('Arrow')}</span>
       </OverflowButton>
+      {onAddPictures && <PictureButton disabled={!editable} onPictures={onAddPictures} />}
       <ToolbarSeparator />
       {/* Arranging: the stacking order, Align and Layout. */}
       {stacking && (
@@ -381,4 +389,47 @@ const STACKING_ICONS: Record<StackingMove, typeof BringToFrontIcon> = {
 function StackingIcon({ move }: { move: StackingMove }) {
   const Icon = STACKING_ICONS[move];
   return <Icon />;
+}
+
+/** The types Picture… offers to choose (ADR 0098). */
+export const PICTURE_ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg';
+
+/** Picture…: chooses image files to add as pictures, through a file input the button opens. */
+function PictureButton({
+  disabled,
+  onPictures,
+}: {
+  disabled: boolean;
+  onPictures: (files: readonly File[]) => void;
+}) {
+  const t = useT();
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <OverflowButton
+        group="shapes"
+        type="button"
+        title={t('Picture…')}
+        disabled={disabled}
+        onClick={() => input.current?.click()}
+      >
+        <PictureIcon />
+        <span className="canvas-toolbar-label">{t('Picture…')}</span>
+      </OverflowButton>
+      <input
+        ref={input}
+        type="file"
+        accept={PICTURE_ACCEPT}
+        multiple
+        hidden
+        aria-hidden="true"
+        tabIndex={-1}
+        onChange={(event) => {
+          const files = [...(event.currentTarget.files ?? [])];
+          event.currentTarget.value = '';
+          if (files.length > 0) onPictures(files);
+        }}
+      />
+    </>
+  );
 }

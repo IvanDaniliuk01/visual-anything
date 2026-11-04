@@ -43,6 +43,7 @@ import {
   type Reachable,
   type RelationStop,
   type Start,
+  reachableKey,
 } from '../canvas/navigation';
 import { CanvasRenderer } from '../canvas/renderer';
 import type { ElementShape } from '../canvas/scene';
@@ -657,7 +658,7 @@ export class ViewerController {
       // Its hover card, when the canvas cut its text, as the editor shows it (ADR 0082).
       this.callbacks.hoverShape?.(reached.shape.key);
     } else {
-      const id = reached.kind === 'note' ? reached.note.id : reached.arrow.id;
+      const id = reachableKey(reached);
       this.current = id;
       this.choose(selectionOf([{ kind: 'free-shape', id }]));
       this.callbacks.hoverShape?.(undefined);
@@ -822,6 +823,8 @@ function keyOf(hit: Exclude<Hit, { kind: 'relation' }>): string {
       return hit.note.id;
     case 'arrow':
       return hit.arrow.id;
+    case 'picture':
+      return hit.picture.id;
   }
 }
 
@@ -838,6 +841,8 @@ function selectablesOf(hit: Hit): Selectable[] {
       return [{ kind: 'free-shape', id: hit.note.id }];
     case 'arrow':
       return [{ kind: 'free-shape', id: hit.arrow.id }];
+    case 'picture':
+      return [{ kind: 'free-shape', id: hit.picture.id }];
   }
 }
 

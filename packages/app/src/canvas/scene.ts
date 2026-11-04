@@ -40,7 +40,9 @@ import type {
   FreeShape,
   Id,
   LevelOfDetail,
+  MediaRef,
   Note,
+  Picture,
   Relation,
   ShapePosition,
   ViewFile,
@@ -221,6 +223,11 @@ export interface Scene {
   relations: RelationLine[];
   notes: NoteShape[];
   arrows: ArrowShape[];
+  /**
+   * Its pictures (ADR 0098), drawn and picked with the notes, in the view's order; absent in a scene
+   * made without them, which draws none (`picturesOf`).
+   */
+  pictures?: PictureShape[];
   /** The smallest rectangle holding everything drawn; undefined when the view draws nothing. */
   bounds: Rect | undefined;
   /**
@@ -554,6 +561,24 @@ export interface NoteShape {
    */
   adapted?: true;
 }
+
+/** A picture: a free shape that shows a media file (ADR 0098). */
+export interface PictureShape {
+  id: Id;
+  rect: Rect;
+  media: MediaRef;
+  /** What it is called: its own name, or "Picture". */
+  name: string;
+  /** Whether it has a name of its own. */
+  named: boolean;
+}
+
+/** The pictures a scene draws: none in a scene made without them. */
+export function picturesOf(scene: Pick<Scene, 'pictures'>): readonly PictureShape[] {
+  return scene.pictures ?? NO_PICTURES;
+}
+
+const NO_PICTURES: readonly PictureShape[] = [];
 
 /** An arrow: a free shape pointing from one place on the canvas to another. */
 export interface ArrowShape {
@@ -943,7 +968,7 @@ function finished(
   const geometryKept = !parts.sized && !viewSized(built) && parts.baseLines === built.baseRelations;
   const bounds = geometryKept
     ? layout.bounds
-    : sceneBounds(parts.shapes, parts.lines, layout.notes, layout.arrows);
+    : sceneBounds(parts.shapes, parts.lines, layout.notes, layout.arrows, layout.pictures);
   if (
     last !== undefined &&
     last.scene !== scene &&
@@ -1116,6 +1141,7 @@ interface Layout {
   relations: RelationLine[];
   notes: NoteShape[];
   arrows: ArrowShape[];
+  pictures: PictureShape[];
   bounds: Rect | undefined;
 }
 
@@ -1282,8 +1308,8 @@ function laidOutFrom(kept: Built, project: ProjectSnapshot, view: ViewFile): boo
 }
 
 function sceneOf(layout: Layout, drawing: readonly number[], defaults: ResolvedDrawing): Scene {
-  const { shapes, relations, notes, arrows, bounds } = layout;
-  const scene: Scene = { shapes, drawing, relations, notes, arrows, bounds };
+  const { shapes, relations, notes, arrows, pictures, bounds } = layout;
+  const scene: Scene = { shapes, drawing, relations, notes, arrows, pictures, bounds };
   const drawn = withinShadows(defaults, shapes.length);
   if (drawn !== BASE_DRAWING) scene.drawingDefaults = drawn;
   return scene;
@@ -1457,10 +1483,11 @@ function layOut(
     placed.geometryKept &&
     relations === before.layout.relations &&
     free.notes === before.layout.notes &&
-    free.arrows === before.layout.arrows;
+    free.arrows === before.layout.arrows &&
+    free.pictures === before.layout.pictures;
   const bounds = boundsKept
     ? before.layout.bounds
-    : sceneBounds(shapes, relations, free.notes, free.arrows);
+    : sceneBounds(shapes, relations, free.notes, free.arrows, free.pictures);
 
   const layout: Layout = {
     shapes,
@@ -1470,6 +1497,7 @@ function layOut(
     relations,
     notes: free.notes,
     arrows: free.arrows,
+    pictures: free.pictures,
     bounds: before && sameRect(bounds, before.layout.bounds) ? before.layout.bounds : bounds,
   };
   // Which contents are anchored parts, and in which order, can change while the keys stay; and a
@@ -1491,6 +1519,7 @@ function layOut(
     before.layout.relations === relations &&
     before.layout.notes === free.notes &&
     before.layout.arrows === free.arrows &&
+    before.layout.pictures === free.pictures &&
     before.layout.bounds === layout.bounds &&
     (before.scene.drawing ?? before.layout.identity) === drawing
       ? before.scene
@@ -2341,10 +2370,7 @@ function calloutsBox(
 }
 
 /** Lays out World's stand-in row: below every positioned shape directly in World and every free shape. */
-function standInWorld(
-  boxes: Box[],
-  free: { notes: readonly NoteShape[]; arrows: readonly ArrowShape[] },
-): void {
+function standInWorld(boxes: Box[], free: FreeShapes): void {
   let left = Infinity;
   let bottom = -Infinity;
   const extend = (x: number, y: number) => {
@@ -2353,6 +2379,7 @@ function standInWorld(
   };
   for (const box of boxes) if (box.offset) extend(box.offset.x, box.offset.y + box.height);
   for (const note of free.notes) extend(note.rect.x, note.rect.y + note.rect.height);
+  for (const picture of free.pictures) extend(picture.rect.x, picture.rect.y + picture.rect.height);
   for (const arrow of free.arrows) {
     extend(arrow.from.x, arrow.from.y);
     extend(arrow.to.x, arrow.to.y);
@@ -2372,7 +2399,7 @@ function placeShapes(
   definitions: Definitions,
   tree: readonly Placement[],
   collapsed: ReadonlySet<Id>,
-  free: { notes: readonly NoteShape[]; arrows: readonly ArrowShape[] },
+  free: FreeShapes,
   before: Built | undefined,
   keep: boolean,
   leaving: ReadonlyMap<Id, readonly Id[]>,
@@ -2588,7 +2615,7 @@ function replaceShapes(
   view: ViewFile,
   definitions: Definitions,
   tree: readonly Placement[],
-  free: { notes: readonly NoteShape[]; arrows: readonly ArrowShape[] },
+  free: FreeShapes,
   base: Built,
   leaving: ReadonlyMap<Id, readonly Id[]>,
 ): Placed | undefined {
@@ -3989,17 +4016,41 @@ function typeStrokeOf(light: Color, dark: Color): NonNullable<RelationLine['type
   return colors;
 }
 
-/** The notes and arrows of the view: those of `before` while its free shapes are the same. */
-function freeShapesOf(
-  view: ViewFile,
-  before: Built | undefined,
-): { notes: NoteShape[]; arrows: ArrowShape[] } {
+/** A view's free shapes as the scene draws them. */
+interface FreeShapes {
+  notes: NoteShape[];
+  arrows: ArrowShape[];
+  pictures: PictureShape[];
+}
+
+/** The free shapes of the view: those of `before` while its free shapes are the same. */
+function freeShapesOf(view: ViewFile, before: Built | undefined): FreeShapes {
   if (before && before.view.freeShapes === view.freeShapes) {
-    return { notes: before.layout.notes, arrows: before.layout.arrows };
+    return {
+      notes: before.layout.notes,
+      arrows: before.layout.arrows,
+      pictures: before.layout.pictures,
+    };
   }
   return {
     notes: view.freeShapes.filter(isNote).map(noteShape),
     arrows: view.freeShapes.filter(isArrow).map(arrowShape),
+    pictures: view.freeShapes.filter(isPicture).map(pictureShape),
+  };
+}
+
+function isPicture(shape: FreeShape): shape is Picture {
+  return shape.kind === 'picture';
+}
+
+/** A picture as the scene draws it (ADR 0098). */
+export function pictureShape(picture: Picture): PictureShape {
+  return {
+    id: picture.id,
+    rect: { x: picture.x, y: picture.y, width: picture.width, height: picture.height },
+    media: picture.media,
+    name: picture.name ?? 'Picture',
+    named: picture.name !== undefined,
   };
 }
 
@@ -4075,6 +4126,7 @@ function sceneBounds(
   relations: readonly RelationLine[],
   notes: readonly NoteShape[],
   arrows: readonly ArrowShape[],
+  pictures: readonly PictureShape[] = [],
 ): Rect | undefined {
   let x1 = Infinity;
   let y1 = Infinity;
@@ -4092,6 +4144,7 @@ function sceneBounds(
     take(x, y, width, height);
   }
   for (const note of notes) take(note.rect.x, note.rect.y, note.rect.width, note.rect.height);
+  for (const { rect } of pictures) take(rect.x, rect.y, rect.width, rect.height);
   for (const line of relations) {
     const rect = boundsOfLine(line);
     take(rect.x, rect.y, rect.width, rect.height);

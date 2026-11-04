@@ -8,6 +8,8 @@ import type {
   LiveFetchedMessage,
   LiveKeptMessage,
   SolidFilesListedMessage,
+  MediaFilesListedMessage,
+  MediaStoredMessage,
   SolidImportOptions,
   SolidPreparedMessage,
   VersionRef,
@@ -164,6 +166,17 @@ export interface Live extends LiveState {
   listSolidFiles?: () => Promise<LiveResult<SolidFilesListedMessage>>;
   /** Removes files in `solids/` that no package names, which cannot be undone. */
   removeSolidFiles?: (hashes: readonly string[]) => Promise<LiveResult<SolidFilesListedMessage>>;
+  /** A picture's media file by its hash (ADR 0098); absent where no program keeps media files. */
+  getMediaFile?: (hash: string) => Promise<LiveResult<Uint8Array>>;
+  /**
+   * Sends an image file to the local program to be cleaned and kept in `media/` (ADR 0098), which
+   * changes no project file; absent where no program keeps media files.
+   */
+  putMedia?: (fileName: string, bytes: Uint8Array) => Promise<LiveResult<MediaStoredMessage>>;
+  /** The files of `media/` no picture names (ADR 0098). */
+  listMediaFiles?: () => Promise<LiveResult<MediaFilesListedMessage>>;
+  /** Removes files of `media/` no picture names, which cannot be undone. */
+  removeMediaFiles?: (hashes: readonly string[]) => Promise<LiveResult<MediaFilesListedMessage>>;
   /**
    * Asks the local program to add itself to Claude Desktop's configuration (ADR 0093); absent where
    * there is no live session to ask.

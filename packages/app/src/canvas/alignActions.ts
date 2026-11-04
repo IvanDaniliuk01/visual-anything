@@ -9,7 +9,7 @@
  * Notes and free arrows align with element shapes; notes take a size, and arrows do not.
  */
 import { positionKey, type Command, type ProjectSnapshot } from '@visual-anything/core';
-import type { Arrow, FreeShape, Id, Note, ShapePosition } from '@visual-anything/schema';
+import type { Arrow, FreeShape, Id, Note, Picture, ShapePosition } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
 import { t } from '../i18n';
 import { ALIGN_HOWS, alignedRects, fewestFor, onlyMoves, type AlignHow } from './align';
@@ -106,6 +106,7 @@ export function alignLabel(how: AlignHow, count: number): string {
 type Part =
   | { kind: 'shape'; shape: ElementShape; rect: Rect }
   | { kind: 'note'; note: Note; rect: Rect }
+  | { kind: 'picture'; picture: Picture; rect: Rect }
   | { kind: 'arrow'; arrow: Arrow; rect: Rect };
 
 /**
@@ -134,6 +135,12 @@ function partsOf(
       parts.push({
         kind: 'note',
         note: free,
+        rect: { x: free.x, y: free.y, width: free.width, height: free.height },
+      });
+    } else if (free.kind === 'picture') {
+      parts.push({
+        kind: 'picture',
+        picture: free,
         rect: { x: free.x, y: free.y, width: free.width, height: free.height },
       });
     } else if (!sized) {
@@ -242,6 +249,19 @@ export function alignCommand(
           view: view.id,
           shape: {
             ...part.note,
+            x: Math.round(to.x),
+            y: Math.round(to.y),
+            width: Math.round(to.width),
+            height: Math.round(to.height),
+          },
+        });
+        return;
+      case 'picture':
+        free.push({
+          type: 'update-free-shape',
+          view: view.id,
+          shape: {
+            ...part.picture,
             x: Math.round(to.x),
             y: Math.round(to.y),
             width: Math.round(to.width),

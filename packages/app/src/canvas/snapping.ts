@@ -72,6 +72,8 @@ export function dragAnchor(
       return { at: { x: pressed.note.rect.x, y: pressed.note.rect.y }, home: WORLD_FRAME };
     case 'arrow':
       return { at: { ...pressed.arrow.from }, home: WORLD_FRAME };
+    case 'picture':
+      return { at: { x: pressed.picture.rect.x, y: pressed.picture.rect.y }, home: WORLD_FRAME };
     case 'relation':
       return undefined;
   }

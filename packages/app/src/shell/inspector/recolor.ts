@@ -28,7 +28,7 @@ import {
   type UpdateFreeShapeCommand,
   type UpdateRelationCommand,
 } from '@visual-anything/core';
-import type { Color, Element, FreeShape, Id, Relation } from '@visual-anything/schema';
+import type { Arrow, Color, Element, FreeShape, Id, Note, Relation } from '@visual-anything/schema';
 import type { Selection } from '../../editor/selection';
 import { THEMES } from '../../theme/themes';
 import type { DefinitionKind } from '../definitions/commands';
@@ -140,7 +140,8 @@ export function freeShapeColorCommand(
   theme: FreeShapeTheme,
   options?: PickOptions,
 ): UpdateFreeShapeCommand | undefined {
-  if (shape.kind === 'arrow' && trait === 'fill') return undefined;
+  // A picture has no colors of its own (ADR 0098), and an arrow no fill.
+  if (shape.kind === 'picture' || (shape.kind === 'arrow' && trait === 'fill')) return undefined;
   const own = shape.kind === 'note' ? shape[trait] : shape.stroke;
   const themes =
     shape.kind === 'note' ? noteColorsOf({}, theme)[trait].color : arrowColorOf({}, theme).color;
@@ -335,7 +336,7 @@ function selected(
   viewId: Id | undefined,
   selection: Selection,
   trait: ColorTrait,
-): { elements: Element[]; relations: Relation[]; freeShapes: FreeShape[] } {
+): { elements: Element[]; relations: Relation[]; freeShapes: (Note | Arrow)[] } {
   const index = modelIndexOf(project);
   const view = project.views.find((each) => each.id === viewId);
   const elements = [...selection.elements].flatMap((id) => {
@@ -350,7 +351,10 @@ function selected(
         })
       : [];
   const freeShapes = (view?.freeShapes ?? []).filter(
-    (shape) => selection.freeShapes.has(shape.id) && (trait === 'stroke' || shape.kind === 'note'),
+    (shape): shape is Note | Arrow =>
+      selection.freeShapes.has(shape.id) &&
+      shape.kind !== 'picture' &&
+      (trait === 'stroke' || shape.kind === 'note'),
   );
   return { elements, relations, freeShapes };
 }

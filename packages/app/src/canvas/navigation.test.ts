@@ -55,7 +55,9 @@ function nameOf(reached: Reachable | undefined): string | undefined {
     ? reached.shape.key
     : reached.kind === 'note'
       ? reached.note.id
-      : reached.arrow.id;
+      : reached.kind === 'picture'
+        ? reached.picture.id
+        : reached.arrow.id;
 }
 
 describe('nearestInDirection', () => {
