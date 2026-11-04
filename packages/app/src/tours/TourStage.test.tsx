@@ -470,7 +470,7 @@ describe('TourStage’s reveals, scenario card and controls', () => {
       pointer(window, 'pointermove', 200, 300);
       expect(card).toHaveAttribute('data-place', 'free');
       pointer(window, 'pointerup', 200, 300);
-      expect(onPlace).toHaveBeenCalledExactlyOnceWith(0, { x: 0.25, y: 0.357 });
+      expect(onPlace).toHaveBeenCalledExactlyOnceWith(0, { x: 0.25, y: 0.357 }, undefined);
       expect(card.style.getPropertyValue('--card-x')).toBe('0.25');
     });
 
@@ -480,7 +480,7 @@ describe('TourStage’s reveals, scenario card and controls', () => {
       pointer(card, 'pointerdown', 350, 650);
       pointer(window, 'pointermove', -900, 2000);
       pointer(window, 'pointerup', -900, 2000);
-      expect(onPlace).toHaveBeenCalledWith(0, { x: 0, y: 1 });
+      expect(onPlace).toHaveBeenCalledWith(0, { x: 0, y: 1 }, undefined);
     });
 
     it('is not dragged by a click, nor by a press on its controls, nor without a place to keep', () => {
@@ -508,6 +508,78 @@ describe('TourStage’s reveals, scenario card and controls', () => {
       const card = screen.getByRole('article');
       expect(card).toHaveAttribute('data-place', 'free');
       expect(card.style.getPropertyValue('--card-y')).toBe('0');
+    });
+  });
+
+  describe('a caption card resized by its handles (ADR 0096)', () => {
+    const rect = (left: number, top: number, width: number, height: number) =>
+      ({
+        left,
+        top,
+        width,
+        height,
+        x: left,
+        y: top,
+        right: left + width,
+        bottom: top + height,
+      }) as DOMRect;
+    const pointer = (target: EventTarget, type: string, clientX: number, clientY: number) =>
+      act(() => {
+        target.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX, clientY }));
+      });
+
+    function resizable(onPlace: (...args: unknown[]) => void) {
+      stage({ onPlace });
+      const card = screen.getByRole('article');
+      const room = card.closest('section') as HTMLElement;
+      vi.spyOn(room, 'getBoundingClientRect').mockReturnValue(rect(0, 0, 1000, 800));
+      vi.spyOn(card, 'getBoundingClientRect').mockReturnValue(rect(300, 600, 400, 100));
+      const handle = (edge: string) =>
+        card.querySelector(`.tour-card-handle[data-edge='${edge}']`) as HTMLElement;
+      return { card, handle };
+    }
+
+    it('takes a size from a corner, wider and taller, and keeps its place where it now is', () => {
+      const onPlace = vi.fn();
+      const { card, handle } = resizable(onPlace);
+      // The bottom right corner, 100 right and 100 down: 500 by 200 at 300, 600.
+      pointer(handle('se'), 'pointerdown', 700, 700);
+      pointer(window, 'pointermove', 800, 800);
+      expect(card).toHaveAttribute('data-sized', 'both');
+      pointer(window, 'pointerup', 800, 800);
+      expect(onPlace).toHaveBeenCalledExactlyOnceWith(
+        0,
+        { x: 0.6, y: 1 },
+        { width: 0.5, height: 0.25 },
+      );
+    });
+
+    it('takes only a width from a side, and never shrinks past 160 pixels', () => {
+      const onPlace = vi.fn();
+      const { handle } = resizable(onPlace);
+      pointer(handle('w'), 'pointerdown', 300, 650);
+      pointer(window, 'pointermove', 900, 650);
+      pointer(window, 'pointerup', 900, 650);
+      // The left side stops 160 short of the right one, at 540.
+      expect(onPlace).toHaveBeenCalledExactlyOnceWith(0, { x: 0.643, y: 0.857 }, { width: 0.16 });
+    });
+
+    it('shows no handles where it cannot be resized', () => {
+      stage();
+      expect(document.querySelector('.tour-card-handle')).toBeNull();
+    });
+  });
+
+  describe('a tour’s caption look (ADR 0096)', () => {
+    it('draws the card by the tour’s face, which screen readers read', () => {
+      const looked: TourFile = {
+        ...tour,
+        captionFace: { markup: ['<p>{{step}}: {{name}}</p>'] },
+      };
+      render(<TourStage project={sample} tour={looked} step={0} onAction={vi.fn()} />);
+      const title = tour.steps[0]?.caption.title ?? '';
+      expect(screen.getByRole('img', { name: `1: ${title}` })).toHaveClass('tour-card-face');
+      expect(screen.getByRole('heading', { name: title })).toHaveClass('visually-hidden');
     });
   });
 

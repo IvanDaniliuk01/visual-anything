@@ -506,7 +506,7 @@ function checkedFaceLines(value: unknown, what: string, of: string): string[] {
  * the subset refuses, or a face past its caps, is refused at its line and column. Kept as written, so
  * that its lines diff one by one.
  */
-function checkedFace(value: unknown, of: string): NonNullable<Appearance['face']> {
+export function checkedFace(value: unknown, of: string): NonNullable<Appearance['face']> {
   if (value === 'none') return 'none';
   if (!isRecord(value))
     reject('invalid-face', `The face of ${of} must be "none" or an object of its parts.`);

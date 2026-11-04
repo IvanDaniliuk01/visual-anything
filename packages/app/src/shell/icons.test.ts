@@ -15,6 +15,7 @@ const DRAWINGS: Record<string, string> = {
   'simulation/SimulationChart.tsx': 'the chart of a simulated number over its ticks',
   'tours/TourStage.tsx': 'the leader line from a tour’s caption to what it points at',
   'packages/PanelBlocks.tsx': 'the bar and line charts of a package’s panel (ADR 0089)',
+  'tours/CaptionFace.tsx': 'a tour’s caption card drawn by its face (ADR 0096)',
 };
 
 /**

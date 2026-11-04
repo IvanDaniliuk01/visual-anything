@@ -17,7 +17,7 @@ import {
   tourStepProblems,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { CaptionAt, TourFile } from '@visual-anything/schema';
+import type { CaptionAt, CaptionSize, TourFile } from '@visual-anything/schema';
 import {
   useEffect,
   useId,
@@ -44,6 +44,7 @@ import { describeMarks } from './describe';
 import type { Leader } from './leader';
 import { tourKeyAction, type TourKeyAction } from './player';
 import { openNotesWindow, type NotesWindow } from './notes-window';
+import { CaptionFaceDrawing } from './CaptionFace';
 import { placeName, type CaptionPlace } from './placement';
 import type { StageCue } from './stage-store';
 import { TourNotesWindow } from './TourNotes';
@@ -93,10 +94,11 @@ export interface TourStageProps {
    */
   leader?: Leader | undefined;
   /**
-   * Keeps the place the person dragged the card to for the step whose caption it shows (ADR 0095).
-   * Without it, as in the read-only page, the card cannot be dragged.
+   * Keeps the place the person dragged the card to for the step whose caption it shows (ADR 0095),
+   * with its size when they resized it (ADR 0096). Without it, as in the read-only page, the card
+   * can be neither dragged nor resized.
    */
-  onPlace?: (step: number, at: CaptionAt) => void;
+  onPlace?: (step: number, at: CaptionAt, size?: CaptionSize) => void;
 }
 
 /** How far, in pixels, the pointer moves on the card before it drags it rather than clicks it. */
@@ -126,9 +128,31 @@ export function TourStage({
   const heading = useId();
   const stage = useRef<HTMLElement>(null);
   const [notesWindow, setNotesWindow] = useState<NotesWindow>();
-  // Where the card is while it is dragged, and once dropped until the step's caption changes, from
-  // the place it had then, `basis`.
-  const [dragged, setDragged] = useState<{ step: number; at: CaptionAt; basis: string }>();
+  // Where the card is, and how big, while it is dragged or resized, and once dropped until the step's
+  // caption changes from the place and size it had then, `basis`.
+  const [dragged, setDragged] = useState<{
+    step: number;
+    at: CaptionAt;
+    size: CaptionSize | undefined;
+    basis: string;
+  }>();
+  // The room inside the card that a face is laid out in (ADR 0096), measured as it changes.
+  const [faceBox, setFaceBox] = useState({ width: FACE_WIDTH, height: 0 });
+  const faced = tour.captionFace !== undefined;
+  useEffect(() => {
+    const card = stage.current?.querySelector<HTMLElement>('.tour-card');
+    if (!faced || !card || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      const style = getComputedStyle(card);
+      const across = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      const down = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      const width = Math.max(1, Math.round(card.clientWidth - across));
+      const height = Math.max(1, Math.round(card.clientHeight - down));
+      setFaceBox((was) => (was.width === width && was.height === height ? was : { width, height }));
+    });
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [faced]);
   const toggleNotes = () => {
     if (notesWindow === undefined) setNotesWindow(openNotesWindow());
     else setNotesWindow(undefined);
@@ -202,50 +226,102 @@ export function TourStage({
 
   if (!shown || !captioned) return null;
   const captionStep = captioning?.step ?? step;
-  const basis = JSON.stringify(captioned.caption.place ?? null);
-  const at =
-    dragged?.step === captionStep && dragged.basis === basis ? dragged.at : captioned.caption.place;
+  const basis = JSON.stringify([captioned.caption.place ?? null, captioned.caption.size ?? null]);
+  const held = dragged?.step === captionStep && dragged.basis === basis ? dragged : undefined;
+  const at = held ? held.at : captioned.caption.place;
+  const size = held ? held.size : captioned.caption.size;
   const cardPlace: CaptionPlace = at ?? place;
-  const startDrag = (event: ReactPointerEvent<HTMLElement>) => {
-    const card = event.currentTarget;
+  /**
+   * Follows the pointer from a press on the card, or on one of its handles, until it is let go: the
+   * card's new rectangle on the stage, from where it was and how far the pointer went, shown while it
+   * moves, and sent as the step's place, with its size.
+   */
+  const follow = (
+    event: ReactPointerEvent<HTMLElement>,
+    card: HTMLElement,
+    reshape: (from: DOMRect, dx: number, dy: number) => Box,
+    sizes: (box: Box, bounds: DOMRect) => CaptionSize | undefined,
+  ) => {
     const room = stage.current;
     if (!onPlace || !room || event.button !== 0 || phase !== 'shown') return;
-    // Its controls, as a scenario's, and its text's links, are pressed, not dragged.
-    if (event.target instanceof Element && event.target.closest('button, a, input, select')) return;
+    event.stopPropagation();
     const start = { x: event.clientX, y: event.clientY };
     const from = card.getBoundingClientRect();
-    let moving: CaptionAt | undefined;
+    let moving: { at: CaptionAt; size: CaptionSize | undefined } | undefined;
     const onMove = (move: PointerEvent) => {
       const dx = move.clientX - start.x;
       const dy = move.clientY - start.y;
       if (moving === undefined && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
       const bounds = room.getBoundingClientRect();
+      const box = reshape(from, dx, dy);
       const fraction = (offset: number, free: number) =>
         free > 0 ? Math.min(1, Math.max(0, offset / free)) : 0;
       moving = {
-        x: fraction(from.left + dx - bounds.left, bounds.width - from.width),
-        y: fraction(from.top + dy - bounds.top, bounds.height - from.height),
+        at: {
+          x: fraction(box.left - bounds.left, bounds.width - box.width),
+          y: fraction(box.top - bounds.top, bounds.height - box.height),
+        },
+        size: sizes(box, bounds),
       };
-      setDragged({ step: captionStep, at: moving, basis });
+      setDragged({ step: captionStep, ...moving, basis });
     };
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
       if (moving === undefined) return;
-      const kept = { x: round3(moving.x), y: round3(moving.y) };
-      setDragged({ step: captionStep, at: kept, basis });
-      onPlace(captionStep, kept);
+      const kept = {
+        at: { x: round3(moving.at.x), y: round3(moving.at.y) },
+        size: moving.size && roundedSize(moving.size),
+      };
+      setDragged({ step: captionStep, ...kept, basis });
+      onPlace(captionStep, kept.at, kept.size);
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
   };
-  const cardStyle: CSSProperties & Record<'--card-x' | '--card-y', string | undefined> = {
+  const startDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    // Its controls, as a scenario's, and its text's links, are pressed, not dragged.
+    if (event.target instanceof Element && event.target.closest('button, a, input, select')) return;
+    follow(
+      event,
+      event.currentTarget,
+      (from, dx, dy) => ({
+        left: from.left + dx,
+        top: from.top + dy,
+        width: from.width,
+        height: from.height,
+      }),
+      () => size,
+    );
+  };
+  const startResize = (edge: Edge) => (event: ReactPointerEvent<HTMLElement>) => {
+    const card = event.currentTarget.parentElement;
+    if (!card) return;
+    follow(
+      event,
+      card,
+      (from, dx, dy) => resized(from, edge, dx, dy, stage.current?.getBoundingClientRect()),
+      (box, bounds) => {
+        const width = Math.max(MIN_SIZE, Math.min(1, box.width / bounds.width));
+        // The height is kept once a handle that moves it is used, or when the step had one.
+        const tall = edge.includes('n') || edge.includes('s') || size?.height !== undefined;
+        return tall
+          ? { width, height: Math.max(MIN_SIZE, Math.min(1, box.height / bounds.height)) }
+          : { width };
+      },
+    );
+  };
+  const cardStyle: CSSProperties &
+    Record<'--card-x' | '--card-y' | '--card-w' | '--card-h', string | undefined> = {
     transitionDuration: `${fade}ms`,
     '--card-x': typeof cardPlace === 'string' ? undefined : String(cardPlace.x),
     '--card-y': typeof cardPlace === 'string' ? undefined : String(cardPlace.y),
+    '--card-w': size === undefined ? undefined : String(size.width),
+    '--card-h': size?.height === undefined ? undefined : String(size.height),
   };
+  const face = tour.captionFace;
   const position = t('Step {n} of {total}', { n: step + 1, total });
   const revealTexts = (captioned.reveal ?? [])
     .slice(0, revealed)
@@ -295,13 +371,33 @@ export function TourStage({
         data-phase={phase}
         data-place={placeName(cardPlace)}
         data-draggable={onPlace ? '' : undefined}
+        data-sized={size === undefined ? undefined : size.height === undefined ? 'width' : 'both'}
         style={cardStyle}
-        title={onPlace ? t('Drag the caption to place it where it reads best') : undefined}
+        title={
+          onPlace
+            ? t('Drag the caption to place it where it reads best, or its edges to resize it')
+            : undefined
+        }
         onPointerDown={startDrag}
       >
-        <h3 className="tour-card-title">{captioned.caption.title}</h3>
-        {captioned.caption.text !== undefined && (
-          <TourText className="tour-card-text" text={captioned.caption.text} />
+        {face === undefined ? (
+          <>
+            <h3 className="tour-card-title">{captioned.caption.title}</h3>
+            {captioned.caption.text !== undefined && (
+              <TourText className="tour-card-text" text={captioned.caption.text} />
+            )}
+          </>
+        ) : (
+          <>
+            <h3 className="visually-hidden">{captioned.caption.title}</h3>
+            <CaptionFaceDrawing
+              face={face}
+              tour={tour}
+              step={captionStep}
+              width={faceBox.width}
+              height={size?.height === undefined ? undefined : faceBox.height}
+            />
+          </>
         )}
         {revealTexts.map((text, at) => (
           <TourText key={at} className="tour-card-text tour-card-reveal" text={text} />
@@ -326,6 +422,16 @@ export function TourStage({
             onAction={onAction}
           />
         )}
+        {onPlace &&
+          EDGES.map((edge) => (
+            <span
+              key={edge}
+              className="tour-card-handle"
+              data-edge={edge}
+              aria-hidden="true"
+              onPointerDown={startResize(edge)}
+            />
+          ))}
       </article>
       <div className="tour-controls" role="toolbar" aria-label={t('Tour')}>
         <button
@@ -704,4 +810,51 @@ function inDialog(target: EventTarget | null): boolean {
 
 function round3(value: number): number {
   return Math.round(value * 1000) / 1000;
+}
+
+/** A face's width before the card is measured, as in tests, in pixels. */
+const FACE_WIDTH = 400;
+
+/** The least a card's size may be, as a fraction of the screen (ADR 0096). */
+const MIN_SIZE = 0.1;
+/** The least a card may be on screen, in pixels. */
+const MIN_WIDTH = 160;
+const MIN_HEIGHT = 64;
+
+/** A side or a corner of the card that a handle resizes it from. */
+type Edge = 'n' | 'e' | 's' | 'w' | 'ne' | 'se' | 'sw' | 'nw';
+const EDGES: readonly Edge[] = ['n', 'e', 's', 'w', 'ne', 'se', 'sw', 'nw'];
+
+/** A rectangle on the page. */
+interface Box {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * The card's rectangle after a handle moved by `dx` and `dy`: the sides it names follow the pointer,
+ * the others stay, never smaller than 160 by 64 pixels nor past the stage.
+ */
+function resized(from: DOMRect, edge: Edge, dx: number, dy: number, bounds?: DOMRect): Box {
+  let left = from.left;
+  let right = from.left + from.width;
+  let top = from.top;
+  let bottom = from.top + from.height;
+  const lowX = bounds?.left ?? -Infinity;
+  const highX = bounds ? bounds.left + bounds.width : Infinity;
+  const lowY = bounds?.top ?? -Infinity;
+  const highY = bounds ? bounds.top + bounds.height : Infinity;
+  if (edge.includes('w')) left = Math.max(lowX, Math.min(right - MIN_WIDTH, left + dx));
+  if (edge.includes('e')) right = Math.min(highX, Math.max(left + MIN_WIDTH, right + dx));
+  if (edge.includes('n')) top = Math.max(lowY, Math.min(bottom - MIN_HEIGHT, top + dy));
+  if (edge.includes('s')) bottom = Math.min(highY, Math.max(top + MIN_HEIGHT, bottom + dy));
+  return { left, top, width: right - left, height: bottom - top };
+}
+
+function roundedSize(size: CaptionSize): CaptionSize {
+  return size.height === undefined
+    ? { width: round3(size.width) }
+    : { width: round3(size.width), height: round3(size.height) };
 }

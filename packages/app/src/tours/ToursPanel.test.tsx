@@ -55,6 +55,53 @@ describe('the tours panel', () => {
     });
   });
 
+  it('gives the tour’s captions a look in the HTML and CSS of faces (ADR 0096)', async () => {
+    const { tab, sent } = openTours();
+    fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
+    fireEvent.click(within(tab).getByRole('button', { name: 'Start a look' }));
+    const markup = within(tab).getByLabelText('Markup');
+    fireEvent.change(markup, { target: { value: '<script>' } });
+    within(tab).getByRole('list', { name: 'What the look’s HTML and CSS say' });
+    expect(within(tab).getByRole('button', { name: 'Apply' })).toBeDisabled();
+    fireEvent.change(markup, { target: { value: '<p>{{step}}: {{name}}</p>' } });
+    fireEvent.change(within(tab).getByLabelText('Style'), { target: { value: '' } });
+    within(tab).getByRole('img', { name: `1: ${tour.steps[0]?.caption.title ?? ''}` });
+    fireEvent.click(within(tab).getByRole('button', { name: 'Apply' }));
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toEqual({
+      type: 'update-tour',
+      id: tour.id,
+      changes: { captionFace: { markup: ['<p>{{step}}: {{name}}</p>'] } },
+    });
+  });
+
+  it('shows a step’s size, and fits it to its content again (ADR 0096)', async () => {
+    const sized: ProjectSnapshot = {
+      ...sample,
+      tours: sample.tours.map((each) =>
+        each.id !== tour.id
+          ? each
+          : {
+              ...each,
+              steps: each.steps.map((step, at) =>
+                at === 0
+                  ? { ...step, caption: { ...step.caption, size: { width: 0.4, height: 0.25 } } }
+                  : step,
+              ),
+            },
+      ),
+    };
+    const { tab, sent } = openTours(sized);
+    fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
+    within(tab).getByText(/Size: 40 % by 25 % of the screen\./);
+    fireEvent.click(within(tab).getByRole('button', { name: 'Fit to its content' }));
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    const command = sent[0];
+    expect(command?.type === 'update-tour' && command.changes.steps?.[0]?.caption).toEqual(
+      tour.steps[0]?.caption,
+    );
+  });
+
   it('edits a step’s caption in place, as one action, when the person leaves the field', async () => {
     const { tab, sent } = openTours();
     fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));

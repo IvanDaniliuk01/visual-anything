@@ -1935,6 +1935,8 @@ export interface TourFile {
    * @maxItems 1000
    */
   steps: TourStep[];
+  /** How its caption cards look (ADR 0096): a face, filled from each step's caption. */
+  captionFace?: CaptionFace;
   /**
    * What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what
    * the file keeps in place, and the other choice. Written only by a merge; the person resolves them.
@@ -2016,6 +2018,39 @@ export interface TourCaption {
    * relation, a note or an arrow.
    */
   pointTo?: Id;
+  /** How big the card is (ADR 0096); left out, as wide as the stage makes it and as tall as its content. */
+  size?: CaptionSize;
+}
+
+/**
+ * The size a caption card was given (ADR 0096), as fractions of the screen, so that it keeps its
+ * proportions on any screen.
+ */
+export interface CaptionSize {
+  /**
+   * @minimum 0.1
+   * @maximum 1
+   */
+  width: number;
+  /**
+   * Left out, the card is as tall as its content.
+   *
+   * @minimum 0.1
+   * @maximum 1
+   */
+  height?: number;
+}
+
+/**
+ * How a tour's caption cards look (ADR 0096): markup and style in a face's subset (ADR 0083), filled
+ * with `{{name}}`, the step's title, `{{text}}`, its text, `{{step}}` and `{{steps}}`, and
+ * `{{component}}`, the tour's name.
+ */
+export interface CaptionFace {
+  /** Its markup, a line each. */
+  markup: FaceLine[];
+  /** Its style rules, a line each. */
+  style?: FaceLine[];
 }
 
 /** A corner of the screen a caption card can be fixed in. */

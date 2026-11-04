@@ -4,6 +4,7 @@
  */
 import type { ConflictFile } from '../operations';
 import type {
+  CaptionFace,
   Appearance,
   AppearanceImage,
   AppearanceSolid,
@@ -718,7 +719,13 @@ export type NewTourStep = Omit<TourStep, 'id'> & { id?: Id };
 /** Creates a tour, with its steps or none yet. */
 export interface CreateTourCommand {
   type: 'create-tour';
-  tour: { id?: Id; name: string; description?: string; steps?: NewTourStep[] };
+  tour: {
+    id?: Id;
+    name: string;
+    description?: string;
+    steps?: NewTourStep[];
+    captionFace?: CaptionFace;
+  };
 }
 
 /**
@@ -728,7 +735,13 @@ export interface CreateTourCommand {
 export interface UpdateTourCommand {
   type: 'update-tour';
   id: Id;
-  changes: { name?: string; description?: string | null; steps?: NewTourStep[] };
+  changes: {
+    name?: string;
+    description?: string | null;
+    steps?: NewTourStep[];
+    /** The look of its caption cards (ADR 0096); `null` takes it away. */
+    captionFace?: CaptionFace | null;
+  };
 }
 
 /** Deletes a tour. */

@@ -1,5 +1,5 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
-import type { CaptionAt, Id, ViewFile } from '@visual-anything/schema';
+import type { CaptionAt, CaptionSize, Id, ViewFile } from '@visual-anything/schema';
 import {
   useCallback,
   useContext,
@@ -205,16 +205,17 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
       follower,
     ],
   );
-  // A caption card dragged while a tour plays keeps its place in the step (ADR 0095), one action.
+  // A caption card dragged or resized while a tour plays keeps its place, and its size, in the step
+  // (ADR 0095, ADR 0096), as one action.
   const placeCaption = useCallback(
-    (tourId: Id, step: number, at: CaptionAt) => {
+    (tourId: Id, step: number, at: CaptionAt, size?: CaptionSize) => {
       const tour = project.tours.find((each) => each.id === tourId);
       const shown = tour?.steps[step];
       if (!onCommand || !tour || !shown) return;
       void onCommand(
         changeStep(tour, shown.id, (each) => ({
           ...each,
-          caption: { ...each.caption, place: at },
+          caption: { ...each.caption, place: at, ...(size === undefined ? {} : { size }) },
         })),
       );
     },

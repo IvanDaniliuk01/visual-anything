@@ -2692,12 +2692,29 @@ export const ui: Catalog = {
   'Bottom left': 'Abajo a la izquierda',
   'Bottom right': 'Abajo a la derecha',
   'Where it was dragged': 'Donde lo arrastraste',
-  'While the tour plays, drag the caption to place it.':
-    'Mientras el recorrido se reproduce, arrastrá el rótulo para ubicarlo.',
+  'While the tour plays, drag the caption to place it, or its edges to resize it.':
+    'Mientras el recorrido se reproduce, arrastrá el rótulo para ubicarlo, o sus bordes para cambiarle el tamaño.',
+  'Size: {width} % of the screen wide.': 'Tamaño: {width} % del ancho de la pantalla.',
+  'Size: {width} % by {height} % of the screen.':
+    'Tamaño: {width} % por {height} % de la pantalla.',
+  'Fit to its content': 'Ajustar a su contenido',
+  'Step {n}’s caption fits its content again.':
+    'El rótulo del paso {n} vuelve a ajustarse a su contenido.',
+  'Caption look': 'Aspecto del rótulo',
+  'The captions show their title and text. Give them a look of your own, in the HTML and CSS of faces: {title} is the title, {text} the text, {step} and {steps} where the step is.':
+    'Los rótulos muestran su título y su texto. Dales un aspecto propio, con el HTML y el CSS de las caras: {title} es el título, {text} el texto, {step} y {steps} en qué paso está.',
+  'Start a look': 'Empezar un aspecto',
+  Markup: 'Markup',
+  'What the look’s HTML and CSS say': 'Lo que dicen el HTML y el CSS del aspecto',
+  'Preview on the first step': 'Vista previa en el primer paso',
+  'The captions of “{name}” take this look.': 'Los rótulos de “{name}” toman este aspecto.',
+  'The captions of “{name}” show their title and text again.':
+    'Los rótulos de “{name}” vuelven a mostrar su título y su texto.',
+  'Remove the look': 'Quitar el aspecto',
   'Step {n}’s caption sits where it reads best.': 'El rótulo del paso {n} va donde mejor se lea.',
   'Step {n}’s caption sits in a corner.': 'El rótulo del paso {n} va en una esquina.',
-  'Drag the caption to place it where it reads best':
-    'Arrastrá el rótulo para ubicarlo donde mejor se lea',
+  'Drag the caption to place it where it reads best, or its edges to resize it':
+    'Arrastrá el rótulo para ubicarlo donde mejor se lea, o sus bordes para cambiarle el tamaño',
   'Step {n} points at nothing.': 'El paso {n} no apunta a nada.',
   'Step {n} points at “{name}”.': 'El paso {n} apunta a “{name}”.',
   'Always cut, never glide its shapes': 'Cortar siempre, sin deslizar sus formas',
@@ -4934,8 +4951,16 @@ export const messages: Catalog = {
   'A view state is an object.': 'Un estado de vista es un objeto JSON.',
   'Step {n} of the tour needs a caption with a title.':
     'El paso {n} del recorrido necesita un rótulo con un título.',
-  'A caption holds a title, a text, a place and the mark it points at, nothing else.':
-    'Un rótulo tiene un título, un texto, un lugar y la marca a la que apunta, nada más.',
+  'A caption holds a title, a text, a place, the mark it points at and a size, nothing else.':
+    'Un rótulo tiene un título, un texto, un lugar, la marca a la que apunta y un tamaño, nada más.',
+  "A caption card's size is { width, height }, each from 0.1 to 1 of the screen, the height left out for as tall as its content.":
+    'El tamaño de la tarjeta de un rótulo es { width, height }, cada uno de 0,1 a 1 de la pantalla; sin height, es tan alta como su contenido.',
+  "A tour's caption look is an object with its markup and style.":
+    'El aspecto de los rótulos de un recorrido se da con su markup y su estilo.',
+  "A tour's caption look holds its markup and style, nothing else.":
+    'El aspecto de los rótulos de un recorrido tiene su markup y su estilo, nada más.',
+  "A tour's caption look needs its markup, a line at least.":
+    'El aspecto de los rótulos de un recorrido necesita su markup, al menos una línea.',
   // M11d: a caption that points, a step that always cuts, and a pulse (ADR 0084).
   'A caption points at one of its step\'s marks by its id, and "{id}" is not one.':
     'Un rótulo apunta a una de las marcas de su paso por su id, y "{id}" no es un id.',

@@ -51,6 +51,7 @@ import {
 import { useToursHost } from './context';
 import { describeMarks } from './describe';
 import { drawnBounds, drawnShapes } from './drawn-bounds';
+import { CaptionLook } from './CaptionLook';
 import { MotionPreferences } from './MotionPreferences';
 import { stepJointsFrom, withStepJoints } from './step-joints';
 import { useSpacePanel, useSpacePanelState } from '../space/context';
@@ -273,6 +274,11 @@ function OpenTour({
         onCommit={(name) =>
           void send(renameTourCommand(tour, name), t('Renamed to “{name}”.', { name }))
         }
+      />
+      <CaptionLook
+        tour={tour}
+        editable={editable}
+        send={(command, done) => void send(command, done)}
       />
       {checks && tour.steps.length > 0 && (
         <p className="tour-check-summary">
@@ -643,8 +649,37 @@ function StepExplains({
           )}
         </select>
         <p className="tour-field-hint">
-          {t('While the tour plays, drag the caption to place it.')}
+          {t('While the tour plays, drag the caption to place it, or its edges to resize it.')}
         </p>
+        {step.caption.size !== undefined && (
+          <p className="tour-field-hint">
+            {step.caption.size.height === undefined
+              ? t('Size: {width} % of the screen wide.', {
+                  width: Math.round(step.caption.size.width * 100),
+                })
+              : t('Size: {width} % by {height} % of the screen.', {
+                  width: Math.round(step.caption.size.width * 100),
+                  height: Math.round(step.caption.size.height * 100),
+                })}{' '}
+            <button
+              type="button"
+              className="tour-button"
+              disabled={!editable}
+              onClick={() =>
+                change(
+                  (each) => {
+                    const caption: TourStep['caption'] = { ...each.caption };
+                    delete caption.size;
+                    return { ...each, caption };
+                  },
+                  t('Step {n}’s caption fits its content again.', { n }),
+                )
+              }
+            >
+              {t('Fit to its content')}
+            </button>
+          </p>
+        )}
       </div>
       <label className="tour-step-check">
         <input

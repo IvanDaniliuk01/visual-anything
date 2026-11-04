@@ -25,6 +25,10 @@
       "description": "The steps in order. A step that names something deleted is kept, and played without it.",
       "maxItems": 1000
     },
+    "captionFace": {
+      "$ref": "#/definitions/CaptionFace",
+      "description": "How its caption cards look (ADR 0096): a face, filled from each step's caption."
+    },
     "conflicts": {
       "type": "array",
       "items": {
@@ -619,6 +623,10 @@
         "pointTo": {
           "$ref": "#/definitions/Id",
           "description": "One of the step's marks that a leader line from the card points at (ADR 0084): an element, a relation, a note or an arrow."
+        },
+        "size": {
+          "$ref": "#/definitions/CaptionSize",
+          "description": "How big the card is (ADR 0096); left out, as wide as the stage makes it and as tall as its content."
         }
       },
       "required": [
@@ -657,6 +665,27 @@
       ],
       "additionalProperties": false,
       "description": "A place on the screen a caption card was dragged to (ADR 0095), as fractions of the room the card leaves, so that it stays whole on any screen: 0 puts its left or top edge at the screen's, 1 its right or bottom edge at the screen's."
+    },
+    "CaptionSize": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 1
+        },
+        "height": {
+          "type": "number",
+          "description": "Left out, the card is as tall as its content.",
+          "minimum": 0.1,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "width"
+      ],
+      "additionalProperties": false,
+      "description": "The size a caption card was given (ADR 0096), as fractions of the screen, so that it keeps its proportions on any screen."
     },
     "TourPlayback": {
       "type": "object",
@@ -751,6 +780,36 @@
       ],
       "additionalProperties": false,
       "description": "A pulse (ADR 0084): a marker travels along each relation of a chain in turn, to show what follows what within one step."
+    },
+    "CaptionFace": {
+      "type": "object",
+      "properties": {
+        "markup": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FaceLine"
+          },
+          "description": "Its markup, a line each."
+        },
+        "style": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FaceLine"
+          },
+          "description": "Its style rules, a line each."
+        }
+      },
+      "required": [
+        "markup"
+      ],
+      "additionalProperties": false,
+      "description": "How a tour's caption cards look (ADR 0096): markup and style in a face's subset (ADR 0083), filled with `{{name}}`, the step's title, `{{text}}`, its text, `{{step}}` and `{{steps}}`, and `{{component}}`, the tour's name."
+    },
+    "FaceLine": {
+      "type": "string",
+      "description": "One line of a face's markup or style, without its line ending.",
+      "maxLength": 2000,
+      "pattern": "^[^\\r\\n]*$"
     },
     "FileConflict": {
       "type": "object",

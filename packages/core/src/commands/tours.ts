@@ -5,6 +5,8 @@
  * exactly as it was may still name what was deleted since, and stays, flagged, until it is fixed.
  */
 import type {
+  CaptionFace,
+  CaptionSize,
   DecisionChoices,
   Id,
   TourAdvance,
@@ -42,6 +44,7 @@ import {
   sameJson,
   type Draft,
 } from './draft';
+import { checkedFace } from './traits';
 import type { CreateTourCommand, DeleteTourCommand, NewTourStep, UpdateTourCommand } from './types';
 
 export function createTour(draft: Draft, command: CreateTourCommand): string {
@@ -56,6 +59,7 @@ export function createTour(draft: Draft, command: CreateTourCommand): string {
     name,
     description: checkedDescription(tour.description),
     steps: checkedSteps(draft, requireList(tour.steps, 'steps'), []),
+    captionFace: checkedCaptionFace(tour.captionFace),
   });
   checkTextLength(created, undefined);
   draft.apply({
@@ -84,6 +88,10 @@ export function updateTour(draft: Draft, command: UpdateTourCommand): string {
   }
   if (changes.steps !== undefined) {
     next.steps = checkedSteps(draft, requireList(changes.steps, 'steps'), current.steps);
+  }
+  if (changes.captionFace === null) delete next.captionFace;
+  else if (changes.captionFace !== undefined) {
+    next.captionFace = checkedCaptionFace(changes.captionFace);
   }
   if (sameJson(next, current)) return `Edit the tour "${current.name}"`;
   checkTextLength(next, current);
@@ -261,11 +269,11 @@ function checkedCaption(value: unknown, where: string): TourCaption {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     reject('invalid-command', `${where} needs a caption with a title.`);
   }
-  const { title, text, place, pointTo, ...rest } = value as Record<string, unknown>;
+  const { title, text, place, pointTo, size, ...rest } = value as Record<string, unknown>;
   if (Object.keys(rest).length > 0) {
     reject(
       'invalid-command',
-      'A caption holds a title, a text, a place and the mark it points at, nothing else.',
+      'A caption holds a title, a text, a place, the mark it points at and a size, nothing else.',
     );
   }
   if (pointTo !== undefined && !isId(pointTo)) {
@@ -285,7 +293,13 @@ function checkedCaption(value: unknown, where: string): TourCaption {
     tooLong: `A caption's text holds at most ${MAX_CAPTION_TEXT} characters.`,
   });
   const corner = checkedPlace(place);
-  return compact({ title, text: checked, place: corner, pointTo: pointTo });
+  return compact({
+    title,
+    text: checked,
+    place: corner,
+    pointTo: pointTo,
+    size: checkedSize(size),
+  });
 }
 
 /** The corners a caption may be fixed in; `auto`, the side farthest from the marks, is never written. */
@@ -312,6 +326,54 @@ function checkedPlace(value: unknown): TourCaption['place'] {
     'invalid-command',
     'A caption sits in a corner, top-left, top-right, bottom-left or bottom-right, at a place given as { x, y }, each from 0 to 1 across the room the card leaves on screen, or where it reads best, auto.',
   );
+}
+
+/** A caption card's size (ADR 0096): fractions of the screen from 0.1 to 1, kept to three decimals. */
+function checkedSize(value: unknown): CaptionSize | undefined {
+  if (value === undefined) return undefined;
+  const fraction = (each: unknown): each is number =>
+    typeof each === 'number' && Number.isFinite(each) && each >= 0.1 && each <= 1;
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    const { width, height, ...rest } = value as Record<string, unknown>;
+    if (
+      Object.keys(rest).length === 0 &&
+      fraction(width) &&
+      (height === undefined || fraction(height))
+    ) {
+      const round = (each: number) => Math.round(each * 1000) / 1000;
+      return compact({
+        width: round(width),
+        height: height === undefined ? undefined : round(height),
+      });
+    }
+  }
+  reject(
+    'invalid-command',
+    "A caption card's size is { width, height }, each from 0.1 to 1 of the screen, the height left out for as tall as its content.",
+  );
+}
+
+/**
+ * The look of a tour's caption cards (ADR 0096): a face's markup and style, checked and compiled as a
+ * component's face is, and nothing else of a face.
+ */
+function checkedCaptionFace(value: unknown): CaptionFace | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    reject('invalid-face', "A tour's caption look is an object with its markup and style.");
+  }
+  const { markup, style, ...rest } = value as Record<string, unknown>;
+  if (Object.keys(rest).length > 0) {
+    reject('invalid-face', "A tour's caption look holds its markup and style, nothing else.");
+  }
+  if (!Array.isArray(markup) || markup.length === 0) {
+    reject('invalid-face', "A tour's caption look needs its markup, a line at least.");
+  }
+  const face = checkedFace({ markup, ...(style === undefined ? {} : { style }) }, 'the captions');
+  if (face === 'none' || face.markup === undefined) {
+    reject('invalid-face', "A tour's caption look needs its markup, a line at least.");
+  }
+  return compact({ markup: face.markup, style: face.style });
 }
 
 /**

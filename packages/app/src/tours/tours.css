@@ -214,6 +214,78 @@
   transform: translate(calc(var(--card-x) * -100%), calc(var(--card-y) * -100%));
 }
 
+/*
+ * A card given a size (ADR 0096): `--card-w` and `--card-h` are fractions of the stage. It is never
+ * smaller than 10 by 4 rem, which the stage's resizing keeps too; what does not fit scrolls.
+ */
+.tour-card[data-sized] {
+  width: calc(var(--card-w) * 100%);
+  min-width: var(--size-1000);
+}
+
+.tour-card[data-sized='both'] {
+  height: calc(var(--card-h) * 100%);
+  min-height: var(--size-400);
+  max-height: none;
+}
+
+/* A card drawn by the tour's caption look (ADR 0096): its face is laid out in the card's width. */
+.tour-card-face {
+  display: block;
+  overflow: visible;
+}
+
+/*
+ * The handles a card is resized by (ADR 0096): thin strips along its sides and squares at its
+ * corners, unseen until the pointer finds them.
+ */
+.tour-card-handle {
+  position: absolute;
+}
+
+.tour-card-handle:is([data-edge='n'], [data-edge='s']) {
+  right: var(--space-50);
+  left: var(--space-50);
+  height: var(--space-50);
+  cursor: ns-resize;
+}
+
+.tour-card-handle:is([data-edge='e'], [data-edge='w']) {
+  top: var(--space-50);
+  bottom: var(--space-50);
+  width: var(--space-50);
+  cursor: ew-resize;
+}
+
+.tour-card-handle:is([data-edge='ne'], [data-edge='se'], [data-edge='sw'], [data-edge='nw']) {
+  width: var(--space-75);
+  height: var(--space-75);
+}
+
+.tour-card-handle:is([data-edge='n'], [data-edge='ne'], [data-edge='nw']) {
+  top: 0;
+}
+
+.tour-card-handle:is([data-edge='s'], [data-edge='se'], [data-edge='sw']) {
+  bottom: 0;
+}
+
+.tour-card-handle:is([data-edge='e'], [data-edge='ne'], [data-edge='se']) {
+  right: 0;
+}
+
+.tour-card-handle:is([data-edge='w'], [data-edge='nw'], [data-edge='sw']) {
+  left: 0;
+}
+
+.tour-card-handle:is([data-edge='ne'], [data-edge='sw']) {
+  cursor: nesw-resize;
+}
+
+.tour-card-handle:is([data-edge='nw'], [data-edge='se']) {
+  cursor: nwse-resize;
+}
+
 /* A card that can be dragged says so under the pointer; its controls and links keep their own. */
 .tour-card[data-draggable] {
   cursor: grab;
@@ -734,6 +806,54 @@
 .tour-step-notes summary {
   font-size: var(--text-sm);
   cursor: pointer;
+}
+
+/* The look of a tour's caption cards (ADR 0096): its markup and style, problems and preview. */
+.tour-caption-look {
+  display: grid;
+  gap: var(--space-50);
+}
+
+.tour-caption-look[open] {
+  padding-bottom: var(--space-50);
+}
+
+.tour-caption-look summary {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.tour-field textarea.tour-code {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--text-sm);
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.tour-look-problems {
+  display: grid;
+  gap: var(--space-25);
+  margin: 0;
+  padding-left: var(--space-100);
+  font-size: var(--text-sm);
+}
+
+.tour-look-problems [data-severity='error'] {
+  color: var(--problem);
+}
+
+.tour-look-problems [data-severity='warning'] {
+  color: var(--warning);
+}
+
+.tour-look-preview {
+  padding: var(--space-75) var(--space-100);
+  overflow: auto;
+  border: var(--stroke-thin) solid var(--border);
+  border-left: var(--space-25) solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
 }
 
 /* How tours and scenarios move: the Motion and Fades preferences (ADR 0077). */

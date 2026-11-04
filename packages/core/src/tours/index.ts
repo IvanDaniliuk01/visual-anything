@@ -65,3 +65,4 @@ export {
   pulseProblems,
   pulseTimes,
 } from './pulse';
+export { STARTING_CAPTION_FACE, captionFaceInput, compileCaptionFace } from './caption-face';
