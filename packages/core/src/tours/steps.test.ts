@@ -505,6 +505,17 @@ describe('how a step plays', () => {
     });
   });
 
+  it('draws its marks in its own style when it or its tour says so, the step first (ADR 0100)', () => {
+    const marked = step({ marks: ['api'] });
+    expect(playableStep(project(), marked)).not.toHaveProperty('emphasis');
+    expect(playableStep(project(), marked, 'halo')).not.toHaveProperty('emphasis');
+    expect(playableStep(project(), marked, 'style')?.emphasis).toBe('style');
+    expect(playableStep(project(), { ...marked, emphasis: 'style' })?.emphasis).toBe('style');
+    expect(playableStep(project(), { ...marked, emphasis: 'halo' }, 'style')).not.toHaveProperty(
+      'emphasis',
+    );
+  });
+
   it('plays a scenario only over the view it plays over', () => {
     expect(
       playableStep(

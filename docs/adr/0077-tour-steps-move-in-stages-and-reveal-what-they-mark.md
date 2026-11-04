@@ -99,6 +99,10 @@ The stages come from a pure function of the core, `tourTransition(from, to, trav
 - The benchmark gains a tour phase on the 10,000-element view: a step that filters, dims, moves the camera and reveals.
 - ADR 0058 and ADR 0031 each gain a "Superseded in part" section, and CONTEXT.md gains **Reveal**.
 
+## Superseded in part, 2026-11-04
+
+ADR 0100 supersedes how this decision marks what a step marks, for a step that asks for it. A step or its tour may say `emphasis: "style"`: what the step and its reveals mark is then drawn again in its own style, with nothing laid over it, a relation heavier, in the emphasis color, with a larger arrowhead and its dash flowing from its `from` end to its `to` end, an element with a stronger border and a soft shadow. The in stage fades that by its group's opacity as it fades halos. A step that says nothing, in a tour that says nothing, keeps its halo, and everything else here stands.
+
 ## Clarifications
 
 - 2026-10-27 (M11c's seam 1, in the main session):

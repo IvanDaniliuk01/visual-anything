@@ -106,6 +106,19 @@ The executables are not signed yet, so each system warns the first time:
 - **macOS.** The executable is signed ad hoc, which lets it run but does not identify its maker. Make it executable after downloading, with `chmod +x visual-anything-macos-arm64`. The first run of a file a browser downloaded shows "“visual-anything-macos-arm64” Not Opened: Apple could not verify it is free of malware". Choose **Done**, open **System Settings**, then **Privacy & Security**, choose **Open Anyway** beside the message about it, and run it again; macOS asks once more, with your password. Or remove the quarantine a browser puts on downloads before the first run: `xattr -d com.apple.quarantine visual-anything-macos-arm64`.
 - **Linux.** Nothing warns. Make it executable after downloading, with `chmod +x visual-anything-linux-x64`. It needs glibc 2.28 or later (Debian 10, Ubuntu 20.04, Fedora 29, RHEL 8 or later; not Alpine), and opens the browser through `xdg-open`, which comes with `xdg-utils`; without it, use `--no-open`.
 
+## Tours
+
+A tour walks someone through a project one step at a time: each step takes the canvas to a view state, says what it shows in a caption card, and marks the elements and relations it explains (ADR 0058, ADR 0077, ADR 0084). Build one from the **Tours** panel, from the canvas as it is, or ask Claude to; play it full screen with **Play**, the arrow keys and Escape.
+
+### How a step marks what it marks
+
+A step marks with a halo unless it, or its tour, says otherwise (`emphasis`, ADR 0100):
+
+- **A halo** (`"halo"`) lays a band of the emphasis color over each mark. It suits a step that marks several shapes at once.
+- **Its own style** (`"style"`) draws nothing over a mark: it draws it again, restyled. A relation is drawn twice as wide, in the emphasis color, with a larger arrowhead and its dash kept, and while the tour plays its dash flows from its from end to its to end, so that its direction reads without finding the arrowhead; its name is written bold on the caption card's color. An element takes a stronger border in its own stroke color and a soft shadow, keeping its fill, its category's color and its face, and breathes once as it comes in. Choose it for a step that explains one relation, or which way it runs.
+
+Set it for the whole tour under **How its steps mark what they mark**, and for one step under **How it marks what it marks**: **As the tour says**, **A halo** or **Its own style**. In the file, `"emphasis": "style"` on the tour or on a step; a step's choice wins. Its reveals mark as the step does, and so does its pulse. Under reduced motion nothing flows or breathes, and the restyle stays. With `dimRest`, which dims what a step does not mark, what it marks in its own style stands out over the dimmed rest in either theme.
+
 ## Exporting a view
 
 ```sh

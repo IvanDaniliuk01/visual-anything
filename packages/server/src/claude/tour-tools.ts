@@ -5,7 +5,8 @@
  * it. Each call is one undoable action of Claude's. A step is a view state, as get_view_address takes
  * one, with a caption, the elements and relations it marks, reveals that bring in more one press at a
  * time, dimming of the rest, a scenario it plays, advancing by itself, a mark its caption points at,
- * a pulse along a chain of relations, a transition that always cuts (ADR 0084), and speaker notes;
+ * a pulse along a chain of relations, a transition that always cuts (ADR 0084), how it marks what it
+ * marks, with a halo or in its own style (ADR 0100), and speaker notes;
  * with `escapeText`, its caption's text, its reveals' texts and its notes are written as the
  * characters they are (ADR 0082). check_tour
  * says how a tour plays, step by step, reading marks outside a camera from the app's own scene.
@@ -160,6 +161,23 @@ const dimRest = () =>
       'true dims everything the step does not mark, but the ends of the relations it marks, so that its marks and reveals stand out; false, as left out, dims nothing.',
     );
 
+/** How a step marks what it marks (ADR 0100). */
+const EMPHASES = ['halo', 'style'] as const;
+
+const emphasis = () =>
+  z
+    .enum(EMPHASES)
+    .describe(
+      'How the step and its reveals mark what they mark: halo lays a halo over each mark; style draws nothing over it and restyles it instead, a relation heavier, in the canvas’s emphasis color, with a bigger arrowhead, its dash flowing from its from end to its to end and its name bold on a solid back, an element with a stronger border and a soft lift. Prefer style for a step that explains one relation or its direction, which a halo hides on a thin line. Left out, as the tour says.',
+    );
+
+const tourEmphasis = () =>
+  z
+    .enum(EMPHASES)
+    .describe(
+      'How every step without an emphasis of its own marks what it marks: halo, as left out, lays a halo over each mark; style restyles each mark instead, as a step’s emphasis says.',
+    );
+
 /** Where a caption card sits; `auto` is never written. */
 const CAPTION_PLACES = ['auto', 'top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
 
@@ -225,6 +243,7 @@ const newStep = () =>
     marks: marks().optional(),
     reveal: reveal().optional(),
     dimRest: dimRest().optional(),
+    emphasis: emphasis().optional(),
     play: play().optional(),
     advance: advance().optional(),
     pointTo: pointTo().optional(),
@@ -235,14 +254,14 @@ const newStep = () =>
 
 type NewStepArgs = z.infer<ReturnType<typeof newStep>>;
 
-const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} Its caption has a title and a text, and place puts its card in a corner; marks highlight elements, relations, notes and arrows; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; play plays a scenario over the step's view from one of its steps to another, and its choices the alternative to play at each of the scenario's decisions (read_scenario gives their ids), every other decision playing its default; advance moves on by itself; pointTo ties the caption to one of the step's marks with a leader line; pulse sends a marker along a chain of relations, to show what follows what; transition cut always cuts, where the step would otherwise glide the shapes it shares with the step before into another view; notes are the speaker's. With escapeText: true, the caption's text, the reveals' texts and the notes are written as the characters they are (use it for outside material); the title is plain text always. The answer says how the camera gets to the step (glide, cut, stay, fit or follows, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
+const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} Its caption has a title and a text, and place puts its card in a corner; marks highlight elements, relations, notes and arrows; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; emphasis style restyles what the step marks rather than laying a halo over it; play plays a scenario over the step's view from one of its steps to another, and its choices the alternative to play at each of the scenario's decisions (read_scenario gives their ids), every other decision playing its default; advance moves on by itself; pointTo ties the caption to one of the step's marks with a leader line; pulse sends a marker along a chain of relations, to show what follows what; transition cut always cuts, where the step would otherwise glide the shapes it shares with the step before into another view; notes are the speaker's. With escapeText: true, the caption's text, the reveals' texts and the notes are written as the characters they are (use it for outside material); the title is plain text always. The answer says how the camera gets to the step (glide, cut, stay, fit or follows, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
 
 // ——— Read ———
 
 const readTour = tool({
   name: 'read_tour',
   title: 'Read a tour',
-  description: `Reads a tour: its steps in order, each with its number, id, view state, caption (and its place, when fixed in a corner), marks, reveals, dimRest, the scenario it plays, advance and its speaker notes, and what it names that the project no longer holds: such a step is kept and flagged as broken, and plays without it. Read it before changing a tour's steps; check_tour says how it plays.
+  description: `Reads a tour: its steps in order, each with its number, id, view state, caption (and its place, when fixed in a corner), marks, reveals, dimRest, emphasis, the scenario it plays, advance and its speaker notes, and what it names that the project no longer holds: such a step is kept and flagged as broken, and plays without it. Read it before changing a tour's steps; check_tour says how it plays.
 
 Example: { "tour": "how-booking-works" }`,
   input: { tour: tourId() },
@@ -280,6 +299,7 @@ Example: {
     name: z.string().min(1).max(MAX_TOUR_NAME),
     description: z.string().max(MAX_TOUR_DESCRIPTION).optional().describe(TAKES_MARKDOWN),
     steps: z.array(newStep()).max(200).optional(),
+    emphasis: tourEmphasis().optional(),
     escapeText: escapeTextInput(),
   },
   hints: WRITE,
@@ -299,6 +319,7 @@ Example: {
           name: args.name,
           description: escapedIf(args.escapeText, args.description),
           steps,
+          emphasis: args.emphasis === 'style' ? ('style' as const) : undefined,
         }),
       },
       (answer) => ({
@@ -363,7 +384,7 @@ Example, a caption quoting outside text as written: { "tour": "audit-model", "vi
 const updateTourStep = tool({
   name: 'update_tour_step',
   title: 'Change a step of a tour',
-  description: `Changes one step of a tour, as one undoable action: what you give replaces what the step has, and what you leave out stays. viewState replaces the step's view state as a whole, and reveal its reveals as a whole; null takes the text, marks, reveals, play, advance, pointTo, pulse or notes away, dimRest false stops dimming, place auto lets the caption find its side again, and transition glide lets the step glide again. moveTo moves the step to another number. Fixing a broken step means giving it back what it names without what was deleted.
+  description: `Changes one step of a tour, as one undoable action: what you give replaces what the step has, and what you leave out stays. viewState replaces the step's view state as a whole, and reveal its reveals as a whole; null takes the text, marks, reveals, play, advance, pointTo, pulse or notes away, dimRest false stops dimming, emphasis null lets the step mark as its tour says, place auto lets the caption find its side again, and transition glide lets the step glide again. moveTo moves the step to another number. Fixing a broken step means giving it back what it names without what was deleted.
 
 ${STEP_HELP}
 
@@ -385,6 +406,7 @@ Example: { "tour": "audit-model", "step": 3, "pointTo": null, "pulse": null, "tr
     marks: marks().nullable().optional(),
     reveal: reveal().nullable().optional(),
     dimRest: dimRest().optional(),
+    emphasis: emphasis().nullable().optional(),
     play: play().nullable().optional(),
     advance: advance().nullable().optional(),
     pointTo: pointTo().nullable().optional(),
@@ -427,6 +449,8 @@ Example: { "tour": "audit-model", "step": 3, "pointTo": null, "pulse": null, "tr
     }
     if (args.dimRest === false) delete next.dimRest;
     else if (args.dimRest === true) next.dimRest = true;
+    if (args.emphasis === null) delete next.emphasis;
+    else if (args.emphasis !== undefined) next.emphasis = args.emphasis;
     if (args.play === null) delete next.play;
     else if (args.play !== undefined) {
       const played = playFrom(state, args.play);
@@ -484,9 +508,10 @@ Example: { "tour": "how-booking-works", "step": 3 }`,
 const updateTour = tool({
   name: 'update_tour',
   title: 'Rename a tour',
-  description: `Changes a tour's name or description, as one undoable action; null takes the description away.
+  description: `Changes a tour's name, description or emphasis, as one undoable action; null takes the description away. emphasis says how every step without an emphasis of its own marks what it marks.
 
-Example: { "tour": "how-booking-works", "name": "Booking, step by step" }`,
+Example: { "tour": "how-booking-works", "name": "Booking, step by step" }
+Example: { "tour": "ticket-states", "emphasis": "style" }`,
   input: {
     tour: tourId(),
     name: z.string().min(1).max(MAX_TOUR_NAME).optional(),
@@ -496,6 +521,7 @@ Example: { "tour": "how-booking-works", "name": "Booking, step by step" }`,
       .nullable()
       .optional()
       .describe(TAKES_MARKDOWN),
+    emphasis: tourEmphasis().optional(),
     escapeText: escapeTextInput(),
   },
   hints: WRITE,
@@ -506,6 +532,7 @@ Example: { "tour": "how-booking-works", "name": "Booking, step by step" }`,
       changes: withoutUndefined({
         name: args.name,
         description: escapedIf(args.escapeText, args.description),
+        emphasis: args.emphasis,
       }),
     }),
 });
@@ -650,6 +677,7 @@ function stepFrom(
       play: played,
       reveal: revealsOf(given.reveal, escapeText),
       dimRest: given.dimRest === true ? (true as const) : undefined,
+      emphasis: given.emphasis,
       advance: given.advance,
       transition: given.transition === 'cut' ? ('cut' as const) : undefined,
       pulse: given.pulse ? pulseOf(given.pulse) : undefined,
@@ -774,6 +802,7 @@ function describeTour(state: ProjectSnapshot, tour: TourFile) {
     id: tour.id,
     name: tour.name,
     ...(tour.description === undefined ? {} : { description: tour.description }),
+    emphasis: tour.emphasis ?? 'halo',
     steps,
     brokenSteps: steps.filter((step) => 'broken' in step).map((step) => step.number),
   };

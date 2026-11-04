@@ -2744,6 +2744,21 @@ export const ui: Catalog = {
   'Step {n} points at nothing.': 'El paso {n} no apunta a nada.',
   'Step {n} points at “{name}”.': 'El paso {n} apunta a “{name}”.',
   'Always cut, never glide its shapes': 'Cortar siempre, sin deslizar sus formas',
+  // How a tour and its steps mark what they mark (ADR 0100).
+  'How its steps mark what they mark': 'Cómo marcan sus pasos lo que marcan',
+  'How it marks what it marks': 'Cómo marca lo que marca',
+  'As the tour says': 'Como diga el recorrido',
+  'A halo': 'Con un halo',
+  'Its own style': 'Con su propio estilo',
+  'Its own style draws nothing over a mark: a relation is drawn heavier, in the emphasis color, flowing from one end to the other, and an element takes a stronger border. Each step can choose otherwise.':
+    'Con su propio estilo no se dibuja nada encima de lo marcado: una relación se dibuja más gruesa, en el color de énfasis, fluyendo de un extremo al otro, y un elemento toma un borde más marcado. Cada paso puede elegir otra cosa.',
+  'The steps of “{name}” draw what they mark in its own style.':
+    'Los pasos de “{name}” dibujan lo que marcan con su propio estilo.',
+  'The steps of “{name}” mark with a halo.': 'Los pasos de “{name}” marcan con un halo.',
+  'Step {n} marks with a halo.': 'El paso {n} marca con un halo.',
+  'Step {n} draws what it marks in its own style.':
+    'El paso {n} dibuja lo que marca con su propio estilo.',
+  'Step {n} marks as the tour says.': 'El paso {n} marca como diga el recorrido.',
   'Step {n} always cuts.': 'El paso {n} corta siempre.',
   'Step {n} glides its shapes when it can.': 'El paso {n} desliza sus formas cuando puede.',
   'Pulses along {names}.': 'Envía un pulso por {names}.',
@@ -5035,6 +5050,10 @@ export const messages: Catalog = {
     'Un rótulo apunta a una de las marcas de su paso por su id, y "{id}" no es un id.',
   'The caption points at "{id}", which is no element, relation, note or arrow of its view.':
     'El rótulo apunta a "{id}", que no es ningún elemento, relación, nota ni flecha de su vista.',
+  'A step\'s emphasis is "halo", to mark with a halo, or "style", to draw what it marks in its own style.':
+    'El énfasis de un paso es "halo", para marcar con un halo, o "style", para dibujar lo que marca con su propio estilo.',
+  'A tour\'s emphasis is "halo", to mark with a halo, or "style", to draw what its steps mark in its own style.':
+    'El énfasis de un recorrido es "halo", para marcar con un halo, o "style", para dibujar lo que marcan sus pasos con su propio estilo.',
   'A step\'s transition is "cut", to always cut, or "glide", to glide when it can.':
     'La transición de un paso es "cut", para cortar siempre, o "glide", para deslizarse cuando puede.',
   'Step {n} of the tour sends a pulse: an object with its relations.':

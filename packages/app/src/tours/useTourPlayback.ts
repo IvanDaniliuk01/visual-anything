@@ -258,7 +258,10 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
 
   const tour = project.tours.find((each) => each.id === playback.tour);
   const step = tour?.steps[playback.step];
-  const playable = useMemo(() => (step ? playableStep(project, step) : undefined), [project, step]);
+  const playable = useMemo(
+    () => (step ? playableStep(project, step, tour?.emphasis) : undefined),
+    [project, step, tour?.emphasis],
+  );
   const { reveal } = playback;
   const cutsAlways = useRef(false);
   useEffect(() => {
@@ -392,6 +395,8 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
     [transition.kept, scene, project],
   );
   const dimRest = playable?.dimRest === true;
+  // A step in its own style draws what it marks restyled, with nothing over it (ADR 0100).
+  const ownStyle = playable?.emphasis === 'style';
   const dimmed = useMemo(
     () => (dimRest && scene ? dimRestOf(marks, scene, project) : undefined),
     [dimRest, marks, scene, project],
@@ -403,8 +408,12 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
         ? new Set([...shownKeys].filter((key) => !keptKeys.has(key)))
         : NO_KEYS;
     if (highlighted.size === 0 && dimmed === undefined) return undefined;
+    const styled = ownStyle && highlighted.size > 0;
     return {
       ...(highlighted.size > 0 ? { highlighted } : {}),
+      ...(styled ? { styled: highlighted } : {}),
+      // Its lines flow and its shapes breathe as they come in, but under reduced motion.
+      ...(styled && !reduced ? { styleMoves: true as const } : {}),
       ...(arriving.size > 0
         ? {
             arriving: {
@@ -417,7 +426,7 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
         : {}),
       ...(dimmed ? { dimmed } : {}),
     };
-  }, [transition.marks, transition.arriving, shownKeys, keptKeys, dimmed, reduced]);
+  }, [transition.marks, transition.arriving, shownKeys, keptKeys, dimmed, reduced, ownStyle]);
   const playing = playback.tour !== undefined;
   // Until the transition to the step shown has begun, what shows stays as it was.
   const begun = target !== undefined && transition.target === target;
@@ -568,12 +577,16 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
         at.marked.length > 0 && now.scene
           ? keysOfMarks(at.marked, now.scene, now.project)
           : NO_KEYS;
+      // On a step in its own style, the marker rides on the restyled line (ADR 0100).
+      const styled = keys.size > 0 && now.playable?.emphasis === 'style';
       emphasis.set(
         PULSE_EMPHASIS,
         at.markers.length > 0 || keys.size > 0
           ? {
               ...(at.markers.length > 0 ? { markers: at.markers } : {}),
               ...(keys.size > 0 ? { highlighted: keys } : {}),
+              ...(styled ? { styled: keys } : {}),
+              ...(styled && !reducedNow ? { styleMoves: true as const } : {}),
             }
           : undefined,
       );

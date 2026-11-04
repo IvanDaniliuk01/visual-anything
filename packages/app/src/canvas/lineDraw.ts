@@ -23,6 +23,17 @@ export function drawnPieces(route: readonly Point[], part: number, directed: boo
   return [prefix([...route], half), prefix([...route].reverse(), half)];
 }
 
+/**
+ * The pieces of a route that a line drawn in its own style flows along (ADR 0100), each from where
+ * the flow starts: the whole route for a directed line, from its `from` end; for an undirected one,
+ * its two halves, each from its end toward its middle.
+ */
+export function flowPieces(route: readonly Point[], directed: boolean): Point[][] {
+  if (route.length < 2) return [];
+  if (directed) return [[...route]];
+  return [prefix([...route], 0.5), prefix([...route].reverse(), 0.5)];
+}
+
 /** The route from its start to a fraction of its length. */
 function prefix(route: Point[], fraction: number): Point[] {
   const first = route[0] as Point;

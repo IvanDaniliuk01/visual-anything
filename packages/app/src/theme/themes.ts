@@ -130,6 +130,11 @@ export interface CanvasTheme {
   freeArrow: Color;
   /** Live guidance and playback (M4, M5), always with a wider line and a halo as well. */
   highlight: Color;
+  /**
+   * The back of a tour's caption card, which a relation's name drawn in its own style is written on,
+   * in `text` (ADR 0100).
+   */
+  captionBack: Color;
   /** A relation's name, written over `relationLabelBack` where it crosses the canvas. */
   relationLabelText: Color;
   relationLabelBack: Color;
@@ -278,6 +283,7 @@ function canvasTheme(
     selected: colors.selected,
     handleFill: colors.surfaceRaised,
     highlight: colors.highlight,
+    captionBack: colors.surfaceRaised,
     relationLabelText: colors.text,
     relationLabelBack: colors.canvas,
     rowsBody: colors.canvas,

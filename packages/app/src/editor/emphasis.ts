@@ -20,6 +20,18 @@ export interface Emphasis {
   dashed?: ReadonlySet<string>;
   /** Drawn marked, as the relations of a scenario step and their ends. */
   highlighted?: ReadonlySet<string>;
+  /**
+   * Of what it highlights, what is drawn in its own style rather than with a halo, as a tour's step
+   * with the emphasis `style` marks (ADR 0100): a line heavier, in the canvas's emphasis color, an
+   * element with a stronger border and a soft lift; nothing is drawn over it.
+   */
+  styled?: ReadonlySet<string>;
+  /**
+   * Present when what is drawn in its own style moves (ADR 0100): its lines' dashes flow from their
+   * `from` end to their `to` end, and its shapes breathe once as they come in. Left out under reduced
+   * motion, which keeps the restyle alone.
+   */
+  styleMoves?: true;
   /** Markers travelling along relations. */
   markers?: readonly Marker[];
   /**
@@ -128,6 +140,8 @@ function unionOf(all: readonly Emphasis[]): Emphasis {
   const dimmed = sets((emphasis) => emphasis.dimmed);
   const dashed = sets((emphasis) => emphasis.dashed);
   const highlighted = sets((emphasis) => emphasis.highlighted);
+  const styled = sets((emphasis) => emphasis.styled);
+  const styleMoves = all.some((emphasis) => emphasis.styleMoves === true);
   const markers = all.flatMap((emphasis) => emphasis.markers ?? []);
   const arriving = arrivingOf(all);
   return {
@@ -135,6 +149,8 @@ function unionOf(all: readonly Emphasis[]): Emphasis {
     ...(dimmed ? { dimmed } : {}),
     ...(dashed ? { dashed } : {}),
     ...(highlighted ? { highlighted } : {}),
+    ...(styled ? { styled } : {}),
+    ...(styleMoves ? { styleMoves: true as const } : {}),
     ...(markers.length > 0 ? { markers } : {}),
     ...(arriving ? { arriving } : {}),
   };

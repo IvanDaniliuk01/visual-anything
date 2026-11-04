@@ -206,6 +206,43 @@ describe('create-tour', () => {
     expect(applyOperations(outcome.state, outcome.inverse).state).toEqual(state);
   });
 
+  it('keeps a step’s emphasis and the tour’s, never writing the tour’s default (ADR 0100)', () => {
+    const state = testProject();
+    const outcome = done(state, {
+      type: 'create-tour',
+      tour: {
+        name: 'Restyled',
+        emphasis: 'style',
+        steps: [
+          { ...START, marks: ['api-reads-db'], emphasis: 'halo' },
+          { ...START, marks: ['api-reads-db'], emphasis: 'style' },
+          START,
+        ],
+      },
+    });
+    const tour = outcome.state.tours[0] as TourFile;
+    expect(tour.emphasis).toBe('style');
+    expect(tour.steps.map((step) => step.emphasis)).toEqual(['halo', 'style', undefined]);
+    expect(applyOperations(outcome.state, outcome.inverse).state).toEqual(state);
+
+    const plain = done(state, {
+      type: 'create-tour',
+      tour: { name: 'Plain', emphasis: 'halo', steps: [START] },
+    });
+    expect(plain.state.tours[0]).not.toHaveProperty('emphasis');
+  });
+
+  it('refuses a tour whose emphasis is neither a halo nor its own style', () => {
+    expect(
+      refusal(testProject(), {
+        type: 'create-tour',
+        tour: { name: 'T', emphasis: 'glow' as never, steps: [START] },
+      }).message,
+    ).toBe(
+      `A tour's emphasis is "halo", to mark with a halo, or "style", to draw what its steps mark in its own style.`,
+    );
+  });
+
   it('keeps a step whose pulse broke when a relation was deleted, flagged', () => {
     const made = done(testProject(), {
       type: 'create-tour',
@@ -298,6 +335,11 @@ describe('create-tour', () => {
       'a caption pointing at nothing there',
       { caption: { title: 'T', pointTo: 'gone' } },
       'The caption points at "gone"',
+    ],
+    [
+      'an emphasis by another name',
+      { emphasis: 'glow' as never },
+      `A step's emphasis is "halo", to mark with a halo, or "style", to draw what it marks in its own style.`,
     ],
     [
       'a transition by another name',
@@ -691,6 +733,30 @@ describe('update-tour', () => {
     });
     expect(outcome.label).toBe('Edit the tour "A stroll"');
     expect(outcome.state.tours[0]?.name).toBe('A stroll');
+  });
+
+  it('sets the emphasis of a tour’s steps and takes it away, undoing exactly (ADR 0100)', () => {
+    const { state } = withTour();
+    const styled = done(state, { type: 'update-tour', id: 'walk', changes: { emphasis: 'style' } });
+    expect(styled.label).toBe('Edit the tour "A walk"');
+    expect(styled.state.tours[0]?.emphasis).toBe('style');
+    expect(applyOperations(styled.state, styled.inverse).state).toEqual(state);
+    const back = done(styled.state, {
+      type: 'update-tour',
+      id: 'walk',
+      changes: { emphasis: null },
+    });
+    expect(back.state.tours[0]).not.toHaveProperty('emphasis');
+    const halo = done(styled.state, {
+      type: 'update-tour',
+      id: 'walk',
+      changes: { emphasis: 'halo' },
+    });
+    expect(halo.state.tours[0]).not.toHaveProperty('emphasis');
+    expect(
+      refusal(state, { type: 'update-tour', id: 'walk', changes: { emphasis: 'loud' as never } })
+        .message,
+    ).toContain(`A tour's emphasis is "halo"`);
   });
 
   it('records nothing for a change that changes nothing', () => {

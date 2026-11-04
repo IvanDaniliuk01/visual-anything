@@ -82,24 +82,27 @@ export function traceLitShapes(
   const { notes } = lit;
   if (shapes.length + notes.length === 0) return;
   const rects = [...shapes.map(drawnBoundsOf), ...notes.map((note) => note.rect)];
-  const ringed: MarkTarget[] = [
-    ...shapes.map((shape): MarkTarget => {
-      const tag = nameTagOf(shape);
-      if (!shape.outline && !tag) return shape.rect;
-      return {
-        rect: shape.rect,
-        ...(shape.outline ? { outline: shape.outline } : {}),
-        ...(tag ? { tag } : {}),
-      };
-    }),
-    ...notes.map((note) => note.rect),
-  ];
+  const ringed: MarkTarget[] = [...shapes.map(markTargetOf), ...notes.map((note) => note.rect)];
   for (const target of ringed) traceMark(graphics, target, 5 / scale);
   graphics.stroke({ color: highlight, alpha: 0.28, join: 'round', cap: 'round', width: px(10) });
   for (const target of ringed) traceMark(graphics, target, 5 / scale);
   graphics.stroke({ color: highlight, width: px(2.5) });
   for (const rect of rects) traceCorners(graphics, grow(rect, 11 / scale), 14 / scale);
   graphics.stroke({ color: highlight, width: px(3), cap: 'square' });
+}
+
+/**
+ * What a mark around a shape goes along: its own outline (ADR 0066), or its box, with its name tag
+ * when it has one.
+ */
+export function markTargetOf(shape: ElementShape): MarkTarget {
+  const tag = nameTagOf(shape);
+  if (!shape.outline && !tag) return shape.rect;
+  return {
+    rect: shape.rect,
+    ...(shape.outline ? { outline: shape.outline } : {}),
+    ...(tag ? { tag } : {}),
+  };
 }
 
 /**

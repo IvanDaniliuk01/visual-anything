@@ -969,6 +969,10 @@ Rounds: A7.1 and A7.3 first, beside A7.2 in the main session; then A7.4 in the m
 - [ ] **A8.3 · Link cards** (ADR 0098, stage 3).
 - [ ] **A8.4 · Steps that show pictures, videos and link cards** (ADR 0098, stage 4).
 
+**Tours after v0.1.1.** Improvements asked from use, each from a GitHub issue.
+
+- [x] **Issue #9 · Tour marks that do not hide what they mark** (ADR 0100): `emphasis`, `halo` or `style`, on a tour and on a step, the step's first, then the tour's, then the halo; in the schema, the core's checks, `playableStep`, the Tours panel, Claude's tour tools and the Spanish. `style` draws nothing over a mark: a relation heavier, in the emphasis color, with a larger arrowhead, its dash flowing from its `from` end to its `to` end and its name bold on the caption's color; an element with a stronger border, a soft shadow and one breath as it comes in; nothing moves under reduced motion; only the marked lines on screen flow (`canvas/styledMarks.ts`). Done 2026-11-04, by a builder.
+
 **M9 · Physical space inside components.** Planned for the fourth wave, beside M12; M10 builds on it. Its two seams, in the schema and the core, then in the scene and the solid worker's interface, go first and in order, in the main session, since every other task cleans, draws, points at, edits or exports what they define; the next seven tasks then run in parallel, and the benchmark is measured once they are merged. Done when:
 
 - a package defines solids (ADR 0075): glTF 2.0 files, `.glb` or `.gltf` with embedded data, that the local program cleans into a canonical GLB kept as `solids/<hash>.glb`, with its description, named parts, source, license and camera in the package:

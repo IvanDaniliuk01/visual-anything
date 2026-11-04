@@ -2025,6 +2025,11 @@ export interface TourFile {
    */
   captionFace?: CaptionFace;
   /**
+   * How its steps mark what they mark (ADR 0100), each step without an emphasis of its own: `style`
+   * draws it in its own style, heavier and in the canvas's emphasis color; left out, with a halo.
+   */
+  emphasis?: TourEmphasis;
+  /**
    * What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what
    * the file keeps in place, and the other choice. Written only by a merge; the person resolves them.
    *
@@ -2033,6 +2038,14 @@ export interface TourFile {
    */
   conflicts?: FileConflict[];
 }
+
+/**
+ * How a tour step marks what it marks (ADR 0100): `halo` lays a halo over it (ADR 0077); `style`
+ * draws nothing over it and restyles it instead, a relation heavier, in the canvas's emphasis color,
+ * its dash flowing from its `from` end to its `to` end, and an element with a stronger border and a
+ * soft lift.
+ */
+export type TourEmphasis = 'halo' | 'style';
 
 /** One step of a tour: where it takes the canvas, what it says there, and what it marks. */
 export interface TourStep {
@@ -2061,6 +2074,11 @@ export interface TourStep {
   reveal?: TourReveal[];
   /** Dims everything the step does not mark, but the ends of the relations it marks. */
   dimRest?: true;
+  /**
+   * How the step and its reveals mark what they mark (ADR 0100); left out, as the tour's `emphasis`
+   * says, and with a halo when it says nothing.
+   */
+  emphasis?: TourEmphasis;
   /** Moves on by itself; left out, the step waits for the person. */
   advance?: TourAdvance;
   /**

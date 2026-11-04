@@ -852,6 +852,38 @@ export function drawRelationRoutes(graphics: Graphics, lines: readonly RelationL
 }
 
 /**
+ * Draws a line in its own style (ADR 0100): its route, unless `route` is false, flattened if curved
+ * and dashed as its dash says, then its arrowhead.
+ */
+export function strokeStyledRoute(
+  graphics: Graphics,
+  line: RelationLine,
+  { route = true }: { route?: boolean } = {},
+): void {
+  if (route) {
+    strokeRoute(graphics, line.route, line.arrowhead, {
+      color: line.stroke,
+      width: line.width,
+      dash: line.dash,
+    });
+  }
+  if (line.arrowhead) fillArrowhead(graphics, line.arrowhead, line.stroke, line.width);
+}
+
+/**
+ * Strokes points of a route with its pattern moved `offset` canvas units along it, toward its last
+ * point: a line drawn in its own style flows by it (ADR 0100).
+ */
+export function strokeFlowing(
+  graphics: Graphics,
+  points: readonly Point[],
+  style: { color: Color; width: number; dash: Exclude<Dash, 'solid'>; alpha?: number },
+  offset: number,
+): void {
+  strokeLine(graphics, points, style, { travelled: -offset });
+}
+
+/**
  * Draws the pieces of relations' routes that lie in one tile, dashed as their relation types say,
  * and the arrowheads of `ends`, whose tips lie there.
  */

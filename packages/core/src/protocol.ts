@@ -177,7 +177,8 @@ import type { ViewState } from './view-state';
  *    answered with `media-files/listed` or `media/refused`. And, in 10 too, since no build of 10
  *    shipped, a tab comes forward when Claude, or the command line, asks to open the app while one is
  *    connected (ADR 0099): `app/shown`, with the view state to show, if any, which only the tab the
- *    person used last applies.
+ *    person used last applies. And, in 10 too, a tour's and a tour step's `emphasis` (ADR 0100),
+ *    `halo` or `style`, which an app of 9 would refuse when it opens the tour file.
  */
 export const PROTOCOL_VERSION = 10;
 

@@ -368,6 +368,10 @@ _Avoid_: morph, magic move
 A marker that a tour step sends along a chain of relations, one after the other, to show what follows what (ADR 0084). It is not a scenario: nothing of it is kept apart from the step.
 _Avoid_: flow, animation
 
+**Step emphasis**:
+How a tour step and its reveals mark what they mark: with a halo laid over each mark (`halo`, ADR 0077), or in its own style (`style`, ADR 0100), where nothing is drawn over it and it is drawn again restyled: a relation heavier, in the canvas's emphasis color, with a larger arrowhead and its dash flowing from its from end to its to end, an element with a stronger border and a soft shadow, breathing once as it comes in. A step's choice wins, then its tour's, then the halo. The dash's flow is part of the restyle, not a pulse.
+_Avoid_: highlight style, glow, effect
+
 **Route**:
 The path a relation's line takes in a view: where it attaches to each end, the points it bends at, and its style (orthogonal, straight or curved). Automatic unless chosen by hand: an automatic route takes the style its relation's appearance gives, else its view's, else orthogonal, and is drawn again after every layout and move (ADR 0069). A view keeps only what was chosen by hand, and Reset route goes back to the automatic route. An automatic orthogonal route goes around the shapes in its way, and the name plates of the containers it runs in, inside the container that holds both its ends (ADR 0039).
 _Avoid_: path, connector, edge route, waypoints
