@@ -31,7 +31,7 @@ function programOf(target: Session): Program {
     guide: (guidance) => target.guide(guidance),
     openApp: () => {
       opened += 1;
-      return Promise.resolve();
+      return Promise.resolve({ how: 'browser' as const });
     },
   };
 }

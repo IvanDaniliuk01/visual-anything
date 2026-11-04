@@ -102,6 +102,8 @@ import {
 } from './claude-setup-messages';
 import { readSolidCamera } from './solids/camera';
 import { readSpaceCamera } from './space/camera';
+// A type only: view-state.ts imports this module, and the app checks the view state it is shown.
+import type { ViewState } from './view-state';
 
 /**
  * The version of the live protocol; the app and the local program must agree on it, so that one from
@@ -150,8 +152,11 @@ import { readSpaceCamera } from './space/camera';
  *    `{ x, y }`, which an app of 8 would refuse when it opens the tour file. And, in 9 too, since no
  *    build of 9 shipped, a tour's `captionFace` and a caption's `face` and `size` (ADR 0096), and
  *    its `leader` (ADR 0097).
+ * 10: a tab comes forward when Claude, or the command line, asks to open the app while one is
+ *    connected (ADR 0099): `app/shown`, with the view state to show, if any, which only the tab
+ *    the person used last applies.
  */
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';
@@ -176,6 +181,23 @@ export const THEME_PARAM = 'theme';
  * code works once, within two minutes.
  */
 export const LAUNCH_PARAM = 'launch';
+
+/**
+ * Where a tab asks the local program to prove that it holds the tab's session token before the tab
+ * sends it (ADR 0099): `GET /session/proof?challenge=<challenge>`, answered with
+ * `{ "proof": <HMAC-SHA256 of SESSION_PROOF_CONTEXT and the challenge, keyed by the token, in
+ * base64url> }`. A tab that reconnects by itself sends its token only to a program that proves it.
+ */
+export const SESSION_PROOF_PATH = '/session/proof';
+
+/** The name the challenge travels under in the query of {@link SESSION_PROOF_PATH}. */
+export const SESSION_CHALLENGE_PARAM = 'challenge';
+
+/** What the proof's HMAC covers before the challenge, so that it proves nothing else. */
+export const SESSION_PROOF_CONTEXT = 'visual-anything session proof\n';
+
+/** A challenge as a tab makes it: 16 to 64 random bytes, in hex. */
+export const SESSION_CHALLENGE_FORM = /^[0-9a-f]{32,128}$/;
 
 /** A message the local program sends to the app. */
 export type ServerMessage =
@@ -206,7 +228,19 @@ export type ServerMessage =
   | SolidRefusedMessage
   | SolidFilesListedMessage
   | PackageReadAnswerMessage
-  | ClaudeSetupAnswerMessage;
+  | ClaudeSetupAnswerMessage
+  | AppShownMessage;
+
+/**
+ * Sent to every app when Claude, or the command line, asks to open the app while a tab is connected
+ * (ADR 0099): no new tab opens. The tab the person used last comes forward as far as the browser lets
+ * it, says that it was asked to, and applies the view state, if one is given, as an address brought to
+ * the tab applies; the other tabs pass it over.
+ */
+export interface AppShownMessage {
+  type: 'app/shown';
+  state?: ViewState;
+}
 
 /**
  * Sent in place of `project/opened` while the local program runs on a folder that holds no project yet
@@ -1118,6 +1152,7 @@ const SERVER_TYPES = new Set<string>([
   'solid-files/listed',
   'package/read-answer',
   'claude/setup-answer',
+  'app/shown',
 ]);
 
 /**
@@ -1168,6 +1203,12 @@ export function decodeServerMessage(text: string): ServerMessage {
       return readStartOffered(message);
     case 'home/offered':
       return readHomeOffered(message);
+    case 'app/shown': {
+      // Only the envelope: the app checks the view state with checkViewState before applying it.
+      if (message.state === undefined) return { type: 'app/shown' };
+      if (!isRecord(message.state)) throw new ProtocolError('The view state shown is an object.');
+      return { type: 'app/shown', state: message.state as unknown as ViewState };
+    }
     case 'project/closed':
       if (typeof message.message !== 'string') {
         throw new ProtocolError('The message says why no project is open.');

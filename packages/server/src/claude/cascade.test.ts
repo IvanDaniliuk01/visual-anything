@@ -84,7 +84,7 @@ describe('run_commands', () => {
           : { ok: false, problems: outcome.problems };
       },
       guide: (guidance) => session.guide(guidance),
-      openApp: () => Promise.resolve(),
+      openApp: () => Promise.resolve({ how: 'browser' as const }),
     };
     return runTool(definition, args, program);
   }

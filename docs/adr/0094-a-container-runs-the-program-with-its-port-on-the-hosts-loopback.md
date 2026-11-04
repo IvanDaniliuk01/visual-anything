@@ -45,3 +45,9 @@ The recipe lives in the repository: `Dockerfile`, `.dockerignore` and `compose.y
 - CLAUDE.md's rule reads: the server binds to 127.0.0.1 only, or, inside a container, to every interface of the container, its port published on the host's 127.0.0.1 alone.
 - A new tab needs `docker attach`. If people find that awkward, the deferred subcommand comes back.
 - The image's Node.js is the build stage's, 24, as the release executables use.
+
+## Clarification of 2026-11-04 (ADR 0099)
+
+- The deferred subcommand came back: `docker exec visual-anything visual-anything address` prints a new address, with no `docker attach`. The program at home now leaves a record that it reaches.
+- The image sets `VISUAL_ANYTHING_SESSIONS=/data/preferences/sessions`, so the session is kept on the volume. After `docker restart`, or a new container on the same data, the open tab reconnects by itself and the project it showed opens again.
+- `open_app` from Claude brings a connected tab forward rather than opening a new one. With none connected, since the container cannot open the host's browser, it answers a launch address for Claude to pass on.

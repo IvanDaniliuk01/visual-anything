@@ -47,6 +47,7 @@ import {
   type Comparison,
   type VersionRef,
   type VersionsListedMessage,
+  type ViewState,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import {
@@ -58,6 +59,7 @@ import {
 import type { CaptureOutcome } from '../capture/take';
 import { tabUse } from '../guidance/tabs';
 import { fill } from '../i18n/translate';
+import type { SessionProof } from './session';
 import { LiveValueBook } from '../live-values/book';
 
 /** Where the live connection stands. */
@@ -219,7 +221,38 @@ export interface LiveConnectionOptions {
    * (ADR 0081); the tab's own tracker by default (`guidance/tabs.ts`).
    */
   isLastUsed?: () => boolean;
+  /**
+   * Asks the program on this tab's address to prove it holds the session token, before the tab
+   * reconnects by itself with it (ADR 0099). Without it, a tab whose connection closed stays closed.
+   */
+  prove?: (token: string) => Promise<SessionProof>;
+  /**
+   * Brings this tab forward, as far as the browser lets it, when Claude or the command line asked to
+   * open the app while it is the tab the person used last (ADR 0099), and shows the view state, if
+   * one is given, while a project is open.
+   */
+  onShown?: (state: ViewState | undefined, project: boolean) => void;
 }
+
+/** How long a tab whose connection closed waits before it first tries to reconnect. */
+export const RECONNECT_FIRST = 1_000;
+
+/** The longest it waits between two tries, doubling from the first. */
+export const RECONNECT_MOST = 10_000;
+
+/** Said once a tab reconnected by itself after the program stopped and ran again (ADR 0099). */
+export const RESTARTED = 'Visual Anything restarted; reconnected.';
+
+/** Said once a tab reconnected by itself after its connection closed for another reason. */
+export const RECONNECTED =
+  'Reconnected to Visual Anything; this tab shows the project as it is now.';
+
+/** Said when the program that runs again on this tab's address holds another session. */
+export const OTHER_SESSION =
+  'Visual Anything runs again, but with another session, so this tab cannot reconnect. Open it from a new address that works once: run visual-anything address in a terminal (in Docker: docker exec visual-anything visual-anything address).';
+
+/** Said in the tab the person used last when Claude or the command line asked to show the app. */
+export const SHOWN = 'Visual Anything was asked to show this tab.';
 
 /** Takes a picture Claude asked for with the tab's canvas, or says why it took none (ADR 0081). */
 export type TakeCapture = (ask: CaptureAsk) => Promise<CaptureOutcome>;
@@ -394,6 +427,12 @@ export class LiveConnection {
   private joinAsked = false;
   /** Whether a connection is wanted now: between `connect` and `disconnect`. */
   private wanted = false;
+  /** The next try to reconnect by itself, once the connection closed (ADR 0099). */
+  private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  /** How long the next try waits. */
+  private reconnectDelay = RECONNECT_FIRST;
+  /** What a reconnection says once the program greets the tab again; none while not reconnecting. */
+  private reconnecting: typeof RESTARTED | typeof RECONNECTED | undefined;
   /** Whether the last message the program sent changed the project now, for a proposal that closes. */
   private changedLast = false;
   /** What takes Claude's pictures: the canvas, while it is mounted (ADR 0081). */
@@ -464,6 +503,8 @@ export class LiveConnection {
    */
   readonly disconnect = (): void => {
     this.wanted = false;
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = undefined;
     if (this.socket !== undefined && this.parked === undefined && this.opensOnce()) {
       this.parked = setTimeout(() => {
         this.parked = undefined;
@@ -966,8 +1007,8 @@ export class LiveConnection {
       const data: unknown = event.data;
       this.receive(data);
     };
-    const onClose = () => {
-      this.closed();
+    const onClose = (event: CloseEvent) => {
+      this.closed(event.code);
     };
     socket.addEventListener('message', onMessage);
     socket.addEventListener('close', onClose);
@@ -995,17 +1036,96 @@ export class LiveConnection {
     this.forgetSocket()?.close();
   }
 
-  /** The socket closed without this tab closing it. */
-  private closed(): void {
+  /** The socket closed without this tab closing it, with a WebSocket close code. */
+  private closed(code?: number): void {
     this.forgetSocket();
     // The program forgets its live values when it stops; they no longer come from anywhere.
     this.liveValues.clear();
+    const shown =
+      this.state.project !== undefined ||
+      this.state.home !== undefined ||
+      this.state.start !== undefined;
     // Claude's marks and caption no longer come from a live session.
     this.update(
-      this.state.project === undefined && this.state.home === undefined
-        ? { status: 'failed', failure: { reason: 'refused' }, guidance: NO_GUIDANCE }
-        : { status: 'closed', guidance: NO_GUIDANCE },
+      shown
+        ? { status: 'closed', guidance: NO_GUIDANCE }
+        : { status: 'failed', failure: { reason: 'refused' }, guidance: NO_GUIDANCE },
     );
+    if (!shown) {
+      this.reconnecting = undefined;
+      return;
+    }
+    // 1001 and 1006: the program went away, as when it stops; it may run again (ADR 0099).
+    this.reconnecting ??= code === 1001 || code === 1006 ? RESTARTED : RECONNECTED;
+    this.reconnectLater();
+  }
+
+  /**
+   * Tries again later to reconnect with the session token, once the program proves it holds it, doubling
+   * the wait up to {@link RECONNECT_MOST}; never with a launch code, which works once.
+   */
+  private reconnectLater(): void {
+    const { prove } = this.options;
+    const token = this.tokenInUrl();
+    if (!this.wanted || prove === undefined || token === undefined) return;
+    clearTimeout(this.reconnectTimer);
+    const delay = this.reconnectDelay;
+    this.reconnectDelay = Math.min(delay * 2, RECONNECT_MOST);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
+      void this.reconnect(prove, token);
+    }, delay);
+  }
+
+  private async reconnect(
+    prove: (token: string) => Promise<SessionProof>,
+    token: string,
+  ): Promise<void> {
+    const waiting = () =>
+      this.wanted && this.socket === undefined && this.state.status === 'closed';
+    if (!waiting()) return;
+    const proof = await prove(token).catch((): SessionProof => 'unreachable');
+    if (!waiting() || this.url === null) return;
+    if (proof === 'unreachable') {
+      this.reconnectLater();
+      return;
+    }
+    if (proof === 'other') {
+      // The token is never sent to a program that does not hold it.
+      this.reconnecting = undefined;
+      this.notify('warning', OTHER_SESSION);
+      return;
+    }
+    this.openSocket(this.url);
+    this.update({ status: 'connecting' });
+  }
+
+  /** The program greeted this tab again: a reconnection by itself is done, and says so. */
+  private greeted(): void {
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = undefined;
+    this.reconnectDelay = RECONNECT_FIRST;
+    const said = this.reconnecting;
+    this.reconnecting = undefined;
+    if (said !== undefined) this.notify('info', said);
+  }
+
+  /** The session token this tab's address connects with, if it is not a launch code. */
+  private tokenInUrl(): string | undefined {
+    if (this.url === null) return undefined;
+    const query = this.url.slice(this.url.indexOf('?') + 1);
+    return new URLSearchParams(query).get(TOKEN_PARAM) || undefined;
+  }
+
+  /**
+   * Claude or the command line asked to open the app while this tab is connected (ADR 0099): the tab
+   * the person used last comes forward, says so, and shows the view state; the others pass it over.
+   */
+  private shown(state: ViewState | undefined): void {
+    const lastUsed = this.options.isLastUsed ?? (() => tabUse().isLastUsed());
+    if (!lastUsed()) return;
+    this.options.onShown?.(state, this.state.project !== undefined);
+    this.notify('info', SHOWN);
   }
 
   private fail(reason: LiveFailureReason, detail: string): void {
@@ -1030,6 +1150,7 @@ export class LiveConnection {
         if (message.token !== undefined && this.options.onToken !== undefined) {
           this.url = this.options.onToken(message.token);
         }
+        this.greeted();
         // The program sends the live values it keeps right after the project.
         this.liveValues.clear();
         this.update({
@@ -1052,10 +1173,15 @@ export class LiveConnection {
           start: { folder: message.folder, samples: message.samples },
           home: undefined,
         });
+        this.greeted();
         this.started();
         break;
       case 'home/offered':
         this.atHome(message);
+        this.greeted();
+        break;
+      case 'app/shown':
+        this.shown(message.state);
         break;
       case 'project/closed':
         // Only Claude is told so; an app gets `home/offered`.

@@ -16,8 +16,9 @@
  * Given no folder, the program starts at home (ADR 0093): the app shows the Projects screen, from
  * which the person opens a project, or starts one, and to which the header's "Projects…" goes back.
  */
+import { realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import {
   PROTOCOL_VERSION,
@@ -38,6 +39,14 @@ import { removeProgramRecord, writeProgramRecord } from './claude/discovery';
 import { errorCode, errorReason } from './errors';
 import { projectsFolder } from './home';
 import { HomeSession, rememberProject } from './home-session';
+import {
+  keepSession,
+  readKeptSession,
+  resumableSession,
+  sessionKey,
+  type KeptSession,
+  type ResumedSession,
+} from './kept-session';
 import { otherProjectOpener } from './other-project';
 import { toForwardSlashes } from './paths';
 import { openPreferences, themeHintOf, type PreferencesLocation } from './preferences';
@@ -66,18 +75,21 @@ export const USAGE = `Usage: visual-anything [open] [folder] [--view <id> [--sel
        visual-anything import <folder> <file> [--map <kind>=<id>]... [--dry-run]
        visual-anything live <folder> [--fresh-for <seconds>] < values.jsonl
        visual-anything notices
+       visual-anything address [folder]
 
 Opens the project in folder and serves the app on 127.0.0.1; with no folder, it starts at home,
 where the Projects screen opens a project, or starts one in Documents/Visual Anything. When Visual
-Anything already runs on that folder, it opens a new tab there instead, at the view asked for. With mcp, runs the MCP server Claude Code and Claude Desktop start instead;
+Anything already runs on that folder, it shows the project there instead, at the view asked for: in
+its open tab, or a new one. With mcp, runs the MCP server Claude Code and Claude Desktop start instead;
 visual-anything mcp --help says more. With new, starts a new project in a folder that holds
 nothing yet, from a sample or empty, then opens it; visual-anything new --help says more. With
 export, writes a view as SVG, PDF or text; visual-anything export --help says more. With import,
 imports a file into the project as one action; visual-anything import --help says more. With live,
 shows the live values read from standard input in the Visual Anything running on folder;
 visual-anything live --help says more. With notices, prints the code a single executable bundles,
-with its licenses and where its source is. A folder that holds nothing yet opens on a start screen,
-which starts a project there. A folder named open, new, mcp, export, import, live or notices is
+with its licenses and where its source is. With address, prints a new address that works once for
+the Visual Anything running; visual-anything address --help says more. A folder that holds nothing
+yet opens on a start screen, which starts a project there. A folder named open, new, mcp, export, import, live or notices is
 opened as ./open, ./new, ./mcp, ./export, ./import, ./live or ./notices.
 
   --view <id>       Open the app at this view.
@@ -171,6 +183,11 @@ export interface CommandEnvironment {
    * default a background process of this command's own program; the executable starts itself.
    */
   startProgram?: StartProgram;
+  /**
+   * The folder the session is kept in across restarts (ADR 0099), as `sessionsFolder` works it out;
+   * `null` or absent keeps none, and every start makes a new session token.
+   */
+  sessionsFolder?: string | null;
   /**
    * The projects folder home writes new projects in (ADR 0093); by default `Documents/Visual
    * Anything` in the person's home folder, as `projectsFolder` works it out.
@@ -398,6 +415,10 @@ async function runWithLog(
   }
   const projectsRoot =
     environment.projectsFolder ?? projectsFolder(process.platform, process.env, homedir());
+  // Home is known by the projects folder's real path, which may not exist yet.
+  const homeFolder = await realFolderOf(projectsRoot);
+  // Keeps the session across restarts (ADR 0099), once the server runs; absent until then.
+  let keep: (() => Promise<void>) | undefined = undefined;
   let session: Session | StartingSession | HomeSession;
   if (folder === undefined) {
     session = new HomeSession({
@@ -413,11 +434,17 @@ async function runWithLog(
           running.server === undefined
             ? undefined
             : await recordForClaude(environment, running.server, opened.folder);
+        await keep?.();
       },
       onClosed: async (closed) => {
         if (record !== undefined) await removeProgramRecord(record, process.pid);
-        record = undefined;
+        // At home, Claude's MCP entry point and `visual-anything address` still reach the program.
+        record =
+          running.server === undefined
+            ? undefined
+            : await recordForClaude(environment, running.server, homeFolder, { home: true });
         environment.out(`Closed the project in ${toForwardSlashes(closed)}; back at home.`);
+        await keep?.();
       },
       elsewhere: (each) => runningElsewhere(environment, each),
     });
@@ -454,26 +481,39 @@ async function runWithLog(
     }
   };
 
+  // The session kept from the last run on this folder, resumed on the port it had (ADR 0099).
+  const key =
+    session instanceof HomeSession
+      ? sessionKey({ home: homeFolder })
+      : sessionKey({ project: session.folder });
+  const kept = await keptSessionOf(environment, key);
+  const resumed = resumableSession(kept, options.port);
+
   let server: RunningServer;
   try {
     const app = (environment.appSource ?? resolveAppSource)(options.dev);
-    server = await startServer({
-      session,
-      port: options.port,
-      ...(options.listen === undefined ? {} : { listen: options.listen }),
-      app,
-      openBrowser,
-      onLaunchReused: () =>
-        environment.err(
-          'The launch address was used twice; if your tab did not open the project, something else on this computer used it first.',
-        ),
-      ...(idle === undefined ? {} : { onConnections: (count: number) => idle.connections(count) }),
-      themeHint: () => themeHintOf(preferences.current()),
-      // What Claude's tools may run of package code (ADR 0054).
-      codeApprovals: () => preferences.current().codeApprovals,
-      codeTurnedOff: () => preferences.current().codeTurnedOff,
-      ...(environment.setupClaude === undefined ? {} : { setupClaude: environment.setupClaude }),
-    });
+    const start = (port: number, token?: string) =>
+      startServer({
+        session,
+        port,
+        ...(token === undefined ? {} : { token }),
+        ...(options.listen === undefined ? {} : { listen: options.listen }),
+        app,
+        openBrowser,
+        onLaunchReused: () =>
+          environment.err(
+            'The launch address was used twice; if your tab did not open the project, something else on this computer used it first.',
+          ),
+        ...(idle === undefined
+          ? {}
+          : { onConnections: (count: number) => idle.connections(count) }),
+        themeHint: () => themeHintOf(preferences.current()),
+        // What Claude's tools may run of package code (ADR 0054).
+        codeApprovals: () => preferences.current().codeApprovals,
+        codeTurnedOff: () => preferences.current().codeTurnedOff,
+        ...(environment.setupClaude === undefined ? {} : { setupClaude: environment.setupClaude }),
+      });
+    server = await startResumed(start, options.port, resumed);
   } catch (error) {
     idle?.cancel();
     await session.close();
@@ -483,14 +523,41 @@ async function runWithLog(
   }
   running.server = server;
   stopper.onSignals(environment.signals);
+  const reused = resumed !== undefined && server.token === resumed.token ? kept : undefined;
+  keep = () =>
+    keepSessionOf(environment, {
+      format: 1,
+      key,
+      token: server.token,
+      port: server.port,
+      ...(session instanceof HomeSession && session.folder !== undefined
+        ? { project: session.folder }
+        : {}),
+      madeAt: reused?.madeAt ?? new Date().toISOString(),
+      keptAt: new Date().toISOString(),
+    });
   // Every address that works once carries the view state asked for, beside its launch code.
   const launchUrl = () =>
     state === undefined ? server.launchUrl() : withViewState(server.launchUrl(), state);
   // Before saying it runs, so that Claude can attach as soon as it does.
   if (session instanceof HomeSession) {
-    environment.out(
-      `No project is open: choose one in the browser, or start one in ${toForwardSlashes(projectsRoot)}.`,
-    );
+    record = await recordForClaude(environment, server, homeFolder, { home: true });
+    // A restart goes back to the project that was open when the program stopped (ADR 0099).
+    const before = reused?.project;
+    const again =
+      before !== undefined && !(await runsElsewhere(environment, before))
+        ? await session.resume(before)
+        : false;
+    if (before !== undefined && !again) {
+      environment.out(
+        `The project open when Visual Anything stopped, in ${toForwardSlashes(before)}, did not open again.`,
+      );
+    }
+    if (session.atHome) {
+      environment.out(
+        `No project is open: choose one in the browser, or start one in ${toForwardSlashes(projectsRoot)}.`,
+      );
+    }
   } else if (session instanceof StartingSession) {
     environment.out(
       `${toForwardSlashes(session.folder)} holds no project yet: start one in the browser, from a sample or empty.`,
@@ -519,7 +586,13 @@ async function runWithLog(
       );
     }
   }
+  await keep();
   environment.out(`Visual Anything is running at ${server.address}`);
+  if (reused !== undefined) {
+    environment.out(
+      'It keeps the session of its last run, so the tabs that had it reconnect by themselves.',
+    );
+  }
   if (options.listen === '0.0.0.0') {
     environment.out(
       'It listens on every interface of this container: publish its port on the host’s 127.0.0.1 only.',
@@ -561,6 +634,8 @@ async function runWithLog(
     return 1;
   } finally {
     if (record !== undefined) await removeProgramRecord(record, process.pid);
+    // Kept as it stops, with the project open now, so that a restart within a day resumes it.
+    await keep();
     // Waits for the changes already sent to be saved, and stops watching the folder.
     await session.close();
     await preferences.close();
@@ -631,21 +706,38 @@ async function openInRunningProgram(
         );
       }
       environment.out(
-        'Run this again without --no-open to open a new tab there, or press a in the terminal where it runs to print an address that works once.',
+        'Run this again without --no-open to show it there, or run visual-anything address to print an address that works once.',
       );
       return 0;
     }
-    environment.out(
-      `Visual Anything already runs on "${name}" at ${address}, so it opens a new tab there.`,
-    );
+    let opening;
     try {
-      await bridge.openApp(state);
+      opening = await bridge.openApp(state);
     } catch (error) {
       if (!(error instanceof ProgramUnavailableError)) throw error;
+      environment.err(`Visual Anything already runs on "${name}" at ${address}.`);
       environment.err(`It could not open the tab: ${error.message}`);
       return 1;
     }
-    return 0;
+    switch (opening.how) {
+      case 'tab':
+        environment.out(
+          `Visual Anything already runs on "${name}" at ${address}, open in a tab, which was asked to come forward.`,
+        );
+        return 0;
+      case 'browser':
+        environment.out(
+          `Visual Anything already runs on "${name}" at ${address}, so it opens a new tab there.`,
+        );
+        return 0;
+      case 'address':
+        environment.out(`Visual Anything already runs on "${name}" at ${address}.`);
+        environment.err(`It could not open the browser (${opening.why})`);
+        environment.out(
+          `Open Visual Anything at this address, which works once, within two minutes: ${opening.address}`,
+        );
+        return 0;
+    }
   } finally {
     bridge.close();
   }
@@ -673,10 +765,15 @@ async function runningElsewhere(
       }
       return undefined;
     }
+    const couldNot = `Visual Anything already runs on “${name}” in another program, and it could not open a tab there: switch to that tab, or stop that program and open the project again.`;
     try {
-      await bridge.openApp();
+      const opening = await bridge.openApp();
+      if (opening.how === 'tab') {
+        return `Visual Anything already runs on “${name}” in another program, whose tab was asked to come forward.`;
+      }
+      if (opening.how === 'address') return couldNot;
     } catch {
-      return `Visual Anything already runs on “${name}” in another program, and it could not open a tab there: switch to that tab, or stop that program and open the project again.`;
+      return couldNot;
     }
     return `Visual Anything already runs on “${name}” in another program, so it opened a tab there.`;
   } finally {
@@ -692,6 +789,7 @@ async function recordForClaude(
   environment: CommandEnvironment,
   server: RunningServer,
   folder: string,
+  how: { home?: boolean } = {},
 ): Promise<string | undefined> {
   const runtime = environment.runtimeFolder;
   if (runtime === undefined || runtime === null) return undefined;
@@ -704,12 +802,91 @@ async function recordForClaude(
       folder: toForwardSlashes(folder),
       credential: server.credential,
       startedAt: new Date().toISOString(),
+      ...(how.home === true ? { home: true as const } : {}),
     });
   } catch (error) {
     environment.err(
       `Claude cannot attach to this program: its record could not be written in ${toForwardSlashes(runtime)} (${errorReason(error)}).`,
     );
     return undefined;
+  }
+}
+
+/**
+ * Starts the server on the kept session's port with its token, when there is one to resume; when that
+ * port is taken and no port was asked for, on any free port with a new token, so that a token a tab
+ * may have sent to whatever took the port is worth nothing (ADR 0099).
+ */
+async function startResumed(
+  start: (port: number, token?: string) => Promise<RunningServer>,
+  askedPort: number,
+  resumed: ResumedSession | undefined,
+): Promise<RunningServer> {
+  if (resumed === undefined) return start(askedPort);
+  try {
+    return await start(resumed.port, resumed.token);
+  } catch (error) {
+    const code = errorCode(error);
+    if (askedPort !== 0 || (code !== 'EADDRINUSE' && code !== 'EACCES')) throw error;
+    return start(0);
+  }
+}
+
+/** The session kept for a key (ADR 0099), or none; a folder that cannot be trusted is said. */
+async function keptSessionOf(
+  environment: CommandEnvironment,
+  key: string,
+): Promise<KeptSession | undefined> {
+  const folder = environment.sessionsFolder;
+  if (folder === undefined || folder === null) return undefined;
+  try {
+    return await readKeptSession(folder, key);
+  } catch (error) {
+    environment.err(
+      `Warning: the session is not kept across restarts (${errorReason(error)}); each run is opened from a new address.`,
+    );
+    return undefined;
+  }
+}
+
+/** Keeps the session (ADR 0099); a folder it cannot be written in is said, and the program runs on. */
+async function keepSessionOf(environment: CommandEnvironment, kept: KeptSession): Promise<void> {
+  const folder = environment.sessionsFolder;
+  if (folder === undefined || folder === null) return;
+  try {
+    await keepSession(folder, kept);
+  } catch (error) {
+    environment.err(
+      `Warning: the session could not be kept for the next run in ${toForwardSlashes(folder)} (${errorReason(error)}).`,
+    );
+  }
+}
+
+/**
+ * The real path of a folder, or, while it does not exist yet, its parent's real path and its name, so
+ * that home is known by the same path before and after the projects folder is made.
+ */
+async function realFolderOf(folder: string): Promise<string> {
+  try {
+    return await realpath(folder);
+  } catch {
+    const parent = await realpath(dirname(folder)).catch(() => dirname(folder));
+    return join(parent, basename(folder));
+  }
+}
+
+/** Whether another Visual Anything runs on a folder now, asked without opening anything there. */
+async function runsElsewhere(environment: CommandEnvironment, folder: string): Promise<boolean> {
+  const runtime = environment.runtimeFolder;
+  if (runtime === undefined || runtime === null) return false;
+  const bridge = new ProgramBridge({ folder, runtime, attachOnly: true });
+  try {
+    await bridge.project();
+    return true;
+  } catch {
+    return false;
+  } finally {
+    bridge.close();
   }
 }
 

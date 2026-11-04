@@ -31,8 +31,8 @@ const project: ProjectSnapshot = {
 };
 
 describe('PROTOCOL_VERSION', () => {
-  it('is 9, since a tour step’s caption may sit where it was dragged (ADR 0095)', () => {
-    expect(PROTOCOL_VERSION).toBe(9);
+  it('is 10, since a connected tab comes forward instead of a new one opening (ADR 0099)', () => {
+    expect(PROTOCOL_VERSION).toBe(10);
   });
 
   it('names the launch code and the token in the address and on the live connection', () => {

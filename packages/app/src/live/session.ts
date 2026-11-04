@@ -5,7 +5,14 @@
  * token, which it keeps for reloads and reconnections. The token never appears in an address, so it
  * sits neither in the browser's history nor on screen, and other websites cannot drive the program.
  */
-import { LAUNCH_PARAM, LIVE_PATH, TOKEN_PARAM } from '@visual-anything/core';
+import {
+  LAUNCH_PARAM,
+  LIVE_PATH,
+  SESSION_CHALLENGE_PARAM,
+  SESSION_PROOF_CONTEXT,
+  SESSION_PROOF_PATH,
+  TOKEN_PARAM,
+} from '@visual-anything/core';
 
 /** What the tab connects with: the session token, or the launch code that hands it over. */
 export type LiveCredential = { token: string } | { launch: string };
@@ -72,4 +79,73 @@ function recall(target: Pick<Window, 'sessionStorage'>): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * What a program answering on this tab's address proved about the session token (ADR 0099): that it
+ * holds it, `ok`; that it does not, `other`, as another session or another program on the port; or
+ * nothing, `unreachable`, while nothing answers there yet.
+ */
+export type SessionProof = 'ok' | 'other' | 'unreachable';
+
+/** What proving the session needs from the browser; the window's own by default. */
+export interface ProofTools {
+  fetch: typeof fetch;
+  crypto: Crypto;
+}
+
+/**
+ * Asks the program on this tab's address to prove that it holds the session token before the tab
+ * sends the token to it (ADR 0099): a random challenge, which the program answers with an HMAC of it
+ * keyed by the token. The token itself is never sent, so whatever answers on the port while the
+ * program is down learns nothing that opens the session.
+ */
+export async function proveSession(
+  location: Pick<Location, 'protocol' | 'host'>,
+  token: string,
+  tools: ProofTools = { fetch: globalThis.fetch.bind(globalThis), crypto: globalThis.crypto },
+): Promise<SessionProof> {
+  const challenge = [...tools.crypto.getRandomValues(new Uint8Array(16))]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+  const query = new URLSearchParams({ [SESSION_CHALLENGE_PARAM]: challenge });
+  let response: Response;
+  try {
+    response = await tools.fetch(
+      `${location.protocol}//${location.host}${SESSION_PROOF_PATH}?${query.toString()}`,
+      { cache: 'no-store', credentials: 'omit', redirect: 'error' },
+    );
+  } catch {
+    return 'unreachable';
+  }
+  if (!response.ok) return 'other';
+  let proof: unknown;
+  try {
+    proof = ((await response.json()) as { proof?: unknown }).proof;
+  } catch {
+    return 'other';
+  }
+  if (typeof proof !== 'string') return 'other';
+  const encoder = new TextEncoder();
+  const key = await tools.crypto.subtle.importKey(
+    'raw',
+    encoder.encode(token),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signed = new Uint8Array(
+    await tools.crypto.subtle.sign(
+      'HMAC',
+      key,
+      encoder.encode(`${SESSION_PROOF_CONTEXT}${challenge}`),
+    ),
+  );
+  return proof === base64url(signed) ? 'ok' : 'other';
+}
+
+function base64url(bytes: Uint8Array): string {
+  let text = '';
+  for (const byte of bytes) text += String.fromCharCode(byte);
+  return btoa(text).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 }

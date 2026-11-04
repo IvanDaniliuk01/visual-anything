@@ -12,6 +12,7 @@
  *   visual-anything live <folder> [--fresh-for <seconds>] < values.jsonl
  *   visual-anything notices
  *   visual-anything setup-claude
+ *   visual-anything address [folder]
  *   visual-anything merge-driver <ancestor> <ours> <theirs> <path> [<ours' name> <theirs' name>]
  *   visual-anything merge-driver --install [--global] [--no-attributes] | --uninstall [--global]
  *
@@ -26,12 +27,15 @@
  * (`live-command.ts`, ADR 0057); and `merge-driver` is what git runs to merge two edits of a project
  * file by id, once `merge-driver --install` defines it in the person's git configuration
  * (`merge-driver.ts`, ADR 0072); and `setup-claude` adds this executable to Claude Desktop's
- * configuration (`claude-setup.ts`, ADR 0093).
+ * configuration (`claude-setup.ts`, ADR 0093); and `address` prints a new launch address of the
+ * program running, from its record, where its terminal is out of reach (`address-command.ts`, ADR
+ * 0099).
  */
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import open from 'open';
+import { ADDRESS_COMMAND, runAddress } from './address-command';
 import { ProgramBridge } from './claude/bridge';
 import { runtimeFolder } from './claude/discovery';
 import { MCP_USAGE, createMcpServer, parseMcpCommandLine } from './claude/mcp';
@@ -48,6 +52,7 @@ import { runImport } from './import-command';
 import { errorCode } from './errors';
 import { runNewCommand } from './new-command';
 import { DEV_IN_EXECUTABLE, isExecutable, noticesText, startProgramWith } from './executable';
+import { sessionsFolder } from './kept-session';
 import { preferencesFolder } from './preferences';
 
 /** The subcommand that runs Claude's MCP entry point. */
@@ -89,7 +94,8 @@ export interface Entry {
     | 'live'
     | 'notices'
     | 'merge-driver'
-    | 'setup-claude';
+    | 'setup-claude'
+    | 'address';
   argv: string[];
 }
 
@@ -111,6 +117,7 @@ export function entryOf(argv: readonly string[]): Entry {
   if (argv[0] === NOTICES_COMMAND) return { kind: 'notices', argv: argv.slice(1) };
   if (argv[0] === MERGE_DRIVER_COMMAND) return { kind: 'merge-driver', argv: argv.slice(1) };
   if (argv[0] === SETUP_CLAUDE_COMMAND) return { kind: 'setup-claude', argv: argv.slice(1) };
+  if (argv[0] === ADDRESS_COMMAND) return { kind: 'address', argv: argv.slice(1) };
   return { kind: 'program', argv: [...argv] };
 }
 
@@ -139,17 +146,24 @@ export function main(argv: readonly string[]): void {
                 ? Promise.resolve(printNotices())
                 : entry.kind === 'merge-driver'
                   ? runMergeDriverCommand(entry.argv)
-                  : entry.kind === 'setup-claude'
-                    ? runSetupClaude(entry.argv, {
+                  : entry.kind === 'address'
+                    ? runAddress(entry.argv, {
+                        cwd: process.cwd(),
                         out: (line) => console.log(line),
                         err: (line) => console.error(line),
-                        setUp: () => setUpClaudeHere(),
+                        runtimeFolder: runtimeFolder(process.platform, process.env, homedir()),
                       })
-                    : runProgram(
-                        entry.argv,
-                        isExecutable(),
-                        entry.kind === 'new' ? runNewCommand : runCommand,
-                      );
+                    : entry.kind === 'setup-claude'
+                      ? runSetupClaude(entry.argv, {
+                          out: (line) => console.log(line),
+                          err: (line) => console.error(line),
+                          setUp: () => setUpClaudeHere(),
+                        })
+                      : runProgram(
+                          entry.argv,
+                          isExecutable(),
+                          entry.kind === 'new' ? runNewCommand : runCommand,
+                        );
   void run.then((code) => {
     if (code !== undefined) process.exitCode = code;
   });
@@ -253,6 +267,8 @@ export async function runProgram(
     preferences: preferencesFolder(process.platform, process.env, homedir()),
     ...(keys === undefined ? {} : { keys }),
     runtimeFolder: runtime,
+    // The session is kept across restarts, beside Claude's record or where the container says (ADR 0099).
+    sessionsFolder: sessionsFolder(process.platform, process.env, homedir()),
     // The executable starts itself for another project a destination opens (ADR 0056).
     ...(executable ? { startProgram: startProgramWith(runtime) } : {}),
     // "Connect Claude…" in the app runs what setup-claude runs (ADR 0093).

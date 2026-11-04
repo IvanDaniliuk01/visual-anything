@@ -8,14 +8,17 @@
  * command line, which carries a file, never a command, and runs as the person's (ADR-0049); the
  * versions the program lists, and the comparison of one with the project now (ADR 0071); files to
  * prepare as solids, sent in pieces or named by their path inside the project folder, which the
- * program reads itself (ADR 0075); and the withdrawal of Claude's own proposal (ADR 0073). Undo, redo, preferences, and accepting or refusing
+ * program reads itself (ADR 0075); the withdrawal of Claude's own proposal (ADR 0073); and a new
+ * launch address, which `visual-anything address` prints for the person and Claude's tools never ask
+ * for (ADR 0099). Undo, redo, preferences, and accepting or refusing
  * a proposal are the person's, and are refused.
  *
  * The program answers with the live protocol's own messages (`project/opened`, `project/changed`,
  * `command/rejected`, `project/reloaded`, `live/kept`, `versions/listed`, `version/compared`,
  * `version/refused`, `proposal/shown`, `proposal/closed`), so the MCP entry point keeps its copy of
  * the project in step exactly as an app does, plus answers of its own: `guidance/shown`,
- * `capture/taken`, `app/opened`, `code/approvals`, `live/cleared`, `live/listed` and `proposal/made`.
+ * `capture/taken`, `app/opened`, `launch/address`, `code/approvals`, `live/cleared`, `live/listed` and
+ * `proposal/made`.
  */
 import {
   FRESHNESS,
@@ -88,10 +91,17 @@ export type ClaudeMessage =
    */
   | { type: 'capture'; requestId: string; ask: CaptureAsk }
   /**
-   * Opens the app in the browser, at an address that works once; with a view state, the address
-   * carries it, and the tab opens the project there (ADR-0044).
+   * Opens the app (ADR 0099): while a tab is connected, that tab comes forward and shows the view
+   * state, unless `newTab` asks for a new tab; otherwise the browser opens at an address that works
+   * once, carrying the view state, and the tab opens the project there (ADR-0044).
    */
-  | { type: 'open-app'; requestId: string; state?: ViewState }
+  | { type: 'open-app'; requestId: string; state?: ViewState; newTab?: true }
+  /**
+   * Asks for a new launch address, which works once within two minutes and ends the one before, for
+   * `visual-anything address` to print in the person's terminal (ADR 0099); answered with
+   * `launch/address`. It never carries the session token. Claude's tools never send it.
+   */
+  | { type: 'launch-address'; requestId: string }
   /**
    * Asks which code of the open project's packages the person approved (ADR 0054), so that Claude's
    * tools run only approved code. Claude can never approve code: only the person can, in the app.
@@ -230,11 +240,25 @@ export interface CaptureTakenMessage {
   report: CaptureReport;
 }
 
-/** The answer to `open-app`: the browser was asked to open the app. */
-export interface AppOpenedMessage {
-  type: 'app/opened';
+/**
+ * How the app was opened (ADR 0099): a connected tab came forward, counting the tabs told; the browser
+ * was asked to open a new tab; or it could not be, and here is the launch address, which works once
+ * within two minutes, for the person to open, and why. The session token is never in it.
+ */
+export type AppOpening =
+  | { how: 'tab'; tabs: number }
+  | { how: 'browser' }
+  | { how: 'address'; address: string; why: string };
+
+/** The answer to `launch-address`: an address that works once, within two minutes (ADR 0099). */
+export interface LaunchAddressMessage {
+  type: 'launch/address';
   requestId: string;
+  address: string;
 }
+
+/** The answer to `open-app`: how the app was opened. */
+export type AppOpenedMessage = { type: 'app/opened'; requestId: string } & AppOpening;
 
 /**
  * The answer to a command that joined Claude's proposal rather than applying (ADR 0073): the call
@@ -261,6 +285,7 @@ export type ProgramMessage =
   | GuidanceShownMessage
   | CaptureTakenMessage
   | AppOpenedMessage
+  | LaunchAddressMessage
   | CodeApprovalsMessage
   | LiveClearedMessage
   | LiveListedMessage
@@ -328,13 +353,19 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
     case 'solid/prepare-file':
       return readSolidPrepareFile(message, requestId);
     case 'open-app': {
-      if (message.state === undefined) return { type: 'open-app', requestId };
+      if (message.newTab !== undefined && message.newTab !== true) {
+        throw new ProtocolError('newTab is true or left out.');
+      }
+      const newTab = message.newTab === true ? { newTab: true as const } : {};
+      if (message.state === undefined) return { type: 'open-app', requestId, ...newTab };
       const checked = checkViewState(message.state);
       if (!checked.ok) throw new ProtocolError(checked.message);
-      return { type: 'open-app', requestId, state: checked.state };
+      return { type: 'open-app', requestId, state: checked.state, ...newTab };
     }
     case 'code-approvals':
       return { type: 'code-approvals', requestId };
+    case 'launch-address':
+      return { type: 'launch-address', requestId };
     case 'live/set':
       return readLiveSet(message, requestId);
     case 'live/clear':
@@ -343,8 +374,40 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
       return readLiveList(message, requestId);
     default:
       throw new ProtocolError(
-        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, pictures of a view, opening the app, asking which package code is approved, live values, versions, withdrawing a proposal, files to import as solids and imports from the command line. Undo, redo, preferences, and accepting or refusing a proposal are the person's, in the app.`,
+        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, pictures of a view, opening the app, asking which package code is approved, live values, versions, withdrawing a proposal, files to import as solids, imports from the command line and new launch addresses for the command line. Undo, redo, preferences, and accepting or refusing a proposal are the person's, in the app.`,
       );
+  }
+}
+
+/** Whether a value is a launch address as the program makes one: a launch code, never a token. */
+function isLaunchAddress(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length <= 64 * 1024 &&
+    /^http:\/\/127\.0\.0\.1:\d{1,5}\/#launch=[A-Za-z0-9_-]+(&|$)/.test(value)
+  );
+}
+
+/** How the program opened the app, read strictly; an answer that says nothing of it is `browser`. */
+function readAppOpening(message: Record<string, unknown>): AppOpening {
+  switch (message.how) {
+    case 'tab':
+      if (!Number.isInteger(message.tabs) || (message.tabs as number) < 1) {
+        throw new ProtocolError('A tab that came forward is counted.');
+      }
+      return { how: 'tab', tabs: message.tabs as number };
+    case 'address': {
+      const { address, why } = message;
+      if (!isLaunchAddress(address) || typeof why !== 'string') {
+        throw new ProtocolError('The launch address answered is not valid.');
+      }
+      return { how: 'address', address, why };
+    }
+    case undefined:
+    case 'browser':
+      return { how: 'browser' };
+    default:
+      throw new ProtocolError('The answer says how the app was opened.');
   }
 }
 
@@ -374,7 +437,14 @@ export function decodeProgramMessage(text: string): ProgramMessage {
     case 'app/opened': {
       const requestId = requestIdOf(message);
       if (requestId === undefined) throw new ProtocolError('The answer is not valid.');
-      return { type: 'app/opened', requestId };
+      return { type: 'app/opened', requestId, ...readAppOpening(message) };
+    }
+    case 'launch/address': {
+      const requestId = requestIdOf(message);
+      if (requestId === undefined || !isLaunchAddress(message.address)) {
+        throw new ProtocolError('The launch address answered is not valid.');
+      }
+      return { type: 'launch/address', requestId, address: message.address };
     }
     case 'code/approvals': {
       const requestId = requestIdOf(message);

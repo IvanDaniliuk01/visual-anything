@@ -223,6 +223,7 @@ export * from './import';
 
 export type {
   AppMessage,
+  AppShownMessage,
   CommandRejectedMessage,
   NoticeMessage,
   PreferencesChangedMessage,
@@ -236,6 +237,10 @@ export {
   LIVE_PATH,
   PROTOCOL_VERSION,
   ProtocolError,
+  SESSION_CHALLENGE_FORM,
+  SESSION_CHALLENGE_PARAM,
+  SESSION_PROOF_CONTEXT,
+  SESSION_PROOF_PATH,
   THEME_PARAM,
   TOKEN_PARAM,
   decodeAppMessage,
