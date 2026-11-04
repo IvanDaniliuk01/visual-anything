@@ -1339,7 +1339,7 @@ export interface ShapePosition {
  *
  * @discriminator kind
  */
-export type FreeShape = Note | Arrow;
+export type FreeShape = Note | Arrow | Picture;
 
 /** A free shape that holds text. */
 export interface Note {
@@ -1384,6 +1384,90 @@ export interface Arrow {
   to: Point;
   /** Its color; without one, the theme's arrow color. */
   stroke?: Color;
+}
+
+/**
+ * A free shape that shows a media file kept beside the project (ADR 0098): a photo, a screenshot, an
+ * animated GIF or an SVG drawing. It belongs to the view and is never part of the model.
+ */
+export interface Picture {
+  kind: 'picture';
+  id: Id;
+  /**
+   * Its left edge on the canvas.
+   *
+   * @minimum -10000000
+   * @maximum 10000000
+   */
+  x: number;
+  /**
+   * Its top edge on the canvas.
+   *
+   * @minimum -10000000
+   * @maximum 10000000
+   */
+  y: number;
+  /**
+   * @exclusiveMinimum 0
+   * @maximum 10000000
+   */
+  width: number;
+  /**
+   * @exclusiveMinimum 0
+   * @maximum 10000000
+   */
+  height: number;
+  /** The media file it shows. */
+  media: MediaRef;
+  /**
+   * What screen readers and the outline say, and what a missing file shows; "Picture" when left out.
+   *
+   * @minLength 1
+   * @maxLength 200
+   */
+  name?: string;
+}
+
+/** The formats a media file may have (ADR 0098). */
+export type MediaFormat = 'png' | 'jpeg' | 'webp' | 'gif' | 'svg';
+
+/**
+ * Which media file a picture shows and what it is, so that the scene can place it and an export can
+ * name it before the file is read (ADR 0098). The file is `media/<hash>.<extension>` beside the
+ * project.
+ */
+export interface MediaRef {
+  /**
+   * The SHA-256 of the cleaned file, in lowercase hexadecimal.
+   *
+   * @pattern ^[0-9a-f]{64}$
+   */
+  hash: string;
+  format: MediaFormat;
+  /**
+   * Its own width in pixels.
+   *
+   * @minimum 1
+   * @maximum 8192
+   * @asType integer
+   */
+  width: number;
+  /**
+   * Its own height in pixels.
+   *
+   * @minimum 1
+   * @maximum 8192
+   * @asType integer
+   */
+  height: number;
+  /**
+   * The size of the cleaned file, in bytes.
+   *
+   * @minimum 1
+   * @maximum 33554432
+   * @asType integer
+   */
+  bytes: number;
 }
 
 /** A point on the canvas, in canvas units, at most ten million from its origin either way. */
