@@ -387,7 +387,7 @@ function orthogonalRoute(
   const points: Point[] = [...fromExit.points];
   let axis: Axis = fromExit.axis;
   let current = points.at(-1) as Point;
-  for (const bend of bendPoints) {
+  for (const bend of alignedBends(bendPoints, [...fromExit.points, ...toExit.points])) {
     const arrived = connect(points, current, axis, bend, undefined);
     current = bend;
     // A bend point is a corner: the route turns there.
@@ -397,6 +397,25 @@ function orthogonalRoute(
   connect(points, current, axis, entry[0] as Point, toExit.axis);
   points.push(...entry.slice(1));
   return simplified(points);
+}
+
+/** How close, in canvas units, a bend point's coordinate must be to an end's to run in line with it. */
+export const ALIGN = 1;
+
+/**
+ * The bend points with each coordinate within `ALIGN` of one of the ends' points taken as that
+ * point's. A place on a side is kept to three decimals, so a run meant to be level with an end can
+ * miss it by a fraction of a unit, and the route would step there, or run past its corner and back
+ * along a line a fraction away, which no fold removes.
+ */
+function alignedBends(bends: readonly Point[], ends: readonly Point[]): Point[] {
+  const align = (value: number, key: 'x' | 'y'): number => {
+    for (const end of ends) {
+      if (Math.abs(end[key] - value) <= ALIGN) return end[key];
+    }
+    return value;
+  };
+  return bends.map((bend) => ({ x: align(bend.x, 'x'), y: align(bend.y, 'y') }));
 }
 
 /**

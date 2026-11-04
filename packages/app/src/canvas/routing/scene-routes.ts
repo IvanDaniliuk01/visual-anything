@@ -23,7 +23,14 @@ import { nameTagOf } from '../nameTags';
 import { isSideEnd, type AnyEnd } from '../rowRoutes';
 import type { ElementShape, RelationLine } from '../scene';
 import { automaticRoute, type AutomaticEnd } from './automatic';
-import { routeByHand, type Attach, type CurveSpan, type HandEnd, type RouteStyle } from './hand';
+import {
+  ALIGN,
+  routeByHand,
+  type Attach,
+  type CurveSpan,
+  type HandEnd,
+  type RouteStyle,
+} from './hand';
 import { endOutline, routeBoxOf } from './outline-ends';
 import { isTurned, turnKey } from '../turn';
 
@@ -306,12 +313,16 @@ export function routeLine(ends: LineEnds, hand: HandOfLine | undefined): RoutedL
 export function withoutIdleBends(ends: LineEnds, hand: HandOfLine): HandOfLine {
   if (hand.route.style !== 'orthogonal' || hand.bendPoints.length === 0) return hand;
   const drawn = routeLine(ends, hand).route;
-  const corners = new Set(drawn.slice(1, -1).map((point) => `${point.x} ${point.y}`));
+  const corners = drawn.slice(1, -1);
   let bendPoints = hand.bendPoints;
   // From the last, so that each bend point is weighed with those before it, as the route reaches it.
   for (let at = bendPoints.length - 1; at >= 0; at--) {
     const bend = bendPoints[at] as Point;
-    if (corners.has(`${bend.x} ${bend.y}`)) continue;
+    // Within `ALIGN`, as the route aligns bend points with its ends.
+    const isCorner = corners.some(
+      (corner) => Math.abs(corner.x - bend.x) <= ALIGN && Math.abs(corner.y - bend.y) <= ALIGN,
+    );
+    if (isCorner) continue;
     const fewer = bendPoints.filter((_, index) => index !== at);
     if (sameRoute(routeLine(ends, { ...hand, bendPoints: fewer }).route, drawn)) {
       bendPoints = fewer;

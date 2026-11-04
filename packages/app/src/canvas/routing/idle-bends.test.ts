@@ -62,6 +62,44 @@ describe('bend points a route no longer turns at', () => {
     expect(routeLine(ends, kept).route).toEqual(routeLine(ends, hand).route);
   });
 
+  it('are dropped past a corner the route comes back from a fraction of a unit away', () => {
+    // Both ends on their left sides, at places kept to three decimals: the end's run is at y 288.128.
+    const ends: LineEnds = {
+      relation: 'r',
+      offset: 0,
+      fromShape: undefined,
+      toShape: undefined,
+      from: { rect: { x: 128, y: 456, width: 240, height: 71 } },
+      to: { rect: { x: 100, y: 256, width: 180, height: 64 } },
+    };
+    const hand: HandOfLine = {
+      route: {
+        relation: 'r',
+        from: { kind: 'border', side: 'left', at: 0.562 },
+        to: { kind: 'border', side: 'left', at: 0.502 },
+        style: 'orthogonal',
+        bendPoints: [],
+        byHand: true,
+      },
+      bendPoints: [
+        { x: 116, y: 496 },
+        { x: 64, y: 496 },
+        { x: 64, y: 288 },
+        { x: 30, y: 288 },
+      ],
+      bendOrigin: { x: 0, y: 0 },
+    };
+    const route = routeLine(ends, hand).route;
+    expect(route).toHaveLength(4);
+    expect(Math.min(...route.map((point) => point.x))).toBe(64);
+    const kept = withoutIdleBends(ends, hand);
+    expect(kept.bendPoints).toEqual([
+      { x: 64, y: 496 },
+      { x: 64, y: 288 },
+    ]);
+    expect(routeLine(ends, kept).route).toEqual(route);
+  });
+
   it('stay where the route turns at them', () => {
     const { ends, hand } = line({ x: 300, y: 200, width: 100, height: 60 }, [
       { x: 150, y: 30 },
