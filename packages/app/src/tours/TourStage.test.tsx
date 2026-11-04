@@ -1,6 +1,6 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { TourFile } from '@visual-anything/schema';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LiveContext } from '../live/context';
@@ -434,6 +434,81 @@ describe('TourStage’s reveals, scenario card and controls', () => {
       <TourStage project={sample} tour={cornered} step={0} place="top" onAction={onAction} />,
     );
     expect(screen.getByRole('article')).toHaveAttribute('data-place', 'bottom-right');
+  });
+
+  describe('a caption card dragged to a place of its own (ADR 0095)', () => {
+    const rect = (left: number, top: number, width: number, height: number) =>
+      ({
+        left,
+        top,
+        width,
+        height,
+        x: left,
+        y: top,
+        right: left + width,
+        bottom: top + height,
+      }) as DOMRect;
+    const pointer = (target: EventTarget, type: string, clientX: number, clientY: number) =>
+      act(() => {
+        target.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX, clientY }));
+      });
+
+    function dragged(onPlace: (step: number, at: { x: number; y: number }) => void) {
+      stage({ onPlace });
+      const card = screen.getByRole('article');
+      const room = card.closest('section') as HTMLElement;
+      vi.spyOn(room, 'getBoundingClientRect').mockReturnValue(rect(0, 0, 1000, 800));
+      vi.spyOn(card, 'getBoundingClientRect').mockReturnValue(rect(300, 600, 400, 100));
+      return card;
+    }
+
+    it('keeps the place it is dropped at, as fractions of the room it leaves', () => {
+      const onPlace = vi.fn();
+      const card = dragged(onPlace);
+      pointer(card, 'pointerdown', 350, 650);
+      // Left by 150 of the 600 it leaves across, and up by 350 of the 700 it leaves down.
+      pointer(window, 'pointermove', 200, 300);
+      expect(card).toHaveAttribute('data-place', 'free');
+      pointer(window, 'pointerup', 200, 300);
+      expect(onPlace).toHaveBeenCalledExactlyOnceWith(0, { x: 0.25, y: 0.357 });
+      expect(card.style.getPropertyValue('--card-x')).toBe('0.25');
+    });
+
+    it('stays whole on the screen however far it is dragged', () => {
+      const onPlace = vi.fn();
+      const card = dragged(onPlace);
+      pointer(card, 'pointerdown', 350, 650);
+      pointer(window, 'pointermove', -900, 2000);
+      pointer(window, 'pointerup', -900, 2000);
+      expect(onPlace).toHaveBeenCalledWith(0, { x: 0, y: 1 });
+    });
+
+    it('is not dragged by a click, nor by a press on its controls, nor without a place to keep', () => {
+      const onPlace = vi.fn();
+      const card = dragged(onPlace);
+      pointer(card, 'pointerdown', 350, 650);
+      pointer(window, 'pointermove', 352, 651);
+      pointer(window, 'pointerup', 352, 651);
+      expect(onPlace).not.toHaveBeenCalled();
+      expect(card).not.toHaveAttribute('data-place', 'free');
+      cleanup();
+      stage();
+      expect(screen.getByRole('article')).not.toHaveAttribute('data-draggable');
+    });
+
+    it('is drawn where the step’s caption keeps it', () => {
+      const placed: TourFile = {
+        ...tour,
+        steps: tour.steps.map((step) => ({
+          ...step,
+          caption: { ...step.caption, place: { x: 0.5, y: 0 } },
+        })),
+      };
+      render(<TourStage project={sample} tour={placed} step={0} onAction={vi.fn()} />);
+      const card = screen.getByRole('article');
+      expect(card).toHaveAttribute('data-place', 'free');
+      expect(card.style.getPropertyValue('--card-y')).toBe('0');
+    });
   });
 
   describe('what screen readers hear', () => {

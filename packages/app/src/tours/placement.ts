@@ -13,11 +13,16 @@ import { rectAround } from '../canvas/spatial';
 /** A side of the screen the card takes by itself. */
 export type CaptionSide = 'bottom' | 'top' | 'right' | 'left';
 
-/** A corner a step's caption fixes. */
+/** A corner, or a place it was dragged to (ADR 0095), that a step's caption fixes. */
 export type CaptionCorner = NonNullable<TourCaption['place']>;
 
 /** Where the card is. */
 export type CaptionPlace = CaptionSide | CaptionCorner;
+
+/** What the card's `data-place` says: a side, a corner, or `free` where it was dragged to. */
+export function placeName(place: CaptionPlace): string {
+  return typeof place === 'string' ? place : 'free';
+}
 
 /**
  * How much room the card needs: its height along the top or the bottom of the screen, and its width

@@ -135,10 +135,16 @@ describe('create-tour', () => {
             advance: 4000,
             dimRest: false as never,
           },
+          {
+            viewState: { view: 'overview' },
+            // Dragged while the tour played (ADR 0095): kept to three decimals.
+            caption: { title: 'Dragged', place: { x: 0.12345, y: 1 } },
+          },
         ],
       },
     });
-    const [staged, plain] = outcome.state.tours[0]?.steps ?? [];
+    const [staged, plain, dragged] = outcome.state.tours[0]?.steps ?? [];
+    expect(dragged?.caption).toEqual({ title: 'Dragged', place: { x: 0.123, y: 1 } });
     expect(staged).toEqual({
       id: 'step-2',
       viewState: { view: 'overview' },
@@ -272,6 +278,16 @@ describe('create-tour', () => {
       'a caption in no corner',
       { caption: { title: 'T', place: 'middle' as never } },
       'A caption sits in a corner',
+    ],
+    [
+      'a caption dragged off the screen',
+      { caption: { title: 'T', place: { x: 1.5, y: 0 } } },
+      'each from 0 to 1',
+    ],
+    [
+      'a caption at a place with more than x and y',
+      { caption: { title: 'T', place: { x: 0, y: 0, z: 0 } as never } },
+      'each from 0 to 1',
     ],
     [
       'a caption pointing at no id',

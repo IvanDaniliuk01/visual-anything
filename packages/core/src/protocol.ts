@@ -146,8 +146,10 @@ import { readSpaceCamera } from './space/camera';
  *    `home/offered`, what the Projects screen offers; an app answers with `home/open`, `home/create`
  *    or `home/forget`, and goes back home from a project with `home/close`. Claude, attached to the
  *    project that closed, is told with `project/closed`.
+ * 9: a caption card dragged to a place of its own (ADR 0095): a tour step's `caption.place` may be
+ *    `{ x, y }`, which an app of 8 would refuse when it opens the tour file.
  */
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';

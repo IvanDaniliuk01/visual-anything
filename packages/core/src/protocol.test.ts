@@ -31,8 +31,8 @@ const project: ProjectSnapshot = {
 };
 
 describe('PROTOCOL_VERSION', () => {
-  it('is 8, since an app can ask the program to connect Claude Desktop (ADR 0093)', () => {
-    expect(PROTOCOL_VERSION).toBe(8);
+  it('is 9, since a tour step’s caption may sit where it was dragged (ADR 0095)', () => {
+    expect(PROTOCOL_VERSION).toBe(9);
   });
 
   it('names the launch code and the token in the address and on the live connection', () => {

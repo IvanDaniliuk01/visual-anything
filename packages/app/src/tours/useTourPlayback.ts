@@ -501,6 +501,8 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
       : undefined;
   const [leader, setLeader] = useState<Leader>();
   const place = stageState.place;
+  // A card dragged to a place of its own (ADR 0095) moves the line's start with it.
+  const fixedPlace = JSON.stringify(step?.caption.place ?? null);
   useEffect(() => {
     const canvasNow = settings.current.canvas;
     if (pointing === undefined || !canvasNow) {
@@ -528,7 +530,7 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
       unsubscribe();
       if (frame !== undefined) cancelFrame(frame);
     };
-  }, [pointing, place, scene]);
+  }, [pointing, place, fixedPlace, scene]);
 
   // A step's pulse along its chain, once its transition is over (ADR 0084): R plays it again, and a
   // press forward or back ends it.

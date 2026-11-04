@@ -201,6 +201,29 @@
   left: auto;
 }
 
+/*
+ * A card dragged to a place of its own (ADR 0095): `--card-x` and `--card-y` are fractions of the room
+ * it leaves, so that its left edge sits at x × (stage − card) and it stays whole on any screen.
+ */
+.tour-card[data-place='free'] {
+  top: calc(var(--card-y) * 100%);
+  bottom: auto;
+  left: calc(var(--card-x) * 100%);
+  width: min(var(--size-2500), calc(50% - var(--space-200)));
+  max-height: 70%;
+  transform: translate(calc(var(--card-x) * -100%), calc(var(--card-y) * -100%));
+}
+
+/* A card that can be dragged says so under the pointer; its controls and links keep their own. */
+.tour-card[data-draggable] {
+  cursor: grab;
+  touch-action: none;
+}
+
+.tour-card[data-draggable]:active {
+  cursor: grabbing;
+}
+
 /* A reveal's text fades in as its marks do; with fades off it shows at once. */
 .tour-card-reveal {
   animation: tour-reveal-in 200ms linear;
@@ -458,9 +481,14 @@
 
 /* ——— The tours panel ——— */
 
+/* It scrolls within its tab, as the Model tab does: an open tour's steps run far below the panel. */
 .tours-panel {
   display: grid;
+  flex: 1;
+  align-content: start;
   gap: var(--space-75);
+  min-height: 0;
+  overflow: auto;
   padding: var(--space-75) var(--space-100) var(--space-150);
 }
 

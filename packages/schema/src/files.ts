@@ -2006,13 +2006,37 @@ export interface TourCaption {
    * @maxLength 4000
    */
   text?: string;
-  /** The corner the card sits in; left out, the side of the screen farthest from the step's marks. */
-  place?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  /**
+   * Where the card sits: a corner, or a place the person dragged it to (ADR 0095); left out, the side
+   * of the screen farthest from the step's marks.
+   */
+  place?: CaptionCorner | CaptionAt;
   /**
    * One of the step's marks that a leader line from the card points at (ADR 0084): an element, a
    * relation, a note or an arrow.
    */
   pointTo?: Id;
+}
+
+/** A corner of the screen a caption card can be fixed in. */
+export type CaptionCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
+/**
+ * A place on the screen a caption card was dragged to (ADR 0095), as fractions of the room the card
+ * leaves, so that it stays whole on any screen: 0 puts its left or top edge at the screen's, 1 its
+ * right or bottom edge at the screen's.
+ */
+export interface CaptionAt {
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  x: number;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  y: number;
 }
 
 /**

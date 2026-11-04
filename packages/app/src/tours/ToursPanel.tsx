@@ -28,7 +28,7 @@ import {
   type ProjectSnapshot,
   type TourStepCheck,
 } from '@visual-anything/core';
-import type { Id, TourFile, TourStep } from '@visual-anything/schema';
+import type { CaptionCorner, Id, TourFile, TourStep } from '@visual-anything/schema';
 import { useCallback, useContext, useId, useMemo, useState, type ReactNode } from 'react';
 import { useEditor } from '../editor/EditorContext';
 import { useT, type Translator } from '../i18n';
@@ -569,7 +569,7 @@ function StepExplains({
 }) {
   const t = useT();
   const { project, selection } = useEditor();
-  const ids = { pointTo: useId(), repeat: useId() };
+  const ids = { pointTo: useId(), place: useId(), repeat: useId() };
   const index = modelIndexOf(project);
   const nameOf = (id: string) => index.element(id)?.name ?? index.relation(id)?.name ?? id;
   const marks = marksOf(step);
@@ -610,6 +610,41 @@ function StepExplains({
             </option>
           ))}
         </select>
+      </div>
+      <div className="tour-field">
+        <label htmlFor={ids.place}>{t('Where the caption sits')}</label>
+        <select
+          id={ids.place}
+          value={placeValue(step.caption.place)}
+          disabled={!editable}
+          onChange={(event) => {
+            const chosen = event.target.value;
+            if (chosen === 'free') return;
+            change(
+              (each) => {
+                const caption: TourStep['caption'] = { ...each.caption };
+                if (chosen === '') delete caption.place;
+                else caption.place = chosen as CaptionCorner;
+                return { ...each, caption };
+              },
+              chosen === ''
+                ? t('Step {n}’s caption sits where it reads best.', { n })
+                : t('Step {n}’s caption sits in a corner.', { n }),
+            );
+          }}
+        >
+          <option value="">{t('Where it reads best')}</option>
+          <option value="top-left">{t('Top left')}</option>
+          <option value="top-right">{t('Top right')}</option>
+          <option value="bottom-left">{t('Bottom left')}</option>
+          <option value="bottom-right">{t('Bottom right')}</option>
+          {typeof step.caption.place === 'object' && (
+            <option value="free">{t('Where it was dragged')}</option>
+          )}
+        </select>
+        <p className="tour-field-hint">
+          {t('While the tour plays, drag the caption to place it.')}
+        </p>
       </div>
       <label className="tour-step-check">
         <input
@@ -967,4 +1002,10 @@ function describeShown(t: Translator, project: ProjectSnapshot, step: TourStep):
   return parts.length === 0
     ? t('Shows “{view}”', { view: name })
     : t('Shows “{view}”: {parts}', { view: name, parts: parts.join(', ') });
+}
+
+/** The value the place's control shows: none for where it reads best, `free` where it was dragged. */
+function placeValue(place: TourStep['caption']['place']): string {
+  if (place === undefined) return '';
+  return typeof place === 'string' ? place : 'free';
 }

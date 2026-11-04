@@ -2685,6 +2685,19 @@ export const ui: Catalog = {
   'Step {n} cuts from step {m} with a cross-fade, into another view: they share fewer than {least} shapes.':
     'El paso {n} corta desde el paso {m} con un fundido, hacia otra vista: comparten menos de {least} formas.',
   'The caption points at': 'El rótulo apunta a',
+  'Where the caption sits': 'Dónde va el rótulo',
+  'Where it reads best': 'Donde mejor se lea',
+  'Top left': 'Arriba a la izquierda',
+  'Top right': 'Arriba a la derecha',
+  'Bottom left': 'Abajo a la izquierda',
+  'Bottom right': 'Abajo a la derecha',
+  'Where it was dragged': 'Donde lo arrastraste',
+  'While the tour plays, drag the caption to place it.':
+    'Mientras el recorrido se reproduce, arrastrá el rótulo para ubicarlo.',
+  'Step {n}’s caption sits where it reads best.': 'El rótulo del paso {n} va donde mejor se lea.',
+  'Step {n}’s caption sits in a corner.': 'El rótulo del paso {n} va en una esquina.',
+  'Drag the caption to place it where it reads best':
+    'Arrastrá el rótulo para ubicarlo donde mejor se lea',
   'Step {n} points at nothing.': 'El paso {n} no apunta a nada.',
   'Step {n} points at “{name}”.': 'El paso {n} apunta a “{name}”.',
   'Always cut, never glide its shapes': 'Cortar siempre, sin deslizar sus formas',
@@ -4947,8 +4960,8 @@ export const messages: Catalog = {
     'El pulso corre por "{name}", que la vista "{view}" no dibuja como una línea.',
   'The pulse is not a chain: relation {r}, "{name}", does not start where relation {before}, "{other}", leaves the marker.':
     'El pulso no es una cadena: la relación {r}, "{name}", no empieza donde termina el recorrido por la relación {before}, "{other}".',
-  'A caption sits in a corner, top-left, top-right, bottom-left or bottom-right, or where it reads best, auto.':
-    'Un rótulo va en una esquina, top-left, top-right, bottom-left o bottom-right, o donde mejor se lee, auto.',
+  'A caption sits in a corner, top-left, top-right, bottom-left or bottom-right, at a place given as { x, y }, each from 0 to 1 across the room the card leaves on screen, or where it reads best, auto.':
+    'Un rótulo va en una esquina, top-left, top-right, bottom-left o bottom-right, en un lugar dado como { x, y }, cada uno de 0 a 1 sobre el espacio que la tarjeta deja en la pantalla, o donde mejor se lee, auto.',
   'Step {n} of the tour reveals a list of marks.':
     'El paso {n} del recorrido revela una lista de marcas.',
   'A step brings in at most {limit} reveals.': 'Un paso trae como máximo {limit} revelaciones.',

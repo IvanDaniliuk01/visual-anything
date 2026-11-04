@@ -1,5 +1,5 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
-import type { Id, ViewFile } from '@visual-anything/schema';
+import type { CaptionAt, Id, ViewFile } from '@visual-anything/schema';
 import {
   useCallback,
   useContext,
@@ -62,6 +62,7 @@ import { useSimulationMarks } from '../simulation/useSimulationMarks';
 import { useSimulationStore } from '../simulation/useSimulationStore';
 import { usePackageCode } from '../code/usePackageCode';
 import { CodeApproval } from '../code/ApprovalDialog';
+import { changeStep } from '../tours/commands';
 import { ToursContext } from '../tours/context';
 import { TourPlaybackLayer } from '../tours/TourPlaybackLayer';
 import { useTourPlayback } from '../tours/useTourPlayback';
@@ -203,6 +204,21 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
       code,
       follower,
     ],
+  );
+  // A caption card dragged while a tour plays keeps its place in the step (ADR 0095), one action.
+  const placeCaption = useCallback(
+    (tourId: Id, step: number, at: CaptionAt) => {
+      const tour = project.tours.find((each) => each.id === tourId);
+      const shown = tour?.steps[step];
+      if (!onCommand || !tour || !shown) return;
+      void onCommand(
+        changeStep(tour, shown.id, (each) => ({
+          ...each,
+          caption: { ...each.caption, place: at },
+        })),
+      );
+    },
+    [project, onCommand],
   );
   const canvasHeading = useId();
   // The scenario open in the scenario panel, with its playback and its recording on the canvas.
@@ -526,7 +542,11 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                       viewId={view?.id}
                                       goTo={viewState.goTo}
                                     />
-                                    <TourPlaybackLayer project={project} tours={tours} />
+                                    <TourPlaybackLayer
+                                      project={project}
+                                      tours={tours}
+                                      {...(onCommand ? { onPlace: placeCaption } : {})}
+                                    />
                                   </main>
                                   {view && scene && (
                                     <SpacePanel

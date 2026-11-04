@@ -289,22 +289,29 @@ function checkedCaption(value: unknown, where: string): TourCaption {
 }
 
 /** The corners a caption may be fixed in; `auto`, the side farthest from the marks, is never written. */
-const CAPTION_PLACES: readonly NonNullable<TourCaption['place']>[] = [
-  'top-left',
-  'top-right',
-  'bottom-left',
-  'bottom-right',
-];
+const CAPTION_PLACES: readonly string[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
 
+/**
+ * A caption's place: a corner, or a place it was dragged to (ADR 0095), each fraction from 0 to 1
+ * kept to three decimals.
+ */
 function checkedPlace(value: unknown): TourCaption['place'] {
   if (value === undefined || value === 'auto') return undefined;
-  if (!CAPTION_PLACES.includes(value as NonNullable<TourCaption['place']>)) {
-    reject(
-      'invalid-command',
-      'A caption sits in a corner, top-left, top-right, bottom-left or bottom-right, or where it reads best, auto.',
-    );
+  if (typeof value === 'string' && CAPTION_PLACES.includes(value)) {
+    return value as TourCaption['place'];
   }
-  return value as TourCaption['place'];
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    const { x, y, ...rest } = value as Record<string, unknown>;
+    const fraction = (each: unknown): each is number =>
+      typeof each === 'number' && Number.isFinite(each) && each >= 0 && each <= 1;
+    if (Object.keys(rest).length === 0 && fraction(x) && fraction(y)) {
+      return { x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000 };
+    }
+  }
+  reject(
+    'invalid-command',
+    'A caption sits in a corner, top-left, top-right, bottom-left or bottom-right, at a place given as { x, y }, each from 0 to 1 across the room the card leaves on screen, or where it reads best, auto.',
+  );
 }
 
 /**

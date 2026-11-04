@@ -17,14 +17,16 @@ import {
   tourStepProblems,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { TourFile } from '@visual-anything/schema';
+import type { CaptionAt, TourFile } from '@visual-anything/schema';
 import {
   useEffect,
   useId,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type Ref,
 } from 'react';
 import { useT, type Translator } from '../i18n';
@@ -42,7 +44,7 @@ import { describeMarks } from './describe';
 import type { Leader } from './leader';
 import { tourKeyAction, type TourKeyAction } from './player';
 import { openNotesWindow, type NotesWindow } from './notes-window';
-import type { CaptionPlace } from './placement';
+import { placeName, type CaptionPlace } from './placement';
 import type { StageCue } from './stage-store';
 import { TourNotesWindow } from './TourNotes';
 import { TourText } from './TourText';
@@ -90,7 +92,15 @@ export interface TourStageProps {
    * canvas (ADR 0084); none by default.
    */
   leader?: Leader | undefined;
+  /**
+   * Keeps the place the person dragged the card to for the step whose caption it shows (ADR 0095).
+   * Without it, as in the read-only page, the card cannot be dragged.
+   */
+  onPlace?: (step: number, at: CaptionAt) => void;
 }
+
+/** How far, in pixels, the pointer moves on the card before it drags it rather than clicks it. */
+const DRAG_THRESHOLD = 4;
 
 export function TourStage({
   project,
@@ -110,11 +120,15 @@ export function TourStage({
   fades = true,
   cardRef,
   leader,
+  onPlace,
 }: TourStageProps) {
   const t = useT();
   const heading = useId();
   const stage = useRef<HTMLElement>(null);
   const [notesWindow, setNotesWindow] = useState<NotesWindow>();
+  // Where the card is while it is dragged, and once dropped until the step's caption changes, from
+  // the place it had then, `basis`.
+  const [dragged, setDragged] = useState<{ step: number; at: CaptionAt; basis: string }>();
   const toggleNotes = () => {
     if (notesWindow === undefined) setNotesWindow(openNotesWindow());
     else setNotesWindow(undefined);
@@ -187,6 +201,51 @@ export function TourStage({
   );
 
   if (!shown || !captioned) return null;
+  const captionStep = captioning?.step ?? step;
+  const basis = JSON.stringify(captioned.caption.place ?? null);
+  const at =
+    dragged?.step === captionStep && dragged.basis === basis ? dragged.at : captioned.caption.place;
+  const cardPlace: CaptionPlace = at ?? place;
+  const startDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    const card = event.currentTarget;
+    const room = stage.current;
+    if (!onPlace || !room || event.button !== 0 || phase !== 'shown') return;
+    // Its controls, as a scenario's, and its text's links, are pressed, not dragged.
+    if (event.target instanceof Element && event.target.closest('button, a, input, select')) return;
+    const start = { x: event.clientX, y: event.clientY };
+    const from = card.getBoundingClientRect();
+    let moving: CaptionAt | undefined;
+    const onMove = (move: PointerEvent) => {
+      const dx = move.clientX - start.x;
+      const dy = move.clientY - start.y;
+      if (moving === undefined && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      const bounds = room.getBoundingClientRect();
+      const fraction = (offset: number, free: number) =>
+        free > 0 ? Math.min(1, Math.max(0, offset / free)) : 0;
+      moving = {
+        x: fraction(from.left + dx - bounds.left, bounds.width - from.width),
+        y: fraction(from.top + dy - bounds.top, bounds.height - from.height),
+      };
+      setDragged({ step: captionStep, at: moving, basis });
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      if (moving === undefined) return;
+      const kept = { x: round3(moving.x), y: round3(moving.y) };
+      setDragged({ step: captionStep, at: kept, basis });
+      onPlace(captionStep, kept);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+  const cardStyle: CSSProperties & Record<'--card-x' | '--card-y', string | undefined> = {
+    transitionDuration: `${fade}ms`,
+    '--card-x': typeof cardPlace === 'string' ? undefined : String(cardPlace.x),
+    '--card-y': typeof cardPlace === 'string' ? undefined : String(cardPlace.y),
+  };
   const position = t('Step {n} of {total}', { n: step + 1, total });
   const revealTexts = (captioned.reveal ?? [])
     .slice(0, revealed)
@@ -234,8 +293,11 @@ export function TourStage({
         ref={cardRef}
         className="tour-card"
         data-phase={phase}
-        data-place={captioned.caption.place ?? place}
-        style={{ transitionDuration: `${fade}ms` }}
+        data-place={placeName(cardPlace)}
+        data-draggable={onPlace ? '' : undefined}
+        style={cardStyle}
+        title={onPlace ? t('Drag the caption to place it where it reads best') : undefined}
+        onPointerDown={startDrag}
       >
         <h3 className="tour-card-title">{captioned.caption.title}</h3>
         {captioned.caption.text !== undefined && (
@@ -638,4 +700,8 @@ function inDialog(target: EventTarget | null): boolean {
     target instanceof Element &&
     target.closest('[role="dialog"], [role="alertdialog"], dialog') !== null
   );
+}
+
+function round3(value: number): number {
+  return Math.round(value * 1000) / 1000;
 }

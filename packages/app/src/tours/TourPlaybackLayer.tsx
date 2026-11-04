@@ -1,5 +1,6 @@
 /** The shell's full-screen playback (ADR 0058, ADR 0077): the stage of the tour the tab plays, if any. */
 import type { ProjectSnapshot } from '@visual-anything/core';
+import type { CaptionAt, Id } from '@visual-anything/schema';
 import { TourStage } from './TourStage';
 import type { TourPlaybackOutput } from './useTourPlayback';
 
@@ -7,11 +8,14 @@ export function TourPlaybackLayer({
   project,
   tours,
   notes = true,
+  onPlace,
 }: {
   project: ProjectSnapshot;
   tours: TourPlaybackOutput;
   /** Whether the speaker notes window is offered: not in the read-only page, which has none. */
   notes?: boolean;
+  /** Keeps where the person dragged a step's caption card (ADR 0095); without it, it cannot be. */
+  onPlace?: (tour: Id, step: number, at: CaptionAt) => void;
 }) {
   const { playback, transition, stage, act, goTo, card } = tours;
   const tour = project.tours.find((each) => each.id === playback.tour);
@@ -44,6 +48,7 @@ export function TourPlaybackLayer({
       fades={stage.fades}
       cardRef={card}
       leader={stage.leader}
+      {...(onPlace ? { onPlace: (step: number, at: CaptionAt) => onPlace(tour.id, step, at) } : {})}
     />
   );
 }
