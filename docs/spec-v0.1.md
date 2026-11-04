@@ -26,7 +26,7 @@ v0.1 covers the model, views, layout, tables, the component editor, images, them
 | Model | Elements, relations, attributes, particularities, World | — |
 | Components and relation types | Built-in "Systems" and "Data modeling" packages; your own, derived and changed in the component editor or written in JSON, by hand or by Claude | Programmable ones (case 4) |
 | Tables | A component that draws what its elements hold as rows, as a table draws its columns; columns added on the canvas, typed or pasted | Importing many tables at once |
-| Images | SVG pictures and small PNG, JPEG or WebP bitmaps kept in packages, shown on components and single elements as an icon or as the whole shape | Large photos kept as files; images as free shapes; SVG with named parts as shapes (M8b) |
+| Images | SVG pictures and small PNG, JPEG or WebP bitmaps kept in packages, shown on components and single elements as an icon or as the whole shape | Pictures as free shapes, their files beside the project, from milestone A8 (ADR 0098); SVG with named parts as shapes (M8b) |
 | Languages | English and Spanish for everything the app shows, following the browser unless you choose (ADR 0038) | More languages |
 | Themes | Light and dark for the app and the canvas, following the system unless you choose; kept by the local program for each person | More themes, such as high contrast |
 | Appearance editing | Any #RRGGBB fill and stroke for elements, components and relation types (built-in ones through project appearances), one relation, notes and free arrows; from the inspector or by Claude | Transparency, gradients; colors that depend on an attribute's value |
@@ -961,6 +961,13 @@ Outside M15, and not part of its Done when (moved there by M15's review on 2026-
 - [ ] **A7.8 · Measured and reviewed:** the quality fixture before and after, the user's real model's crossings measured from a local copy that never enters the repository, and A7's spec review.
 
 Rounds: A7.1 and A7.3 first, beside A7.2 in the main session; then A7.4 in the main session; then A7.5 and A7.6; then A7.7 and A7.8. Placeholders in labels, hover arrows that clone and connect, and dropping a shape on a line to split it follow after v0.1 (ADR 0092, Considered options).
+
+**A8 · Pictures, videos and link cards on the canvas.** Asked by the user on 2026-11-04: an image loose on the canvas "como una nota", animated GIFs, videos, and a link's preview, planned that day (ADR 0098). Its commits start with `A8:`. It runs after v0.1.1, ahead of A7, as the user asked. Done when a picture of each format, dropped, pasted or chosen, is cleaned, kept in `media/` and drawn, a GIF playing; it is moved, resized and deleted as a note, undone without deleting its file, and drawn in the SVG, the PDF, the PNG and the read-only page; versions compare and merge it; Claude reads and adds it; then videos, link cards and steps that show them, each as its stage's clarification of ADR 0098 says.
+
+- [ ] **A8.1 · Pictures and GIFs** (ADR 0098, stage 1): `Picture` and `MediaRef` in the schema, the core's command checks and its GIF reader; `media/put`, `media/get`, `media-files/list` and `-/remove` in the protocol and the program, with cleaning in a worker and atomic writes; drop, paste and Picture… on the canvas; drawing in the image store, GIFs playing; the inspector; the exports and the page; versions; `read_view` and `add_picture`; the glossary, the Spanish, and the protocol's version.
+- [ ] **A8.2 · Videos** (ADR 0098, stage 2).
+- [ ] **A8.3 · Link cards** (ADR 0098, stage 3).
+- [ ] **A8.4 · Steps that show pictures, videos and link cards** (ADR 0098, stage 4).
 
 **M9 · Physical space inside components.** Planned for the fourth wave, beside M12; M10 builds on it. Its two seams, in the schema and the core, then in the scene and the solid worker's interface, go first and in order, in the main session, since every other task cleans, draws, points at, edits or exports what they define; the next seven tasks then run in parallel, and the benchmark is measured once they are merged. Done when:
 
