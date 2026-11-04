@@ -43,6 +43,14 @@ function onlySocket(): FakeWebSocket {
 
 const TERMINAL_ADDRESS = /press o in the terminal where Visual Anything runs/i;
 
+/**
+ * What the app asked the local program, but for the files of `media/` no picture names, which the
+ * inspector lists whenever it shows the view (ADR 0098).
+ */
+function asked(socket: FakeWebSocket) {
+  return socket.sent.filter((message) => message.type !== 'media-files/list');
+}
+
 describe('App', () => {
   it('without a session token, asks the other tabs of this browser for theirs', () => {
     render(<App token={null} />);
@@ -90,7 +98,7 @@ describe('App', () => {
     expect(
       screen.queryByRole('complementary', { name: 'Claude’s guidance' }),
     ).not.toBeInTheDocument();
-    expect(socket.sent).toEqual([]);
+    expect(asked(socket)).toEqual([]);
   });
 
   it('opens the live connection with a launch code, then keeps the token it is handed', () => {
@@ -324,7 +332,7 @@ describe('App, editing live', () => {
     );
     expect(within(modelPanel()).getByText('Client')).toBeInTheDocument();
     expect(historyButton('Undo Claude’s action: Rename "Patient" to "Client"')).toBeInTheDocument();
-    expect(socket.sent).toEqual([]);
+    expect(asked(socket)).toEqual([]);
   });
 
   it('undoes and redoes with the header’s buttons', async () => {
@@ -335,7 +343,7 @@ describe('App, editing live', () => {
 
     fireEvent.click(historyButton(/^Redo/));
     expect(socket.lastSent()).toEqual({ type: 'redo', requestId: expect.any(String) as string });
-    expect(socket.sent).toHaveLength(2);
+    expect(asked(socket)).toHaveLength(2);
   });
 
   it('undoes and redoes from the keyboard, but leaves the shortcuts to text inputs', async () => {
@@ -353,7 +361,7 @@ describe('App, editing live', () => {
     fireEvent.keyDown(input, { key: 'z', ctrlKey: true });
     fireEvent.keyDown(input, { key: 'Z', ctrlKey: true, shiftKey: true });
     input.remove();
-    expect(socket.sent).toHaveLength(2);
+    expect(asked(socket)).toHaveLength(2);
   });
 
   it('shows the warnings of the changes this tab asked for', async () => {
@@ -477,7 +485,7 @@ describe('App, editing live', () => {
     const [first, second] = FakeWebSocket.created as [FakeWebSocket, FakeWebSocket];
     act(() => second.receive(openedWith(sample, { undo: UNDO_RENAME })));
     fireEvent.click(historyButton(/^Undo/));
-    expect(second.sent).toEqual([{ type: 'undo', requestId: expect.any(String) as string }]);
-    expect(first.sent).toEqual([]);
+    expect(asked(second)).toEqual([{ type: 'undo', requestId: expect.any(String) as string }]);
+    expect(asked(first)).toEqual([]);
   });
 });
