@@ -372,6 +372,26 @@ describe('the tour’s check in the panel', () => {
     ).toBeDisabled();
   });
 
+  it('chooses how the tour and one step mark what they mark, the step as the tour says first (ADR 0100)', async () => {
+    const { tab, sent } = openTours();
+    fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
+    const whole = within(tab).getByLabelText('How its steps mark what they mark');
+    expect(whole).toHaveValue('halo');
+    fireEvent.change(whole, { target: { value: 'style' } });
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toEqual({ type: 'update-tour', id: tour.id, changes: { emphasis: 'style' } });
+    const steps = within(tab).getByRole('list', { name: 'Steps of “How booking works”' });
+    const one = within(steps).getAllByLabelText('How it marks what it marks')[1] as HTMLElement;
+    expect(one).toHaveValue('');
+    fireEvent.change(one, { target: { value: 'style' } });
+    await vi.waitFor(() => expect(sent).toHaveLength(2));
+    const styled = sent[1];
+    expect(styled?.type === 'update-tour' && styled.changes.steps?.[1]?.emphasis).toBe('style');
+    expect(styled?.type === 'update-tour' && styled.changes.steps?.[0]).not.toHaveProperty(
+      'emphasis',
+    );
+  });
+
   it('says nothing to look at in a tour that plays as written', () => {
     const { tab } = openTours();
     fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));

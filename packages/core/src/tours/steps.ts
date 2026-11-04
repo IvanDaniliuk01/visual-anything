@@ -13,6 +13,7 @@ import type {
   SavedViewState,
   ScenarioFile,
   TourFile,
+  TourEmphasis,
   TourStep,
 } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
@@ -451,6 +452,11 @@ export interface PlayableStep {
   /** Present when the step always cuts (ADR 0084). */
   transition?: 'cut';
   /**
+   * Present when the step and its reveals draw what they mark in its own style rather than with a
+   * halo (ADR 0100): the step's emphasis, or else its tour's.
+   */
+  emphasis?: 'style';
+  /**
    * The mark its caption points at, while it is one of the step's marks and the project holds it,
    * and the reveal that brings it in, counted from 1, or 0 for the step's own marks (ADR 0084).
    */
@@ -467,7 +473,11 @@ export interface PlayableStep {
  * scenario only while it still plays over the step's view. `undefined` when its view is gone, since
  * there is then nothing to show it over.
  */
-export function playableStep(project: ProjectSnapshot, step: TourStep): PlayableStep | undefined {
+export function playableStep(
+  project: ProjectSnapshot,
+  step: TourStep,
+  tourEmphasis?: TourEmphasis,
+): PlayableStep | undefined {
   const saved = step.viewState;
   const view = project.views.find((each) => each.id === saved.view);
   if (view === undefined) return undefined;
@@ -524,6 +534,7 @@ export function playableStep(project: ProjectSnapshot, step: TourStep): Playable
   }
   if (step.dimRest) playable.dimRest = true;
   if (step.transition === 'cut') playable.transition = 'cut';
+  if ((step.emphasis ?? tourEmphasis) === 'style') playable.emphasis = 'style';
   const pointTo = step.caption.pointTo;
   if (pointTo !== undefined && !missing.has(pointTo)) {
     const reveal = (step.marks ?? []).includes(pointTo)

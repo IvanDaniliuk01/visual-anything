@@ -47,6 +47,12 @@ describe.each(THEME_NAMES)('the %s canvas', (name: ThemeName) => {
     },
   );
 
+  it('writes a relation’s name drawn in its own style at 4.5:1 on the caption’s back, bordered at 3:1 (ADR 0100)', () => {
+    expect(canvas.captionBack).toBe(shell.surfaceRaised);
+    expect(contrastRatio(canvas.text, canvas.captionBack)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(canvas.highlight, canvas.captionBack)).toBeGreaterThanOrEqual(3);
+  });
+
   it.each(['changeAdded', 'changeRemoved', 'changeChanged', 'changeMoved'] as const)(
     'draws the comparison’s %s mark at 3:1 or more on the canvas, and its glyph on it (ADR 0070)',
     (mark) => {

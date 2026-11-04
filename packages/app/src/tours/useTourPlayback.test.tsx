@@ -243,6 +243,25 @@ describe('useTourPlayback’s stages', () => {
     expect(emphasis.get().markers?.[0]?.relation).toBe('whatsapp-to-agent');
   });
 
+  it('draws in its own style what a step in its own style marks, the step first, then its tour (ADR 0100)', () => {
+    const styled: TourFile = {
+      ...tour,
+      emphasis: 'style',
+      steps: [
+        tour.steps[0] as TourFile['steps'][number],
+        { ...(tour.steps[1] as TourFile['steps'][number]), emphasis: 'halo' },
+      ],
+    };
+    const { result, emphasis, start, land } = setUp({ played: styled });
+    start();
+    expect([...(emphasis.get().styled ?? [])].sort()).toEqual(keys('booking-agent'));
+    expect(emphasis.get().styleMoves).toBe(true);
+    act(() => result.current.player.next());
+    land();
+    expect(emphasis.get().highlighted?.size).toBeGreaterThan(0);
+    expect(emphasis.get()).not.toHaveProperty('styled');
+  });
+
   it('brings a reveal in one press at a time, and takes it away one press back', () => {
     const { result, captures, arrive, emphasis, tourMarks, pass } = setUp();
     act(() => result.current.host.play(tour, 1));

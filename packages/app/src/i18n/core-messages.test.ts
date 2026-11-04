@@ -991,6 +991,8 @@ function tourCommands(): [string, Command][] {
       caption: { title: 'T', pointTo: 'gone' },
     }),
     created('step with another transition', { ...step, transition: 'fade' }),
+    // How a step and its tour mark what they mark (ADR 0100).
+    created('step with another emphasis', { ...step, emphasis: 'glow' }),
     created('pulse not an object', { ...step, pulse: 5 }),
     created('pulse with more', { ...step, pulse: { relations: ['api-reads-db'], at: 1 } }),
     created('pulse of nothing', { ...step, pulse: { relations: [] } }),
@@ -1087,6 +1089,10 @@ function tourCommands(): [string, Command][] {
           type: 'create-tour',
           tour: { name: 'T', steps: [{ ...step, reveal: [{ marks: ['patient'], text: 5 }] }] },
         },
+      ],
+      [
+        'tour with another emphasis',
+        { type: 'create-tour', tour: { name: 'T', emphasis: 'glow', steps: [step] } },
       ],
       [
         'dim the rest not true',

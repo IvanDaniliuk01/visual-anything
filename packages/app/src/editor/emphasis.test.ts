@@ -18,6 +18,19 @@ describe('EmphasisStore', () => {
     });
   });
 
+  it('draws in its own style what any source styles, moving when any asks to (ADR 0100)', () => {
+    const store = new EmphasisStore();
+    store.set('tour', { highlighted: new Set(['a', 'r']), styled: new Set(['a', 'r']) });
+    store.set('pulse', { highlighted: new Set(['s']), styled: new Set(['s']), styleMoves: true });
+    expect(store.get()).toEqual({
+      highlighted: new Set(['a', 'r', 's']),
+      styled: new Set(['a', 'r', 's']),
+      styleMoves: true,
+    });
+    store.set('pulse', undefined);
+    expect(store.get()).not.toHaveProperty('styleMoves');
+  });
+
   it('keeps the same union until a source changes, and tells listeners when one does', () => {
     const store = new EmphasisStore();
     const listener = vi.fn();

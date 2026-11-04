@@ -89,6 +89,10 @@ The user's real tours explain a data model. They go from an overview to one sche
 - **CONTEXT.md** gains **Glide**, a step's shared shapes moving to their places in the step after, and **Pulse**, a marker following a chain of relations in a step.
 - **ADR 0077's "Later"** loses "shapes moving by id between steps and views", which this decides.
 
+## Added to, 2026-11-04
+
+ADR 0100 lets a step mark in its own style rather than with a halo. On such a step, a line it marks does not draw from its start: it flows, its dash moving from its `from` end to its `to` end, and from both ends toward its middle when undirected, while the tour plays and motion is not reduced. A pulse there restyles the leg it runs, and its marker rides on the restyled line. Lines marked with a halo draw from their start as decided here.
+
 ## Clarifications
 
 <!-- Decided by Claude on 2026-10-30 under the user's standing delegation of design decisions. -->

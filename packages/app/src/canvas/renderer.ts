@@ -120,6 +120,7 @@ import {
   traceLitShapes,
   traceTrails,
 } from './emphasisMarks';
+import { StyledMarks, type BoldLabels } from './styledMarks';
 import { nameBandOf } from './shape-images';
 import {
   drawingOfScene,
@@ -578,6 +579,12 @@ export class CanvasRenderer {
    */
   private readonly lineDrawMarks = new Graphics();
   private arrivingDraw: { since: number; duration: number } | undefined;
+  /**
+   * What the emphasis draws in its own style rather than with a halo (ADR 0100), over the tiles: what
+   * shows already, and what arrives, in the group that fades in.
+   */
+  private readonly styledMarks = new StyledMarks();
+  private readonly styledArrivingMarks = new StyledMarks();
   /** The markers' trails, drawn again as they move, and their discs, which only move. */
   private readonly markerMarks = new Graphics();
   private readonly markerDiscs = new MarkerDiscs();
@@ -799,10 +806,11 @@ export class CanvasRenderer {
     this.rerouted.addChild(this.reroutedLines);
     this.turned.addChild(this.turnedLines);
     this.selectionMarks.addChild(this.lineMarks);
-    this.arriving.addChild(this.arrivingMarks);
+    this.arriving.addChild(this.styledArrivingMarks.container, this.arrivingMarks);
     this.marks.addChild(
       this.accentLines,
       this.quietLabels,
+      this.styledMarks.container,
       this.emphasisShapeMarks,
       this.litLines.container,
       this.arriving,
@@ -905,8 +913,15 @@ export class CanvasRenderer {
         this.drawSelection();
         this.drawHover();
       }
-      if (after.arriving !== before.arriving) this.fadeInArriving(after);
-      if (after.highlighted !== before.highlighted || after.arriving !== before.arriving) {
+      const arrivingChanged =
+        after.arriving !== before.arriving || after.styledArriving !== before.styledArriving;
+      if (arrivingChanged) this.fadeInArriving(after);
+      if (
+        after.highlighted !== before.highlighted ||
+        after.styled !== before.styled ||
+        after.styleMoves !== before.styleMoves ||
+        arrivingChanged
+      ) {
         this.drawHighlights();
       }
       if (after.markers !== before.markers) this.drawMarkers();
@@ -3846,6 +3861,7 @@ export class CanvasRenderer {
    */
   private drawHighlights(): void {
     this.markSolidParts();
+    this.drawStyled();
     const { highlighted } = this.emphasized;
     let { arriving } = this.emphasized;
     this.arrivingMarks.clear();
@@ -3875,6 +3891,66 @@ export class CanvasRenderer {
     traceLitShapes(this.arrivingMarks, arriving, scale, highlight);
     traceLitLines(this.arrivingMarks, arriving, scale, highlight);
   }
+
+  /**
+   * Draws what the emphasis draws in its own style (ADR 0100): what shows already, and what arrives
+   * in the group that fades in, each again at the scale and in the theme shown.
+   */
+  private drawStyled(): void {
+    const { styled, styledArriving, styleMoves } = this.emphasized;
+    const now = performance.now();
+    const { scale } = this.camera;
+    const { theme } = this.painter;
+    const options = { moves: styleMoves, now, labels: this.boldLabels };
+    if (countLit(styled) === 0) {
+      this.styledMarks.clear();
+      this.styledArrivingMarks.clear();
+      return;
+    }
+    const coming = new Set<unknown>([
+      ...styledArriving.shapes,
+      ...styledArriving.lines,
+      ...styledArriving.notes,
+      ...styledArriving.arrows,
+    ]);
+    const kept =
+      coming.size === 0
+        ? styled
+        : {
+            shapes: styled.shapes.filter((each) => !coming.has(each)),
+            lines: styled.lines.filter((each) => !coming.has(each)),
+            notes: styled.notes.filter((each) => !coming.has(each)),
+            arrows: styled.arrows.filter((each) => !coming.has(each)),
+          };
+    if (countLit(kept) === 0) this.styledMarks.clear();
+    else this.styledMarks.show(kept, scale, theme, options);
+    if (countLit(styledArriving) === 0) this.styledArrivingMarks.clear();
+    else
+      this.styledArrivingMarks.show(styledArriving, scale, theme, { ...options, breathes: true });
+  }
+
+  /** Writes relations' names bold on the caption's back, as a line drawn in its own style does. */
+  private readonly boldLabels: BoldLabels = (lines) => {
+    const make = this.text;
+    const back = this.painter.theme.captionBack;
+    const bold: TextFactory = Object.assign(
+      (...args: Parameters<TextFactory>) => {
+        const [options, ...rest] = args;
+        const style = options.style ?? {};
+        return make(
+          { ...options, style: { ...style, fontWeight: '700', stroke: { color: back, width: 4 } } },
+          ...rest,
+        );
+      },
+      {
+        ...(make.measure ? { measure: make.measure } : {}),
+        ...(make.measureName ? { measureName: make.measureName } : {}),
+      },
+    );
+    const labels = this.painter.relationLabels(lines, bold);
+    for (const label of labels) if (label instanceof Text) label.resolution = this.textResolution();
+    return labels;
+  };
 
   /** Marks what is lit and not arriving: its shapes, and its lines, each drawn again only when changed. */
   private drawLit(lit: Lit): void {
@@ -3908,7 +3984,8 @@ export class CanvasRenderer {
    * with nothing arriving, shows at once the marks that were still fading in.
    */
   private fadeInArriving(emphasized: Emphasized): void {
-    if (countLit(emphasized.arriving) === 0 || !(emphasized.arrivingFor > 0)) {
+    const none = countLit(emphasized.arriving) + countLit(emphasized.styledArriving) === 0;
+    if (none || !(emphasized.arrivingFor > 0)) {
       this.finishArriving();
       return;
     }
@@ -3938,6 +4015,13 @@ export class CanvasRenderer {
    * draw from their start, traced again a little further.
    */
   private followArriving(): void {
+    // What is drawn in its own style flows and breathes, its lines on screen alone (ADR 0100).
+    if (this.styledMarks.drawsAnything || this.styledArrivingMarks.drawsAnything) {
+      const now = performance.now();
+      const shown = visibleRect(this.camera, this.viewport);
+      const kept = this.styledMarks.frame(now, shown);
+      if (this.styledArrivingMarks.frame(now, shown) || kept) this.requestRender();
+    }
     const drawing = this.arrivingDraw;
     if (drawing) {
       if (!(performance.now() - drawing.since < drawing.duration)) {
@@ -5467,6 +5551,23 @@ function keptEmphasized(before: Emphasized, after: Emphasized): Emphasized {
     })
       ? before.markers
       : after.markers;
+  const keptLit = (now: Lit, was: Lit): Lit => {
+    const shapes = sameLitShapes(now.shapes, was.shapes) ? was.shapes : now.shapes;
+    const lines = sameLitLines(now.lines, was.lines) ? was.lines : now.lines;
+    const notes = sameItems(now.notes, was.notes) ? was.notes : now.notes;
+    const arrows = sameItems(now.arrows, was.arrows) ? was.arrows : now.arrows;
+    return shapes === was.shapes &&
+      lines === was.lines &&
+      notes === was.notes &&
+      arrows === was.arrows
+      ? was
+      : { shapes, lines, notes, arrows };
+  };
+  const styled = keptLit(after.styled, before.styled);
+  const styledArriving =
+    after.arrivingFor === before.arrivingFor
+      ? keptLit(after.styledArriving, before.styledArriving)
+      : after.styledArriving;
   const coming = after.arriving;
   const wasComing = before.arriving;
   const arriving =
@@ -5483,7 +5584,10 @@ function keptEmphasized(before: Emphasized, after: Emphasized): Emphasized {
     dimmed: kept(before.dimmed, after.dimmed),
     dashed: sameMembers(before.dashed, after.dashed) ? before.dashed : after.dashed,
     highlighted,
+    styled,
+    styleMoves: after.styleMoves,
     arriving,
+    styledArriving,
     arrivingFor: after.arrivingFor,
     arrivingDraw: after.arrivingDraw,
     markers,

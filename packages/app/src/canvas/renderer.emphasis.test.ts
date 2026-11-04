@@ -16,6 +16,8 @@ import type { TextFactory } from './draw';
 import { hitAt, indexScene, type IndexedScene } from './hit';
 import { DIMMED_ALPHA } from './colors';
 import { MARK_UNIT, type LitLines, type MarkerDiscs } from './emphasisMarks';
+import type { StyledMarks } from './styledMarks';
+import { THEMES } from '../theme/themes';
 import { CanvasRenderer, emphasize } from './renderer';
 import { pointAlong } from './route';
 import { buildScene, shapeKeyOf, shownBy, standsFor, type RelationLine, type Scene } from './scene';
@@ -488,6 +490,34 @@ describe('CanvasRenderer emphasis (I2)', () => {
 });
 
 describe('emphasize', () => {
+  it('holds apart what it styles, a line by what it stands for, and dims neither (ADR 0100)', () => {
+    const scene = collapsed();
+    const aggregate = scene.relations.find((line) => line.aggregate);
+    const plain = scene.relations.find((line) => !line.aggregate);
+    if (!aggregate?.aggregate || !plain) throw new Error('The scene aggregates no relation.');
+    const [one] = aggregate.aggregate.relations;
+    const keys = new Set(['patient', plain.relation, one as string]);
+    const lit = emphasize(scene, {
+      highlighted: keys,
+      styled: new Set(['patient', one as string]),
+      styleMoves: true,
+      dimmed: new Set(scene.shapes.map((shape) => shape.key)),
+      arriving: { keys: new Set(['patient', plain.relation]), duration: 200 },
+    });
+    expect(lit.highlighted.lines).toEqual([plain]);
+    expect(lit.highlighted.shapes).toEqual([]);
+    expect(lit.styled.lines).toEqual([aggregate]);
+    expect(lit.styled.shapes.map((shape) => shape.key)).toContain('patient');
+    expect(lit.styleMoves).toBe(true);
+    expect(lit.dimmed.shapes.has('patient')).toBe(false);
+    expect(lit.arriving.lines).toEqual([plain]);
+    expect(lit.styledArriving.shapes.map((shape) => shape.key)).toEqual(['patient']);
+    expect(lit.arrivingFor).toBe(200);
+    const still = emphasize(scene, { highlighted: keys, styled: keys });
+    expect(still.styleMoves).toBe(false);
+    expect(still.highlighted.lines).toEqual([]);
+  });
+
   /** A system collapsed, so that its contents' relations are aggregated. */
   function collapsed(): Scene {
     const view = sample.views.find((each) => each.id === VIEW);
@@ -576,5 +606,55 @@ describe('emphasize', () => {
       hidden: new Set(['clinic-booking/scheduling/appointments-api']),
     });
     expect(unknown.hidden.shapes.size).toBe(0);
+  });
+});
+
+describe('CanvasRenderer emphasis in its own style (ADR 0100)', () => {
+  const indexed: IndexedScene = indexScene(buildScene(sample, VIEW));
+  const { scene } = indexed;
+  interface Styling {
+    styledMarks: StyledMarks;
+    styledArrivingMarks: StyledMarks;
+    litLines: LitLines;
+    emphasisShapeMarks: Graphics;
+  }
+
+  it('restyles what it styles with nothing over it, and marks the rest with a halo', async () => {
+    const renderer = await started();
+    renderer.show(indexed);
+    const [line, other] = scene.relations as [RelationLine, RelationLine];
+    renderer.setEmphasis({
+      highlighted: new Set(['patient', line.relation, other.relation]),
+      styled: new Set(['patient', line.relation]),
+    });
+    const marks = renderer as unknown as Styling;
+    expect(marks.litLines.shownLines).toHaveLength(1);
+    expect(marks.litLines.graphicsOf(line.relation)).toBeUndefined();
+    expect(marks.emphasisShapeMarks.context.instructions).toHaveLength(0);
+    const [drawn] = marks.styledMarks.drawnLines;
+    expect(drawn?.relation).toBe(line.relation);
+    expect(drawn?.stroke).toBe(THEMES.light.canvas.highlight);
+    expect(drawn?.width).toBeGreaterThanOrEqual(line.width * 2);
+    expect(drawn?.dash).toBe(line.dash);
+    renderer.setEmphasis({});
+    expect(marks.styledMarks.drawsAnything).toBe(false);
+  });
+
+  it('brings in what arrives in the group that fades in, and keeps what shows already', async () => {
+    const renderer = await started();
+    renderer.show(indexed);
+    const [line, other] = scene.relations as [RelationLine, RelationLine];
+    const keys = new Set([line.relation, other.relation]);
+    renderer.setEmphasis({
+      highlighted: keys,
+      styled: keys,
+      styleMoves: true,
+      arriving: { keys: new Set([other.relation]), duration: 200 },
+    });
+    const marks = renderer as unknown as Styling;
+    expect(marks.styledMarks.drawnLines.map((each) => each.relation)).toEqual([line.relation]);
+    expect(marks.styledArrivingMarks.drawnLines.map((each) => each.relation)).toEqual([
+      other.relation,
+    ]);
   });
 });

@@ -5,6 +5,7 @@
 import type { ConflictFile } from '../operations';
 import type {
   CaptionFace,
+  TourEmphasis,
   Appearance,
   AppearanceImage,
   AppearanceSolid,
@@ -728,6 +729,8 @@ export interface CreateTourCommand {
     description?: string;
     steps?: NewTourStep[];
     captionFace?: CaptionFace;
+    /** How its steps mark what they mark (ADR 0100); left out, with a halo. */
+    emphasis?: TourEmphasis;
   };
 }
 
@@ -744,6 +747,8 @@ export interface UpdateTourCommand {
     steps?: NewTourStep[];
     /** The look of its caption cards (ADR 0096); `null` takes it away. */
     captionFace?: CaptionFace | null;
+    /** How its steps mark what they mark (ADR 0100); `null`, as `halo`, takes it away. */
+    emphasis?: TourEmphasis | null;
   };
 }
 

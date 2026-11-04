@@ -270,6 +270,34 @@ describe('add_tour_step, update_tour_step and remove_tour_step', () => {
     expect(step).not.toHaveProperty('advance');
   });
 
+  it('sets how a tour and its steps mark what they mark, the tour’s default never written (ADR 0100)', async () => {
+    const created = await tools.value('create_tour', {
+      name: 'Restyled',
+      emphasis: 'style',
+      steps: [
+        { viewState: { view: 'overview' }, title: 'Plain', marks: ['api-reads-db'] },
+        {
+          viewState: { view: 'overview' },
+          title: 'Haloed',
+          marks: ['api-reads-db'],
+          emphasis: 'halo',
+        },
+      ],
+    });
+    const tour = created.tour as string;
+    expect(tourNamed('Restyled')?.emphasis).toBe('style');
+    expect(tourNamed('Restyled')?.steps.map((step) => step.emphasis)).toEqual([undefined, 'halo']);
+    await tools.value('update_tour_step', { tour, step: 1, emphasis: 'style' });
+    await tools.value('update_tour_step', { tour, step: 2, emphasis: null });
+    expect(tourNamed('Restyled')?.steps.map((step) => step.emphasis)).toEqual(['style', undefined]);
+    await tools.value('update_tour', { tour, emphasis: 'halo' });
+    expect(tourNamed('Restyled')).not.toHaveProperty('emphasis');
+    const read = await tools.value('read_tour', { tour });
+    expect(read).toMatchObject({ emphasis: 'halo', steps: [{ emphasis: 'style' }, {}] });
+    const checked = await tools.value('check_tour', { tour });
+    expect(checked).toMatchObject({ tour, steps: [{ number: 1 }, { number: 2 }] });
+  });
+
   it('add and change a caption that points, a pulse and a cut, never writing their defaults (ADR 0084)', async () => {
     const tour = await walk();
     const added = await tools.value('add_tour_step', {

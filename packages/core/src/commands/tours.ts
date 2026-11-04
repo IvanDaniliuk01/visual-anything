@@ -12,6 +12,7 @@ import type {
   Id,
   TourAdvance,
   TourCaption,
+  TourEmphasis,
   TourFile,
   TourPlayback,
   TourPulse,
@@ -61,6 +62,7 @@ export function createTour(draft: Draft, command: CreateTourCommand): string {
     description: checkedDescription(tour.description),
     steps: checkedSteps(draft, requireList(tour.steps, 'steps'), []),
     captionFace: checkedCaptionFace(tour.captionFace),
+    emphasis: checkedTourEmphasis(tour.emphasis),
   });
   checkTextLength(created, undefined);
   draft.apply({
@@ -93,6 +95,12 @@ export function updateTour(draft: Draft, command: UpdateTourCommand): string {
   if (changes.captionFace === null) delete next.captionFace;
   else if (changes.captionFace !== undefined) {
     next.captionFace = checkedCaptionFace(changes.captionFace);
+  }
+  if (changes.emphasis === null) delete next.emphasis;
+  else if (changes.emphasis !== undefined) {
+    const emphasis = checkedTourEmphasis(changes.emphasis);
+    if (emphasis === undefined) delete next.emphasis;
+    else next.emphasis = emphasis;
   }
   if (sameJson(next, current)) return `Edit the tour "${current.name}"`;
   checkTextLength(next, current);
@@ -245,6 +253,7 @@ function checkedStep(given: NewTourStep, n: number): Omit<TourStep, 'id'> {
   const play = checkedPlay(given.play, where);
   const reveal = checkedReveals(given.reveal, where, marks ?? []);
   const dimRest = checkedDimRest(given.dimRest);
+  const emphasis = checkedStepEmphasis(given.emphasis);
   const advance = checkedAdvance(given.advance, where, play !== undefined);
   const transition = checkedTransition(given.transition);
   const pulse = checkedPulse(given.pulse, where);
@@ -259,6 +268,7 @@ function checkedStep(given: NewTourStep, n: number): Omit<TourStep, 'id'> {
     play,
     reveal,
     dimRest,
+    emphasis,
     advance,
     transition,
     pulse,
@@ -473,6 +483,33 @@ function checkedDimRest(value: unknown): true | undefined {
   if (value === undefined || value === false) return undefined;
   if (value !== true) reject('invalid-command', 'Dimming the rest is true or false.');
   return true;
+}
+
+/**
+ * How a step marks what it marks (ADR 0100): `halo` or `style`, both kept, since either overrides
+ * its tour's; left out, as its tour says.
+ */
+function checkedStepEmphasis(value: unknown): TourEmphasis | undefined {
+  if (value === undefined) return undefined;
+  if (value !== 'halo' && value !== 'style') {
+    reject(
+      'invalid-command',
+      `A step's emphasis is "halo", to mark with a halo, or "style", to draw what it marks in its own style.`,
+    );
+  }
+  return value;
+}
+
+/** How a tour's steps mark what they mark (ADR 0100): `style`; `halo`, the default, is never written. */
+function checkedTourEmphasis(value: unknown): 'style' | undefined {
+  if (value === undefined || value === 'halo') return undefined;
+  if (value !== 'style') {
+    reject(
+      'invalid-command',
+      `A tour's emphasis is "halo", to mark with a halo, or "style", to draw what its steps mark in its own style.`,
+    );
+  }
+  return 'style';
 }
 
 /** When a step moves on by itself: a whole number of milliseconds, or once the scenario it plays ends. */

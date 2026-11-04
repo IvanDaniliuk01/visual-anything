@@ -40,9 +40,18 @@ export interface Emphasized {
   dimmed: Hidden;
   /** The lines drawn dashed, by key (ADR 0078). */
   dashed: ReadonlySet<Id>;
+  /** What it highlights with a halo (ADR 0077). */
   highlighted: Lit;
-  /** Of what it highlights, what fades in (ADR 0077), and over how many milliseconds: 0 for none. */
+  /** What it highlights in its own style instead, with nothing drawn over it (ADR 0100). */
+  styled: Lit;
+  /** Whether what it draws in its own style moves: lines flow, shapes breathe once (ADR 0100). */
+  styleMoves: boolean;
+  /**
+   * Of what it highlights, what fades in (ADR 0077), and over how many milliseconds: 0 for none.
+   * `arriving` holds what it marks with a halo, `styledArriving` what it draws in its own style.
+   */
   arriving: Lit;
+  styledArriving: Lit;
   arrivingFor: number;
   /** Over how many milliseconds the lines that arrive draw from their start (ADR 0084): 0 for none. */
   arrivingDraw: number;
@@ -75,7 +84,10 @@ export const NOTHING_EMPHASIZED: Emphasized = {
   dimmed: NOTHING_HIDDEN,
   dashed: NONE,
   highlighted: NOTHING_LIT,
+  styled: NOTHING_LIT,
+  styleMoves: false,
   arriving: NOTHING_LIT,
+  styledArriving: NOTHING_LIT,
   arrivingFor: 0,
   arrivingDraw: 0,
   markers: [],
@@ -95,6 +107,9 @@ export const NOTHING_EMPHASIZED: Emphasized = {
  * - A marker on a relation that an aggregated relation stands for travels along that line, the way
  *   the relation runs, and so does its trail.
  * - What arrives is what it highlights that its `arriving` names, a line by any relation it stands for.
+ * - What it highlights that `styled` names, a line by any relation it stands for, is drawn in its own
+ *   style rather than with a halo (ADR 0100): it is left out of `highlighted` and of `arriving`, and
+ *   held in `styled` and `styledArriving`; it still wins over dimming.
  *
  * Given each shape's index in the scene by its key, as an indexed scene holds it, it finds the few
  * shapes and lines a small highlight lights by their keys rather than by going through every one,
@@ -236,27 +251,86 @@ export function emphasize(
     }
   }
 
+  const styledKeys = emphasis.styled ?? NONE;
+  // The ends an aggregated relation styled for what it stands for lights are styled with it.
+  const styledEnds = new Set<string>();
+  if (styledKeys.size > 0) {
+    for (const line of litLines) {
+      if (!line.aggregate || highlighted.has(line.relation) || !line.ends) continue;
+      if (!some(styledKeys, line)) continue;
+      for (const end of [line.ends.from, line.ends.to]) {
+        if (end.kind === 'shape') styledEnds.add(end.key);
+      }
+    }
+  }
+  const [haloed, styled] =
+    styledKeys.size === 0 || countOf(lit) === 0
+      ? [lit, NOTHING_LIT]
+      : splitLit(
+          lit,
+          (key) => styledKeys.has(key) || styledEnds.has(key),
+          (line) => some(styledKeys, line),
+        );
   const arrivingKeys = emphasis.arriving?.keys;
-  const arriving =
-    arrivingKeys === undefined || arrivingKeys.size === 0
+  const arrivingOf = (from: Lit): Lit =>
+    arrivingKeys === undefined || arrivingKeys.size === 0 || countOf(from) === 0
       ? NOTHING_LIT
-      : {
-          shapes: lit.shapes.filter((shape) => arrivingKeys.has(shape.key)),
-          lines: lit.lines.filter((line) => some(arrivingKeys, line)),
-          notes: lit.notes.filter((note) => arrivingKeys.has(note.id)),
-          arrows: lit.arrows.filter((arrow) => arrivingKeys.has(arrow.id)),
-        };
+      : splitLit(
+          from,
+          (key) => arrivingKeys.has(key),
+          (line) => some(arrivingKeys, line),
+        )[1];
+  const arriving = arrivingOf(haloed);
+  const styledArriving = arrivingOf(styled);
+  const anyArriving = arriving !== NOTHING_LIT || styledArriving !== NOTHING_LIT;
 
   return {
     hidden: { shapes: hiddenShapes, relations: hiddenLines, free: hiddenFree },
     dimmed: { shapes: dimmedShapes, relations: dimmedLines, free: dimmedFree },
     dashed: dashedLines.size === 0 ? NONE : dashedLines,
-    highlighted: lit,
+    highlighted: haloed,
+    styled,
+    styleMoves: styled !== NOTHING_LIT && emphasis.styleMoves === true,
     arriving,
-    arrivingFor: arriving === NOTHING_LIT ? 0 : (emphasis.arriving?.duration ?? 0),
+    styledArriving,
+    arrivingFor: anyArriving ? (emphasis.arriving?.duration ?? 0) : 0,
     arrivingDraw: arriving.lines.length === 0 ? 0 : (emphasis.arriving?.draw ?? 0),
     markers: placed,
   };
+}
+
+/** How many shapes, lines and free shapes a list of what is lit holds. */
+function countOf(lit: Lit): number {
+  return lit.shapes.length + lit.lines.length + lit.notes.length + lit.arrows.length;
+}
+
+/**
+ * What is lit, split in two: what `takes` and `takesLine` leave, then what they take, each list in
+ * its order; nothing lit for a side that holds nothing.
+ */
+function splitLit(
+  lit: Lit,
+  takes: (key: string) => boolean,
+  takesLine: (line: RelationLine) => boolean,
+): [Lit, Lit] {
+  const left = {
+    shapes: [] as ElementShape[],
+    lines: [] as RelationLine[],
+    notes: [] as NoteShape[],
+    arrows: [] as ArrowShape[],
+  };
+  const taken = {
+    shapes: [] as ElementShape[],
+    lines: [] as RelationLine[],
+    notes: [] as NoteShape[],
+    arrows: [] as ArrowShape[],
+  };
+  for (const shape of lit.shapes) (takes(shape.key) ? taken : left).shapes.push(shape);
+  for (const line of lit.lines) (takesLine(line) ? taken : left).lines.push(line);
+  for (const note of lit.notes) (takes(note.id) ? taken : left).notes.push(note);
+  for (const arrow of lit.arrows) (takes(arrow.id) ? taken : left).arrows.push(arrow);
+  if (countOf(taken) === 0) return [lit, NOTHING_LIT];
+  return [countOf(left) === 0 ? NOTHING_LIT : left, taken];
 }
 
 const dashedCopies = new WeakMap<RelationLine, RelationLine>();

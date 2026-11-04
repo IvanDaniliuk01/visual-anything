@@ -225,6 +225,7 @@ function OpenTour({
   const host = useToursHost();
   const editable = editor.send !== undefined;
   const nameId = useId();
+  const emphasisId = useId();
   const [deleting, setDeleting] = useState(false);
   const view = project.views.find((each) => each.id === viewId);
   const checks = useMemo(
@@ -295,6 +296,33 @@ function OpenTour({
           )
         }
       />
+      <div className="tour-field">
+        <label htmlFor={emphasisId}>{t('How its steps mark what they mark')}</label>
+        <select
+          id={emphasisId}
+          value={tour.emphasis ?? 'halo'}
+          disabled={!editable}
+          onChange={(event) => {
+            const style = event.target.value === 'style';
+            void send(
+              { type: 'update-tour', id: tour.id, changes: { emphasis: style ? 'style' : null } },
+              style
+                ? t('The steps of “{name}” draw what they mark in its own style.', {
+                    name: tour.name,
+                  })
+                : t('The steps of “{name}” mark with a halo.', { name: tour.name }),
+            );
+          }}
+        >
+          <option value="halo">{t('A halo')}</option>
+          <option value="style">{t('Its own style')}</option>
+        </select>
+        <p className="tour-field-hint">
+          {t(
+            'Its own style draws nothing over a mark: a relation is drawn heavier, in the emphasis color, flowing from one end to the other, and an element takes a stronger border. Each step can choose otherwise.',
+          )}
+        </p>
+      </div>
       {checks && tour.steps.length > 0 && (
         <p className="tour-check-summary">
           {warnings === 0
@@ -623,6 +651,7 @@ function StepExplains({
     shape: useId(),
     end: useId(),
     side: useId(),
+    emphasis: useId(),
   };
   const index = modelIndexOf(project);
   const nameOf = (id: string) => index.element(id)?.name ?? index.relation(id)?.name ?? id;
@@ -798,6 +827,34 @@ function StepExplains({
             </button>
           </p>
         )}
+      </div>
+      <div className="tour-field">
+        <label htmlFor={ids.emphasis}>{t('How it marks what it marks')}</label>
+        <select
+          id={ids.emphasis}
+          value={step.emphasis ?? ''}
+          disabled={!editable}
+          onChange={(event) => {
+            const chosen = event.target.value;
+            change(
+              (each) => {
+                const next: TourStep = { ...each };
+                if (chosen === 'halo' || chosen === 'style') next.emphasis = chosen;
+                else delete next.emphasis;
+                return next;
+              },
+              chosen === 'halo'
+                ? t('Step {n} marks with a halo.', { n })
+                : chosen === 'style'
+                  ? t('Step {n} draws what it marks in its own style.', { n })
+                  : t('Step {n} marks as the tour says.', { n }),
+            );
+          }}
+        >
+          <option value="">{t('As the tour says')}</option>
+          <option value="halo">{t('A halo')}</option>
+          <option value="style">{t('Its own style')}</option>
+        </select>
       </div>
       <label className="tour-step-check">
         <input

@@ -29,6 +29,10 @@
       "$ref": "#/definitions/CaptionFace",
       "description": "How its caption cards look (ADR 0096): a face, filled from each step's caption, which every step without a look of its own takes."
     },
+    "emphasis": {
+      "$ref": "#/definitions/TourEmphasis",
+      "description": "How its steps mark what they mark (ADR 0100), each step without an emphasis of its own: `style` draws it in its own style, heavier and in the canvas's emphasis color; left out, with a halo."
+    },
     "conflicts": {
       "type": "array",
       "items": {
@@ -92,6 +96,10 @@
           "type": "boolean",
           "const": true,
           "description": "Dims everything the step does not mark, but the ends of the relations it marks."
+        },
+        "emphasis": {
+          "$ref": "#/definitions/TourEmphasis",
+          "description": "How the step and its reveals mark what they mark (ADR 0100); left out, as the tour's `emphasis` says, and with a halo when it says nothing."
         },
         "advance": {
           "$ref": "#/definitions/TourAdvance",
@@ -809,6 +817,14 @@
       ],
       "additionalProperties": false,
       "description": "A part of a step's marks that comes in on its own press forward, with a sentence for the caption."
+    },
+    "TourEmphasis": {
+      "type": "string",
+      "enum": [
+        "halo",
+        "style"
+      ],
+      "description": "How a tour step marks what it marks (ADR 0100): `halo` lays a halo over it (ADR 0077); `style` draws nothing over it and restyles it instead, a relation heavier, in the canvas's emphasis color, its dash flowing from its `from` end to its `to` end, and an element with a stronger border and a soft lift."
     },
     "TourAdvance": {
       "anyOf": [
