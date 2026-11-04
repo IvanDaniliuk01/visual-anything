@@ -6,7 +6,8 @@
 #   program answers only requests that name 127.0.0.1 or localhost at its own port. To use another
 #   port, set VISUAL_ANYTHING_PORT, which changes both.
 # - The projects and preferences live in VISUAL_ANYTHING_DATA, ./data by default: data/projects and
-#   data/preferences. On Linux, set UID and GID to your own so that the files stay yours.
+#   data/preferences. On Linux, set VISUAL_ANYTHING_UID and VISUAL_ANYTHING_GID to your own, so that
+#   the files stay yours (bash keeps UID read-only, so they carry the program's name).
 # - Another address for a new tab: `docker attach visual-anything`, press a, then Ctrl+P Ctrl+Q to
 #   leave it running (Ctrl+C stops it).
 # - Claude: `docker exec -i visual-anything visual-anything mcp` is the MCP server's command.
@@ -15,7 +16,7 @@ services:
     build: .
     image: ghcr.io/ivandaniliuk01/visual-anything:latest
     container_name: visual-anything
-    user: '${UID:-1000}:${GID:-1000}'
+    user: '${VISUAL_ANYTHING_UID:-1000}:${VISUAL_ANYTHING_GID:-1000}'
     environment:
       VISUAL_ANYTHING_PORT: '${VISUAL_ANYTHING_PORT:-47700}'
     ports:
