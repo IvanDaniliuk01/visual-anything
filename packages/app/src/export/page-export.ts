@@ -8,7 +8,8 @@
  * sends as it sends them to the canvas, with the solid worker the program serves beside the viewer;
  * or, when the person asks, only the pictures the solid worker draws of them here.
  */
-import { encodeBase64, type ProjectSnapshot } from '@visual-anything/core';
+import { encodeBase64, mediaNamedBy, type ProjectSnapshot } from '@visual-anything/core';
+import type { MediaFiles } from '../canvas/pictures/files';
 import { solidPictureKey } from '../canvas/shape-solids';
 import type { SolidFiles } from '../solids/solid-client';
 import { solidAskFor } from '../solids/ask';
@@ -142,6 +143,25 @@ export async function gatherPageSolids(
   return { solids: { form: 'pictures', pictures }, missing };
 }
 
+/**
+ * The media files a page's pictures show (ADR 0098), by hash, in base64, as the program serves them:
+ * every one it could have, and how many it could not, which then draw as missing pictures.
+ */
+export async function gatherPageMedia(
+  project: ProjectSnapshot,
+  files: MediaFiles | undefined,
+): Promise<{ media: Record<string, string>; missing: number }> {
+  const hashes = [...mediaNamedBy(project.views)].sort();
+  const media: Record<string, string> = {};
+  let missing = 0;
+  for (const hash of hashes) {
+    const bytes = files === undefined ? undefined : await files(hash);
+    if (bytes === undefined) missing += 1;
+    else media[hash] = encodeBase64(bytes);
+  }
+  return { media, missing };
+}
+
 /** What a page opens at and says of itself. */
 export interface PageOptions {
   /** The view state it opens at, as a view address's fragment writes it. */
@@ -149,13 +169,15 @@ export interface PageOptions {
   made?: Date;
   /** What it holds of the solids its views show (ADR 0075); none for a page without solids. */
   solids?: PageSolids | undefined;
+  /** The media files its pictures show, by hash, in base64 (ADR 0098). */
+  media?: Record<string, string> | undefined;
 }
 
 /** Writes the read-only page of a project. */
 export function makePage(
   project: ProjectSnapshot,
   assets: ViewerAssets,
-  { start, made, solids }: PageOptions = {},
+  { start, made, solids, media }: PageOptions = {},
 ): Promise<WrittenPage> {
   return writePage({
     assets,
@@ -163,6 +185,7 @@ export function makePage(
       ...(start === undefined ? {} : { start }),
       ...(made === undefined ? {} : { made }),
       ...(solids === undefined ? {} : { solids }),
+      ...(media === undefined ? {} : { media }),
     }),
     title: pageTitle(project.project.name),
   });

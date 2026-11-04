@@ -61,6 +61,8 @@ export interface PdfOptions {
   compress?: boolean;
   /** Solids' pictures, as the SVG takes them (ADR 0075); without, solids are their placeholders. */
   solids?: SvgOptions['solids'];
+  /** Pictures' media files, as the SVG takes them (ADR 0098); without, pictures are gray boxes. */
+  media?: SvgOptions['media'];
   /**
    * Stops making it, between two pieces of the drawing: it then rejects with the signal's reason, an
    * `AbortError` unless the signal was given another, and does no further work.
@@ -217,6 +219,7 @@ export async function writePdf(
     ...(options.theme === undefined ? {} : { theme: options.theme }),
     ...(options.outline === undefined ? {} : { outlineFile: options.outline.file }),
     ...(options.solids === undefined ? {} : { solids: options.solids }),
+    ...(options.media === undefined ? {} : { media: options.media }),
     ...PDF_PICTURES,
   });
   const view = project.views.find((each) => each.id === viewId);

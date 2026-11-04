@@ -13,7 +13,7 @@
 import { lstat, realpath, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import type { ThemeName } from '@visual-anything/core';
+import { checkMediaFile, type ThemeName } from '@visual-anything/core';
 import { FILE_EXTENSIONS } from '@visual-anything/schema';
 import {
   EXPORT_FORMATS,
@@ -25,6 +25,7 @@ import type { ViewerAssets } from '@visual-anything/app/src/viewer/page';
 import { errorCode, errorReason } from './errors';
 import { builtViewer, exportPage } from './export-page';
 import { hashOf, readSolidFile } from './solids/files';
+import { findMediaFile, readMediaFile } from './media/files';
 import { formatProjectProblem, loadProject } from './project';
 import { writeFileAtomic } from './writer';
 
@@ -213,6 +214,8 @@ export async function runExport(argv: readonly string[], env: ExportEnvironment)
         const read = await readSolidFile(await realpath(folder), hash);
         return read.ok && hashOf(read.bytes) === hash ? new Uint8Array(read.bytes) : undefined;
       },
+      // Pictures' files, from the project's own folder, only when exactly what cleaning writes.
+      mediaFile: projectMediaFile(folder),
     });
     if (!page.ok) {
       env.err(page.message);
@@ -225,6 +228,7 @@ export async function runExport(argv: readonly string[], env: ExportEnvironment)
   } else {
     const exported = await exportView(project, view as string, line.format, {
       theme: line.theme,
+      media: projectMediaFile(folder),
     });
     for (const lost of exported.lost) env.err(`Lost: ${lost}`);
     const data = exported.bytes ?? new TextEncoder().encode(exported.text);
@@ -265,4 +269,20 @@ async function refusedTarget(out: string): Promise<string | undefined> {
       return `${out} could not be looked at: ${errorReason(error)}`;
   }
   return undefined;
+}
+
+/**
+ * A project's media files for an export (ADR 0098), read from its `media/` folder as regular files,
+ * and given only when they are exactly what cleaning writes, as the program serves them.
+ */
+function projectMediaFile(folder: string): (hash: string) => Promise<Uint8Array | undefined> {
+  return async (hash) => {
+    const at = await realpath(folder);
+    const format = await findMediaFile(at, hash);
+    if (format === undefined) return undefined;
+    const read = await readMediaFile(at, hash, format);
+    if (!read.ok) return undefined;
+    const bytes = new Uint8Array(read.bytes);
+    return checkMediaFile(bytes, hash, format).ok ? bytes : undefined;
+  };
 }

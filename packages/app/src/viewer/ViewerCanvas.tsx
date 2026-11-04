@@ -29,6 +29,7 @@ import { canvasCamera, type CanvasCamera } from '../view-state/canvas';
 import { KEY_ZOOM, ViewerController } from './controller';
 import { PlacedHoverCard } from '../canvas/HoverCard';
 import type { SolidClient } from '../solids/solid-client';
+import type { MediaFiles } from '../canvas/pictures/media';
 import { useHoverCard } from '../canvas/useHoverCard';
 
 interface ViewerCanvasProps {
@@ -47,6 +48,8 @@ interface ViewerCanvasProps {
   onCanvas?: (canvas: CanvasCamera | undefined) => void;
   /** What draws the page's solids (ADR 0075); none in a page without solids. */
   solids?: SolidClient | undefined;
+  /** The media files the page holds for its pictures (ADR 0098). */
+  media?: MediaFiles | undefined;
 }
 
 /** The keys of the page's canvas, for screen readers. */
@@ -64,6 +67,7 @@ export function ViewerCanvas({
   theme,
   onCanvas,
   solids,
+  media,
 }: ViewerCanvasProps) {
   const t = useT();
   const hostRef = useRef<HTMLDivElement>(null);
@@ -117,7 +121,11 @@ export function ViewerCanvas({
           shareHover(key);
         },
       },
-      { theme: THEMES[latest.current.theme].canvas, ...(solids ? { solids } : {}) },
+      {
+        theme: THEMES[latest.current.theme].canvas,
+        ...(solids ? { solids } : {}),
+        ...(media ? { media } : {}),
+      },
     );
     controllerRef.current = controller;
     controller.setEmphasis(emphasis.current);
@@ -125,7 +133,7 @@ export function ViewerCanvas({
       controller.destroy();
       controllerRef.current = null;
     };
-  }, [cameras, hoverShape, solids]);
+  }, [cameras, hoverShape, solids, media]);
 
   useEffect(() => {
     controllerRef.current?.renderer.setTheme(THEMES[theme].canvas);

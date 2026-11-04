@@ -17,6 +17,8 @@ import { structurizrApplies, writeStructurizr } from './structurizr';
 import { svgSolidsOf, writeSvg, type SvgSolidPicture } from './svg';
 import { SVG_SOLID_PIXELS, solidShotsOf, type SolidPainter } from './solid-pictures';
 import { buildScene } from '../canvas/scene';
+import type { MediaFiles } from '../canvas/pictures/files';
+import { exportedMediaOf } from './pictures';
 
 /** The formats a view exports to, but the PNG the canvas draws and the read-only page. */
 export const EXPORT_FORMATS = ['svg', 'pdf', 'md', 'mermaid', 'structurizr'] as const;
@@ -57,6 +59,12 @@ export interface ExportOptions {
    * each solid is drawn as its placeholder, and the export says so.
    */
   solids?: SolidPainter;
+  /**
+   * Where pictures' media files come from (ADR 0098), for the SVG and the PDF. Without it, as from the
+   * command line and Claude's `export_view`, each picture is drawn as a gray box, and the export says
+   * so.
+   */
+  media?: MediaFiles;
 }
 
 /**
@@ -154,10 +162,15 @@ export async function exportView(
           solids: await solidPicturesFor(project, viewId, options.solids, options.theme ?? 'light'),
         }
       : {};
+  // The media files the view's pictures show, read once, for the SVG and the PDF (ADR 0098).
+  const media =
+    format === 'svg' || format === 'pdf'
+      ? { media: await exportedMediaOf([view], options.media) }
+      : {};
   signal?.throwIfAborted();
   switch (format) {
     case 'svg':
-      return textOf(writeSvg(project, viewId, { ...theme, outlineFile, ...solids }));
+      return textOf(writeSvg(project, viewId, { ...theme, outlineFile, ...solids, ...media }));
     case 'md':
       return textOf(writeOutline(project, viewId));
     case 'mermaid':
@@ -168,6 +181,7 @@ export async function exportView(
       const pdf = await writePdf(project, viewId, {
         ...theme,
         ...solids,
+        ...media,
         outline: { text: writeOutline(project, viewId).text, file: outlineFile },
         language: t.language,
         ...(options.date === undefined ? {} : { date: options.date }),

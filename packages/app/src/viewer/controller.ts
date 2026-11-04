@@ -17,6 +17,7 @@ import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
 import type { Id, SolidDefinition } from '@visual-anything/schema';
 import { SolidTurner } from '../canvas/solids/turner';
 import type { SolidClient } from '../solids/solid-client';
+import type { MediaFiles } from '../canvas/pictures/media';
 import { describeRelation, describeSelection, nameOfEnd } from '../canvas/announce';
 import {
   panBy,
@@ -151,7 +152,7 @@ export class ViewerController {
   constructor(
     private readonly host: HTMLElement,
     private readonly callbacks: ViewerCallbacks,
-    options: { theme?: CanvasTheme; solids?: SolidClient } = {},
+    options: { theme?: CanvasTheme; solids?: SolidClient; media?: MediaFiles } = {},
   ) {
     this.solids = options.solids;
     this.renderer = new CanvasRenderer(
@@ -164,6 +165,11 @@ export class ViewerController {
       {
         ...(options.theme ? { theme: options.theme } : {}),
         ...(options.solids ? { solids: options.solids } : {}),
+        ...(options.media ? { media: options.media } : {}),
+        // Under reduced motion a GIF shows its first frame, and plays while hovered (ADR 0098).
+        reducedMotion: () =>
+          host.ownerDocument.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)')
+            .matches === true,
       },
     );
     const view = host.ownerDocument.defaultView;

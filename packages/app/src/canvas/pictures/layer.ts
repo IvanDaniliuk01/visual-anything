@@ -73,6 +73,8 @@ interface Source {
   bucket: number;
   state: 'waiting' | 'loading' | 'ready' | 'missing';
   decoded?: DecodedPicture;
+  /** The fetching and decoding under way, once started. */
+  loaded?: Promise<void>;
   distance: number;
 }
 
@@ -273,46 +275,75 @@ export class PictureLayer {
   }
 
   #startDecoding(): void {
-    const files = this.#files();
     const waiting = [...this.#sources.values()]
       .filter((source) => source.state === 'waiting')
       .sort((a, b) => a.distance - b.distance);
     for (const source of waiting) {
       if (this.#decoding >= DECODING_AT_ONCE) return;
-      if (files === undefined) {
-        source.state = 'missing';
-        continue;
-      }
-      source.state = 'loading';
-      this.#decoding += 1;
-      const { width, height } = textureSize(source.media, source.bucket);
-      void files(source.media.hash)
-        .then((bytes) =>
-          bytes === undefined
-            ? undefined
-            : this.#platform.decode(bytes, source.media, width, height),
-        )
-        .then(
-          (decoded) => {
-            if (this.#sources.get(source.key) !== source) {
-              decoded?.texture.destroy(true);
-              return;
-            }
-            if (decoded) {
-              source.decoded = decoded;
-              source.state = 'ready';
-            } else {
-              source.state = 'missing';
-            }
-          },
-          () => {
+      void this.#load(source);
+    }
+  }
+
+  /** Fetches and decodes a source's file; it is then ready, or missing. */
+  #load(source: Source): Promise<void> {
+    const files = this.#files();
+    if (files === undefined) {
+      source.state = 'missing';
+      return Promise.resolve();
+    }
+    source.state = 'loading';
+    this.#decoding += 1;
+    const { width, height } = textureSize(source.media, source.bucket);
+    const loaded = (source.loaded = files(source.media.hash)
+      .then((bytes) =>
+        bytes === undefined ? undefined : this.#platform.decode(bytes, source.media, width, height),
+      )
+      .then(
+        (decoded) => {
+          if (this.#sources.get(source.key) !== source) {
+            decoded?.texture.destroy(true);
+            return;
+          }
+          if (decoded) {
+            source.decoded = decoded;
+            source.state = 'ready';
+          } else {
             source.state = 'missing';
-          },
-        )
-        .finally(() => {
-          this.#decoding -= 1;
-          this.#requestRender();
-        });
+          }
+        },
+        () => {
+          source.state = 'missing';
+        },
+      )
+      .finally(() => {
+        this.#decoding -= 1;
+        this.#requestRender();
+      }));
+    return loaded;
+  }
+
+  /**
+   * Readies every picture for an image drawn at so many pixels a canvas unit, the PNG export's
+   * (ADR 0098): each decoded at that size, past the frame's budget, and each GIF at its first frame.
+   */
+  async readyForImage(pixelsPerUnit: number): Promise<void> {
+    const loading: Promise<void>[] = [];
+    for (const entry of this.#entries.values()) {
+      const { rect, media } = entry.shape;
+      const bucket = pictureBucket(Math.max(rect.width, rect.height) * pixelsPerUnit, true, media);
+      const shown = entry.shown;
+      if (shown && (shown.state === 'missing' || shown.bucket >= bucket)) continue;
+      const source = this.#source(media, bucket);
+      entry.wanted = source;
+      if (source.state === 'waiting') loading.push(this.#load(source));
+      else if (source.loaded) loading.push(source.loaded);
+    }
+    await Promise.all(loading);
+    for (const entry of this.#entries.values()) {
+      const state = entry.wanted?.state;
+      if (state === 'ready' || state === 'missing') this.#show(entry);
+      const decoded = entry.shown?.decoded;
+      if (decoded?.kind === 'gif') decoded.draw(decoded.player.first(this.#platform.now()));
     }
   }
 

@@ -11,7 +11,9 @@
  */
 import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
 import type { ViewFile } from '@visual-anything/schema';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { mediaFilesOver, type MediaFiles } from '../canvas/pictures/media';
+import { LiveContext } from '../live/context';
 import { useModalFocus } from '../canvas/focus';
 import type { Rect } from '../canvas/geometry';
 import type { Scene } from '../canvas/scene';
@@ -43,6 +45,7 @@ import {
 import {
   ViewerMissing,
   fetchViewerAssets,
+  gatherPageMedia,
   gatherPageSolids,
   makePage,
   pageFileName,
@@ -67,6 +70,8 @@ export interface PageSource {
    * worker, by default those of the live session; none outside one, where they draw placeholders.
    */
   solids?: PageSolidSource;
+  /** Where the page gets its pictures' media files (ADR 0098), by default the live session's. */
+  media?: MediaFiles;
 }
 
 /** The read-only page's source, with the project it is made of. */
@@ -120,7 +125,17 @@ export function ExportControl({
     () => solidFiles && { files: solidFiles, ...(solids ? { painter: solids } : {}) },
     [solidFiles, solids],
   );
-  const drawnWith = drawn && { ...drawn, ...(solids ? { solids } : {}) };
+  // Pictures' media files, for the SVG and the PDF (ADR 0098).
+  const getMediaFile = useContext(LiveContext)?.getMediaFile;
+  const media = useMemo(
+    () => (getMediaFile ? mediaFilesOver(getMediaFile) : undefined),
+    [getMediaFile],
+  );
+  const drawnWith = drawn && {
+    ...drawn,
+    ...(solids ? { solids } : {}),
+    ...(media ? { media } : {}),
+  };
   // The exporters packages add (ADR 0089), offered after the app's own formats.
   const packageFiles = usePackageFileExports(project);
   const opener = useRef<HTMLButtonElement>(null);
@@ -158,6 +173,7 @@ export function ExportControl({
                   ...page,
                   project,
                   ...((page.solids ?? pageSolids) ? { solids: page.solids ?? pageSolids } : {}),
+                  ...((page.media ?? media) ? { media: page.media ?? media } : {}),
                 },
               }
             : {})}
@@ -411,16 +427,26 @@ function ExportDialog({
       showsSolids && source
         ? gatherPageSolids(page.project, form, source)
         : Promise.resolve({ missing: 0 }),
+      // The media files its pictures show, in base64 (ADR 0098).
+      gatherPageMedia(page.project, page.media),
     ])
-      .then(async ([viewer, gathered]: [ViewerAssets, GatheredSolids]) => ({
-        written: await makePage(page.project, viewer, {
-          start: asked ? page.start() : undefined,
-          made: new Date(),
-          solids: withPoses(page.project, gathered.solids, held),
+      .then(
+        async ([viewer, gathered, pictures]: [
+          ViewerAssets,
+          GatheredSolids,
+          Awaited<ReturnType<typeof gatherPageMedia>>,
+        ]) => ({
+          written: await makePage(page.project, viewer, {
+            start: asked ? page.start() : undefined,
+            made: new Date(),
+            solids: withPoses(page.project, gathered.solids, held),
+            media: pictures.media,
+          }),
+          missing:
+            showsSolids && !source ? solidHashesShown(page.project).length : gathered.missing,
+          solidsHeld: gathered.solids !== undefined,
         }),
-        missing: showsSolids && !source ? solidHashesShown(page.project).length : gathered.missing,
-        solidsHeld: gathered.solids !== undefined,
-      }))
+      )
       .then(
         ({ written, missing, solidsHeld }) => {
           if (requested.current === request) {

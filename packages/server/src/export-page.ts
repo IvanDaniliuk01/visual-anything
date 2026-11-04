@@ -13,7 +13,12 @@
  */
 import { realpath } from 'node:fs/promises';
 import { join } from 'node:path';
-import { encodeBase64, writeViewState, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  encodeBase64,
+  mediaNamedBy,
+  writeViewState,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import { pageDataOf } from '@visual-anything/app/src/viewer/data';
 import {
   holdsPoses,
@@ -57,17 +62,24 @@ export async function exportPage(
     now?: Date;
     /** Reads a solid's file by its hash, checked against it; none when it cannot. */
     solidFile?: (hash: string) => Promise<Uint8Array | undefined>;
+    /**
+     * Reads a picture's media file by its hash, only when it is exactly what cleaning writes
+     * (ADR 0098); none when it cannot.
+     */
+    mediaFile?: (hash: string) => Promise<Uint8Array | undefined>;
   },
 ): Promise<PageExport> {
   if (options.viewer === undefined) return { ok: false, message: NO_VIEWER };
   const warnings: string[] = [];
   const solids = await solidsOfPage(project, options.viewer, options.solidFile, warnings);
+  const media = await mediaOfPage(project, options.mediaFile, warnings);
   const page = await writePage({
     assets: options.viewer,
     data: pageDataOf(project, {
       ...(options.view === undefined ? {} : { start: writeViewState({ view: options.view }) }),
       made: options.now ?? new Date(),
       ...(solids === undefined ? {} : { solids }),
+      media,
     }),
     title: pageTitle(project.project.name),
   });
@@ -134,6 +146,33 @@ async function solidsOfPage(
   }
   if (missing === hashes.length) return withPoses(project, undefined);
   return { form: 'files', files };
+}
+
+/**
+ * The media files a page's pictures show (ADR 0098), in base64 by hash, read from the project's
+ * `media/` folder; those it could not read, or that are not what cleaning writes, are left out and
+ * said in `warnings`, and the page draws them as missing pictures.
+ */
+async function mediaOfPage(
+  project: ProjectSnapshot,
+  read: ((hash: string) => Promise<Uint8Array | undefined>) | undefined,
+  warnings: string[],
+): Promise<Record<string, string>> {
+  const media: Record<string, string> = {};
+  let missing = 0;
+  for (const hash of [...mediaNamedBy(project.views)].sort()) {
+    const bytes = read === undefined ? undefined : await read(hash);
+    if (bytes) media[hash] = encodeBase64(bytes);
+    else missing += 1;
+  }
+  if (missing > 0) {
+    warnings.push(
+      missing === 1
+        ? 'One picture’s file could not be read, and the page draws it as a gray box.'
+        : `${missing} pictures’ files could not be read, and the page draws them as gray boxes.`,
+    );
+  }
+  return media;
 }
 
 /** A size in megabytes, as the terminal says it. */

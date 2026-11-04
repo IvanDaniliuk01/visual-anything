@@ -1726,6 +1726,8 @@ export class CanvasRenderer {
     if (!planned.ok) throw new ImageError(planned.problem);
     // Its solids drawn by the solid worker at its scale, as the canvas draws them (ADR 0075).
     const solids = await this.solidsForImage(planned.plan);
+    // Its pictures decoded at its scale, each GIF at its first frame (ADR 0098).
+    await this.pictureLayer.readyForImage(planned.plan.pixelsPerUnit);
     try {
       const drawn = await this.drawImage(planned.plan, {
         asShown: request.area === 'visible',
@@ -1839,6 +1841,7 @@ export class CanvasRenderer {
         const scene =
           child === this.elementShapes ||
           child === this.relations.container ||
+          child === this.pictureLayer.container ||
           child === this.freeShapes;
         if (!scene) change(child, 'visible', false);
       }

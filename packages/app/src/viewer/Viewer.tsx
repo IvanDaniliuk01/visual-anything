@@ -73,6 +73,7 @@ import { PlaybackSession } from './playback';
 import { usePagePreferences, type PagePreferences } from './preferences';
 import { ViewerCanvas } from './ViewerCanvas';
 import type { SolidClient } from '../solids/solid-client';
+import type { MediaFiles } from '../canvas/pictures/media';
 import { withCollapsed } from './collapse';
 import '../styles.css';
 import './viewer.css';
@@ -82,6 +83,8 @@ interface ViewerAppProps {
   preferences: PagePreferences;
   /** What draws the page's solids (ADR 0075); none in a page without solids. */
   solids?: SolidClient | undefined;
+  /** The media files the page holds for its pictures (ADR 0098). */
+  media?: MediaFiles | undefined;
   /**
    * Whether the page has the physical-space panel (ADR 0076), drawn by `solids`: when it holds the
    * solid worker for solids' files or poses (`pageHasSpace`).
@@ -90,7 +93,7 @@ interface ViewerAppProps {
 }
 
 /** The page: the viewer once its data was read, or what keeps it from opening. */
-export function ViewerApp({ read, preferences, solids, space }: ViewerAppProps) {
+export function ViewerApp({ read, preferences, solids, space, media }: ViewerAppProps) {
   const shown = usePagePreferences(preferences);
   return (
     <PageLanguage language={shown.shownLanguage}>
@@ -100,6 +103,7 @@ export function ViewerApp({ read, preferences, solids, space }: ViewerAppProps) 
           {...(read.made === undefined ? {} : { made: read.made })}
           preferences={preferences}
           solids={solids}
+          media={media}
           space={space === true && solids !== undefined}
         />
       ) : (
@@ -168,11 +172,13 @@ interface ViewerProps {
   preferences: PagePreferences;
   /** What draws the page's solids (ADR 0075); none in a page without solids. */
   solids?: SolidClient | undefined;
+  /** The media files the page holds for its pictures (ADR 0098). */
+  media?: MediaFiles | undefined;
   /** Whether the page has the physical-space panel, drawn by `solids` (ADR 0076). */
   space?: boolean | undefined;
 }
 
-export function Viewer({ project: opened, made, preferences, solids, space }: ViewerProps) {
+export function Viewer({ project: opened, made, preferences, solids, space, media }: ViewerProps) {
   const t = useT();
   const shown = usePagePreferences(preferences);
   // The page's own copy of the project, whose views change only as collapsing changes them here.
@@ -440,6 +446,7 @@ export function Viewer({ project: opened, made, preferences, solids, space }: Vi
                       theme={shown.shownTheme}
                       onCanvas={setCanvas}
                       solids={solids}
+                      media={media}
                     />
                   ) : (
                     <p className="canvas-message">

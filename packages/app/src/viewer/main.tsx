@@ -11,6 +11,7 @@ import { standaloneValidate } from './validate';
 import { ViewerApp } from './Viewer';
 import { pageSolidClient, pageWorkerStart } from './solid-clients';
 import { pageHasSpace } from './solids';
+import { embeddedMediaFiles } from '../canvas/pictures/media';
 
 const mountPoint = document.getElementById('root');
 if (!mountPoint) throw new Error('The page has no #root element.');
@@ -35,6 +36,12 @@ const space = read.ok && solids !== undefined && pageHasSpace(read.project, read
 
 createRoot(mountPoint).render(
   <StrictMode>
-    <ViewerApp read={read} preferences={preferences} solids={solids} space={space} />
+    <ViewerApp
+      read={read}
+      preferences={preferences}
+      solids={solids}
+      space={space}
+      media={read.ok && read.media ? embeddedMediaFiles(read.media) : undefined}
+    />
   </StrictMode>,
 );

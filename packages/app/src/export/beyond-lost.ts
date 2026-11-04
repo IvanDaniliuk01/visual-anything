@@ -25,6 +25,17 @@ const SOLIDS: PluralText = {
   other:
     '{count} shapes’ solids are left out: solids are drawn only in the canvas, the PNG, the SVG, the PDF and the read-only page.',
 };
+const FREE_PICTURES: PluralText = {
+  one: 'One picture is left out: pictures are drawn only in the canvas, the PNG, the SVG, the PDF and the read-only page.',
+  other:
+    '{count} pictures are left out: pictures are drawn only in the canvas, the PNG, the SVG, the PDF and the read-only page.',
+};
+
+/** What a text export says of the pictures it leaves out (ADR 0098). */
+export function lostPictures(count: number): string[] {
+  return count > 0 ? [t(FREE_PICTURES, { count })] : [];
+}
+
 const ROUTE_STYLES: PluralText = {
   one: 'One relation drawn curved or straight is drawn in {tool}’s own style.',
   other: '{count} relations drawn curved or straight are drawn in {tool}’s own style.',

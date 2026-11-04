@@ -10,6 +10,7 @@ import type { Scene } from '../canvas/scene';
 import type { Translator } from '../i18n';
 import { FORMAT_FILES, exportView, formatsFor, type ExportFormat } from './exports';
 import type { SolidPainter } from './solid-pictures';
+import type { MediaFiles } from '../canvas/pictures/files';
 
 /** What a writer is given: the open view, as the canvas draws it, in the theme it shows. */
 export interface FileExportContext {
@@ -19,6 +20,8 @@ export interface FileExportContext {
   theme: ThemeName;
   /** What draws solids' pictures (ADR 0075): the solid worker, while the app has one. */
   solids?: SolidPainter;
+  /** Where pictures' media files come from (ADR 0098), while the app has a live session. */
+  media?: MediaFiles;
 }
 
 /** A file made of the view: what to save, under which name, and what it could not hold. */
@@ -76,10 +79,11 @@ function writer(
       const choice = choiceIn(context);
       return choice ? [choice.leavesOut] : [];
     },
-    make: async ({ project, view, theme, solids }, signal) => {
+    make: async ({ project, view, theme, solids, media }, signal) => {
       const exported = await exportView(project, view.id, format, {
         theme,
         ...(solids === undefined ? {} : { solids }),
+        ...(media === undefined ? {} : { media }),
         ...(signal === undefined ? {} : { signal }),
       });
       // A copy of the bytes, in a buffer of their own, as a Blob takes them.

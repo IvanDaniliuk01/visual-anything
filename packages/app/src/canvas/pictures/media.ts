@@ -8,12 +8,9 @@ import type { MediaRef } from '@visual-anything/schema';
 import type { LiveResult } from '../../live/connection';
 import { LARGE_BUCKETS, bucketFor, sharpBucketFor } from '../images';
 
-/**
- * A media file's bytes by its hash, as the program serves them (`media/get`) or the read-only page
- * holds them; `undefined` for a file that is missing or no longer what cleaning writes, which is
- * drawn as a gray box.
- */
-export type MediaFiles = (hash: string) => Promise<Uint8Array | undefined>;
+import type { MediaFiles } from './files';
+
+export type { MediaFiles } from './files';
 
 /** How long a file that could not be had is not asked for again, in milliseconds. */
 const RETRY_AFTER = 10_000;

@@ -146,10 +146,12 @@ import {
   arrowWidthOf,
   buildScene,
   drawingOfScene,
+  picturesOf,
   standsFor,
   type ArrowShape,
   type ElementShape,
   type NoteShape,
+  type PictureShape,
   type RelationLine,
   type Scene,
 } from '../canvas/scene';
@@ -278,7 +280,17 @@ export interface SvgOptions {
    * one points into, leaves them out.
    */
   tracedParts?: boolean;
+  /**
+   * Pictures' media files (ADR 0098), by hash, as the export read them (`exportedMediaOf`): a GIF as
+   * its first frame. A picture whose file is missing from them is drawn as a gray box with its name.
+   */
+  media?: ReadonlyMap<string, ExportedMedia>;
 }
+
+/** A picture's media file as a drawing holds it: a bitmap as base64, or an SVG's cleaned markup. */
+export type ExportedMedia =
+  | { kind: 'bitmap'; format: BitmapFormat; data: string; width: number; height: number }
+  | { kind: 'svg'; svg: string };
 
 /** A solid's picture as a drawing holds it: a PNG, and the part buffer it came with, if any. */
 export interface SvgSolidPicture {
@@ -477,6 +489,9 @@ class Writer {
   readonly #filters = new Set<Color>();
   readonly #byKey: ReadonlyMap<string, ElementShape>;
   readonly #bitmaps: ReadonlySet<BitmapFormat>;
+  readonly #media: ReadonlyMap<string, ExportedMedia> | undefined;
+  /** Each media file's symbol, by hash; null for one this drawing cannot hold. */
+  readonly #mediaSymbols = new Map<string, string | null>();
   readonly #filtersDrawn: boolean;
   readonly reading: WriterReading;
   /** The drawing defaults the scene is drawn with (ADR 0086), which the canvas draws it with too. */
@@ -490,6 +505,7 @@ class Writer {
     this.theme = THEMES[options.theme ?? 'light'].canvas;
     this.#byKey = new Map(scene.shapes.map((shape) => [shape.key, shape]));
     this.#bitmaps = new Set(options.bitmaps ?? ['png', 'jpeg', 'webp']);
+    this.#media = options.media;
     this.#filtersDrawn = options.filters ?? true;
     this.#solids = options.solids;
     this.reading = reading;
@@ -528,6 +544,83 @@ class Writer {
   /** The picture drawn of a shape's solid for this drawing; none: it is drawn as its placeholder. */
   solidPicture(shape: ElementShape): SvgSolidPicture | undefined {
     return shape.solid ? this.#solids?.get(shape.key) : undefined;
+  }
+
+  /**
+   * Where a picture's media file is used (ADR 0098): its symbol, written once whatever the number of
+   * pictures that show it, stretched to the picture's rectangle; a gray box with its name and a
+   * warning for a file the export does not have.
+   */
+  mediaPicture(picture: PictureShape): string {
+    const media = this.#media?.get(picture.media.hash);
+    let id = this.#mediaSymbols.get(picture.media.hash);
+    if (id === undefined && media !== undefined) {
+      const made = `va-media-${this.#mediaSymbols.size + 1}`;
+      let symbol: string | undefined;
+      if (media.kind === 'svg') {
+        symbol = svgSymbol(made, media.svg, `${made}-`);
+        if (!symbol) this.lost.add(t('A picture whose SVG could not be read back is left out.'));
+      } else if (this.#bitmaps.has(media.format)) {
+        symbol = bitmapSymbol(made, media);
+      } else {
+        this.lost.add(
+          t('Pictures in {format} are left out: this format cannot hold them.', {
+            format: media.format.toUpperCase(),
+          }),
+        );
+      }
+      // A picture resized out of its proportions is drawn so, as the canvas draws it.
+      symbol = symbol?.replace(
+        /^<symbol(?![^>]*preserveAspectRatio)/,
+        '<symbol preserveAspectRatio="none"',
+      );
+      id = symbol === undefined ? null : made;
+      if (symbol !== undefined) this.defsById.set(made, symbol);
+      this.#mediaSymbols.set(picture.media.hash, id);
+    }
+    const { x, y, width, height } = picture.rect;
+    if (typeof id === 'string') {
+      return element(
+        'g',
+        { 'data-free-shape': picture.id, role: 'img', 'aria-label': picture.name },
+        empty('use', { href: `#${id}`, x, y, width, height }),
+      );
+    }
+    if (media === undefined)
+      this.lost.add(t('Pictures whose files are missing are drawn as gray boxes.'));
+    // As the canvas draws a picture without its file: a gray box, a warning and its name.
+    const dark = this.theme.name === 'dark';
+    const size = Math.max(4, Math.min(14, height / 4, width / 8));
+    const left = x + size * 0.6;
+    const top = y + size * 0.6;
+    return element(
+      'g',
+      { 'data-free-shape': picture.id },
+      empty('rect', {
+        x,
+        y,
+        width,
+        height,
+        fill: dark ? '#3f3f46' : '#e4e4e7',
+        stroke: dark ? '#71717a' : '#a1a1aa',
+        'stroke-width': 1,
+      }) +
+        empty('polygon', {
+          points: `${left + size / 2},${top} ${left + size},${top + size} ${left},${top + size}`,
+          fill: dark ? '#fbbf24' : '#b45309',
+        }) +
+        this.text({
+          text: picture.name,
+          size,
+          fill: dark ? '#e4e4e7' : '#3f3f46',
+          x: left + size * 1.4,
+          align: 'start',
+          y: top,
+          anchor: 'top',
+          wrap: Math.max(1, width - size * 2.2),
+          room: Math.max(1, height - size * 1.2),
+        }),
+    );
   }
 
   /** Where a solid's picture is used: its symbol, written the first time it is needed, at `rect`. */
@@ -912,6 +1005,8 @@ export function svgOfScene(
     return opacity === undefined ? parts : element('g', { opacity }, parts);
   };
   const free = [
+    // Pictures under the notes and arrows, as the canvas draws them (ADR 0098).
+    ...picturesOf(scene).map((picture) => faintFree(picture.id, writer.mediaPicture(picture))),
     ...scene.notes.map((note) => faintFree(note.id, noteParts(writer, note))),
     ...scene.arrows.map((arrow) =>
       faintFree(
