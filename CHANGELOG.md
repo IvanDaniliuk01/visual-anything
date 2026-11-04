@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.1
+
+### Tours
+
+- **Each caption is placed where it reads best.** While a tour plays, drag a step's caption anywhere on the screen, and drag its sides or corners to make it wider, taller or both. The step keeps its place and size as proportions of the screen, so it fits other screens too (ADR 0095, ADR 0096).
+- **Captions take a look of their own**, written in the same HTML and CSS subset as a component's face: `{{name}}` is the title, `{{text}}` the text, and `{{step}}` and `{{steps}}` say where the step is. A tour can give every caption one look, and each step can have its own (ADR 0096).
+- **A caption's line to what it explains** can be straight, have one right-angled turn or curve. It can end in a dot, an arrow or nothing, and leave the caption from any of its sides (ADR 0097).
+- **The tours panel** scrolls, and offers the caption's corner, look, size and line under each step.
+
+### Lines
+
+- A route drawn by hand no longer folds back over itself, and bend points that no longer turn the line lose their handles. This includes bend points a fraction of a unit away from where the line enters a shape (ADR 0039).
+
+### Docker
+
+- **An image runs the program in a container**, with your projects in a folder of your own and its port open only to this computer (ADR 0094). The README's "Run it in Docker" says how.
+
+### Worth knowing
+
+- Tours that use a caption's new place, size, look or line open only in 0.1.1 and later. The live connection's version goes from 8 to 9.
+
 ## 0.1.0 — the first public version
 
 Visual Anything turns a model of a concept or a system into views you can explore. It runs on your own computer: a local program serves the app on 127.0.0.1 and keeps your project as plain JSON files in a folder you can put under git. Claude works on the same model through MCP.
