@@ -105,6 +105,9 @@ import { removeFile, writeFileAtomic, type WriteOptions } from './writer';
 import { removeUnnamedSolidFiles, solidFileWarnings, unnamedSolidFileSizes } from './solids/files';
 import { planSolidImport, type SolidChoices } from './solids/import';
 import { readProjectSolidFile } from './solids/project-file';
+import { removeUnnamedMediaFiles, unnamedMediaFiles } from './media/files';
+import { readProjectPictureFile } from './media/project-file';
+import { MediaStore, type Keeping, type MediaStoreOptions } from './media/store';
 import {
   SolidStore,
   preparedMessage,
@@ -338,6 +341,8 @@ export interface SessionOptions {
   captureWait?: number;
   /** How solids are cleaned and checked (ADR 0075); in the cleaner's worker by default. */
   solids?: Pick<SolidStoreOptions, 'clean' | 'check'>;
+  /** How pictures' files are cleaned and checked (ADR 0098); in the cleaner's worker by default. */
+  media?: Pick<MediaStoreOptions, 'clean' | 'check'>;
 }
 
 /** The outcome of opening a session: the session, or every problem that keeps the project closed. */
@@ -417,6 +422,7 @@ export class Session implements LiveSession {
   readonly #drawings: DrawingQueue;
   /** The solid files the program prepared, read and checked (ADR 0075). */
   readonly #solids: SolidStore;
+  readonly #media: MediaStore;
   /** Claude's layouts, sent to the apps one at a time, each once the one before was answered (M3d). */
   readonly #layouts: LayoutWaits;
   /** The pictures Claude asked the apps for, each waited for by its own id (ADR 0081). */
@@ -457,6 +463,11 @@ export class Session implements LiveSession {
         this.#warnings = undefined;
         this.#broadcast(warningNotice(locateProblems(found, this.#state, this.files)));
       },
+    });
+    this.#media = new MediaStore(folder, {
+      ...options.media,
+      ...(options.writer === undefined ? {} : { writer: options.writer }),
+      ...(options.now === undefined ? {} : { now: options.now }),
     });
     // In the session's queue, so that a layout reaches the apps after the work asked for before it.
     this.#layouts = new LayoutWaits(
@@ -629,6 +640,7 @@ export class Session implements LiveSession {
       this.#layouts.gone(client);
       this.#captures.gone(client);
       this.#solids.forget(client);
+      this.#media.forget(client);
     };
   }
 
@@ -818,7 +830,108 @@ export class Session implements LiveSession {
       case 'solid-files/remove':
         await this.removeUnnamedSolidFiles(origin, message.hashes);
         return;
+      case 'media/get':
+        // A picture's file, in pieces (ADR 0098). It only reads, and never waits behind the
+        // project's own work.
+        for (const answer of await this.#media.serve(message.requestId, message.hash)) {
+          this.#send(client, answer);
+        }
+        return;
+      case 'media/put': {
+        const outcome = this.#media.receive(client, message);
+        if (outcome.kind === 'refused') {
+          this.#sendKept(client, message.requestId, { ok: false, problem: outcome.problem });
+        } else if (outcome.kind === 'whole') {
+          this.#sendKept(client, message.requestId, await this.#media.keep(outcome.bytes));
+        }
+        return;
+      }
+      case 'media-files/list':
+        await this.listUnnamedMediaFiles(origin);
+        return;
+      case 'media-files/remove':
+        await this.removeUnnamedMediaFiles(origin, message.hashes);
+        return;
     }
+  }
+
+  #sendKept(client: SessionClient, requestId: string, kept: Keeping): void {
+    this.#send(
+      client,
+      kept.ok
+        ? { type: 'media/stored', requestId, media: kept.media, removed: kept.removed }
+        : {
+            type: 'media/refused',
+            requestId,
+            code: kept.problem.code,
+            message: kept.problem.message,
+          },
+    );
+  }
+
+  /**
+   * Keeps an image file of the project folder as a media file, for Claude's `add_picture` (ADR
+   * 0098): read only as a regular file inside the folder, then cleaned as an app's file is. It
+   * changes no project file.
+   */
+  async keepProjectPicture(path: string): Promise<Keeping & { fileName?: string }> {
+    const read = await readProjectPictureFile(this.folder, path);
+    if (!read.ok) return read;
+    const kept = await this.#media.keep(read.bytes);
+    return kept.ok ? { ...kept, fileName: read.fileName } : kept;
+  }
+
+  /** A media file's bytes, checked as `media/get` serves them (ADR 0098). */
+  readMediaFile(hash: string): ReturnType<MediaStore['read']> {
+    return this.#media.read(hash);
+  }
+
+  /** Answers with the files of `media/` no picture names (ADR 0098), in the turn of the queue. */
+  listUnnamedMediaFiles(origin: Origin): Promise<void> {
+    return this.#enqueue(async () => {
+      try {
+        const files = await unnamedMediaFiles(this.folder, this.#state);
+        this.#send(origin.client, {
+          type: 'media-files/listed',
+          requestId: origin.requestId,
+          files,
+        });
+      } catch (error) {
+        this.#refuseMediaFiles(origin, error);
+      }
+    });
+  }
+
+  /**
+   * Removes files of `media/` no picture names, as the person asks (ADR 0098); it cannot be undone.
+   * In the turn of the queue, so that no action naming one of them runs between check and removal.
+   */
+  removeUnnamedMediaFiles(origin: Origin, hashes: readonly string[]): Promise<void> {
+    return this.#enqueue(async () => {
+      try {
+        const { removed, kept } = await removeUnnamedMediaFiles(this.folder, this.#state, hashes);
+        const files = await unnamedMediaFiles(this.folder, this.#state);
+        this.#send(origin.client, {
+          type: 'media-files/listed',
+          requestId: origin.requestId,
+          files,
+          removed,
+          ...(kept.length === 0 ? {} : { kept }),
+        });
+      } catch (error) {
+        this.#refuseMediaFiles(origin, error);
+      }
+    });
+  }
+
+  #refuseMediaFiles(origin: Origin, error: unknown): void {
+    this.#err(`Could not read the project's media files: ${reasonOf(error)}`);
+    this.#send(origin.client, {
+      type: 'media/refused',
+      requestId: origin.requestId,
+      code: 'program-failed',
+      message: `The project's media files could not be read: ${reasonOf(error)}`,
+    });
   }
 
   /**
@@ -1552,6 +1665,9 @@ export class Session implements LiveSession {
             // A solid is defined only of a file the program holds, with its description (ADR 0075).
             const admitted = await this.#solids.admit(command);
             if (!admitted.ok) return this.#refuse(origin, admitted.problems);
+            // A picture names only a file the program kept (ADR 0098).
+            const pictured = await this.#media.admit(admitted.command);
+            if (!pictured.ok) return this.#refuse(origin, pictured.problems);
             return author === 'claude' && this.#proposes(admitted.command, propose)
               ? this.#runProposed(admitted.command, origin)
               : this.#run(admitted.command, author, origin, joins);
@@ -1577,6 +1693,8 @@ export class Session implements LiveSession {
             command = planned.command;
             const admitted = await this.#solids.admit(planned.command);
             if (!admitted.ok) return this.#refuse(origin, admitted.problems);
+            const pictured = await this.#media.admit(admitted.command);
+            if (!pictured.ok) return this.#refuse(origin, pictured.problems);
             return this.#run(admitted.command, author, origin);
           }),
         );

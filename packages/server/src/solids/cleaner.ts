@@ -13,10 +13,17 @@
 import * as sea from 'node:sea';
 import { Worker } from 'node:worker_threads';
 import type { Problem, SolidImportOptions } from '@visual-anything/core';
+import type { MediaFormat } from '@visual-anything/schema';
 import type { WorkerSource } from '../drawings/make';
 import { errorCode, errorReason } from '../errors';
 import type { CleanedSolid } from './clean';
-import type { CheckedSolid, SolidWork, SolidWorkAnswer } from './worker';
+import type {
+  CheckedMedia,
+  CheckedSolid,
+  CleanedMedia,
+  SolidWork,
+  SolidWorkAnswer,
+} from './worker';
 
 /** The executable's asset that holds the worker's script. */
 export const SOLID_WORKER_ASSET = 'solids/worker.cjs';
@@ -57,7 +64,9 @@ export async function cleanInWorker(
   );
   if ('problems' in answer && !answer.ok) return answer;
   if (!answer.ok) return refused('program-failed', 'The file could not be cleaned.');
-  if (!('bytes' in answer)) return refused('program-failed', 'The file could not be cleaned.');
+  if (!('bytes' in answer) || !('hash' in answer)) {
+    return refused('program-failed', 'The file could not be cleaned.');
+  }
   return answer;
 }
 
@@ -72,11 +81,57 @@ export async function checkInWorker(
       ? { ok: false, problems: answer.problems }
       : refused('program-failed', 'The solid file could not be checked.');
   }
-  if ('bytes' in answer) return refused('program-failed', 'The solid file could not be checked.');
+  if (!('description' in answer) || 'bytes' in answer) {
+    return refused('program-failed', 'The solid file could not be checked.');
+  }
   return answer;
 }
 
-type Answered = CleanedSolid | CheckedSolid | { ok: false; problems: Problem[] };
+/**
+ * Cleans a picture's file for `media/` in the worker (ADR 0098), with the solids' limits. The bytes
+ * are handed to it, and are no longer the caller's.
+ */
+export async function cleanMediaInWorker(
+  bytes: Uint8Array,
+  run: SolidWorkerOptions = {},
+): Promise<CleanedMedia> {
+  const owned =
+    bytes.byteOffset === 0 &&
+    bytes.byteLength === bytes.buffer.byteLength &&
+    bytes.buffer instanceof ArrayBuffer
+      ? bytes
+      : bytes.slice();
+  const answer = await runWorker(
+    { kind: 'media-clean', bytes: owned },
+    run,
+    'Cleaning the picture',
+    true,
+  );
+  if (answer.ok && 'media' in answer) return answer;
+  if (!answer.ok) return answer;
+  return refused('program-failed', 'The picture could not be cleaned.');
+}
+
+/** Checks a file of `media/` against its name and its reader in the worker. The caller keeps its bytes. */
+export async function checkMediaInWorker(
+  bytes: Uint8Array,
+  hash: string,
+  format: MediaFormat,
+  run: SolidWorkerOptions = {},
+): Promise<CheckedMedia> {
+  const answer = await runWorker(
+    { kind: 'media-check', bytes, hash, format },
+    run,
+    'Checking the media file',
+    false,
+  );
+  if (answer.ok && 'checked' in answer) return answer;
+  if (!answer.ok) return answer;
+  return refused('program-failed', 'The media file could not be checked.');
+}
+
+type Answered =
+  CleanedSolid | CheckedSolid | CleanedMedia | CheckedMedia | { ok: false; problems: Problem[] };
 
 async function runWorker(
   work: SolidWork,
