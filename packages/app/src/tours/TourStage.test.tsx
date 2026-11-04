@@ -732,14 +732,50 @@ describe('TourStage’s reveals, scenario card and controls', () => {
     });
   });
 
+  describe('a caption’s leader line drawn as the step says (ADR 0097)', () => {
+    it('takes the step’s shape, and ends in an arrow or nothing', () => {
+      const styled = (leader: NonNullable<TourFile['steps'][number]['caption']['leader']>) => ({
+        ...tour,
+        steps: tour.steps.map((step, at) =>
+          at === 0 ? { ...step, caption: { ...step.caption, leader } } : step,
+        ),
+      });
+      const line = { from: { x: 10, y: 20 }, to: { x: 30, y: 40 }, side: 'right' as const };
+      const { container, rerender } = render(
+        <TourStage
+          project={sample}
+          tour={styled({ shape: 'elbow', end: 'arrow' })}
+          step={0}
+          onAction={vi.fn()}
+          leader={line}
+        />,
+      );
+      expect(container.querySelector('.tour-leader path')).toHaveAttribute(
+        'd',
+        'M 10 20 L 30 20 L 30 40',
+      );
+      expect(container.querySelector('.tour-leader polygon')).not.toBeNull();
+      expect(container.querySelector('.tour-leader circle')).toBeNull();
+      rerender(
+        <TourStage
+          project={sample}
+          tour={styled({ end: 'none' })}
+          step={0}
+          onAction={vi.fn()}
+          leader={line}
+        />,
+      );
+      expect(container.querySelector('.tour-leader :is(circle, polygon)')).toBeNull();
+    });
+  });
+
   describe('a caption’s leader line (ADR 0084)', () => {
     it('draws from the card to its mark, and says when the mark is off the canvas', () => {
       const { container, rerender, onAction } = stage({
-        leader: { from: { x: 10, y: 20 }, to: { x: 30, y: 40 } },
+        leader: { from: { x: 10, y: 20 }, to: { x: 30, y: 40 }, side: 'bottom' },
       });
-      const line = container.querySelector('.tour-leader line');
-      expect(line).toHaveAttribute('x1', '10');
-      expect(line).toHaveAttribute('y2', '40');
+      expect(container.querySelector('.tour-leader path')).toHaveAttribute('d', 'M 10 20 L 30 40');
+      expect(container.querySelector('.tour-leader circle')).toHaveAttribute('cx', '30');
       expect(container.querySelector('.tour-leader')).toHaveAttribute('aria-hidden', 'true');
       rerender(
         <TourStage project={sample} tour={tour} step={0} onAction={onAction} leader="off" />,

@@ -616,7 +616,14 @@ function StepExplains({
 }) {
   const t = useT();
   const { project, selection } = useEditor();
-  const ids = { pointTo: useId(), place: useId(), repeat: useId() };
+  const ids = {
+    pointTo: useId(),
+    place: useId(),
+    repeat: useId(),
+    shape: useId(),
+    end: useId(),
+    side: useId(),
+  };
   const index = modelIndexOf(project);
   const nameOf = (id: string) => index.element(id)?.name ?? index.relation(id)?.name ?? id;
   const marks = marksOf(step);
@@ -658,6 +665,76 @@ function StepExplains({
           ))}
         </select>
       </div>
+      {pointTo !== undefined && (
+        <div className="tour-leader-choices" role="group" aria-label={t('How its line is drawn')}>
+          {(
+            [
+              {
+                part: 'shape',
+                id: ids.shape,
+                label: t('Line'),
+                options: [
+                  ['', t('Straight')],
+                  ['elbow', t('With a right angle')],
+                  ['curved', t('Curved')],
+                ],
+              },
+              {
+                part: 'end',
+                id: ids.end,
+                label: t('Its end'),
+                options: [
+                  ['', t('A dot')],
+                  ['arrow', t('An arrow')],
+                  ['none', t('Nothing')],
+                ],
+              },
+              {
+                part: 'from',
+                id: ids.side,
+                label: t('Leaves the caption'),
+                options: [
+                  ['', t('Where it is nearest')],
+                  ['top', t('Out of its top')],
+                  ['right', t('Out of its right side')],
+                  ['bottom', t('Out of its bottom')],
+                  ['left', t('Out of its left side')],
+                ],
+              },
+            ] as const
+          ).map(({ part, id, label, options }) => (
+            <div key={part} className="tour-field">
+              <label htmlFor={id}>{label}</label>
+              <select
+                id={id}
+                value={step.caption.leader?.[part] ?? ''}
+                disabled={!editable}
+                onChange={(event) => {
+                  const chosen = event.target.value;
+                  change(
+                    (each) => {
+                      const leader: Record<string, string> = { ...each.caption.leader };
+                      if (chosen === '') delete leader[part];
+                      else leader[part] = chosen;
+                      const caption: TourStep['caption'] = { ...each.caption };
+                      if (Object.keys(leader).length === 0) delete caption.leader;
+                      else caption.leader = leader;
+                      return { ...each, caption };
+                    },
+                    t('Step {n}’s line changes.', { n }),
+                  );
+                }}
+              >
+                {options.map(([value, name]) => (
+                  <option key={value} value={value}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="tour-field">
         <label htmlFor={ids.place}>{t('Where the caption sits')}</label>
         <select

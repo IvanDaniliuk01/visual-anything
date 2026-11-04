@@ -2,7 +2,8 @@
  * A tour's caption card drawn by its face (ADR 0096): laid out by the faces' engine (ADR 0083) in the
  * card's width, and its height when the step fixes one, and drawn in SVG as the SVG export draws a
  * shape's face: its boxes as the canvas paints them (`faceBoxPieces`), its bands, then its runs, each
- * line a `<text>` with a `<tspan>` per run at its own `x`. It is drawn as React elements, so no text
+ * line a `<text>` with a `<tspan>` per run at its own `x`, in the Roboto the program loads. It is
+ * drawn as React elements, so no text
  * is ever turned into markup (ADR 0027). Its colors are the theme's, through the shell's custom
  * properties, so that it follows a theme switch with the rest of the card.
  */
@@ -17,10 +18,10 @@ import {
   type FaceRun,
 } from '@visual-anything/core';
 import type { CaptionFace, TourFile } from '@visual-anything/schema';
-import { useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { faceBoxPieces } from '../canvas/faces';
-import { MONO_FAMILY } from '../export/emphasis-svg';
-import { FACE_FONT_FAMILY } from '../export/face-svg';
+import { MONO_FAMILY, SANS_FAMILY } from '../canvas/fontFamilies';
+import { cssFontFamily, loadRobotoFonts, robotoLoaded } from '../canvas/robotoFonts';
 
 /** The card's colors for a face's tokens: its own background and border, and the shell's text. */
 const CARD_PALETTE: FacePalette = {
@@ -36,6 +37,13 @@ const CARD_PALETTE: FacePalette = {
 
 const color = (each: string) => resolveFaceColor(each, CARD_PALETTE);
 
+/**
+ * The families its text is drawn in: the Roboto the program loads, which the face was laid out in, so
+ * that each run fits the width the layout gave it; the system's only until it loads.
+ */
+const SANS = cssFontFamily(SANS_FAMILY);
+const MONO = cssFontFamily(MONO_FAMILY);
+
 export interface CaptionFaceDrawingProps {
   face: CaptionFace;
   tour: TourFile;
@@ -48,6 +56,11 @@ export interface CaptionFaceDrawingProps {
 }
 
 export function CaptionFaceDrawing({ face, tour, step, width, height }: CaptionFaceDrawingProps) {
+  // Drawn again once Roboto is loaded, where the canvas has not loaded it yet.
+  const [, setFonts] = useState(robotoLoaded);
+  useEffect(() => {
+    if (!robotoLoaded()) void loadRobotoFonts().then(setFonts);
+  }, []);
   const drawing = useMemo(() => {
     const compiled = compileCaptionFace(face, height !== undefined);
     return layOutFace(compiled, captionFaceInput(tour, step), {
@@ -105,7 +118,7 @@ export function CaptionFaceDrawing({ face, tour, step, width, height }: CaptionF
           fontSize={run.size}
           fontWeight={variant === 'bold' || variant === 'boldItalic' ? 700 : undefined}
           fontStyle={variant === 'italic' || variant === 'boldItalic' ? 'italic' : undefined}
-          fontFamily={variant === 'mono' ? MONO_FAMILY : undefined}
+          fontFamily={variant === 'mono' ? MONO : undefined}
           fill={own === fill ? undefined : own}
         >
           {text.trimEnd()}
@@ -128,7 +141,7 @@ export function CaptionFaceDrawing({ face, tour, step, width, height }: CaptionF
       viewBox={`0 0 ${drawing.width} ${drawing.height}`}
       role="img"
       aria-label={faceDrawingText(drawing)}
-      fontFamily={FACE_FONT_FAMILY}
+      fontFamily={SANS}
     >
       {shapes}
     </svg>

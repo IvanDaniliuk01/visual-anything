@@ -2704,6 +2704,18 @@ export const ui: Catalog = {
   'The captions show their title and text. A look given here is taken by every step without one of its own.':
     'Los rótulos muestran su título y su texto. El aspecto que le des acá lo toma cada paso que no tenga uno propio.',
   'Look of this caption': 'Aspecto de este rótulo',
+  'How its line is drawn': 'Cómo se dibuja su línea',
+  'With a right angle': 'En ángulo recto',
+  'Its end': 'Su final',
+  'A dot': 'Un punto',
+  'An arrow': 'Una flecha',
+  'Leaves the caption': 'Sale del rótulo',
+  'Where it is nearest': 'Por donde quede más cerca',
+  'Out of its top': 'Por arriba',
+  'Out of its right side': 'Por la derecha',
+  'Out of its bottom': 'Por abajo',
+  'Out of its left side': 'Por la izquierda',
+  'Step {n}’s line changes.': 'Cambia la línea del paso {n}.',
   'It shows its title and text.': 'Muestra su título y su texto.',
   'It takes the look of the tour’s captions.': 'Toma el aspecto de los rótulos del recorrido.',
   'Step {n}’s caption takes the tour’s look again.':
@@ -4958,8 +4970,10 @@ export const messages: Catalog = {
   'A view state is an object.': 'Un estado de vista es un objeto JSON.',
   'Step {n} of the tour needs a caption with a title.':
     'El paso {n} del recorrido necesita un rótulo con un título.',
-  'A caption holds a title, a text, a place, the mark it points at, a size and a look, nothing else.':
-    'Un rótulo tiene un título, un texto, un lugar, la marca a la que apunta, un tamaño y un aspecto, nada más.',
+  'A caption holds a title, a text, a place, the mark it points at, a size, a look and how its line is drawn, nothing else.':
+    'Un rótulo tiene un título, un texto, un lugar, la marca a la que apunta, un tamaño, un aspecto y cómo se dibuja su línea, nada más.',
+  "A caption's line is { shape, end, from }: its shape straight, elbow or curved, its end dot, arrow or none, and the side of the card it leaves from, top, right, bottom or left.":
+    'La línea de un rótulo es { shape, end, from }: su forma straight, elbow o curved, su final dot, arrow o none, y el lado de la tarjeta del que sale, top, right, bottom o left.',
   "A caption card's size is { width, height }, each from 0.1 to 1 of the screen, the height left out for as tall as its content.":
     'El tamaño de la tarjeta de un rótulo es { width, height }, cada uno de 0,1 a 1 de la pantalla; sin height, es tan alta como su contenido.',
   "A tour's caption look is an object with its markup and style.":

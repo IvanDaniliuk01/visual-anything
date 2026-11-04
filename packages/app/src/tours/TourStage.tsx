@@ -41,7 +41,7 @@ import {
   PreviousIcon,
 } from '../shell/icons';
 import { describeMarks } from './describe';
-import type { Leader } from './leader';
+import { leaderArrival, leaderPath, type Leader } from './leader';
 import { tourKeyAction, type TourKeyAction } from './player';
 import { openNotesWindow, type NotesWindow } from './notes-window';
 import { CaptionFaceDrawing } from './CaptionFace';
@@ -325,6 +325,8 @@ export function TourStage({
   };
   // The step's own look, else the tour's (ADR 0096).
   const face = captioned.caption.face ?? tour.captionFace;
+  // How the step's line is drawn (ADR 0097): its shape and end.
+  const leaderStyle = captioned.caption.leader;
   const position = t('Step {n} of {total}', { n: step + 1, total });
   const revealTexts = (captioned.reveal ?? [])
     .slice(0, revealed)
@@ -364,8 +366,13 @@ export function TourStage({
           data-phase={phase}
           style={{ transitionDuration: `${fade}ms` }}
         >
-          <line x1={leader.from.x} y1={leader.from.y} x2={leader.to.x} y2={leader.to.y} />
-          <circle cx={leader.to.x} cy={leader.to.y} r={4} />
+          <path d={leaderPath(leader, leaderStyle?.shape)} />
+          {(leaderStyle?.end ?? 'dot') === 'dot' && (
+            <circle cx={leader.to.x} cy={leader.to.y} r={4} />
+          )}
+          {leaderStyle?.end === 'arrow' && (
+            <polygon points={arrowHead(leader.to, leaderArrival(leader, leaderStyle.shape))} />
+          )}
         </svg>
       )}
       <article
@@ -860,4 +867,11 @@ function roundedSize(size: CaptionSize): CaptionSize {
   return size.height === undefined
     ? { width: round3(size.width) }
     : { width: round3(size.width), height: round3(size.height) };
+}
+
+/** The arrowhead a leader line ends in (ADR 0097): 10 pixels long, pointing along `along` at `tip`. */
+function arrowHead(tip: { x: number; y: number }, along: { x: number; y: number }): string {
+  const back = { x: tip.x - along.x * 10, y: tip.y - along.y * 10 };
+  const side = { x: -along.y * 5, y: along.x * 5 };
+  return `${tip.x},${tip.y} ${back.x + side.x},${back.y + side.y} ${back.x - side.x},${back.y - side.y}`;
 }

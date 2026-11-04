@@ -6,6 +6,7 @@
  */
 import type {
   CaptionFace,
+  CaptionLeader,
   CaptionSize,
   DecisionChoices,
   Id,
@@ -269,11 +270,14 @@ function checkedCaption(value: unknown, where: string): TourCaption {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     reject('invalid-command', `${where} needs a caption with a title.`);
   }
-  const { title, text, place, pointTo, size, face, ...rest } = value as Record<string, unknown>;
+  const { title, text, place, pointTo, size, face, leader, ...rest } = value as Record<
+    string,
+    unknown
+  >;
   if (Object.keys(rest).length > 0) {
     reject(
       'invalid-command',
-      'A caption holds a title, a text, a place, the mark it points at, a size and a look, nothing else.',
+      'A caption holds a title, a text, a place, the mark it points at, a size, a look and how its line is drawn, nothing else.',
     );
   }
   if (pointTo !== undefined && !isId(pointTo)) {
@@ -300,6 +304,7 @@ function checkedCaption(value: unknown, where: string): TourCaption {
     pointTo: pointTo,
     size: checkedSize(size),
     face: checkedCaptionFace(face),
+    leader: checkedLeader(leader),
   });
 }
 
@@ -351,6 +356,36 @@ function checkedSize(value: unknown): CaptionSize | undefined {
   reject(
     'invalid-command',
     "A caption card's size is { width, height }, each from 0.1 to 1 of the screen, the height left out for as tall as its content.",
+  );
+}
+
+/** How a caption's leader line is drawn (ADR 0097): only the parts it names, each from its choices. */
+function checkedLeader(value: unknown): CaptionLeader | undefined {
+  if (value === undefined) return undefined;
+  const choices = {
+    shape: ['straight', 'elbow', 'curved'],
+    end: ['dot', 'arrow', 'none'],
+    from: ['top', 'right', 'bottom', 'left'],
+  } as const;
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    const given = value as Record<string, unknown>;
+    const fits = Object.entries(given).every(
+      ([key, each]) =>
+        Object.hasOwn(choices, key) &&
+        (choices[key as keyof typeof choices] as readonly unknown[]).includes(each),
+    );
+    if (fits) {
+      const leader = compact({
+        shape: given.shape as CaptionLeader['shape'],
+        end: given.end as CaptionLeader['end'],
+        from: given.from as CaptionLeader['from'],
+      });
+      return Object.keys(leader).length === 0 ? undefined : leader;
+    }
+  }
+  reject(
+    'invalid-command',
+    "A caption's line is { shape, end, from }: its shape straight, elbow or curved, its end dot, arrow or none, and the side of the card it leaves from, top, right, bottom or left.",
   );
 }
 

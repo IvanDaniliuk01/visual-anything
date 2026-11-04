@@ -2025,6 +2025,8 @@ export interface TourCaption {
   size?: CaptionSize;
   /** How this step's card looks (ADR 0096); left out, as the tour's `captionFace` says. */
   face?: CaptionFace;
+  /** How the line to `pointTo` is drawn (ADR 0097); left out, straight from the nearest point, with a dot. */
+  leader?: CaptionLeader;
 }
 
 /**
@@ -2044,6 +2046,16 @@ export interface CaptionSize {
    * @maximum 1
    */
   height?: number;
+}
+
+/** How a caption's leader line is drawn (ADR 0097); each part left out is drawn as before. */
+export interface CaptionLeader {
+  /** Straight; with one right-angled turn; or curved, leaving the card square to its side. */
+  shape?: 'straight' | 'elbow' | 'curved';
+  /** What it ends in at the mark. */
+  end?: 'dot' | 'arrow' | 'none';
+  /** The card's side it leaves from, at its middle; left out, the card's point nearest the mark. */
+  from?: 'top' | 'right' | 'bottom' | 'left';
 }
 
 /**

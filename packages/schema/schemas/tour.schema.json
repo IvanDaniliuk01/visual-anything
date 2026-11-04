@@ -631,6 +631,10 @@
         "face": {
           "$ref": "#/definitions/CaptionFace",
           "description": "How this step's card looks (ADR 0096); left out, as the tour's `captionFace` says."
+        },
+        "leader": {
+          "$ref": "#/definitions/CaptionLeader",
+          "description": "How the line to `pointTo` is drawn (ADR 0097); left out, straight from the nearest point, with a dot."
         }
       },
       "required": [
@@ -720,6 +724,41 @@
       "description": "One line of a face's markup or style, without its line ending.",
       "maxLength": 2000,
       "pattern": "^[^\\r\\n]*$"
+    },
+    "CaptionLeader": {
+      "type": "object",
+      "properties": {
+        "shape": {
+          "type": "string",
+          "enum": [
+            "straight",
+            "elbow",
+            "curved"
+          ],
+          "description": "Straight; with one right-angled turn; or curved, leaving the card square to its side."
+        },
+        "end": {
+          "type": "string",
+          "enum": [
+            "dot",
+            "arrow",
+            "none"
+          ],
+          "description": "What it ends in at the mark."
+        },
+        "from": {
+          "type": "string",
+          "enum": [
+            "top",
+            "right",
+            "bottom",
+            "left"
+          ],
+          "description": "The card's side it leaves from, at its middle; left out, the card's point nearest the mark."
+        }
+      },
+      "additionalProperties": false,
+      "description": "How a caption's leader line is drawn (ADR 0097); each part left out is drawn as before."
     },
     "TourPlayback": {
       "type": "object",

@@ -503,6 +503,8 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
   const place = stageState.place;
   // A card dragged to a place of its own (ADR 0095) moves the line's start with it.
   const fixedPlace = JSON.stringify(step?.caption.place ?? null);
+  // The card's side the step's line leaves from, if it names one (ADR 0097).
+  const leaderSide = step?.caption.leader?.from;
   useEffect(() => {
     const canvasNow = settings.current.canvas;
     if (pointing === undefined || !canvasNow) {
@@ -518,7 +520,9 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
       const target =
         camera && shownScene ? leaderTargetOf(shownScene, pointing, camera) : undefined;
       const next =
-        target && measured ? leaderLine(measured, target, canvasNow.viewport()) : undefined;
+        target && measured
+          ? leaderLine(measured, target, canvasNow.viewport(), leaderSide)
+          : undefined;
       setLeader((was) => (sameLeader(was, next) ? was : next));
     };
     const schedule = () => {
@@ -530,7 +534,7 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
       unsubscribe();
       if (frame !== undefined) cancelFrame(frame);
     };
-  }, [pointing, place, fixedPlace, scene]);
+  }, [pointing, place, fixedPlace, leaderSide, scene]);
 
   // A step's pulse along its chain, once its transition is over (ADR 0084): R plays it again, and a
   // press forward or back ends it.
@@ -725,7 +729,13 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
 function sameLeader(a: Leader | undefined, b: Leader | undefined): boolean {
   if (a === b) return true;
   if (a === undefined || b === undefined || a === 'off' || b === 'off') return false;
-  return a.from.x === b.from.x && a.from.y === b.from.y && a.to.x === b.to.x && a.to.y === b.to.y;
+  return (
+    a.from.x === b.from.x &&
+    a.from.y === b.from.y &&
+    a.to.x === b.to.x &&
+    a.to.y === b.to.y &&
+    a.side === b.side
+  );
 }
 
 /** The browser's next frame, or a timer where there are no frames, as in tests. */

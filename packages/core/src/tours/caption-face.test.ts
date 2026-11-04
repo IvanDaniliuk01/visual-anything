@@ -85,6 +85,32 @@ describe('a step’s own caption look (ADR 0096)', () => {
   });
 });
 
+describe('a caption’s leader line (ADR 0097)', () => {
+  const led = (leader: unknown) =>
+    executeCommand(testProject(), {
+      type: 'create-tour',
+      tour: { name: 'Led', steps: [{ ...STEP, caption: { title: 'T', leader } }] },
+    } as Command);
+
+  it('keeps the shape, end and side it names, and nothing for none of them', () => {
+    const outcome = led({ shape: 'curved', end: 'arrow', from: 'left' });
+    if (!outcome.ok) throw new Error(outcome.problems[0]?.message);
+    expect(outcome.state.tours[0]?.steps[0]?.caption.leader).toEqual({
+      shape: 'curved',
+      end: 'arrow',
+      from: 'left',
+    });
+    const empty = led({});
+    if (!empty.ok) throw new Error('refused');
+    expect(empty.state.tours[0]?.steps[0]?.caption.leader).toBeUndefined();
+  });
+
+  it('is refused with a choice it does not offer', () => {
+    expect(led({ shape: 'zigzag' }).ok).toBe(false);
+    expect(led({ color: 'red' }).ok).toBe(false);
+  });
+});
+
 describe('a caption card’s size (ADR 0096)', () => {
   const sized = (size: unknown) =>
     executeCommand(testProject(), {

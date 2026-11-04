@@ -148,12 +148,13 @@
   opacity: 0;
 }
 
-.tour-leader line {
+.tour-leader path {
+  fill: none;
   stroke: var(--accent);
   stroke-width: var(--stroke-medium);
 }
 
-.tour-leader circle {
+.tour-leader :is(circle, polygon) {
   fill: var(--accent);
 }
 
@@ -806,6 +807,13 @@
 .tour-step-notes summary {
   font-size: var(--text-sm);
   cursor: pointer;
+}
+
+/* How a caption's line is drawn (ADR 0097): its shape, end and side, side by side where they fit. */
+.tour-leader-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-1000), 1fr));
+  gap: var(--space-50);
 }
 
 /* The look of a tour's caption cards (ADR 0096): its markup and style, problems and preview. */

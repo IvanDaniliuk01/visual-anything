@@ -108,6 +108,39 @@ describe('the tours panel', () => {
     expect(command?.type === 'update-tour' && command.changes.steps?.[1]).toBe(tour.steps[1]);
   });
 
+  it('draws a pointing step’s line with the shape, end and side the person chooses (ADR 0097)', async () => {
+    const pointing: ProjectSnapshot = {
+      ...sample,
+      tours: sample.tours.map((each) =>
+        each.id !== tour.id
+          ? each
+          : {
+              ...each,
+              steps: each.steps.map((step, at) =>
+                at === 0
+                  ? {
+                      ...step,
+                      marks: ['booking-agent'],
+                      caption: { ...step.caption, pointTo: 'booking-agent' },
+                    }
+                  : step,
+              ),
+            },
+      ),
+    };
+    const { tab, sent } = openTours(pointing);
+    fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
+    const [line] = within(tab).getAllByRole('group', { name: 'How its line is drawn' });
+    fireEvent.change(within(line as HTMLElement).getByLabelText('Line'), {
+      target: { value: 'elbow' },
+    });
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    const command = sent[0];
+    expect(command?.type === 'update-tour' && command.changes.steps?.[0]?.caption.leader).toEqual({
+      shape: 'elbow',
+    });
+  });
+
   it('shows a step’s size, and fits it to its content again (ADR 0096)', async () => {
     const sized: ProjectSnapshot = {
       ...sample,
