@@ -50,6 +50,8 @@ export function farNameOf(t: Translator, item: RelationItem): string {
 
 /** The text typing a few letters matches; a note's and an arrow's in the language read in. */
 export function typedTextOf(t: Translator, item: OutlineItem): string {
+  // A picture's own name is the person's text; "Picture" is the app's.
+  if (item.kind === 'picture') return item.picture.named ? item.picture.name : t('Picture');
   return item.kind === 'note' || item.kind === 'arrow' ? t(textOf(item)) : textOf(item);
 }
 

@@ -27,17 +27,20 @@ import { NOTHING_HIDDEN, emphasize, type Hidden } from '../canvas/emphasize';
 import { drawnRelations, farEnd, hiddenIn } from '../canvas/navigation';
 import { partOrderOf } from '../canvas/partShapes';
 import {
+  picturesOf,
   standsFor,
   type ArrowShape,
   type ElementShape,
   type NoteShape,
+  type PictureShape,
   type RelationLine,
   type Scene,
 } from '../canvas/scene';
 import type { Selectable, Selection } from '../editor/selection';
 import { outerIdsOf, type TreeItems } from './tree';
 
-export type OutlineItem = ShapeItem | RelationItem | NoteItem | ArrowItem | UndrawnItem;
+export type OutlineItem =
+  ShapeItem | RelationItem | NoteItem | ArrowItem | PictureItem | UndrawnItem;
 
 /** The row of an anchored shape of an element. */
 export interface ShapeItem {
@@ -81,6 +84,13 @@ export interface ArrowItem {
   kind: 'arrow';
   id: string;
   arrow: ArrowShape;
+}
+
+/** The row of a picture (ADR 0098), by its name. */
+export interface PictureItem {
+  kind: 'picture';
+  id: string;
+  picture: PictureShape;
 }
 
 /**
@@ -135,6 +145,7 @@ interface OutlineInputs {
   relations: readonly RelationLine[];
   notes: readonly NoteShape[];
   arrows: readonly ArrowShape[];
+  pictures: readonly PictureShape[];
   model: ModelFile;
   packages: readonly PackageFile[];
   hidden: ReadonlySet<string> | undefined;
@@ -162,6 +173,7 @@ export function outlineOf(
     relations: scene.relations,
     notes: scene.notes,
     arrows: scene.arrows,
+    pictures: picturesOf(scene),
     model: project.model,
     packages: project.packages,
     hidden: hidden && hidden.size > 0 ? hidden : undefined,
@@ -178,6 +190,7 @@ function sameInputs(a: OutlineInputs, b: OutlineInputs): boolean {
     a.relations === b.relations &&
     a.notes === b.notes &&
     a.arrows === b.arrows &&
+    a.pictures === b.pictures &&
     a.model === b.model &&
     a.packages === b.packages &&
     sameKeys(a.hidden, b.hidden)
@@ -275,6 +288,12 @@ function buildOutline(
     if (unseen.free.has(arrow.id)) continue;
     arrows.add(arrow.id);
     top.push({ kind: 'arrow', id: arrowRowId(arrow.id), arrow });
+  }
+  const pictures = new Set<Id>();
+  for (const picture of picturesOf(scene)) {
+    if (unseen.free.has(picture.id)) continue;
+    pictures.add(picture.id);
+    top.push({ kind: 'picture', id: pictureRowId(picture.id), picture });
   }
 
   // The aggregated relations drawn on each shape, listed in its row after its relations; and, for
@@ -497,6 +516,7 @@ function buildOutline(
         case 'free-shape':
           if (notes.has(selectable.id)) return { id: noteRowId(selectable.id), outer: [] };
           if (arrows.has(selectable.id)) return { id: arrowRowId(selectable.id), outer: [] };
+          if (pictures.has(selectable.id)) return { id: pictureRowId(selectable.id), outer: [] };
           return undefined;
       }
     },
@@ -534,6 +554,8 @@ export function selectableOf(item: OutlineItem): Selectable {
       return { kind: 'free-shape', id: item.note.id };
     case 'arrow':
       return { kind: 'free-shape', id: item.arrow.id };
+    case 'picture':
+      return { kind: 'free-shape', id: item.picture.id };
     case 'undrawn':
       return { kind: 'element', id: item.element };
   }
@@ -552,6 +574,8 @@ export function isItemSelected(selection: Selection, item: OutlineItem): boolean
       return selection.freeShapes.has(item.note.id);
     case 'arrow':
       return selection.freeShapes.has(item.arrow.id);
+    case 'picture':
+      return selection.freeShapes.has(item.picture.id);
     case 'undrawn':
       return selection.elements.has(item.element);
   }
@@ -568,6 +592,8 @@ export function textOf(item: OutlineItem): string {
       return 'Note';
     case 'arrow':
       return 'Arrow';
+    case 'picture':
+      return item.picture.name;
     case 'undrawn':
       return item.name;
   }
@@ -587,6 +613,8 @@ export function revealKeyOf(item: OutlineItem): string {
       return item.note.id;
     case 'arrow':
       return item.arrow.id;
+    case 'picture':
+      return item.picture.id;
     case 'undrawn':
       return item.row;
   }
@@ -678,4 +706,8 @@ function noteRowId(id: Id): string {
 
 function arrowRowId(id: Id): string {
   return `arrow:${id}`;
+}
+
+function pictureRowId(id: Id): string {
+  return `picture:${id}`;
 }
