@@ -95,7 +95,8 @@ export interface ServerOptions {
   app: AppSource;
   /**
    * Opens the browser at an address, for Claude's request to open the app while no tab is connected;
-   * without it, or when it fails, Claude is answered the launch address instead (ADR 0099).
+   * without it, or when it fails, the launch address is printed in the terminal instead, and never
+   * given to Claude (ADR 0099).
    */
   openBrowser?: (url: string) => Promise<unknown>;
   /**
@@ -236,8 +237,8 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
   /**
    * Opens the app for Claude, or for `visual-anything open` (ADR 0099): while a tab is connected, and
    * no new tab is asked for, that tab comes forward rather than another opening; otherwise the browser
-   * opens a launch address, and when it cannot, the address is answered, so that Claude can give it to
-   * the person. The session token is never in it.
+   * opens a launch address, and when it cannot, the address is printed in the program's terminal and
+   * answered to the command line, never to Claude (ADR 0030). The session token is never in it.
    */
   const openAppFor = async (
     state: ViewState | undefined,
@@ -252,14 +253,17 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       return { how: 'tab', tabs: tabs.length };
     }
     const address = state === undefined ? launchUrl() : withViewState(launchUrl(), state);
-    if (options.openBrowser === undefined) {
-      return { how: 'address', address, why: 'This Visual Anything cannot open a browser.' };
-    }
+    const printed = (why: string): AppOpening => {
+      console.log(`Open Visual Anything at ${address} within two minutes (${why})`);
+      return { how: 'address', address, why };
+    };
+    if (options.openBrowser === undefined)
+      return printed('This Visual Anything cannot open a browser.');
     try {
       await options.openBrowser(address);
       return { how: 'browser' };
     } catch (error) {
-      return { how: 'address', address, why: `Could not open the browser: ${errorReason(error)}.` };
+      return printed(`Could not open the browser: ${errorReason(error)}.`);
     }
   };
 

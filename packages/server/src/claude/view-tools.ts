@@ -131,7 +131,7 @@ Example, with the physical-space panel open on the arm: { "view": "workcell", "s
 export const openApp = tool({
   name: 'open_app',
   title: 'Open the app',
-  description: `Shows Visual Anything on the project to the person. While a tab of Visual Anything is open, it opens no other: that tab comes forward and says you asked, as far as the browser lets it, and shows the view state you give, so call it again rather than worrying about tabs piling up. With no tab open, it opens a new tab of the person's browser, on the computer it runs on, at an address that works once, within two minutes. When it cannot open a browser, as inside a container, it answers that address instead: give it to the person to open, say that it works once within two minutes, and do not write it anywhere else or open it yourself. newTab: true asks for a new tab even while one is open, only when the person asks for one.
+  description: `Shows Visual Anything on the project to the person. While a tab of Visual Anything is open, it opens no other: that tab comes forward and says you asked, as far as the browser lets it, and shows the view state you give, so call it again rather than worrying about tabs piling up. With no tab open, it opens a new tab of the person's browser, on the computer it runs on, at an address that works once, within two minutes. When it cannot open a browser, as inside a container, it opens nothing and says so: the address it would have opened is printed in the program's terminal, never given to you, and the person gets a new one by running \`visual-anything address\` (in Docker, \`docker exec visual-anything visual-anything address\`); tell them that. newTab: true asks for a new tab even while one is open, only when the person asks for one.
 
 Give a view, and if you like where the canvas looks, a selection, filters, focus, a scenario step and the physical-space panel, as get_view_address takes them, and the tab opens the project there. Guidance shows only while the app is open. Use it when a guidance tool says no app is open, when the person asks to see the project, or to show them a view state.
 
@@ -183,10 +183,11 @@ function openedAnswer(opening: AppOpening, view?: string): Record<string, unknow
         opened: `The browser was asked to open Visual Anything on the project in a new tab${at}.`,
         tab: 'new',
       };
+    // A launch address opens a tab that acts as the person, not as Claude (ADR 0030), so it is never
+    // in Claude's answer: the program printed it in its terminal, and the person can ask for another.
     case 'address':
       return {
-        opened: `The browser could not be opened (${opening.why}), so no tab was opened. Give the person this address to open in their browser${at}; it works once, within two minutes, so do not keep it or write it anywhere else.`,
-        address: opening.address,
+        opened: `The browser could not be opened (${opening.why}), so no tab was opened${at}. The program printed an address that opens it in its own terminal; tell the person to open that, or to run \`visual-anything address\` for a new one (in Docker, \`docker exec visual-anything visual-anything address\`). It works once, within two minutes.`,
         tab: 'none',
       };
   }

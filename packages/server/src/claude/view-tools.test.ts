@@ -247,13 +247,12 @@ describe('open_app where no browser opens (ADR 0099)', () => {
     await boxed.close();
   });
 
-  it('answers the launch address, never the token, for the person to open', async () => {
+  it('gives Claude neither the launch address nor the token, and names visual-anything address', async () => {
     const result = await boxed.value('open_app', { view: 'overview' });
     expect(result).toMatchObject({ tab: 'none' });
-    expect(String(result.address)).toMatch(
-      /^http:\/\/127\.0\.0\.1:\d+\/#launch=[\w-]+&view=overview$/,
-    );
+    expect(result).not.toHaveProperty('address');
     expect(String(result.opened)).toMatch(/xdg-open/);
-    expect(JSON.stringify(result)).not.toMatch(/token/);
+    expect(String(result.opened)).toMatch(/visual-anything address/);
+    expect(JSON.stringify(result)).not.toMatch(/launch=|token/);
   });
 });
