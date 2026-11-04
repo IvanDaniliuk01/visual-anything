@@ -1,0 +1,27 @@
+# Visual Anything in a container (ADR 0094). `docker compose up` builds the image, starts it and
+# prints an address that opens the app once, within two minutes.
+#
+# - The port is published on this computer's 127.0.0.1 alone, and at the same number inside: the
+#   program answers only requests that name 127.0.0.1 or localhost at its own port. To use another
+#   port, set VISUAL_ANYTHING_PORT, which changes both.
+# - The projects and preferences live in VISUAL_ANYTHING_DATA, ./data by default: data/projects and
+#   data/preferences. On Linux, set UID and GID to your own so that the files stay yours.
+# - Another address for a new tab: `docker attach visual-anything`, press a, then Ctrl+P Ctrl+Q to
+#   leave it running (Ctrl+C stops it).
+# - Claude: `docker exec -i visual-anything visual-anything mcp` is the MCP server's command.
+services:
+  visual-anything:
+    build: .
+    image: visual-anything:local
+    container_name: visual-anything
+    user: '${UID:-1000}:${GID:-1000}'
+    environment:
+      VISUAL_ANYTHING_PORT: '${VISUAL_ANYTHING_PORT:-47700}'
+    ports:
+      - '127.0.0.1:${VISUAL_ANYTHING_PORT:-47700}:${VISUAL_ANYTHING_PORT:-47700}'
+    volumes:
+      - '${VISUAL_ANYTHING_DATA:-./data}:/data'
+    # A terminal, so that `docker attach` can press a for another address.
+    stdin_open: true
+    tty: true
+    restart: unless-stopped

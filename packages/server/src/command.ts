@@ -43,7 +43,13 @@ import { toForwardSlashes } from './paths';
 import { openPreferences, themeHintOf, type PreferencesLocation } from './preferences';
 import { formatProjectProblem } from './project';
 import type { ClaudeSetup } from './claude-setup';
-import { startServer, type AppSource, type RunningServer } from './server';
+import {
+  LISTEN_ADDRESSES,
+  startServer,
+  type AppSource,
+  type ListenAddress,
+  type RunningServer,
+} from './server';
 import { openSession, type Session } from './session';
 import { ProgramLog } from './program-log';
 import { PROPOSAL_IDLE_LIMIT } from './proposals';
@@ -53,7 +59,7 @@ import { StartingSession, startingOn } from './start';
 import { AppNotBuiltError } from './static';
 
 export const USAGE = `Usage: visual-anything [open] [folder] [--view <id> [--select <id>]...] [--port <n>] [--no-open]
-                      [--dev] [--stop-when-idle] [--log <file>]
+                      [--listen <address>] [--dev] [--stop-when-idle] [--log <file>]
        visual-anything mcp [folder] [--dev]
        visual-anything new <folder> [--from <sample>]
        visual-anything export <folder> --view <id> --format <format> [--theme light|dark] [--out <file>]
@@ -79,6 +85,10 @@ opened as ./open, ./new, ./mcp, ./export, ./import, ./live or ./notices.
                     joined by commas, for more. It needs --view.
   --port <n>        Listen on port n, from 0 to 65535 (default 0: any free port).
   --no-open         Print an address that works once, instead of opening the browser.
+  --listen <address>
+                    Listen on 127.0.0.1 (the default) or, only inside a container whose port is
+                    published on the host's 127.0.0.1 alone, on 0.0.0.0. Requests must still
+                    name 127.0.0.1 or localhost.
   --dev             Serve the app from its sources through Vite, with hot reload; only from the
                     repository, not from the executable.
   --stop-when-idle  Stop once no app and no Claude has been connected for a minute, as when
@@ -95,6 +105,8 @@ export interface CommandLine {
   /** The project folder, as written, relative to the working folder; absent, the program starts at home. */
   folder?: string;
   port: number;
+  /** The address to listen on, from `--listen`; absent, 127.0.0.1. */
+  listen?: ListenAddress;
   /** Whether to open the browser. */
   open: boolean;
   dev: boolean;
@@ -180,7 +192,7 @@ const KEY_HELP =
 
 /**
  * Reads the command line:
- * `[folder] [--port <n>] [--no-open] [--dev] [--stop-when-idle] [--log <file>] [--help]`.
+ * `[folder] [--port <n>] [--no-open] [--listen <address>] [--dev] [--stop-when-idle] [--log <file>] [--help]`.
  */
 export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
   let parsed;
@@ -192,6 +204,7 @@ export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
       options: {
         port: { type: 'string' },
         'no-open': { type: 'boolean' },
+        listen: { type: 'string' },
         dev: { type: 'boolean' },
         'stop-when-idle': { type: 'boolean' },
         log: { type: 'string' },
@@ -217,6 +230,13 @@ export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
       message: `--port takes an integer from 0 to 65535, not ${JSON.stringify(values.port)}.`,
     };
   }
+  const listen = values.listen === undefined ? undefined : listenAddressOf(values.listen);
+  if (values.listen !== undefined && listen === undefined) {
+    return {
+      ok: false,
+      message: `--listen takes ${LISTEN_ADDRESSES.join(' or ')}, not ${JSON.stringify(values.listen)}.`,
+    };
+  }
   const state = stateOf(values.view, values.select ?? []);
   if (!state.ok) return state;
   if (values.log !== undefined && values.log.trim() === '') {
@@ -227,6 +247,7 @@ export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
     value: {
       ...(positionals[0] === undefined ? {} : { folder: positionals[0] }),
       port,
+      ...(listen === undefined ? {} : { listen }),
       open: values['no-open'] !== true,
       dev: values.dev === true,
       stopWhenIdle: values['stop-when-idle'] === true,
@@ -235,6 +256,11 @@ export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
       ...(state.value === undefined ? {} : { state: state.value }),
     },
   };
+}
+
+/** The address `--listen` names, when it is one the program may listen on. */
+function listenAddressOf(text: string): ListenAddress | undefined {
+  return LISTEN_ADDRESSES.find((each) => each === text);
 }
 
 /** The view state `--view` and `--select` ask for, checked as an address's is. */
@@ -434,6 +460,7 @@ async function runWithLog(
     server = await startServer({
       session,
       port: options.port,
+      ...(options.listen === undefined ? {} : { listen: options.listen }),
       app,
       openBrowser,
       onLaunchReused: () =>
@@ -493,6 +520,11 @@ async function runWithLog(
     }
   }
   environment.out(`Visual Anything is running at ${server.address}`);
+  if (options.listen === '0.0.0.0') {
+    environment.out(
+      'It listens on every interface of this container: publish its port on the host’s 127.0.0.1 only.',
+    );
+  }
   programLog?.write({
     event: 'started',
     ...(folder === undefined ? {} : { folder: toForwardSlashes(folder) }),

@@ -1,0 +1,13 @@
+# What the image never needs: what pnpm install and the builds make, git, the agents' files, and
+# the projects a person keeps beside the repository.
+**/node_modules
+**/dist
+**/dist-bench
+dist-exe
+**/coverage
+.git
+.claude
+.env
+.env.*
+*.log
+data

@@ -11,3 +11,5 @@ coverage/
 .claude/worktrees/
 .claude/settings.local.json
 docs/benchmark.md
+# Projects kept beside the repository by compose.yaml.
+/data/

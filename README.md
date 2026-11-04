@@ -156,6 +156,22 @@ pnpm exec tsx packages/server/src/cli.ts new ~/my-project --from bookshop-databa
 
 Or take the single executable for your system, which needs nothing else installed, and run `visual-anything <folder>`. The [guide](docs/guide.md#running-the-executable) has the details.
 
+## Run it in Docker
+
+The repository holds the image's recipe. With Docker installed, from the repository:
+
+```sh
+docker compose up
+```
+
+That builds the image, starts the program at home and prints an address that opens the app once, within two minutes. It serves only this computer, on `127.0.0.1:47700`. Your projects and preferences live in `./data` (`data/projects` and `data/preferences`); set `VISUAL_ANYTHING_DATA` to keep them elsewhere, and on Linux run it as `UID=$(id -u) GID=$(id -g) docker compose up` so that the files stay yours.
+
+- **Another address**, for a new tab: `docker attach visual-anything`, press `a`, then Ctrl+P Ctrl+Q to leave it running. Ctrl+C stops it.
+- **Claude**: the MCP server's command is `docker exec -i visual-anything visual-anything mcp`, as in `claude mcp add visual-anything -- docker exec -i visual-anything visual-anything mcp`.
+- **Another port**: set `VISUAL_ANYTHING_PORT`, which changes the port inside and outside alike.
+
+Why it listens on the container's every interface, and what still keeps it local, is in [ADR 0094](docs/adr/0094-a-container-runs-the-program-with-its-port-on-the-hosts-loopback.md).
+
 ## Claude through MCP
 
 Claude Code or Claude Desktop starts Visual Anything's MCP server and works on the project you have open. `visual-anything setup-claude`, or **Connect Claude…** in the app, adds it to Claude Desktop and prints the command for Claude Code; or add it yourself:

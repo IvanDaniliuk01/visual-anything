@@ -144,6 +144,23 @@ describe('parseCommandLine', () => {
     });
   });
 
+  it('takes --listen 127.0.0.1 or 0.0.0.0, and refuses any other address', () => {
+    expect(parseCommandLine(['--listen', '0.0.0.0'])).toMatchObject({
+      ok: true,
+      value: { listen: '0.0.0.0' },
+    });
+    expect(parseCommandLine(['--listen=127.0.0.1'])).toMatchObject({
+      ok: true,
+      value: { listen: '127.0.0.1' },
+    });
+    for (const address of ['192.168.1.10', '::', 'localhost', '']) {
+      expect(parseCommandLine(['--listen', address])).toEqual({
+        ok: false,
+        message: `--listen takes 127.0.0.1 or 0.0.0.0, not ${JSON.stringify(address)}.`,
+      });
+    }
+  });
+
   it.each([
     ['--port=0', 0],
     ['--port=65535', 65535],

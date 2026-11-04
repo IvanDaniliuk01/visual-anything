@@ -52,8 +52,18 @@ import {
   type AppFiles,
 } from './static';
 
-/** The only address the local program listens on, so other machines cannot reach it. */
+/** The address the local program listens on by default, so other machines cannot reach it. */
 export const HOST = '127.0.0.1';
+
+/**
+ * The addresses the local program may listen on: 127.0.0.1, or every interface of a container, whose
+ * port is published only on the host's 127.0.0.1 (ADR 0094). Either way, requests must name
+ * 127.0.0.1 or localhost in their Host and Origin.
+ */
+export const LISTEN_ADDRESSES = [HOST, '0.0.0.0'] as const;
+
+/** An address the local program may listen on. */
+export type ListenAddress = (typeof LISTEN_ADDRESSES)[number];
 
 /** Where the app comes from. */
 export type AppSource =
@@ -70,6 +80,8 @@ export interface ServerOptions {
   session: LiveSession;
   /** The port to listen on; 0 lets the operating system pick a free one. */
   port: number;
+  /** The address to listen on: 127.0.0.1 when absent; 0.0.0.0 only inside a container (ADR 0094). */
+  listen?: ListenAddress;
   app: AppSource;
   /** Opens the browser at an address, for Claude's request to open the app; without it, it cannot. */
   openBrowser?: (url: string) => Promise<unknown>;
@@ -294,7 +306,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
   });
 
   try {
-    port = await listen(httpServer, options.port);
+    port = await listen(httpServer, options.port, options.listen ?? HOST);
     // Package code never fetches from the program itself (ADR 0057's clarification on addresses).
     options.session.servesAt?.(port);
   } catch (error) {
@@ -425,10 +437,10 @@ function fail(response: ServerResponse, error: unknown): void {
   else sendText(response, 500, 'The local program failed to answer this request.');
 }
 
-function listen(server: Server, port: number): Promise<number> {
+function listen(server: Server, port: number, host: ListenAddress): Promise<number> {
   return new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen({ port, host: HOST }, () => {
+    server.listen({ port, host }, () => {
       server.off('error', reject);
       const address = server.address();
       if (address === null || typeof address === 'string') {

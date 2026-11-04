@@ -144,6 +144,38 @@ describe('startServer', () => {
     expect(reached).toBe(false);
   }, 15_000);
 
+  it('listens on every interface with --listen 0.0.0.0 and still answers only 127.0.0.1 and localhost', async (context) => {
+    context.skip(
+      externalAddress === undefined,
+      'This machine has no IPv4 address but the loopback, so there is no other interface to try.',
+    );
+    const everywhere = await startServer({
+      session,
+      port: 0,
+      listen: '0.0.0.0',
+      app: { mode: 'static', dir: appDir },
+    });
+    try {
+      expect(everywhere.address).toBe(`http://127.0.0.1:${everywhere.port}/`);
+      const ask = (hostHeader: string) =>
+        new Promise<string>((resolve, reject) => {
+          const socket = connect({ host: externalAddress, port: everywhere.port });
+          let reply = '';
+          socket.setEncoding('utf8');
+          socket.once('connect', () =>
+            socket.write(`GET / HTTP/1.1\r\nHost: ${hostHeader}\r\nConnection: close\r\n\r\n`),
+          );
+          socket.on('data', (chunk: string) => (reply += chunk));
+          socket.once('end', () => resolve(reply));
+          socket.once('error', reject);
+        });
+      expect(await ask(`${externalAddress}:${everywhere.port}`)).toMatch(/^HTTP\/1\.1 403 /);
+      expect(await ask(`127.0.0.1:${everywhere.port}`)).toMatch(/^HTTP\/1\.1 200 /);
+    } finally {
+      await everywhere.close();
+    }
+  }, 15_000);
+
   it('serves index.html for / without letting it be stored', async () => {
     const reply = await send(server.port, { headers: { Host: host } });
     expect(reply.status).toBe(200);
