@@ -5,6 +5,7 @@
 import { parseGif } from '@visual-anything/core';
 import type { MediaRef } from '@visual-anything/schema';
 import { describe, expect, it, vi } from 'vitest';
+import type { LiveResult } from '../../live/connection';
 import { GifPlayer, mediaFilesOver, pictureBucket, textureSize } from './media';
 import { gifOf } from './test-gifs';
 
@@ -89,7 +90,7 @@ describe('mediaFilesOver', () => {
     vi.useFakeTimers();
     try {
       let now = 0;
-      const get = vi.fn((hash: string) =>
+      const get = vi.fn((hash: string): Promise<LiveResult<Uint8Array>> =>
         Promise.resolve(
           hash === 'b'
             ? { ok: true as const, answer: new Uint8Array([1]) }
