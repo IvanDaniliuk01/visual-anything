@@ -28,6 +28,8 @@ Some people would rather run Visual Anything in Docker than download an executab
 
 The recipe lives in the repository: `Dockerfile`, `.dockerignore` and `compose.yaml`. `docker compose up` builds the image on the person's own computer. Nothing is published to a registry. Publishing to GHCR, by hand or by a workflow, is outward-facing, and it waits for the user's go-ahead.
 
+**Clarification of 2026-11-04:** the user published it to GHCR by hand, as `ghcr.io/ivandaniliuk01/visual-anything`. It is built from a commit, `git archive <commit> | docker build --provenance=false --sbom=false -`, so that nothing uncommitted gets into it, and GHCR refused the attestation index Docker Desktop adds otherwise. It is tagged `latest` and `sha-<commit>`, and with a version once one is released from that commit. `compose.yaml` names that image: it pulls it, and builds from the repository only when it cannot.
+
 ## Considered options
 
 - **Host networking** (`network_mode: host`), keeping 127.0.0.1: rejected. Docker Desktop on Windows and macOS does not share the host's loopback that way.

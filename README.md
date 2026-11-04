@@ -158,13 +158,19 @@ Or take the single executable for your system, which needs nothing else installe
 
 ## Run it in Docker
 
-The repository holds the image's recipe. With Docker installed, from the repository:
+The image is published as `ghcr.io/ivandaniliuk01/visual-anything`. With Docker installed, from the repository:
 
 ```sh
 docker compose up
 ```
 
-That builds the image, starts the program at home and prints an address that opens the app once, within two minutes. It serves only this computer, on `127.0.0.1:47700`. Your projects and preferences live in `./data` (`data/projects` and `data/preferences`); set `VISUAL_ANYTHING_DATA` to keep them elsewhere, and on Linux run it as `UID=$(id -u) GID=$(id -g) docker compose up` so that the files stay yours.
+Or without the repository, in a folder of your own:
+
+```sh
+docker run --rm -it --name visual-anything -p 127.0.0.1:47700:47700 -v "$PWD/data:/data" ghcr.io/ivandaniliuk01/visual-anything:latest
+```
+
+That pulls the image (`docker compose up --build` builds it from the repository instead), starts the program at home and prints an address that opens the app once, within two minutes. It serves only this computer, on `127.0.0.1:47700`. Your projects and preferences live in `./data` (`data/projects` and `data/preferences`); set `VISUAL_ANYTHING_DATA` to keep them elsewhere, and on Linux run it as `UID=$(id -u) GID=$(id -g) docker compose up` so that the files stay yours.
 
 - **Another address**, for a new tab: `docker attach visual-anything`, press `a`, then Ctrl+P Ctrl+Q to leave it running. Ctrl+C stops it.
 - **Claude**: the MCP server's command is `docker exec -i visual-anything visual-anything mcp`, as in `claude mcp add visual-anything -- docker exec -i visual-anything visual-anything mcp`.

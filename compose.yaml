@@ -1,4 +1,5 @@
-# Visual Anything in a container (ADR 0094). `docker compose up` builds the image, starts it and
+# Visual Anything in a container (ADR 0094). `docker compose up` pulls the image from GHCR, or builds
+# it from this repository when it cannot (`docker compose up --build` always builds), starts it and
 # prints an address that opens the app once, within two minutes.
 #
 # - The port is published on this computer's 127.0.0.1 alone, and at the same number inside: the
@@ -12,7 +13,7 @@
 services:
   visual-anything:
     build: .
-    image: visual-anything:local
+    image: ghcr.io/ivandaniliuk01/visual-anything:latest
     container_name: visual-anything
     user: '${UID:-1000}:${GID:-1000}'
     environment:
