@@ -565,7 +565,6 @@ export const ui: Catalog = {
   'What is visible': 'Lo que se ve',
   'As the canvas shows it now': 'Como lo muestra ahora el lienzo',
   Size: 'Tamaño',
-  '{width} × {height} pixels': '{width} × {height} píxeles',
   'Too large: {width} × {height} pixels': 'Demasiado grande: {width} × {height} píxeles',
   'Drawn in the theme the canvas shows, without the selection. The browser saves it.':
     'Se dibuja en el tema que muestra el lienzo, sin la selección. La guarda el navegador.',
@@ -4085,6 +4084,47 @@ export const ui: Catalog = {
     'Ctrl+Alt+C y Ctrl+Alt+V (⌥⌘C y ⌥⌘V en macOS)',
   'Copy the appearance of the selected element or relation, and paste it onto the selection':
     'Copiar la apariencia del elemento o la relación seleccionados, y pegarla en la selección',
+  // A8.1: pictures and their media files (ADR 0098).
+  'Picture…': 'Imagen…',
+  Pictures: 'Imágenes',
+  'Picture.': 'Imagen.',
+  'Picture: {name}': 'Imagen: {name}',
+  'Its own size': 'Su propio tamaño',
+  'Files no picture names': 'Archivos que ninguna imagen nombra',
+  '{width} × {height} pixels': '{width} × {height} píxeles',
+  'What screen readers and the outline say of it, and what shows if its file goes missing.':
+    'Lo que dicen de ella los lectores de pantalla y el esquema, y lo que se muestra si falta su archivo.',
+  'The project’s media/ folder holds {count} files that no picture names. They stay until you remove them.':
+    {
+      one: 'La carpeta media/ del proyecto tiene {count} archivo que ninguna imagen nombra. Se queda hasta que lo quite.',
+      other:
+        'La carpeta media/ del proyecto tiene {count} archivos que ninguna imagen nombra. Se quedan hasta que los quite.',
+    },
+  'This view shows {count} pictures.': {
+    one: 'Esta vista muestra {count} imagen.',
+    other: 'Esta vista muestra {count} imágenes.',
+  },
+  'Remove “media/{file}”': 'Quitar “media/{file}”',
+  'Remove the file “media/{file}”?': '¿Quitar el archivo “media/{file}”?',
+  'Remove {count} files from the project’s media/ folder?':
+    '¿Quitar {count} archivos de la carpeta media/ del proyecto?',
+  'No picture names it now, but a version of the project, a branch, or an action you undid may. This cannot be undone: once removed, the file is gone from the folder.':
+    'Ninguna imagen lo nombra ahora, pero puede hacerlo una versión del proyecto, una rama o una acción deshecha. Esto no se puede deshacer: una vez quitado, el archivo ya no está en la carpeta.',
+  'Visual Anything takes PNG, JPEG, WebP, GIF and SVG pictures.':
+    'Visual Anything acepta imágenes PNG, JPEG, WebP, GIF y SVG.',
+  '"{name}" is over 32 MiB, the most a picture takes.':
+    '"{name}" pasa de 32 MiB, lo más que admite una imagen.',
+  '"{name}" was not added: {why}': 'No se agregó "{name}": {why}',
+  'Pointing at a picture.': 'Apunta a una imagen.',
+  'Pointing at the picture “{name}”.': 'Apunta a la imagen “{name}”.',
+  'Pictures whose files are missing are drawn as gray boxes.':
+    'Las imágenes cuyos archivos faltan se dibujan como recuadros grises.',
+  '{count} pictures are left out: pictures are drawn only in the canvas, the PNG, the SVG, the PDF and the read-only page.':
+    {
+      one: 'Se omite una imagen: las imágenes solo se dibujan en el lienzo, el PNG, el SVG, el PDF y la página de solo lectura.',
+      other:
+        'Se omiten {count} imágenes: las imágenes solo se dibujan en el lienzo, el PNG, el SVG, el PDF y la página de solo lectura.',
+    },
 };
 
 /**
@@ -7825,6 +7865,22 @@ export const messages: Catalog = {
   'Pin {n} shapes': 'Fijar {n} formas',
   'Paste the appearance onto "{name}"': 'Pegar la apariencia en "{name}"',
   'Paste the appearance onto {n} items': 'Pegar la apariencia en {n} elementos',
+  // A8.1: pictures and their media files (ADR 0098).
+  'Add a picture to "{view}"': 'Agregar una imagen a "{view}"',
+  'Edit a picture in "{view}"': 'Editar una imagen en "{view}"',
+  'Resize a picture': 'Cambiar el tamaño de una imagen',
+  'A free shape is a note, an arrow or a picture.':
+    'Una forma libre es una nota, una flecha o una imagen.',
+  'A picture has no colors of its own; a picture in "{view}" shows its file.':
+    'Una imagen no tiene colores propios; una imagen en "{view}" muestra su archivo.',
+  "A picture's name is text of at most 200 characters.":
+    'El nombre de una imagen es un texto de 200 caracteres como mucho.',
+  'A picture needs the media file it shows.':
+    'Una imagen necesita el archivo multimedia que muestra.',
+  "A media file's hash is its SHA-256, in 64 lowercase hex digits.":
+    'El hash de un archivo multimedia es su SHA-256, en 64 dígitos hexadecimales en minúscula.',
+  'A media file is a PNG, JPEG, WebP, GIF or SVG.':
+    'Un archivo multimedia es un PNG, un JPEG, un WebP, un GIF o un SVG.',
 };
 
 /**

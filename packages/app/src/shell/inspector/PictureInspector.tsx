@@ -22,6 +22,16 @@ const FORMAT_NAMES: Readonly<Record<Picture['media']['format'], string>> = {
   svg: 'SVG',
 };
 
+/** A media file's path in the project, which is the same in every language. */
+function mediaPath(file: { hash: string; format: Picture['media']['format'] }): string {
+  return `media/${mediaFileName(file)}`;
+}
+
+/** The path, its hash cut short, for the list. */
+function shortMediaPath(hash: string): string {
+  return `media/${hash.slice(0, 12)}…`;
+}
+
 /** A size in bytes, in KiB or MiB. */
 function bytesText(bytes: number, language: string): string {
   if (bytes < 1024 * 1024) {
@@ -73,7 +83,7 @@ export function PictureInspector({ picture, viewId }: { picture: Picture; viewId
         ].join(' · ')}
       </p>
       <p className="inspector-notes">
-        <code>{`media/${mediaFileName(media)}`}</code>
+        <code>{mediaPath(media)}</code>
       </p>
       <div className="components-actions">
         <button
@@ -164,9 +174,7 @@ export function PicturesSection({ pictures }: { pictures: number }) {
           <ul className="item-list" aria-labelledby={listId}>
             {files.map((file) => (
               <li key={file.hash} className="components-unnamed-file">
-                <code title={`media/${mediaFileName(file)}`}>
-                  {`media/${file.hash.slice(0, 12)}…`}
-                </code>
+                <code title={mediaPath(file)}>{shortMediaPath(file.hash)}</code>
                 <span className="item-notes">{bytesText(file.bytes, t.language)}</span>
                 <button
                   type="button"
