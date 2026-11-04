@@ -22,7 +22,7 @@ interface AppProps {
 }
 
 const OPEN_AGAIN =
-  'Press o in the terminal where Visual Anything runs to open a new tab, or start Visual Anything again.';
+  'For a new address that works once, run visual-anything address in a terminal (in Docker: docker exec visual-anything visual-anything address), press o in the terminal where Visual Anything runs, or start Visual Anything again.';
 
 /** While a tab with no session asks the other tabs of this browser for theirs (ADR-0043). */
 const JOINING =
@@ -33,7 +33,7 @@ const NONE_TO_JOIN =
   'A new tab joins on its own while another tab of this browser has the project open, and none has it open now.';
 
 const CLOSED =
-  'The connection to Visual Anything closed, so what you see may be out of date. Press o in the terminal where Visual Anything runs to open a new tab, or start Visual Anything again.';
+  'The connection to Visual Anything closed, so what you see may be out of date. This tab reconnects by itself once Visual Anything runs again on the same folder.';
 
 /**
  * The app: the shell once the local program has sent the project, a status screen until then, and the

@@ -19,6 +19,7 @@ import {
 } from '@visual-anything/core';
 import { z } from 'zod';
 import type { Program } from './bridge';
+import type { AppOpening } from './messages';
 import { READ, fail, id, ok, tool, withoutUndefined } from './kit';
 import { SPACE_HELP, SPACE_PART } from './space-tools';
 import type { Tool } from './tools';
@@ -130,7 +131,9 @@ Example, with the physical-space panel open on the arm: { "view": "workcell", "s
 export const openApp = tool({
   name: 'open_app',
   title: 'Open the app',
-  description: `Opens Visual Anything on the project in a new tab of the person's browser, on the computer it runs on, at an address that works once, which you are never told. Give a view, and if you like where the canvas looks, a selection, filters, focus, a scenario step and the physical-space panel, as get_view_address takes them, and the tab opens the project there. Guidance shows only while the app is open. Use it when a guidance tool says no app is open, when the person asks to see the project, or to show them a view state in a tab of its own.
+  description: `Shows Visual Anything on the project to the person. While a tab of Visual Anything is open, it opens no other: that tab comes forward and says you asked, as far as the browser lets it, and shows the view state you give, so call it again rather than worrying about tabs piling up. With no tab open, it opens a new tab of the person's browser, on the computer it runs on, at an address that works once, within two minutes. When it cannot open a browser, as inside a container, it answers that address instead: give it to the person to open, say that it works once within two minutes, and do not write it anywhere else or open it yourself. newTab: true asks for a new tab even while one is open, only when the person asks for one.
+
+Give a view, and if you like where the canvas looks, a selection, filters, focus, a scenario step and the physical-space panel, as get_view_address takes them, and the tab opens the project there. Guidance shows only while the app is open. Use it when a guidance tool says no app is open, when the person asks to see the project, or to show them a view state.
 
 ${STATE_HELP}
 
@@ -142,28 +145,52 @@ Example, with the physical-space panel open under World: { "view": "workcell", "
       .optional()
       .describe('The view the tab opens at; left out, the app opens as it does.'),
     ...STATE_PARTS,
+    newTab: z
+      .boolean()
+      .optional()
+      .describe('Opens a new tab even while one is open; only when the person asks for one.'),
   },
   hints: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
   run: async (args, program) => {
-    const { view, ...parts } = args;
+    const { view, newTab, ...parts } = args;
+    const how = newTab === true ? { newTab: true } : {};
     if (view === undefined) {
       if (Object.values(parts).some((part) => part !== undefined)) {
         return fail('A view state names its view: give view too.');
       }
-      await program.openApp();
-      return ok({ opened: 'The browser was asked to open Visual Anything on the project.' });
+      return ok(openedAnswer(await program.openApp(undefined, how)));
     }
     const project = await program.project();
     const asked = askedState({ ...parts, view }, project);
     if (!asked.ok) return fail(asked.message);
-    await program.openApp(asked.state);
+    const opening = await program.openApp(asked.state, how);
     const name = project.views.find((each) => each.id === view)?.name ?? view;
-    return ok({
-      opened: `The browser was asked to open Visual Anything on the project, at the view "${name}".`,
-      viewState: asked.state,
-    });
+    return ok({ ...openedAnswer(opening, name), viewState: asked.state });
   },
 });
+
+/** What open_app answers about how the app was opened (ADR 0099), at a view when one is named. */
+function openedAnswer(opening: AppOpening, view?: string): Record<string, unknown> {
+  const at = view === undefined ? '' : `, at the view "${view}"`;
+  switch (opening.how) {
+    case 'tab':
+      return {
+        opened: `Visual Anything is already open in ${opening.tabs === 1 ? 'a tab' : `${opening.tabs} tabs`}, so no new tab was opened: the tab the person used last was asked to come forward${at}, and says so.`,
+        tab: 'existing',
+      };
+    case 'browser':
+      return {
+        opened: `The browser was asked to open Visual Anything on the project in a new tab${at}.`,
+        tab: 'new',
+      };
+    case 'address':
+      return {
+        opened: `The browser could not be opened (${opening.why}), so no tab was opened. Give the person this address to open in their browser${at}; it works once, within two minutes, so do not keep it or write it anywhere else.`,
+        address: opening.address,
+        tab: 'none',
+      };
+  }
+}
 
 /**
  * The view state the arguments ask for, checked as an address's is and against the project. The tour

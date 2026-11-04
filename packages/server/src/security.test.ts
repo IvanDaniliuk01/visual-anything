@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   LAUNCH_ADDRESS_SPENT,
@@ -5,10 +6,12 @@ import {
   LaunchCodes,
   checkClaudeRequest,
   checkLiveRequest,
+  challengeOf,
   checkRequest,
   createToken,
   isAllowedHost,
   isAllowedOrigin,
+  sessionProof,
   tokensMatch,
 } from './security';
 
@@ -305,5 +308,28 @@ describe('tokensMatch', () => {
     ['no token', undefined],
   ])('does not match %s', (_case, received) => {
     expect(tokensMatch(token, received)).toBe(false);
+  });
+});
+
+describe('sessionProof and challengeOf (ADR 0099)', () => {
+  const token = createToken();
+  const challenge = 'ab'.repeat(16);
+
+  it('proves the token with an HMAC of the challenge, as the tab works it out', () => {
+    const expected = createHmac('sha256', token)
+      .update(`visual-anything session proof\n${challenge}`, 'utf8')
+      .digest('base64url');
+    expect(sessionProof(token, challenge)).toBe(expected);
+    expect(sessionProof(createToken(), challenge)).not.toBe(expected);
+    expect(sessionProof(token, 'cd'.repeat(16))).not.toBe(expected);
+  });
+
+  it('reads exactly one challenge of the form a tab makes', () => {
+    expect(challengeOf(`/session/proof?challenge=${challenge}`)).toBe(challenge);
+    expect(challengeOf('/session/proof')).toBeUndefined();
+    expect(challengeOf('/session/proof?challenge=short')).toBeUndefined();
+    expect(challengeOf(`/session/proof?challenge=${challenge}&challenge=${challenge}`)).toBe(
+      undefined,
+    );
   });
 });

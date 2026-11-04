@@ -8,9 +8,13 @@
 # - The projects and preferences live in VISUAL_ANYTHING_DATA, ./data by default: data/projects and
 #   data/preferences. On Linux, set VISUAL_ANYTHING_UID and VISUAL_ANYTHING_GID to your own, so that
 #   the files stay yours (bash keeps UID read-only, so they carry the program's name).
-# - Another address for a new tab: `docker attach visual-anything`, press a, then Ctrl+P Ctrl+Q to
-#   leave it running (Ctrl+C stops it).
-# - Claude: `docker exec -i visual-anything visual-anything mcp` is the MCP server's command.
+# - Another address, once the first has run out: `docker exec visual-anything visual-anything address`
+#   prints a new one (ADR 0099). `docker attach visual-anything`, then a, works too; Ctrl+P Ctrl+Q
+#   leaves it running, Ctrl+C stops it.
+# - The session is kept in data/preferences/sessions, so after `docker restart visual-anything` the
+#   open tab reconnects by itself and the project open then opens again (ADR 0099).
+# - Claude: `docker exec -i visual-anything visual-anything mcp` is the MCP server's command. With a
+#   tab open, Claude's open_app brings it forward; with none, Claude is given an address to pass on.
 services:
   visual-anything:
     build: .

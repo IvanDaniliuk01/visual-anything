@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { LiveConnection } from './connection';
 import { LiveContext, type Live } from './context';
-import { liveUrl, rememberSessionToken, type LiveCredential } from './session';
+import { liveUrl, proveSession, rememberSessionToken, type LiveCredential } from './session';
+import { showThisTab } from './shown';
 import { askForSession, openSessionChannel, shareSession, type OpenSessionChannel } from './share';
 
 interface LiveProviderProps {
@@ -35,6 +36,9 @@ export function LiveProvider({
           return liveUrl(window.location, { token: handed });
         },
         ...(token === null ? { join: () => joinSession(openChannel) } : {}),
+        // Reconnects by itself once the program runs again with this session (ADR 0099).
+        prove: (held) => proveSession(window.location, held),
+        onShown: (state, project) => showThisTab(window, state, project),
       }),
   );
 

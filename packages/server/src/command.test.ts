@@ -454,7 +454,9 @@ describe('runCommand', { timeout: 20_000 }, () => {
     expect(out).toContain(
       `No project is open: choose one in the browser, or start one in ${projects.replaceAll('\\', '/')}.`,
     );
-    expect(await listProgramRecords(runtime)).toEqual([]);
+    // At home, a record lets Claude and visual-anything address reach the program (ADR 0099).
+    const homeRecords = await listProgramRecords(runtime);
+    expect(homeRecords.map((each) => each.home)).toEqual([true]);
     const outcome = await redeem(url as URL);
     if (!outcome.open) throw new Error('The tab was refused.');
     expect(decodeServerMessage(outcome.firstMessage).type).toBe('preferences/changed');
@@ -471,7 +473,9 @@ describe('runCommand', { timeout: 20_000 }, () => {
 
     outcome.socket.send(JSON.stringify({ type: 'home/close', requestId: 'h' }));
     await expect.poll(() => types().filter((type) => type === 'home/offered').length).toBe(2);
-    expect(await listProgramRecords(runtime)).toEqual([]);
+    await expect
+      .poll(async () => (await listProgramRecords(runtime)).map((each) => each.home))
+      .toEqual([true]);
     outcome.socket.close();
 
     signals.emit('SIGINT');

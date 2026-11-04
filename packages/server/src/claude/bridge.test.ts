@@ -304,3 +304,58 @@ describe('ProgramBridge', () => {
       .toBe('Shop');
   });
 });
+
+describe('ProgramBridge, for a new launch address and at home (ADR 0099)', () => {
+  it('asks the program for a new launch address, which opens the live connection once', async () => {
+    const { server } = await runProgram();
+    const address = await bridge().launchAddress();
+    expect(address).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${server.port}/#launch=[\\w-]+$`));
+    expect(address).not.toContain(server.token);
+    const code = new URLSearchParams(new URL(address).hash.slice(1)).get('launch') ?? '';
+    const app = await openLiveClient(server.port, code, 'launch');
+    await expect.poll(() => app.messages[0]?.type, POLL).toBe('project/opened');
+    await app.close();
+  });
+
+  it('reaches a program at home: a new address and opening the app work, the tools say why not', async () => {
+    const { HomeSession } = await import('../home-session');
+    const home = new HomeSession({
+      projectsFolder: profile,
+      open: (folder) => openSession(folder, { watch: false, out: () => {}, err: () => {} }),
+    });
+    const opened: string[] = [];
+    const server = await startServer({
+      session: home,
+      port: 0,
+      app: { mode: 'static', dir: appDir },
+      openBrowser: (url) => {
+        opened.push(url);
+        return Promise.resolve();
+      },
+    });
+    try {
+      await writeProgramRecord(
+        runtime,
+        {
+          format: 1,
+          protocolVersion: PROTOCOL_VERSION,
+          pid: process.pid,
+          port: server.port,
+          folder: profile.replaceAll('\\', '/'),
+          credential: server.credential,
+          startedAt: new Date(Date.now() - 1000).toISOString(),
+          home: true,
+        },
+        context,
+      );
+      const atHome = bridge({ folder: undefined, attachOnly: true });
+      expect(await atHome.launchAddress()).toMatch(/#launch=[\w-]+$/);
+      expect(await atHome.openApp()).toEqual({ how: 'browser' });
+      expect(opened).toHaveLength(1);
+      await expect(atHome.project()).rejects.toThrow(/No project is open/);
+    } finally {
+      await server.close();
+      await home.close();
+    }
+  });
+});

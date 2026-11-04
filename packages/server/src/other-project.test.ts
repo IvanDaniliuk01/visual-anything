@@ -89,7 +89,7 @@ function fakeProgram(
         : Promise.resolve(project),
     openApp: (state?: ViewState) => {
       opened.push(state);
-      return Promise.resolve();
+      return Promise.resolve({ how: 'browser' as const });
     },
     close: () => {
       fake.closed = true;

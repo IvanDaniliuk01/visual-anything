@@ -42,6 +42,11 @@ export interface ProgramRecord {
   credential: string;
   /** When it started, in ISO 8601. */
   startedAt: string;
+  /**
+   * Set while the program is at home, with no project open (ADR 0093, ADR 0099): `folder` is then the
+   * projects folder, and the program greets Claude with `project/closed`.
+   */
+  home?: true;
 }
 
 /** Who is asking, and on which platform: the real ones by default; tests give their own. */
@@ -218,20 +223,22 @@ async function openedFolder(runtime: string, context: RuntimeContext): Promise<s
 }
 
 /**
- * Checks, and makes when asked, the runtime folder; returns its real path. It must be a real folder,
- * not a link. On Windows its real path must lie in the user's profile. Elsewhere it must belong to the
+ * Checks, and makes when asked, the runtime folder, or another folder that keeps a secret of the
+ * program's, such as the kept session (ADR 0099), which `secret` names in what it says; returns its
+ * real path. It must be a real folder, not a link. On Windows its real path must lie in the user's profile. Elsewhere it must belong to the
  * user; a folder made here is closed to everyone else, and one others may write in is refused.
  */
-async function privateFolder(
+export async function privateFolder(
   folder: string,
   context: RuntimeContext,
-  how: { create: boolean },
+  how: { create: boolean; secret?: string },
 ): Promise<string> {
+  const secret = how.secret ?? "Claude's credential";
   if (how.create) await mkdir(folder, { recursive: true, mode: 0o700 });
   const stats = await lstat(folder);
   if (stats.isSymbolicLink() || !stats.isDirectory()) {
     throw new UnsafeRuntimeFolderError(
-      `${folder} is not a real folder, so Claude's credential is not kept there.`,
+      `${folder} is not a real folder, so ${secret} is not kept there.`,
     );
   }
   const real = await realpath(folder);
@@ -239,7 +246,7 @@ async function privateFolder(
     const profile = await realpath(context.home).catch(() => context.home);
     if (!isInside(profile, real)) {
       throw new UnsafeRuntimeFolderError(
-        `${real} lies outside your profile (${profile}), where other accounts on this computer could read Claude's credential or leave a record of their own. Choose a runtime folder inside your profile.`,
+        `${real} lies outside your profile (${profile}), where other accounts on this computer could read ${secret} or leave a record of their own. Choose a runtime folder inside your profile.`,
       );
     }
     return real;
@@ -247,7 +254,7 @@ async function privateFolder(
   if (context.uid !== undefined) {
     if (stats.uid !== context.uid) {
       throw new UnsafeRuntimeFolderError(
-        `${folder} belongs to another user, so Claude's credential is not kept there.`,
+        `${folder} belongs to another user, so ${secret} is not kept there.`,
       );
     }
     if ((stats.mode & 0o077) !== 0) {
@@ -272,6 +279,32 @@ async function readRecordFile(
   realRuntime: string,
   context: RuntimeContext,
 ): Promise<ProgramRecord | undefined> {
+  const read = await readPrivateFile(file, realRuntime, context, RECORD_CAP);
+  if (read === undefined) return undefined;
+  let value: unknown;
+  try {
+    value = JSON.parse(read.bytes.toString('utf8'));
+  } catch {
+    return undefined;
+  }
+  if (!isRecord(value)) return undefined;
+  const started = Date.parse(value.startedAt);
+  // A record is written once its program listens: one older than that start was left by something else.
+  if (Number.isNaN(started) || read.modified + CLOCK_SLACK < started) return undefined;
+  return value;
+}
+
+/**
+ * Reads a file of a private folder, as a record is read: only a regular file reached through no link,
+ * inside the folder's real path; of this user and readable by them only, where files have owners; at
+ * most `cap` bytes. Gives its bytes and when it was last changed, or undefined.
+ */
+export async function readPrivateFile(
+  file: string,
+  realFolder: string,
+  context: RuntimeContext,
+  cap: number,
+): Promise<{ bytes: Buffer; modified: number } | undefined> {
   let modified: number;
   try {
     const stats = await lstat(file);
@@ -283,19 +316,9 @@ async function readRecordFile(
   } catch {
     return undefined;
   }
-  const read = await readRegularFile(file, RECORD_CAP, { inside: realRuntime });
+  const read = await readRegularFile(file, cap, { inside: realFolder });
   if (!read.ok) return undefined;
-  let value: unknown;
-  try {
-    value = JSON.parse(read.bytes.toString('utf8'));
-  } catch {
-    return undefined;
-  }
-  if (!isRecord(value)) return undefined;
-  const started = Date.parse(value.startedAt);
-  // A record is written once its program listens: one older than that start was left by something else.
-  if (Number.isNaN(started) || modified + CLOCK_SLACK < started) return undefined;
-  return value;
+  return { bytes: read.bytes, modified };
 }
 
 function isRecord(value: unknown): value is ProgramRecord {

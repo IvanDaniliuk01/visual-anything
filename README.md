@@ -172,11 +172,12 @@ docker run --rm -it --name visual-anything -p 127.0.0.1:47700:47700 -v "$PWD/dat
 
 That pulls the image (`docker compose up --build` builds it from the repository instead), starts the program at home and prints an address that opens the app once, within two minutes. It serves only this computer, on `127.0.0.1:47700`. Your projects and preferences live in `./data` (`data/projects` and `data/preferences`); set `VISUAL_ANYTHING_DATA` to keep them elsewhere, and on Linux run it as `VISUAL_ANYTHING_UID=$(id -u) VISUAL_ANYTHING_GID=$(id -g) docker compose up` so that the files stay yours.
 
-- **Another address**, for a new tab: `docker attach visual-anything`, press `a`, then Ctrl+P Ctrl+Q to leave it running. Ctrl+C stops it.
-- **Claude**: the MCP server's command is `docker exec -i visual-anything visual-anything mcp`, as in `claude mcp add visual-anything -- docker exec -i visual-anything visual-anything mcp`.
+- **Another address**, when the first has run out: `docker exec visual-anything visual-anything address` prints a new one, which works once, within two minutes. (`docker attach visual-anything`, then `a`, still works too; Ctrl+P Ctrl+Q leaves it running, Ctrl+C stops it.)
+- **Restarts**: the session is kept in `data/preferences/sessions`, so after `docker restart visual-anything`, or `docker compose up` again, the tab you had reconnects by itself and the project you had open opens again, with no new address. A tab only reconnects once the program proves it holds that tab's session.
+- **Claude**: the MCP server's command is `docker exec -i visual-anything visual-anything mcp`, as in `claude mcp add visual-anything -- docker exec -i visual-anything visual-anything mcp`. When Claude opens the app while a tab is open, that tab comes forward instead of a new one; since the container cannot open your browser, with no tab open Claude is given an address to pass on to you.
 - **Another port**: set `VISUAL_ANYTHING_PORT`, which changes the port inside and outside alike.
 
-Why it listens on the container's every interface, and what still keeps it local, is in [ADR 0094](docs/adr/0094-a-container-runs-the-program-with-its-port-on-the-hosts-loopback.md).
+Why it listens on the container's every interface, and what still keeps it local, is in [ADR 0094](docs/adr/0094-a-container-runs-the-program-with-its-port-on-the-hosts-loopback.md); how the session survives a restart is in [ADR 0099](docs/adr/0099-the-session-survives-a-restart-and-a-connected-tab-comes-forward.md).
 
 ## Claude through MCP
 

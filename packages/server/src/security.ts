@@ -5,8 +5,14 @@
  * per-session token, or a launch code that works once; the Claude endpoint needs Claude's credential
  * and refuses anything a browser sends.
  */
-import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { LAUNCH_PARAM, TOKEN_PARAM } from '@visual-anything/core';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import {
+  LAUNCH_PARAM,
+  SESSION_CHALLENGE_FORM,
+  SESSION_CHALLENGE_PARAM,
+  SESSION_PROOF_CONTEXT,
+  TOKEN_PARAM,
+} from '@visual-anything/core';
 
 /** The outcome of checking a request: allowed, or the status to refuse it with and why. */
 export type Check = { ok: true } | { ok: false; status: 401 | 403; message: string };
@@ -49,7 +55,7 @@ const SPENT_REMEMBERED = 32;
 
 /** Why a launch address is refused, for one used twice or too late. */
 export const LAUNCH_ADDRESS_SPENT =
-  'This address works once, within two minutes of being made, and can no longer be used. Press o in the terminal where Visual Anything runs, or start it again.';
+  'This address works once, within two minutes of being made, and can no longer be used. For a new one, run visual-anything address (in Docker: docker exec visual-anything visual-anything address), press a in the terminal where Visual Anything runs, or start it again.';
 
 /**
  * The launch codes of a running local program. A launch code is what the address the program opens
@@ -212,6 +218,29 @@ export function checkClaudeRequest(request: ClaudeRequest, endpoint: ClaudeEndpo
 /** Makes a per-session token: 32 random bytes, written in base64url. */
 export function createToken(): string {
   return randomBytes(32).toString('base64url');
+}
+
+/**
+ * The proof that this program holds the session token, for a tab that asks before it sends its token
+ * (ADR 0099): the HMAC-SHA256 of the proof's context and the tab's challenge, keyed by the token, in
+ * base64url. It tells nothing of the token, and a challenge is random, so a proof seen once proves
+ * nothing to another tab.
+ */
+export function sessionProof(token: string, challenge: string): string {
+  return createHmac('sha256', token)
+    .update(`${SESSION_PROOF_CONTEXT}${challenge}`, 'utf8')
+    .digest('base64url');
+}
+
+/**
+ * The challenge of a request for the session proof, `?challenge=<hex>`, when it holds exactly one of
+ * the form a tab makes; undefined otherwise.
+ */
+export function challengeOf(url: string): string | undefined {
+  const values = new URLSearchParams(queryOf(url)).getAll(SESSION_CHALLENGE_PARAM);
+  return values.length === 1 && SESSION_CHALLENGE_FORM.test(values[0] ?? '')
+    ? values[0]
+    : undefined;
 }
 
 /** Compares a received token with the session token in constant time. */

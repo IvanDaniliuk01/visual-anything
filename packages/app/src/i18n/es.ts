@@ -306,10 +306,10 @@ export const ui: Catalog = {
   'Connecting to Visual Anything…': 'Conectando con Visual Anything…',
   'Waiting for the local program to send the project.':
     'Esperando a que el programa local envíe el proyecto.',
-  'Press o in the terminal where Visual Anything runs to open a new tab, or start Visual Anything again.':
-    'Presionar o en la terminal donde se ejecuta Visual Anything para abrir una pestaña nueva, o iniciar Visual Anything de nuevo.',
-  'The connection to Visual Anything closed, so what you see may be out of date. Press o in the terminal where Visual Anything runs to open a new tab, or start Visual Anything again.':
-    'Se cerró la conexión con Visual Anything, así que lo que se ve puede estar desactualizado. Presionar o en la terminal donde se ejecuta Visual Anything para abrir una pestaña nueva, o iniciar Visual Anything de nuevo.',
+  'For a new address that works once, run visual-anything address in a terminal (in Docker: docker exec visual-anything visual-anything address), press o in the terminal where Visual Anything runs, or start Visual Anything again.':
+    'Para una dirección nueva que funciona una sola vez, ejecutar visual-anything address en una terminal (en Docker: docker exec visual-anything visual-anything address), presionar o en la terminal donde se ejecuta Visual Anything, o iniciar Visual Anything de nuevo.',
+  'The connection to Visual Anything closed, so what you see may be out of date. This tab reconnects by itself once Visual Anything runs again on the same folder.':
+    'Se cerró la conexión con Visual Anything, así que lo que se ve puede estar desactualizado. Esta pestaña se reconecta sola cuando Visual Anything vuelve a ejecutarse en la misma carpeta.',
   'This tab has no session token': 'Esta pestaña no tiene token de sesión',
   'Visual Anything connects only to a tab it opened, through an address that works once.':
     'Visual Anything solo se conecta con una pestaña que abrió, mediante una dirección que funciona una sola vez.',
@@ -334,6 +334,14 @@ export const ui: Catalog = {
     'Visual Anything no está conectado, así que no se cambió nada.',
   'The connection to Visual Anything closed before it answered.':
     'La conexión con Visual Anything se cerró antes de que respondiera.',
+  // Reconnecting by itself, and coming forward when asked (ADR 0099).
+  'Visual Anything restarted; reconnected.': 'Visual Anything se reinició; se reconectó.',
+  'Reconnected to Visual Anything; this tab shows the project as it is now.':
+    'Se reconectó con Visual Anything; esta pestaña muestra el proyecto como está ahora.',
+  'Visual Anything runs again, but with another session, so this tab cannot reconnect. Open it from a new address that works once: run visual-anything address in a terminal (in Docker: docker exec visual-anything visual-anything address).':
+    'Visual Anything se ejecuta de nuevo, pero con otra sesión, así que esta pestaña no puede reconectarse. Abrirlo desde una dirección nueva que funciona una sola vez: ejecutar visual-anything address en una terminal (en Docker: docker exec visual-anything visual-anything address).',
+  'Visual Anything was asked to show this tab.':
+    'Se pidió a Visual Anything que mostrara esta pestaña.',
   'This tab’s copy of the project fell out of step with Visual Anything, so it is getting the project again.':
     'La copia del proyecto de esta pestaña se desfasó con Visual Anything, así que está obteniendo el proyecto de nuevo.',
   'Visual Anything sent a change before the project.':

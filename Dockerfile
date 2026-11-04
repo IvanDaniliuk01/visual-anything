@@ -38,9 +38,11 @@ COPY --from=build /repository/dist-exe/visual-anything /usr/local/bin/visual-any
 # `visual-anything notices` prints the code the executable bundles, with its licenses.
 COPY LICENSE /usr/share/doc/visual-anything/LICENSE
 
-# The record that lets Claude attach lives under XDG_STATE_HOME, which any user can make in /tmp.
+# The record that lets Claude attach lives under XDG_STATE_HOME, which any user can make in /tmp; the
+# kept session lives on the volume, so that it survives a restart and a new container (ADR 0099).
 ENV VISUAL_ANYTHING_PROJECTS=/data/projects \
     VISUAL_ANYTHING_PREFERENCES=/data/preferences \
+    VISUAL_ANYTHING_SESSIONS=/data/preferences/sessions \
     VISUAL_ANYTHING_PORT=47700 \
     XDG_STATE_HOME=/tmp/visual-anything-state
 USER visual-anything

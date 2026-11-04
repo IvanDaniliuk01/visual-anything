@@ -612,9 +612,22 @@ describe('the Claude endpoint', () => {
     expect(app.messages).toHaveLength(1);
   });
 
+  it('brings the connected tab forward rather than opening a new one (ADR 0099)', async () => {
+    claude.send({ type: 'open-app', requestId: 'o9', state: { view: 'system-overview' } });
+    expect(await claude.answers('o9')).toEqual([
+      { type: 'app/opened', requestId: 'o9', how: 'tab', tabs: 1 },
+    ]);
+    expect(opened).toEqual([]);
+    await expect
+      .poll(() => app.messages.at(-1))
+      .toEqual({ type: 'app/shown', state: { view: 'system-overview' } });
+  });
+
   it('opens the app at an address that works once', async () => {
-    claude.send({ type: 'open-app', requestId: 'o1' });
-    expect(await claude.answers('o1')).toEqual([{ type: 'app/opened', requestId: 'o1' }]);
+    claude.send({ type: 'open-app', requestId: 'o1', newTab: true });
+    expect(await claude.answers('o1')).toEqual([
+      { type: 'app/opened', requestId: 'o1', how: 'browser' },
+    ]);
     expect(opened).toHaveLength(1);
     const url = new URL(opened[0] ?? '');
     const code = new URLSearchParams(url.hash.slice(1)).get(LAUNCH_PARAM) ?? '';
@@ -630,9 +643,12 @@ describe('the Claude endpoint', () => {
     claude.send({
       type: 'open-app',
       requestId: 'o2',
+      newTab: true,
       state: { view: 'system-overview', select: ['appointments-api'] },
     });
-    expect(await claude.answers('o2')).toEqual([{ type: 'app/opened', requestId: 'o2' }]);
+    expect(await claude.answers('o2')).toEqual([
+      { type: 'app/opened', requestId: 'o2', how: 'browser' },
+    ]);
     expect(opened).toHaveLength(1);
     const fragment = new URLSearchParams(new URL(opened[0] ?? '').hash.slice(1));
     expect(fragment.get(LAUNCH_PARAM)).toMatch(/^[\w-]{16,}$/);
@@ -646,9 +662,12 @@ describe('the Claude endpoint', () => {
     claude.send({
       type: 'open-app',
       requestId: 'o5',
+      newTab: true,
       state: { view: 'system-overview', filters: { range } },
     });
-    expect(await claude.answers('o5')).toEqual([{ type: 'app/opened', requestId: 'o5' }]);
+    expect(await claude.answers('o5')).toEqual([
+      { type: 'app/opened', requestId: 'o5', how: 'browser' },
+    ]);
     const hash = new URL(opened[0] ?? '').hash;
     expect(readViewState(hash)).toEqual({
       ok: true,

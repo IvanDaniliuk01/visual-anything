@@ -29,6 +29,7 @@ import {
   decodeClaudeMessage,
   importRequestOf,
   requestIdIn,
+  type AppOpening,
   type ClaudeMessage,
   type ProgramMessage,
 } from './messages';
@@ -42,10 +43,16 @@ const NO_CAPTURES = 'This Visual Anything takes no pictures of a view.';
 /** What the program does for Claude beyond the session. */
 export interface ClaudeActions {
   /**
-   * Opens the app in the browser at an address that works once, carrying the view state when one is
-   * given; absent when it cannot.
+   * Opens the app (ADR 0099): brings a connected tab forward, unless a new tab is asked for, or opens
+   * the browser at an address that works once, carrying the view state when one is given, or gives
+   * that address back when the browser cannot be opened; absent when it cannot.
    */
-  openApp?: (state?: ViewState) => Promise<void>;
+  openApp?: (state?: ViewState, how?: { newTab?: boolean }) => Promise<AppOpening>;
+  /**
+   * Makes a new launch address, which works once within two minutes, for `visual-anything address`
+   * (ADR 0099); absent when it cannot.
+   */
+  launchAddress?: () => string;
   /**
    * The person's approvals of package code, from their preferences (ADR 0054); absent where the
    * program keeps none, and then no code is approved.
@@ -339,6 +346,20 @@ export function attachClaude(
         });
         return;
       }
+      case 'launch-address': {
+        if (actions.launchAddress === undefined) {
+          refuse(message.requestId, [
+            { code: 'program-failed', message: 'This Visual Anything makes no launch addresses.' },
+          ]);
+          return;
+        }
+        send({
+          type: 'launch/address',
+          requestId: message.requestId,
+          address: actions.launchAddress(),
+        });
+        return;
+      }
       case 'open-app': {
         if (actions.openApp === undefined) {
           refuse(message.requestId, [
@@ -356,8 +377,11 @@ export function attachClaude(
           return;
         }
         try {
-          await actions.openApp(message.state);
-          send({ type: 'app/opened', requestId: message.requestId });
+          const opening = await actions.openApp(
+            message.state,
+            message.newTab === true ? { newTab: true } : {},
+          );
+          send({ type: 'app/opened', requestId: message.requestId, ...opening });
         } catch (error) {
           refuse(message.requestId, [
             {

@@ -1,5 +1,5 @@
 import { readViewState } from '@visual-anything/core';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { testProject } from '../test-support';
 import type { Program } from './bridge';
 import { startToolHarness, type ToolHarness } from './tool-harness';
@@ -211,5 +211,49 @@ describe('open_app', () => {
       'A view state names its view: give view too.',
     );
     expect(tools.opened).toEqual([]);
+  });
+});
+
+describe('open_app with a tab open, or no browser (ADR 0099)', () => {
+  it('opens no new tab while one is connected: that tab is asked to come forward', async () => {
+    const app = await tools.openApp();
+    const result = await tools.value('open_app', { view: 'overview', select: ['api'] });
+    expect(result).toMatchObject({ tab: 'existing', viewState: { view: 'overview' } });
+    expect(tools.opened).toEqual([]);
+    await vi.waitFor(() =>
+      expect(app.messages).toContainEqual({
+        type: 'app/shown',
+        state: { view: 'overview', select: ['api'] },
+      }),
+    );
+    expect(JSON.stringify(result)).not.toMatch(/launch=|token/);
+  });
+
+  it('opens a new tab even then when asked to', async () => {
+    await tools.openApp();
+    expect(await tools.value('open_app', { newTab: true })).toMatchObject({ tab: 'new' });
+    expect(tools.opened).toHaveLength(1);
+  });
+});
+
+describe('open_app where no browser opens (ADR 0099)', () => {
+  let boxed: ToolHarness;
+
+  beforeEach(async () => {
+    boxed = await startToolHarness(undefined, { browserFails: true });
+  });
+
+  afterEach(async () => {
+    await boxed.close();
+  });
+
+  it('answers the launch address, never the token, for the person to open', async () => {
+    const result = await boxed.value('open_app', { view: 'overview' });
+    expect(result).toMatchObject({ tab: 'none' });
+    expect(String(result.address)).toMatch(
+      /^http:\/\/127\.0\.0\.1:\d+\/#launch=[\w-]+&view=overview$/,
+    );
+    expect(String(result.opened)).toMatch(/xdg-open/);
+    expect(JSON.stringify(result)).not.toMatch(/token/);
   });
 });

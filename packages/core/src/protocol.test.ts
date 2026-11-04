@@ -31,7 +31,7 @@ const project: ProjectSnapshot = {
 };
 
 describe('PROTOCOL_VERSION', () => {
-  it('is 10, since a view may hold pictures and their files travel (ADR 0098)', () => {
+  it('is 10, since a view may hold pictures and a connected tab comes forward (ADR 0098, ADR 0099)', () => {
     expect(PROTOCOL_VERSION).toBe(10);
   });
 

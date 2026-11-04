@@ -71,7 +71,7 @@ function programOver(start: ProjectSnapshot): Program & { state(): ProjectSnapsh
       });
     },
     guide: () => Promise.resolve(0),
-    openApp: () => Promise.resolve(),
+    openApp: () => Promise.resolve({ how: 'browser' as const }),
   };
 }
 

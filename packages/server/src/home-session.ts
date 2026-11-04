@@ -438,6 +438,33 @@ export class HomeSession implements LiveSession {
     }
   }
 
+  /**
+   * Opens again the project that was open when the program last stopped, as it starts with the session
+   * it kept (ADR 0099), with no app asking; resolves whether it opened. A folder that no longer holds a
+   * project, or that cannot be opened, leaves the program at home.
+   */
+  async resume(folder: string): Promise<boolean> {
+    if (this.#inner !== undefined || this.#busy || this.#closed) return false;
+    const checked = await checkHomeFolder(folder, this.#options.platform ?? process.platform);
+    if (!checked.ok || checked.holds !== 'project') return false;
+    this.#busy = true;
+    try {
+      const opened = await this.#options.open(checked.folder);
+      if (!opened.ok) return false;
+      if (this.#closed) {
+        await opened.session.close();
+        return false;
+      }
+      this.#enter(opened.session);
+      await this.#opened(opened.session);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      this.#busy = false;
+    }
+  }
+
   /** Opens the project in a folder an app named, or the start screen of one that holds nothing yet. */
   async #open(client: SessionClient, requestId: string, path: string): Promise<void> {
     const checked = await checkHomeFolder(path, this.#options.platform ?? process.platform);

@@ -86,3 +86,5 @@ Decided by Claude while building them, under the user's standing delegation:
 - **At home, a command line `--view`** is refused, since home has no view; `visual-anything .` opens the current folder as before.
 
 - 2026-11-03 (the Projects screen polished): **a new project starts in one click.** The name is optional; left empty, it takes the sample's title, or "My project" for an empty one, and `home/create` still always carries a name. A sample's card names the world its title names ("Machine learning: churn classifier"), and the world of its packages only when its title names none.
+
+- 2026-11-04 (ADR 0099): **at home there is a record for Claude now**, with the projects folder as its folder and `home: true`, which supersedes "at home there is none" above: Claude attaches, is told no project is open, and can still open the app; `visual-anything address` reaches the program there too. A home program started again within a day with the session it kept opens again the project that was open when it stopped.

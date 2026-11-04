@@ -284,3 +284,26 @@ describe('a program at home', () => {
     });
   });
 });
+
+describe('resuming the project open when the program stopped (ADR 0099)', () => {
+  it('opens it again with no app asking, and every app connected is handed over', async () => {
+    const folder = await shop();
+    const { session, opened } = home();
+    const tab = app();
+    session.connect(tab);
+    expect(await session.resume(folder)).toBe(true);
+    expect(session.atHome).toBe(false);
+    expect(opened.map((each) => each.folder)).toEqual([folder]);
+    expect(await sent(tab, 'project/opened')).toBeDefined();
+  });
+
+  it('stays at home for a folder that holds no project now, or with a project open', async () => {
+    const { session } = home();
+    expect(await session.resume(join(root, 'gone'))).toBe(false);
+    await mkdir(join(root, 'empty'));
+    expect(await session.resume(join(root, 'empty'))).toBe(false);
+    expect(session.atHome).toBe(true);
+    expect(await session.resume(await shop())).toBe(true);
+    expect(await session.resume(await shop('other'))).toBe(false);
+  });
+});

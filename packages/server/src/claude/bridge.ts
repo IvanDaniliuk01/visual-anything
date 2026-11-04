@@ -53,6 +53,7 @@ import {
   type ProgramRecord,
   type RuntimeContext,
 } from './discovery';
+import { NO_PROJECT } from '../start';
 import { LAYOUT_WAIT_MARGIN, LAYOUT_WAIT_PER_LAYOUT, layoutWait } from '../layout-waits';
 import type { LiveKept, LiveListing } from '../live';
 import type { ProposalEnding } from '../proposals';
@@ -62,6 +63,7 @@ import {
   decodeProgramMessage,
   encodeClaudeMessage,
   importMessageRequest,
+  type AppOpening,
   type ClaudeMessage,
   type LiveSenderKind,
   type ProgramMessage,
@@ -170,10 +172,11 @@ export interface Program {
    */
   capture?(ask: CaptureAsk): Promise<CaptureReport>;
   /**
-   * Opens the app in the browser, at an address that works once; with a view state, the tab opens the
-   * project there (ADR-0044).
+   * Opens the app (ADR 0099): a connected tab comes forward and shows the view state, unless `newTab`
+   * asks for a new tab; otherwise the browser opens at an address that works once, and the tab opens
+   * the project there (ADR-0044); when it cannot, the answer gives that address, for the person.
    */
-  openApp(state?: ViewState): Promise<void>;
+  openApp(state?: ViewState, how?: { newTab?: boolean }): Promise<AppOpening>;
   /**
    * The address the program serves the app at, `http://127.0.0.1:<port>/`, attaching first if needed;
    * absent, or undefined, where it is not known.
@@ -576,13 +579,40 @@ export class ProgramBridge implements Program {
     throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
   }
 
-  async openApp(state?: ViewState): Promise<void> {
-    const answer = await this.#request((requestId) =>
-      state === undefined
-        ? { type: 'open-app', requestId }
-        : { type: 'open-app', requestId, state },
+  /**
+   * Asks the program for a new launch address, which works once within two minutes, for
+   * `visual-anything address` to print (ADR 0099); at home too, with no project open.
+   */
+  async launchAddress(): Promise<string> {
+    const answer = await this.#request(
+      (requestId) => ({ type: 'launch-address', requestId }),
+      undefined,
+      { atHome: true },
     );
-    if (answer.type === 'app/opened') return;
+    if (answer.type === 'launch/address') return answer.address;
+    if (answer.type === 'command/rejected') {
+      throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  async openApp(state?: ViewState, how: { newTab?: boolean } = {}): Promise<AppOpening> {
+    const newTab = how.newTab === true ? { newTab: true as const } : {};
+    const answer = await this.#request(
+      (requestId) =>
+        state === undefined
+          ? { type: 'open-app', requestId, ...newTab }
+          : { type: 'open-app', requestId, state, ...newTab },
+      undefined,
+      { atHome: true },
+    );
+    if (answer.type === 'app/opened') {
+      if (answer.how === 'tab') return { how: 'tab', tabs: answer.tabs };
+      if (answer.how === 'address') {
+        return { how: 'address', address: answer.address, why: answer.why };
+      }
+      return { how: 'browser' };
+    }
     if (answer.type === 'command/rejected') {
       throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
     }
@@ -694,8 +724,10 @@ export class ProgramBridge implements Program {
   async #request(
     message: (requestId: string) => ClaudeMessage,
     timeout = this.#options.requestTimeout ?? REQUEST_TIMEOUT,
+    how: { atHome?: boolean } = {},
   ): Promise<ProgramMessage> {
-    const attached = await this.#attached();
+    // Opening the app and a new launch address work at home too, with no project open (ADR 0099).
+    const attached = how.atHome === true ? await this.#attachOnce() : await this.#attached();
     requestCount += 1;
     const requestId = `claude-${process.pid}-${requestCount}`;
     const answer = await new Promise<ProgramMessage | Error>((resolve) => {
@@ -894,7 +926,8 @@ export class ProgramBridge implements Program {
           return;
         }
         if (attached === undefined) {
-          if (message.type !== 'project/opened') {
+          // A program at home greets with project/closed: it has no project open (ADR 0099).
+          if (message.type !== 'project/opened' && message.type !== 'project/closed') {
             reject(new Error('The Claude endpoint did not start with the project.'));
             socket.close();
             return;
@@ -902,9 +935,10 @@ export class ProgramBridge implements Program {
           attached = {
             socket,
             port: record.port,
-            snapshot: message.project,
+            snapshot: message.type === 'project/opened' ? message.project : NO_PROJECT,
             waiting: new Map(),
             settled: [],
+            ...(message.type === 'project/closed' ? { closed: message.message } : {}),
           };
           resolve(attached);
           return;

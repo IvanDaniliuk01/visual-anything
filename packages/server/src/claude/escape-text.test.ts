@@ -35,7 +35,7 @@ function programOf(target: Session): Program {
         : { ok: false, problems: outcome.problems };
     },
     guide: (guidance) => target.guide(guidance),
-    openApp: () => Promise.resolve(),
+    openApp: () => Promise.resolve({ how: 'browser' as const }),
   };
 }
 

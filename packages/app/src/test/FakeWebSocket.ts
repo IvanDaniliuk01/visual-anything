@@ -1,6 +1,6 @@
 import { decodeAppMessage, type AppMessage } from '@visual-anything/core';
 
-type Listener = (event: { data?: unknown }) => void;
+type Listener = (event: { data?: unknown; code?: number }) => void;
 
 /**
  * Stands in for the browser's `WebSocket`, so that tests play the local program's side of the live
@@ -66,13 +66,13 @@ export class FakeWebSocket {
     this.emit('message', { data });
   }
 
-  /** The connection is refused, or drops once open. */
-  drop(): void {
+  /** The connection is refused, or drops once open, with a close code when one is given. */
+  drop(code?: number): void {
     this.emit('error', {});
-    this.emit('close', {});
+    this.emit('close', code === undefined ? {} : { code });
   }
 
-  private emit(type: string, event: { data?: unknown }): void {
+  private emit(type: string, event: { data?: unknown; code?: number }): void {
     for (const listener of [...(this.listeners.get(type) ?? [])]) listener(event);
   }
 }

@@ -13,24 +13,34 @@ import type { Duplex } from 'node:stream';
 import {
   LAUNCH_PARAM,
   LIVE_PATH,
+  SESSION_PROOF_PATH,
   encodeServerMessage,
   withViewState,
   type CodeApproval,
+  type ViewState,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { attachClaude } from './claude/endpoint';
 import type { ClaudeSetup } from './claude-setup';
 import { answerClaudeSetup, claudeSetupAsked } from './claude-setup-answer';
-import { CLAUDE_MAX_PAYLOAD, CLAUDE_PATH, encodeClaudeMessage } from './claude/messages';
+import {
+  CLAUDE_MAX_PAYLOAD,
+  CLAUDE_PATH,
+  encodeClaudeMessage,
+  type AppOpening,
+} from './claude/messages';
+import { errorReason } from './errors';
 import { toForwardSlashes } from './paths';
 import { refuseUpgrade, sendText, setSecurityHeaders } from './responses';
 import {
   LaunchCodes,
+  challengeOf,
   checkClaudeRequest,
   checkLiveRequest,
   checkRequest,
   createToken,
+  sessionProof,
   type RequestHeaders,
 } from './security';
 import {
@@ -83,8 +93,16 @@ export interface ServerOptions {
   /** The address to listen on: 127.0.0.1 when absent; 0.0.0.0 only inside a container (ADR 0094). */
   listen?: ListenAddress;
   app: AppSource;
-  /** Opens the browser at an address, for Claude's request to open the app; without it, it cannot. */
+  /**
+   * Opens the browser at an address, for Claude's request to open the app while no tab is connected;
+   * without it, or when it fails, Claude is answered the launch address instead (ADR 0099).
+   */
   openBrowser?: (url: string) => Promise<unknown>;
+  /**
+   * The session token, kept from an earlier run on the same folder and port (ADR 0099), so that a tab
+   * of that run reconnects; absent, a new one is made.
+   */
+  token?: string;
   /** Told when a launch address that was already used came again. */
   onLaunchReused?: () => void;
   /** Told how many apps and Claudes are connected, each time that changes. */
@@ -124,9 +142,10 @@ export interface RunningServer {
   address: string;
   port: number;
   /**
-   * The per-session token the live connection requires. It never leaves this process: it is never
-   * printed, never put in an address and never handed to another program. A page gets it only by
-   * redeeming a launch code.
+   * The per-session token the live connection requires. It is never printed, never put in an address
+   * and never handed to another program; only the kept session's private record holds it besides
+   * this process (ADR 0099). A page gets it only by redeeming a launch code, or kept from the run
+   * before.
    */
   token: string;
   /** Claude's credential for the Claude endpoint, which only the discovery file holds. */
@@ -158,7 +177,7 @@ interface App {
 
 /** Starts the local program and resolves once it listens. */
 export async function startServer(options: ServerOptions): Promise<RunningServer> {
-  const token = createToken();
+  const token = options.token ?? createToken();
   const credential = createToken();
   const launchCodes = new LaunchCodes();
   // The real port, known once the server listens; no request arrives before that.
@@ -214,26 +233,48 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     });
   });
 
+  /**
+   * Opens the app for Claude, or for `visual-anything open` (ADR 0099): while a tab is connected, and
+   * no new tab is asked for, that tab comes forward rather than another opening; otherwise the browser
+   * opens a launch address, and when it cannot, the address is answered, so that Claude can give it to
+   * the person. The session token is never in it.
+   */
+  const openAppFor = async (
+    state: ViewState | undefined,
+    how: { newTab?: boolean } = {},
+  ): Promise<AppOpening> => {
+    const tabs = [...live.clients].filter((each) => each.readyState === WebSocket.OPEN);
+    if (how.newTab !== true && tabs.length > 0) {
+      const shown = encodeServerMessage(
+        state === undefined ? { type: 'app/shown' } : { type: 'app/shown', state },
+      );
+      for (const tab of tabs) tab.send(shown);
+      return { how: 'tab', tabs: tabs.length };
+    }
+    const address = state === undefined ? launchUrl() : withViewState(launchUrl(), state);
+    if (options.openBrowser === undefined) {
+      return { how: 'address', address, why: 'This Visual Anything cannot open a browser.' };
+    }
+    try {
+      await options.openBrowser(address);
+      return { how: 'browser' };
+    } catch (error) {
+      return { how: 'address', address, why: `Could not open the browser: ${errorReason(error)}.` };
+    }
+  };
+
   const claude = new WebSocketServer({ noServer: true, maxPayload: CLAUDE_MAX_PAYLOAD });
   claude.on('connection', (socket: WebSocket) => {
     socket.on('error', () => socket.terminate());
     counted(socket);
-    const { openBrowser } = options;
     const connection = attachClaude(
       options.session,
       (message) => {
         if (socket.readyState === WebSocket.OPEN) socket.send(encodeClaudeMessage(message));
       },
       {
-        ...(openBrowser === undefined
-          ? {}
-          : {
-              openApp: async (state) => {
-                await openBrowser(
-                  state === undefined ? launchUrl() : withViewState(launchUrl(), state),
-                );
-              },
-            }),
+        openApp: openAppFor,
+        launchAddress: launchUrl,
         ...(options.codeApprovals === undefined ? {} : { codeApprovals: options.codeApprovals }),
         ...(options.codeTurnedOff === undefined ? {} : { codeTurnedOff: options.codeTurnedOff }),
       },
@@ -251,6 +292,10 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     const check = checkRequest(headersOf(request), port);
     if (!check.ok) {
       sendText(response, check.status, check.message);
+      return;
+    }
+    if (pathOf(request.url ?? '') === SESSION_PROOF_PATH) {
+      answerSessionProof(request, response, token);
       return;
     }
     applyContentPolicies(response, {
@@ -428,6 +473,34 @@ async function openBuiltApp(files: AppFiles, missing: string): Promise<App> {
     pagePolicyAt: (port) => pagePolicy(port, { trustedTypes: true, scriptHashes }),
     close: async () => {},
   };
+}
+
+/**
+ * Answers a tab that asks this program to prove it holds the tab's session token before the tab
+ * sends it (ADR 0099), with `{ "proof": … }`, never cached; a request without a challenge of the
+ * form a tab makes is refused.
+ */
+function answerSessionProof(
+  request: IncomingMessage,
+  response: ServerResponse,
+  token: string,
+): void {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    sendText(response, 405, 'The session proof is read with GET.', { Allow: 'GET, HEAD' });
+    return;
+  }
+  const challenge = challengeOf(request.url ?? '');
+  if (challenge === undefined) {
+    sendText(response, 400, 'The session proof needs one challenge: 32 to 128 hex digits.');
+    return;
+  }
+  const body = Buffer.from(JSON.stringify({ proof: sessionProof(token, challenge) }), 'utf8');
+  response.writeHead(200, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': body.length,
+    'Cache-Control': 'no-store',
+  });
+  response.end(request.method === 'HEAD' ? undefined : body);
 }
 
 /** Answers a request that failed unexpectedly, and reports the error. */

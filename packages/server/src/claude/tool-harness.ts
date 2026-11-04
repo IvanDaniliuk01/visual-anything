@@ -65,6 +65,8 @@ export async function startToolHarness(
     codeTurnedOff?: () => readonly string[];
     /** The person's preferences (ADR-0032), such as whether they review Claude's changes. */
     preferences?: PreferencesStore;
+    /** Whether opening the browser fails, as inside a container without xdg-open (ADR 0099). */
+    browserFails?: boolean;
   } = {},
 ): Promise<ToolHarness> {
   const profile = await realpath(await mkdtemp(join(tmpdir(), 'va-tools-')));
@@ -87,6 +89,11 @@ export async function startToolHarness(
     port: 0,
     app: { mode: 'static', dir: appDir },
     openBrowser: (url) => {
+      if (options.browserFails === true) {
+        return Promise.reject(
+          new Error('xdg-open, which opens the browser on Linux, is not installed'),
+        );
+      }
       opened.push(url);
       return Promise.resolve();
     },
