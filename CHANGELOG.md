@@ -9,6 +9,10 @@
 - **GIFs play** while they are on screen, and show their first frame under reduced motion until you point at them.
 - **Exports carry them:** SVG, PDF and PNG show a GIF at its first frame, and the read-only page plays it. Claude adds pictures with `add_picture`.
 
+### Tours
+
+- **A step can mark what it explains in its own style** instead of with a halo on top (#9). A marked line gets twice as wide, in the highlight color, with a larger arrowhead and its dash kept, and its dash flows from its start to its end so its direction reads at a glance; its name is bold on a solid back. A marked shape gets a stronger border in its own color and a soft shadow, and breathes once as it arrives, keeping its fill and face in sight. Choose it for a whole tour or for one step; tours that don't choose keep their halos (ADR 0100).
+
 ### Restarts and new addresses
 
 - **A tab rejoins by itself after the program restarts** on the same folder and port, without a new address, and says so. The session is kept in a record only your account can read, for a day without running at most (ADR 0099).
@@ -26,7 +30,7 @@
 
 ### Worth knowing
 
-- Views that hold pictures open only in 0.1.2 and later. The live connection's version goes from 9 to 10.
+- Views that hold pictures, and tours that choose an emphasis, open only in 0.1.2 and later. The live connection's version goes from 9 to 10.
 
 ## 0.1.1
 
