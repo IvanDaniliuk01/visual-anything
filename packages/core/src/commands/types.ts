@@ -48,6 +48,7 @@ import type {
   Step,
   TourStep,
   TextStyle,
+  Picture,
 } from '@visual-anything/schema';
 
 /** Changes to external identifiers by scheme: a text sets one, `null` takes it out (ADR 0056). */
@@ -646,7 +647,9 @@ export interface RemovePositionsCommand {
 }
 
 /** A new free shape. Its id is generated unless given. */
-export type NewFreeShape = (Omit<Note, 'id'> | Omit<Arrow, 'id'>) & { id?: Id };
+export type NewFreeShape = (Omit<Note, 'id'> | Omit<Arrow, 'id'> | Omit<Picture, 'id'>) & {
+  id?: Id;
+};
 
 /** Adds a free shape to a view. */
 export interface CreateFreeShapeCommand {

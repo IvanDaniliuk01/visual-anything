@@ -408,6 +408,73 @@ describe('mergeFile', () => {
   });
 });
 
+describe('pictures (ADR 0098)', () => {
+  const media = {
+    hash: 'cd'.repeat(32),
+    format: 'gif' as const,
+    width: 64,
+    height: 48,
+    bytes: 900,
+  };
+  const picture = {
+    kind: 'picture' as const,
+    id: 'desk',
+    x: 0,
+    y: 0,
+    width: 64,
+    height: 48,
+    media,
+  };
+
+  it('merges a picture by id: one side moves it, the other names it', () => {
+    const base = done(testProject(), {
+      type: 'create-free-shape',
+      view: 'overview',
+      shape: picture,
+    });
+    const mine = done(base, {
+      type: 'update-free-shape',
+      view: 'overview',
+      shape: { ...picture, x: 200 },
+    });
+    const yours = done(base, {
+      type: 'update-free-shape',
+      view: 'overview',
+      shape: { ...picture, name: 'The front desk' },
+    });
+    const merged = mergeFile('view', base.views[0], mine.views[0]!, yours.views[0]!);
+    expect(merged.conflicts).toEqual([]);
+    expect(merged.file.freeShapes.find((shape) => shape.id === 'desk')).toEqual({
+      ...picture,
+      x: 200,
+      name: 'The front desk',
+    });
+    expect(validateFile('view', merged.file).ok).toBe(true);
+  });
+
+  it('keeps a conflict when both sides give it another file', () => {
+    const base = done(testProject(), {
+      type: 'create-free-shape',
+      view: 'overview',
+      shape: picture,
+    });
+    const other = (hash: string) =>
+      done(base, {
+        type: 'update-free-shape',
+        view: 'overview',
+        shape: { ...picture, media: { ...media, hash } },
+      });
+    const merged = mergeFile(
+      'view',
+      base.views[0],
+      other('e'.repeat(64)).views[0]!,
+      other('f'.repeat(64)).views[0]!,
+    );
+    expect(merged.conflicts).toHaveLength(1);
+    expect(validateFile('view', merged.file).ok).toBe(true);
+  });
+});
+
 describe('resolve-conflicts', () => {
   function conflicted(): ProjectSnapshot {
     const base = testProject();
