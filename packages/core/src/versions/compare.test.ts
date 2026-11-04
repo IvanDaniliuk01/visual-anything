@@ -25,6 +25,35 @@ const summary = (comparison: Comparison) =>
   comparison.changes.map((change) => `${change.status} ${itemKey(change.ref)}`);
 
 describe('compareProjects', () => {
+  it('compares pictures by id, as notes: added, moved and changed (ADR 0098)', () => {
+    const media = { hash: 'ab'.repeat(32), format: 'png' as const, width: 8, height: 8, bytes: 70 };
+    const picture = {
+      kind: 'picture' as const,
+      id: 'desk',
+      x: 0,
+      y: 0,
+      width: 8,
+      height: 8,
+      media,
+    };
+    const older = testProject();
+    const added = done(older, { type: 'create-free-shape', view: 'overview', shape: picture });
+    expect(summary(compareProjects(older, added))).toEqual(['added free-shape:overview:desk']);
+    const moved = done(added, {
+      type: 'update-free-shape',
+      view: 'overview',
+      shape: { ...picture, x: 40, name: 'Desk' },
+    });
+    const comparison = compareProjects(added, moved);
+    expect(summary(comparison)).toEqual([
+      'changed free-shape:overview:desk',
+      'moved free-shape:overview:desk',
+    ]);
+    expect(comparison.changes[0]?.differences).toEqual([
+      { path: 'name', before: undefined, after: 'Desk' },
+    ]);
+  });
+
   it('finds nothing between a version and itself', () => {
     const project = testProject();
     expect(compareProjects(project, project)).toEqual({

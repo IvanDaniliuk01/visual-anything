@@ -33,6 +33,8 @@ import {
   type SolidImportOptions,
   type SolidPreparedMessage,
   type SolidRefusedMessage,
+  type MediaRefusedMessage,
+  type MediaStoredMessage,
   type VersionRef,
   type ViewState,
 } from '@visual-anything/core';
@@ -151,6 +153,12 @@ export interface Program {
     path: string,
     options?: SolidImportOptions,
   ): Promise<SolidPreparedMessage | SolidRefusedMessage>;
+  /**
+   * Has the program keep an image file inside the project folder as a media file, by its path from
+   * the folder (ADR 0098): it reads the file itself, cleans it and writes it to `media/`, changing no
+   * project file. Absent where it cannot.
+   */
+  keepPictureFile?(path: string): Promise<MediaStoredMessage | MediaRefusedMessage>;
   /**
    * Lays a view out in the open app, after the layouts asked for before it, and resolves once it is
    * done, with what it moved, or why it was not (M3d). Absent where it cannot wait: `guide` sends it.
@@ -426,6 +434,28 @@ export class ProgramBridge implements Program {
     if (answer.type === 'command/rejected') {
       return {
         type: 'solid/refused',
+        requestId: answer.requestId,
+        code: answer.problems[0]?.code ?? 'program-failed',
+        message: answer.problems.map((each) => each.message).join(' '),
+      };
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  /**
+   * Asks the program to keep an image file inside the project folder as a media file (ADR 0098),
+   * named by its path from the folder: the program reads it itself, cleans it in its worker and
+   * writes it to `media/`.
+   */
+  async keepPictureFile(path: string): Promise<MediaStoredMessage | MediaRefusedMessage> {
+    const answer = await this.#request(
+      (requestId) => ({ type: 'media/keep-file', requestId, path }),
+      SOLID_WORKER_WAIT + (this.#options.requestTimeout ?? REQUEST_TIMEOUT),
+    );
+    if (answer.type === 'media/stored' || answer.type === 'media/refused') return answer;
+    if (answer.type === 'command/rejected') {
+      return {
+        type: 'media/refused',
         requestId: answer.requestId,
         code: answer.problems[0]?.code ?? 'program-failed',
         message: answer.problems.map((each) => each.message).join(' '),

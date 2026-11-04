@@ -62,6 +62,7 @@ import {
 import { IMAGE_TOOLS } from './image-tools';
 import { PART_TOOLS } from './part-tools';
 import { SOLID_TOOLS } from './solid-tools';
+import { PICTURE_TOOLS } from './picture-tools';
 import { SIMULATION_TOOLS } from './simulation-tools';
 import { SPACE_TOOLS } from './space-tools';
 import { KINEMATICS_TOOLS } from './kinematics-tools';
@@ -324,7 +325,7 @@ Example: { "id": "booking-agent" }`,
 const readViewTool = tool({
   name: 'read_view',
   title: 'Read a view',
-  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes and arrows), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), and routedByHand naming those relations, its routeStyle when it draws its automatic routes straight or curved, rows "keys" when its tables draw only their key rows, selectionFadesLines false when selecting leaves every line as it is, and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout. It also says how many elements and relations the view shows out of the model's (shows), and its scope when it has one: get_scope says more.
+  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes, arrows and pictures; a picture's media names its file media/<hash>.<extension>, its format and its own size in pixels, and pictures lists each one's name and size), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), and routedByHand naming those relations, its routeStyle when it draws its automatic routes straight or curved, rows "keys" when its tables draw only their key rows, selectionFadesLines false when selecting leaves every line as it is, and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout. It also says how many elements and relations the view shows out of the model's (shows), and its scope when it has one: get_scope says more.
 
 Example: { "view": "system-overview" }`,
   input: { view: id() },
@@ -1507,11 +1508,12 @@ Example: { "view": "system-overview", "shape": { "kind": "arrow", "from": { "x":
 
 const updateFreeShape = tool({
   name: 'update_free_shape',
-  title: 'Change a note or an arrow',
-  description: `Changes a free shape of a view, as one undoable action; read_view gives its id. Give its id and what changes: what you leave out stays as it is, its colors included. fill (for a note) and stroke take a color as #RRGGBB, and null to take the shape's own color out, so that it takes the theme's again. Giving another kind replaces the shape whole: then give all of it.
+  title: 'Change a note, an arrow or a picture',
+  description: `Changes a free shape of a view, as one undoable action; read_view gives its id. Give its id and what changes: what you leave out stays as it is, its colors included. fill (for a note) and stroke take a color as #RRGGBB, and null to take the shape's own color out, so that it takes the theme's again. A picture takes x, y, width and height (keep its proportions unless asked otherwise) and name, null to take its name out; it has no colors, and its file stays. Giving another kind replaces the shape whole: then give all of it.
 
 Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "text": "Reminders go out at 9:00." } }
-Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "fill": "#FEF3C7", "stroke": null } }`,
+Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "fill": "#FEF3C7", "stroke": null } }
+Example: { "view": "system-overview", "shape": { "id": "picture-k3f9q2", "name": "The front desk", "width": 240, "height": 180 } }`,
   input: {
     view: id(),
     shape: z.object({
@@ -1526,6 +1528,13 @@ Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "fill": "#
       to: point().optional(),
       fill: noteFill().nullable().optional(),
       stroke: freeStroke().nullable().optional(),
+      name: z
+        .string()
+        .min(1)
+        .max(200)
+        .nullable()
+        .optional()
+        .describe('A picture’s name: what it shows. null takes it out.'),
     }),
     escapeText: escapeTextInput(),
   },
@@ -1541,7 +1550,7 @@ Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "fill": "#
         `The view "${view.name}" has no free shape "${args.shape.id}". read_view lists them.`,
       );
     }
-    const { fill, stroke, kind, ...given } = args.shape;
+    const { fill, stroke, kind, name, ...given } = args.shape;
     // Only the text given is escaped: the stored text, kept when none is given, is as it was.
     given.text = escapedIf(args.escapeText, given.text);
     // The same kind keeps what is not given, its colors included; another kind is the shape given.
@@ -1552,6 +1561,7 @@ Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "fill": "#
     for (const [trait, value] of [
       ['fill', fill],
       ['stroke', stroke],
+      ['name', name],
     ] as const) {
       if (value === null) delete kept[trait];
       else if (value !== undefined) kept[trait] = value;
@@ -1571,8 +1581,8 @@ Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "fill": "#
 
 const deleteFreeShapes = tool({
   name: 'delete_free_shapes',
-  title: 'Delete notes and arrows',
-  description: `Deletes free shapes from a view, as one undoable action.
+  title: 'Delete notes, arrows and pictures',
+  description: `Deletes free shapes from a view, as one undoable action. Deleting a picture keeps its file in media/; the person removes files no picture names from the view's inspector.
 
 Example: { "view": "system-overview", "ids": ["note-k3f9q2"] }`,
   input: { view: id(), ids: z.array(id()).min(1) },
@@ -1827,6 +1837,7 @@ export const TOOLS: readonly Tool[] = [
   ...PART_TOOLS,
   // Solids: glTF files cleaned beside the project, drawn inside shapes (ADR 0075).
   ...SOLID_TOOLS,
+  ...PICTURE_TOOLS,
   // Physical space: poses, and the panel beside the canvas (ADR 0076).
   ...SPACE_TOOLS,
   // Joints and what they carry (ADR 0090).

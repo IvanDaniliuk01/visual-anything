@@ -20,10 +20,10 @@ import {
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { readableTextColors } from '../canvas/colors';
-import { buildScene, type ElementShape, type RelationLine } from '../canvas/scene';
+import { buildScene, picturesOf, type ElementShape, type RelationLine } from '../canvas/scene';
 import { lineStroke, shapeColors } from '../canvas/theme/paint';
 import { t, type PluralText } from '../i18n';
-import { lostBeyondBoxes } from './beyond-lost';
+import { lostBeyondBoxes, lostPictures } from './beyond-lost';
 import { plainTexts } from './plain-texts';
 import type { TextExport } from './outline';
 
@@ -240,6 +240,7 @@ export function writeMermaid(
     // Free geometry, named parts and the styles of routes (M8b).
     ...lostBeyondBoxes(first.values(), drawnLines, 'Mermaid'),
     ...(free > 0 ? [t(FREE, { count: free })] : []),
+    ...lostPictures(picturesOf(scene).length),
     ...texts.lost(),
     // Mermaid draws no legend, though its colors are the overlays' (ADR 0055).
     ...(legendShows(legendOf(view, definitions, theme))

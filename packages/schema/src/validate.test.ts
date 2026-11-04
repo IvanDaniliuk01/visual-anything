@@ -812,6 +812,32 @@ describe('validateFile', () => {
       expect(validateFile('view', colored)).toEqual({ ok: true, value: colored });
     });
 
+    const picture = {
+      kind: 'picture',
+      id: 'front-desk',
+      x: 0,
+      y: 0,
+      width: 320,
+      height: 240,
+      media: { hash: 'a'.repeat(64), format: 'jpeg', width: 1600, height: 1200, bytes: 412000 },
+      name: 'The front desk',
+    };
+
+    it('accepts a picture (ADR 0098)', () => {
+      const pictured = { ...view, freeShapes: [note, picture] };
+      expect(validateFile('view', pictured)).toEqual({ ok: true, value: pictured });
+    });
+
+    it.each([
+      ['a hash that is not lowercase hex', { ...picture.media, hash: 'A'.repeat(64) }, '/hash'],
+      ['an unknown format', { ...picture.media, format: 'bmp' }, '/format'],
+      ['a side past 8192 pixels', { ...picture.media, width: 8193 }, '/width'],
+      ['a file past 32 MiB', { ...picture.media, bytes: 33554433 }, '/bytes'],
+    ])('rejects a picture whose media has %s', (_, media, path) => {
+      const problems = problemsIn('view', { ...view, freeShapes: [{ ...picture, media }] });
+      expect(problems.map((problem) => problem.path)).toEqual([`/freeShapes/0/media${path}`]);
+    });
+
     it('accepts the containers it keeps collapsed', () => {
       const collapsed = { ...view, collapsed: ['clinic-booking', 'scheduling'] };
       expect(validateFile('view', collapsed)).toEqual({ ok: true, value: collapsed });
@@ -841,7 +867,7 @@ describe('validateFile', () => {
       [
         'a free shape with an unknown kind',
         { ...view, freeShapes: [{ ...note, kind: 'circle' }] },
-        [{ path: '/freeShapes/0/kind', message: 'must be one of "note", "arrow"' }],
+        [{ path: '/freeShapes/0/kind', message: 'must be one of "note", "arrow", "picture"' }],
       ],
       [
         'a free shape without a kind',

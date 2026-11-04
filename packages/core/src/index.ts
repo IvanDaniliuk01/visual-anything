@@ -217,6 +217,8 @@ export { checkProject } from './check';
 export * from './images';
 // Solids (ADR 0075): the canonical form's reader, the camera's maths and the catalog.
 export * from './solids';
+// Media files (ADR 0098): what pictures show, their readers and messages.
+export * from './media';
 // Physical space (ADR 0076): poses and what is in physical space under a root.
 export * from './space';
 export * from './import';

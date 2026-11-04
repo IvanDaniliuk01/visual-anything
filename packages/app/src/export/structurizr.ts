@@ -29,10 +29,10 @@ import {
 } from '@visual-anything/core';
 import type { Element, Id } from '@visual-anything/schema';
 import { readableTextColors } from '../canvas/colors';
-import { buildScene, type ElementShape, type RelationLine } from '../canvas/scene';
+import { buildScene, picturesOf, type ElementShape, type RelationLine } from '../canvas/scene';
 import { shapeColors } from '../canvas/theme/paint';
 import { t, type PluralText } from '../i18n';
-import { lostBeyondBoxes } from './beyond-lost';
+import { lostBeyondBoxes, lostPictures } from './beyond-lost';
 import { plainTexts } from './plain-texts';
 import type { TextExport } from './outline';
 
@@ -358,6 +358,7 @@ export function writeStructurizr(
     ...(leftOutRelations > 0 ? [t(LEFT_OUT_RELATIONS, { count: leftOutRelations })] : []),
     ...(free > 0 ? [t(FREE, { count: free })] : []),
     ...(pictures > 0 ? [t('Pictures are left out.')] : []),
+    ...lostPictures(picturesOf(scene).length),
     // Free geometry, named parts and the styles of routes (M8b).
     ...lostBeyondBoxes(
       [...written.values()].map((entry) => entry.shape),

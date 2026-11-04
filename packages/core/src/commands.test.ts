@@ -673,6 +673,69 @@ describe('views', () => {
   });
 });
 
+describe('pictures (ADR 0098)', () => {
+  const media = {
+    hash: 'ab'.repeat(32),
+    format: 'png' as const,
+    width: 800,
+    height: 600,
+    bytes: 120_000,
+  };
+  const picture = { kind: 'picture' as const, x: 10, y: 20, width: 400, height: 300, media };
+
+  it('adds a picture with a generated id, names it, and deletes it', () => {
+    const added = ok({ type: 'create-free-shape', view: 'overview', shape: picture });
+    expect(added.created).toEqual(['picture-1']);
+    expect(added.label).toBe('Add a picture to "Overview"');
+    expect(added.state.views[0]?.freeShapes.at(-1)).toEqual({ ...picture, id: 'picture-1' });
+    const named = ok(
+      {
+        type: 'update-free-shape',
+        view: 'overview',
+        shape: { ...picture, id: 'picture-1', name: 'The front desk' },
+      },
+      added.state,
+    );
+    expect(named.label).toBe('Edit a picture in "Overview"');
+    const deleted = ok(
+      { type: 'delete-free-shapes', view: 'overview', ids: ['picture-1'] },
+      named.state,
+    );
+    expect(deleted.state.views[0]?.freeShapes.map((shape) => shape.id)).toEqual(['note']);
+  });
+
+  it('keeps only what a picture holds, and drops a name left empty', () => {
+    const added = ok({
+      type: 'create-free-shape',
+      view: 'overview',
+      shape: { ...picture, name: '', text: 'stray' } as never,
+    });
+    expect(added.state.views[0]?.freeShapes.at(-1)).toEqual({ ...picture, id: 'picture-1' });
+  });
+
+  it.each([
+    ['a hash that is not lowercase hex', { media: { ...media, hash: 'AB'.repeat(32) } }],
+    ['a short hash', { media: { ...media, hash: 'ab' } }],
+    ['an unknown format', { media: { ...media, format: 'bmp' } }],
+    ['a side of no pixels', { media: { ...media, width: 0 } }],
+    ['a side past 8,192 pixels', { media: { ...media, height: 8193 } }],
+    ['a fractional size', { media: { ...media, width: 1.5 } }],
+    ['a file past 32 MiB', { media: { ...media, bytes: 33_554_433 } }],
+    ['no media', { media: undefined }],
+    ['a name past 200 characters', { name: 'x'.repeat(201) }],
+    ['a width of zero', { width: 0 }],
+    ['a fill', { fill: '#ffffff' }],
+  ])('refuses a picture with %s', (_, change) => {
+    expect(
+      rejected({
+        type: 'create-free-shape',
+        view: 'overview',
+        shape: { ...picture, ...change } as never,
+      }),
+    ).toEqual([!('fill' in change) ? 'invalid-command' : 'invalid-appearance']);
+  });
+});
+
 describe('scenarios', () => {
   it('creates a scenario whose steps use relations of the model', () => {
     const outcome = ok({

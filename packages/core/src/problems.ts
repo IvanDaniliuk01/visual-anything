@@ -79,6 +79,10 @@ export type ProblemCode =
   | 'solid-file-missing'
   | 'solid-not-clean'
   | 'unknown-solid'
+  // Media files (ADR 0098): a picture's file that is missing, or whose bytes no longer pass their
+  // reader or are not its name's. A file that cannot be kept is refused as an image is.
+  | 'media-file-missing'
+  | 'media-not-clean'
   // Poses (ADR 0076): one a command refuses, and, only as a warning on open, one whose `in` is not
   // one of its element's containers, kept and not used.
   | 'invalid-pose'

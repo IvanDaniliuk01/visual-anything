@@ -19,7 +19,7 @@ import { t, type PluralText, type Translator } from '../i18n';
 import type { IndexedScene } from './hit';
 import { faceDetail } from './faces';
 import { drawnRelations } from './navigation';
-import type { ElementShape } from './scene';
+import { picturesOf, type ElementShape } from './scene';
 import { isAnchoredSolidPart } from './solidMark';
 import { detailPlainText } from '../text/detail';
 
@@ -216,6 +216,13 @@ export function describeSelection(
     const [relation] = relations;
     if (relation !== undefined) return describeRelation(project, relation);
     const [free] = freeShapes;
+    const picture = picturesOf(indexed.scene).find((each) => each.id === free);
+    // A picture is said by its name (ADR 0098).
+    if (picture) {
+      return picture.named
+        ? asSentence(t('Picture: {name}', { name: picture.name }))
+        : t('Picture.');
+    }
     const note = indexed.scene.notes.find((each) => each.id === free);
     // A note's text takes text emphasis (ADR 0082): it is said without its markers.
     return note ? asSentence(t('Note: {text}', { text: plainText(note.text) })) : t('Arrow.');

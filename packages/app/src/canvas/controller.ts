@@ -96,7 +96,7 @@ import { RouteEditor } from './routing/editor';
 import { sameSlot } from './rowDrop';
 import { rowMoveFor, rowTargetFor } from './rowKeys';
 import { headerMiddle } from './rows';
-import { relationLinesOf, type ElementShape, type NoteShape } from './scene';
+import { picturesOf, relationLinesOf, type ElementShape, type NoteShape } from './scene';
 import { onLeavingMark } from './leavingMark';
 import { destinationTitle, onDestinationMark } from './destinationMark';
 import { leavingTitle } from './scope';
@@ -114,6 +114,7 @@ import type { AlignHow } from './align';
 import { ALIGN_BY_KEY, alignCommand } from './alignActions';
 import { ShapeEditor, guidesOff, type MoveGuide } from './shapeEditor';
 import type { SolidClient } from '../solids/client';
+import type { MediaFiles } from './pictures/media';
 import { isAnchoredSolidPart } from './solidMark';
 import { SolidTurner } from './solids/turner';
 import { t } from '../i18n';
@@ -204,6 +205,8 @@ export interface ControllerOptions {
   firstFit?: 'readable' | 'whole';
   /** Draws solids' pictures, and turns them, through this client (ADR 0075). */
   solids?: SolidClient;
+  /** Where pictures' media files come from (ADR 0098). */
+  media?: MediaFiles;
   /** Whether the person asks for reduced motion, under which no solid's animation is offered. */
   reducedMotion?: () => boolean;
   /** How pictures are decoded and made textures; the browser's by default, as tests replace it. */
@@ -430,6 +433,8 @@ export class CanvasController {
         ...(options.theme ? { theme: options.theme } : {}),
         ...(options.firstFit ? { firstFit: options.firstFit } : {}),
         ...(options.solids ? { solids: options.solids } : {}),
+        ...(options.media ? { media: options.media } : {}),
+        ...(options.reducedMotion ? { reducedMotion: options.reducedMotion } : {}),
         ...(options.images ? { images: options.images } : {}),
         ...(options.text ? { text: options.text } : {}),
       },
@@ -702,6 +707,17 @@ export class CanvasController {
     }
     const line = this.project && drawnRelations(indexed.scene, this.project).line(key);
     if (line) this.revealRect(rectAround(line.route));
+  }
+
+  /** Where a point of the page, as a drop gives it, is in the scene. */
+  worldAtClient(clientX: number, clientY: number): Point {
+    const rect = this.host.getBoundingClientRect();
+    return screenToWorld(this.camera, { x: clientX - rect.left, y: clientY - rect.top });
+  }
+
+  /** Where pictures' media files come from from now on (ADR 0098). */
+  setMedia(files: MediaFiles | undefined): void {
+    this.renderer.setMedia(files);
   }
 
   /** Where the middle of the canvas is in the scene, for creating things there. */
@@ -991,7 +1007,8 @@ export class CanvasController {
           hit &&
           !(hit.kind === 'shape' && hit.shape.element === gesture.from.element) &&
           hit.kind !== 'note' &&
-          hit.kind !== 'arrow'
+          hit.kind !== 'arrow' &&
+          hit.kind !== 'picture'
             ? hit
             : undefined;
         this.gesture = target ? { ...gesture, target } : { ...gesture, target: undefined };
@@ -1028,6 +1045,8 @@ export class CanvasController {
           this.hovered = shape;
           this.refreshMarks();
         }
+        // Under reduced motion, a GIF plays while the pointer is on it (ADR 0098).
+        this.renderer.hoverPicture(hit?.kind === 'picture' ? hit.picture.id : undefined);
         // The line under the pointer takes its type's color, and with `fadeOthers` the rest fade
         // (ADR 0086).
         this.renderer.setHoveredLine(
@@ -1111,10 +1130,15 @@ export class CanvasController {
           if (!gesture.additive) this.select(EMPTY_SELECTION);
           return;
         }
-        const { shapes, notes, arrows } = enclosedBy(indexed, box, this.renderer.hiddenByEmphasis);
+        const { shapes, notes, arrows, pictures } = enclosedBy(
+          indexed,
+          box,
+          this.renderer.hiddenByEmphasis,
+        );
         const found = selectionOf([
           ...shapes.map((shape): Selectable => ({ kind: 'element', id: shape.element })),
           ...notes.map((note): Selectable => ({ kind: 'free-shape', id: note.id })),
+          ...pictures.map((picture): Selectable => ({ kind: 'free-shape', id: picture.id })),
           ...arrows.map((arrow): Selectable => ({ kind: 'free-shape', id: arrow.id })),
         ]);
         this.select(gesture.additive ? union(this.selection, found) : found);
@@ -1730,6 +1754,9 @@ export class CanvasController {
         ...scene.arrows
           .filter((arrow) => !hidden.has(arrow.id))
           .map((arrow): Selectable => ({ kind: 'free-shape', id: arrow.id })),
+        ...picturesOf(scene)
+          .filter((picture) => !hidden.has(picture.id))
+          .map((picture): Selectable => ({ kind: 'free-shape', id: picture.id })),
       ]),
     );
   }
@@ -1859,7 +1886,12 @@ export class CanvasController {
       this.choose(selectionOf([{ kind: 'element', id: reached.shape.element }]));
       this.callbacks.hoverShape?.(reached.shape.key, 'keyboard');
     } else {
-      const id = reached.kind === 'note' ? reached.note.id : reached.arrow.id;
+      const id =
+        reached.kind === 'note'
+          ? reached.note.id
+          : reached.kind === 'picture'
+            ? reached.picture.id
+            : reached.arrow.id;
       this.current = id;
       this.callbacks.hoverShape?.(undefined, 'keyboard');
       this.choose(selectionOf([{ kind: 'free-shape', id }]));
@@ -1910,6 +1942,8 @@ export class CanvasController {
     const scene = this.indexed?.scene;
     const note = scene?.notes.find((each) => each.id === id);
     if (note) return { kind: 'note', note };
+    const picture = scene && picturesOf(scene).find((each) => each.id === id);
+    if (picture) return { kind: 'picture', picture };
     const arrow = scene?.arrows.find((each) => each.id === id);
     return arrow && { kind: 'arrow', arrow };
   }
@@ -2351,6 +2385,8 @@ function keyOf(hit: Exclude<Hit, { kind: 'relation' }>): string {
       return hit.note.id;
     case 'arrow':
       return hit.arrow.id;
+    case 'picture':
+      return hit.picture.id;
   }
 }
 
@@ -2364,6 +2400,9 @@ function landingOf(indexed: IndexedScene, selection: Selection, delta: Point): R
   const rects = [
     ...movingShapes(indexed, selection).map((shape) => shape.rect),
     ...notes.filter((note) => free.has(note.id)).map((note) => note.rect),
+    ...picturesOf(indexed.scene)
+      .filter((picture) => free.has(picture.id))
+      .map((picture) => picture.rect),
     ...arrows
       .filter((arrow) => free.has(arrow.id))
       .map((arrow) => rectAround([arrow.from, arrow.to])),
@@ -2456,6 +2495,8 @@ function selectablesOf(hit: Hit): Selectable[] {
       return [{ kind: 'free-shape', id: hit.note.id }];
     case 'arrow':
       return [{ kind: 'free-shape', id: hit.arrow.id }];
+    case 'picture':
+      return [{ kind: 'free-shape', id: hit.picture.id }];
   }
 }
 

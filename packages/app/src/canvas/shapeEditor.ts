@@ -47,7 +47,7 @@ import {
   type SizeTaken,
 } from './resize';
 import { viewIn } from './routing/commands';
-import type { ElementShape, NoteShape } from './scene';
+import { picturesOf, type ElementShape, type NoteShape, type PictureShape } from './scene';
 import { HANDLE_SIZE, type ShapeEditOverlay } from './shapeEditMarks';
 import { carrierOf } from './snapping';
 import { rectAround } from './spatial';
@@ -106,10 +106,11 @@ export function guidesOff(modifiers: Pick<Modifiers, 'ctrlKey' | 'metaKey'>): bo
   return IS_APPLE ? modifiers.metaKey : modifiers.ctrlKey;
 }
 
-/** What can be resized: an element's shape, or a note. */
+/** What can be resized: an element's shape, a note, or a picture (ADR 0098). */
 type Target =
   | { kind: 'shape'; shape: ElementShape; rect: Rect; taken: SizeTaken; key: string }
-  | { kind: 'note'; note: NoteShape; rect: Rect; taken: 'both'; key: string };
+  | { kind: 'note'; note: NoteShape; rect: Rect; taken: 'both'; key: string }
+  | { kind: 'picture'; picture: PictureShape; rect: Rect; taken: 'both'; key: string };
 
 interface ResizeDrag {
   target: Target;
@@ -178,6 +179,11 @@ export class ShapeEditor {
     }
     if (selection.freeShapes.size === 1 && selection.elements.size === 0) {
       const [id] = selection.freeShapes;
+      const picture = picturesOf(indexed.scene).find((each) => each.id === id);
+      if (picture) {
+        if (hidden.has(picture.id)) return undefined;
+        return { kind: 'picture', picture, rect: picture.rect, taken: 'both', key: picture.id };
+      }
       const note = indexed.scene.notes.find((each) => each.id === id);
       if (!note || hidden.has(note.id)) return undefined;
       return { kind: 'note', note, rect: note.rect, taken: 'both', key: note.id };
@@ -339,7 +345,9 @@ export class ShapeEditor {
     const { target, handle, modifiers } = drag;
     const scale = this.host.camera().scale;
     const delta = { x: drag.world.x - drag.start.x, y: drag.world.y - drag.start.y };
-    const keeps = target.kind === 'shape' && keepsProportions(target.shape);
+    // A picture keeps its proportions, and Shift frees them (ADR 0098).
+    const keeps =
+      target.kind === 'picture' || (target.kind === 'shape' && keepsProportions(target.shape));
     const proportional = target.taken === 'width' ? false : keeps !== modifiers.shiftKey;
     const fromMiddle = modifiers.altKey;
     const guided = !guidesOff(modifiers);
@@ -384,7 +392,11 @@ export class ShapeEditor {
       target.kind === 'shape'
         ? resizeCommand(state.indexed, state.project, state.viewId, target.shape, result)
         : view
-          ? resizeNoteCommand(view, target.note.id, result)
+          ? resizeNoteCommand(
+              view,
+              target.kind === 'note' ? target.note.id : target.picture.id,
+              result,
+            )
           : undefined;
     if (!command) {
       this.refresh();
@@ -443,6 +455,9 @@ export class ShapeEditor {
     if (frame === undefined) {
       const { notes, arrows } = indexed.scene;
       for (const note of notes) if (selection.freeShapes.has(note.id)) rects.push(note.rect);
+      for (const picture of picturesOf(indexed.scene)) {
+        if (selection.freeShapes.has(picture.id)) rects.push(picture.rect);
+      }
       for (const arrow of arrows) {
         if (selection.freeShapes.has(arrow.id)) rects.push(rectAround([arrow.from, arrow.to]));
       }

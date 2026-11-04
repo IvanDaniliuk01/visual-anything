@@ -11,8 +11,16 @@ import { modelIndexOf, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id, ModelFile, Relation } from '@visual-anything/schema';
 import { boundsOf, centerOf, distance, type Point, type Rect } from './geometry';
 import type { IndexedScene } from './hit';
-import type { ArrowShape, ElementShape, NoteShape, RelationLine, Scene } from './scene';
-import { rectAround } from './spatial';
+import {
+  picturesOf,
+  type ArrowShape,
+  type ElementShape,
+  type NoteShape,
+  type PictureShape,
+  type RelationLine,
+  type Scene,
+} from './scene';
+import { overlaps as overlapsRect, rectAround } from './spatial';
 
 export type Direction = 'left' | 'right' | 'up' | 'down';
 
@@ -20,7 +28,8 @@ export type Direction = 'left' | 'right' | 'up' | 'down';
 export type Reachable =
   | { kind: 'shape'; shape: ElementShape }
   | { kind: 'note'; note: NoteShape }
-  | { kind: 'arrow'; arrow: ArrowShape };
+  | { kind: 'arrow'; arrow: ArrowShape }
+  | { kind: 'picture'; picture: PictureShape };
 
 type ReachedShape = Extract<Reachable, { kind: 'shape' }>;
 
@@ -68,6 +77,8 @@ export function rectOf(reachable: Reachable): Rect {
       return reachable.note.rect;
     case 'arrow':
       return rectAround([reachable.arrow.from, reachable.arrow.to]);
+    case 'picture':
+      return reachable.picture.rect;
   }
 }
 
@@ -181,7 +192,11 @@ export function nearestTo(indexed: IndexedScene, point: Point): Reachable | unde
       for (const at of indexed.notes.query(rect)) {
         consider({ kind: 'note', note: indexed.scene.notes[at] as NoteShape }, above + at);
       }
-      const top = above + indexed.scene.notes.length;
+      const pictures = picturesOf(indexed.scene);
+      pictures.forEach((picture, at) => {
+        if (overlapsRect(picture.rect, rect)) consider({ kind: 'picture', picture }, above + at);
+      });
+      const top = above + pictures.length + indexed.scene.notes.length;
       for (const at of indexed.arrows.query(rect)) {
         consider({ kind: 'arrow', arrow: indexed.scene.arrows[at] as ArrowShape }, top + at);
       }
@@ -547,11 +562,14 @@ function freeShapesIn(indexed: IndexedScene, rect: Rect): Reachable[] {
     ...indexed.arrows
       .query(rect)
       .map((at): Reachable => ({ kind: 'arrow', arrow: arrows[at] as ArrowShape })),
+    ...picturesOf(scene)
+      .filter((picture) => overlapsRect(picture.rect, rect))
+      .map((picture): Reachable => ({ kind: 'picture', picture })),
   ].filter((reachable) => !isHidden(scene, reachableKey(reachable)));
 }
 
 /** The key the canvas knows a reachable shape by: an element shape's key, or a free shape's id. */
-function reachableKey(reachable: Reachable): string {
+export function reachableKey(reachable: Reachable): string {
   switch (reachable.kind) {
     case 'shape':
       return reachable.shape.key;
@@ -559,6 +577,8 @@ function reachableKey(reachable: Reachable): string {
       return reachable.note.id;
     case 'arrow':
       return reachable.arrow.id;
+    case 'picture':
+      return reachable.picture.id;
   }
 }
 

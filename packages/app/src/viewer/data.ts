@@ -13,9 +13,13 @@
  */
 import {
   MAX_VIEW_STATE_ADDRESS,
+  MEDIA_CAPS,
   builtinPackage,
+  checkMediaFile,
   checkProject,
   cleanedImage,
+  decodeBase64,
+  picturesOf,
   solidsIn,
   type Problem,
   type ProjectSnapshot,
@@ -68,6 +72,12 @@ export interface PageData {
    * out when its views show none. Data, never fetched and never run.
    */
   solids?: PageSolids;
+  /**
+   * The media files its views' pictures show (ADR 0098), by hash, in base64; left out when they show
+   * none. Data, never fetched and never run: each is checked on opening against its name and its
+   * reader, and one that fails is drawn as a missing picture.
+   */
+  media?: Record<string, string>;
 }
 
 /** What else a page's data says, besides the project. */
@@ -76,6 +86,8 @@ export interface PageDataOptions {
   made?: Date;
   /** The solids its views show, as the export gathered them; none for a page without solids. */
   solids?: PageSolids;
+  /** The media files its pictures show, by hash, in base64 (ADR 0098). */
+  media?: Record<string, string>;
 }
 
 /** The data of a page made from a project as it is open. */
@@ -95,6 +107,9 @@ export function pageDataOf(project: ProjectSnapshot, options: PageDataOptions = 
       ? {}
       : { tours: project.tours.map((tour) => withoutNotes(withoutConflicts(tour))) }),
     ...(options.solids === undefined ? {} : { solids: options.solids }),
+    ...(options.media === undefined || Object.keys(options.media).length === 0
+      ? {}
+      : { media: options.media }),
   };
 }
 
@@ -175,6 +190,8 @@ export type PageRead =
       warnings: Problem[];
       /** What it holds of its solids, read strictly; none for a page without solids. */
       solids?: PageSolids;
+      /** The media files it holds that passed their checks, by hash (ADR 0098). */
+      media?: Record<string, Uint8Array>;
     }
   | { ok: false; problems: string[] };
 
@@ -272,6 +289,9 @@ export function readPageData(text: string, validate: ValidateFile): PageRead {
     }
     if (problems.length > 0) return { ok: false, problems };
   }
+  // A page holds the media files its pictures name, and no other file (ADR 0098).
+  const media = readPageMedia(data.media, views, problems);
+  if (problems.length > 0) return { ok: false, problems };
   const checked = checkProject(snapshot);
   if (checked.errors.length > 0) {
     return { ok: false, problems: checked.errors.map((error) => error.message) };
@@ -281,9 +301,49 @@ export function readPageData(text: string, validate: ValidateFile): PageRead {
     project: snapshot,
     ...(start === undefined ? {} : { start }),
     ...(made === undefined ? {} : { made }),
-    warnings: checked.warnings,
+    warnings: [...checked.warnings, ...media.warnings],
     ...(solids?.ok ? { solids: solids.solids } : {}),
+    ...(Object.keys(media.files).length === 0 ? {} : { media: media.files }),
   };
+}
+
+/**
+ * Reads a page's media files strictly (ADR 0098): an object of base64 by hash, each hash one a picture
+ * of its views names, each file within 32 MiB. A file whose bytes are not its name's, or are not what
+ * cleaning writes, is left out with a warning, and its pictures draw as missing ones.
+ */
+function readPageMedia(
+  value: unknown,
+  views: readonly ViewFile[],
+  problems: string[],
+): { files: Record<string, Uint8Array>; warnings: Problem[] } {
+  const files: Record<string, Uint8Array> = {};
+  const warnings: Problem[] = [];
+  if (value === undefined) return { files, warnings };
+  if (!isRecord(value)) {
+    problems.push('The page’s media files are not an object of files by hash.');
+    return { files, warnings };
+  }
+  const named = new Map(
+    views.flatMap((view) => picturesOf(view).map((picture) => [picture.media.hash, picture.media])),
+  );
+  const most = Math.ceil(MEDIA_CAPS.bytes / 3) * 4;
+  for (const [hash, text] of Object.entries(value)) {
+    const ref = named.get(hash);
+    if (ref === undefined) {
+      problems.push(`The page holds a media file "${hash}" no picture names.`);
+      continue;
+    }
+    const bytes = typeof text === 'string' && text.length <= most ? decodeBase64(text) : undefined;
+    if (bytes === undefined) {
+      problems.push(`The page’s media file "${hash}" is not base64 of at most 32 MiB.`);
+      continue;
+    }
+    const check = checkMediaFile(bytes, hash, ref.format);
+    if (check.ok) files[hash] = bytes;
+    else warnings.push(check.problem);
+  }
+  return { files, warnings };
 }
 
 function refused(problem: string): PageRead {

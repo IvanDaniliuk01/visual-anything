@@ -15,6 +15,7 @@ import { LayoutNotes } from './inspector/LayoutNotes';
 import { LinesControl } from './inspector/LinesControl';
 import { ReadingControls } from './inspector/ReadingControls';
 import { OverlaysSection } from './inspector/OverlaysSection';
+import { PictureInspector, PicturesSection } from './inspector/PictureInspector';
 import { Detail } from './inspector/parts';
 import { RelationInspector } from './inspector/RelationInspector';
 import { ScopeEditor } from './inspector/ScopeEditor';
@@ -78,6 +79,11 @@ export function Inspector({ view, scene, definitions, id, hidden }: InspectorPro
             {/* The drawing defaults of the project and of the open view (A5.4, ADR 0086). */}
             <DrawingPanel />
             {view && <OverlaysSection view={view} />}
+            {view && (
+              <PicturesSection
+                pictures={view.freeShapes.filter((shape) => shape.kind === 'picture').length}
+              />
+            )}
           </>
         )}
         {inspected.kind === 'element' && (
@@ -121,6 +127,13 @@ export function Inspector({ view, scene, definitions, id, hidden }: InspectorPro
             </p>
             <FreeShapeAppearance key={inspected.arrow.id} shape={inspected.arrow} />
           </>
+        )}
+        {inspected.kind === 'picture' && view && (
+          <PictureInspector
+            key={inspected.picture.id}
+            picture={inspected.picture}
+            viewId={view.id}
+          />
         )}
         {inspected.kind === 'several' && (
           <>

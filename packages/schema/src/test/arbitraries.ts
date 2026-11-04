@@ -16,6 +16,7 @@ import type {
   DetailRules,
   Element,
   FreeShape,
+  MediaRef,
   JsonValue,
   LevelOfDetail,
   LevelPart,
@@ -274,6 +275,24 @@ const point: fc.Arbitrary<Point> = fc.record(
   { noNullPrototype: true },
 );
 
+/** A media file a picture names (ADR 0098). */
+const mediaRef: fc.Arbitrary<MediaRef> = fc.record(
+  {
+    hash: fc.stringMatching(/^[0-9a-f]{64}$/),
+    format: fc.constantFrom(
+      'png' as const,
+      'jpeg' as const,
+      'webp' as const,
+      'gif' as const,
+      'svg' as const,
+    ),
+    width: fc.integer({ min: 1, max: 8192 }),
+    height: fc.integer({ min: 1, max: 8192 }),
+    bytes: fc.integer({ min: 1, max: 33554432 }),
+  },
+  { noNullPrototype: true },
+);
+
 const freeShape: fc.Arbitrary<FreeShape> = fc.oneof(
   fc.record(
     {
@@ -295,6 +314,22 @@ const freeShape: fc.Arbitrary<FreeShape> = fc.oneof(
   fc.record(
     { kind: fc.constant('arrow' as const), id, from: point, to: point, stroke: color },
     { requiredKeys: ['kind', 'id', 'from', 'to'], noNullPrototype: true },
+  ),
+  fc.record(
+    {
+      kind: fc.constant('picture' as const),
+      id,
+      x: coordinate,
+      y: coordinate,
+      width: canvasSize,
+      height: canvasSize,
+      media: mediaRef,
+      name: fc.string({ minLength: 1, maxLength: 20 }),
+    },
+    {
+      requiredKeys: ['kind', 'id', 'x', 'y', 'width', 'height', 'media'],
+      noNullPrototype: true,
+    },
   ),
 );
 

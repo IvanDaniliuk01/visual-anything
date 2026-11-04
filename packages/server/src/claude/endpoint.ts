@@ -226,6 +226,20 @@ export function attachClaude(
           message.options ?? {},
         );
         return;
+      case 'media/keep-file':
+        // An image file inside the project folder for Claude's add_picture (ADR 0098): the program
+        // reads it itself, only as a regular file inside its folder, and cleans it.
+        if (session.keepPictureFile === undefined) {
+          send({
+            type: 'media/refused',
+            requestId: message.requestId,
+            code: 'program-failed',
+            message: 'This Visual Anything keeps no pictures.',
+          });
+          return;
+        }
+        await session.keepPictureFile(client, message.requestId, message.path);
+        return;
       case 'versions/list':
         // The session answers through the client: Claude's copy of a comparison never holds the
         // version's project (ADR-0029).

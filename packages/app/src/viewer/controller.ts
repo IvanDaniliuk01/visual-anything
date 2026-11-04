@@ -17,6 +17,7 @@ import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
 import type { Id, SolidDefinition } from '@visual-anything/schema';
 import { SolidTurner } from '../canvas/solids/turner';
 import type { SolidClient } from '../solids/solid-client';
+import type { MediaFiles } from '../canvas/pictures/media';
 import { describeRelation, describeSelection, nameOfEnd } from '../canvas/announce';
 import {
   panBy,
@@ -43,6 +44,7 @@ import {
   type Reachable,
   type RelationStop,
   type Start,
+  reachableKey,
 } from '../canvas/navigation';
 import { CanvasRenderer } from '../canvas/renderer';
 import type { ElementShape } from '../canvas/scene';
@@ -150,7 +152,7 @@ export class ViewerController {
   constructor(
     private readonly host: HTMLElement,
     private readonly callbacks: ViewerCallbacks,
-    options: { theme?: CanvasTheme; solids?: SolidClient } = {},
+    options: { theme?: CanvasTheme; solids?: SolidClient; media?: MediaFiles } = {},
   ) {
     this.solids = options.solids;
     this.renderer = new CanvasRenderer(
@@ -163,6 +165,11 @@ export class ViewerController {
       {
         ...(options.theme ? { theme: options.theme } : {}),
         ...(options.solids ? { solids: options.solids } : {}),
+        ...(options.media ? { media: options.media } : {}),
+        // Under reduced motion a GIF shows its first frame, and plays while hovered (ADR 0098).
+        reducedMotion: () =>
+          host.ownerDocument.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)')
+            .matches === true,
       },
     );
     const view = host.ownerDocument.defaultView;
@@ -657,7 +664,7 @@ export class ViewerController {
       // Its hover card, when the canvas cut its text, as the editor shows it (ADR 0082).
       this.callbacks.hoverShape?.(reached.shape.key);
     } else {
-      const id = reached.kind === 'note' ? reached.note.id : reached.arrow.id;
+      const id = reachableKey(reached);
       this.current = id;
       this.choose(selectionOf([{ kind: 'free-shape', id }]));
       this.callbacks.hoverShape?.(undefined);
@@ -822,6 +829,8 @@ function keyOf(hit: Exclude<Hit, { kind: 'relation' }>): string {
       return hit.note.id;
     case 'arrow':
       return hit.arrow.id;
+    case 'picture':
+      return hit.picture.id;
   }
 }
 
@@ -838,6 +847,8 @@ function selectablesOf(hit: Hit): Selectable[] {
       return [{ kind: 'free-shape', id: hit.note.id }];
     case 'arrow':
       return [{ kind: 'free-shape', id: hit.arrow.id }];
+    case 'picture':
+      return [{ kind: 'free-shape', id: hit.picture.id }];
   }
 }
 

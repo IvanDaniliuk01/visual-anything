@@ -27,6 +27,9 @@ import {
   shownByScope,
   stackingOrderOf,
   type ProjectSnapshot,
+  mediaFileName,
+  pictureName,
+  picturesOf,
 } from '@visual-anything/core';
 import type {
   AttributeDefinition,
@@ -476,6 +479,8 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
     ...(relationTypesLeftOut === undefined ? {} : { relationTypesLeftOut }),
     positions: view.positions,
     freeShapes: view.freeShapes,
+    // Its pictures, by name and size, and the file each shows (ADR 0098).
+    ...picturesAnswer(view),
     stacking,
     ...(collapsed === undefined ? {} : { collapsed }),
     // The routes chosen by hand, by relation; every other relation is routed automatically.
@@ -657,4 +662,23 @@ function page(filter: { limit?: number; offset?: number }): { offset: number; li
 
 function sameJson(a: JsonValue | undefined, b: JsonValue): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/** A view's pictures as read_view lists them, by name and size (ADR 0098); nothing when it has none. */
+function picturesAnswer(view: ProjectSnapshot['views'][number]) {
+  const pictures = picturesOf(view);
+  if (pictures.length === 0) return {};
+  return {
+    pictures: pictures.map((picture) => ({
+      id: picture.id,
+      name: pictureName(picture),
+      x: picture.x,
+      y: picture.y,
+      width: picture.width,
+      height: picture.height,
+      file: `media/${mediaFileName(picture.media)}`,
+      format: picture.media.format,
+      ownSize: { width: picture.media.width, height: picture.media.height },
+    })),
+  };
 }

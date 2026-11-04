@@ -588,11 +588,28 @@ export function commandFor(state: ProjectSnapshot, wish: Intent): Command | unde
         return {
           type: 'create-free-shape',
           view: view.id,
-          shape: { kind: 'note', x: 0, y: 0, width: 120, height: 60, text: 'A note' },
+          // Every other one is a picture (ADR 0098), which moves and goes as a note does.
+          shape:
+            wish.at % 2 === 1
+              ? {
+                  kind: 'picture',
+                  x: 0,
+                  y: 0,
+                  width: 64,
+                  height: 48,
+                  media: {
+                    hash: 'ab'.repeat(32),
+                    format: 'png',
+                    width: 640,
+                    height: 480,
+                    bytes: 9000,
+                  },
+                }
+              : { kind: 'note', x: 0, y: 0, width: 120, height: 60, text: 'A note' },
         };
       }
       const note = pick(
-        view.freeShapes.filter((shape) => shape.kind === 'note'),
+        view.freeShapes.filter((shape) => shape.kind === 'note' || shape.kind === 'picture'),
         wish.at,
       );
       if (!note) return undefined;

@@ -1074,7 +1074,7 @@ export function extrudeEdges(
 type Canvas = HTMLCanvasElement | OffscreenCanvas;
 type Context = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-function newCanvas(
+export function newCanvas(
   width: number,
   height: number,
   settings?: CanvasRenderingContext2DSettings,

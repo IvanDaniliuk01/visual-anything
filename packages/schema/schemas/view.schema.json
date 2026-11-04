@@ -196,7 +196,8 @@
         "kind": {
           "enum": [
             "note",
-            "arrow"
+            "arrow",
+            "picture"
           ]
         }
       },
@@ -234,6 +235,22 @@
           },
           "then": {
             "$ref": "#/definitions/Arrow"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "picture"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/Picture"
           }
         }
       ],
@@ -350,6 +367,112 @@
       ],
       "additionalProperties": false,
       "description": "A point on the canvas, in canvas units, at most ten million from its origin either way."
+    },
+    "Picture": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "picture"
+        },
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "x": {
+          "type": "number",
+          "description": "Its left edge on the canvas.",
+          "minimum": -10000000,
+          "maximum": 10000000
+        },
+        "y": {
+          "type": "number",
+          "description": "Its top edge on the canvas.",
+          "minimum": -10000000,
+          "maximum": 10000000
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000000
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000000
+        },
+        "media": {
+          "$ref": "#/definitions/MediaRef",
+          "description": "The media file it shows."
+        },
+        "name": {
+          "type": "string",
+          "description": "What screen readers and the outline say, and what a missing file shows; \"Picture\" when left out.",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "x",
+        "y",
+        "width",
+        "height",
+        "media"
+      ],
+      "additionalProperties": false,
+      "description": "A free shape that shows a media file kept beside the project (ADR 0098): a photo, a screenshot, an animated GIF or an SVG drawing. It belongs to the view and is never part of the model."
+    },
+    "MediaRef": {
+      "type": "object",
+      "properties": {
+        "hash": {
+          "type": "string",
+          "description": "The SHA-256 of the cleaned file, in lowercase hexadecimal.",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "format": {
+          "$ref": "#/definitions/MediaFormat"
+        },
+        "width": {
+          "type": "integer",
+          "description": "Its own width in pixels.",
+          "minimum": 1,
+          "maximum": 8192
+        },
+        "height": {
+          "type": "integer",
+          "description": "Its own height in pixels.",
+          "minimum": 1,
+          "maximum": 8192
+        },
+        "bytes": {
+          "type": "integer",
+          "description": "The size of the cleaned file, in bytes.",
+          "minimum": 1,
+          "maximum": 33554432
+        }
+      },
+      "required": [
+        "hash",
+        "format",
+        "width",
+        "height",
+        "bytes"
+      ],
+      "additionalProperties": false,
+      "description": "Which media file a picture shows and what it is, so that the scene can place it and an export can name it before the file is read (ADR 0098). The file is `media/<hash>.<extension>` beside the project."
+    },
+    "MediaFormat": {
+      "type": "string",
+      "enum": [
+        "png",
+        "jpeg",
+        "webp",
+        "gif",
+        "svg"
+      ],
+      "description": "The formats a media file may have (ADR 0098)."
     },
     "StackingOrder": {
       "type": "object",

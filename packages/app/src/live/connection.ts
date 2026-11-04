@@ -9,6 +9,7 @@ import {
   MAX_CAPTURE_WHY,
   OperationError,
   SOLID_PIECE_BYTES,
+  MEDIA_PIECE_BYTES,
   TOKEN_PARAM,
   ProtocolError,
   applyOperations,
@@ -43,6 +44,9 @@ import {
   type SolidFilesListedMessage,
   type SolidImportOptions,
   type SolidPieceMessage,
+  type MediaFilesListedMessage,
+  type MediaPieceMessage,
+  type MediaStoredMessage,
   type SolidPreparedMessage,
   type Comparison,
   type VersionRef,
@@ -296,9 +300,15 @@ type Waiting =
   | { kind: 'solid-prepare'; resolve: (result: LiveResult<SolidPreparedMessage>) => void }
   | { kind: 'solid-files'; resolve: (result: LiveResult<SolidFilesListedMessage>) => void }
   | { kind: 'claude-setup'; resolve: (result: LiveResult<ClaudeSetupAnswerMessage>) => void }
-  | SolidFileWaiting;
+  | { kind: 'media-put'; resolve: (result: LiveResult<MediaStoredMessage>) => void }
+  | { kind: 'media-files'; resolve: (result: LiveResult<MediaFilesListedMessage>) => void }
+  | SolidFileWaiting
+  | (Omit<SolidFileWaiting, 'kind'> & { kind: 'media' });
 
-/** A solid's file asked for (ADR 0075): its pieces as they come, until the last one. */
+/**
+ * A solid's file (ADR 0075) or a media file (ADR 0098) asked for: its pieces as they come, until the
+ * last one.
+ */
 interface SolidFileWaiting {
   kind: 'solid';
   hash: string;
@@ -704,6 +714,85 @@ export class LiveConnection {
       }
     });
   };
+
+  /**
+   * Asks the local program for a picture's media file by its hash (ADR 0098): resolves with its bytes,
+   * put together from the pieces the program sends, or with why it sent none, as when the file is
+   * missing or no longer what cleaning writes.
+   */
+  readonly getMediaFile = (hash: string): Promise<LiveResult<Uint8Array>> => {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') {
+      return Promise.resolve(closedResult(NOT_CONNECTED));
+    }
+    const requestId = nextRequestId();
+    const text = encodeMessage({ type: 'media/get', requestId, hash });
+    return new Promise((resolve) => {
+      this.waiting.set(requestId, { kind: 'media', hash, pieces: [], received: 0, resolve });
+      this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
+    });
+  };
+
+  /**
+   * Sends an image file to the local program to be cleaned and kept as a media file (ADR 0098), in
+   * pieces of 1 MiB: resolves with the reference a picture names it by, or with why it was refused.
+   * Nothing in the project changes: the picture is added afterwards, as a command.
+   */
+  readonly putMedia = (
+    fileName: string,
+    bytes: Uint8Array,
+  ): Promise<LiveResult<MediaStoredMessage>> => {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') {
+      return Promise.resolve(closedResult(NOT_CONNECTED));
+    }
+    const requestId = nextRequestId();
+    const count = Math.max(1, Math.ceil(bytes.length / MEDIA_PIECE_BYTES));
+    return new Promise((resolve) => {
+      this.waiting.set(requestId, { kind: 'media-put', resolve });
+      for (let index = 0; index < count && this.waiting.has(requestId); index++) {
+        const data = encodeBase64(
+          bytes.subarray(index * MEDIA_PIECE_BYTES, (index + 1) * MEDIA_PIECE_BYTES),
+        );
+        const text = encodeMessage({
+          type: 'media/put',
+          requestId,
+          fileName,
+          piece: { index, count, data },
+        });
+        this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
+      }
+    });
+  };
+
+  /** Asks the local program for the files of `media/` no picture names (ADR 0098). */
+  readonly listMediaFiles = (): Promise<LiveResult<MediaFilesListedMessage>> =>
+    this.mediaFilesRequest((requestId) => ({ type: 'media-files/list', requestId }));
+
+  /** Removes files of `media/` no picture names, by their hashes (ADR 0098); it cannot be undone. */
+  readonly removeMediaFiles = (
+    hashes: readonly string[],
+  ): Promise<LiveResult<MediaFilesListedMessage>> =>
+    this.mediaFilesRequest((requestId) => ({
+      type: 'media-files/remove',
+      requestId,
+      hashes: [...hashes],
+    }));
+
+  private mediaFilesRequest(
+    message: (requestId: string) => AppMessage,
+  ): Promise<LiveResult<MediaFilesListedMessage>> {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') {
+      return Promise.resolve(closedResult(NOT_CONNECTED));
+    }
+    const requestId = nextRequestId();
+    const text = encodeMessage(message(requestId));
+    return new Promise((resolve) => {
+      this.waiting.set(requestId, { kind: 'media-files', resolve });
+      this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
+    });
+  }
 
   /**
    * Asks the local program for the files in `solids/` that no package names (ADR 0075): resolves with
@@ -1156,8 +1245,35 @@ export class LiveConnection {
         void this.answerCapture(message);
         break;
       case 'solid/piece':
-        this.solidPiece(message);
+        this.solidPiece(message, 'solid');
         break;
+      case 'media/piece':
+        this.solidPiece(message, 'media');
+        break;
+      case 'media/refused': {
+        const answered = this.take(message.requestId);
+        if (
+          answered?.kind === 'media' ||
+          answered?.kind === 'media-put' ||
+          answered?.kind === 'media-files'
+        ) {
+          answered.resolve({
+            ok: false,
+            problems: [{ code: message.code, message: message.message }],
+          });
+        }
+        break;
+      }
+      case 'media/stored': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'media-put') answered.resolve({ ok: true, answer: message });
+        break;
+      }
+      case 'media-files/listed': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'media-files') answered.resolve({ ok: true, answer: message });
+        break;
+      }
       case 'solid/refused': {
         const answered = this.take(message.requestId);
         if (
@@ -1217,6 +1333,9 @@ export class LiveConnection {
       taken.kind === 'solid' ||
       taken.kind === 'solid-prepare' ||
       taken.kind === 'solid-files' ||
+      taken.kind === 'media' ||
+      taken.kind === 'media-put' ||
+      taken.kind === 'media-files' ||
       taken.kind === 'claude-setup'
         ? undefined
         : taken;
@@ -1318,9 +1437,12 @@ export class LiveConnection {
    * Keeps a piece of a solid's file asked for, and once the last one came, answers with the bytes they
    * make. Pieces that do not fit together, as of another file or of another count, end the request.
    */
-  private solidPiece(message: SolidPieceMessage): void {
+  private solidPiece(
+    message: SolidPieceMessage | MediaPieceMessage,
+    kind: 'solid' | 'media',
+  ): void {
     const waiting = this.waiting.get(message.requestId);
-    if (waiting?.kind !== 'solid') return;
+    if (waiting?.kind !== kind) return;
     const { index, count, data } = message.piece;
     const bytes = decodeBase64(data);
     const fits =
@@ -1334,7 +1456,12 @@ export class LiveConnection {
         : bytes.length === SOLID_PIECE_BYTES);
     if (!fits) {
       this.waiting.delete(message.requestId);
-      waiting.resolve({ ok: false, problems: [{ code: 'invalid-solid', message: PIECES_APART }] });
+      waiting.resolve({
+        ok: false,
+        problems: [
+          { code: kind === 'solid' ? 'invalid-solid' : 'media-not-clean', message: PIECES_APART },
+        ],
+      });
       return;
     }
     if (waiting.received === 0) waiting.pieces = new Array<Uint8Array | undefined>(count);

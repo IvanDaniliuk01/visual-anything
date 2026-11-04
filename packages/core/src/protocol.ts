@@ -87,6 +87,24 @@ import {
   type SolidRefusedMessage,
 } from './solids/messages';
 import {
+  readMediaFilesList,
+  readMediaFilesListed,
+  readMediaFilesRemove,
+  readMediaGet,
+  readMediaPieceMessage,
+  readMediaPut,
+  readMediaRefused,
+  readMediaStored,
+  type MediaFilesListMessage,
+  type MediaFilesListedMessage,
+  type MediaFilesRemoveMessage,
+  type MediaGetMessage,
+  type MediaPieceMessage,
+  type MediaPutMessage,
+  type MediaRefusedMessage,
+  type MediaStoredMessage,
+} from './media/messages';
+import {
   readPackageRead,
   readPackageReadAnswer,
   type PackageMessageRead,
@@ -150,8 +168,13 @@ import { readSpaceCamera } from './space/camera';
  *    `{ x, y }`, which an app of 8 would refuse when it opens the tour file. And, in 9 too, since no
  *    build of 9 shipped, a tour's `captionFace` and a caption's `face` and `size` (ADR 0096), and
  *    its `leader` (ADR 0097).
+ * 10: pictures (ADR 0098): a view's free shapes may be pictures, `{ kind: 'picture', … }`, which an
+ *    app of 9 would refuse when it opens the view file; and their media files travel as `media/put`
+ *    and `media/get` from an app, answered with `media/stored`, `media/piece` or `media/refused`, and
+ *    `media-files/list` and `media-files/remove`, for the files of `media/` no picture names,
+ *    answered with `media-files/listed` or `media/refused`.
  */
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';
@@ -205,6 +228,10 @@ export type ServerMessage =
   | SolidPieceMessage
   | SolidRefusedMessage
   | SolidFilesListedMessage
+  | MediaStoredMessage
+  | MediaPieceMessage
+  | MediaRefusedMessage
+  | MediaFilesListedMessage
   | PackageReadAnswerMessage
   | ClaudeSetupAnswerMessage;
 
@@ -973,6 +1000,10 @@ export type AppMessage =
   | SolidGetMessage
   | SolidFilesListMessage
   | SolidFilesRemoveMessage
+  | MediaPutMessage
+  | MediaGetMessage
+  | MediaFilesListMessage
+  | MediaFilesRemoveMessage
   | PackageReadMessage
   | ClaudeSetupMessage;
 
@@ -1116,6 +1147,10 @@ const SERVER_TYPES = new Set<string>([
   'solid/piece',
   'solid/refused',
   'solid-files/listed',
+  'media/stored',
+  'media/piece',
+  'media/refused',
+  'media-files/listed',
   'package/read-answer',
   'claude/setup-answer',
 ]);
@@ -1212,6 +1247,14 @@ export function decodeServerMessage(text: string): ServerMessage {
       return readSolidMessage(readSolidRefused(message));
     case 'solid-files/listed':
       return readSolidMessage(readSolidFilesListed(message));
+    case 'media/stored':
+      return readSolidMessage(readMediaStored(message));
+    case 'media/piece':
+      return readSolidMessage(readMediaPieceMessage(message));
+    case 'media/refused':
+      return readSolidMessage(readMediaRefused(message));
+    case 'media-files/listed':
+      return readSolidMessage(readMediaFilesListed(message));
     case 'package/read-answer': {
       const { requestId } = message;
       if (typeof requestId !== 'string' || requestId === '' || requestId.length > MAX_REQUEST_ID) {
@@ -1330,6 +1373,14 @@ export function decodeAppMessage(text: string): AppMessage {
       return readSolidMessage(readSolidFilesList(message));
     case 'solid-files/remove':
       return readSolidMessage(readSolidFilesRemove(message));
+    case 'media/put':
+      return readSolidMessage(readMediaPut(message));
+    case 'media/get':
+      return readSolidMessage(readMediaGet(message));
+    case 'media-files/list':
+      return readSolidMessage(readMediaFilesList(message));
+    case 'media-files/remove':
+      return readSolidMessage(readMediaFilesRemove(message));
     case 'package/read':
       return readPackageMessage(readPackageRead(message, message.requestId));
     case 'claude/setup':
@@ -1351,7 +1402,7 @@ function readClaudeSetupMessage<T>(read: ClaudeSetupRead<T>): T {
   return read.message;
 }
 
-/** A message about solids (ADR 0075), or the {@link ProtocolError} of why it cannot be read. */
+/** A message about solids (ADR 0075) or media files (ADR 0098), or the {@link ProtocolError} of why it cannot be read. */
 function readSolidMessage<T>(read: { ok: true; value: T } | { ok: false; reason: string }): T {
   if (!read.ok) throw new ProtocolError(read.reason);
   return read.value;

@@ -130,7 +130,10 @@ import {
   type NoteShape,
   type RelationLine,
   type Scene,
+  picturesOf,
 } from './scene';
+import { PictureLayer, type PicturePlatform } from './pictures/layer';
+import type { MediaFiles } from './pictures/media';
 
 export { emphasize, type Emphasized } from './emphasize';
 import { meets } from './spatial';
@@ -458,6 +461,12 @@ export interface RendererOptions {
   theme?: CanvasTheme;
   /** Draws solids' pictures through this client (ADR 0075); without one, solids draw placeholders. */
   solids?: SolidClient;
+  /** Where pictures' media files come from (ADR 0098); without it, pictures draw gray boxes. */
+  media?: MediaFiles;
+  /** Decodes pictures' media files; the browser's by default. */
+  picturePlatform?: PicturePlatform;
+  /** Whether motion is reduced (ADR 0077): GIFs then show their first frame, and play when hovered. */
+  reducedMotion?: () => boolean;
   /** Reads the pixels of a solid's picture, which a PNG holds; the browser's canvas by default. */
   solidPixels?: (bitmap: ImageBitmap) => SolidPixels;
   /**
@@ -744,6 +753,9 @@ export class CanvasRenderer {
   private readonly solidLayer: SolidLayer;
   /** A comparison's marks (ADR 0070), above the scene and under the selection's marks. */
   private readonly comparison: ComparisonLayer;
+  /** Pictures (ADR 0098), under the notes and arrows and above the shapes and relations. */
+  private readonly pictureLayer: PictureLayer;
+  private media: MediaFiles | undefined;
 
   constructor(
     private readonly host: HTMLElement,
@@ -765,6 +777,14 @@ export class CanvasRenderer {
       () => this.pictures.solids,
       () => this.requestRender(),
     );
+    this.media = options.media;
+    this.pictureLayer = new PictureLayer({
+      files: () => this.media,
+      requestRender: () => this.requestRender(),
+      ...(options.picturePlatform ? { platform: options.picturePlatform } : {}),
+      ...(options.reducedMotion ? { reducedMotion: options.reducedMotion } : {}),
+    });
+    this.pictureLayer.setTheme(this.painter.theme.name === 'dark');
     this.comparison = new ComparisonLayer(
       bitmapMarkText,
       () => this.requestRender(),
@@ -803,6 +823,7 @@ export class CanvasRenderer {
       this.partLayer.container,
       this.codeDrawings.container,
       this.relations.container,
+      this.pictureLayer.container,
       this.freeShapes,
       this.comparison.container,
       this.rerouted,
@@ -1325,6 +1346,7 @@ export class CanvasRenderer {
     this.rerouted.alpha = 0.85;
     this.dragged.position.set(0, 0);
     this.movingMarks.position.set(0, 0);
+    this.pictureLayer.setDrag(this.selection.freeShapes, { x: 0, y: 0 });
     this.drawSelection();
     this.requestRender();
     return id;
@@ -1338,6 +1360,7 @@ export class CanvasRenderer {
     this.noteActivity();
     this.dragged.position.set(delta.x, delta.y);
     this.movingMarks.position.set(delta.x, delta.y);
+    if (this.drag) this.pictureLayer.setDrag(this.selection.freeShapes, delta);
     if (this.drag) this.drag.delta = delta;
     this.dragMarks(delta, frame);
     this.requestRender();
@@ -1356,6 +1379,7 @@ export class CanvasRenderer {
     this.clearDrag();
     this.drag = undefined;
     this.hidden = NOTHING_HIDDEN;
+    this.pictureLayer.setDrag(new Set(), { x: 0, y: 0 });
     this.dragMarks({ x: 0, y: 0 }, undefined);
     if (!redraw) {
       // How far the dragged shapes were drawn, for the tiles the next rebuild makes for them.
@@ -1369,6 +1393,25 @@ export class CanvasRenderer {
     }
     this.drawSelection();
     this.requestRender();
+  }
+
+  /** Where pictures' media files come from from now on (ADR 0098). */
+  setMedia(files: MediaFiles | undefined): void {
+    if (files === this.media) return;
+    this.media = files;
+    this.pictureLayer.reset();
+    if (this.indexed) this.pictureLayer.setScene(picturesOf(this.indexed.scene));
+    this.requestRender();
+  }
+
+  /** The picture under the pointer, which plays under reduced motion (ADR 0098). */
+  hoverPicture(id: Id | undefined): void {
+    this.pictureLayer.setHovered(id);
+  }
+
+  /** Whether a picture's file could not be had, so that it draws its name and a warning. */
+  pictureMissing(id: Id): boolean {
+    return this.pictureLayer.isMissing(id);
   }
 
   /** Whether shapes are being drawn as dragged. */
@@ -1683,6 +1726,8 @@ export class CanvasRenderer {
     if (!planned.ok) throw new ImageError(planned.problem);
     // Its solids drawn by the solid worker at its scale, as the canvas draws them (ADR 0075).
     const solids = await this.solidsForImage(planned.plan);
+    // Its pictures decoded at its scale, each GIF at its first frame (ADR 0098).
+    await this.pictureLayer.readyForImage(planned.plan.pixelsPerUnit);
     try {
       const drawn = await this.drawImage(planned.plan, {
         asShown: request.area === 'visible',
@@ -1796,6 +1841,7 @@ export class CanvasRenderer {
         const scene =
           child === this.elementShapes ||
           child === this.relations.container ||
+          child === this.pictureLayer.container ||
           child === this.freeShapes;
         if (!scene) change(child, 'visible', false);
       }
@@ -1998,6 +2044,7 @@ export class CanvasRenderer {
     }
     this.partLayer.destroy();
     this.solidLayer.destroy();
+    this.pictureLayer.destroy();
     this.pictures.destroy();
     this.status = 'destroyed';
   }
@@ -2010,6 +2057,7 @@ export class CanvasRenderer {
     this.pictures.reset();
     this.partLayer.reset();
     this.solidLayer.reset();
+    this.pictureLayer.reset();
     this.requestRender();
   }
 
@@ -2146,6 +2194,12 @@ export class CanvasRenderer {
     // The lines a decision's alternatives not chosen use are drawn dashed (ADR 0078).
     this.rebuildRelations(withDashes(indexed.scene.relations, this.emphasized.dashed), budget);
     this.rebuildFree(indexed.scene.notes, indexed.scene.arrows);
+    // Pictures stay drawn while dragged, moved by the drag rather than hidden (`setDrag`).
+    this.pictureLayer.setScene(
+      picturesOf(indexed.scene),
+      this.emphasized.hidden.free,
+      this.emphasized.dimmed.free,
+    );
     this.followParts();
   }
 
@@ -3684,6 +3738,12 @@ export class CanvasRenderer {
       if ('rect' in shape) box(shape.rect, hidden.free.has(id));
       else arrows.push(shape);
     }
+    // Pictures are boxed as notes are (ADR 0098).
+    for (const picture of picturesOf(scene)) {
+      if (this.selection.freeShapes.has(picture.id) && !unseen.free.has(picture.id)) {
+        box(picture.rect, hidden.free.has(picture.id));
+      }
+    }
     if (carriedBoxes > 0) moving.stroke({ color: MARK, width });
 
     // A relation an aggregated relation stands for marks that line, once however many are selected.
@@ -4117,6 +4177,8 @@ export class CanvasRenderer {
       if (this.partLayer.frame(this.imageView(performance.now() - began))) this.requestRender();
       // Drawings with parts that show a solid, and the solid being turned (ADR 0075).
       if (this.solidLayer.frame(this.imageView(performance.now() - began))) this.requestRender();
+      // Pictures, at most one texture a frame, and the GIFs on screen playing (ADR 0098).
+      if (this.pictureLayer.frame(this.imageView(0))) this.requestRender();
       // What the camera's rest leaves to do, in what the frame has left of its time.
       this.idle(began);
       const drag = this.drag;
@@ -4329,6 +4391,7 @@ export class CanvasRenderer {
     const target = this.pending?.theme ?? this.painter.theme;
     if (theme === target) return;
     this.codeDrawings.setDark(theme.name === 'dark');
+    this.pictureLayer.setTheme(theme.name === 'dark');
     if (this.status !== 'ready') {
       this.painter = painterOf(theme, this.painter.drawing);
       this.partLayer.setTheme(theme.name);

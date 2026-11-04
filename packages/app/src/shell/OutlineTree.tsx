@@ -268,6 +268,13 @@ function OutlineRow({
       );
     case 'arrow':
       return <span className="item-name">{t('Arrow')}</span>;
+    case 'picture':
+      return (
+        <>
+          <span className="item-name">{item.picture.named ? item.picture.name : t('Picture')}</span>
+          <Secondary text={t('Picture')} />
+        </>
+      );
     case 'undrawn':
       // A row draws none of what its element holds (ADR 0023).
       return (

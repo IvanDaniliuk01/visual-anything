@@ -1,5 +1,13 @@
 /** Commands on views: the views themselves, where their shapes sit, and their free shapes. */
-import type { FreeShape, Id, ShapePosition, ViewFile } from '@visual-anything/schema';
+import type {
+  FreeShape,
+  Id,
+  MediaFormat,
+  MediaRef,
+  ShapePosition,
+  ViewFile,
+} from '@visual-anything/schema';
+import { MEDIA_CAPS } from '../media/clean';
 import { slug } from '../ids';
 import { nestingTypesInView } from '../containers';
 import { appearanceOf } from '../definitions';
@@ -293,7 +301,7 @@ export function createFreeShape(draft: Draft, command: CreateFreeShapeCommand): 
     item: shape,
   });
   draft.created.push(id);
-  return `Add ${shape.kind === 'note' ? 'a note' : 'an arrow'} to "${view.name}"`;
+  return `Add ${FREE_SHAPE_NOUN[shape.kind]} to "${view.name}"`;
 }
 
 export function updateFreeShape(draft: Draft, command: UpdateFreeShapeCommand): string {
@@ -307,6 +315,7 @@ export function updateFreeShape(draft: Draft, command: UpdateFreeShapeCommand): 
   }
   draft.apply({ op: 'replace', collection: { name: 'freeShapes', view: view.id }, item: shape });
   const colorsOnly =
+    shape.kind !== 'picture' &&
     current.kind === shape.kind &&
     !sameJson(current, shape) &&
     sameJson(withoutColors(current), withoutColors(shape));
@@ -319,8 +328,15 @@ export function updateFreeShape(draft: Draft, command: UpdateFreeShapeCommand): 
       ? `${verb} the colors of a note in "${view.name}"`
       : `${verb} the color of an arrow in "${view.name}"`;
   }
-  return `Edit ${shape.kind === 'note' ? 'a note' : 'an arrow'} in "${view.name}"`;
+  return `Edit ${FREE_SHAPE_NOUN[shape.kind]} in "${view.name}"`;
 }
+
+/** What a history label calls each kind of free shape. */
+const FREE_SHAPE_NOUN: Record<FreeShape['kind'], string> = {
+  note: 'a note',
+  arrow: 'an arrow',
+  picture: 'a picture',
+};
 
 /** A free shape without its colors, to tell a change of color from any other change. */
 function withoutColors(shape: FreeShape): object {
@@ -442,5 +458,63 @@ function checkedFreeShape(
       stroke: color(shape.stroke, 'stroke', of, before?.stroke),
     });
   }
-  reject('invalid-command', 'A free shape is a note or an arrow.');
+  if (shape.kind === 'picture') {
+    const of = `a picture in "${viewName}"`;
+    const loose = shape as { fill?: unknown; stroke?: unknown };
+    if (loose.fill !== undefined || loose.stroke !== undefined) {
+      reject('invalid-appearance', `A picture has no colors of its own; ${of} shows its file.`);
+    }
+    const name = shape.name === undefined || shape.name === '' ? undefined : shape.name;
+    if (name !== undefined && (typeof name !== 'string' || name.length > 200)) {
+      reject('invalid-command', "A picture's name is text of at most 200 characters.");
+    }
+    return compact({
+      kind: 'picture',
+      id: (shape as FreeShape).id,
+      x: requireNumber(shape.x, 'x'),
+      y: requireNumber(shape.y, 'y'),
+      width: requireNumber(shape.width, 'A width', true),
+      height: requireNumber(shape.height, 'A height', true),
+      media: checkedMediaRef(shape.media),
+      name,
+    });
+  }
+  reject('invalid-command', 'A free shape is a note, an arrow or a picture.');
+}
+
+/** The formats a media file may have (ADR 0098). */
+const MEDIA_FORMATS: ReadonlySet<string> = new Set(['png', 'jpeg', 'webp', 'gif', 'svg']);
+
+/**
+ * A picture's media file as a command names it, checked and with nothing else (ADR 0098). Only its
+ * reference travels in a command, never its bytes, so a picture weighs no more in the history than a
+ * note.
+ */
+function checkedMediaRef(media: unknown): MediaRef {
+  const ref = media as Partial<Record<keyof MediaRef, unknown>> | undefined;
+  if (typeof ref !== 'object' || ref === null) {
+    reject('invalid-command', 'A picture needs the media file it shows.');
+  }
+  if (typeof ref.hash !== 'string' || !/^[0-9a-f]{64}$/.test(ref.hash)) {
+    reject('invalid-command', "A media file's hash is its SHA-256, in 64 lowercase hex digits.");
+  }
+  if (typeof ref.format !== 'string' || !MEDIA_FORMATS.has(ref.format)) {
+    reject('invalid-command', 'A media file is a PNG, JPEG, WebP, GIF or SVG.');
+  }
+  const whole = (value: unknown, what: string, max: number): number => {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > max) {
+      reject(
+        'invalid-command',
+        `${what} must be a whole number from 1 to ${max.toLocaleString('en-US')}.`,
+      );
+    }
+    return value;
+  };
+  return {
+    hash: ref.hash,
+    format: ref.format as MediaFormat,
+    width: whole(ref.width, "A media file's width", MEDIA_CAPS.side),
+    height: whole(ref.height, "A media file's height", MEDIA_CAPS.side),
+    bytes: whole(ref.bytes, "A media file's size", MEDIA_CAPS.bytes),
+  };
 }

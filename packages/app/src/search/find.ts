@@ -444,7 +444,13 @@ function relationEntry(relation: Relation, names: DefinitionNames): Entry {
 
 function freeShapeEntry(shape: FreeShape, view: Id): Entry {
   // A note's text takes text emphasis (ADR 0082): find reads it without its markers.
-  const text = shape.kind === 'note' ? plainText(shape.text) : '';
+  // A picture is found by its name (ADR 0098).
+  const text =
+    shape.kind === 'note'
+      ? plainText(shape.text)
+      : shape.kind === 'picture'
+        ? (shape.name ?? '')
+        : '';
   return {
     kind: 'free-shape',
     id: shape.id,

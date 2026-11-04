@@ -118,7 +118,13 @@ export function Details() {
     return (
       <section className="viewer-sheet viewer-details" aria-label={t('Selected')}>
         <div className="viewer-sheet-head">
-          <h2>{shape.kind === 'note' ? t('Note') : t('Arrow')}</h2>
+          <h2>
+            {shape.kind === 'note'
+              ? t('Note')
+              : shape.kind === 'picture'
+                ? (shape.name ?? t('Picture'))
+                : t('Arrow')}
+          </h2>
           {close}
         </div>
         {shape.kind === 'note' && (

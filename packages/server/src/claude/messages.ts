@@ -52,6 +52,7 @@ import {
 } from '@visual-anything/core';
 import type { ImportRequest } from '../import';
 import { MAX_SOLID_PATH } from '../solids/project-file';
+import { MAX_PICTURE_PATH } from '../media/project-file';
 import type { LiveAttributeCount, LiveListing, LiveSummary } from '../live';
 import type { Id } from '@visual-anything/schema';
 
@@ -123,6 +124,13 @@ export type ClaudeMessage =
       path: string;
       options?: SolidImportOptions;
     }
+  /**
+   * An image file inside the project folder to keep as a media file, for Claude's `add_picture` (ADR
+   * 0098): the program reads it itself, by its path from the folder, only as a regular file inside
+   * it, cleans it and answers with `media/stored` or `media/refused`. It changes no project file; the
+   * `create-free-shape` Claude then sends places the picture.
+   */
+  | { type: 'media/keep-file'; requestId: string; path: string }
   /**
    * Live values (ADR 0057): kept by the program while the project is open, never saved and never in
    * the history; answered with `live/kept`. The command line sends them through this endpoint too.
@@ -327,6 +335,18 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
     }
     case 'solid/prepare-file':
       return readSolidPrepareFile(message, requestId);
+    case 'media/keep-file': {
+      const { path } = message;
+      if (
+        typeof path !== 'string' ||
+        path === '' ||
+        path.length > MAX_PICTURE_PATH ||
+        Object.keys(message).some((key) => !['type', 'requestId', 'path'].includes(key))
+      ) {
+        throw new ProtocolError('An image file to keep is named by its path from the folder.');
+      }
+      return { type: 'media/keep-file', requestId, path };
+    }
     case 'open-app': {
       if (message.state === undefined) return { type: 'open-app', requestId };
       const checked = checkViewState(message.state);

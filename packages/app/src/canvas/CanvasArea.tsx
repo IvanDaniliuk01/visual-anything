@@ -94,6 +94,14 @@ import { useLayout } from './layout/useLayout';
 import { useReducedMotion } from '../scenarios/motion';
 import { useGuidedTurn } from './solids/guidedTurn';
 import { useSolidClient } from './solids/useSolidClient';
+import {
+  addPictureCommand,
+  carriesFiles,
+  pictureFilesIn,
+  pictureNameOf,
+  tooLargeToSend,
+} from './pictures/adding';
+import { mediaFilesOver } from './pictures/media';
 import type { CanvasTurning } from './solids/turningContext';
 import { pinnedInTheWay } from './layout/pinnedInTheWay';
 import { useAvoidedRoutes } from './routing/useAvoidedRoutes';
@@ -227,6 +235,8 @@ interface Choosing {
 }
 
 const NOTE_SIZE = { width: 224, height: 88 };
+/** How far each picture added at once lands from the last, so that none hides another. */
+const PICTURE_STEP = 24;
 const NO_KEYS: ReadonlySet<string> = new Set();
 const ARROW_LENGTH = 160;
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
@@ -261,6 +271,17 @@ export function CanvasArea({
   useLayoutEffect(() => {
     solidsRef.current = solids;
   });
+  // Pictures' media files, through the live connection (ADR 0098).
+  const getMediaFile = useContext(LiveContext)?.getMediaFile;
+  const media = useMemo(
+    () => (getMediaFile ? mediaFilesOver(getMediaFile) : undefined),
+    [getMediaFile],
+  );
+  const mediaRef = useRef(media);
+  useLayoutEffect(() => {
+    mediaRef.current = media;
+    controllerRef.current?.setMedia(media);
+  }, [media]);
   // The header's Export draws the open view with this canvas's renderer (R27).
   useLendRenderer(controllerRef);
   // Claude's pictures of the view it draws, off screen, which move nothing here (ADR 0081).
@@ -580,6 +601,7 @@ export function CanvasArea({
         ...(across && down ? { pointerMarks: { across, down } } : {}),
         theme: THEMES[latest.current.theme].canvas,
         ...(solidsRef.current ? { solids: solidsRef.current } : {}),
+        ...(mediaRef.current ? { media: mediaRef.current } : {}),
         reducedMotion: () => reducedMotionRef.current,
       },
     );
@@ -1013,6 +1035,97 @@ export function CanvasArea({
     }
   };
 
+  /**
+   * Adds image files as pictures (ADR 0098): each is sent to the program, which cleans and keeps it,
+   * then placed with its middle at `at`, or at the middle of the view, the next ones a little lower
+   * and to the right. What the program refuses is said, and nothing is added for it.
+   */
+  const addPictures = async (files: readonly File[], at?: Point, pasted = false) => {
+    const putMedia = live?.putMedia;
+    if (!editable || !putMedia) {
+      announce(t('The project cannot be changed now.'));
+      return;
+    }
+    const pictures = pictureFilesIn(files);
+    if (pictures.length === 0) {
+      announce(t('Visual Anything takes PNG, JPEG, WebP, GIF and SVG pictures.'));
+      return;
+    }
+    const center = at ?? controller()?.center;
+    if (!center) return;
+    const unchanged = intent();
+    let added: Id | undefined;
+    for (const [index, file] of pictures.entries()) {
+      if (tooLargeToSend(file)) {
+        live.notify(
+          'error',
+          t('"{name}" is over 32 MiB, the most a picture takes.', { name: file.name }),
+        );
+        continue;
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const kept = await putMedia(file.name, bytes);
+      if (!kept.ok) {
+        live.notify(
+          'error',
+          t('"{name}" was not added: {why}', {
+            name: file.name,
+            why: kept.problems.map((each) => each.message).join(' '),
+          }),
+        );
+        continue;
+      }
+      const offset = index * PICTURE_STEP;
+      const result = await send(
+        addPictureCommand(
+          view.id,
+          kept.answer.media,
+          { x: center.x + offset, y: center.y + offset },
+          pictureNameOf(file.name, pasted),
+        ),
+      );
+      if (result.ok) added = result.created?.[0] ?? added;
+    }
+    if (added !== undefined && unchanged())
+      onSelect(selectionOf([{ kind: 'free-shape', id: added }]));
+  };
+
+  const addPicturesNow = useEffectEvent((files: readonly File[], at?: Point, pasted?: boolean) =>
+    addPictures(files, at, pasted),
+  );
+
+  // An image file dropped on the canvas is added where it is dropped (ADR 0098).
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const over = (event: DragEvent) => {
+      if (!carriesFiles(event.dataTransfer?.types)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    };
+    const drop = (event: DragEvent) => {
+      if (!carriesFiles(event.dataTransfer?.types)) return;
+      event.preventDefault();
+      const at = controllerRef.current?.worldAtClient(event.clientX, event.clientY);
+      void addPicturesNow([...(event.dataTransfer?.files ?? [])], at);
+    };
+    // A picture pasted with Ctrl+V while the canvas has the focus goes to the middle of the view.
+    const paste = (event: ClipboardEvent) => {
+      const files = pictureFilesIn(event.clipboardData?.files);
+      if (files.length === 0) return;
+      event.preventDefault();
+      void addPicturesNow(files, undefined, true);
+    };
+    host.addEventListener('dragover', over);
+    host.addEventListener('drop', drop);
+    host.addEventListener('paste', paste);
+    return () => {
+      host.removeEventListener('dragover', over);
+      host.removeEventListener('drop', drop);
+      host.removeEventListener('paste', paste);
+    };
+  }, []);
+
   const addArrow = async () => {
     const center = controller()?.center;
     if (!center) return;
@@ -1117,6 +1230,9 @@ export function CanvasArea({
         onAdd={(component) => void add(component)}
         onAddNote={() => void addNote()}
         onAddArrow={() => void addArrow()}
+        {...(live?.putMedia
+          ? { onAddPictures: (files: readonly File[]) => void addPictures(files) }
+          : {})}
         onZoom={(factor) => controller()?.zoomBy(factor)}
         onFit={() => controller()?.fit()}
         {...(adding.place ? { addPlace: adding.place } : {})}
