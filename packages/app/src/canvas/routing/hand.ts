@@ -517,26 +517,33 @@ function unit(a: Point, b: Point): Point {
   return length === 0 ? { x: 0, y: 0 } : { x: (a.x - b.x) / length, y: (a.y - b.y) / length };
 }
 
-/** The points without zero-length segments, and without points in the middle of a straight run. */
+/**
+ * The points without zero-length segments, without points in the middle of a straight run, and
+ * without folds: where the route runs out along a line and back along it, as towards a bend point
+ * left past its next corner, it turns where it comes back instead, so that no part of it is drawn
+ * twice.
+ */
 function simplified(points: readonly Point[]): Point[] {
-  const kept = withoutRepeats(points);
-  if (kept.length <= 2) return kept.length === 1 ? [kept[0] as Point, kept[0] as Point] : kept;
-  const result: Point[] = [kept[0] as Point];
-  for (let at = 1; at < kept.length - 1; at++) {
-    const before = result.at(-1) as Point;
-    const point = kept[at] as Point;
-    const after = kept[at + 1] as Point;
-    const straight =
-      (before.x === point.x && point.x === after.x && between(before.y, point.y, after.y)) ||
-      (before.y === point.y && point.y === after.y && between(before.x, point.x, after.x));
-    if (!straight) result.push(point);
+  const result: Point[] = [];
+  for (const point of points) {
+    const last = result.at(-1);
+    if (last && last.x === point.x && last.y === point.y) continue;
+    result.push(point);
+    // The last three in line, between or folded back: the middle one is no corner.
+    while (result.length >= 3) {
+      const after = result.at(-1) as Point;
+      const middle = result.at(-2) as Point;
+      const before = result.at(-3) as Point;
+      const inLine =
+        (before.x === middle.x && middle.x === after.x) ||
+        (before.y === middle.y && middle.y === after.y);
+      if (!inLine) break;
+      result.splice(-2, 1);
+      if (before.x === after.x && before.y === after.y) result.pop();
+    }
   }
-  result.push(kept.at(-1) as Point);
+  if (result.length === 1) result.push(result[0] as Point);
   return result;
-}
-
-function between(a: number, b: number, c: number): boolean {
-  return (a <= b && b <= c) || (a >= b && b >= c);
 }
 
 function withoutRepeats(points: readonly Point[]): Point[] {

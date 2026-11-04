@@ -188,7 +188,7 @@ export function sceneRouting(
       const hand: HandOfLine | undefined = resolved && { route: resolved, bendPoints, bendOrigin };
       return {
         signature: signatureOf(ends, hand),
-        route: () => routeLine(ends, hand),
+        route: () => routeLine(ends, hand && withoutIdleBends(ends, hand)),
       };
     },
     automaticStyle(relation) {
@@ -293,6 +293,38 @@ export function routeLine(ends: LineEnds, hand: HandOfLine | undefined): RoutedL
         ends.offset,
       );
   return { route: routed.route, ...extras, ...(routed.curve ? { curve: routed.curve } : {}) };
+}
+
+/**
+ * A line's hand without the bend points its orthogonal route no longer turns at: those that lie in
+ * a straight run, or past a corner the route folds back from, after its ends moved, and without
+ * which the line is drawn exactly as with them. The canvas shows no handle for them, and the next
+ * change to the route keeps only the bend points shown. A bend point at a corner of the route stays,
+ * even where the route would turn there without it, so that it keeps following its ends as before.
+ * Straight and curved routes keep all of theirs.
+ */
+export function withoutIdleBends(ends: LineEnds, hand: HandOfLine): HandOfLine {
+  if (hand.route.style !== 'orthogonal' || hand.bendPoints.length === 0) return hand;
+  const drawn = routeLine(ends, hand).route;
+  const corners = new Set(drawn.slice(1, -1).map((point) => `${point.x} ${point.y}`));
+  let bendPoints = hand.bendPoints;
+  // From the last, so that each bend point is weighed with those before it, as the route reaches it.
+  for (let at = bendPoints.length - 1; at >= 0; at--) {
+    const bend = bendPoints[at] as Point;
+    if (corners.has(`${bend.x} ${bend.y}`)) continue;
+    const fewer = bendPoints.filter((_, index) => index !== at);
+    if (sameRoute(routeLine(ends, { ...hand, bendPoints: fewer }).route, drawn)) {
+      bendPoints = fewer;
+    }
+  }
+  return bendPoints === hand.bendPoints ? hand : { ...hand, bendPoints };
+}
+
+function sameRoute(a: readonly Point[], b: readonly Point[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((point, at) => point.x === (b[at] as Point).x && point.y === (b[at] as Point).y)
+  );
 }
 
 function handEnd(
