@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.1.2
+
+### Pictures
+
+- **Pictures and animated GIFs sit on the canvas like notes.** Drop a PNG, JPEG, WebP, GIF or SVG on the canvas, paste one with Ctrl+V, or press Picture… on the canvas toolbar. Move, align, resize and delete it as you would a note; resizing keeps its proportions unless you hold Shift (ADR 0098).
+- **Its file is kept beside the project**, in `media/`, cleaned once and named by its content, so the same picture used twice is one file and git never conflicts on it. The inspector lists the files no picture names and removes them when you ask.
+- **GIFs play** while they are on screen, and show their first frame under reduced motion until you point at them.
+- **Exports carry them:** SVG, PDF and PNG show a GIF at its first frame, and the read-only page plays it. Claude adds pictures with `add_picture`.
+
+### Restarts and new addresses
+
+- **A tab rejoins by itself after the program restarts** on the same folder and port, without a new address, and says so. The session is kept in a record only your account can read, for a day without running at most (ADR 0099).
+- **A new address is one command away:** `visual-anything address`, or `docker exec visual-anything visual-anything address` in Docker.
+- **No more piles of tabs:** when Claude opens the app while a tab is connected, that tab is asked to come forward instead of another one opening.
+
+### The side panel
+
+- Every tab of the side panel scrolls sideways when it is narrow, and the outline and World's tree scroll to their longest name instead of cutting it.
+
+### Docker
+
+- The account the container runs as now comes from `VISUAL_ANYTHING_UID` and `VISUAL_ANYTHING_GID`: bash keeps `UID` read-only, so the old command failed (#7).
+- The image names its commit and version in its labels, and is published as `v0.1.2` and `sha-<commit>` beside `latest` (#6).
+
+### Worth knowing
+
+- Views that hold pictures open only in 0.1.2 and later. The live connection's version goes from 9 to 10.
+
 ## 0.1.1
 
 ### Tours
