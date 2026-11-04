@@ -30,6 +30,8 @@ The recipe lives in the repository: `Dockerfile`, `.dockerignore` and `compose.y
 
 **Clarification of 2026-11-04:** the user published it to GHCR by hand, as `ghcr.io/ivandaniliuk01/visual-anything`. It is built from a commit, `git archive <commit> | docker build --provenance=false --sbom=false -`, so that nothing uncommitted gets into it, and GHCR refused the attestation index Docker Desktop adds otherwise. It is tagged `latest` and `sha-<commit>`, and with a version once one is released from that commit. `compose.yaml` names that image: it pulls it, and builds from the repository only when it cannot.
 
+**Clarification of 2026-11-04 (issue #6):** the image published by hand carried only `latest`. Publishing builds from a commit with `--build-arg REVISION=<commit> --build-arg VERSION=<version or unreleased>`, which become the `org.opencontainers.image.revision` and `version` labels, and pushes `sha-<commit>` beside `latest`, and `v<version>` for a release. A workflow that publishes on a tag would spend CI minutes the project does not use, so publishing stays by hand.
+
 **Clarification of 2026-11-04 (issue #7):** the account the container runs as comes from `VISUAL_ANYTHING_UID` and `VISUAL_ANYTHING_GID`, 1000 when left out. They were `UID` and `GID`, but bash keeps `UID` read-only, so `UID=$(id -u) docker compose up` failed before compose saw it.
 
 ## Considered options

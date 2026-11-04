@@ -19,8 +19,12 @@ RUN mkdir -p .claude/skills && pnpm install --frozen-lockfile
 RUN pnpm package
 
 FROM debian:bookworm-slim
+# The commit the image is built from, and its version when one is released from it: publishing passes
+# both (ADR 0094), so that `docker inspect` names them.
+ARG REVISION=unknown
+ARG VERSION=unreleased
 # Links the image to its repository on GHCR, and says what it is.
-LABEL org.opencontainers.image.source=https://github.com/IvanDaniliuk01/visual-anything       org.opencontainers.image.description="Visual Anything: make any concept or system visual and explore it interactively."       org.opencontainers.image.licenses=MIT
+LABEL org.opencontainers.image.source=https://github.com/IvanDaniliuk01/visual-anything       org.opencontainers.image.description="Visual Anything: make any concept or system visual and explore it interactively."       org.opencontainers.image.licenses=MIT       org.opencontainers.image.revision=$REVISION       org.opencontainers.image.version=$VERSION
 RUN apt-get update \
   && apt-get install --yes --no-install-recommends ca-certificates git libstdc++6 tini \
   && rm -rf /var/lib/apt/lists/*
