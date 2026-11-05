@@ -116,6 +116,15 @@ export interface ProjectFile {
    */
   drawing?: DrawingDefaults;
   /**
+   * How the view list files the project's views (ADR 0101): views and folders of views, in the order
+   * the list shows them, folders nesting as deep as wanted. A view it does not name shows after it.
+   * Left out while it is empty.
+   *
+   * @minItems 1
+   * @maxItems 10000
+   */
+  viewFolders?: ViewFolderEntry[];
+  /**
    * What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what
    * the file keeps in place, and the other choice. Written only by a merge; the person resolves them.
    *
@@ -123,6 +132,24 @@ export interface ProjectFile {
    * @maxItems 10000
    */
   conflicts?: FileConflict[];
+}
+
+/** An entry of the view folders (ADR 0101): a view, or a folder of entries. */
+export type ViewFolderEntry = FiledView | ViewFolder;
+
+/** A view filed in the view folders, by its id. */
+export interface FiledView {
+  view: Id;
+}
+
+/** A folder of the view list, with the views and folders it holds, in order. */
+export interface ViewFolder {
+  /** The folder's id, made by the core; it says nothing to the person. */
+  folder: Id;
+  /** @minLength 1 */
+  name: string;
+  /** @maxItems 10000 */
+  entries: ViewFolderEntry[];
 }
 
 /**

@@ -33,6 +33,15 @@
       "$ref": "#/definitions/DrawingDefaults",
       "description": "How the project draws what no appearance sets (ADR 0086): a preset and the values it changes. Left out, the Clean preset as built in."
     },
+    "viewFolders": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ViewFolderEntry"
+      },
+      "description": "How the view list files the project's views (ADR 0101): views and folders of views, in the order the list shows them, folders nesting as deep as wanted. A view it does not name shows after it. Left out while it is empty.",
+      "minItems": 1,
+      "maxItems": 10000
+    },
     "conflicts": {
       "type": "array",
       "items": {
@@ -1354,6 +1363,57 @@
       },
       "additionalProperties": false,
       "description": "How the colors a project stores are drawn in each theme (ADR 0087)."
+    },
+    "ViewFolderEntry": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/FiledView"
+        },
+        {
+          "$ref": "#/definitions/ViewFolder"
+        }
+      ],
+      "description": "An entry of the view folders (ADR 0101): a view, or a folder of entries."
+    },
+    "FiledView": {
+      "type": "object",
+      "properties": {
+        "view": {
+          "$ref": "#/definitions/Id"
+        }
+      },
+      "required": [
+        "view"
+      ],
+      "additionalProperties": false,
+      "description": "A view filed in the view folders, by its id."
+    },
+    "ViewFolder": {
+      "type": "object",
+      "properties": {
+        "folder": {
+          "$ref": "#/definitions/Id",
+          "description": "The folder's id, made by the core; it says nothing to the person."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ViewFolderEntry"
+          },
+          "maxItems": 10000
+        }
+      },
+      "required": [
+        "folder",
+        "name",
+        "entries"
+      ],
+      "additionalProperties": false,
+      "description": "A folder of the view list, with the views and folders it holds, in order."
     },
     "FileConflict": {
       "type": "object",

@@ -142,6 +142,10 @@ _Avoid_: bundle (an aggregated relation stands for many relations; a trunk only 
 A projection of the model onto the canvas, seen from exactly one perspective and keeping its own positions. It shows the whole model, or the part its scope gives. It can also leave out relation types, each with the relation types derived from it unless exactly that one: their relations it draws as no line, aggregates into no collapsed container and counts as leaving nothing, though they stay in the model; a relation type it nests by is never left out (ADR 0064). Not the View component of Data modeling, which is a view of a database; its component's description says it is a view of a database (ADR 0023's clarification).
 _Avoid_: page, diagram, layer
 
+**View folder**:
+A named group of the view list, holding views and other view folders in an order the person chooses, as deep as wanted. The project keeps them all as one tree; a view no folder holds shows after them. Which folders are open is each person's, not the project's (ADR 0101).
+_Avoid_: group, section, category
+
 **Scope**:
 The part of the model a view shows: elements chosen by rules (a component, a relation type, a container's contents, a condition on an attribute) and elements added or left out by hand. A relation shows while both its ends do. Leaving an element out of a view never deletes it (ADR 0040).
 _Avoid_: subset, query, filter (a filter hides shapes of what the scope shows)

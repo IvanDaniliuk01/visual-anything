@@ -461,3 +461,5 @@ export {
 export * from './comments';
 // Free geometry: its outline, read once, and everything asked of it fitted to a shape (ADR 0066).
 export * from './geometry';
+export * from './view-folders';
+export { VIEW_FOLDER_ENTRIES_LIMIT } from './commands/view-folders';

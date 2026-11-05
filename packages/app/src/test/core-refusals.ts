@@ -707,6 +707,34 @@ const ALONE: readonly [string, unknown][] = [
     },
   ],
   [
+    'file the views',
+    { type: 'organize-views', viewFolders: [{ name: 'Stories', entries: [{ view: VIEW }] }] },
+  ],
+  [
+    'file a folder twice',
+    {
+      type: 'organize-views',
+      viewFolders: [
+        { folder: 'f', name: 'F', entries: [] },
+        { folder: 'f', name: 'G', entries: [] },
+      ],
+    },
+  ],
+  ['file a view twice', { type: 'organize-views', viewFolders: [{ view: VIEW }, { view: VIEW }] }],
+  [
+    'file a folder without a name',
+    { type: 'organize-views', viewFolders: [{ name: '', entries: [] }] },
+  ],
+  ['file something else', { type: 'organize-views', viewFolders: [42] }],
+  [
+    'file too much',
+    { type: 'organize-views', viewFolders: Array.from({ length: 10_001 }, () => ({ view: VIEW })) },
+  ],
+  [
+    'file a new view in no folder',
+    { type: 'create-view', view: { name: 'New', perspective: { name: 'Cost' } }, folder: 'nope' },
+  ],
+  [
     'list a package twice',
     { type: 'update-project', changes: { packages: ['systems', 'systems', 'clinic'] } },
   ],

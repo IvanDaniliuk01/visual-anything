@@ -3,6 +3,7 @@
  * operations and records it as one action in the undo history, whoever sent it.
  */
 import type { ConflictFile } from '../operations';
+import type { OrganizedEntry } from '../view-folders';
 import type {
   CaptionFace,
   TourEmphasis,
@@ -70,6 +71,7 @@ export type Command =
   | CreateViewCommand
   | UpdateViewCommand
   | DeleteViewCommand
+  | OrganizeViewsCommand
   | SetPositionsCommand
   | RemovePositionsCommand
   | CreateFreeShapeCommand
@@ -589,6 +591,17 @@ export interface CreateViewCommand {
     perspective: Perspective;
     nestingRelationTypes?: Id[];
   };
+  /** The folder of the view list it is filed in, last (ADR 0101); none files it nowhere. */
+  folder?: Id;
+}
+
+/**
+ * Files the project's views in folders (ADR 0101): the whole tree of the view list, which replaces the
+ * one the project keeps. A folder without an id is a new one, which the core names.
+ */
+export interface OrganizeViewsCommand {
+  type: 'organize-views';
+  viewFolders: OrganizedEntry[];
 }
 
 /** Changes a view's name, description, perspective or nesting relation types. */

@@ -17,6 +17,7 @@ export type ProblemCode =
   | 'unknown-relation-type'
   | 'unknown-package'
   | 'unknown-view'
+  | 'unknown-folder'
   | 'unknown-scenario'
   // A tour that the project does not have (ADR 0058).
   | 'unknown-tour'

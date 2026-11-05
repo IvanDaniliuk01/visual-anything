@@ -3,6 +3,7 @@
  * and the command each intent makes on the project as it is. The invariants' tests and the versions'
  * tests share them.
  */
+import { folderTree, isFolder, moved, takenOut } from '../view-folders';
 import fc from 'fast-check';
 import type { FreeShape, Id, LimitList, ScopeRule, ViewFile } from '@visual-anything/schema';
 import type {
@@ -60,7 +61,7 @@ export type Intent =
   | { kind: 'define'; relationType: boolean; parent: number }
   | { kind: 'remove-definition'; at: number; unused: boolean }
   | { kind: 'packages'; systems: boolean }
-  | { kind: 'view'; action: 'create' | 'nesting' | 'delete'; at: number; types: number[] }
+  | { kind: 'view'; action: 'create' | 'nesting' | 'delete' | 'file'; at: number; types: number[] }
   | { kind: 'scenario'; action: 'create' | 'steps' | 'delete'; at: number; picks: number[] }
   | { kind: 'note'; action: 'create' | 'move' | 'delete'; at: number }
   | { kind: 'package' }
@@ -113,6 +114,7 @@ export const COMMAND_TYPES: readonly Command['type'][] = [
   'create-view',
   'update-view',
   'delete-view',
+  'organize-views',
   'set-positions',
   'remove-positions',
   'create-free-shape',
@@ -186,7 +188,7 @@ export const intent: fc.Arbitrary<Intent> = fc.oneof(
   {
     arbitrary: fc.record({
       kind: fc.constant('view'),
-      action: fc.constantFrom('create', 'nesting', 'delete'),
+      action: fc.constantFrom('create', 'nesting', 'delete', 'file'),
       at: index,
       types: fc.array(index, { maxLength: 2 }),
     }),
@@ -551,6 +553,20 @@ export function commandFor(state: ProjectSnapshot, wish: Intent): Command | unde
           const free = views.filter((id) => !state.scenarios.some((each) => each.view === id));
           const view = pick(free.length > 0 ? free : views, wish.at);
           return view === undefined ? undefined : { type: 'delete-view', id: view };
+        }
+        case 'file': {
+          // Into the first folder, which is made first while there is none (ADR 0101).
+          const view = pick(views, wish.at);
+          if (view === undefined) return undefined;
+          const tree = folderTree(state.project, state.views);
+          const folder = tree.find(isFolder);
+          const without = takenOut(tree, { view }).tree;
+          return {
+            type: 'organize-views',
+            viewFolders: folder
+              ? (moved(tree, { view }, { folder: folder.folder }) ?? tree)
+              : [{ name: 'Group', entries: [{ view }] }, ...without],
+          };
         }
       }
       return undefined;

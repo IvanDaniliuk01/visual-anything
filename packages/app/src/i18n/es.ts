@@ -4602,6 +4602,15 @@ export const messages: Catalog = {
   'The view "{name}" cannot be deleted: {scenarios} play over it.':
     'La vista "{name}" no se puede eliminar: {scenarios} se reproducen sobre ella.',
   'A package is listed twice.': 'Un paquete aparece dos veces.',
+  'Organize the views': 'Ordenar las vistas',
+  'A folder needs a name.': 'Una carpeta necesita un nombre.',
+  'The folder "{id}" is listed twice.': 'La carpeta "{id}" aparece dos veces.',
+  'The view "{name}" is filed twice.': 'La vista "{name}" está archivada dos veces.',
+  'There is no folder "{id}" of views.': 'No hay ninguna carpeta de vistas "{id}".',
+  'An entry of the view folders is a view or a folder.':
+    'Cada entrada de las carpetas de vistas es una vista o una carpeta.',
+  'The view folders hold {n} views and folders at most.':
+    'Las carpetas de vistas guardan como mucho {n} vistas y carpetas.',
   'The project cannot stop using the package "{id}": {n} of its elements, relations or definitions come from it.':
     'El proyecto no puede dejar de usar el paquete "{id}": {n} de sus elementos, relaciones o definiciones vienen de él.',
   'There is no built-in package "{id}" to use.':

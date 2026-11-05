@@ -34,6 +34,7 @@ import {
   type Draft,
 } from './draft';
 import { followRoutes } from './follow';
+import { fileNewView, unfileView } from './view-folders';
 import { checkedColor } from './traits';
 import type {
   CreateFreeShapeCommand,
@@ -70,6 +71,7 @@ export function createView(draft: Draft, command: CreateViewCommand): string {
     item: created,
   });
   draft.created.push(id);
+  if (command.folder !== undefined) fileNewView(draft, id, command.folder);
   return `Create the view "${name}"`;
 }
 
@@ -141,6 +143,7 @@ export function deleteView(draft: Draft, command: DeleteViewCommand): string {
     );
   }
   draft.apply({ op: 'remove', collection: { name: 'views' }, key: view.id });
+  unfileView(draft, view.id);
   return `Delete the view "${view.name}"`;
 }
 

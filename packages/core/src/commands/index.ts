@@ -46,6 +46,7 @@ import { createScenario, deleteScenario, updateScenario } from './scenarios';
 import { addComment, createThread, deleteThread, editComment, resolveThread } from './comments';
 import type { Author } from '../history';
 import { createTour, deleteTour, updateTour } from './tours';
+import { organizeViews } from './view-folders';
 import { resolveConflicts } from './conflicts';
 import type { Command } from './types';
 import {
@@ -233,6 +234,8 @@ function dispatch(draft: Draft, command: Command): string {
       return updateView(draft, command);
     case 'delete-view':
       return deleteView(draft, command);
+    case 'organize-views':
+      return organizeViews(draft, command);
     case 'set-positions':
       return setPositions(draft, command);
     case 'remove-positions':
