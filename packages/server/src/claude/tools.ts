@@ -22,6 +22,7 @@ import {
   type Guidance,
   type ProjectSnapshot,
   type StoredColorsInDark,
+  type OrganizedEntry,
 } from '@visual-anything/core';
 import type { Attributes, FreeShape, Id } from '@visual-anything/schema';
 import { z } from 'zod';
@@ -990,7 +991,10 @@ const createView = tool({
 
 A new view shows the whole model, so what an import adds shows in the views without a scope; set_scope gives a view a scope, the part of the model it shows. After an import, create a view when the material brings a perspective none of them has, such as a draw.io page, a Structurizr deployment or a SQL schema's tables, arranged by the nesting relation types that material uses.
 
-Example: { "name": "Who owns what", "perspective": { "name": "Ownership", "description": "Which team runs each service." }, "nestingRelationTypes": ["systems.is-part-of"] }`,
+folder files it last in one of the project's view folders (get_project lists them as viewFolders); without it, the view shows after the folders in the person's view list.
+
+Example: { "name": "Who owns what", "perspective": { "name": "Ownership", "description": "Which team runs each service." }, "nestingRelationTypes": ["systems.is-part-of"] }
+Example, filed in a folder: { "name": "Ticket 12, step 3", "perspective": { "name": "Detail" }, "folder": "stories-k2v9qa" }`,
   input: {
     name: z.string().min(1),
     description: z.string().optional().describe(TAKES_MARKDOWN),
@@ -999,10 +1003,11 @@ Example: { "name": "Who owns what", "perspective": { "name": "Ownership", "descr
       description: z.string().optional().describe(TAKES_MARKDOWN),
     }),
     nestingRelationTypes: z.array(id()).optional(),
+    folder: id().optional().describe('The view folder it is filed in, last.'),
     escapeText: escapeTextInput(),
   },
   hints: WRITE,
-  run: async ({ escapeText, ...given }, program) =>
+  run: async ({ escapeText, folder, ...given }, program) =>
     act(
       program,
       await escapeTextsIf(program, escapeText, {
@@ -1011,6 +1016,7 @@ Example: { "name": "Who owns what", "perspective": { "name": "Ownership", "descr
           ...given,
           perspective: withoutUndefined(given.perspective),
         }),
+        ...(folder === undefined ? {} : { folder }),
       }),
       (answer) => ({ view: answer.created[0] }),
     ),
@@ -1091,6 +1097,40 @@ Example: { "id": "draft-view" }`,
   input: { id: id() },
   hints: DELETE,
   run: async (args, program) => act(program, { type: 'delete-view', id: args.id }),
+});
+
+const VIEW_FOLDER_ENTRY = z
+  .union([
+    z.object({ view: id() }).strict(),
+    z
+      .object({
+        folder: id().optional().describe('Its id, to keep a folder; left out for a new folder.'),
+        name: z.string().min(1),
+        entries: z
+          .array(z.unknown())
+          .describe('What it holds, in order: entries of the same two kinds.'),
+      })
+      .strict(),
+  ])
+  .describe('A view, { "view": <id> }, or a folder, { "folder"?, "name", "entries" }.');
+
+const organizeViews = tool({
+  name: 'organize_views',
+  title: 'File the views in folders',
+  description: `Files the project's views in view folders, as one undoable action: the whole tree of the person's view list, views and folders in the order the list shows them, folders inside folders as deep as wanted. It replaces the tree the project keeps, so start from viewFolders as get_project gives it and send it back changed. A folder keeps its id when you give it; one without an id is new, and the answer gives its id. A view the tree leaves out shows after the folders; each view is named once at most. Use it when a project has many views, to file them by what they are for (stories, the detail views of each, indexes), never to change what a view shows. An empty list takes every folder away; no view is deleted.
+
+Example: { "viewFolders": [{ "name": "Stories", "entries": [{ "view": "admission-story" }, { "name": "Admission, step by step", "entries": [{ "view": "admission-step-1" }, { "view": "admission-step-2" }] }] }, { "name": "Indexes", "entries": [{ "view": "all-tables" }] }, { "view": "landing" }] }`,
+  input: { viewFolders: z.array(VIEW_FOLDER_ENTRY) },
+  hints: WRITE,
+  run: async (args, program) =>
+    act(
+      program,
+      { type: 'organize-views', viewFolders: args.viewFolders as OrganizedEntry[] },
+      async () => {
+        const state = await program.project();
+        return { viewFolders: state.project.viewFolders ?? [] };
+      },
+    ),
 });
 
 const setPositions = tool({
@@ -1807,6 +1847,7 @@ export const TOOLS: readonly Tool[] = [
   createView,
   updateView,
   deleteView,
+  organizeViews,
   setPositions,
   forgetPositions,
   // Aligning, distributing and sizing alike, as the canvas's Align does (ADR 0074).

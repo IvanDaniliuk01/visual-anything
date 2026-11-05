@@ -571,6 +571,43 @@ describe('other write tools', () => {
     expect(session.snapshot.views.map((view) => view.id)).toContain(result.view);
   });
 
+  it('file the views in folders, create a view in one, and list them in the project', async () => {
+    const made = await value('create_view', {
+      name: 'Ownership',
+      perspective: { name: 'Ownership' },
+    });
+    expect(await value('get_project')).not.toHaveProperty('viewFolders');
+    const filed = await value('organize_views', {
+      viewFolders: [
+        { name: 'Stories', entries: [{ name: 'Detail', entries: [{ view: made.view }] }] },
+      ],
+    });
+    const [stories] = filed.viewFolders as { folder: string; entries: { folder: string }[] }[];
+    const detail = stories?.entries[0]?.folder;
+    const inside = await value('create_view', {
+      name: 'Step 1',
+      perspective: { name: 'Detail' },
+      folder: detail,
+    });
+    expect(session.history.undo).toEqual({ label: 'Create the view "Step 1"', author: 'claude' });
+    expect((await value('get_project')).viewFolders).toEqual([
+      {
+        folder: stories?.folder,
+        name: 'Stories',
+        entries: [
+          { folder: detail, name: 'Detail', entries: [{ view: made.view }, { view: inside.view }] },
+        ],
+      },
+      { view: 'overview' },
+    ]);
+    expect(await failure('organize_views', { viewFolders: [{ view: 'nothing' }] })).toContain(
+      'There is no view "nothing".',
+    );
+    expect(
+      await failure('create_view', { name: 'X', perspective: { name: 'X' }, folder: 'nothing' }),
+    ).toContain('There is no folder "nothing" of views.');
+  });
+
   it('remove a component of the project’s own', async () => {
     await value('delete_from_model', { elements: ['cart'] });
     await value('remove_definition', { id: 'shop.cart' });

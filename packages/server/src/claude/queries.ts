@@ -7,6 +7,7 @@
  */
 import {
   adaptedForDark,
+  folderTree,
   brokenStepsOf,
   builtinPackage,
   combinationsOf,
@@ -105,6 +106,10 @@ export function summarizeProject(state: ProjectSnapshot) {
       scenarios: state.scenarios.length,
     },
     nestingRelationTypes: [...definitions.nestingRelationTypes],
+    // How the person's view list files them (ADR 0101), every view in it, when the project has folders.
+    ...(state.project.viewFolders === undefined
+      ? {}
+      : { viewFolders: folderTree(state.project, state.views) }),
     views: state.views.map((view) => ({
       id: view.id,
       name: view.name,
