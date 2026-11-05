@@ -13,6 +13,7 @@ import { selectionOf } from '../editor/selection';
 import { useT, type Translator } from '../i18n';
 import { FilterIcon, FocusIcon } from '../shell/icons';
 import { SelectControl } from '../shell/inspector/controls';
+import { viewsInListOrder } from '../shell/viewFolders';
 import {
   ALL_DEGREES,
   ATTRIBUTE_TESTS,
@@ -116,7 +117,7 @@ export function ExploreStrip() {
  */
 function PerspectiveOptions({ project, viewId }: { project: Editor['project']; viewId: Id }) {
   const t = useT();
-  const { same, others } = viewsByScope(project.views, viewId);
+  const { same, others } = viewsByScope(viewsInListOrder(project), viewId);
   const options = (views: readonly ViewFile[]) =>
     views.map((view) => (
       <option key={view.id} value={view.id}>

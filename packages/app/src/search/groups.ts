@@ -19,6 +19,7 @@ import {
 import type { Id, ViewFile } from '@visual-anything/schema';
 import { nameOfEnd } from '../canvas/announce';
 import type { Translator } from '../i18n';
+import { viewsInListOrder } from '../shell/viewFolders';
 import type { Shown } from '../view-state/applier';
 import type { Entry, Found } from './find';
 
@@ -31,10 +32,10 @@ export interface FoundGroup {
   found: Found[];
 }
 
-/** The views that draw what an entry stands for, in the project's order. */
+/** The views that draw what an entry stands for, in the order of the view list (ADR 0101). */
 export function viewsDrawing(project: ProjectSnapshot, entry: Entry): ViewFile[] {
   if (entry.kind === 'free-shape') return project.views.filter((view) => view.id === entry.view);
-  return project.views.filter((view) => viewShows(project, view, entry));
+  return viewsInListOrder(project).filter((view) => viewShows(project, view, entry));
 }
 
 /** Whether a view's scope shows what an entry stands for; a free shape, in its own view only. */
@@ -52,12 +53,9 @@ export function groupsOf(
   openViewId: Id | undefined,
 ): FoundGroup[] {
   const groups = new Map<Id | undefined, FoundGroup>();
+  const listed = new Map(viewsInListOrder(project).map((view, at) => [view.id, at]));
   const order = (id: Id | undefined) =>
-    id === openViewId
-      ? -1
-      : id === undefined
-        ? project.views.length
-        : project.views.findIndex((view) => view.id === id);
+    id === openViewId ? -1 : id === undefined ? listed.size : (listed.get(id) ?? listed.size);
   for (const each of found) {
     const views = viewsDrawing(project, each.entry);
     const view = views.find((one) => one.id === openViewId) ?? views[0];

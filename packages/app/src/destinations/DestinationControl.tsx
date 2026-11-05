@@ -16,6 +16,7 @@ import { useContext, useId, useState } from 'react';
 import { EditorContext } from '../editor/EditorContext';
 import { useT } from '../i18n';
 import { TextControl } from '../shell/inspector/controls';
+import { viewsInListOrder } from '../shell/viewFolders';
 import './destinations.css';
 
 type Kind = 'view' | 'project' | 'web';
@@ -171,7 +172,7 @@ interface ViewFieldsProps {
 /** The view a destination opens, and the elements it focuses on there. */
 function ViewFields({ ids, project, destination, selected, disabled, onSet }: ViewFieldsProps) {
   const t = useT();
-  const views = project?.views ?? [];
+  const views = project ? viewsInListOrder(project) : [];
   const focus = destination?.focus ?? [];
   return (
     <>
