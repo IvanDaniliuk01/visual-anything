@@ -83,6 +83,8 @@ export type Command =
   | UpdateProjectCommand
   | RestackCommand
   | ChangeContainerCommand
+  // Duplicates (ADR 0103).
+  | DuplicateElementsCommand
   | UpdateComponentCommand
   | UpdateRelationTypeCommand
   | SetComponentAppearanceCommand
@@ -829,6 +831,42 @@ export interface ChangeContainerCommand {
      */
     pinned?: boolean;
   }[];
+}
+
+/**
+ * Makes duplicates of elements in a view, as one action (ADR 0103): each a new element with its
+ * original's component, attributes, description and appearance; with it, duplicates of everything its
+ * original holds, at any depth through every nesting relation type, and of the relations among
+ * everything duplicated, between the duplicates. Relations to anything else are not duplicated.
+ *
+ * The duplicates of the given elements that sit in no other duplicate land inside `container`, through
+ * the nesting relation type the view chooses for creating an element there (`nestingTypeFor`), which
+ * the same action makes the view nest by when it does not yet; or directly in World. With `beside`,
+ * each lands instead in the containers its original sits in, through the same nesting relations. A
+ * duplicate that lands in a container its original sits in, World included, has `suffix` after its
+ * name. The view shows every duplicate whose original it showed, and every one that lands.
+ *
+ * `created` lists the duplicates of the given elements first, in their order, then the duplicates of
+ * what they hold, in the model's order, then the new relations.
+ */
+export interface DuplicateElementsCommand {
+  type: 'duplicate-elements';
+  /** The view they are duplicated in, whose nesting relation types say what sits where. */
+  view: Id;
+  elements: Id[];
+  /** The container they land in; absent, or World's id, for World. Not with `beside`. */
+  container?: Id;
+  /** Whether each lands in the containers its original sits in, beside it. */
+  beside?: boolean;
+  /**
+   * Where the shapes of the duplicates that land go, by the id of the given element: relative to the
+   * shape of the container they land in, or to the canvas in World, left for layout to change. One
+   * without a place, or in a container that draws rows, is placed by layout. The duplicates of what
+   * they hold keep their originals' places inside them.
+   */
+  positions?: { element: Id; x: number; y: number }[];
+  /** What a duplicate landing where its original sits adds to its name; " (copy)" by default. */
+  suffix?: string;
 }
 
 /** Several commands done as one action and undone together. */

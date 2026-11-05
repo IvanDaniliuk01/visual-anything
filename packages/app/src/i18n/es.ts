@@ -4295,6 +4295,9 @@ export const messages: Catalog = {
   'Delete "{name}"': 'Eliminar "{name}"',
   'Delete the relation "{name}"': 'Eliminar la relación "{name}"',
   'Delete {things}': 'Eliminar {things}',
+  // Duplicates (ADR 0103).
+  'Duplicate "{name}"': 'Duplicar "{name}"',
+  'Duplicate {things}': 'Duplicar {things}',
   'Add the relation "{name}"': 'Agregar la relación "{name}"',
   'Edit the relation "{name}"': 'Editar la relación "{name}"',
   'Collapse "{name}"': 'Contraer "{name}"',
@@ -4558,6 +4561,17 @@ export const messages: Catalog = {
     'El paquete "{id}" es incorporado y no se puede cambiar.',
   'The project uses no package "{id}".': 'El proyecto no usa ningún paquete "{id}".',
   'Nothing to delete was given.': 'No se indicó nada para eliminar.',
+  // Why the core refuses to duplicate (ADR 0103).
+  'Nothing to duplicate was given.': 'No se indicó nada para duplicar.',
+  'World cannot be duplicated: it holds the whole model.':
+    'Mundo no se puede duplicar: contiene todo el modelo.',
+  'Duplicates land beside their originals or in a container, not both.':
+    'Los duplicados quedan junto a sus originales o en un contenedor, no las dos cosas.',
+  'A place is given for "{id}", which is not duplicated.':
+    'Se indica un lugar para "{id}", que no se duplica.',
+  'A suffix is a text.': 'Un sufijo es un texto.',
+  'No nesting relation type can put "{name}" inside "{container}".':
+    'Ningún tipo de relación que anida puede poner "{name}" dentro de "{container}".',
   'The relation "{name}" cannot end on itself, directly or through the relations that end on it.':
     'La relación "{name}" no puede terminar en sí misma, ni directamente ni a través de las relaciones que terminan en ella.',
   'A nesting relation places one element inside another, but "{name}" is a relation.':
