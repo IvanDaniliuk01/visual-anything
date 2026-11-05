@@ -28,7 +28,8 @@ import { coversRect } from './stacking';
 
 /**
  * The command that moves the selection by `delta`, in scene units, or `undefined` when nothing moves.
- * Every shape of a selected element moves, inside its own container; a shape whose container moves too
+ * Every shape of a selected element moves, inside its own container, but for a drag's `grabbed`
+ * element, whose shape grabbed moves alone (`movingShapes`); a shape whose container moves too
  * is carried along and keeps its place in it. Moved shapes are pinned: layout keeps them where they are.
  * The elements in `except` are left out, for a command that places them otherwise, such as a drop
  * into a container.
@@ -37,7 +38,7 @@ export function moveCommand(
   indexed: IndexedScene,
   project: ProjectSnapshot,
   viewId: Id,
-  selection: Selection,
+  selection: MoveSelection,
   delta: Point,
   except?: ReadonlySet<Id>,
 ): Command | undefined {
@@ -56,7 +57,7 @@ export function moveParts(
   indexed: IndexedScene,
   project: ProjectSnapshot,
   viewId: Id,
-  selection: Selection,
+  selection: MoveSelection,
   delta: Point,
   except?: ReadonlySet<Id>,
 ): { commands: Command[]; shapes: number; viewName: string } | undefined {
@@ -101,12 +102,24 @@ export function moveParts(
 }
 
 /**
- * The element shapes a move takes along: every shape of every selected element, except the ones
- * inside a shape that moves too, which its container carries. A row has no position of its own, so
- * it moves its container instead, once however many of its rows are selected (ADR 0023).
+ * A selection as a move takes it: with `grabbed`, the key of the shape a drag grabbed, whose element's
+ * other shapes, its copies in other containers, stay where they are (ADR 0007).
  */
-export function movingShapes(indexed: IndexedScene, selection: Selection): ElementShape[] {
-  const selected = [...selection.elements].flatMap((id) => indexed.byElement.get(id) ?? []);
+export type MoveSelection = Selection & { readonly grabbed?: string };
+
+/**
+ * The element shapes a move takes along: every shape of every selected element, except the ones
+ * inside a shape that moves too, which its container carries, and, for a drag, the other copies of
+ * the element grabbed: a drag moves the one it holds. A row has no position of its own, so it moves
+ * its container instead, once however many of its rows are selected (ADR 0023).
+ */
+export function movingShapes(indexed: IndexedScene, selection: MoveSelection): ElementShape[] {
+  const grabbed =
+    selection.grabbed === undefined ? undefined : indexed.byKey.get(selection.grabbed);
+  const held = grabbed && selection.elements.has(grabbed.element) ? grabbed : undefined;
+  const selected = [...selection.elements].flatMap((id) =>
+    held?.element === id ? [held] : (indexed.byElement.get(id) ?? []),
+  );
   const unique = new Map<string, ElementShape>();
   for (const shape of selected) {
     const moved = containerOfRow(indexed, shape);

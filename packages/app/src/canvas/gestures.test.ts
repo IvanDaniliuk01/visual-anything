@@ -128,6 +128,46 @@ describe('moveCommand', () => {
     expect(executeCommand(copies, command!).ok).toBe(true);
   });
 
+  it('moves both copies of an element in two containers from the keyboard, but only the one a drag grabbed', () => {
+    const copies = withTwoSchedulings();
+    const twice = indexScene(buildScene(copies, VIEW));
+    const shapes = twice.byElement.get('scheduling') ?? [];
+    expect(new Set(shapes.map((shape) => shape.container))).toEqual(
+      new Set(['clinic-booking', 'patient']),
+    );
+    const selection = selectionOf([{ kind: 'element', id: 'scheduling' }]);
+    expect(movingShapes(twice, selection)).toHaveLength(2);
+
+    for (const grabbed of shapes) {
+      const dragged = { ...selection, grabbed: grabbed.key };
+      expect(movingShapes(twice, dragged).map((shape) => shape.key)).toEqual([grabbed.key]);
+      const command = moveCommand(twice, copies, VIEW, dragged, { x: 10, y: 0 });
+      expect(command).toMatchObject({
+        type: 'set-positions',
+        positions: [{ element: 'scheduling', container: grabbed.container }],
+      });
+      expect(command?.type === 'set-positions' && command.positions).toHaveLength(1);
+      expect(executeCommand(copies, command!).ok).toBe(true);
+    }
+  });
+
+  it('drags the other selected elements whole, and ignores a grabbed shape that is not selected', () => {
+    const copies = withTwoSchedulings();
+    const twice = indexScene(buildScene(copies, VIEW));
+    const [first] = twice.byElement.get('scheduling') ?? [];
+    const both = selectionOf([
+      { kind: 'element', id: 'scheduling' },
+      { kind: 'element', id: 'whatsapp' },
+    ]);
+    expect(
+      movingShapes(twice, { ...both, grabbed: first!.key }).map((shape) => shape.element),
+    ).toEqual(['scheduling', 'whatsapp']);
+    const other = selectionOf([{ kind: 'element', id: 'whatsapp' }]);
+    expect(movingShapes(twice, { ...other, grabbed: first!.key })).toEqual(
+      movingShapes(twice, other),
+    );
+  });
+
   it('leaves out the elements another command places', () => {
     const selection = selectionOf([
       { kind: 'element', id: 'patient' },

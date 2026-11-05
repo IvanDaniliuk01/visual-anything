@@ -9,7 +9,7 @@ import { t } from '../i18n';
 import type { DropAim } from './drop';
 import type { Point } from './geometry';
 import { GRID_STEP, nudgedOffset, snappedDelta, unitsText } from './grid';
-import { movingShapes } from './gestures';
+import { movingShapes, type MoveSelection } from './gestures';
 import type { Hit, IndexedScene } from './hit';
 import { laidOutRect } from './overlays/decorate';
 import type { Direction } from './navigation';
@@ -57,7 +57,7 @@ export function carrierOf(moving: readonly ElementShape[], key: string): Element
  */
 export function dragAnchor(
   indexed: IndexedScene,
-  selection: Selection,
+  selection: MoveSelection,
   pressed: Hit,
 ): Anchor | undefined {
   switch (pressed.kind) {

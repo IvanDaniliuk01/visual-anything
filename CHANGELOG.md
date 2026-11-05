@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### The canvas
+
+- **Dragging an element that sits in several containers moves only the copy you grabbed** (#10). Each copy keeps its own place, so you can arrange them one by one; selecting it still highlights every copy, and moving it from the keyboard still moves them all (ADR 0007).
+
 ## 0.1.2
 
 ### Pictures

@@ -68,7 +68,7 @@ import {
 } from './drop';
 import { collapseActions, type CollapseAction } from './collapse';
 import { boundsOf, centerOf, distance, toggleRect, type Point, type Rect } from './geometry';
-import { carriedKeys, moveCommand, movingShapes } from './gestures';
+import { carriedKeys, moveCommand, movingShapes, type MoveSelection } from './gestures';
 import { enclosedBy, hitAt, shapesAt, withoutShapes, type Hit, type IndexedScene } from './hit';
 import { drawnBoundsOf } from './nameTags';
 import {
@@ -246,6 +246,8 @@ interface DragGesture {
   anchor: Anchor | undefined;
   /** The renderer's drag, as `startDrag` named it: ending it leaves any later drag alone. */
   drag: number;
+  /** The key of the shape grabbed, which moves without its element's other copies (ADR 0007). */
+  grabbed?: string;
   /** What a drop into or out of a container may do; absent when the drag only moves shapes. */
   plan?: DropPlan;
   /** What releasing the shapes now would do, as last worked out. */
@@ -940,7 +942,12 @@ export class CanvasController {
         ) {
           return;
         }
-        const moving = movingShapes(indexed, this.selection);
+        // A drag moves the shape it grabbed, not the element's copies in other containers.
+        const selection: MoveSelection =
+          gesture.hit.kind === 'shape'
+            ? { ...this.selection, grabbed: gesture.hit.shape.key }
+            : this.selection;
+        const moving = movingShapes(indexed, selection);
         const keys = carriedKeys(indexed, moving);
         const drag = this.renderer.startDrag(keys, this.relationsOn(keys));
         this.lastDrag = drag;
@@ -949,7 +956,7 @@ export class CanvasController {
         // What dropping can do is worked out once, for the shape grabbed.
         const plan =
           gesture.hit.kind === 'shape' && project && viewId
-            ? planDrop(indexed, project, viewId, this.selection, gesture.hit.shape)
+            ? planDrop(indexed, project, viewId, selection, gesture.hit.shape)
             : undefined;
         const dragged: DragGesture = {
           kind: 'drag',
@@ -957,12 +964,13 @@ export class CanvasController {
           world: gesture.world,
           delta,
           raw: delta,
-          anchor: dragAnchor(indexed, this.selection, gesture.hit),
+          anchor: dragAnchor(indexed, selection, gesture.hit),
           drag,
+          ...(selection.grabbed === undefined ? {} : { grabbed: selection.grabbed }),
           ...(plan ? { plan } : {}),
           aim: { kind: 'stay' },
           alt: event.altKey,
-          guide: this.shapes.moveGuideOf(indexed, this.selection, gesture.hit, moving, keys),
+          guide: this.shapes.moveGuideOf(indexed, selection, gesture.hit, moving, keys),
           unguided: guidesOff(event),
           cover: undefined,
           at: screen,
@@ -1487,8 +1495,10 @@ export class CanvasController {
   private drop(gesture: DragGesture): void {
     this.endDropFeedback(gesture);
     if (gesture.alt) this.altDragged = true;
-    const { indexed, project, viewId, selection } = this;
-    const { delta, drag, plan } = gesture;
+    const { indexed, project, viewId } = this;
+    const { delta, drag, plan, grabbed } = gesture;
+    const selection: MoveSelection =
+      grabbed === undefined ? this.selection : { ...this.selection, grabbed };
     const dropped =
       indexed && project && viewId && plan
         ? dropCommand(indexed, project, viewId, selection, plan, gesture.aim, delta)
@@ -2394,7 +2404,7 @@ function keyOf(hit: Exclude<Hit, { kind: 'relation' }>): string {
  * Where a drop lands: the rectangles of the shapes and free shapes it moves, moved by `delta`; when
  * there are many, one rectangle around them all.
  */
-function landingOf(indexed: IndexedScene, selection: Selection, delta: Point): Rect[] {
+function landingOf(indexed: IndexedScene, selection: MoveSelection, delta: Point): Rect[] {
   const { notes, arrows } = indexed.scene;
   const free = selection.freeShapes;
   const rects = [

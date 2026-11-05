@@ -13,7 +13,7 @@ import { fitCamera, readableFitCamera, worldToScreen } from './camera';
 import { CanvasArea, type SendCommand } from './CanvasArea';
 import { CanvasController } from './controller';
 import { centerOf } from './geometry';
-import { indexScene } from './hit';
+import { hitAt, indexScene } from './hit';
 import type { LayoutRunner } from './layout/client';
 import { layOut } from './layout/engine';
 import { LayoutRunnerContext } from './layout/useLayout';
@@ -425,6 +425,45 @@ describe('CanvasArea', () => {
         },
       ],
     });
+  });
+
+  it('moves only the copy dragged of an element in two containers (issue #10)', async () => {
+    const twice = after(project, {
+      type: 'create-relation',
+      relation: { relationType: 'systems.is-part-of', from: 'scheduling', to: 'patient' },
+    });
+    const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
+    const { host, on } = await started(<Harness project={twice} onCommand={onCommand} />, twice);
+    const indexed = indexScene(buildScene(twice, view.id));
+    const shapes = indexed.byElement.get('scheduling') ?? [];
+    expect(shapes).toHaveLength(2);
+    for (const grabbed of shapes) {
+      onCommand.mockClear();
+      // A point of the copy where nothing else lies; Ctrl keeps the guides from snapping (ADR 0074).
+      const { rect } = grabbed;
+      const points = [0.05, 0.25, 0.5, 0.75, 0.95].flatMap((fx) =>
+        [0.02, 0.05, 0.1, 0.5, 0.9, 0.97].map((fy) => ({
+          x: rect.x + rect.width * fx,
+          y: rect.y + rect.height * fy,
+        })),
+      );
+      const free = points.find((each) => {
+        const hit = hitAt(indexed, each, 0);
+        return hit?.kind === 'shape' && hit.shape.key === grabbed.key;
+      });
+      expect(free).toBeDefined();
+      const from = on(free!);
+      point('pointerdown', host, from.x, from.y);
+      point('pointermove', host, from.x + 30, from.y + 10, { ctrlKey: true });
+      point('pointerup', host, from.x + 30, from.y + 10, { ctrlKey: true });
+      await act(async () => Promise.resolve());
+      const command = onCommand.mock.lastCall?.[0] as Command;
+      expect(command).toMatchObject({ type: 'set-positions' });
+      const positions = command.type === 'set-positions' ? command.positions : [];
+      expect(positions).toEqual([
+        expect.objectContaining({ element: 'scheduling', container: grabbed.container }),
+      ]);
+    }
   });
 
   it('shows what a deletion cascades to before deleting it', async () => {

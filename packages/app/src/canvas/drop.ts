@@ -24,12 +24,11 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Id, Relation } from '@visual-anything/schema';
-import type { Selection } from '../editor/selection';
 import { t } from '../i18n';
 import { fill } from '../i18n/translate';
 import { IS_APPLE } from '../live/platform';
 import { centerOf, holdsPoint, type Point, type Rect } from './geometry';
-import { carriedKeys, moveParts, movingShapes } from './gestures';
+import { carriedKeys, moveParts, movingShapes, type MoveSelection } from './gestures';
 import { holdsAsDrawn, type IndexedScene } from './hit';
 import { drawnBoundsOf, nameTagOf } from './nameTags';
 import type { Overlay } from './renderer';
@@ -121,7 +120,7 @@ export function planDrop(
   indexed: IndexedScene,
   project: ProjectSnapshot,
   viewId: Id,
-  selection: Selection,
+  selection: MoveSelection,
   grabbed: ElementShape,
 ): DropPlan | undefined {
   const view = project.views.find((each) => each.id === viewId);
@@ -368,7 +367,7 @@ export function dropCommand(
   indexed: IndexedScene,
   project: ProjectSnapshot,
   viewId: Id,
-  selection: Selection,
+  selection: MoveSelection,
   plan: DropPlan,
   aim: DropAim,
   delta: Point,
