@@ -40,6 +40,7 @@ import { DecisionEmphasis } from '../scenarios/DecisionEmphasis';
 import { PlaybackEmphasis } from '../scenarios/PlaybackEmphasis';
 import { FindBar } from '../search/FindBar';
 import { OutlineTree } from '../shell/OutlineTree';
+import { viewsInListOrder } from '../shell/viewFolders';
 import {
   DismissIcon,
   FilterIcon,
@@ -338,7 +339,7 @@ export function Viewer({ project: opened, made, preferences, solids, space, medi
                 <ProductName />
                 <h1 className="viewer-project">{project.project.name}</h1>
                 <ViewPicker
-                  views={project.views}
+                  views={viewsInListOrder(project)}
                   open={view}
                   onOpen={(id) => {
                     setOpenViewId(id);

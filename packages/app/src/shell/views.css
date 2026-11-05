@@ -1,5 +1,6 @@
 /*
- * The view list in the Model tab: each view opens from its name, and its settings show under it.
+ * The view list in the Model tab: each view opens from its name, and its settings show under it; view
+ * folders open and close, with what they hold indented below them (ADR 0101).
  * Only the tokens of styles.css, whose text pairs meet WCAG 2.1 AA contrast (4.5:1).
  */
 
@@ -67,7 +68,13 @@
   color: var(--accent);
 }
 
-.view-list + .view-action,
+.view-list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-40);
+}
+
+.view-list + .view-list-actions,
 .view-new {
   margin-top: var(--space-50);
 }
@@ -183,4 +190,50 @@
 .view-new-actions {
   display: flex;
   gap: var(--space-40);
+}
+
+/* A folder's entries, indented under it; an empty folder says so. */
+.view-folder-entries,
+.view-folder-empty {
+  margin-left: var(--space-70);
+}
+
+.view-folder-empty {
+  padding: var(--space-15) var(--space-30);
+}
+
+.view-folder-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-25);
+}
+
+.view-folder-chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-muted);
+}
+
+.view-folder-toggle .item-name {
+  font-weight: var(--weight-strong);
+}
+
+/* Where a dragged view or folder would go: a line before or after a row, or into a folder. */
+.view-row-line[draggable='true'] {
+  cursor: grab;
+}
+
+.view-drop-before {
+  box-shadow: inset 0 var(--stroke-thick) 0 var(--accent);
+}
+
+.view-drop-after,
+.view-drop-first {
+  box-shadow: inset 0 calc(-1 * var(--stroke-thick)) 0 var(--accent);
+}
+
+.view-drop-inside {
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 var(--stroke-thin) var(--accent);
 }

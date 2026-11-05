@@ -94,6 +94,7 @@
  * | action, history         | acción, historial                |
  * | language                | idioma                           |
  * | settings (of a view)    | opciones                         |
+ * | view folder             | carpeta (de vistas)              |
  * | the local program       | el programa local                |
  * | read-only page          | página de solo lectura           |
  * | package code            | código del paquete               |
@@ -768,6 +769,23 @@ export const ui: Catalog = {
   Security: 'Seguridad',
   'Every relation type that nests arranges it at first; its settings change that.':
     'Al principio la organizan todos los tipos de relación que anidan; sus opciones lo cambian.',
+  'New view in "{folder}"': 'Nueva vista en "{folder}"',
+
+  // The view folders.
+  'New folder…': 'Nueva carpeta…',
+  'New folder': 'Nueva carpeta',
+  'Give the folder a name.': 'La carpeta necesita un nombre.',
+  Stories: 'Historias',
+  'Settings of the folder "{name}"': 'Opciones de la carpeta "{name}"',
+  'This folder is empty.': 'Esta carpeta está vacía.',
+  Folder: 'Carpeta',
+  'No folder': 'Sin carpeta',
+  Inside: 'Dentro de',
+  'The top level': 'El primer nivel',
+  'New view in this folder…': 'Nueva vista en esta carpeta…',
+  'Delete folder': 'Eliminar carpeta',
+  'Deleting the folder deletes no view: what it holds takes its place. Undo brings it back.':
+    'Eliminar la carpeta no elimina ninguna vista: lo que contiene queda en su lugar. Deshacer la recupera.',
 
   // The outline.
   'There is no view to outline.': 'No hay ninguna vista para mostrar en el esquema.',
