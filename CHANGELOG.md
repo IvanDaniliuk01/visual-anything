@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Views
+
+- **File views in folders** (#11). The view list shows view folders you make, nested as deep as you want, in the order you choose: New folder… beside New view…, drag views and folders where they go, or move them from their settings. Folders open and close, and each person's browser remembers which are closed; a view no folder holds shows after them. Claude files views too, with `organize_views` (ADR 0101).
+
 ### The canvas
 
 - **Dragging an element that sits in several containers moves only the copy you grabbed** (#10). Each copy keeps its own place, so you can arrange them one by one; selecting it still highlights every copy, and moving it from the keyboard still moves them all (ADR 0007).
