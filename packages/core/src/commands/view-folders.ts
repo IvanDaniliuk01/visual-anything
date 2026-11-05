@@ -48,7 +48,7 @@ export function organizeViews(draft: Draft, command: OrganizeViewsCommand): stri
       if ('entries' in entry) {
         const folder = entry as Partial<OrganizedEntry> & { entries: unknown; name?: unknown };
         const name = requireName(folder.name, 'A folder');
-        const inside = requireList(folder.entries, 'entries');
+        const inside = requireList(folder.entries as unknown[], 'entries');
         const id =
           'folder' in folder && folder.folder !== undefined
             ? folder.folder
