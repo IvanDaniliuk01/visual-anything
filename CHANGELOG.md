@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.3
 
 ### Views
 
@@ -15,11 +15,17 @@
 - **Copy and paste elements between views, and duplicate them** (#13). Ctrl+C copies the selection, from the canvas or the Outline; Ctrl+V shows the same elements in the open view, where the pointer is, adding them to its scope when it leaves them out, so renaming one renames it everywhere; when the view shows them already, they are selected and the canvas says so. Ctrl+Shift+V, or Paste as duplicates in the canvas's menu, makes new elements instead, with everything they hold and the relations among them, inside the container under the pointer; Ctrl+D, or Duplicate in the shape's menu, does it beside the selection. Notes, arrows and pictures are pasted as copies. Pasting what another project copied is refused, for now. Claude duplicates with `duplicate_elements` (ADR 0103).
 - **Claude's pictures show the view guidance just opened, and come from a tab in the background** (#16). `capture_view` right after `pan_to` or `highlight` opened another view waits until the tab shows that view drawn, with no layout moving in, instead of picturing the view before or finding none of the elements named. A tab in the background or a minimized window draws the picture without waiting for frames its browser never draws, and when no answer comes in time Claude is told what the program waited for (ADR 0081).
 - **Dragging an element that sits in several containers moves only the copy you grabbed** (#10). Each copy keeps its own place, so you can arrange them one by one; selecting it still highlights every copy, and moving it from the keyboard still moves them all (ADR 0007).
+- In a view of solids drawn by their parts, leaving a relation type out, or bringing it back, draws again at once the callouts its relations make.
 
 ### Claude
 
 - **Commands refuse what they do not take, and say what they take** (#14). A command Claude sends through `run_commands` with a key it does not take, such as a scope in `update-view`'s changes or `ids` in a delete, is refused, naming the keys it takes and, when another command sets it, which one, instead of doing the rest and dropping the key; so is a field left out or a value of the wrong kind. `update-free-shape` takes changes part by part, such as only a note's height, and no malformed command answers in JavaScript's words any more. The new `describe_command` gives each command's fields, which it needs, what each means and an example (ADR 0104). The commands a package's code returns are checked the same way.
 - **Claude's write answers stop repeating the attributes a component does not define** (#17). Adding or changing elements that carry attributes their component does not define now answers once per component: how many of the elements carry them and their names, each once, at most 20, and only those this write set, never their values; `get_item` still lists every one an element carries. A component can also say its elements carry attributes of their own on purpose, as the rows of a table carry their columns: tick **Its elements may carry attributes it does not define** in the component editor, or Claude sets `openAttributes` with `define_component` or `update_component`. Then nothing names those attributes as undefined, the inspector no longer marks them as particularities, and components derived from it do the same unless they say otherwise (ADR 0105).
+
+### Worth knowing
+
+- Projects with a tour step that shows a view beside it, or a component with open attributes, open only in 0.1.3 and later. The live connection's version goes from 10 to 11.
+- A command with a key it does not take, which 0.1.2 carried out while dropping the key, is now refused, saying which keys it takes. The app's own commands and the example packages send none; a package of your own whose code returns such a command will see it refused.
 
 ## 0.1.2
 
