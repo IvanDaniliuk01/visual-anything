@@ -726,6 +726,20 @@ describe('a scene built after an edit', () => {
     );
   }, 120_000);
 
+  it('equals one built from nothing when a relation type is left out around anchored parts (seeds 2116083472, -306649881)', () => {
+    run(withSolids(VIEW), [
+      { kind: 'solid-part', element: 349, part: 47 },
+      { kind: 'leave-out-type', type: 401, exactly: false },
+      { kind: 'part', element: 0, part: 0 },
+    ] as Edit[]);
+
+    run(withSolids(VIEW), [
+      { kind: 'part', element: 109, part: 0 },
+      { kind: 'leave-out-type', type: 26, exactly: false },
+      { kind: 'unrelate', relation: 0 },
+    ] as Edit[]);
+  });
+
   it('keeps a solid’s anchored parts at their points as their drawing moves and recolors', () => {
     run(withSolids(VIEW), [
       { kind: 'drag', shape: 0, dx: 37, dy: -11 },

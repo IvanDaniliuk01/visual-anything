@@ -2663,6 +2663,21 @@ function replaceShapes(
       for (const relation of base.model.relations) if (!still.has(relation)) markEnds(relation);
     }
   }
+  // A relation type the view starts or stops leaving out makes callouts of its relations to anchored
+  // parts, or unmakes them, as a relation does (ADR 0091, ADR 0064).
+  if (
+    base.view.relationTypesLeftOut !== view.relationTypesLeftOut &&
+    base.layout.shapes.some((shape) => shape.solid?.placement === 'parts')
+  ) {
+    const before = relationTypesLeftOutBy(project, base.view);
+    const after = relationTypesLeftOutBy(project, view);
+    for (const relation of model.relations) {
+      if (before.has(relation.relationType) === after.has(relation.relationType)) continue;
+      for (const id of [relation.from, relation.to]) {
+        for (const placement of index.byElement.get(id) ?? []) mark(placement);
+      }
+    }
+  }
   // The elements whose relations that leave the view changed (ADR-0040).
   if (base.leaving !== leaving) {
     for (const id of new Set([...base.leaving.keys(), ...leaving.keys()])) {
