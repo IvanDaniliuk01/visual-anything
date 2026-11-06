@@ -54,7 +54,7 @@ How to work:
 - The person's preferences, such as the theme, are theirs: no tool reads or changes them, except that read_package_code says whether the person approved a package's code as it is now, and which capabilities they granted it. Only the person approves code, in the app.`;
 
 /** Makes the MCP server with every tool, working through `program`. */
-export function createMcpServer(program: Program, version = '0.1.2'): McpServer {
+export function createMcpServer(program: Program, version = '0.1.3'): McpServer {
   const server = new McpServer(
     { name: 'visual-anything', title: 'Visual Anything', version },
     { instructions: INSTRUCTIONS },
