@@ -90,6 +90,12 @@ export interface ResolvedComponent {
   darkColors: Readonly<ShapeColors>;
   /** Every attribute it has: inherited ones first, each redefinition in the place of what it redefines. */
   attributes: readonly AttributeDefinition[];
+  /**
+   * Whether it has open attributes (ADR 0105): its elements may carry attributes it does not define,
+   * on purpose, and those are their ordinary data, not particularities. The nearest component of its
+   * chain that says so decides; false when none does.
+   */
+  openAttributes: boolean;
 }
 
 /** A relation type with everything it inherits. */
@@ -586,6 +592,7 @@ function resolveEssence(entries: Entries): ResolvedComponent {
     origins,
     darkColors: darkColorsFrom(appearance, origins),
     attributes: [],
+    openAttributes: false,
   };
 }
 
@@ -827,6 +834,7 @@ function resolveComponent(
     origins,
     darkColors: darkColorsFrom(appearance, origins),
     attributes: mergedAttributes(chain.definitions),
+    openAttributes: nearest(chain.definitions, 'openAttributes') ?? false,
   };
 }
 

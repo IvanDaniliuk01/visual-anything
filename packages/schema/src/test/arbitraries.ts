@@ -193,6 +193,7 @@ const component: fc.Arbitrary<Component> = fc.record(
     derivesFrom: id,
     description: text,
     attributes: list(attributeDefinition),
+    openAttributes: fc.boolean(),
     appearance,
   },
   { requiredKeys: ['id', 'name', 'derivesFrom'], noNullPrototype: true },

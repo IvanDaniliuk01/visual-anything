@@ -889,3 +889,57 @@ describe('removing definitions and creating packages', () => {
     }
   });
 });
+
+describe('open attributes (#17)', () => {
+  it('are off unless a component in the chain sets them', () => {
+    expect(definitionsIn(testProject()).component('test.service')?.openAttributes).toBe(false);
+    expect(definitionsIn(testProject()).component('essence')?.openAttributes).toBe(false);
+  });
+
+  it('are declared by define-component and inherited until a derived component sets them', () => {
+    const open = ok(defineQueue({ openAttributes: true }));
+    expect(component(open.state, 'test.queue')?.openAttributes).toBe(true);
+    expect(definitionsIn(open.state).component('test.queue')?.openAttributes).toBe(true);
+    const derived = ok(
+      {
+        type: 'define-component',
+        package: 'test',
+        component: { id: 'test.fifo', name: 'FIFO', derivesFrom: 'test.queue' },
+      },
+      open.state,
+    );
+    expect(definitionsIn(derived.state).component('test.fifo')?.openAttributes).toBe(true);
+    const closed = ok(
+      { type: 'update-component', id: 'test.fifo', changes: { openAttributes: false } },
+      derived.state,
+    );
+    expect(component(closed.state, 'test.fifo')?.openAttributes).toBe(false);
+    expect(definitionsIn(closed.state).component('test.fifo')?.openAttributes).toBe(false);
+  });
+
+  it('are set by update-component, and null inherits them again', () => {
+    const set = ok({
+      type: 'update-component',
+      id: 'test.service',
+      changes: { openAttributes: true },
+    });
+    expect(component(set.state, 'test.service')?.openAttributes).toBe(true);
+    const back = ok(
+      { type: 'update-component', id: 'test.service', changes: { openAttributes: null } },
+      set.state,
+    );
+    expect(component(back.state, 'test.service')).not.toHaveProperty('openAttributes');
+    expect(definitionsIn(back.state).component('test.service')?.openAttributes).toBe(false);
+  });
+
+  it('are true or false, nothing else', () => {
+    expect(refused(defineQueue({ openAttributes: 'yes' as never }))).toEqual(['invalid-command']);
+    expect(
+      refused({
+        type: 'update-component',
+        id: 'test.service',
+        changes: { openAttributes: 1 as never },
+      }),
+    ).toEqual(['invalid-command']);
+  });
+});

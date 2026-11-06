@@ -502,6 +502,33 @@ describe('Inspector', () => {
       expect(sizeGb).toHaveAccessibleDescription(/^number Not defined by its component\./);
     });
 
+    it('does not mark the attributes a component with open attributes takes on purpose (ADR 0105)', () => {
+      const open: ProjectSnapshot = {
+        ...PROJECT,
+        packages: PROJECT.packages.map((file) =>
+          file.id !== 'clinic'
+            ? file
+            : {
+                ...file,
+                components: file.components.map((component) =>
+                  component.id !== 'clinic.calendar'
+                    ? component
+                    : { ...component, openAttributes: true },
+                ),
+              },
+        ),
+      };
+      renderInspector({ project: open, selected: [element('appointments-db')] });
+      const sizeGb = screen.getByRole('spinbutton', { name: 'sizeGb' });
+      expect(sizeGb).toHaveAccessibleDescription(
+        /^number Its component takes attributes it does not define\./,
+      );
+      expect(within(rowOf(sizeGb)).queryByText('Particularity')).not.toBeInTheDocument();
+      // A value that differs from the component’s default is still one.
+      const timezone = screen.getByRole('textbox', { name: 'timezone' });
+      expect(within(rowOf(timezone)).getByText('Particularity')).toBeInTheDocument();
+    });
+
     it('edits a text value', async () => {
       const { send } = renderInspector({ selected: [element('appointments-db')] });
       await enter(screen.getByRole('textbox', { name: 'engine' }), 'mysql');

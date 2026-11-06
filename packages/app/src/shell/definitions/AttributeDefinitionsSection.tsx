@@ -1,6 +1,6 @@
 import type { AttributeChanges, Command } from '@visual-anything/core';
 import type { AttributeDefinition, Id } from '@visual-anything/schema';
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
 import { ATTRIBUTE_TYPES, typeName, type AttributeType } from '../inspector/attributes';
@@ -27,6 +27,8 @@ interface AttributeDefinitionsSectionProps {
   readOnly: boolean;
   /** The command that makes changes to the attributes the definition defines itself. */
   update: (changes: AttributeChanges) => Command;
+  /** What follows the list, such as whether a component has open attributes (ADR 0105). */
+  children?: ReactNode;
 }
 
 function isAttributeType(value: string): value is AttributeType {
@@ -43,6 +45,7 @@ export function AttributeDefinitionsSection({
   id,
   readOnly,
   update,
+  children,
 }: AttributeDefinitionsSectionProps) {
   const t = useT();
   const { definitions } = useEditor();
@@ -94,6 +97,7 @@ export function AttributeDefinitionsSection({
           );
         })}
       </ul>
+      {children}
       {inherited.size > 0 && !readOnly && (
         <p className="inspector-notes">
           {t(

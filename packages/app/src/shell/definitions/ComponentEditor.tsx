@@ -9,7 +9,7 @@ import {
   type TraitPath,
   type UpdateComponentCommand,
 } from '@visual-anything/core';
-import type { AppearanceImage, Id } from '@visual-anything/schema';
+import { ESSENCE_ID, type AppearanceImage, type Id } from '@visual-anything/schema';
 import { useId, type Ref } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
@@ -120,10 +120,54 @@ export function ComponentEditor({ id, titleRef }: ComponentEditorProps) {
         id={id}
         readOnly={readOnly}
         update={(attributes) => update({ attributes })}
-      />
+      >
+        <OpenAttributesRow id={id} readOnly={readOnly} update={update} />
+      </AttributeDefinitionsSection>
       <UsedBySection kind="component" id={id} />
       {!builtIn && <RemoveDefinition kind="component" id={id} />}
     </>
+  );
+}
+
+interface OpenAttributesRowProps {
+  id: Id;
+  readOnly: boolean;
+  update: (changes: UpdateComponentCommand['changes']) => Command;
+}
+
+/**
+ * Whether the component has open attributes (ADR 0105): its elements may carry attributes it does not
+ * define, on purpose, and the inspector does not mark them as particularities. Inherited from the
+ * nearest component of its chain that sets it, until it sets it itself.
+ */
+function OpenAttributesRow({ id, readOnly, update }: OpenAttributesRowProps) {
+  const t = useT();
+  const { definitions } = useEditor();
+  const lineage = definitions.component(id)?.lineage ?? [id];
+  const source =
+    lineage.find(
+      (each) => definitions.components.get(each)?.definition.openAttributes !== undefined,
+    ) ?? ESSENCE_ID;
+  return (
+    <ul className="definition-traits">
+      <TraitRow
+        label={t('Its elements may carry attributes it does not define')}
+        source={sourceText(definitions, 'component', id, source)}
+        own={source === id}
+        readOnly={readOnly}
+        inherit={() => update({ openAttributes: null })}
+      >
+        {({ id: controlId, describedBy, send }) => (
+          <CheckboxControl
+            id={controlId}
+            checked={definitions.component(id)?.openAttributes === true}
+            disabled={readOnly}
+            describedBy={describedBy}
+            onCommit={(openAttributes) => send(update({ openAttributes }))}
+          />
+        )}
+      </TraitRow>
+    </ul>
   );
 }
 

@@ -23,7 +23,7 @@ A thing in the model with its own identity: a table, a neuron, a service, a tran
 _Avoid_: node, object, entity, instance
 
 **Particularity**:
-A trait of a single element or relation: an attribute value that differs from the default its component or relation type gives, an attribute its component or relation type does not define, or an appearance of its own. A value for an attribute whose component or relation type gives no default is the element's or relation's ordinary data, not a particularity.
+A trait of a single element or relation: an attribute value that differs from the default its component or relation type gives, an attribute its component or relation type does not define, unless its component has open attributes, or an appearance of its own. A value for an attribute whose component or relation type gives no default is the element's or relation's ordinary data, not a particularity.
 _Avoid_: override, exception
 
 **Relation**:
@@ -49,6 +49,10 @@ _Avoid_: parent, group, folder
 **Attribute**:
 A piece of data describing an element or a relation: a neuron's threshold, a column's type, a service's latency.
 _Avoid_: property, field
+
+**Open attributes**:
+What a component has when its elements may carry attributes it does not define, on purpose, as the rows of a table carry their columns. Those attributes are then the elements' ordinary data, not particularities, and nothing flags them as undefined. A component derived from one inherits it unless it says otherwise; Essence has none (ADR 0105).
+_Avoid_: free attributes, extra attributes, ad-hoc fields
 
 ### Canvas and views
 

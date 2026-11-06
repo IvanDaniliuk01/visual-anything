@@ -1894,6 +1894,8 @@ export const ui: Catalog = {
   'Its {definer} defines no attributes. Add one under New attribute, in the {definer} on the Components tab.':
     'Su {definer} no define atributos. Agregar uno en Nuevo atributo, en el {definer}, en la pestaña Componentes.',
   'Not defined by its {definer}.': 'No lo define su {definer}.',
+  'Its {definer} takes attributes it does not define.':
+    'Su {definer} admite atributos que no define.',
   'No default.': 'Sin valor predeterminado.',
   'Default: {value}.': 'Valor predeterminado: {value}.',
   'Its value is not JSON.': 'Su valor no es JSON.',
@@ -2046,6 +2048,8 @@ export const ui: Catalog = {
   Height: 'Alto',
   'Its height follows its rows.': 'Su alto sigue a sus filas.',
   'Draw what its elements hold as rows': 'Dibujar como filas lo que contienen sus elementos',
+  'Its elements may carry attributes it does not define':
+    'Sus elementos pueden tener atributos que no define',
   'Write the component’s name': 'Escribir el nombre del componente',
   'Attributes written': 'Atributos escritos',
   'It has no attributes to write yet. Add one under New attribute, in its Attributes section.':
@@ -5681,6 +5685,8 @@ export const messages: Catalog = {
     'Si los contenedores están contraídos es verdadero o falso.',
   'Whether "{name}" is pinned is true or false.': 'Si "{name}" está fijada es verdadero o falso.',
   'Whether {of} nests is true or false.': 'Si {of} anida es verdadero o falso.',
+  'Whether {of} takes attributes it does not define is true or false.':
+    'Si {of} admite atributos que no define es verdadero o falso.',
   'Whether {of} writes its component’s name is true or false.':
     'Si {of} escribe el nombre de su componente es verdadero o falso.',
   'Whether {of} draws its contents as rows is true or false.':
