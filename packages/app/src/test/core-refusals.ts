@@ -374,6 +374,7 @@ const ALONE: readonly [string, unknown][] = [
     { type: 'update-relation-type', id: 'clinic.reminds', changes: { direction: 'sideways' } },
   ],
   relationType('nesting not a flag', { nests: 'yes' }),
+  component('open attributes not a flag', { openAttributes: 'yes' }),
   relationType('relation type unnamed', { name: ' ' }),
   [
     'relation type renamed to nothing',

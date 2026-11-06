@@ -168,6 +168,8 @@ export function listDefinitions(
         ...(resolved.description === undefined ? {} : { description: resolved.description }),
         ...(own?.definition.ids === undefined ? {} : { ids: own.definition.ids }),
         attributes: [...resolved.attributes],
+        // Its elements may carry attributes it does not define, on purpose (ADR 0105).
+        ...(resolved.openAttributes ? { openAttributes: true } : {}),
         appearance: appearanceRead(resolved.appearance, filter.fullGeometry),
       },
     ];
@@ -359,6 +361,8 @@ export function describeItem(
       kind: 'element' as const,
       ...brief(element),
       componentName: component?.name ?? element.component,
+      // Its component takes attributes it does not define, on purpose (ADR 0105).
+      ...(component?.openAttributes === true ? { openAttributes: true } : {}),
       ...(element.description === undefined ? {} : { description: element.description }),
       ...(element.ids === undefined ? {} : { ids: element.ids }),
       attributes: element.attributes ?? {},

@@ -949,6 +949,13 @@ export const COMMAND_SHAPES: Shapes = {
             meaning: 'Its appearance, trait by trait; null takes a trait out.',
           },
           attributes: ATTRIBUTE_CHANGES,
+          openAttributes: {
+            type: 'boolean | null',
+            kind: 'boolean',
+            nullable: true,
+            meaning:
+              'Whether its elements may carry attributes it does not define, on purpose; null inherits it again.',
+          },
           ids: EXTERNAL_ID_CHANGES,
         }),
       },

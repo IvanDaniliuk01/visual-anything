@@ -150,6 +150,10 @@
           },
           "description": "The attributes this component adds to the ones it inherits."
         },
+        "openAttributes": {
+          "type": "boolean",
+          "description": "Whether it has open attributes (ADR 0105): its elements may carry attributes it does not define, on purpose, as the rows of a table carry their columns; those are then their ordinary data, not particularities. Left out, it is inherited from the component it derives from; Essence has none."
+        },
         "appearance": {
           "$ref": "#/definitions/Appearance"
         },

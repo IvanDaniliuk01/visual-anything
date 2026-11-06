@@ -74,8 +74,8 @@ export type More = Record<string, unknown> & { warnings?: readonly string[] };
 /**
  * Sends a command as Claude's action, and says what was done or why not; `more` adds to the answer
  * of a command that was done, its warnings after the core's, and the warnings of the core it says
- * itself are left out of the rest. The answer also names the attributes that the elements the
- * command created or changed carry and their components do not define.
+ * itself are left out of the rest. The answer also names, once per component, the attributes the
+ * command set on the elements it created or changed that their components do not define (#17).
  */
 export async function act(
   program: Program,
@@ -85,6 +85,10 @@ export async function act(
   saidByMore: readonly Problem['code'][] = [],
   how: ExecuteOptions = {},
 ): Promise<ToolOutcome> {
+  // The project before a command that changes elements, so that the answer names only the
+  // attributes it set that their components do not define (#17). Without it, the answer names all.
+  const updated = elementsTouched(command, []);
+  const before = updated.length === 0 ? undefined : await program.project().catch(() => undefined);
   const answer = await program.execute(command, how);
   if (!answer.ok) {
     return fail(
@@ -97,7 +101,7 @@ export async function act(
   const extra =
     touched.length === 0
       ? given
-      : { ...given, ...undefinedAttributesAnswer(await program.project(), touched) };
+      : { ...given, ...undefinedAttributesAnswer(before, await program.project(), touched) };
   const warnings = [
     ...answer.warnings
       .filter((each) => !saidByMore.includes(each.code))

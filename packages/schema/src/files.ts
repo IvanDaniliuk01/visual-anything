@@ -217,8 +217,8 @@ export interface Element {
   ids?: ExternalIds;
   /**
    * The element's attribute values. A value that differs from the default its component gives, or a
-   * value for an attribute its component does not define, is a particularity; a value for an attribute
-   * without a default is ordinary data.
+   * value for an attribute its component does not define unless its component has open attributes
+   * (ADR 0105), is a particularity; a value for an attribute without a default is ordinary data.
    */
   attributes?: Attributes;
   /** An appearance of its own, which is a particularity. Whatever it leaves out comes from the component. */
@@ -492,6 +492,12 @@ export interface Component {
   ids?: ExternalIds;
   /** The attributes this component adds to the ones it inherits. */
   attributes?: AttributeDefinition[];
+  /**
+   * Whether it has open attributes (ADR 0105): its elements may carry attributes it does not define,
+   * on purpose, as the rows of a table carry their columns; those are then their ordinary data, not
+   * particularities. Left out, it is inherited from the component it derives from; Essence has none.
+   */
+  openAttributes?: boolean;
   appearance?: Appearance;
   /**
    * What it can simulate (ADR 0085), worked out tick by tick by its package's code; inherited whole,

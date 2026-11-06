@@ -36,6 +36,11 @@ interface AttributesSectionProps {
   definitions: readonly AttributeDefinition[];
   /** That chain, nearest first, which says where a built-in attribute's description comes from. */
   lineage?: readonly Id[];
+  /**
+   * Whether its component has open attributes (ADR 0105): the attributes it does not define are then
+   * the element's ordinary data, not particularities.
+   */
+  openAttributes?: boolean;
   values: Attributes | undefined;
   disabled: boolean;
   /** Makes a change with one command; resolves to whether it was done. */
@@ -53,6 +58,7 @@ export function AttributesSection({
   of,
   definitions,
   lineage = [],
+  openAttributes = false,
   values,
   disabled,
   change,
@@ -96,6 +102,7 @@ export function AttributesSection({
               row={row}
               of={of}
               lineage={lineage}
+              open={openAttributes}
               disabled={disabled}
               focusRequest={focus.name === row.name ? focus.request : 0}
               onFocused={focused}
@@ -136,6 +143,8 @@ interface AttributeItemProps {
   row: AttributeRow;
   of: 'element' | 'relation';
   lineage: readonly Id[];
+  /** Whether its component takes attributes it does not define, on purpose (ADR 0105). */
+  open: boolean;
   disabled: boolean;
   focusRequest: number;
   onFocused: () => void;
@@ -147,6 +156,7 @@ function AttributeItem({
   row,
   of,
   lineage,
+  open,
   disabled,
   focusRequest,
   onFocused,
@@ -159,7 +169,9 @@ function AttributeItem({
   const notesId = useId();
   const markId = useId();
   const focusKeeper = useFocusKeeper();
-  const particularity = of === 'element' && (row.differs || row.definition === undefined);
+  // An attribute a component with open attributes does not define is ordinary data (ADR 0105).
+  const particularity =
+    of === 'element' && (row.differs || (row.definition === undefined && !open));
   const describedBy = [typeId, notesId, ...(particularity ? [markId] : [])].join(' ');
   const definer = t(DEFINER[of]);
   const { definition } = row;
@@ -170,7 +182,9 @@ function AttributeItem({
       : t.attribute(lineage, row.name, definition.description);
   const notes = [
     definition === undefined
-      ? t('Not defined by its {definer}.', { definer })
+      ? open
+        ? t('Its {definer} takes attributes it does not define.', { definer })
+        : t('Not defined by its {definer}.', { definer })
       : definition.default === undefined
         ? t('No default.')
         : t('Default: {value}.', { value: JSON.stringify(definition.default) }),

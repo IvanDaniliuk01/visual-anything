@@ -123,6 +123,7 @@ export function ElementInspector({
         of="element"
         definitions={component.attributes}
         lineage={component.lineage}
+        openAttributes={component.openAttributes}
         values={element.attributes}
         disabled={disabled}
         change={update}

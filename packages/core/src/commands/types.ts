@@ -316,6 +316,11 @@ export interface UpdateComponentCommand {
     derivesFrom?: Id;
     appearance?: AppearanceChanges;
     attributes?: AttributeChanges;
+    /**
+     * Whether its elements may carry attributes it does not define, on purpose (ADR 0105); `null`
+     * inherits it again.
+     */
+    openAttributes?: boolean | null;
     /** Its external identifiers by scheme: a text sets one, `null` takes it out; `null` takes all out. */
     ids?: ExternalIdChanges | null;
   };

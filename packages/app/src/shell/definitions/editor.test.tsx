@@ -416,6 +416,33 @@ describe('the component editor', () => {
     );
   });
 
+  it('gives a component open attributes, and inherits them again (ADR 0105)', async () => {
+    const { send, inspector } = await editCalendar();
+    const label = 'Its elements may carry attributes it does not define';
+    const open = within(inspector).getByRole('checkbox', { name: label });
+    expect(open).not.toBeChecked();
+    expect(open).toHaveAccessibleDescription(/^from Essence/);
+    await settle(() => fireEvent.click(open));
+    expect(sent(send)).toEqual([
+      { type: 'update-component', id: 'clinic.calendar', changes: { openAttributes: true } },
+    ]);
+    expect(within(inspector).getByRole('checkbox', { name: label })).toBeChecked();
+    expect(within(inspector).getByRole('checkbox', { name: label })).toHaveAccessibleDescription(
+      /^its own/,
+    );
+    await settle(() =>
+      fireEvent.click(
+        within(inspector).getByRole('button', { name: `Use the inherited value for ${label}` }),
+      ),
+    );
+    expect(sent(send).at(-1)).toEqual({
+      type: 'update-component',
+      id: 'clinic.calendar',
+      changes: { openAttributes: null },
+    });
+    expect(within(inspector).getByRole('checkbox', { name: label })).not.toBeChecked();
+  });
+
   it('disables height and the shapes that cannot draw rows while it draws rows', async () => {
     const { inspector } = await editCalendar();
     await settle(() =>

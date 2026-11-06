@@ -307,7 +307,7 @@ Example: { "relationType": "systems.writes-to", "to": "appointments-db" }`,
 const getItem = tool({
   name: 'get_item',
   title: 'Read an element or a relation',
-  description: `Reads one element or relation by id, with everything around it. For an element: its component, attributes and the definitions of the attributes it can have (undefinedAttributes names those it carries that its component does not define: kept, as particularities), its own appearance (free geometry in brief unless fullGeometry), its containers (with the nesting relation that places it in each), its contents, the relations from and to it, and the views that place it. For a relation: its type, ends, attributes, its own appearance, the relations that end on it, the scenario steps that use it, and routedByHandIn, the views that route it by hand; an element's relationsRoutedByHand says the same of the relations on it, for reset_route. Where the drawing defaults adapt stored colors on the dark canvas (colors.storedColorsInDark), darkCanvas gives the colors that canvas draws for those of its own appearance; the appearance holds the colors stored. ${LIVE_VALUES_BESIDE}
+  description: `Reads one element or relation by id, with everything around it. For an element: its component, attributes and the definitions of the attributes it can have (undefinedAttributes names every one it carries that its component does not define: kept, as particularities; openAttributes: true says its component takes such attributes on purpose, and then none is named), its own appearance (free geometry in brief unless fullGeometry), its containers (with the nesting relation that places it in each), its contents, the relations from and to it, and the views that place it. For a relation: its type, ends, attributes, its own appearance, the relations that end on it, the scenario steps that use it, and routedByHandIn, the views that route it by hand; an element's relationsRoutedByHand says the same of the relations on it, for reset_route. Where the drawing defaults adapt stored colors on the dark canvas (colors.storedColorsInDark), darkCanvas gives the colors that canvas draws for those of its own appearance; the appearance holds the colors stored. ${LIVE_VALUES_BESIDE}
 
 Example: { "id": "booking-agent" }`,
   input: { id: id(), fullGeometry: fullGeometry() },
@@ -740,7 +740,7 @@ Example: { "package": "clinic", "createOnly": true, "component": { "name": "Cale
       .object({ id: id().optional(), name: z.string().min(1), derivesFrom: id() })
       .catchall(z.unknown())
       .describe(
-        'name, derivesFrom, and optionally id, description, ids (external identifiers by scheme), attributes and appearance. An attribute may be of type "destination". A string attribute whose values take text emphasis (**bold**, *italic*, ~~struck~~, `code`, ==highlight==, ++underline++) sets "format": "emphasis"; left out, its values are plain, as identifiers and code must be.',
+        'name, derivesFrom, and optionally id, description, ids (external identifiers by scheme), attributes, openAttributes and appearance. openAttributes: true says its elements may carry attributes it does not define, on purpose, as the rows of a table carry their columns: answers then never name them as undefined; components derived from it inherit it unless they set it. An attribute may be of type "destination". A string attribute whose values take text emphasis (**bold**, *italic*, ~~struck~~, `code`, ==highlight==, ++underline++) sets "format": "emphasis"; left out, its values are plain, as identifiers and code must be.',
       ),
     escapeText: escapeTextInput(),
   },
@@ -859,7 +859,7 @@ const attributeChanges = () =>
 const updateComponent = tool({
   name: 'update_component',
   title: 'Change a component, trait by trait',
-  description: `Changes a component of one of the project's own packages, trait by trait, as one undoable action; what you leave out stays. In appearance, a value sets a trait and null makes it inherited again. A built-in component cannot change; to change its look in this project, and the look of everything derived from it that does not set the trait itself, use set_appearance, which keeps it in the project file. The answer warns about colors hard to see, as set_appearance does.
+  description: `Changes a component of one of the project's own packages, trait by trait, as one undoable action; what you leave out stays. In appearance, a value sets a trait and null makes it inherited again. openAttributes: true says its elements may carry attributes it does not define, on purpose, so that answers no longer name them as undefined; false says they may not, and null inherits it again from the component it derives from. A built-in component cannot change; to change its look in this project, and the look of everything derived from it that does not set the trait itself, use set_appearance, which keeps it in the project file. The answer warns about colors hard to see, as set_appearance does.
 
 Example: { "id": "clinic.calendar", "name": "Calendar", "appearance": { "fill": "#E3F2E9", "stroke": null }, "attributes": { "rename": [{ "from": "slotMinutes", "to": "slotLength" }] } }`,
   input: {
@@ -869,6 +869,7 @@ Example: { "id": "clinic.calendar", "name": "Calendar", "appearance": { "fill": 
     derivesFrom: id().optional(),
     appearance: z.record(z.string(), z.unknown()).optional(),
     attributes: attributeChanges().optional(),
+    openAttributes: z.boolean().nullable().optional(),
     ids: externalIdChanges().optional(),
     escapeText: escapeTextInput(),
   },

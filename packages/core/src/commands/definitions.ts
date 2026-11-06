@@ -201,7 +201,7 @@ export function updateComponent(draft: Draft, command: UpdateComponentCommand): 
   const of = `the component "${current.name}"`;
   const changes = changesOf(
     command.changes,
-    ['name', 'description', 'derivesFrom', 'appearance', 'attributes', 'ids'],
+    ['name', 'description', 'derivesFrom', 'appearance', 'attributes', 'openAttributes', 'ids'],
     of,
   );
   const before = draft.state;
@@ -215,6 +215,10 @@ export function updateComponent(draft: Draft, command: UpdateComponentCommand): 
     const appearance = changedAppearance(current.appearance, changes.appearance, of);
     if (appearance === undefined) delete next.appearance;
     else next.appearance = appearance;
+  }
+  if (changes.openAttributes === null) delete next.openAttributes;
+  else if (changes.openAttributes !== undefined) {
+    next.openAttributes = checkedOpenAttributes(changes.openAttributes, of);
   }
   setExternalIds(next, current, changes.ids, of);
   let renamed: { from: string; to: string }[] = [];
@@ -401,6 +405,7 @@ export function checkedComponent(draft: Draft, file: PackageFile, value: unknown
     'description',
     'ids',
     'attributes',
+    'openAttributes',
     'appearance',
   ]);
   const name = requireName(given.name, 'A component');
@@ -418,6 +423,10 @@ export function checkedComponent(draft: Draft, file: PackageFile, value: unknown
       given.attributes === undefined
         ? undefined
         : checkedAttributeDefinitions(given.attributes, of),
+    openAttributes:
+      given.openAttributes === undefined
+        ? undefined
+        : checkedOpenAttributes(given.openAttributes, of),
     appearance:
       given.appearance === undefined
         ? undefined
@@ -544,6 +553,17 @@ function checkedDescription(value: unknown, of: string): string | undefined {
 function checkedDirection(value: unknown, of: string): 'directed' | 'undirected' {
   if (value !== 'directed' && value !== 'undirected') {
     reject('invalid-command', `The direction of ${of} is "directed" or "undirected".`);
+  }
+  return value;
+}
+
+/** Whether a component has open attributes (ADR 0105): true or false. */
+function checkedOpenAttributes(value: unknown, of: string): boolean {
+  if (typeof value !== 'boolean') {
+    reject(
+      'invalid-command',
+      `Whether ${of} takes attributes it does not define is true or false.`,
+    );
   }
   return value;
 }
