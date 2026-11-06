@@ -298,6 +298,55 @@ describe('add_tour_step, update_tour_step and remove_tour_step', () => {
     expect(checked).toMatchObject({ tour, steps: [{ number: 1 }, { number: 2 }] });
   });
 
+  it('accepts and returns the view a step shows beside it, and takes it away (ADR 0102)', async () => {
+    const created = await tools.value('create_tour', {
+      name: 'Side by side',
+      steps: [
+        {
+          viewState: { view: 'overview' },
+          beside: { view: 'overview', select: ['db'], camera: { x: 10, y: 20, zoom: 2 } },
+          title: 'Where it is kept',
+        },
+      ],
+    });
+    const tour = created.tour as string;
+    expect(tourNamed('Side by side')?.steps[0]?.beside).toEqual({
+      view: 'overview',
+      camera: { x: 10, y: 20, zoom: 2 },
+      select: ['db'],
+    });
+    const added = await tools.value('add_tour_step', {
+      tour,
+      viewState: { view: 'overview' },
+      beside: { view: 'overview', focus: { degrees: 2 } },
+      title: 'Around it',
+    });
+    expect(added).toMatchObject({ number: 2 });
+    expect(tourNamed('Side by side')?.steps[1]?.beside).toEqual({
+      view: 'overview',
+      focus: { degrees: 2, direction: 'both' },
+    });
+    const read = await tools.value('read_tour', { tour });
+    expect(read).toMatchObject({
+      steps: [{ beside: { view: 'overview', select: ['db'] } }, { beside: { view: 'overview' } }],
+    });
+    await tools.value('update_tour_step', { tour, step: 1, beside: { view: 'overview' } });
+    expect(tourNamed('Side by side')?.steps[0]?.beside).toEqual({ view: 'overview' });
+    await tools.value('update_tour_step', { tour, step: 2, beside: null });
+    expect(tourNamed('Side by side')?.steps[1]).not.toHaveProperty('beside');
+    expect(
+      await tools.failure('add_tour_step', {
+        tour,
+        viewState: { view: 'overview' },
+        beside: { view: 'gone' },
+        title: 'X',
+      }),
+    ).toMatch(/^Not added: Beside it: /);
+    expect(
+      await tools.failure('update_tour_step', { tour, step: 1, beside: { view: 'gone' } }),
+    ).toMatch(/^Not changed: Beside it: /);
+  });
+
   it('add and change a caption that points, a pulse and a cut, never writing their defaults (ADR 0084)', async () => {
     const tour = await walk();
     const added = await tools.value('add_tour_step', {

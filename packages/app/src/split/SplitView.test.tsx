@@ -496,6 +496,82 @@ describe('the panes of a split view, as the person works with them', () => {
   });
 });
 
+describe('a tour step’s view beside it (ADR 0102)', () => {
+  const [first, second] = sample.tours[0]?.steps ?? [];
+  if (!first || !second) throw new Error('The sample’s tour has fewer than two steps.');
+  /** The project with a tour whose first step shows People beside it and whose second shows none. */
+  const toured = (beside: NonNullable<typeof first.beside>): ProjectSnapshot => ({
+    ...project,
+    tours: [
+      {
+        id: 'side',
+        name: 'Side by side',
+        steps: [{ ...first, beside }, second],
+      },
+    ],
+  });
+  const play = () => {
+    const panel = screen.getByRole('complementary', { name: 'Outline and model' });
+    fireEvent.click(within(panel).getByRole('tab', { name: 'Tours' }));
+    fireEvent.click(
+      within(within(panel).getByRole('tabpanel', { name: 'Tours' })).getByRole('button', {
+        name: 'Play “Side by side” full screen',
+      }),
+    );
+  };
+
+  it('opens a pane right of the tour’s with the step’s view at its camera, and closes it when the tour ends', async () => {
+    const shown = toured({ view: 'people', camera: { x: 100, y: 50, zoom: 2 } });
+    render(
+      <LiveContext value={fakeLive({ project: shown })}>
+        <Shell project={shown} />
+      </LiveContext>,
+    );
+    play();
+    await waitFor(() => expect(viewsDrawn()).toEqual(['system-overview', 'people']));
+    expect(activeView()).toBe('system-overview');
+    // At the step's camera: the view's point at the middle of its 800 × 600 canvas, at its zoom.
+    await waitFor(() =>
+      expect(fakeCameras.get('people')?.camera()).toEqual({ x: 200, y: 200, scale: 2 }),
+    );
+    // A step without one leaves the pane beside as it was.
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    await waitFor(() =>
+      expect(screen.getByRole('article')).toHaveTextContent(second.caption.title),
+    );
+    expect(viewsDrawn()).toEqual(['system-overview', 'people']);
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    await waitFor(() => expect(viewsDrawn()).toEqual(['system-overview']));
+    expect(sessionStorage.getItem(KEY)).toBeNull();
+  });
+
+  it('reuses the pane right of the tour’s and gives it back its view and camera when the tour ends', async () => {
+    keepTwoPanes();
+    const shown = toured({ view: 'people', camera: { x: 0, y: 0, zoom: 1 } });
+    render(
+      <LiveContext value={fakeLive({ project: shown })}>
+        <Shell project={shown} />
+      </LiveContext>,
+    );
+    await waitFor(() => expect(fakeCameras.get('storage')).toBeDefined());
+    act(() => fakeCameras.get('storage')?.setCamera({ x: 7, y: 8, scale: 1.5 }));
+    play();
+    await waitFor(() => expect(viewsDrawn()).toEqual(['system-overview', 'people']));
+    await waitFor(() =>
+      expect(fakeCameras.get('people')?.camera()).toEqual({ x: 400, y: 300, scale: 1 }),
+    );
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    await waitFor(() => expect(viewsDrawn()).toEqual(['system-overview', 'storage']));
+    await waitFor(() =>
+      expect(fakeCameras.get('storage')?.camera()).toEqual({ x: 7, y: 8, scale: 1.5 }),
+    );
+    expect(JSON.parse(sessionStorage.getItem(KEY) ?? '{}')).toMatchObject({
+      active: 'pane-1',
+      panes: [{ view: 'system-overview' }, { view: 'storage' }],
+    });
+  });
+});
+
 describe('the panes the tab keeps for a project', () => {
   it('reads no other project’s panes', () => {
     sessionStorage.setItem(

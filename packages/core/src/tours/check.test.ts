@@ -174,6 +174,26 @@ describe('checkTour', () => {
       ['broken', ['gone']],
     ]);
   });
+
+  it('flags a step whose view beside it is gone, and reads two steps beside different views as two (ADR 0102)', () => {
+    const checks = checkTour(
+      testProject(),
+      tour(
+        step('one', { beside: { view: 'overview' } }),
+        step('two', { beside: { view: 'gone' } }),
+        step('three', { beside: { view: 'gone' } }),
+      ),
+    );
+    expect(checks[1]?.warnings.map((each) => [each.kind, each.subjects])).toEqual([
+      ['broken', ['gone']],
+    ]);
+    expect(checks[1]?.warnings[0]?.message).toBe(
+      'Step 2 names what the project no longer holds, and plays without it: Beside it: The project has no view "gone".',
+    );
+    // The same view state beside a different view is another scene; the same beside, a reveal.
+    expect(kinds(checks)[1]).not.toContain('could-be-reveal');
+    expect(kinds(checks)[2]).toEqual(['broken', 'could-be-reveal']);
+  });
 });
 
 describe('checkTour on what ADR 0084 adds', () => {

@@ -105,7 +105,8 @@ export function checkTour(
     const { viewState } = step;
 
     const all = tourStepProblems(project, step);
-    const problems = all.filter((each) => each.part === undefined);
+    // What it shows beside it breaks it as what it shows itself does (ADR 0102).
+    const problems = all.filter((each) => each.part === undefined || each.part === 'beside');
     if (problems.length > 0) {
       warnings.push({
         kind: 'broken',
@@ -307,9 +308,12 @@ function cameraOf(
   return move.kind === 'ease' ? 'glide' : 'cut';
 }
 
-/** Whether two steps show the same view state, so that they play as one scene. */
+/** Whether two steps show the same view state, and the same beside it, so that they play as one scene. */
 function sameViewState(a: TourStep, b: TourStep): boolean {
-  return JSON.stringify(a.viewState) === JSON.stringify(b.viewState);
+  return (
+    JSON.stringify(a.viewState) === JSON.stringify(b.viewState) &&
+    JSON.stringify(a.beside ?? null) === JSON.stringify(b.beside ?? null)
+  );
 }
 
 function meets(a: TourRect, b: TourRect): boolean {

@@ -28,7 +28,7 @@ function reason(read: () => unknown): string {
 
 describe('media files over the live connection (ADR 0098)', () => {
   it('came in version 10', () => {
-    expect(PROTOCOL_VERSION).toBe(10);
+    expect(PROTOCOL_VERSION).toBeGreaterThanOrEqual(10);
   });
 
   it('reads media/put, media/get and the unnamed files’ requests from an app', () => {

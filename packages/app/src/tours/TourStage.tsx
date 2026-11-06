@@ -173,7 +173,10 @@ export function TourStage({
     [project, captioned],
   );
   const viewGone = problems.some(
-    (each) => each.code === 'unknown-view' && each.subject === captioned?.viewState.view,
+    (each) =>
+      each.code === 'unknown-view' &&
+      each.part !== 'beside' &&
+      each.subject === captioned?.viewState.view,
   );
   // A step's reveals are pressed through before the next step, and back before the one before.
   const atStart = step === 0 && reveal === 0;

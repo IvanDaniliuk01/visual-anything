@@ -17,6 +17,7 @@ import { loadSample } from '../test/sample';
 import type { GoTo } from '../view-state/applier';
 import type { CanvasCamera } from '../view-state/canvas';
 import type { ViewStateLink } from '../view-state/useViewState';
+import type { TourBeside } from './beside';
 import { keysOfMarks } from './marks';
 import { playedBounds } from './scenario-frame';
 import { TOUR_EMPHASIS, useTourPlayback } from './useTourPlayback';
@@ -49,7 +50,14 @@ const keys = (...ids: string[]) => [...keysOfMarks(ids, scene, project)].sort();
 const HERE: Camera = { x: 0, y: 0, scale: 1 };
 const VIEWPORT = { width: 1200, height: 800 };
 
-function setUp(options: { played?: TourFile; scenarios?: ScenarioSession; at?: Camera } = {}) {
+function setUp(
+  options: {
+    played?: TourFile;
+    scenarios?: ScenarioSession;
+    at?: Camera;
+    beside?: TourBeside;
+  } = {},
+) {
   const played = options.played ?? tour;
   const shownProject = { ...sample, tours: [played] };
   const asked: GoTo[] = [];
@@ -95,6 +103,7 @@ function setUp(options: { played?: TourFile; scenarios?: ScenarioSession; at?: C
       emphasis,
       canvas,
       reducedMotion: false,
+      beside: options.beside,
     }),
   );
   /** The applier, once it has drawn the step: the camera stays where it is. */
@@ -260,6 +269,48 @@ describe('useTourPlayback’s stages', () => {
     land();
     expect(emphasis.get().highlighted?.size).toBeGreaterThan(0);
     expect(emphasis.get()).not.toHaveProperty('styled');
+  });
+
+  it('shows a step’s view beside it once, leaves it for a step without, and gives the panes back at the end (ADR 0102)', () => {
+    const beside = {
+      begin: vi.fn(),
+      show: vi.fn(),
+      end: vi.fn(),
+      current: vi.fn((): ViewState => ({ view: 'data' })),
+    } satisfies TourBeside;
+    const [first, second] = tour.steps as [TourStep, TourStep];
+    const played: TourFile = {
+      ...tour,
+      steps: [
+        { ...first, beside: { view: VIEW, camera: { x: 1, y: 2, zoom: 1 } } },
+        second,
+        { ...first, id: 'three', beside: { view: 'gone' } },
+      ],
+    };
+    const { result, start, land } = setUp({ played, beside });
+    start();
+    expect(beside.begin).toHaveBeenCalledTimes(1);
+    expect(beside.show).toHaveBeenCalledTimes(1);
+    expect(beside.show).toHaveBeenLastCalledWith({ view: VIEW, camera: { x: 1, y: 2, zoom: 1 } });
+    // A step without one leaves the pane beside as it was, and so do its reveals.
+    act(() => result.current.player.next());
+    land();
+    act(() => result.current.player.next());
+    land();
+    expect(beside.show).toHaveBeenCalledTimes(1);
+    // A view beside it that is gone shows nothing there.
+    act(() => result.current.player.next());
+    land();
+    expect(beside.show).toHaveBeenCalledTimes(1);
+    expect(beside.end).not.toHaveBeenCalled();
+    act(() => result.current.player.end());
+    expect(beside.end).toHaveBeenCalledTimes(1);
+    expect(beside.begin).toHaveBeenCalledTimes(1);
+    // The tours panel reads what the pane beside shows, and Show shows a step's view beside it too.
+    expect(result.current.host.beside()).toEqual({ view: 'data' });
+    act(() => result.current.host.show(played.steps[0] as TourStep));
+    expect(beside.show).toHaveBeenCalledTimes(2);
+    expect(beside.begin).toHaveBeenCalledTimes(1);
   });
 
   it('brings a reveal in one press at a time, and takes it away one press back', () => {

@@ -68,6 +68,7 @@ import { useSimulationMarks } from '../simulation/useSimulationMarks';
 import { useSimulationStore } from '../simulation/useSimulationStore';
 import { usePackageCode } from '../code/usePackageCode';
 import { CodeApproval } from '../code/ApprovalDialog';
+import { BesidePanes } from '../tours/beside';
 import { changeStep } from '../tours/commands';
 import { ToursContext } from '../tours/context';
 import { TourPlaybackLayer } from '../tours/TourPlaybackLayer';
@@ -368,6 +369,18 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
     [project, view, scene, reducedMotion],
   );
   useSimulationMarks(simulations, emphasis, marksContext);
+  // A tour step's view beside it (ADR 0102), in the pane right of the tour's, which the panes follow
+  // once the shell has drawn them; the panes come back as they were when the tour ends.
+  const [beside] = useState(() => new BesidePanes(panes));
+  useEffect(
+    () =>
+      beside.drawn(layout, canvases, {
+        viewOf: (id) => viewOf(project, id)?.id,
+        reduced: reducedMotion,
+      }),
+    [beside, layout, canvases, project, reducedMotion],
+  );
+  useEffect(() => () => beside.dispose(), [beside]);
   // Tours (ADR 0058): the one the tab plays full screen, which hides the panels while it plays.
   const tours = useTourPlayback({
     project,
@@ -378,6 +391,7 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
     canvas,
     reducedMotion,
     fades: motionChoice.fades,
+    beside,
   });
   // Compare with… (ADR 0070): what it asks the program for, and the version each comparison came from.
   const [versions] = useState(() => new CompareSession());

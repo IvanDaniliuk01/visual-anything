@@ -810,6 +810,27 @@ const ALONE: readonly [string, unknown][] = [
       image: { name: 'B', format: 'png', data: 'A'.repeat(4_200_000) },
     },
   ],
+  // A view shown beside a tour's step (ADR 0102): not a view state, and naming what is gone.
+  [
+    'tour step beside no view state',
+    {
+      type: 'create-tour',
+      tour: {
+        name: 'T',
+        steps: [{ viewState: { view: VIEW }, caption: { title: 'T' }, beside: 5 }],
+      },
+    },
+  ],
+  [
+    'tour step beside a view that is gone',
+    {
+      type: 'create-tour',
+      tour: {
+        name: 'T',
+        steps: [{ viewState: { view: VIEW }, caption: { title: 'T' }, beside: { view: 'gone' } }],
+      },
+    },
+  ],
 ];
 
 // Short runs of commands, in order --------------------------------------------------------------------

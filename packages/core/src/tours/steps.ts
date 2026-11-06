@@ -15,6 +15,7 @@ import type {
   TourFile,
   TourEmphasis,
   TourStep,
+  ViewFile,
 } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
 import type { ProblemCode } from '../problems';
@@ -191,41 +192,27 @@ export interface TourStepProblem {
   subject: Id;
   /** The reveal that names it, counted from 0, when one does (ADR 0077). */
   reveal?: number;
-  /** Present when it is about the step's pulse (ADR 0084) or the mark its caption points at. */
-  part?: 'pulse' | 'point-to';
+  /**
+   * Present when it is about the step's pulse (ADR 0084), the mark its caption points at, or the
+   * view state it shows beside it (ADR 0102).
+   */
+  part?: 'pulse' | 'point-to' | 'beside';
 }
+
+/** How the problems of the view state a step shows beside it begin (ADR 0102). */
+const BESIDE = 'Beside it: ';
 
 /**
  * What a step names that the project does not hold now: its view; what it selects, marks, reveals or
  * focuses from; the components and relation types its filters name; the scenario open, or played, and
- * their steps. Empty when the step plays as it was written. A step with problems is kept, and plays
- * without what they name.
+ * their steps; and the same of the view state it shows beside it (ADR 0102). Empty when the step plays
+ * as it was written. A step with problems is kept, and plays without what they name.
  */
 export function tourStepProblems(project: ProjectSnapshot, step: TourStep): TourStepProblem[] {
   const { viewState } = step;
-  const problems: TourStepProblem[] = [];
-  const view = project.views.find((each) => each.id === viewState.view);
-  if (view === undefined) {
-    problems.push({
-      code: 'unknown-view',
-      message: `The project has no view "${viewState.view}".`,
-      subject: viewState.view,
-    });
-  }
   const index = modelIndexOf(project);
-  const world = project.model.world.id;
-  const inModel = (id: Id) =>
-    id !== world && (index.element(id) !== undefined || index.relation(id) !== undefined);
+  const { problems, view, inModel } = shownProblems(project, viewState);
   const freeShapes = new Set(view?.freeShapes.map((shape) => shape.id));
-  for (const id of viewState.select ?? []) {
-    if (!inModel(id) && !freeShapes.has(id)) {
-      problems.push({
-        code: 'unknown-element',
-        message: `Nothing in the view "${view?.name ?? viewState.view}" has the id "${id}".`,
-        subject: id,
-      });
-    }
-  }
   // A step marks what Claude's highlight marks: the model's elements and relations, and the view's
   // notes and arrows, which the app draws and keeps at full strength the same way.
   const markable = (id: Id) => inModel(id) || freeShapes.has(id);
@@ -269,6 +256,90 @@ export function tourStepProblems(project: ProjectSnapshot, step: TourStep): Tour
       part: 'pulse',
     });
   }
+  problems.push(...stateProblems(project, viewState));
+  if (step.play) {
+    const { scenario, from, to, choices } = step.play;
+    const found = scenarioProblems(project, viewState.view, scenario, [from, to]);
+    problems.push(...found);
+    const played = project.scenarios.find((each) => each.id === scenario);
+    if (found.length === 0 && played && from !== undefined && to !== undefined) {
+      const start = played.steps.findIndex((each) => each.id === from);
+      const end = played.steps.findIndex((each) => each.id === to);
+      if (start > end) {
+        problems.push({
+          code: 'invalid-command',
+          message: `The step "${from}" comes after "${to}" in the scenario "${played.name}".`,
+          subject: scenario,
+        });
+      }
+    }
+    // What it plays from and to lies on the timeline its choices give (ADR 0078).
+    problems.push(...choicesProblems(project, scenario, choices, [from, to]));
+  }
+  // The view state beside it is checked as its own is, and said to be beside it (ADR 0102).
+  for (const each of viewStateProblems(project, step.beside)) {
+    problems.push({ ...each, message: `${BESIDE}${each.message}`, part: 'beside' });
+  }
+  return problems;
+}
+
+/**
+ * What a view state a step shows names that the project does not hold now, as a step's own view
+ * state is checked: none for none.
+ */
+function viewStateProblems(
+  project: ProjectSnapshot,
+  viewState: SavedViewState | undefined,
+): TourStepProblem[] {
+  if (viewState === undefined) return [];
+  return [...shownProblems(project, viewState).problems, ...stateProblems(project, viewState)];
+}
+
+/** What a view state names first: its view, and what it selects, of the model or of that view. */
+function shownProblems(
+  project: ProjectSnapshot,
+  viewState: SavedViewState,
+): { problems: TourStepProblem[]; view: ViewFile | undefined; inModel: (id: Id) => boolean } {
+  const problems: TourStepProblem[] = [];
+  const view = project.views.find((each) => each.id === viewState.view);
+  if (view === undefined) {
+    problems.push({
+      code: 'unknown-view',
+      message: `The project has no view "${viewState.view}".`,
+      subject: viewState.view,
+    });
+  }
+  const inModel = modelHolds(project);
+  const freeShapes = new Set(view?.freeShapes.map((shape) => shape.id));
+  for (const id of viewState.select ?? []) {
+    if (!inModel(id) && !freeShapes.has(id)) {
+      problems.push({
+        code: 'unknown-element',
+        message: `Nothing in the view "${view?.name ?? viewState.view}" has the id "${id}".`,
+        subject: id,
+      });
+    }
+  }
+  return { problems, view, inModel };
+}
+
+/** Whether the model holds an element or a relation with this id, the World aside. */
+function modelHolds(project: ProjectSnapshot): (id: Id) => boolean {
+  const index = modelIndexOf(project);
+  const world = project.model.world.id;
+  return (id) =>
+    id !== world && (index.element(id) !== undefined || index.relation(id) !== undefined);
+}
+
+/**
+ * What the rest of a view state names that the project does not hold: what focus starts from, the
+ * physical-space panel's root, the components and relation types its filters name, and the scenario
+ * open, with its step and its choices.
+ */
+function stateProblems(project: ProjectSnapshot, viewState: SavedViewState): TourStepProblem[] {
+  const problems: TourStepProblem[] = [];
+  const index = modelIndexOf(project);
+  const inModel = modelHolds(project);
   for (const id of viewState.focus?.from ?? []) {
     if (!inModel(id)) {
       problems.push({
@@ -324,25 +395,6 @@ export function tourStepProblems(project: ProjectSnapshot, step: TourStep): Tour
         viewState.choices ? [viewState.step] : [],
       ),
     );
-  }
-  if (step.play) {
-    const { scenario, from, to, choices } = step.play;
-    const found = scenarioProblems(project, viewState.view, scenario, [from, to]);
-    problems.push(...found);
-    const played = project.scenarios.find((each) => each.id === scenario);
-    if (found.length === 0 && played && from !== undefined && to !== undefined) {
-      const start = played.steps.findIndex((each) => each.id === from);
-      const end = played.steps.findIndex((each) => each.id === to);
-      if (start > end) {
-        problems.push({
-          code: 'invalid-command',
-          message: `The step "${from}" comes after "${to}" in the scenario "${played.name}".`,
-          subject: scenario,
-        });
-      }
-    }
-    // What it plays from and to lies on the timeline its choices give (ADR 0078).
-    problems.push(...choicesProblems(project, scenario, choices, [from, to]));
   }
   return problems;
 }
@@ -452,6 +504,11 @@ export interface PlayableStep {
   /** Present when the step always cuts (ADR 0084). */
   transition?: 'cut';
   /**
+   * The view state shown beside the step, in the pane right of the tour's (ADR 0102), without what
+   * the project no longer holds; absent when the step shows none, or when its view is gone.
+   */
+  beside?: ViewState;
+  /**
    * Present when the step and its reveals draw what they mark in its own style rather than with a
    * halo (ADR 0100): the step's emphasis, or else its tour's.
    */
@@ -478,14 +535,74 @@ export function playableStep(
   step: TourStep,
   tourEmphasis?: TourEmphasis,
 ): PlayableStep | undefined {
-  const saved = step.viewState;
+  const problems = tourStepProblems(project, step);
+  const missingOf = (beside: boolean) =>
+    new Set(
+      problems
+        .filter(
+          (each) =>
+            (each.part === 'beside') === beside &&
+            each.code !== 'unknown-scenario' &&
+            each.code !== 'invalid-command',
+        )
+        .map((each) => each.subject),
+    );
+  const missing = missingOf(false);
+  const state = playableViewState(project, step.viewState, missing);
+  if (state === undefined) return undefined;
+  const kept = (ids: readonly Id[] | undefined) => (ids ?? []).filter((id) => !missing.has(id));
+  const playable: PlayableStep = { viewState: state, marks: kept(step.marks) };
+  if (step.reveal) {
+    playable.reveals = step.reveal.map((reveal) => ({
+      marks: kept(reveal.marks),
+      ...(reveal.text === undefined ? {} : { text: reveal.text }),
+    }));
+  }
+  if (step.dimRest) playable.dimRest = true;
+  if (step.transition === 'cut') playable.transition = 'cut';
+  // The view beside it, while the project holds that view (ADR 0102).
+  const beside = step.beside && playableViewState(project, step.beside, missingOf(true));
+  if (beside) playable.beside = beside;
+  if ((step.emphasis ?? tourEmphasis) === 'style') playable.emphasis = 'style';
+  const pointTo = step.caption.pointTo;
+  if (pointTo !== undefined && !missing.has(pointTo)) {
+    const reveal = (step.marks ?? []).includes(pointTo)
+      ? 0
+      : (step.reveal ?? []).findIndex((each) => each.marks.includes(pointTo)) + 1;
+    if (reveal > 0 || (step.marks ?? []).includes(pointTo)) {
+      playable.pointTo = { id: pointTo, reveal };
+    }
+  }
+  if (step.pulse && pulseProblems(project, step).length === 0) {
+    const index = modelIndexOf(project);
+    const links = step.pulse.relations.map((id): ChainLink => {
+      const relation = index.relation(id);
+      return { id, from: relation?.from ?? '', to: relation?.to ?? '' };
+    });
+    if (chainBreak(links) < 0) {
+      playable.pulse = { legs: pulseLegs(links), repeat: step.pulse.repeat ?? 1 };
+    }
+  }
+  const advance = advanceAfter(step);
+  if (advance !== undefined) playable.advance = advance;
+  const played = step.play && playedOver(project, state.view, step.play.scenario);
+  if (step.play && played && played.steps.length > 0) {
+    playable.play = playedRangeOf(played, step.play);
+  }
+  return playable;
+}
+
+/**
+ * A view state a step shows, as it plays now: without what the project no longer holds, `missing`,
+ * and with its scenario only while it still plays over its view. `undefined` when its view is gone.
+ */
+function playableViewState(
+  project: ProjectSnapshot,
+  saved: SavedViewState,
+  missing: ReadonlySet<Id>,
+): ViewState | undefined {
   const view = project.views.find((each) => each.id === saved.view);
   if (view === undefined) return undefined;
-  const missing = new Set(
-    tourStepProblems(project, step)
-      .filter((each) => each.code !== 'unknown-scenario' && each.code !== 'invalid-command')
-      .map((each) => each.subject),
-  );
   const kept = (ids: readonly Id[] | undefined) => (ids ?? []).filter((id) => !missing.has(id));
   const state = viewStateOfStep(saved);
   const select = kept(state.select);
@@ -525,42 +642,7 @@ export function playableStep(
     if (choices) state.choices = choices;
     else delete state.choices;
   }
-  const playable: PlayableStep = { viewState: state, marks: kept(step.marks) };
-  if (step.reveal) {
-    playable.reveals = step.reveal.map((reveal) => ({
-      marks: kept(reveal.marks),
-      ...(reveal.text === undefined ? {} : { text: reveal.text }),
-    }));
-  }
-  if (step.dimRest) playable.dimRest = true;
-  if (step.transition === 'cut') playable.transition = 'cut';
-  if ((step.emphasis ?? tourEmphasis) === 'style') playable.emphasis = 'style';
-  const pointTo = step.caption.pointTo;
-  if (pointTo !== undefined && !missing.has(pointTo)) {
-    const reveal = (step.marks ?? []).includes(pointTo)
-      ? 0
-      : (step.reveal ?? []).findIndex((each) => each.marks.includes(pointTo)) + 1;
-    if (reveal > 0 || (step.marks ?? []).includes(pointTo)) {
-      playable.pointTo = { id: pointTo, reveal };
-    }
-  }
-  if (step.pulse && pulseProblems(project, step).length === 0) {
-    const index = modelIndexOf(project);
-    const links = step.pulse.relations.map((id): ChainLink => {
-      const relation = index.relation(id);
-      return { id, from: relation?.from ?? '', to: relation?.to ?? '' };
-    });
-    if (chainBreak(links) < 0) {
-      playable.pulse = { legs: pulseLegs(links), repeat: step.pulse.repeat ?? 1 };
-    }
-  }
-  const advance = advanceAfter(step);
-  if (advance !== undefined) playable.advance = advance;
-  const played = step.play && playedOver(project, view.id, step.play.scenario);
-  if (step.play && played && played.steps.length > 0) {
-    playable.play = playedRangeOf(played, step.play);
-  }
-  return playable;
+  return state;
 }
 
 /**
@@ -609,7 +691,7 @@ const named = new WeakMap<readonly TourFile[], ReadonlySet<Id>>();
 
 /**
  * The ids the steps of the tours name as what they select, mark, reveal, point at, pulse along or
- * focus from, and the tours' own ids.
+ * focus from, beside them too, and the tours' own ids.
  * No new element or relation takes one of them, so that a step whose element was deleted never comes
  * to mean another.
  */
@@ -626,6 +708,8 @@ export function idsNamedByTours(tours: readonly TourFile[]): ReadonlySet<Id> {
         if (step.caption.pointTo !== undefined) set.add(step.caption.pointTo);
         for (const id of step.pulse?.relations ?? []) set.add(id);
         for (const id of step.viewState.focus?.from ?? []) set.add(id);
+        for (const id of step.beside?.select ?? []) set.add(id);
+        for (const id of step.beside?.focus?.from ?? []) set.add(id);
       }
     }
     ids = set;

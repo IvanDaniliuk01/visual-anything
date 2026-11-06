@@ -326,3 +326,63 @@ describe('the split view’s panes', () => {
     expect(views(store)).toEqual(['a', 'b']);
   });
 });
+
+describe('the panes a tour shows views beside it in (ADR 0102)', () => {
+  it('show a view in the pane right of the active one, and keep the active pane active', () => {
+    const store = new SplitPanes(memory());
+    store.openBeside('b', 'a');
+    store.openBeside('c', 'a');
+    const right = store.snapshot().panes[1]!;
+    expect(store.rightOf(store.active.id)).toBe(right);
+    expect(store.showBeside('d')).toBe(right.id);
+    expect(views(store)).toEqual(['a', 'd', 'b']);
+    expect(store.active.view).toBe('a');
+    // The same view again changes nothing.
+    const layout = store.snapshot();
+    expect(store.showBeside('d')).toBe(right.id);
+    expect(store.snapshot()).toBe(layout);
+  });
+
+  it('open a pane right of the active one when none is there, while fewer than three are open', () => {
+    const store = new SplitPanes(memory());
+    const id = store.showBeside('b');
+    expect(views(store)).toEqual([undefined, 'b']);
+    expect(store.snapshot().panes[1]?.id).toBe(id);
+    expect(widths(store)).toEqual([0.5, 0.5]);
+    expect(store.active.id).toBe('pane-1');
+  });
+
+  it('show it in the rightmost pane but the active one when the active one is rightmost of three', () => {
+    const store = new SplitPanes(memory());
+    store.openBeside('b', 'a');
+    store.openBeside('c', 'a');
+    const panes = store.snapshot().panes;
+    store.activate(panes[2]!.id);
+    expect(store.showBeside('d')).toBe(panes[1]!.id);
+    expect(views(store)).toEqual(['a', 'd', 'b']);
+  });
+
+  it('come back exactly as a layout had them, closing what was opened since', () => {
+    const storage = memory();
+    const store = new SplitPanes(storage);
+    store.openBeside('b', 'a');
+    store.resize(0, 0.1);
+    const before = store.snapshot();
+    store.showBeside('c');
+    store.openBeside('d', 'a');
+    expect(store.snapshot().panes).toHaveLength(3);
+    store.restore(before);
+    expect(store.snapshot()).toEqual(before);
+    expect(JSON.parse(storage.kept.get(PANES_STORAGE_KEY)!)).toMatchObject({
+      panes: [{ view: 'a' }, { view: 'b' }],
+    });
+    // A pane opened after comes with a new id, never one a pane closed had.
+    store.openBeside('e', 'a');
+    expect(store.snapshot().panes[1]?.id).toBe('pane-4');
+    const one = new SplitPanes(memory());
+    const single = one.snapshot();
+    one.showBeside('b');
+    one.restore(single);
+    expect(one.snapshot().panes).toHaveLength(1);
+  });
+});

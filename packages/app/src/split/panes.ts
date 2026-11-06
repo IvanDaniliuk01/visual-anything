@@ -225,6 +225,53 @@ export class SplitPanes {
     this.#set({ active, panes: next.map((pane) => ({ ...pane, width: 1 / next.length })) });
   }
 
+  /** The pane right of a pane, if there is one. */
+  rightOf(id: string): Pane | undefined {
+    const { panes } = this.#layout;
+    const at = panes.findIndex((pane) => pane.id === id);
+    return at === -1 ? undefined : panes[at + 1];
+  }
+
+  /**
+   * Shows a view beside the active pane, as a tour's step asks (ADR 0102): in the pane right of it;
+   * in a new pane there, the panes then sharing the width alike, while fewer than three are open;
+   * and otherwise in the rightmost pane but the active one. The pane's id; the active pane stays
+   * active.
+   */
+  showBeside(view: Id): string | undefined {
+    const { panes, active } = this.#layout;
+    const right = this.rightOf(active);
+    if (right) {
+      this.setView(right.id, view);
+      return right.id;
+    }
+    if (panes.length >= MAX_PANES) {
+      const other = panes.findLast((pane) => pane.id !== active);
+      if (other) this.setView(other.id, view);
+      return other?.id;
+    }
+    const added: Pane = { id: `pane-${this.#next++}`, view, width: 1 };
+    const next = [...panes, added];
+    this.#set({ active, panes: next.map((pane) => ({ ...pane, width: 1 / next.length })) });
+    return added.id;
+  }
+
+  /**
+   * Gives the panes back as a layout had them, as when a tour that showed views beside it ends: the
+   * panes it opened close, and those it showed another view in show theirs again.
+   */
+  restore(layout: PaneLayout): void {
+    if (layout === this.#layout) return;
+    const kept = new Set(layout.panes.map((pane) => pane.id));
+    for (const id of [...this.#cameras.keys()]) {
+      if (kept.has(id)) continue;
+      this.#cameras.delete(id);
+      this.#restored.delete(id);
+    }
+    this.#next = Math.max(this.#next, ...layout.panes.map((pane) => numberOf(pane.id) + 1));
+    this.#set(layout);
+  }
+
   /** Shows another view in a pane, which starts from that view's camera. */
   setView(id: string, view: Id): void {
     const pane = this.#layout.panes.find((each) => each.id === id);

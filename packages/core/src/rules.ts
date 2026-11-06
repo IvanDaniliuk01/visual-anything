@@ -434,7 +434,7 @@ function brokenSteps(
 
 /**
  * The tour steps that select, mark or focus from any of the deleted ids, and those that select one of
- * the free shapes deleted from their view.
+ * the free shapes deleted from their view, in what they show or what they show beside them.
  */
 function brokenTourSteps(
   tours: readonly TourFile[],
@@ -444,17 +444,19 @@ function brokenTourSteps(
   const broken: { tour: Id; step: Id }[] = [];
   for (const tour of tours) {
     for (const step of tour.steps) {
-      const { viewState } = step;
+      // What it shows beside it is named as what it shows itself (ADR 0102).
+      const shown = step.beside ? [step.viewState, step.beside] : [step.viewState];
       const named = [
-        ...(viewState.select ?? []),
+        ...shown.flatMap((viewState) => [
+          ...(viewState.select ?? []),
+          ...(viewState.focus?.from ?? []),
+        ]),
         ...(step.marks ?? []),
-        ...(viewState.focus?.from ?? []),
       ];
-      const shapes = viewState.view === freeShapes?.view ? freeShapes.ids : undefined;
-      if (
-        named.some((id) => deleted.has(id)) ||
-        (shapes !== undefined && (viewState.select ?? []).some((id) => shapes.has(id)))
-      ) {
+      const selectsDeletedShape = (viewState: (typeof shown)[number]) =>
+        viewState.view === freeShapes?.view &&
+        (viewState.select ?? []).some((id) => freeShapes.ids.has(id));
+      if (named.some((id) => deleted.has(id)) || shown.some(selectsDeletedShape)) {
         broken.push({ tour: tour.id, step: step.id });
       }
     }
