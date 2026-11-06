@@ -627,6 +627,41 @@ const ALONE: readonly [string, unknown][] = [
     { shape: { element: 'patient' }, to: 'front' },
     { shape: { element: 'clinic-booking' }, to: 'back' },
   ]),
+  // Duplicates (ADR 0103).
+  ['duplicate one', { type: 'duplicate-elements', view: VIEW, elements: ['patient'] }],
+  [
+    'duplicate two',
+    { type: 'duplicate-elements', view: VIEW, elements: ['patient', 'clinic-booking'] },
+  ],
+  ['duplicate nothing', { type: 'duplicate-elements', view: VIEW, elements: [] }],
+  ['duplicate World', { type: 'duplicate-elements', view: VIEW, elements: ['world'] }],
+  [
+    'duplicate one twice',
+    { type: 'duplicate-elements', view: VIEW, elements: ['patient', 'patient'] },
+  ],
+  [
+    'duplicate beside and into',
+    {
+      type: 'duplicate-elements',
+      view: VIEW,
+      elements: ['patient'],
+      beside: true,
+      container: 'clinic-booking',
+    },
+  ],
+  [
+    'place what is not duplicated',
+    {
+      type: 'duplicate-elements',
+      view: VIEW,
+      elements: ['patient'],
+      positions: [{ element: 'clinic-booking', x: 0, y: 0 }],
+    },
+  ],
+  [
+    'duplicate with a suffix not a text',
+    { type: 'duplicate-elements', view: VIEW, elements: ['patient'], suffix: 5 },
+  ],
   // What a view shows (ADR 0040).
   ['add nothing to a view', { type: 'add-to-view', view: VIEW, elements: [] }],
   scope('scope not an object', 'all'),
@@ -1128,6 +1163,18 @@ function inOrderOn(sample: ProjectSnapshot): [string, ProjectSnapshot, readonly 
     packages: sample.packages.map((file) => (file.id === 'clinic' ? { ...file, images } : file)),
   });
   return [
+    [
+      'duplicate where nothing nests',
+      { ...sample, project: { ...sample.project, packages: [] }, packages: [] },
+      [
+        {
+          type: 'duplicate-elements',
+          view: VIEW,
+          elements: ['patient'],
+          container: 'clinic-booking',
+        },
+      ],
+    ],
     [
       'ids another package defines',
       withPackage(sample, {

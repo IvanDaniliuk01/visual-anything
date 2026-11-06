@@ -149,6 +149,11 @@ export interface ControllerCallbacks {
   /** Asks to open the menu of relations, their route's: `at` is on screen, relative to the canvas. */
   relationMenu?(at: Point, relations: readonly Id[]): void;
   /**
+   * Asks to open the canvas's own menu, of a secondary press on no shape and no line (ADR 0103): `at`
+   * is on screen, relative to the canvas, and `world` where it is in the scene.
+   */
+  canvasMenu?(at: Point, world: Point): void;
+  /**
    * Asks to collapse or expand containers, as the toggle on a container's shape and the keys do; the
    * canvas sends I1's command and says what it did.
    */
@@ -305,6 +310,8 @@ interface SecondaryPress {
   shape?: string;
   /** The relations it was on, whose menu it opens. */
   relations?: Id[];
+  /** Whether it was on nothing, no shape, line or free shape, where it opens the canvas's menu. */
+  onNothing?: true;
 }
 
 /**
@@ -720,6 +727,28 @@ export class CanvasController {
   /** Where pictures' media files come from from now on (ADR 0098). */
   setMedia(files: MediaFiles | undefined): void {
     this.renderer.setMedia(files);
+  }
+
+  /** Where a point on screen, relative to the canvas, is in the scene. */
+  worldAt(screen: Point): Point {
+    return screenToWorld(this.camera, screen);
+  }
+
+  /** Where the pointer last was over the canvas, in the scene; undefined once it left. */
+  get pointer(): Point | undefined {
+    return this.pointerAt === undefined ? undefined : screenToWorld(this.camera, this.pointerAt);
+  }
+
+  /**
+   * The innermost shape at a point of the scene that holds contents, drawn open, as the grid marks
+   * it: what Paste as duplicates puts the duplicates inside (ADR 0103).
+   */
+  containerAt(world: Point): ElementShape | undefined {
+    const indexed = this.indexed;
+    if (!indexed) return undefined;
+    return shapesAt(indexed, world, this.exact, this.renderer.hiddenByEmphasis).find(
+      (shape) => shape.holdsContents && shape.collapsed === undefined,
+    );
   }
 
   /** Where the middle of the canvas is in the scene, for creating things there. */
@@ -1423,6 +1452,7 @@ export class CanvasController {
       time: event.timeStamp,
       ...(hit?.kind === 'shape' ? { shape: hit.shape.key } : {}),
       ...(hit?.kind === 'relation' ? { relations: relationsToAct(this.selection, hit) } : {}),
+      ...(hit === undefined ? { onNothing: true as const } : {}),
     };
   }
 
@@ -1433,7 +1463,12 @@ export class CanvasController {
       return;
     }
     const indexed = this.indexed;
-    const shape = press.shape === undefined ? undefined : indexed?.byKey.get(press.shape);
+    if (press.onNothing) {
+      this.callbacks.canvasMenu?.(press.at, press.world);
+      return;
+    }
+    if (press.shape === undefined) return;
+    const shape = indexed?.byKey.get(press.shape);
     if (!indexed || !shape) return;
     this.callbacks.menu?.(
       press.at,

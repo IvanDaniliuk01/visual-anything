@@ -667,6 +667,14 @@ _Avoid_: rotate and flip (in the app's words; the file's fields keep those names
 Taking every Style and Text trait one element or relation is drawn with, to set them on the selection with **Paste appearance**, in one action (ADR 0088).
 _Avoid_: format painter, copy style
 
+**Copy** (of elements):
+Putting the selection, from the canvas or the Outline, on the system's clipboard: its elements by id, which bring the relations among them along, and its free shapes, with where each sits relative to the others, the project's name and the packages it uses. **Paste** shows the same elements in the open view, adding to its scope those it leaves out and never changing containment; free shapes are always pasted as copies (ADR 0103).
+_Avoid_: paste as reference, link (for showing the same element)
+
+**Duplicate**:
+A new element made from another: its component, attributes, description and appearance of its own, with duplicates of everything it holds, at any depth, and of the relations among what is duplicated. **Paste as duplicates** makes them from what was copied, inside the container under the pointer or in World; **Duplicate** makes them beside the selection. One that lands in the container its original sits in is named with " (copy)" (ADR 0103).
+_Avoid_: clone, copy (for the new element)
+
 **Computed value**:
 An attribute's value that a hook of package code computed: shown with a mark naming its package, and never saved, put in the history or sent to a file.
 _Avoid_: derived attribute, formula

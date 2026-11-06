@@ -118,6 +118,38 @@
   margin: 0 calc(-1 * var(--space-100));
 }
 
+/* Given a height by its divider, World's tree takes it, whatever the views and scenarios need. */
+.model-world[data-sized] {
+  flex: none;
+}
+
+.model-world[data-sized] > .tree-viewport {
+  flex: 1 1 auto;
+}
+
+/* The divider under World's tree, dragged or moved with the arrow keys (WorldDivider). */
+.model-world-divider {
+  flex: none;
+  height: var(--space-75);
+  margin: var(--space-25) calc(-1 * var(--space-100)) var(--space-50);
+  background-image: linear-gradient(var(--border), var(--border));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% var(--stroke-thin);
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.model-world-divider:hover,
+.model-world-divider:focus-visible {
+  background-image: linear-gradient(var(--accent), var(--accent));
+  background-size: 100% var(--space-25);
+}
+
+.model-world-divider:focus-visible {
+  outline: none;
+}
+
 /* Trees: the viewport scrolls, and only the rows in it are drawn, each at its place. */
 
 /* What hears the outline's rows hovered, without a box of its own (ADR 0076). */

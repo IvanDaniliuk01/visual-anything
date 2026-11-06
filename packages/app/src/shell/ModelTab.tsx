@@ -6,7 +6,7 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
-import { useId, useMemo } from 'react';
+import { useId, useMemo, useRef } from 'react';
 import { useEditor } from '../editor/EditorContext';
 import { selectionOf } from '../editor/selection';
 import { useT } from '../i18n';
@@ -16,6 +16,8 @@ import { shownRows, type TreeRow } from './tree';
 import { useTreeState } from './useTreeState';
 import { ViewList } from './ViewList';
 import { VirtualTree } from './VirtualTree';
+import { WorldDivider } from './WorldDivider';
+import { useWorldHeight } from './worldHeight';
 
 const STEPS = { one: '{count} step', other: '{count} steps' };
 const STEPS_OVER = { one: '{count} step over {view}', other: '{count} steps over {view}' };
@@ -40,6 +42,10 @@ export function ModelTab({ active, project, definitions, openViewId }: ModelTabP
   const editor = useEditor();
   const { scene, selection } = editor;
   const worldHeading = useId();
+  const worldSection = useId();
+  const tabRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<HTMLElement>(null);
+  const worldHeight = useWorldHeight(tabRef);
   const viewsHeading = useId();
   const scenariosHeading = useId();
   const world = useMemo(
@@ -77,8 +83,15 @@ export function ModelTab({ active, project, definitions, openViewId }: ModelTabP
   const [selected] = selection.elements;
 
   return (
-    <div className="model-tab">
-      <section className="panel-section model-world">
+    <div className="model-tab" ref={tabRef}>
+      <section
+        ref={worldRef}
+        id={worldSection}
+        className="panel-section model-world"
+        {...(worldHeight.height === undefined
+          ? {}
+          : { 'data-sized': '', style: { height: worldHeight.height } })}
+      >
         <h3 id={worldHeading}>{t('World')}</h3>
         {world && shown && shown.rows.length > 0 ? (
           <VirtualTree
@@ -112,6 +125,13 @@ export function ModelTab({ active, project, definitions, openViewId }: ModelTabP
           </p>
         )}
       </section>
+      <WorldDivider
+        world={worldRef}
+        controls={worldSection}
+        height={worldHeight.height}
+        setHeight={worldHeight.setHeight}
+        maxHeight={worldHeight.maxHeight}
+      />
 
       <section className="panel-section">
         <h3 id={viewsHeading}>{t('Views')}</h3>

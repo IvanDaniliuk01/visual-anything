@@ -94,6 +94,7 @@ import { LIVE_TOOLS, LIVE_VALUES_BESIDE, besideAttributes, liveBeside } from './
 import { RECIPES_IN_BRIEF } from './recipes';
 import { SCENARIO_TOOLS } from './scenario-tools';
 import { SCOPE_TOOLS } from './scope-tools';
+import { DUPLICATE_TOOLS } from './duplicate-tools';
 import { TOUR_TOOLS } from './tour-tools';
 import { VIEW_STATE_TOOLS, openApp } from './view-tools';
 import {
@@ -1832,6 +1833,8 @@ export const TOOLS: readonly Tool[] = [
   updateRelation,
   deleteFromModel,
   changeContainer,
+  // Duplicates of elements, with what they hold (ADR 0103).
+  ...DUPLICATE_TOOLS,
   createPackage,
   defineComponent,
   defineRelationType,

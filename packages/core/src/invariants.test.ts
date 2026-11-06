@@ -20,7 +20,7 @@ import {
   RECOLORS,
   commandFor,
   index,
-  intent,
+  everyIntent,
   lowerCased,
   pick,
   placementsIn,
@@ -120,7 +120,7 @@ function nothingSeen(): Seen {
  */
 function sequences(seen: Seen) {
   return fc.property(
-    fc.array(intent, { minLength: 10, maxLength: 60 }),
+    fc.array(everyIntent, { minLength: 10, maxLength: 60 }),
     fc.integer(),
     (wishes, seed) => {
       let random = seed;

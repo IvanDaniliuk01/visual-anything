@@ -93,6 +93,19 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
     keys: 'Ctrl+Alt+C and Ctrl+Alt+V (⌥⌘C and ⌥⌘V on macOS)',
     does: 'Copy the appearance of the selected element or relation, and paste it onto the selection',
   },
+  // Copy, Paste, Paste as duplicates and Duplicate (ADR 0103), here and in the Outline.
+  {
+    keys: 'Ctrl+C and Ctrl+V (⌘C and ⌘V on macOS)',
+    does: 'Copy the selection, and show the elements copied in this view: the same elements, never new ones',
+  },
+  {
+    keys: 'Ctrl+Shift+V (⇧⌘V on macOS)',
+    does: 'Paste as duplicates: new elements like the ones copied, inside the container under the pointer',
+  },
+  {
+    keys: 'Ctrl+D (⌘D on macOS)',
+    does: 'Duplicate the selection beside itself, with what it holds',
+  },
   { keys: 'Delete', does: 'Delete the selection, after showing what goes with it' },
   { keys: 'Escape', does: 'Clear the selection' },
   { keys: 'Ctrl+A or ⌘A', does: 'Select everything' },

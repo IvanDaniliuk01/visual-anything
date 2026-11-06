@@ -112,6 +112,21 @@ import { RouteMenu } from './routing/RouteMenu';
 import { drawingOfScene, relationLinesOf, type ElementShape, type Scene } from './scene';
 import type { ComparisonScene } from './comparison/scene';
 import { ShapeMenu } from './ShapeMenu';
+import { CanvasMenu } from './CanvasMenu';
+import {
+  copyOf,
+  duplicateCommand,
+  elementCopyShortcut,
+  pasteAsDuplicatesCommand,
+  pasteCommand,
+  readClipboardCopy,
+  readCopied,
+  tooLargeReason,
+  TOO_LARGE,
+  writeClipboardCopy,
+  type CopiedElements,
+  type ReadCopy,
+} from './elementCopy';
 import { useSpacePanel } from '../space/context';
 import { showInSpace, showInSpaceOf } from '../space/show';
 import { PlacedHoverCard } from './HoverCard';
@@ -310,6 +325,8 @@ export function CanvasArea({
   const [deleting, setDeleting] = useState<Deleting>();
   const [changing, setChanging] = useState<Changing>();
   const [menu, setMenu] = useState<OpenMenu>();
+  // The canvas's own menu, of a secondary press on nothing: where it opened, on screen and in the scene.
+  const [canvasMenu, setCanvasMenu] = useState<{ at: Point; world: Point; opening: number }>();
   // The menu of relations, their route's (ADR 0039).
   const [routeMenu, setRouteMenu] = useState<{ at: Point; relations: Id[]; opening: number }>();
   const [choosing, setChoosing] = useState<Choosing>();
@@ -603,6 +620,8 @@ export function CanvasArea({
           })),
         collapse: (action, collapsed) => collapseFromCanvas(action, collapsed),
         changeGrid: (changes) => changePreferences(changes),
+        canvasMenu: (at, world) =>
+          setCanvasMenu((last) => ({ at, world, opening: (last?.opening ?? 0) + 1 })),
         relationMenu: (at, relations) =>
           setRouteMenu((last) => ({
             at,
@@ -915,6 +934,212 @@ export function CanvasArea({
     });
   };
 
+  /** Where a paste lands: where it was asked, else where the pointer is, else the middle of the view. */
+  const pasteAt = (world?: Point): Point => {
+    const now = controller();
+    const at = world ?? now?.pointer ?? now?.center ?? { x: 0, y: 0 };
+    return { x: placed(at.x), y: placed(at.y) };
+  };
+
+  /** Says something to screen readers and as a notice, as a paste that changes nothing does. */
+  const tell = (text: string, level: 'info' | 'warning' = 'info') => {
+    announce(text);
+    live?.notify(level, text);
+  };
+
+  /** Selects what an action made or showed, and brings the first element of it into sight. */
+  const selectPasted = (elements: readonly Id[], freeShapes: readonly Id[]) => {
+    onSelect(
+      selectionOf([
+        ...elements.map((id) => ({ kind: 'element' as const, id })),
+        ...freeShapes.map((id) => ({ kind: 'free-shape' as const, id })),
+      ]),
+    );
+    const [first] = elements;
+    if (first === undefined) return;
+    const shape = latest.current.indexed?.byElement.get(first)?.[0];
+    if (shape) controller()?.reveal(shape.key);
+    else revealNext.current = first;
+  };
+
+  /**
+   * Copy (ADR 0103): puts the selection's elements, the relations among them and its free shapes on
+   * the system's clipboard, through the `copy` event's data when there is one, and says so. Whether
+   * it copied anything.
+   */
+  const copyElements = (data?: DataTransfer | null): boolean => {
+    const made = copyOf(project, view.id, indexed, selection);
+    if ('reason' in made) {
+      // A copy too large is refused, saying so, rather than leaving the browser to copy nothing.
+      if (made.tooLarge !== true) return false;
+      tell(made.reason, 'warning');
+      return true;
+    }
+    void writeClipboardCopy(made.copied, data).catch(() => {
+      announce(t('Could not put the copy on the clipboard.'));
+    });
+    const count = made.copied.elements.length + made.copied.freeShapes.length;
+    announce(t({ one: 'Copied {count} shape.', other: 'Copied {count} shapes.' }, { count }));
+    return true;
+  };
+
+  /**
+   * Whether what the clipboard holds is a copy of elements to paste; when it is not, or is one too
+   * large, it says so.
+   */
+  const pastable = (copied: ReadCopy): copied is CopiedElements => {
+    if (copied === TOO_LARGE) tell(tooLargeReason(), 'warning');
+    else if (copied === undefined) tell(t('Copy elements or free shapes first.'));
+    return copied !== TOO_LARGE && copied !== undefined;
+  };
+
+  /**
+   * Paste (ADR 0103): shows the same elements copied in the open view, as one action, at `world` or
+   * where the pointer is, then selects them; when the view shows them all already, it only selects
+   * them and says so.
+   */
+  const pasteElements = async (copied: ReadCopy, world?: Point) => {
+    if (!pastable(copied)) return;
+    if (!editable) {
+      announce(t('The project cannot be changed now.'));
+      return;
+    }
+    const pasted = pasteCommand(project, view.id, copied, pasteAt(world));
+    if ('reason' in pasted) {
+      tell(pasted.reason, 'warning');
+      return;
+    }
+    if (pasted.command === undefined) {
+      selectPasted(pasted.elements, []);
+      tell(
+        t(
+          {
+            one: 'It is already in this view, so nothing was added.',
+            other: 'All {count} are already in this view, so nothing was added.',
+          },
+          { count: pasted.elements.length },
+        ),
+      );
+      return;
+    }
+    const unchanged = intent();
+    const result = await send(pasted.command);
+    if (!result.ok) return;
+    if (pasted.label !== undefined) announce(`${t.message(pasted.label)}.`);
+    const created = result.created ?? [];
+    if (unchanged()) {
+      selectPasted(
+        pasted.elements,
+        pasted.freeShapes === 0 ? [] : created.slice(-pasted.freeShapes),
+      );
+    }
+  };
+
+  /** Selects the duplicates an action made: those of the given elements first, the free shapes last. */
+  const selectDuplicated = (
+    created: readonly Id[] | undefined,
+    made: { elements: number; freeShapes: number },
+  ) => {
+    const ids = created ?? [];
+    selectPasted(
+      ids.slice(0, made.elements),
+      made.freeShapes === 0 ? [] : ids.slice(-made.freeShapes),
+    );
+  };
+
+  /**
+   * Paste as duplicates (ADR 0103): makes new elements like the ones copied, inside the container at
+   * `world` or under the pointer, or in World, as one action, then selects them.
+   */
+  const pasteAsDuplicates = async (copied: ReadCopy, world?: Point) => {
+    if (!pastable(copied)) return;
+    if (!editable) {
+      announce(t('The project cannot be changed now.'));
+      return;
+    }
+    const at = pasteAt(world);
+    const made = pasteAsDuplicatesCommand(
+      project,
+      view.id,
+      copied,
+      at,
+      controller()?.containerAt(at),
+    );
+    if ('reason' in made) {
+      tell(made.reason, 'warning');
+      return;
+    }
+    const unchanged = intent();
+    const result = await send(made.command);
+    if (!result.ok) return;
+    announce(`${t.message(made.label)}.`);
+    if (unchanged()) selectDuplicated(result.created, made);
+  };
+
+  /** Duplicate (ADR 0103): duplicates the selection beside itself, as one action, then selects it. */
+  const duplicateSelection = async () => {
+    if (!editable) {
+      announce(t('The project cannot be changed now.'));
+      return;
+    }
+    const made = duplicateCommand(project, view.id, indexed, selection);
+    if ('reason' in made) {
+      announce(made.reason);
+      return;
+    }
+    const unchanged = intent();
+    const result = await send(made.command);
+    if (!result.ok) return;
+    announce(`${t.message(made.label)}.`);
+    if (unchanged()) selectDuplicated(result.created, made);
+  };
+
+  /**
+   * Whether the keys of copying and pasting elements act where the focus is: on the canvas, in the
+   * Outline, which shares its selection, or nowhere in particular; never while typing, in a dialog or
+   * with a menu open (ADR 0103).
+   */
+  const takesElementCopyKeys = (target: EventTarget | null): boolean => {
+    if (isTextEntry(target)) return false;
+    if (relating || deletion || changing || choosing || menu || routeMenu || canvasMenu) {
+      return false;
+    }
+    if (!(target instanceof Element) || target === document.body) return true;
+    if (target.closest('[role="dialog"]') !== null) return false;
+    return (
+      (hostRef.current?.contains(target) ?? false) || target.closest('.outline-hover') !== null
+    );
+  };
+
+  // Copy and Paste come as the browser's own events, which read and write the system's clipboard.
+  const onCopyEvent = useEffectEvent((event: ClipboardEvent) => {
+    if (event.defaultPrevented || !takesElementCopyKeys(event.target)) return;
+    // Text selected on the page is copied as the browser copies it.
+    const text = window.getSelection();
+    if (text !== null && !text.isCollapsed) return;
+    if (copyElements(event.clipboardData)) event.preventDefault();
+  });
+  const onPasteEvent = useEffectEvent((event: ClipboardEvent) => {
+    if (event.defaultPrevented || !takesElementCopyKeys(event.target)) return;
+    // Pictures pasted on the canvas are added as pictures (ADR 0098); text that is not a copy of
+    // elements is left to what it was pasted in.
+    if (pictureFilesIn(event.clipboardData?.files).length > 0) return;
+    const copied = readCopied(event.clipboardData?.getData('text/plain') ?? '');
+    if (!copied) return;
+    event.preventDefault();
+    void pasteElements(copied);
+  });
+  useEffect(() => {
+    const copy = (event: ClipboardEvent) => onCopyEvent(event);
+    const paste = (event: ClipboardEvent) => onPasteEvent(event);
+    document.addEventListener('copy', copy);
+    document.addEventListener('paste', paste);
+    return () => {
+      document.removeEventListener('copy', copy);
+      document.removeEventListener('paste', paste);
+    };
+  }, []);
+
   /**
    * Aligns, distributes or sizes alike the selected shapes, as one action, and says what it did; a
    * way that would change nothing says why instead (ADR 0074).
@@ -947,6 +1172,16 @@ export function CanvasArea({
         event.target instanceof Element && event.target.closest('[role="dialog"]') !== null;
       if (open || inDialog) return;
       copyOrPasteAppearance(appearance);
+      return;
+    }
+    // Duplicate and Paste as duplicates (ADR 0103), where Copy and Paste act.
+    const copying = elementCopyShortcut(event);
+    if (copying !== undefined) {
+      if (!takesElementCopyKeys(event.target)) return;
+      // Taken, so that Ctrl+D never bookmarks the page.
+      event.preventDefault();
+      if (copying === 'duplicate') void duplicateSelection();
+      else void readClipboardCopy().then((copied) => pasteAsDuplicates(copied));
       return;
     }
     const move = stackingShortcut({
@@ -1370,6 +1605,15 @@ export function CanvasArea({
             closeMenu();
             copyOrPasteAppearance(how);
           }}
+          onDuplicate={() => {
+            closeMenu();
+            void duplicateSelection();
+          }}
+          onPasteAsDuplicates={() => {
+            const world = controller()?.worldAt(menu.at);
+            closeMenu();
+            void readClipboardCopy().then((copied) => pasteAsDuplicates(copied, world));
+          }}
           onRestack={(move) => {
             // A move that would change nothing says why, and leaves the menu open for another.
             if (stacking[move].enabled) closeMenu();
@@ -1453,6 +1697,29 @@ export function CanvasArea({
               }
             : {})}
           onClose={closeMenu}
+        />
+      )}
+      {canvasMenu && (
+        <CanvasMenu
+          key={canvasMenu.opening}
+          at={canvasMenu.at}
+          editable={editable}
+          onPaste={() => {
+            const { world } = canvasMenu;
+            setCanvasMenu(undefined);
+            focusCanvas();
+            void readClipboardCopy().then((copied) => pasteElements(copied, world));
+          }}
+          onPasteAsDuplicates={() => {
+            const { world } = canvasMenu;
+            setCanvasMenu(undefined);
+            focusCanvas();
+            void readClipboardCopy().then((copied) => pasteAsDuplicates(copied, world));
+          }}
+          onClose={() => {
+            setCanvasMenu(undefined);
+            focusCanvas();
+          }}
         />
       )}
       {routeMenu && (

@@ -83,6 +83,7 @@ export type Intent =
   | { kind: 'collapse'; at: number; picks: number[]; collapsed: boolean }
   | { kind: 'scope'; at: number; rule: number; picks: number[]; clear: boolean }
   | { kind: 'in-view'; at: number; picks: number[]; out: boolean }
+  | { kind: 'duplicate'; at: number; picks: number[]; into: number | null; beside: boolean }
   | { kind: 'component-appearance'; at: number; form: number; value: number }
   | { kind: 'relation-type-appearance'; at: number; form: number; value: number }
   | { kind: 'relation-appearance'; relation: number; form: number; value: number }
@@ -135,6 +136,7 @@ export const COMMAND_TYPES: readonly Command['type'][] = [
   'set-scope',
   'add-to-view',
   'leave-out-of-view',
+  'duplicate-elements',
   'set-component-appearance',
   'set-relation-type-appearance',
   'batch',
@@ -326,6 +328,24 @@ export const intent: fc.Arbitrary<Intent> = fc.oneof(
   fc.record({ kind: fc.constant('shape-color'), at: index, arrow: fc.boolean(), value: index }),
   { arbitrary: fc.constant({ kind: 'undo' as const }), weight: 2 },
   { arbitrary: fc.constant({ kind: 'redo' as const }), weight: 1 },
+);
+
+/**
+ * Every intent, duplicates among them (ADR 0103). Kept apart from `intent`, whose shape the seeded
+ * regressions of the versions' tests replay by their paths.
+ */
+export const everyIntent: fc.Arbitrary<Intent> = fc.oneof(
+  { arbitrary: intent, weight: 30 },
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('duplicate'),
+      at: index,
+      picks: fc.array(index, { minLength: 1, maxLength: 2 }),
+      into: fc.option(index),
+      beside: fc.boolean(),
+    }),
+    weight: 1,
+  },
 );
 
 /** Changes to a component's traits and attributes, one of which an intent picks. */
@@ -823,6 +843,17 @@ export function commandFor(state: ProjectSnapshot, wish: Intent): Command | unde
         type: wish.out ? 'leave-out-of-view' : 'add-to-view',
         view: view.id,
         elements: [...new Set(wish.picks.map((at) => pick(elements, at) as Id))],
+      };
+    }
+    case 'duplicate': {
+      const view = pick(state.views, wish.at);
+      if (!view || elements.length === 0) return undefined;
+      const into = wish.into === null ? undefined : pick(elements, wish.into);
+      return {
+        type: 'duplicate-elements',
+        view: view.id,
+        elements: [...new Set(wish.picks.map((at) => pick(elements, at) as Id))],
+        ...(wish.beside ? { beside: true } : into === undefined ? {} : { container: into }),
       };
     }
     case 'component-appearance': {
