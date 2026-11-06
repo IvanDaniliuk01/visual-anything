@@ -4,6 +4,7 @@
 
 ### Views
 
+- **Show views side by side** (#12). Press Beside on a view in the view list, or beside a destination that opens a view in the inspector, and the canvas splits into panes, up to three: a story beside the view of how its data is stored, or two cases to compare. Each pane keeps its own camera, filters and focus; drag the border between two panes, or move it with the arrow keys, and change or close a pane from its header. One pane is active, shown by its border: the inspector, the outline, search, export, Copy address, scenarios, tours and Claude's guidance follow it, and selecting an element highlights it in every pane that draws it. The panes come back when the tab reloads, and closing all but one gives you the single canvas again (ADR 0102).
 - **File views in folders** (#11). The view list shows view folders you make, nested as deep as you want, in the order you choose: New folder… beside New view…, drag views and folders where they go, or move them from their settings. Folders open and close, and each person's browser remembers which are closed; a view no folder holds shows after them. Claude files views too, with `organize_views` (ADR 0101).
 
 ### The canvas

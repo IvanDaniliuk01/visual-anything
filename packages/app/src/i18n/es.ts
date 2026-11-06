@@ -133,6 +133,7 @@
  * | proposal                | propuesta                        |
  * | physical space          | espacio físico                   |
  * | physical-space panel    | panel del espacio físico         |
+ * | pane, active pane       | panel, panel activo              |
  * | pose, to pose           | ubicación, ubicar                |
  * | placement (of an image) | colocación                       |
  * | conflict                | conflicto                        |
@@ -744,6 +745,19 @@ export const ui: Catalog = {
   Open: 'Abierta',
   'Settings of "{name}"': 'Opciones de "{name}"',
   Settings: 'Opciones',
+  // The split view (ADR 0102): views side by side in panes, one of them active.
+  Beside: 'Al lado',
+  'Open "{name}" beside': 'Abrir "{name}" al lado',
+  'Open "{name}" beside the active pane': 'Abrir "{name}" al lado del panel activo',
+  'Open {what} beside the active pane': 'Abrir {what} al lado del panel activo',
+  'View in this pane': 'Vista en este panel',
+  'Close the pane of “{name}”': 'Cerrar el panel de “{name}”',
+  'Resize “{left}” and “{right}”': 'Cambiar el ancho de “{left}” y “{right}”',
+  '{view}, the active pane': '{view}, el panel activo',
+  '{view}, a pane': '{view}, un panel',
+  '{percent}% to the left': '{percent} % a la izquierda',
+  'Drag, or press the arrow keys, to share the width between the panes':
+    'Arrastrar, o presionar las flechas, para repartir el ancho entre los paneles',
   'A view needs a name.': 'Una vista necesita un nombre.',
   'A perspective needs a name, such as Security.':
     'Una perspectiva necesita un nombre, como Seguridad.',

@@ -8,7 +8,7 @@ import type { AttributeDefinition, Attributes } from '@visual-anything/schema';
 import { useId } from 'react';
 import { useEditor } from '../editor/EditorContext';
 import { useT } from '../i18n';
-import { describeDestination } from './follow';
+import { describeDestination, planFollow } from './follow';
 import { useFollow } from './follower';
 import './destinations.css';
 
@@ -20,7 +20,7 @@ interface DestinationsSectionProps {
 
 export function DestinationsSection({ item, definitions }: DestinationsSectionProps) {
   const t = useT();
-  const { project } = useEditor();
+  const { project, openBeside } = useEditor();
   const follower = useFollow();
   const headingId = useId();
   const found: FoundDestination[] = destinationsOf(item, definitions);
@@ -31,6 +31,9 @@ export function DestinationsSection({ item, definitions }: DestinationsSectionPr
       <ul className="inspector-destinations" aria-labelledby={headingId}>
         {found.map(({ attribute, destination }) => {
           const opens = describeDestination(t, project, destination);
+          // A view of this project also opens beside the active pane (ADR 0102).
+          const beside =
+            openBeside !== undefined && planFollow(project, destination)?.kind === 'view';
           return (
             <li key={attribute} className="inspector-destination">
               <span>
@@ -40,18 +43,32 @@ export function DestinationsSection({ item, definitions }: DestinationsSectionPr
                   {t('Opens {what}', { what: opens })}
                 </span>
               </span>
-              <button
-                type="button"
-                className="inspector-action"
-                disabled={follower === undefined}
-                aria-label={t('Follow “{name}”, which opens {what}', {
-                  name: attribute,
-                  what: opens,
-                })}
-                onClick={() => follower?.follow(destination)}
-              >
-                {t('Follow')}
-              </button>
+              <span className="inspector-destination-actions">
+                <button
+                  type="button"
+                  className="inspector-action"
+                  disabled={follower === undefined}
+                  aria-label={t('Follow “{name}”, which opens {what}', {
+                    name: attribute,
+                    what: opens,
+                  })}
+                  onClick={() => follower?.follow(destination)}
+                >
+                  {t('Follow')}
+                </button>
+                {beside && (
+                  <button
+                    type="button"
+                    className="inspector-action"
+                    disabled={follower === undefined}
+                    aria-label={t('Open {what} beside the active pane', { what: opens })}
+                    title={t('Open {what} beside the active pane', { what: opens })}
+                    onClick={() => follower?.follow(destination, { beside: true })}
+                  >
+                    {t('Beside')}
+                  </button>
+                )}
+              </span>
             </li>
           );
         })}

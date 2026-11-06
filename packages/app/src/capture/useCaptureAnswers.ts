@@ -46,10 +46,14 @@ export function canvasFor(renderer: CanvasRenderer | undefined, view: Id): Captu
   };
 }
 
-/** Lends the live session what takes Claude's pictures with the controller's renderer. */
+/**
+ * Lends the live session what takes Claude's pictures with the controller's renderer, while `lends`,
+ * as only the active pane of a split view does (ADR 0102).
+ */
 export function useCaptureAnswers(
   controller: RefObject<{ readonly renderer: CanvasRenderer } | null>,
   view: Id,
+  lends = true,
 ): void {
   const lend = useContext(LiveContext)?.lendCapture;
   const shown = useRef(view);
@@ -57,7 +61,10 @@ export function useCaptureAnswers(
     shown.current = view;
   });
   useEffect(
-    () => lend?.((ask) => takeCapture(ask, canvasFor(controller.current?.renderer, shown.current))),
-    [lend, controller],
+    () =>
+      lends
+        ? lend?.((ask) => takeCapture(ask, canvasFor(controller.current?.renderer, shown.current)))
+        : undefined,
+    [lend, controller, lends],
   );
 }

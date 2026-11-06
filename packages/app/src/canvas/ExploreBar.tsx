@@ -33,6 +33,7 @@ import {
 import './explore.css';
 import { holdsTargets, type Explore } from './useExplorer';
 import { useOutsidePress } from './focus';
+import { liveIn, useActivePane } from './activePane';
 import { useAttributeLookup } from '../live-values/context';
 import { TimeRangeChooser, TimeRangeStrip } from './TimeRangeControls';
 import { indexScene, type IndexedScene } from './hit';
@@ -68,13 +69,14 @@ export function PerspectiveControl() {
 export function ExploreControls() {
   const t = useT();
   const editor = useContext(EditorContext);
+  const active = useActivePane();
   const explore = editor?.explore;
   if (!editor || !explore || editor.viewId === undefined) return null;
   return (
     <div className="canvas-toolbar-explore" role="group" aria-label={t('Explore')}>
       <FiltersControl editor={editor} explore={explore} />
       <FocusToggle explore={explore} />
-      <p role="status" className="visually-hidden">
+      <p role="status" className="visually-hidden" {...liveIn(active)}>
         {statusOf(t, editor, explore)}
       </p>
     </div>

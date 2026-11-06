@@ -86,3 +86,9 @@
   display: grid;
   gap: var(--space-25);
 }
+
+/* Follow, and Beside for a view of this project (ADR 0102), side by side. */
+.inspector-destination-actions {
+  display: flex;
+  gap: var(--space-25);
+}

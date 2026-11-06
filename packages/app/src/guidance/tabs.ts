@@ -135,12 +135,33 @@ export function setTabUseForTests(tracker: TabUse | undefined): void {
 
 const decided = new WeakMap<object, boolean>();
 
+/** What says which views this tab's panes show (ADR 0102), each shell's while it is mounted. */
+const shownViews = new Set<() => readonly (Id | undefined)[]>();
+
+/**
+ * Says which views this tab shows besides the open one, as the panes of a split view do (ADR 0102):
+ * guidance for one of them applies here, where a pane shows it already. Returns what stops it.
+ */
+export function showsViews(views: () => readonly (Id | undefined)[]): () => void {
+  shownViews.add(views);
+  return () => {
+    shownViews.delete(views);
+  };
+}
+
+/** Whether a pane of this tab shows the view. */
+function shownHere(view: Id): boolean {
+  for (const views of shownViews) if (views().includes(view)) return true;
+  return false;
+}
+
 /**
  * Whether a guidance request applies in this tab, decided the first time it is asked and kept: one
  * whose view, `view` or else the one it names, is none or the view open then applies where it is;
- * one for another view applies only in the tab the person used last, which opens that view for it.
- * The other tabs pass it over, then and later, so that it never applies once the person opens that
- * view by hand.
+ * one for a view another of the tab's panes shows applies here too, and makes that pane active (ADR
+ * 0102); one for another view applies only in the tab the person used last, which opens that view
+ * for it. The other tabs pass it over, then and later, so that it never applies once the person
+ * opens that view by hand.
  */
 export function forThisTab(
   request: { request: number; view?: Id | undefined },
@@ -149,7 +170,7 @@ export function forThisTab(
 ): boolean {
   let applies = decided.get(request);
   if (applies === undefined) {
-    applies = view === undefined || view === openView || tabUse().isLastUsed();
+    applies = view === undefined || view === openView || shownHere(view) || tabUse().isLastUsed();
     decided.set(request, applies);
   }
   return applies;

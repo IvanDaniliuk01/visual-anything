@@ -11,7 +11,14 @@
  */
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import type { Emphasis, EmphasisStore } from '../editor/emphasis';
 import type { Selection } from '../editor/selection';
 import type { AttributeLookup } from '../live-values/lookup';
@@ -77,7 +84,23 @@ export interface ExplorerInput {
   emphasis: EmphasisStore;
   /** How attributes read, live and computed values over stored ones (ADR 0057). */
   lookup?: AttributeLookup;
+  /**
+   * The filters and focus of each view, where they are kept outside, as the shell keeps them for every
+   * pane of a split view (ADR 0102); kept here otherwise.
+   */
+  kept?: ExploredViews;
+  /**
+   * Whether focus follows the selection: only the active pane's explorer moves it (ADR 0102); the
+   * others show what it has. True unless given.
+   */
+  followsSelection?: boolean;
 }
+
+/** The filters and focus of each view, and how to change them, as `useState` gives them. */
+export type ExploredViews = [
+  ReadonlyMap<Id, ViewExplore>,
+  Dispatch<SetStateAction<ReadonlyMap<Id, ViewExplore>>>,
+];
 
 /**
  * Keeps the filters and focus of each view, and sets what they emphasize on the open one. The shell
@@ -90,8 +113,11 @@ export function useExplorer({
   selection,
   emphasis,
   lookup,
+  kept,
+  followsSelection = true,
 }: ExplorerInput): Explore {
-  const [byView, setByView] = useState<ReadonlyMap<Id, ViewExplore>>(new Map());
+  const own = useState<ReadonlyMap<Id, ViewExplore>>(new Map());
+  const [byView, setByView] = kept ?? own;
   const current = (viewId === undefined ? undefined : byView.get(viewId)) ?? UNEXPLORED;
   const update = useCallback(
     (change: (explore: ViewExplore) => ViewExplore) => {
@@ -102,14 +128,14 @@ export function useExplorer({
         return next;
       });
     },
-    [viewId],
+    [viewId, setByView],
   );
 
   // Adjusting state while rendering: a new selection moves the focus, while it is on.
   const [seen, setSeen] = useState(selection);
   if (seen !== selection) {
     setSeen(selection);
-    if (current.focus.on && holdsTargets(selection)) {
+    if (followsSelection && current.focus.on && holdsTargets(selection)) {
       update((explore) => ({
         ...explore,
         focus: { ...explore.focus, targets: targetsOf(selection) },

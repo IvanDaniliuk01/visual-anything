@@ -40,3 +40,14 @@ The app was built around one open view: the shell holds it once, with its select
 - **Every pane equal, each with its own inspector and selection:** rejected. Two selections would make "the selection" ambiguous for every command, menu and Claude, and the issue asks for the opposite, a linked selection.
 - **A grid of panes, rows as well as columns:** rejected for now. Side by side covers comparing and drill-down; screens are wider than tall.
 - **No limit on panes:** rejected. Each pane is a drawing context and a share of the layout worker.
+
+## Clarifications
+
+- 2026-11-05, building the panes (part 1): what the decision left open, decided under the user's standing delegation.
+  - **Open beside leaves the active pane active.** The person goes on where they were, with the view they opened beside it; pressing in the new pane makes it active.
+  - **Opening a view that another pane shows makes that pane active**, from the view list, a scenario, Claude's guidance or anything else that opens a view, so that two panes do not end up showing the same view by accident. A view state, as an address, a tour's step, search or a destination's Follow gives one, still shows its view in the active pane, as decided, so a tour stays in the pane it plays in. A pane's own header may show any view, the same as another pane's included, to compare it at two places.
+  - **Filters and focus stay each view's**, as the shell has kept them (ADR 0025): two panes of the same view show the same ones. Only the active pane's focus follows the selection.
+  - **A comparison (ADR 0070) shows in the active pane**; the others keep drawing their views.
+  - **Where Open beside is offered:** Beside on each row of the view list, Beside beside Follow for a destination that opens a view of this project in the inspector, and Beside in a pane's header, which opens that pane's view in another pane. The shape menu's Follow and Alt+Enter keep opening in place.
+  - **One pane keeps nothing** in the tab's session storage; two or more keep their views, shares of the width and cameras there, read strictly when the tab reloads. The active pane's camera comes back with the view address, the others' from the storage.
+  - **The least width** of a pane is 240 pixels while the canvas area is wide enough, and a tenth of it otherwise; the arrow keys move a border by 2% of the canvas area, 10% with Shift.

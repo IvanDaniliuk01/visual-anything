@@ -41,11 +41,16 @@ export const ImageSourceContext = createContext<ImageSource | null>(null);
 
 /**
  * Lends the export the renderer of the canvas's controller, read when an image is asked for, for as
- * long as the component that calls it is mounted.
+ * long as the component that calls it is mounted and `lends`, as only the active pane of a split view
+ * does (ADR 0102).
  */
 export function useLendRenderer(
   controller: RefObject<{ readonly renderer: ImageMaker } | null>,
+  lends = true,
 ): void {
   const source = useContext(ImageSourceContext);
-  useEffect(() => source?.lend(() => controller.current?.renderer), [source, controller]);
+  useEffect(
+    () => (lends ? source?.lend(() => controller.current?.renderer) : undefined),
+    [source, controller, lends],
+  );
 }

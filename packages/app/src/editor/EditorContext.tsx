@@ -36,8 +36,15 @@ export interface Editor {
   /**
    * Opens another view of the project on the canvas, as the view list does and as playing a scenario
    * over its view does. The shell always sets it; it is optional only so that tests can leave it out.
+   * In a split view it opens the view in the active pane, or makes active the pane that shows it
+   * already (ADR 0102).
    */
   openView?: (viewId: Id) => void;
+  /**
+   * Opens a view in a new pane beside the active one, as the view list's Beside does (ADR 0102); with
+   * three panes open, in the rightmost one but the active one. Absent outside the shell.
+   */
+  openBeside?: (viewId: Id) => void;
   /**
    * How the open view is explored: its filters and focus, which the shell keeps for each view while
    * the project is open. The shell always sets it; it is optional only so that tests can leave it out.

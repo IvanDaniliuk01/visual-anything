@@ -5,6 +5,7 @@
  * opens in a new tab with `noopener` and `noreferrer`, and nothing ever fetches it.
  */
 import type { ProjectSnapshot } from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
 import {
   createContext,
   useCallback,
@@ -22,9 +23,15 @@ import { browserAgrees, planFollow, type FollowPlan } from './follow';
 
 /** Follows destinations; what the shell and the provider give the components inside them. */
 export interface Follower {
-  /** Follows a destination, or a value that may be one: a value that is not one opens nothing. */
-  follow: (value: unknown) => void;
+  /**
+   * Follows a destination, or a value that may be one: a value that is not one opens nothing. With
+   * `beside`, a view of this project opens in a pane beside the active one (ADR 0102).
+   */
+  follow: (value: unknown, options?: { beside?: boolean }) => void;
 }
+
+/** Opens a view in a pane beside the active one, with these elements selected (ADR 0102). */
+export type OpenBeside = (view: Id, select: readonly Id[]) => void;
 
 /** The follower a `FollowProvider` gives what it holds. */
 export const FollowContext = createContext<Follower | undefined>(undefined);
@@ -62,12 +69,13 @@ export interface Asking {
 /**
  * The follower of a project, and what its dialog asks while it asks: the shell keeps both, gives the
  * follower to the editor and shows `FollowDialog` with what it asks. `goTo` is read when a destination is followed, so the
- * shell can hand over its view state's after this hook.
+ * shell can hand over its view state's after this hook; so is `beside`, which opens a view beside.
  */
 export function useFollower(
   project: ProjectSnapshot,
   goTo: RefObject<GoToState | undefined>,
   open: OpenPage = openPage,
+  beside?: RefObject<OpenBeside | undefined>,
 ): { follower: Follower; asking: Asking | undefined } {
   const t = useT();
   const live = useContext(LiveContext);
@@ -81,7 +89,7 @@ export function useFollower(
   );
 
   const follow = useCallback(
-    (value: unknown) => {
+    (value: unknown, options?: { beside?: boolean }) => {
       const plan = planFollow(project, value);
       if (plan === undefined) {
         notify('warning', t('This is not a destination, so it opens nothing.'));
@@ -89,6 +97,10 @@ export function useFollower(
       }
       switch (plan.kind) {
         case 'view':
+          if (options?.beside === true && beside?.current) {
+            beside.current(plan.view, plan.select);
+            return;
+          }
           goTo.current?.({
             kind: 'address',
             state: {
@@ -114,7 +126,7 @@ export function useFollower(
         }
       }
     },
-    [project, goTo, notify, t],
+    [project, goTo, beside, notify, t],
   );
 
   const close = useCallback(() => {

@@ -157,6 +157,18 @@ Said of a scenario step whose relations are all out of the scope of the view it 
 Where someone is in a project and how they read it there: the open view, where the canvas looks, what is selected, the filters, focus mode, the scenario and step played with the alternatives chosen at its decisions (ADR 0078), and, while it is open, what the physical-space panel shows and where it looks, each named by id. A view address carries one; tour steps and the read-only page reuse it.
 _Avoid_: snapshot, bookmark
 
+**Split view**:
+The canvas area split into panes side by side, three at most, each showing one view with its own camera, filters, focus and emphasis, and one selection for them all. Which panes are open, their views, cameras and widths are the tab's, kept in its session storage and never in the view address (ADR 0102).
+_Avoid_: tiles, columns, multi-view
+
+**Pane**:
+One view in a split view, with a header that names it, changes it and closes it. Open beside opens a view in a new pane right of the active one, which stays active; with three open, it shows instead in the rightmost pane but the active one.
+_Avoid_: panel (a side panel of the shell), window, tab
+
+**Active pane**:
+The pane pressed in or focused last, shown by its border. Everything that acts on the open view acts on its view: the inspector, the outline, the find bar, export, Copy address, the space panel, scenario playback, tours and Claude's guidance. Opening a view another pane shows makes that pane active instead.
+_Avoid_: current pane, focused pane, main pane
+
 **Component palette**:
 The list in the canvas toolbar that new elements are created from.
 _Avoid_: palette (alone), toolbox

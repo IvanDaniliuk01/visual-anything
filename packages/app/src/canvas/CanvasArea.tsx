@@ -46,6 +46,7 @@ import { useRunPackageAction } from '../packages/run';
 import { elementDestinations } from '../destinations/follow';
 import { useFollow } from '../destinations/follower';
 import { useLendRenderer } from '../export/source';
+import { ActivePaneContext, liveIn } from './activePane';
 import { useCaptureAnswers } from '../capture/useCaptureAnswers';
 import { t as translateNow, useT, type Translator } from '../i18n';
 import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';
@@ -165,6 +166,13 @@ interface CanvasAreaProps {
    * comparison's: read-only, as `onCommand` is absent while it shows.
    */
   comparison?: ComparisonScene;
+  /**
+   * Whether this canvas is the active pane of a split view, or the only canvas (ADR 0102): true unless
+   * given. Only the active one lends its renderer to export and to Claude's pictures, takes Claude's
+   * layout and turning, expands in place for the outline, edits routes for the inspector, takes the
+   * window's stacking keys, shares what it hovers, and speaks in a polite live region.
+   */
+  active?: boolean;
 }
 
 /**
@@ -256,6 +264,7 @@ export function CanvasArea({
   onCanvas,
   onTurning,
   comparison,
+  active = true,
 }: CanvasAreaProps) {
   const t = useT();
   const frameRef = useRef<HTMLDivElement>(null);
@@ -283,9 +292,9 @@ export function CanvasArea({
     controllerRef.current?.setMedia(media);
   }, [media]);
   // The header's Export draws the open view with this canvas's renderer (R27).
-  useLendRenderer(controllerRef);
+  useLendRenderer(controllerRef, active);
   // Claude's pictures of the view it draws, off screen, which move nothing here (ADR 0081).
-  useCaptureAnswers(controllerRef, view.id);
+  useCaptureAnswers(controllerRef, view.id, active);
   // The containers shown expanded as the canvas zooms into them (ADR 0055).
   const zoom = useContext(ZoomExpansionContext);
   const [failure, setFailure] = useState<string>();
@@ -333,7 +342,8 @@ export function CanvasArea({
   // Claude's guidance, lays out on demand; what the canvas draws is a frame of a layout moving in, or
   // else the scene.
   const live = useContext(LiveContext);
-  const askedLayout = live?.guidance?.layout;
+  // Only the active pane takes Claude's guidance (ADR 0102).
+  const askedLayout = active ? live?.guidance?.layout : undefined;
   // Claude's layout of another view runs only in the tab the person used last, which opens it.
   const guidedLayout = askedLayout && forThisTab(askedLayout, view.id) ? askedLayout : undefined;
   // Claude waits for the tab that runs its layout: a tab that passes it over says so, once (M3d).
@@ -408,12 +418,14 @@ export function CanvasArea({
     () => drawingOfScene(latest.current.indexed?.scene),
   );
   // What the canvas hovers is shared by element id, as the physical-space panel marks it (ADR 0076).
+  // Only the active pane's (ADR 0102).
   const hovers = useHoverStore();
   const shareHover = useEffectEvent((key: string | undefined) => {
+    if (!active) return;
     const shape = key === undefined ? undefined : latest.current.indexed?.byKey.get(key);
     hovers?.set('canvas', shape?.element);
   });
-  useEffect(() => () => hovers?.set('canvas', undefined), [hovers]);
+  useEffect(() => (active ? () => hovers?.set('canvas', undefined) : undefined), [hovers, active]);
   // Show in physical space, in the shape's menu, opens the tab's panel on the element (ADR 0076).
   const spacePanel = useSpacePanel();
   // A destination's mark, Alt+Enter and the shape's menu follow it (ADR 0056).
@@ -488,11 +500,13 @@ export function CanvasArea({
   const shownView = view.id;
   useEffect(
     () =>
-      showInPlace(shownView, {
-        expand: (elements, label) => expandFromElsewhere(elements, label),
-        collapse: (elements, label) => collapseFromElsewhere(elements, label),
-      }),
-    [shownView],
+      active
+        ? showInPlace(shownView, {
+            expand: (elements, label) => expandFromElsewhere(elements, label),
+            collapse: (elements, label) => collapseFromElsewhere(elements, label),
+          })
+        : undefined,
+    [shownView, active],
   );
 
   /**
@@ -687,8 +701,11 @@ export function CanvasArea({
 
   // Edit the route… from the inspector gives the canvas the keys.
   useEffect(
-    () => onRouteEditingRequest((relation) => void controllerRef.current?.editRoute(relation)),
-    [],
+    () =>
+      active
+        ? onRouteEditingRequest((relation) => void controllerRef.current?.editRoute(relation))
+        : undefined,
+    [active],
   );
 
   useEffect(() => {
@@ -697,7 +714,13 @@ export function CanvasArea({
 
   // Claude's turn guidance turns a shape's solid, as Turn does, once the canvas shows its view and
   // the scene the controller was just given (ADR 0075).
-  useGuidedTurn(live?.guidance?.turn, project, view.id, indexed, () => controllerRef.current);
+  useGuidedTurn(
+    active ? live?.guidance?.turn : undefined,
+    project,
+    view.id,
+    indexed,
+    () => controllerRef.current,
+  );
 
   // Once the row just added is drawn, the camera brings it into sight on its container's copy.
   useEffect(() => {
@@ -936,7 +959,9 @@ export function CanvasArea({
     if (open || inDialog) return;
     restack(move);
   });
+  // Only the active pane listens, so that a key moves one selection once (ADR 0102).
   useEffect(() => {
+    if (!active) return;
     const listener = (event: KeyboardEvent) => {
       onWindowKeyDown(event);
     };
@@ -944,7 +969,7 @@ export function CanvasArea({
     return () => {
       window.removeEventListener('keydown', listener);
     };
-  }, []);
+  }, [active]);
 
   /**
    * Changes the container of a shape, from the shape menu or the chooser: what it would delete is
@@ -1215,7 +1240,7 @@ export function CanvasArea({
     if (frameRef.current?.contains(document.activeElement)) focusCanvas();
   };
 
-  return (
+  const frame = (
     <div ref={frameRef} className="canvas-frame" {...(grid.rulers ? { 'data-rulers': '' } : {})}>
       <DrawnEmphasis
         onEmphasis={(next) => {
@@ -1273,7 +1298,13 @@ export function CanvasArea({
       <p id={hint} className="visually-hidden">
         {t(CANVAS_KEYS_HINT)}
       </p>
-      <div role="status" aria-label={t('Selection')} className="visually-hidden">
+      <div
+        role="status"
+        aria-label={t('Selection')}
+        // Only the active pane speaks: two panes would say the same thing twice (ADR 0102).
+        {...liveIn(active)}
+        className="visually-hidden"
+      >
         {announcement.text}
         {announcement.count % 2 === 1 ? ' ' : ''}
       </div>
@@ -1540,7 +1571,7 @@ export function CanvasArea({
         />
       )}
       {(failure ?? indexing.error) !== undefined ? (
-        <p className="canvas-message canvas-failure" role="alert">
+        <p className="canvas-message canvas-failure" {...(active ? { role: 'alert' } : {})}>
           {t('The canvas could not draw this view: {why}', {
             why: t.message(failure ?? indexing.error ?? ''),
           })}
@@ -1554,6 +1585,8 @@ export function CanvasArea({
       )}
     </div>
   );
+  // What the toolbar says in live regions follows whether this pane is active (ADR 0102).
+  return <ActivePaneContext value={active}>{frame}</ActivePaneContext>;
 }
 
 /**

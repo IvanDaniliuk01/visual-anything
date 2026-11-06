@@ -144,7 +144,11 @@ export function FindBar({ project, definitions, viewId, goTo }: FindBarProps) {
   const close = () => {
     setOpen(false);
     setListing(undefined);
-    const canvas = document.querySelector<HTMLElement>('.canvas-area [role="application"]');
+    // The active pane's canvas, in a split view (ADR 0102).
+    const canvas =
+      document.querySelector<HTMLElement>(
+        '.canvas-area .canvas-pane[data-active] [role="application"]',
+      ) ?? document.querySelector<HTMLElement>('.canvas-area [role="application"]');
     const back = jumped.current ? canvas : before.current;
     back?.focus();
   };

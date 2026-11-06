@@ -43,10 +43,15 @@
   display: none;
 }
 
+/*
+ * In a split view the tour plays in the active pane (ADR 0102): its controls and header hide, and the
+ * other panes stay beside it as they were.
+ */
 :root
   .shell.tour-playing
   .canvas-area
-  :is(.canvas-toolbar, .explore-strip, .canvas-keys, .find-bar) {
+  :is(.canvas-pane[data-active], .canvas-pane-overlay)
+  :is(.canvas-toolbar, .explore-strip, .canvas-keys, .find-bar, .canvas-pane-header) {
   display: none;
 }
 

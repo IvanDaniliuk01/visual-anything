@@ -91,13 +91,20 @@ class RowFit {
   #place(toolbar: HTMLElement): void {
     const area = toolbar.closest<HTMLElement>('.canvas-area');
     if (area === null) return;
+    // In a split view, the active pane's toolbar says it, from the top of its canvas, under its
+    // header, where the find field shows over it (ADR 0102).
+    const pane = toolbar.closest<HTMLElement>('.canvas-pane');
+    if (pane !== null && !pane.hasAttribute('data-active')) return;
+    const top = (
+      pane?.querySelector<HTMLElement>('.canvas-pane-body') ?? area
+    ).getBoundingClientRect().top;
     const panel = toolbar.querySelector<HTMLElement>(MORE_PANEL);
     const shown = panel !== null && !panel.hidden ? panel : undefined;
     const bottom = Math.max(
       toolbar.getBoundingClientRect().bottom,
       shown?.getBoundingClientRect().bottom ?? 0,
     );
-    const value = `${Math.max(0, Math.round(bottom - area.getBoundingClientRect().top))}px`;
+    const value = `${Math.max(0, Math.round(bottom - top))}px`;
     if (this.#placed === value) return;
     this.#placed = value;
     area.style.setProperty(TOOLBAR_BOTTOM, value);

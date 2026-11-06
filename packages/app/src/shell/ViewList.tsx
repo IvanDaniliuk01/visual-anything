@@ -569,7 +569,7 @@ interface ViewRowProps {
 function ViewRow({ project, definitions, view }: ViewRowProps) {
   const t = useT();
   const { openViewId, editing: editingKey, setEditing } = useShared();
-  const { openView } = useEditor();
+  const { openView, openBeside } = useEditor();
   const settingsId = useId();
   const ref = { view: view.id };
   const open = view.id === openViewId;
@@ -595,6 +595,18 @@ function ViewRow({ project, definitions, view }: ViewRowProps) {
           <span className="item-badge" aria-hidden="true">
             {t('Open')}
           </span>
+        )}
+        {openBeside && (
+          // Opens the view in a pane beside the active one (ADR 0102).
+          <button
+            type="button"
+            className="view-action"
+            aria-label={t('Open "{name}" beside', { name: view.name })}
+            title={t('Open "{name}" beside the active pane', { name: view.name })}
+            onClick={() => openBeside(view.id)}
+          >
+            {t('Beside')}
+          </button>
         )}
         <button
           type="button"

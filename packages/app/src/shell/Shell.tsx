@@ -1,5 +1,5 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
-import type { CaptionAt, CaptionSize, Id, ViewFile } from '@visual-anything/schema';
+import type { CaptionAt, CaptionSize, Id } from '@visual-anything/schema';
 import {
   useCallback,
   useContext,
@@ -11,7 +11,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
+import type { SendCommand } from '../canvas/CanvasArea';
 import { TurningContext, type CanvasTurning } from '../canvas/solids/turningContext';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { ExportControl } from '../export/ExportControl';
@@ -24,14 +24,20 @@ import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import { GuidanceLayer } from '../guidance/GuidanceLayer';
 import { useSelection } from '../editor/useSelection';
 import { useExpandedInPlace } from '../canvas/layout/expand';
-import { buildScene, type Scene } from '../canvas/scene';
+import { buildScene } from '../canvas/scene';
 import {
   ZoomExpansion,
   ZoomExpansionContext,
   useExpandedByZoom,
   useFollowZoom,
 } from '../canvas/overlays/useZoomExpansion';
-import { useExplorer } from '../canvas/useExplorer';
+import { useExplorer, type ViewExplore } from '../canvas/useExplorer';
+import { selectionOf } from '../editor/selection';
+import { showsViews } from '../guidance/tabs';
+import { PaneCanvas, type ShownCanvas } from '../split/PaneCanvas';
+import { SplitPanes, activeOf } from '../split/panes';
+import { SplitView } from '../split/SplitView';
+import { describeDrawing, viewOf } from '../split/views';
 import { definitionsIn, reducedMotionOf } from '@visual-anything/core';
 import { useT, type Translator } from '../i18n';
 import { LiveContext } from '../live/context';
@@ -40,7 +46,7 @@ import { ScenarioPanel } from '../scenarios/ScenarioPanel';
 import { ScenarioSession } from '../scenarios/session';
 import { usePreferences, useThemeHold } from '../theme/usePreferences';
 import { FindBar } from '../search/FindBar';
-import { useFollower, type GoToState } from '../destinations/follower';
+import { useFollower, type GoToState, type OpenBeside } from '../destinations/follower';
 import { FollowDialog } from '../destinations/FollowDialog';
 import { ElementListPanel, ElementListToggle } from '../element-list/ElementListToggle';
 import { ElementListStore } from '../element-list/store';
@@ -115,8 +121,31 @@ interface ShellProps {
  */
 export function Shell({ project, notice, onCommand, comparisons: given }: ShellProps) {
   const t = useT();
-  const [openViewId, setOpenViewId] = useState<Id>();
-  const view = project.views.find((each) => each.id === openViewId) ?? project.views[0];
+  // The panes of the split view (ADR 0102): the open view is the active pane's. Opening a view opens
+  // it there, or makes active the pane that shows it already; a view state, as an address, a tour's
+  // step or a jump gives one, shows its view in the active pane.
+  const [panes] = useState(() => new SplitPanes());
+  const layout = useSyncExternalStore(panes.subscribe, panes.snapshot);
+  const activePane = activeOf(layout);
+  const setOpenViewId = useCallback((id: Id) => panes.open(id), [panes]);
+  const showInActivePane = useCallback((id: Id) => panes.setView(panes.active.id, id), [panes]);
+  const view = viewOf(project, activePane.view);
+  const shownId = view?.id;
+  const openBeside = useCallback((id: Id) => panes.openBeside(id, shownId), [panes, shownId]);
+  // Guidance for a view another pane shows applies in this tab, which makes that pane active.
+  const latestProject = useRef(project);
+  useLayoutEffect(() => {
+    latestProject.current = project;
+  });
+  useLayoutEffect(
+    () =>
+      showsViews(() =>
+        panes.snapshot().panes.map((pane) => viewOf(latestProject.current, pane.view)?.id),
+      ),
+    [panes],
+  );
+  // Where each pane's camera was is written before the shell goes.
+  useEffect(() => () => panes.flush(), [panes]);
   // What an edit removed, from here or elsewhere, drops out of the selection.
   const [editSelection, setEditSelection] = useSelection(project, view);
   const definitions = useMemo(
@@ -169,11 +198,31 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
   const simulations = useSimulationStore({ host: codeHost, project, definitions, code });
   // Following destinations (ADR 0056): it goes to a view through the view state, set below.
   const followGoTo = useRef<GoToState>(undefined);
-  const { follower, asking } = useFollower(project, followGoTo);
+  // A view of this project also opens beside, with the elements it names selected (ADR 0102).
+  const followBeside = useRef<OpenBeside>(undefined);
+  const { follower, asking } = useFollower(project, followGoTo, undefined, followBeside);
+  useLayoutEffect(() => {
+    followBeside.current = (id, select) => {
+      openBeside(id);
+      if (select.length > 0) {
+        setSelection(selectionOf(select.map((element) => ({ kind: 'element', id: element }))));
+      }
+    };
+  });
   // How attributes read: simulated, live and computed values over stored ones (ADR 0057, 0085).
   const lookup = useLookup(code, simulations);
-  // The filters and focus of each view; they set the open view's emphasis.
-  const explore = useExplorer({ project, viewId: view?.id, scene, selection, emphasis, lookup });
+  // The filters and focus of each view, which every pane shows of its own; they set the open view's
+  // emphasis.
+  const explored = useState<ReadonlyMap<Id, ViewExplore>>(() => new Map());
+  const explore = useExplorer({
+    project,
+    viewId: view?.id,
+    scene,
+    selection,
+    emphasis,
+    lookup,
+    kept: explored,
+  });
   // The canvas writes live and computed values in the details of shapes.
   const canvasScene = useLiveScene(scene, project, definitions, lookup, emphasis);
   const editor = useMemo<Editor>(
@@ -187,6 +236,7 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
       send: onCommand,
       reveal,
       openView: setOpenViewId,
+      openBeside,
       explore,
       code,
       follow: follower,
@@ -200,6 +250,8 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
       setSelection,
       onCommand,
       reveal,
+      setOpenViewId,
+      openBeside,
       explore,
       code,
       follower,
@@ -247,7 +299,18 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
   const [images] = useState(() => new ImageSource());
   // The view state: what the tab's address holds and Copy address copies, and where search jumps.
   const live = useContext(LiveContext);
-  const [canvas, setCanvas] = useState<CanvasCamera>();
+  // Each pane's canvas; the open view's is the active pane's.
+  const [canvases, setCanvases] = useState<ReadonlyMap<string, CanvasCamera>>(() => new Map());
+  const onPaneCanvas = useCallback((pane: string, next: CanvasCamera | undefined) => {
+    setCanvases((last) => {
+      if (last.get(pane) === next) return last;
+      const changed = new Map(last);
+      if (next) changed.set(pane, next);
+      else changed.delete(pane);
+      return changed;
+    });
+  }, []);
+  const canvas = canvases.get(layout.active);
   // What the open view's canvas turns, for the inspector's Use this view (ADR 0075).
   const [turning, setTurning] = useState<CanvasTurning>();
   useFollowZoom(zoom, project, view, scene, canvas);
@@ -261,7 +324,8 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
     selection,
     select: setSelection,
     explore,
-    openView: setOpenViewId,
+    // An address, a tour's step or a jump shows its view in the active pane (ADR 0102).
+    openView: showInActivePane,
     reveal,
     scenarios,
     emphasis,
@@ -404,8 +468,57 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
         });
       },
     }),
-    [changes, comparisons, t, project, view?.id, viewState.goTo],
+    [changes, comparisons, t, project, view?.id, viewState.goTo, setOpenViewId],
   );
+  // What the active pane draws: the open view, or the comparison while one shows, with its bar.
+  const shownCanvas: ShownCanvas | undefined =
+    view && scene && comparing
+      ? {
+          key: 'comparison',
+          canvas: {
+            project: comparing.project,
+            view: comparing.view,
+            scene: comparing.drawn.scene,
+            label: describeComparison(t, comparing),
+            selection,
+            onSelect: setSelection,
+            ...(revealed ? { revealed } : {}),
+            theme,
+            onThemeShown,
+            comparison: comparing.drawn,
+          },
+          after: (
+            <ComparisonBar
+              store={comparisons}
+              shown={comparing.shown}
+              drawn={comparing.drawn}
+              viewChanges={comparing.viewComparison.changes}
+              canvas={canvas}
+              selection={selection}
+              select={setSelection}
+              reducedMotion={reducedMotion}
+            />
+          ),
+        }
+      : view && scene
+        ? {
+            key: 'view',
+            canvas: {
+              project,
+              view,
+              scene: canvasScene ?? scene,
+              label: describeDrawing(t, view, scene),
+              selection,
+              onSelect: setSelection,
+              ...(onCommand ? { onCommand } : {}),
+              ...(revealed ? { revealed } : {}),
+              scenarios,
+              theme,
+              onThemeShown,
+              onTurning: setTurning,
+            },
+          }
+        : undefined;
 
   return (
     <ComparisonContext value={comparisons}>
@@ -484,70 +597,60 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                     <h2 id={canvasHeading} className="visually-hidden">
                                       {view ? view.name : t('Canvas')}
                                     </h2>
-                                    {view && scene && comparing ? (
-                                      <ImageSourceContext value={images}>
-                                        <CanvasArea
-                                          project={comparing.project}
-                                          view={comparing.view}
-                                          scene={comparing.drawn.scene}
-                                          label={describeComparison(t, comparing)}
-                                          selection={selection}
-                                          onSelect={setSelection}
-                                          {...(revealed ? { revealed } : {})}
-                                          theme={theme}
-                                          onThemeShown={onThemeShown}
-                                          onCanvas={setCanvas}
-                                          comparison={comparing.drawn}
-                                        />
-                                        <ComparisonBar
-                                          store={comparisons}
-                                          shown={comparing.shown}
-                                          drawn={comparing.drawn}
-                                          viewChanges={comparing.viewComparison.changes}
-                                          canvas={canvas}
-                                          selection={selection}
-                                          select={setSelection}
-                                          reducedMotion={reducedMotion}
-                                        />
-                                      </ImageSourceContext>
-                                    ) : view && scene ? (
-                                      <ImageSourceContext value={images}>
-                                        <CanvasArea
-                                          project={project}
-                                          view={view}
-                                          scene={canvasScene ?? scene}
-                                          label={describeDrawing(t, view, scene)}
-                                          selection={selection}
-                                          onSelect={setSelection}
-                                          {...(onCommand ? { onCommand } : {})}
-                                          {...(revealed ? { revealed } : {})}
-                                          scenarios={scenarios}
-                                          theme={theme}
-                                          onThemeShown={onThemeShown}
-                                          onCanvas={setCanvas}
-                                          onTurning={setTurning}
-                                        />
-                                      </ImageSourceContext>
-                                    ) : (
-                                      <p className="canvas-message">
-                                        {t(
-                                          'There is no view to draw. Make one with New view…, under Views in the Model tab.',
-                                        )}
-                                      </p>
-                                    )}
-                                    <CommentPins store={comments} canvas={canvas} />
-                                    <GuidanceLayer scenarios={scenarios} />
-                                    <FindBar
-                                      project={project}
-                                      definitions={definitions}
-                                      viewId={view?.id}
-                                      goTo={viewState.goTo}
-                                    />
-                                    <TourPlaybackLayer
-                                      project={project}
-                                      tours={tours}
-                                      {...(onCommand ? { onPlace: placeCaption } : {})}
-                                    />
+                                    <ImageSourceContext value={images}>
+                                      <SplitView
+                                        store={panes}
+                                        layout={layout}
+                                        project={project}
+                                        onOpenBeside={openBeside}
+                                        overlay={
+                                          <>
+                                            <CommentPins store={comments} canvas={canvas} />
+                                            <GuidanceLayer scenarios={scenarios} />
+                                            <FindBar
+                                              project={project}
+                                              definitions={definitions}
+                                              viewId={view?.id}
+                                              goTo={viewState.goTo}
+                                            />
+                                            <TourPlaybackLayer
+                                              project={project}
+                                              tours={tours}
+                                              {...(onCommand ? { onPlace: placeCaption } : {})}
+                                            />
+                                          </>
+                                        }
+                                      >
+                                        {(pane, active) =>
+                                          view && scene ? (
+                                            <PaneCanvas
+                                              pane={pane}
+                                              active={active}
+                                              store={panes}
+                                              project={project}
+                                              definitions={definitions}
+                                              editor={editor}
+                                              emphasis={emphasis}
+                                              explored={explored}
+                                              lookup={lookup}
+                                              zoom={zoom}
+                                              selection={selection}
+                                              onSelect={setSelection}
+                                              onCommand={onCommand}
+                                              theme={theme}
+                                              onCanvas={onPaneCanvas}
+                                              shown={active ? shownCanvas : undefined}
+                                            />
+                                          ) : (
+                                            <p className="canvas-message">
+                                              {t(
+                                                'There is no view to draw. Make one with New view…, under Views in the Model tab.',
+                                              )}
+                                            </p>
+                                          )
+                                        }
+                                      </SplitView>
+                                    </ImageSourceContext>
                                   </main>
                                   {view && scene && (
                                     <SpacePanel
@@ -629,28 +732,5 @@ function describeComparison(t: Translator, comparing: ComparisonCanvas): string 
     view: comparing.view.name,
     drawing: drawingName(t, comparing.shown.drawing),
     counts: countsText(t, comparing.drawn.counts),
-  });
-}
-
-/** The canvas's text alternative: the view, its perspective and how much it draws. */
-function describeDrawing(t: Translator, view: ViewFile, scene: Scene): string {
-  const shapes = t(
-    { one: '{count} element shape', other: '{count} element shapes' },
-    { count: scene.shapes.length },
-  );
-  const relations = t(
-    { one: '{count} relation', other: '{count} relations' },
-    { count: scene.relations.length },
-  );
-  const free = t(
-    { one: '{count} free shape', other: '{count} free shapes' },
-    { count: scene.notes.length + scene.arrows.length },
-  );
-  return t('{view}, from the {perspective} perspective: {shapes}, {relations} and {free}.', {
-    view: view.name,
-    perspective: view.perspective.name,
-    shapes,
-    relations,
-    free,
   });
 }
