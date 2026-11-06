@@ -71,16 +71,23 @@ describe('canvasFor', () => {
   it('draws in the other theme off screen, from what the canvas draws, where it looks', async () => {
     const drawer = renderer();
     await canvasFor(drawer, 'overview').drawIn('dark', IMAGE);
-    expect(drawOffScreen).toHaveBeenCalledWith(drawer.drawnFrom, THEMES.dark.canvas, IMAGE, {
-      camera: { x: 1, y: 2, scale: 0.5 },
-      viewport: { width: 800, height: 600 },
-    });
-    await canvasFor(drawer, 'overview').drawIn('dark', { ...IMAGE, asShown: false });
+    expect(drawOffScreen).toHaveBeenCalledWith(
+      drawer.drawnFrom,
+      THEMES.dark.canvas,
+      IMAGE,
+      { camera: { x: 1, y: 2, scale: 0.5 }, viewport: { width: 800, height: 600 } },
+      document,
+      undefined,
+    );
+    // By the picture's deadline (#16).
+    await canvasFor(drawer, 'overview').drawIn('dark', { ...IMAGE, asShown: false }, 1234);
     expect(drawOffScreen).toHaveBeenLastCalledWith(
       drawer.drawnFrom,
       THEMES.dark.canvas,
       { ...IMAGE, asShown: false },
       undefined,
+      document,
+      1234,
     );
   });
 
@@ -160,6 +167,12 @@ describe('a picture right after the view changed (#16)', () => {
     expect(waitsFor?.()).toBeUndefined();
     rerender({ drawn: { indexed: billing, settled: false } });
     expect(waitsFor?.()).toBe('the layout moving in on the view "billing" to end');
+    // Right after open_app, the canvas is starting.
+    Object.assign(drawer, { starting: true, canvas: undefined });
+    expect(waitsFor?.()).toBe('the canvas to start');
+    // A canvas that failed to start is waited for no more: the picture says there is none.
+    Object.assign(drawer, { starting: false });
+    expect(waitsFor?.()).toBeUndefined();
   });
 
   it('is taken of the view guidance opened once the canvas draws its scene, not of the one before', async () => {

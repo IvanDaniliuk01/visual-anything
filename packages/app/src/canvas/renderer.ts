@@ -848,6 +848,11 @@ export class CanvasRenderer {
     return this.status === 'ready' ? this.app.canvas : undefined;
   }
 
+  /** Whether the renderer is still starting, neither started nor failed, as a picture waits (#16). */
+  get starting(): boolean {
+    return this.status === 'starting';
+  }
+
   /** The size of the area the canvas draws into, in screen pixels. */
   get viewport(): Size {
     return { width: this.host.clientWidth, height: this.host.clientHeight };

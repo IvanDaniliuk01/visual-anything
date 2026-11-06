@@ -163,27 +163,51 @@ export function drawInChunks(
 
 /**
  * The PNG of a canvas. In a page that is `hidden`, as a tab in the background, it is encoded at once,
- * since the browser may put `toBlob`'s encoding off there until the tab shows again (#16).
+ * since the browser may put `toBlob`'s encoding off there until the tab shows again (#16); and so it
+ * is when the page hides while `toBlob` encodes.
  */
-export function toPng(canvas: HTMLCanvasElement, hidden = pageHidden()): Promise<Blob> {
-  if (hidden) {
-    try {
-      return Promise.resolve(pngOfDataUrl(canvas.toDataURL('image/png')));
-    } catch (error) {
-      return Promise.reject(
-        error instanceof ImageError
-          ? error
-          : new ImageError({ reason: 'failed', detail: 'the browser could not make a PNG.' }),
-      );
-    }
-  }
+export function toPng(
+  canvas: HTMLCanvasElement,
+  hidden = pageHidden(),
+  target: Document | undefined = typeof document === 'undefined' ? undefined : document,
+): Promise<Blob> {
+  if (hidden) return encodedNow(canvas);
   return new Promise((resolve, reject) => {
+    let done = false;
+    const finish = (outcome: () => void) => {
+      if (done) return;
+      done = true;
+      target?.removeEventListener('visibilitychange', onHidden);
+      outcome();
+    };
+    const onHidden = () => {
+      if (!pageHidden(target)) return;
+      finish(() => {
+        encodedNow(canvas).then(resolve, reject);
+      });
+    };
+    target?.addEventListener('visibilitychange', onHidden);
     canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else
-        reject(new ImageError({ reason: 'failed', detail: 'the browser could not make a PNG.' }));
+      finish(() => {
+        if (blob) resolve(blob);
+        else
+          reject(new ImageError({ reason: 'failed', detail: 'the browser could not make a PNG.' }));
+      });
     }, 'image/png');
   });
+}
+
+/** The PNG of a canvas, encoded now, without waiting for the browser's idle time (#16). */
+function encodedNow(canvas: HTMLCanvasElement): Promise<Blob> {
+  try {
+    return Promise.resolve(pngOfDataUrl(canvas.toDataURL('image/png')));
+  } catch (error) {
+    return Promise.reject(
+      error instanceof ImageError
+        ? error
+        : new ImageError({ reason: 'failed', detail: 'the browser could not make a PNG.' }),
+    );
+  }
 }
 
 /** The PNG a data URL holds, as `toDataURL` gives it. */

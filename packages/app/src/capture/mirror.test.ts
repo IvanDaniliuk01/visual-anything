@@ -152,6 +152,23 @@ describe('drawOffScreen', () => {
     ]);
   });
 
+  it('waits for its start no later than the picture’s deadline (#16)', async () => {
+    vi.useFakeTimers();
+    const drawn = drawOffScreen(
+      FROM,
+      THEMES.dark.canvas,
+      IMAGE,
+      undefined,
+      document,
+      performance.now() + 2_000,
+    );
+    const failed = expect(drawn).rejects.toThrow('did not start in time');
+    // It never starts: given up at the deadline, not after its own 10 s.
+    await vi.advanceTimersByTimeAsync(2_001);
+    await failed;
+    expect(made[0]?.calls).toEqual(['destroy']);
+  });
+
   it('refuses before the canvas drew a scene', async () => {
     await expect(drawOffScreen({ emphasis: {} }, THEMES.dark.canvas, IMAGE)).rejects.toMatchObject({
       problem: { reason: 'not-ready' },

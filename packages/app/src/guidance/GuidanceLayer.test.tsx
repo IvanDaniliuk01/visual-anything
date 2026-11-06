@@ -232,6 +232,60 @@ describe('GuidanceLayer says when it applied guidance, which Claude’s pictures
     expect(guidanceApplied).toHaveBeenCalledWith(guidance);
   });
 
+  it('says so after a move to the view already open, once the shell drew again', () => {
+    const guidance: GuidanceState = {
+      panTo: { target: 'whatsapp', view: 'system-overview', request: 1 },
+    };
+    const editor = editorFor('system-overview');
+    const { guidanceApplied, rerender } = renderApplying(guidance, editor);
+    // The camera may be there already: the canvas decides, and draws once the shell draws again.
+    expect(editor.openView).not.toHaveBeenCalled();
+    expect(editor.reveal).toHaveBeenCalledOnce();
+    expect(guidanceApplied).not.toHaveBeenCalled();
+    act(() => rerender({ ...editor }));
+    expect(guidanceApplied).toHaveBeenCalledWith(guidance);
+  });
+
+  it('waits for the view that highlight marks open, in the tab the person used last only', () => {
+    const guidance: GuidanceState = {
+      marks: { kind: 'highlight', targets: ['patient'], view: 'second', request: 1 },
+    };
+    const first = editorFor('system-overview');
+    const { guidanceApplied, rerender } = renderApplying(guidance, first);
+    expect(first.openView).toHaveBeenCalledWith('second');
+    expect(guidanceApplied).not.toHaveBeenCalled();
+    act(() => rerender(editorFor('second', { openView: first.openView })));
+    expect(guidanceApplied).toHaveBeenCalledWith(guidance);
+  });
+
+  it('says so at once in a tab that leaves guidance for another view to the tab used last', () => {
+    setTabUseForTests(usedElsewhere);
+    const guidance: GuidanceState = {
+      marks: { kind: 'highlight', targets: ['patient'], view: 'second', request: 1 },
+      panTo: { target: 'whatsapp', view: 'second', request: 1 },
+    };
+    const editor = editorFor('system-overview');
+    const { guidanceApplied } = renderApplying(guidance, editor);
+    expect(editor.openView).not.toHaveBeenCalled();
+    expect(guidanceApplied).toHaveBeenCalledWith(guidance);
+  });
+
+  it('waits for a move that cannot happen no longer than for a view to open', () => {
+    const guidance: GuidanceState = { panTo: { target: 'whatsapp', request: 1 } };
+    // No scene drawn: the move waits for one.
+    const editor = editorFor('system-overview', { scene: undefined });
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    try {
+      const { guidanceApplied, rerender } = renderApplying(guidance, editor);
+      expect(guidanceApplied).not.toHaveBeenCalled();
+      now.mockReturnValue(1_000 + 10_001);
+      act(() => rerender({ ...editor }));
+      expect(guidanceApplied).toHaveBeenCalledWith(guidance);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it('waits for the view that filters open too', () => {
     const guidance: GuidanceState = {
       filter: {

@@ -30,7 +30,9 @@ export interface MirrorView {
 
 /**
  * Draws a picture off screen in `theme`, from what the tab's canvas draws. With `view`, it looks
- * where the tab's canvas looks, at the tab's size, as a picture of what it shows now needs.
+ * where the tab's canvas looks, at the tab's size, as a picture of what it shows now needs. With
+ * `until`, a time of `performance.now()`, it waits for its start and its frame no later (#16), so
+ * that the tab answers within the program's wait.
  */
 export async function drawOffScreen(
   from: DrawnFrom,
@@ -38,7 +40,10 @@ export async function drawOffScreen(
   image: CaptureImage,
   view?: MirrorView,
   target: Document = document,
+  until?: number,
 ): Promise<DrawnImage> {
+  const left = (most: number) =>
+    until === undefined ? most : Math.max(0, Math.min(most, until - performance.now()));
   const indexed = from.indexed;
   if (indexed === undefined) throw new ImageError({ reason: 'not-ready' });
   const host = target.createElement('div');
@@ -64,7 +69,7 @@ export async function drawOffScreen(
         { theme, firstFit: 'whole' },
       );
     });
-    await within(ready, MIRROR_START_WAIT, 'The canvas off screen did not start in time.');
+    await within(ready, left(MIRROR_START_WAIT), 'The canvas off screen did not start in time.');
     const mirror = renderer as unknown as CanvasRenderer;
     if (from.codeDrawings !== undefined) mirror.setCodeDrawings(from.codeDrawings);
     mirror.setLegend(from.legend);
@@ -81,7 +86,7 @@ export async function drawOffScreen(
         const timer = setTimeout(() => {
           stop();
           resolve();
-        }, MAX_CAPTURE_WAIT);
+        }, left(MAX_CAPTURE_WAIT));
         stop = mirror.afterNextFrame(() => {
           clearTimeout(timer);
           resolve();

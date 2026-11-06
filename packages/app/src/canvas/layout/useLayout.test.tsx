@@ -540,6 +540,28 @@ describe('moving in', () => {
     }
   });
 
+  it('starts no move when the tab went to the background while the layout ran (#16)', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      frames.push(callback),
+    );
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    // Shown when the layout's change is sent, hidden by the time the scene it makes comes.
+    const hidden = vi
+      .spyOn(document, 'visibilityState', 'get')
+      .mockReturnValueOnce('visible')
+      .mockReturnValue('hidden');
+    try {
+      const view = canvas(loadSample());
+      act(() => view.hook.result.current.control.run());
+      await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
+      expect(view.hook.result.current.scene).toBe(buildScene(view.project, VIEW));
+      expect(frames).toHaveLength(0);
+    } finally {
+      hidden.mockRestore();
+    }
+  });
+
   it('ends a move under way when the tab goes to the background (#16)', async () => {
     const frames: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>

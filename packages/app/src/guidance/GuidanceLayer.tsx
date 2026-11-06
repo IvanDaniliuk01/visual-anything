@@ -33,8 +33,8 @@ import { useGuidedSpace } from './useGuidedSpace';
 import './guidance.css';
 
 /**
- * How long a view guidance opened is waited for before Claude's pictures no longer wait for it, in
- * milliseconds, as when the shell does not open it (#16).
+ * How long a view guidance opened, or a move it asked for, is waited for before Claude's pictures no
+ * longer wait for it, in milliseconds, as when the shell does not open it (#16).
  */
 const OPENING_WAIT = 10_000;
 
@@ -97,6 +97,8 @@ export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
   const moved = useRef<number | undefined>(undefined);
   // Whether a move was just asked of the shell, which the canvas has not drawn yet (#16).
   const revealing = useRef(false);
+  // The move waited for, and since when (#16).
+  const panWaited = useRef<{ request: number; at: number } | undefined>(undefined);
   useEffect(() => {
     if (panTo === undefined || moved.current === panTo.request || scene === undefined) return;
     if (!forThisTab(panTo, viewId)) {
@@ -127,8 +129,13 @@ export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
       revealing.current = false;
       return;
     }
-    // A move for this tab waits for its view and its scene.
-    if (panTo !== undefined && moved.current !== panTo.request) return;
+    // A move for this tab waits for its view and its scene, as long as a view guidance opened.
+    if (panTo !== undefined && moved.current !== panTo.request) {
+      if (panWaited.current?.request !== panTo.request) {
+        panWaited.current = { request: panTo.request, at: Date.now() };
+      }
+      if (Date.now() - panWaited.current.at <= OPENING_WAIT) return;
+    }
     applied(guidance);
   });
 

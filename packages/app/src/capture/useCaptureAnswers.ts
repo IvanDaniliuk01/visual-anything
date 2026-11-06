@@ -40,13 +40,15 @@ export function canvasFor(renderer: CanvasRenderer | undefined, view: Id): Captu
       if (renderer === undefined) throw new Error('The canvas is gone.');
       return renderer.captureImage(image);
     },
-    drawIn: async (other, image) => {
+    drawIn: async (other, image, until) => {
       if (renderer === undefined) throw new Error('The canvas is gone.');
       return drawOffScreen(
         renderer.drawnFrom,
         THEMES[other].canvas,
         image,
         image.asShown ? { camera: renderer.camera, viewport: renderer.viewport } : undefined,
+        document,
+        until,
       );
     },
   };
@@ -62,15 +64,18 @@ export interface CaptureDrawn {
 
 /**
  * What a picture still waits for before this renderer draws what the canvas area gives it, in words
- * for Claude; undefined once it does, and while the canvas has not started, which a picture says.
+ * for Claude: the canvas to start, as right after open_app, a layout moving in to end, and the scene
+ * of the view to be drawn. Undefined once it draws it, and where there is no canvas, or it failed to
+ * start, which a picture says.
  */
 export function waitsForOf(
   renderer: CanvasRenderer | undefined,
   view: Id,
   drawn: CaptureDrawn | undefined,
 ): string | undefined {
-  if (drawn === undefined || renderer === undefined || renderer.canvas === undefined)
-    return undefined;
+  if (drawn === undefined || renderer === undefined) return undefined;
+  if (renderer.starting) return 'the canvas to start';
+  if (renderer.canvas === undefined) return undefined;
   if (!drawn.settled) return `the layout moving in on the view "${view}" to end`;
   if (drawn.indexed !== undefined && renderer.drawnFrom.indexed !== drawn.indexed) {
     return `the canvas to draw the view "${view}"`;
@@ -100,7 +105,8 @@ export function useCaptureAnswers(
     () =>
       lends
         ? lend?.(
-            (ask) => takeCapture(ask, canvasFor(controller.current?.renderer, shown.current.view)),
+            (ask, until) =>
+              takeCapture(ask, canvasFor(controller.current?.renderer, shown.current.view), until),
             () => waitsForOf(controller.current?.renderer, shown.current.view, shown.current.drawn),
           )
         : undefined,

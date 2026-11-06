@@ -71,7 +71,11 @@ describe('a picture Claude asks for', () => {
       requestId: 'capture-1',
       picture: { png: PNG, width: 800, height: 400, view: 'v', theme: 'dark', scale: 1 },
     });
-    expect(take).toHaveBeenCalledWith({ view: 'v', region: ['a'], width: 800, theme: 'dark' });
+    // With the time by which it answers, which a canvas off screen starts by (#16).
+    expect(take).toHaveBeenCalledWith(
+      { view: 'v', region: ['a'], width: 800, theme: 'dark' },
+      expect.any(Number),
+    );
     expect(take).toHaveBeenCalledTimes(1);
   });
 
@@ -203,5 +207,101 @@ describe('a picture asked for right after guidance (#16)', () => {
       vi.unstubAllGlobals();
       vi.stubGlobal('WebSocket', FakeWebSocket);
     }
+  });
+
+  it('is taken by the canvas of the pane that becomes active while it waits', async () => {
+    const { connection, socket } = open(true);
+    const before = vi.fn(() => Promise.resolve(PICTURE));
+    const takeBack = connection.lendCapture(before, () => 'the canvas to draw the view "v"');
+    socket.receive(encodeServerMessage(REQUEST));
+    await settle();
+    // Another pane becomes active: the one before takes its canvas back, the new one lends its own.
+    const after = vi.fn(() => Promise.resolve(PICTURE));
+    takeBack();
+    connection.lendCapture(after, () => undefined);
+    expect(await answered(socket)).toMatchObject({ picture: PICTURE.picture });
+    expect(before).not.toHaveBeenCalled();
+    expect(after).toHaveBeenCalledTimes(1);
+  });
+
+  it('says there is no canvas at once when the canvas goes while it waits', async () => {
+    const { connection, socket } = open(true, { captureSettle: 5_000 });
+    const take = vi.fn(() => Promise.resolve(PICTURE));
+    const takeBack = connection.lendCapture(take, () => 'the canvas to draw the view "v"');
+    socket.receive(encodeServerMessage(REQUEST));
+    await settle();
+    takeBack();
+    const answer = await vi.waitFor(
+      () => {
+        const sent = socket.sent.find((each) => each.type === 'capture/answer');
+        if (sent === undefined) throw new Error('Not answered yet.');
+        return sent;
+      },
+      { timeout: 1_000 },
+    );
+    expect(answer).toEqual({ type: 'capture/answer', requestId: 'capture-1', failed: 'no-canvas' });
+    expect(take).not.toHaveBeenCalled();
+  });
+
+  it('goes once the person dismissed the guidance it waited for', async () => {
+    const { connection, socket } = open(true);
+    const take = vi.fn(() => Promise.resolve(PICTURE));
+    connection.lendCapture(take, () => undefined);
+    connection.guidanceApplied(connection.getState().guidance ?? {});
+    socket.receive(PAN_TO);
+    socket.receive(encodeServerMessage(REQUEST));
+    await settle();
+    expect(take).not.toHaveBeenCalled();
+    connection.clearGuidance();
+    // The guidance layer applies no guidance at once.
+    connection.guidanceApplied(connection.getState().guidance ?? {});
+    expect(await answered(socket)).toMatchObject({ picture: PICTURE.picture });
+  });
+
+  it('waits for no guidance received before the program went home, or before it reconnected', async () => {
+    const { connection, socket } = open(true, { captureSettle: 5_000 });
+    const take = vi.fn(() => Promise.resolve(PICTURE));
+    connection.lendCapture(take, () => undefined);
+    connection.guidanceApplied(connection.getState().guidance ?? {});
+    socket.receive(PAN_TO);
+    // The program goes home, then opens a project again: the guidance is gone from the tab.
+    socket.receive(
+      encodeServerMessage({
+        type: 'home/offered',
+        protocolVersion: PROTOCOL_VERSION,
+        folder: '/home/ana/Visual Anything',
+        projects: [],
+        recent: [],
+        samples: [],
+      }),
+    );
+    socket.receive(
+      encodeServerMessage({
+        type: 'project/opened',
+        protocolVersion: PROTOCOL_VERSION,
+        project: sample,
+        history: {},
+      }),
+    );
+    connection.guidanceApplied(connection.getState().guidance ?? {});
+    socket.receive(encodeServerMessage(REQUEST));
+    expect(await answered(socket)).toMatchObject({ picture: PICTURE.picture });
+  });
+
+  it('waits for no guidance received before the connection closed', () => {
+    const { connection, socket } = open(true);
+    connection.lendCapture(
+      () => Promise.resolve(PICTURE),
+      () => undefined,
+    );
+    connection.guidanceApplied(connection.getState().guidance ?? {});
+    socket.receive(PAN_TO);
+    socket.drop(1006);
+    // The guidance layer applies the tab's guidance, none, while it reconnects.
+    connection.guidanceApplied(connection.getState().guidance ?? {});
+    expect(connection.getState().guidance).toEqual({});
+    expect(
+      (connection as unknown as { captureWaits(after: number): string[] }).captureWaits(1),
+    ).toEqual([]);
   });
 });

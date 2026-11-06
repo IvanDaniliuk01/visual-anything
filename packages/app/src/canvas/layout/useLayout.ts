@@ -192,8 +192,11 @@ export function useLayout({
     if (armed.view === view.id && armed.routes) {
       setKept({ view: view.id, routes: keepRoutes(scene, armed.routes) });
     }
+    // Not once the tab went to the background while the layout ran: no frame would move it (#16).
     const transition =
-      armed.animate && armed.view === view.id ? transitionBetween(armed.before, scene) : undefined;
+      armed.animate && armed.view === view.id && !pageHidden()
+        ? transitionBetween(armed.before, scene)
+        : undefined;
     setMoving(transition && { transition, progress: 0, started: transition });
   } else if (moving && moving.transition.to !== scene) {
     // A live update reads otherwise in the same places (ADR 0057): the move goes on to it. Anything

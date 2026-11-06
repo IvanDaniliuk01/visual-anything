@@ -203,6 +203,28 @@ describe('toPng', () => {
     expect(btoa(String.fromCharCode(...read))).toBe(bytes);
   });
 
+  it('encodes at once when the tab goes to the background while toBlob encodes (#16)', async () => {
+    const bytes = 'iVBORw0KGgo=';
+    const toBlob = vi.fn();
+    const canvas = {
+      toBlob,
+      toDataURL: (type: string) => `data:${type};base64,${bytes}`,
+    } as unknown as HTMLCanvasElement;
+    const hidden = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    try {
+      const png = toPng(canvas, false, document);
+      expect(toBlob).toHaveBeenCalledOnce();
+      hidden.mockReturnValue('hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+      const blob = await png;
+      expect(blob.type).toBe('image/png');
+      // What toBlob gives later is let go.
+      (toBlob.mock.calls[0]?.[0] as (blob: Blob | null) => void)(null);
+    } finally {
+      hidden.mockRestore();
+    }
+  });
+
   it('fails as an image error in the background too when the browser makes no PNG', async () => {
     const canvas = { toDataURL: () => 'data:,' } as unknown as HTMLCanvasElement;
     await expect(toPng(canvas, true)).rejects.toBeInstanceOf(ImageError);
