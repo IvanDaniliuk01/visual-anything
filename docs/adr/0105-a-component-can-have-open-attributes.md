@@ -16,6 +16,8 @@ Claude modeled a component whose elements carry attributes it does not define on
 
 For 20 elements with 10 such attributes each, the answer of `add_to_model` went from about 4,300 characters to about 900; changing one of them on all 20 from about 4,100 to about 630; with open attributes, the answers say nothing about them (about 250 and 60).
 
+**What an answer names is worked out from two reads of the project**, one before the write and one after; another write between them, by the person or another of Claude's calls, can make it name an attribute this write did not set or leave one out. It only says more or less than it should, and the elements' attributes are always as written.
+
 ## Considered options
 
 - **Dropping the list from write answers altogether:** rejected. An attribute set by mistake, such as a misspelled name, is still worth hearing about once, at the write that set it.

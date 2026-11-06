@@ -180,7 +180,9 @@ import type { ViewState } from './view-state';
  *    person used last applies. And, in 10 too, a tour's and a tour step's `emphasis` (ADR 0100),
  *    `halo` or `style`, which an app of 9 would refuse when it opens the tour file.
  * 11: a tour step can show a view beside it (ADR 0102): `beside`, a view state for the pane right of
- *    the tour's, which an app of 10 would refuse when it opens the tour file.
+ *    the tour's, which an app of 10 would refuse when it opens the tour file. And, in 11 too, since no
+ *    build of 11 shipped, a component's `openAttributes` (ADR 0105), which an app of 10 would refuse
+ *    when it opens the package file.
  */
 export const PROTOCOL_VERSION = 11;
 

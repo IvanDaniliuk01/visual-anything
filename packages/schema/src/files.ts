@@ -217,8 +217,8 @@ export interface Element {
   ids?: ExternalIds;
   /**
    * The element's attribute values. A value that differs from the default its component gives, or a
-   * value for an attribute its component does not define, is a particularity; a value for an attribute
-   * without a default is ordinary data.
+   * value for an attribute its component does not define unless its component has open attributes
+   * (ADR 0105), is a particularity; a value for an attribute without a default is ordinary data.
    */
   attributes?: Attributes;
   /** An appearance of its own, which is a particularity. Whatever it leaves out comes from the component. */

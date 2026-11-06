@@ -62,7 +62,7 @@
         },
         "attributes": {
           "$ref": "#/definitions/Attributes",
-          "description": "The element's attribute values. A value that differs from the default its component gives, or a value for an attribute its component does not define, is a particularity; a value for an attribute without a default is ordinary data."
+          "description": "The element's attribute values. A value that differs from the default its component gives, or a value for an attribute its component does not define unless its component has open attributes (ADR 0105), is a particularity; a value for an attribute without a default is ordinary data."
         },
         "appearance": {
           "$ref": "#/definitions/Appearance",
