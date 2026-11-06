@@ -8,6 +8,7 @@
 
 ### The canvas
 
+- **Copy and paste elements between views, and duplicate them** (#13). Ctrl+C copies the selection, from the canvas or the Outline; Ctrl+V shows the same elements in the open view, where the pointer is, adding them to its scope when it leaves them out, so renaming one renames it everywhere; when the view shows them already, they are selected and the canvas says so. Ctrl+Shift+V, or Paste as duplicates in the canvas's menu, makes new elements instead, with everything they hold and the relations among them, inside the container under the pointer; Ctrl+D, or Duplicate in the shape's menu, does it beside the selection. Notes, arrows and pictures are pasted as copies. Pasting what another project copied is refused, for now. Claude duplicates with `duplicate_elements` (ADR 0103).
 - **Dragging an element that sits in several containers moves only the copy you grabbed** (#10). Each copy keeps its own place, so you can arrange them one by one; selecting it still highlights every copy, and moving it from the keyboard still moves them all (ADR 0007).
 
 ## 0.1.2

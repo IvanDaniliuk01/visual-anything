@@ -215,6 +215,28 @@ describe('ShapeMenu', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it('offers Duplicate and Paste as duplicates when asked to, off while the project cannot be changed', () => {
+    const onDuplicate = vi.fn();
+    const onPasteAsDuplicates = vi.fn();
+    const { menu, unmount } = open(withCalendar(), 'calendar', {
+      onDuplicate,
+      onPasteAsDuplicates,
+    });
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Duplicate' }));
+    expect(onDuplicate).toHaveBeenCalledOnce();
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Paste as duplicates' }));
+    expect(onPasteAsDuplicates).toHaveBeenCalledOnce();
+    unmount();
+
+    const { menu: readOnly } = open(withCalendar(), 'calendar', {
+      onDuplicate,
+      onPasteAsDuplicates,
+      editable: false,
+    });
+    fireEvent.click(within(readOnly).getByRole('menuitem', { name: 'Duplicate' }));
+    expect(onDuplicate).toHaveBeenCalledOnce();
+  });
+
   it('lists the other shapes under the pointer, topmost first, only when opened with the pointer', () => {
     const project = withCalendar({ x: 800, y: 150 });
     const indexed = indexScene(buildScene(project, VIEW));

@@ -22,6 +22,7 @@ import { describeDestination, elementDestinations } from '../destinations/follow
 import type { OfferedAction } from '../packages/offered';
 import { STACKING_MOVES, STACKING_NAMES, type StackingAction, type StackingMove } from './stacking';
 import { APPEARANCE_KEYS } from './appearanceCopy';
+import { ELEMENT_COPY_KEYS } from './elementCopy';
 import { useCopiedAppearance } from './useAppearanceCopy';
 
 /** How many items a selection holds. */
@@ -54,6 +55,12 @@ export interface ShapeMenuProps {
    * offers neither.
    */
   onAppearance?: (how: 'copy' | 'paste') => void;
+  /**
+   * Duplicate, beside the selection, and Paste as duplicates, inside the shape the menu is for (ADR
+   * 0103): what pressing each does. Absent, the menu offers neither.
+   */
+  onDuplicate?: () => void;
+  onPasteAsDuplicates?: () => void;
   /** Put inside "T", Move into "T" or Take out of "A": the change of container to confirm and send. */
   onChange: (change: ChangeContainerCommand) => void;
   /** Put inside… (`put`, for a shape directly in World) or Move to… (`move`): opens the chooser. */
@@ -126,6 +133,8 @@ export function ShapeMenu({
   editable,
   onRestack,
   onAppearance,
+  onDuplicate,
+  onPasteAsDuplicates,
   onChange,
   onChooseContainer,
   onAddInside,
@@ -286,6 +295,27 @@ export function ShapeMenu({
               />
             ))}
           </div>
+          <div role="separator" className="canvas-menu-separator" />
+        </>
+      )}
+      {(onDuplicate || onPasteAsDuplicates) && (
+        <>
+          {onDuplicate && (
+            <Item
+              label={t('Duplicate')}
+              title={`${t('Makes new elements like the selection, beside it, with what they hold')} (${ELEMENT_COPY_KEYS.duplicate.shown})`}
+              readOnly={!editable}
+              onPress={onDuplicate}
+            />
+          )}
+          {onPasteAsDuplicates && (
+            <Item
+              label={t('Paste as duplicates')}
+              title={`${t('Makes new elements like the ones copied, inside this shape when it holds others')} (${ELEMENT_COPY_KEYS.pasteAsDuplicates.shown})`}
+              readOnly={!editable}
+              onPress={onPasteAsDuplicates}
+            />
+          )}
           <div role="separator" className="canvas-menu-separator" />
         </>
       )}
@@ -455,7 +485,7 @@ function ScopeItems({
  * One item. A `disabled` one is pressed all the same, to say why it changes nothing; a `readOnly` one,
  * while the project cannot be changed, does nothing.
  */
-function Item({
+export function Item({
   label,
   title,
   disabled = false,

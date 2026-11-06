@@ -4125,6 +4125,46 @@ export const ui: Catalog = {
     'Ctrl+Alt+C y Ctrl+Alt+V (⌥⌘C y ⌥⌘V en macOS)',
   'Copy the appearance of the selected element or relation, and paste it onto the selection':
     'Copiar la apariencia del elemento o la relación seleccionados, y pegarla en la selección',
+  // #13: Copy, Paste, Paste as duplicates and Duplicate (ADR 0103). A duplicate is «duplicado».
+  Paste: 'Pegar',
+  'Paste as duplicates': 'Pegar como duplicados',
+  'Makes new elements like the selection, beside it, with what they hold':
+    'Crea elementos nuevos como la selección, a su lado, con lo que contienen',
+  'Makes new elements like the ones copied, inside this shape when it holds others':
+    'Crea elementos nuevos como los copiados, dentro de esta forma cuando contiene otras',
+  'Makes new elements like the ones copied, here': 'Crea elementos nuevos como los copiados, aquí',
+  'Shows the same elements copied in this view, and copies of the free shapes':
+    'Muestra en esta vista los mismos elementos copiados, y copias de las formas libres',
+  'Select elements or free shapes to copy them.':
+    'Seleccione elementos o formas libres para copiarlos.',
+  'Select elements or free shapes to duplicate them.':
+    'Seleccione elementos o formas libres para duplicarlos.',
+  'A copy holds at most {n} elements and free shapes.':
+    'Una copia contiene como máximo {n} elementos y formas libres.',
+  'These were copied from another project, “{name}”, so they are not pasted: its components may not exist in this one.':
+    'Se copiaron de otro proyecto, “{name}”, así que no se pegan: sus componentes pueden no existir en este.',
+  'There is no view open to paste into.': 'No hay ninguna vista abierta en la que pegar.',
+  'What was copied is no longer in the project.': 'Lo que se copió ya no está en el proyecto.',
+  'Copy elements or free shapes first.': 'Copie primero elementos o formas libres.',
+  'Could not put the copy on the clipboard.': 'No se pudo poner la copia en el portapapeles.',
+  ' (copy)': ' (copia)',
+  'Copied {count} shapes.': {
+    one: 'Se copió {count} forma.',
+    other: 'Se copiaron {count} formas.',
+  },
+  'All {count} are already in this view, so nothing was added.': {
+    one: 'Ya está en esta vista, así que no se agregó nada.',
+    other: 'Los {count} ya están en esta vista, así que no se agregó nada.',
+  },
+  'Ctrl+C and Ctrl+V (⌘C and ⌘V on macOS)': 'Ctrl+C y Ctrl+V (⌘C y ⌘V en macOS)',
+  'Copy the selection, and show the elements copied in this view: the same elements, never new ones':
+    'Copiar la selección, y mostrar en esta vista los elementos copiados: los mismos elementos, nunca otros nuevos',
+  'Ctrl+Shift+V (⇧⌘V on macOS)': 'Ctrl+Mayús+V (⇧⌘V en macOS)',
+  'Paste as duplicates: new elements like the ones copied, inside the container under the pointer':
+    'Pegar como duplicados: elementos nuevos como los copiados, dentro del contenedor bajo el puntero',
+  'Ctrl+D (⌘D on macOS)': 'Ctrl+D (⌘D en macOS)',
+  'Duplicate the selection beside itself, with what it holds':
+    'Duplicar la selección a su lado, con lo que contiene',
   // A8.1: pictures and their media files (ADR 0098).
   'Picture…': 'Imagen…',
   Pictures: 'Imágenes',
@@ -7933,6 +7973,9 @@ export const messages: Catalog = {
   'Pin {n} shapes': 'Fijar {n} formas',
   'Paste the appearance onto "{name}"': 'Pegar la apariencia en "{name}"',
   'Paste the appearance onto {n} items': 'Pegar la apariencia en {n} elementos',
+  // #13: what Paste shows in a view (ADR 0103).
+  'Paste "{name}" into "{view}"': 'Pegar "{name}" en "{view}"',
+  'Paste {things} into "{view}"': 'Pegar {things} en "{view}"',
   // A8.1: pictures and their media files (ADR 0098).
   'Add a picture to "{view}"': 'Agregar una imagen a "{view}"',
   'Edit a picture in "{view}"': 'Editar una imagen en "{view}"',
