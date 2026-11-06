@@ -212,7 +212,9 @@ function planOf(schemas: readonly Schema[]): Plan {
 /**
  * Adds the schemas that describe an object or an array, most specific first. A `$ref` leads into the
  * `definitions` of the file's schema; a union (`anyOf` or `oneOf`) adds its first member that admits
- * the value's JSON type; `allOf` adds each of its members; and an `if` adds its `then` when the value
+ * the value's JSON type and whose required keys the value holds, or else its first that admits that
+ * type, so that a union of objects told apart by their keys, such as a view folder's entries, adds
+ * the member the value is; `allOf` adds each of its members; and an `if` adds its `then` when the value
  * meets it, which is how a union tagged with `@discriminator`, such as FreeShape, adds the member
  * whose discriminator the value names.
  */
@@ -226,7 +228,9 @@ function addDescribingSchemas(
   if (resolved === undefined) return;
   const union = resolved.anyOf ?? resolved.oneOf;
   if (union !== undefined) {
-    const member = union.find((each) => admits(dereference(each, fileSchema), value));
+    const admitting = union.filter((each) => admits(dereference(each, fileSchema), value));
+    const member =
+      admitting.find((each) => holdsRequired(dereference(each, fileSchema), value)) ?? admitting[0];
     addDescribingSchemas(member, value, fileSchema, description);
   }
   for (const member of resolved.allOf ?? []) {
@@ -263,6 +267,14 @@ function dereference(schema: Schema | undefined, fileSchema: Schema): Schema | u
   }
   references.set(schema, resolved);
   return resolved;
+}
+
+/** Whether a value holds every key a schema requires; an array or a schema that requires none does. */
+function holdsRequired(schema: Schema | undefined, value: object): boolean {
+  const required = schema?.required ?? [];
+  return (
+    Array.isArray(value) || required.every((key) => isOwnKey(value as Record<string, unknown>, key))
+  );
 }
 
 /** Whether a schema admits an object or an array, as far as its `type` tells. */

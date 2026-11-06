@@ -807,9 +807,22 @@ describe('the published schemas', () => {
     }
   });
 
-  // formatFile picks the member of a union by the JSON type of the value. Two objects or two arrays
-  // in one union would need a discriminator, as FreeShape has.
-  it('tell the members of any other union apart by their JSON type', () => {
+  // formatFile picks the member of a union by the JSON type of the value, then by the keys it
+  // requires. Two objects in one union need a required key each that the others lack, as a view
+  // folder's entries have, or a discriminator, as FreeShape has; two arrays cannot be told apart.
+  it('writes a view folder in its own key order, and a view filed in it in its own', () => {
+    const written = formatFile('project', {
+      schemaVersion: 1,
+      name: 'P',
+      packages: [],
+      viewFolders: [{ entries: [{ view: 'a' }], name: 'Stories', folder: 'stories' }],
+    });
+    const folder = (JSON.parse(written) as { viewFolders: object[] }).viewFolders[0] as object;
+    expect(Object.keys(folder)).toEqual(['folder', 'name', 'entries']);
+    expect(written).toContain('"view": "a"');
+  });
+
+  it('tell the members of any other union apart by their JSON type or their required keys', () => {
     for (const schema of schemas as { definitions?: Record<string, { type?: unknown }> }[]) {
       for (const subschema of subschemasOf(schema)) {
         const union = (subschema.anyOf ?? subschema.oneOf) as Record<string, unknown>[] | undefined;
@@ -822,7 +835,24 @@ describe('the published schemas', () => {
           return target?.type;
         });
         expect(types).not.toContain(undefined);
-        expect(new Set(types).size).toBe(types.length);
+        const targets = (union ?? []).map((member) => {
+          const ref = member.$ref;
+          return (
+            typeof ref === 'string'
+              ? schema.definitions?.[ref.replace('#/definitions/', '')]
+              : member
+          ) as { required?: string[] } | undefined;
+        });
+        types.forEach((type, at) => {
+          const alike = targets.filter((_, other) => other !== at && types[other] === type);
+          if (alike.length === 0) return;
+          expect(type).toBe('object');
+          // A key it requires that none of the others of its type requires tells it apart.
+          const own = (targets[at]?.required ?? []).filter((key) =>
+            alike.every((other) => !(other?.required ?? []).includes(key)),
+          );
+          expect(own.length).toBeGreaterThan(0);
+        });
       }
     }
   });
