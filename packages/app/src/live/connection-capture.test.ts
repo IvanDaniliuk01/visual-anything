@@ -24,8 +24,8 @@ beforeEach(() => {
   vi.stubGlobal('WebSocket', FakeWebSocket);
 });
 
-function open(lastUsed: boolean) {
-  const connection = new LiveConnection(LIVE_URL, { isLastUsed: () => lastUsed });
+function open(lastUsed: boolean, options: { captureSettle?: number } = {}) {
+  const connection = new LiveConnection(LIVE_URL, { isLastUsed: () => lastUsed, ...options });
   connection.connect();
   const socket = FakeWebSocket.created.at(-1) as FakeWebSocket;
   socket.accept();
@@ -72,6 +72,7 @@ describe('a picture Claude asks for', () => {
       picture: { png: PNG, width: 800, height: 400, view: 'v', theme: 'dark', scale: 1 },
     });
     expect(take).toHaveBeenCalledWith({ view: 'v', region: ['a'], width: 800, theme: 'dark' });
+    expect(take).toHaveBeenCalledTimes(1);
   });
 
   it('is passed over in every other tab, which takes none', async () => {
@@ -100,5 +101,107 @@ describe('a picture Claude asks for', () => {
       requestId: 'capture-2',
       failed: 'no-canvas',
     });
+  });
+});
+
+/** Claude's pan_to to another view, as the program sends it. */
+const PAN_TO = encodeServerMessage({
+  type: 'guidance',
+  guidance: { kind: 'pan-to', target: 'a', view: 'v' },
+});
+
+const PICTURE = {
+  picture: { png: PNG, width: 800, height: 400, view: 'v', theme: 'dark' as const, scale: 1 },
+};
+
+/** Lets the tasks and timers queued now run, a few times over. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
+
+describe('a picture asked for right after guidance (#16)', () => {
+  it('waits until the guidance received before it is applied, then takes it', async () => {
+    const { connection, socket } = open(true);
+    const take = vi.fn(() => Promise.resolve(PICTURE));
+    connection.lendCapture(take, () => undefined);
+    // The tab applied the guidance it had before; then pan_to comes, and the picture right after it.
+    connection.guidanceApplied(connection.getState().guidance ?? {});
+    socket.receive(PAN_TO);
+    socket.receive(encodeServerMessage(REQUEST));
+    await settle();
+    expect(take).not.toHaveBeenCalled();
+    // The guidance layer applied it: the view it named opened.
+    connection.guidanceApplied(connection.getState().guidance ?? {});
+    expect(await answered(socket)).toMatchObject({
+      requestId: 'capture-1',
+      picture: PICTURE.picture,
+    });
+    expect(take).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits while the canvas says it has not drawn what the picture needs yet', async () => {
+    const { connection, socket } = open(true);
+    const take = vi.fn(() => Promise.resolve(PICTURE));
+    let waiting: string | undefined = 'the view "v" to be drawn';
+    connection.lendCapture(take, () => waiting);
+    socket.receive(encodeServerMessage(REQUEST));
+    await settle();
+    expect(take).not.toHaveBeenCalled();
+    waiting = undefined;
+    connection.captureChanged();
+    expect(await answered(socket)).toMatchObject({ picture: PICTURE.picture });
+  });
+
+  it('does not wait for guidance that came before the tab had a guidance layer', async () => {
+    const { connection, socket } = open(true);
+    const take = vi.fn(() => Promise.resolve(PICTURE));
+    connection.lendCapture(take, () => undefined);
+    socket.receive(PAN_TO);
+    socket.receive(encodeServerMessage(REQUEST));
+    expect(await answered(socket)).toMatchObject({ picture: PICTURE.picture });
+  });
+
+  it('says what it waited for when the tab never settles, and waits no more for that guidance', async () => {
+    const { connection, socket } = open(true, { captureSettle: 30 });
+    const take = vi.fn(() => Promise.resolve(PICTURE));
+    let waiting: string | undefined = 'the view "v" to be drawn';
+    connection.lendCapture(take, () => waiting);
+    connection.guidanceApplied(connection.getState().guidance ?? {});
+    socket.receive(PAN_TO);
+    socket.receive(encodeServerMessage(REQUEST));
+    const answer = await answered(socket);
+    expect(answer).toMatchObject({ requestId: 'capture-1', failed: 'failed' });
+    const why = (answer as { why: string }).why;
+    expect(why).toContain('Claude’s guidance');
+    expect(why).toContain('the view "v" to be drawn');
+    expect(take).not.toHaveBeenCalled();
+    // The next picture does not wait for that guidance again.
+    waiting = undefined;
+    socket.sent.length = 0;
+    socket.receive(encodeServerMessage({ ...REQUEST, requestId: 'capture-2' }));
+    expect(await answered(socket)).toMatchObject({
+      requestId: 'capture-2',
+      picture: PICTURE.picture,
+    });
+  });
+
+  it('waits without frames: in a hidden tab, where requestAnimationFrame never runs', async () => {
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    const hidden = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    try {
+      const { connection, socket } = open(true);
+      const take = vi.fn(() => Promise.resolve(PICTURE));
+      let waiting: string | undefined = 'the layout’s move to end';
+      connection.lendCapture(take, () => waiting);
+      connection.guidanceApplied(connection.getState().guidance ?? {});
+      socket.receive(PAN_TO);
+      socket.receive(encodeServerMessage(REQUEST));
+      connection.guidanceApplied(connection.getState().guidance ?? {});
+      waiting = undefined;
+      connection.captureChanged();
+      expect(await answered(socket)).toMatchObject({ picture: PICTURE.picture });
+    } finally {
+      hidden.mockRestore();
+      vi.unstubAllGlobals();
+      vi.stubGlobal('WebSocket', FakeWebSocket);
+    }
   });
 });

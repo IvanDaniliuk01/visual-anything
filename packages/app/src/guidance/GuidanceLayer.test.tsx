@@ -191,3 +191,68 @@ describe('GuidanceLayer', () => {
     expect(store.get()).toEqual({});
   });
 });
+
+describe('GuidanceLayer says when it applied guidance, which Claude’s pictures wait for (#16)', () => {
+  function renderApplying(guidance: GuidanceState, editor: Editor) {
+    const store = new EmphasisStore();
+    const guidanceApplied = vi.fn();
+    const live = fakeLive({ project, guidance, guidanceApplied });
+    const view = render(
+      <Harness live={live} editor={editor} store={store}>
+        <GuidanceLayer />
+      </Harness>,
+    );
+    const rerender = (nextEditor: Editor) =>
+      view.rerender(
+        <Harness live={live} editor={nextEditor} store={store}>
+          <GuidanceLayer />
+        </Harness>,
+      );
+    return { guidanceApplied, rerender };
+  }
+
+  it('says so at once for guidance that opens no view and moves nothing', () => {
+    const guidance: GuidanceState = { caption: 'Here.' };
+    const { guidanceApplied } = renderApplying(guidance, editorFor('system-overview'));
+    expect(guidanceApplied).toHaveBeenCalledWith(guidance);
+  });
+
+  it('says so only once the view pan_to named opened and its move shows', () => {
+    const guidance: GuidanceState = { panTo: { target: 'whatsapp', view: 'second', request: 1 } };
+    const first = editorFor('system-overview');
+    const { guidanceApplied, rerender } = renderApplying(guidance, first);
+    expect(first.openView).toHaveBeenCalledWith('second');
+    expect(guidanceApplied).not.toHaveBeenCalled();
+    // The view opened: the move is asked for, and shows once the canvas has drawn it, after.
+    const second = editorFor('second', { reveal: first.reveal, openView: first.openView });
+    act(() => rerender(second));
+    expect(first.reveal).toHaveBeenCalledOnce();
+    expect(guidanceApplied).not.toHaveBeenCalled();
+    act(() => rerender({ ...second }));
+    expect(guidanceApplied).toHaveBeenCalledWith(guidance);
+  });
+
+  it('waits for the view that filters open too', () => {
+    const guidance: GuidanceState = {
+      filter: {
+        filters: { components: [], relationTypes: [], conditions: [] },
+        view: 'second',
+        request: 1,
+      },
+    };
+    const first = editorFor('system-overview', { explore: fakeExplore() });
+    const { guidanceApplied, rerender } = renderApplying(guidance, first);
+    expect(first.openView).toHaveBeenCalledWith('second');
+    expect(guidanceApplied).not.toHaveBeenCalled();
+    act(() => rerender(editorFor('second', { explore: fakeExplore() })));
+    expect(guidanceApplied).toHaveBeenCalledWith(guidance);
+  });
+});
+
+function fakeExplore(): NonNullable<Editor['explore']> {
+  return {
+    setFilters: vi.fn(),
+    setFocus: vi.fn(),
+    focusOn: vi.fn(),
+  } as unknown as NonNullable<Editor['explore']>;
+}

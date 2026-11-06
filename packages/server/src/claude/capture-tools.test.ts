@@ -229,4 +229,22 @@ describe('capture_view', () => {
       running.stop();
     }
   });
+
+  it('says what it waited for when the tab used last never answers, as one in the background (#16)', async () => {
+    harness = await startToolHarness(undefined, { captureWait: 50 });
+    await harness.openApp();
+    const result = await harness.content('capture_view', {
+      view: 'overview',
+      region: ['api'],
+      width: 600,
+    });
+    expect(result.isError).toBe(true);
+    const text = result.content.find((each) => each.type === 'text');
+    const said = text?.type === 'text' ? text.text : '';
+    expect(said).toContain('waited 0.05 s');
+    expect(said).toContain('the tab the person used last');
+    expect(said).toMatch(/"Overview" \(overview\)/);
+    expect(said).toContain('600 pixels wide');
+    expect(said).toContain('background');
+  });
 });

@@ -236,7 +236,23 @@ export interface LiveConnectionOptions {
    * one is given, while a project is open.
    */
   onShown?: (state: ViewState | undefined, project: boolean) => void;
+  /**
+   * How long a picture Claude asks for waits for the tab to settle before it is taken (#16), in
+   * milliseconds; {@link CAPTURE_SETTLE_WAIT} by default.
+   */
+  captureSettle?: number;
 }
+
+/**
+ * The longest a picture waits for the tab to settle (#16): for the guidance received before it to be
+ * applied, and for the canvas to draw the view it shows. Well within the program's 20 s wait, so that
+ * the tab says what it waited for before the program gives up.
+ */
+export const CAPTURE_SETTLE_WAIT = 10_000;
+
+/** Said of the guidance a picture waits for, among what it waited for. */
+const GUIDANCE_APPLIED =
+  'Claude’s guidance sent before it (such as a view that pan_to or highlight opens) to be applied';
 
 /** How long a tab whose connection closed waits before it first tries to reconnect. */
 export const RECONNECT_FIRST = 1_000;
@@ -260,6 +276,12 @@ export const SHOWN = 'Visual Anything was asked to show this tab.';
 
 /** Takes a picture Claude asked for with the tab's canvas, or says why it took none (ADR 0081). */
 export type TakeCapture = (ask: CaptureAsk) => Promise<CaptureOutcome>;
+
+/**
+ * What the canvas lent for pictures still waits for before it shows what a picture needs, such as the
+ * scene of the view it shows to be drawn, in words for Claude; undefined once it shows it (#16).
+ */
+export type CaptureWaitsFor = () => string | undefined;
 
 /**
  * A problem with a request: one the local program found, or the connection closing before it
@@ -447,6 +469,17 @@ export class LiveConnection {
   private changedLast = false;
   /** What takes Claude's pictures: the canvas, while it is mounted (ADR 0081). */
   private capturer: TakeCapture | undefined;
+  /** What that canvas still waits for before it shows what a picture needs (#16). */
+  private captureWaitsFor: CaptureWaitsFor | undefined;
+  /** The guidance messages received, by the state each one left, for the guidance layer to say. */
+  private readonly guidanceNumbers = new WeakMap<GuidanceState, number>();
+  /**
+   * The last guidance message the tab applied, as its guidance layer says; undefined until it first
+   * says, as where no guidance layer is mounted, so that pictures wait for none (#16).
+   */
+  private guidanceDone: number | undefined;
+  /** The pictures waiting for the tab to settle: each checks again when something changed. */
+  private readonly settling = new Set<() => void>();
   /**
    * The live values the local program keeps for the open project (ADR 0057), outside the state, so
    * that values arriving every second re-render only what reads them.
@@ -994,7 +1027,10 @@ export class LiveConnection {
 
   /** Stops showing Claude's guidance in this tab, as when the person dismisses it. */
   readonly clearGuidance = (): void => {
-    if (this.state.guidance !== NO_GUIDANCE) this.update({ guidance: NO_GUIDANCE });
+    if (this.state.guidance === NO_GUIDANCE) return;
+    // No guidance is the state as of the last message: nothing received before is waited for then.
+    this.guidanceNumbers.set(NO_GUIDANCE, this.guidanceCount);
+    this.update({ guidance: NO_GUIDANCE });
   };
 
   /**
@@ -1016,12 +1052,80 @@ export class LiveConnection {
    * Lends the connection what takes Claude's pictures with the tab's canvas (ADR 0081); returns what
    * takes it back.
    */
-  readonly lendCapture = (capture: TakeCapture): (() => void) => {
+  readonly lendCapture = (capture: TakeCapture, waitsFor?: CaptureWaitsFor): (() => void) => {
     this.capturer = capture;
+    this.captureWaitsFor = waitsFor;
+    this.captureChanged();
     return () => {
-      if (this.capturer === capture) this.capturer = undefined;
+      if (this.capturer !== capture) return;
+      this.capturer = undefined;
+      this.captureWaitsFor = undefined;
+      this.captureChanged();
     };
   };
+
+  /**
+   * The tab's guidance layer says it applied this guidance (#16): the views it named opened, and its
+   * move happened. A picture asked for after it waits for this.
+   */
+  readonly guidanceApplied = (guidance: GuidanceState): void => {
+    const number = this.guidanceNumbers.get(guidance) ?? 0;
+    if (this.guidanceDone !== undefined && this.guidanceDone >= number) return;
+    this.guidanceDone = number;
+    this.captureChanged();
+  };
+
+  /**
+   * Something a picture waits for may have changed, as when the canvas drew another scene (#16): the
+   * pictures waiting check again, once what changes with it now has changed too.
+   */
+  readonly captureChanged = (): void => {
+    if (this.settling.size === 0) return;
+    queueMicrotask(() => {
+      for (const check of [...this.settling]) check();
+    });
+  };
+
+  /**
+   * What a picture asked for after guidance message `after` waits for now (#16): that guidance to be
+   * applied, and what the canvas says it waits for; none once the tab settled.
+   */
+  private captureWaits(after: number): string[] {
+    const waits: string[] = [];
+    if (this.guidanceDone !== undefined && this.guidanceDone < after) waits.push(GUIDANCE_APPLIED);
+    const canvas = this.captureWaitsFor?.();
+    if (canvas !== undefined) waits.push(canvas);
+    return waits;
+  }
+
+  /**
+   * Waits for the tab to settle before a picture (#16), {@link CAPTURE_SETTLE_WAIT} at most; resolves
+   * with what it still waited for then, or with nothing once it settled. It waits for no frame, so it
+   * settles in a tab in the background too, whose browser draws none: it checks again whenever the
+   * guidance layer or the canvas says something changed, and once at the end.
+   */
+  private settleForCapture(after: number): Promise<string[]> {
+    const now = this.captureWaits(after);
+    if (now.length === 0) return Promise.resolve(now);
+    return new Promise((resolve) => {
+      const finish = (waits: string[]) => {
+        clearTimeout(timer);
+        this.settling.delete(check);
+        resolve(waits);
+      };
+      const check = () => {
+        const waits = this.captureWaits(after);
+        if (waits.length === 0) finish(waits);
+      };
+      const timer = setTimeout(() => {
+        const waits = this.captureWaits(after);
+        // Guidance waited for in vain is waited for no more: the next picture is taken as it is.
+        if (this.guidanceDone !== undefined && this.guidanceDone < after) this.guidanceDone = after;
+        finish(waits);
+      }, this.options.captureSettle ?? CAPTURE_SETTLE_WAIT);
+      this.settling.add(check);
+    });
+  }
 
   /**
    * Answers a picture Claude asked for (ADR 0081): the tab the person used last takes it with its
@@ -1039,15 +1143,24 @@ export class LiveConnection {
     };
     let outcome: CaptureOutcome | { passed: 'other-tab' };
     const lastUsed = this.options.isLastUsed ?? (() => tabUse().isLastUsed());
-    const capture = this.capturer;
+    // The guidance received before the picture, which it shows once applied (#16).
+    const after = this.guidanceCount;
     if (!lastUsed()) outcome = { passed: 'other-tab' };
-    else if (capture === undefined) outcome = { failed: 'no-canvas' };
+    else if (this.capturer === undefined) outcome = { failed: 'no-canvas' };
     else {
-      try {
-        outcome = await capture(ask);
-      } catch (error) {
-        const why = error instanceof Error ? error.message : String(error);
-        outcome = { failed: 'failed', why: why.slice(0, MAX_CAPTURE_WHY) };
+      const waited = await this.settleForCapture(after);
+      const capture = this.capturer;
+      if (waited.length > 0) {
+        const wait = this.options.captureSettle ?? CAPTURE_SETTLE_WAIT;
+        outcome = { failed: 'failed', why: unsettled(waited, wait) };
+      } else if (capture === undefined) outcome = { failed: 'no-canvas' };
+      else {
+        try {
+          outcome = await capture(ask);
+        } catch (error) {
+          const why = error instanceof Error ? error.message : String(error);
+          outcome = { failed: 'failed', why: why.slice(0, MAX_CAPTURE_WHY) };
+        }
       }
     }
     // The program stops waiting for a tab whose connection closed.
@@ -1424,17 +1537,18 @@ export class LiveConnection {
         if (answered?.kind === 'solid-files') answered.resolve({ ok: true, answer: message });
         break;
       }
-      case 'guidance':
+      case 'guidance': {
         this.guidanceCount += 1;
-        this.update({
-          guidance: applyGuidance(
-            this.state.guidance ?? NO_GUIDANCE,
-            message.guidance,
-            this.guidanceCount,
-            message.answer,
-          ),
-        });
+        const guidance = applyGuidance(
+          this.state.guidance ?? NO_GUIDANCE,
+          message.guidance,
+          this.guidanceCount,
+          message.answer,
+        );
+        this.guidanceNumbers.set(guidance, this.guidanceCount);
+        this.update({ guidance });
         break;
+      }
     }
   }
 
@@ -1653,4 +1767,10 @@ export class LiveConnection {
     this.state = { ...this.state, ...change };
     for (const listener of [...this.listeners]) listener();
   }
+}
+
+/** Why a picture was not taken: the tab did not settle in time (#16), and what it waited for. */
+function unsettled(waited: readonly string[], wait: number): string {
+  const why = `The tab did not finish showing what the picture needs within ${wait / 1000} s: it waited for ${waited.join(', and for ')}.`;
+  return why.length > MAX_CAPTURE_WHY ? `${why.slice(0, MAX_CAPTURE_WHY - 1)}…` : why;
 }

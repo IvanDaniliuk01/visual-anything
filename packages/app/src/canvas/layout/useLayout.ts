@@ -45,6 +45,7 @@ import {
 } from './transition';
 import type { LaidOutRoute, LayoutProgress } from './types';
 import { useReducedMotion } from '../../scenarios/motion';
+import { pageHidden } from '../hidden';
 
 export { LayoutRunnerContext } from './runnerContext';
 
@@ -221,7 +222,16 @@ export function useLayout({
       frame = requestAnimationFrame(tick);
     };
     let frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
+    // A tab in the background draws no frame, so the move would never end there: it ends at once, and
+    // what Claude's pictures wait for is drawn (#16).
+    const hidden = () => {
+      if (pageHidden()) setMoving((now) => (ours(now) ? undefined : now));
+    };
+    document.addEventListener('visibilitychange', hidden);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('visibilitychange', hidden);
+    };
   }, [started]);
 
   const drawn = useMemo(
@@ -299,7 +309,7 @@ export function useLayout({
         before: now.scene,
         project: now.project,
         view: now.view.id,
-        animate: typeof requestAnimationFrame === 'function' && !now.reducedMotion,
+        animate: movesIn(now.reducedMotion),
         routes: laidOut.routes,
       });
       // Placing new shapes asks to join the newest action, which may be what added them (ADR 0065).
@@ -501,7 +511,7 @@ export function useLayout({
         before: now.scene,
         project: now.project,
         view: now.view.id,
-        animate: typeof requestAnimationFrame === 'function' && !now.reducedMotion,
+        animate: movesIn(now.reducedMotion),
       });
       const sent = await now.send(made.command);
       if (!sent.ok) {
@@ -561,4 +571,12 @@ function failed(why: string): Ended {
 
 function labelOf(command: Command): string {
   return command.type === 'batch' ? command.label : 'Lay out';
+}
+
+/**
+ * Whether a layout moves in, frame by frame: not where frames are not drawn, as in a tab in the
+ * background (#16), nor where the system asks for reduced motion.
+ */
+function movesIn(reducedMotion: boolean | undefined): boolean {
+  return typeof requestAnimationFrame === 'function' && !reducedMotion && !pageHidden();
 }

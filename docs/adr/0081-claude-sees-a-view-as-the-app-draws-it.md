@@ -74,3 +74,11 @@ While Claude built the user's data model, it could not see what it had made.
   - **Nothing the person sees.** The tab shows nothing while it takes a picture, so `es.ts` gains nothing. The reasons a drawing failed go to Claude only, in English.
 
 - 2026-11-01 (A4, the main session, from the user's note 15): **`region` frames notes and arrows by their ids too**, in any view that holds them, as `highlight` and tours mark them; an id that names neither an element nor a note or an arrow is refused, saying which.
+
+<!-- Decided by Claude on 2026-11-06 under the user's standing delegation of design decisions, fixing #16. -->
+
+- 2026-11-06 (#16, from Claude's modeling with 0.1.2): **a picture waits for the tab to settle, and never for a frame.**
+  - **Guidance first.** The program sends guidance and the picture in order, but the tab answered the picture before it had applied the guidance: right after `pan_to` opened another view, the picture showed the view before, or found none of the elements named. Now the tab's guidance layer says when it applied the guidance it shows: every view it opened shows, and its move has been drawn. A picture waits for the guidance received before it, then for the canvas to draw the scene of the view it shows, with no layout moving in. It waits at most 10 s, then answers `failed`, saying what it waited for; guidance waited for in vain is not waited for again.
+  - **No frames in the background.** A tab in the background, or a minimized window, draws no frames: nothing a picture does waits for one. The canvas off screen for the other theme draws its frame at once there, the PNG is encoded at once rather than through `toBlob`, which the browser may put off, and a layout moves in at once, or ends its move when the tab goes to the background.
+  - **The program says what it waited for.** When no answer comes within 20 s, the tool says how long it waited, for which tab, view, region and width, and that a tab in the background may be held back by its browser.
+

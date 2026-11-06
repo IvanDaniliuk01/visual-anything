@@ -3,9 +3,11 @@
  * renderer of its own, started in that theme in a host outside the window, given what the tab's
  * canvas draws from (its scene, emphasis, overlays' legend, package code's drawings and comparison),
  * and the camera of the tab for what it shows now. It draws one frame, then the picture through the
- * PNG export's path, and goes. The person's canvas is never touched: it does not move or flicker.
+ * PNG export's path, and goes; in a tab in the background, which draws no frames, it draws that
+ * frame at once (#16). The person's canvas is never touched: it does not move or flicker.
  */
 import { MAX_CAPTURE_WAIT } from '../canvas/capture';
+import { pageHidden } from '../canvas/hidden';
 import type { Camera } from '../canvas/camera';
 import type { Size } from '../canvas/geometry';
 import {
@@ -71,17 +73,20 @@ export async function drawOffScreen(
     mirror.show(indexed);
     if (view !== undefined) mirror.setCamera(view.camera);
     // One frame, as the canvas draws one before an image: what it plans and the pictures it makes.
-    await new Promise<void>((resolve) => {
-      let stop: () => void = () => {};
-      const timer = setTimeout(() => {
-        stop();
-        resolve();
-      }, MAX_CAPTURE_WAIT);
-      stop = mirror.afterNextFrame(() => {
-        clearTimeout(timer);
-        resolve();
+    // A tab in the background draws no frame, so the canvas off screen draws it at once (#16).
+    if (pageHidden(target)) mirror.renderNow();
+    else
+      await new Promise<void>((resolve) => {
+        let stop: () => void = () => {};
+        const timer = setTimeout(() => {
+          stop();
+          resolve();
+        }, MAX_CAPTURE_WAIT);
+        stop = mirror.afterNextFrame(() => {
+          clearTimeout(timer);
+          resolve();
+        });
       });
-    });
     return await mirror.captureImage(image);
   } finally {
     renderer?.destroy();

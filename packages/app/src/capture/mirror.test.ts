@@ -11,6 +11,9 @@ import { drawOffScreen } from './mirror';
 /** The renderers made, and what each was asked. */
 const made: FakeRenderer[] = [];
 
+/** Whether the browser draws frames, which it does not in a tab in the background. */
+let framesDrawn = true;
+
 class FakeRenderer {
   readonly calls: string[] = [];
   readonly hostInWindow: boolean;
@@ -31,9 +34,10 @@ class FakeRenderer {
   setCamera = (camera: { scale: number }) => this.calls.push(`camera ${camera.scale}`);
   afterNextFrame = (listener: () => void) => {
     this.calls.push('frame');
-    setTimeout(listener, 0);
+    if (framesDrawn) setTimeout(listener, 0);
     return () => undefined;
   };
+  renderNow = () => this.calls.push('draw now');
   captureImage = (image: CaptureImage) => {
     this.calls.push(`capture ${image.width}×${image.height}`);
     return Promise.resolve({ blob: new Blob(['png']), width: image.width, height: image.height });
@@ -76,10 +80,13 @@ async function startLast() {
 
 beforeEach(() => {
   made.length = 0;
+  framesDrawn = true;
 });
 
 afterEach(() => {
   document.body.replaceChildren();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe('drawOffScreen', () => {
@@ -124,6 +131,25 @@ describe('drawOffScreen', () => {
     await expect(drawn).rejects.toThrow('No WebGL.');
     expect(made[0]?.calls).toEqual(['destroy']);
     expect(document.body.children).toHaveLength(0);
+  });
+
+  it('draws its frame at once in a tab in the background, where no frame comes (#16)', async () => {
+    framesDrawn = false;
+    vi.useFakeTimers();
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    const drawn = drawOffScreen(FROM, THEMES.dark.canvas, IMAGE);
+    made[0]?.callbacks.onThemeShown?.('dark');
+    // No timer passes: had it waited for a frame, it would wait still.
+    expect(await drawn).toMatchObject({ width: 800, height: 400 });
+    expect(made[0]?.calls).toEqual([
+      'code true',
+      'legend true',
+      'emphasis',
+      'show',
+      'draw now',
+      'capture 800×400',
+      'destroy',
+    ]);
   });
 
   it('refuses before the canvas drew a scene', async () => {

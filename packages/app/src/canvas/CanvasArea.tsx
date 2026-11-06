@@ -315,7 +315,6 @@ export function CanvasArea({
   // The header's Export draws the open view with this canvas's renderer (R27).
   useLendRenderer(controllerRef, active);
   // Claude's pictures of the view it draws, off screen, which move nothing here (ADR 0081).
-  useCaptureAnswers(controllerRef, view.id, active);
   // The containers shown expanded as the canvas zooms into them (ADR 0055).
   const zoom = useContext(ZoomExpansionContext);
   const [failure, setFailure] = useState<string>();
@@ -739,6 +738,8 @@ export function CanvasArea({
   useEffect(() => {
     if (indexed) controllerRef.current?.update(project, view.id, indexed, editable);
   }, [project, view.id, indexed, editable]);
+  // Claude's pictures wait until the canvas draws this view's scene, with no layout moving in (#16).
+  useCaptureAnswers(controllerRef, view.id, active, { indexed, settled: settled !== undefined });
 
   // Claude's turn guidance turns a shape's solid, as Turn does, once the canvas shows its view and
   // the scene the controller was just given (ADR 0075).

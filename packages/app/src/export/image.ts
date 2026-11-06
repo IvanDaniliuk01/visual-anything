@@ -10,6 +10,7 @@
  */
 import { visibleRect, type Camera } from '../canvas/camera';
 import { grow, type Rect, type Size } from '../canvas/geometry';
+import { pageHidden } from '../canvas/hidden';
 
 /** What an image shows: what the canvas shows now, or the whole view. */
 export type ImageArea = 'visible' | 'view';
@@ -160,8 +161,22 @@ export function drawInChunks(
   return canvas;
 }
 
-/** The PNG of a canvas. */
-export function toPng(canvas: HTMLCanvasElement): Promise<Blob> {
+/**
+ * The PNG of a canvas. In a page that is `hidden`, as a tab in the background, it is encoded at once,
+ * since the browser may put `toBlob`'s encoding off there until the tab shows again (#16).
+ */
+export function toPng(canvas: HTMLCanvasElement, hidden = pageHidden()): Promise<Blob> {
+  if (hidden) {
+    try {
+      return Promise.resolve(pngOfDataUrl(canvas.toDataURL('image/png')));
+    } catch (error) {
+      return Promise.reject(
+        error instanceof ImageError
+          ? error
+          : new ImageError({ reason: 'failed', detail: 'the browser could not make a PNG.' }),
+      );
+    }
+  }
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
@@ -169,6 +184,18 @@ export function toPng(canvas: HTMLCanvasElement): Promise<Blob> {
         reject(new ImageError({ reason: 'failed', detail: 'the browser could not make a PNG.' }));
     }, 'image/png');
   });
+}
+
+/** The PNG a data URL holds, as `toDataURL` gives it. */
+function pngOfDataUrl(url: string): Blob {
+  const prefix = 'data:image/png;base64,';
+  if (!url.startsWith(prefix)) {
+    throw new ImageError({ reason: 'failed', detail: 'the browser could not make a PNG.' });
+  }
+  const binary = atob(url.slice(prefix.length));
+  const bytes = new Uint8Array(binary.length);
+  for (let at = 0; at < binary.length; at += 1) bytes[at] = binary.charCodeAt(at);
+  return new Blob([bytes], { type: 'image/png' });
 }
 
 /** The longest name a file gets before its extension. */

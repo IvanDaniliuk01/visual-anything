@@ -3,15 +3,22 @@
  * mounted: its renderer draws them in its own theme, and a canvas off screen in the other one, with
  * the tab's camera for what it shows now. The renderer is mocked.
  */
-import { renderHook } from '@testing-library/react';
+import {
+  PROTOCOL_VERSION,
+  encodeServerMessage,
+  type CaptureRequestMessage,
+} from '@visual-anything/core';
+import { act, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IndexedScene } from '../canvas/hit';
 import type { CanvasRenderer, CaptureImage } from '../canvas/renderer';
 import { LiveContext, type Live } from '../live/context';
-import type { TakeCapture } from '../live/connection';
+import { LiveConnection, type CaptureWaitsFor, type TakeCapture } from '../live/connection';
+import { FakeWebSocket } from '../test/FakeWebSocket';
+import { loadSample } from '../test/sample';
 import { THEMES } from '../theme/themes';
-import { canvasFor, useCaptureAnswers } from './useCaptureAnswers';
+import { canvasFor, useCaptureAnswers, type CaptureDrawn } from './useCaptureAnswers';
 
 const drawOffScreen = vi.hoisted(() => vi.fn());
 vi.mock('./mirror', () => ({ drawOffScreen }));
@@ -112,5 +119,114 @@ describe('useCaptureAnswers', () => {
     });
     unmount();
     expect(takenBack).toHaveBeenCalled();
+  });
+});
+
+const PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+/** A scene of its own bounds, as another view's scene is. */
+const sceneAt = (x: number) =>
+  ({
+    scene: { bounds: { x, y: 0, width: 400, height: 200 } },
+    byElement: new Map(),
+  }) as unknown as IndexedScene;
+
+describe('a picture right after the view changed (#16)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('says what it waits for while the canvas draws another scene than the view’s, or moves a layout in', () => {
+    let waitsFor: CaptureWaitsFor | undefined;
+    const live = {
+      lendCapture: (_: TakeCapture, waits?: CaptureWaitsFor) => {
+        waitsFor = waits;
+        return () => undefined;
+      },
+    } as unknown as Live;
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <LiveContext value={live}>{children}</LiveContext>
+    );
+    const billing = sceneAt(1000);
+    const drawer = renderer();
+    const controller = { current: { renderer: drawer } };
+    const { rerender } = renderHook(
+      ({ drawn }: { drawn: CaptureDrawn }) => useCaptureAnswers(controller, 'billing', true, drawn),
+      { wrapper, initialProps: { drawn: { indexed: billing, settled: true } } },
+    );
+    expect(waitsFor?.()).toBe('the canvas to draw the view "billing"');
+    Object.assign(drawer, { drawnFrom: { indexed: billing, emphasis: {} } });
+    expect(waitsFor?.()).toBeUndefined();
+    rerender({ drawn: { indexed: billing, settled: false } });
+    expect(waitsFor?.()).toBe('the layout moving in on the view "billing" to end');
+  });
+
+  it('is taken of the view guidance opened once the canvas draws its scene, not of the one before', async () => {
+    FakeWebSocket.created = [];
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    // A tab in the background: the browser draws no frame, and requestAnimationFrame never runs.
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    const connection = new LiveConnection('ws://localhost:3000/live?token=t', {
+      isLastUsed: () => true,
+    });
+    connection.connect();
+    const socket = FakeWebSocket.created.at(-1) as FakeWebSocket;
+    socket.accept();
+    socket.receive(
+      encodeServerMessage({
+        type: 'project/opened',
+        protocolVersion: PROTOCOL_VERSION,
+        project: loadSample(),
+        history: {},
+      }),
+    );
+    const live = {
+      lendCapture: connection.lendCapture,
+      captureChanged: connection.captureChanged,
+    } as unknown as Live;
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <LiveContext value={live}>{children}</LiveContext>
+    );
+    const overview = sceneAt(0);
+    const billing = sceneAt(5000);
+    // The canvas draws the overview, in pictures that are PNGs.
+    const png = Uint8Array.from(atob(PNG), (char) => char.charCodeAt(0));
+    const drawer = renderer({
+      drawnFrom: { indexed: overview, emphasis: {} },
+      captureImage: vi.fn(() => Promise.resolve({ blob: new Blob([png]), width: 1, height: 1 })),
+    });
+    const controller = { current: { renderer: drawer } };
+    const { rerender } = renderHook(
+      ({ view, drawn }: { view: string; drawn: CaptureDrawn }) =>
+        useCaptureAnswers(controller, view, true, drawn),
+      { wrapper, initialProps: { view: 'overview', drawn: { indexed: overview, settled: true } } },
+    );
+    // Guidance opened billing: the canvas area shows it, but its canvas still draws the overview.
+    rerender({ view: 'billing', drawn: { indexed: billing, settled: true } });
+    const request: CaptureRequestMessage = {
+      type: 'capture/request',
+      requestId: 'capture-1',
+      view: 'billing',
+      region: 'whole',
+      width: 800,
+    };
+    socket.receive(encodeServerMessage(request));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const { captureImage } = drawer as unknown as { captureImage: ReturnType<typeof vi.fn> };
+    expect(captureImage).not.toHaveBeenCalled();
+    expect(socket.sent.some((each) => each.type === 'capture/answer')).toBe(false);
+    // The canvas draws billing's scene now.
+    Object.assign(drawer, { drawnFrom: { indexed: billing, emphasis: {} } });
+    act(() => rerender({ view: 'billing', drawn: { indexed: billing, settled: true } }));
+    const answer = await vi.waitFor(() => {
+      const sent = socket.sent.find((each) => each.type === 'capture/answer');
+      if (sent === undefined) throw new Error('Not answered yet.');
+      return sent;
+    });
+    expect(answer).toMatchObject({ requestId: 'capture-1', picture: { view: 'billing' } });
+    // Framed in billing's scene, not the overview's.
+    const [image] = captureImage.mock.calls[0] as [CaptureImage];
+    expect(image.frame.x).toBeGreaterThan(4000);
   });
 });
