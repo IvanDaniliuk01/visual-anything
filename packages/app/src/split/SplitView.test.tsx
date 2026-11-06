@@ -530,6 +530,8 @@ describe('a tour step’s view beside it (ADR 0102)', () => {
     play();
     await waitFor(() => expect(viewsDrawn()).toEqual(['system-overview', 'people']));
     expect(activeView()).toBe('system-overview');
+    // The tab keeps the panes as the tour found them: a reload mid-tour gives the single canvas.
+    expect(sessionStorage.getItem(KEY)).toBeNull();
     // At the step's camera: the view's point at the middle of its 800 × 600 canvas, at its zoom.
     await waitFor(() =>
       expect(fakeCameras.get('people')?.camera()).toEqual({ x: 200, y: 200, scale: 2 }),
@@ -560,6 +562,9 @@ describe('a tour step’s view beside it (ADR 0102)', () => {
     await waitFor(() =>
       expect(fakeCameras.get('people')?.camera()).toEqual({ x: 400, y: 300, scale: 1 }),
     );
+    expect(JSON.parse(sessionStorage.getItem(KEY) ?? '{}')).toMatchObject({
+      panes: [{ view: 'system-overview' }, { view: 'storage', camera: { x: 7, y: 8, scale: 1.5 } }],
+    });
     fireEvent.keyDown(document.body, { key: 'Escape' });
     await waitFor(() => expect(viewsDrawn()).toEqual(['system-overview', 'storage']));
     await waitFor(() =>
@@ -567,6 +572,42 @@ describe('a tour step’s view beside it (ADR 0102)', () => {
     );
     expect(JSON.parse(sessionStorage.getItem(KEY) ?? '{}')).toMatchObject({
       active: 'pane-1',
+      panes: [{ view: 'system-overview' }, { view: 'storage' }],
+    });
+  });
+});
+
+describe('a tour that shows a view beside it, as the shell goes', () => {
+  it('gives the panes back when the shell goes mid-tour', async () => {
+    keepTwoPanes();
+    const shown: ProjectSnapshot = {
+      ...project,
+      tours: [
+        {
+          id: 'side',
+          name: 'Side by side',
+          steps: (sample.tours[0]?.steps ?? []).map((step) => ({
+            ...step,
+            beside: { view: 'people' },
+          })),
+        },
+      ],
+    };
+    const { unmount } = render(
+      <LiveContext value={fakeLive({ project: shown })}>
+        <Shell project={shown} />
+      </LiveContext>,
+    );
+    const panel = screen.getByRole('complementary', { name: 'Outline and model' });
+    fireEvent.click(within(panel).getByRole('tab', { name: 'Tours' }));
+    fireEvent.click(
+      within(within(panel).getByRole('tabpanel', { name: 'Tours' })).getByRole('button', {
+        name: 'Play “Side by side” full screen',
+      }),
+    );
+    await waitFor(() => expect(viewsDrawn()).toEqual(['system-overview', 'people']));
+    unmount();
+    expect(JSON.parse(sessionStorage.getItem(KEY) ?? '{}')).toMatchObject({
       panes: [{ view: 'system-overview' }, { view: 'storage' }],
     });
   });

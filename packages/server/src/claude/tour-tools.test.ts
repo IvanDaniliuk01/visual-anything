@@ -304,7 +304,7 @@ describe('add_tour_step, update_tour_step and remove_tour_step', () => {
       steps: [
         {
           viewState: { view: 'overview' },
-          beside: { view: 'overview', select: ['db'], camera: { x: 10, y: 20, zoom: 2 } },
+          beside: { view: 'overview', camera: { x: 10, y: 20, zoom: 2 } },
           title: 'Where it is kept',
         },
       ],
@@ -313,25 +313,43 @@ describe('add_tour_step, update_tour_step and remove_tour_step', () => {
     expect(tourNamed('Side by side')?.steps[0]?.beside).toEqual({
       view: 'overview',
       camera: { x: 10, y: 20, zoom: 2 },
-      select: ['db'],
     });
     const added = await tools.value('add_tour_step', {
       tour,
       viewState: { view: 'overview' },
-      beside: { view: 'overview', focus: { degrees: 2 } },
+      beside: { view: 'overview' },
       title: 'Around it',
     });
     expect(added).toMatchObject({ number: 2 });
-    expect(tourNamed('Side by side')?.steps[1]?.beside).toEqual({
-      view: 'overview',
-      focus: { degrees: 2, direction: 'both' },
-    });
+    expect(tourNamed('Side by side')?.steps[1]?.beside).toEqual({ view: 'overview' });
     const read = await tools.value('read_tour', { tour });
     expect(read).toMatchObject({
-      steps: [{ beside: { view: 'overview', select: ['db'] } }, { beside: { view: 'overview' } }],
+      steps: [
+        { beside: { view: 'overview', camera: { x: 10, y: 20, zoom: 2 } } },
+        { beside: { view: 'overview' } },
+      ],
     });
+    // Changing one step sends the whole list again: the others keep what they show beside them.
+    await tools.value('update_tour_step', { tour, step: 2, text: 'Around it, still.' });
+    expect(tourNamed('Side by side')?.steps[0]?.beside).toEqual({
+      view: 'overview',
+      camera: { x: 10, y: 20, zoom: 2 },
+    });
+    // Moving and removing a step replace the whole list of steps: each keeps its own view beside it.
+    await tools.value('update_tour_step', { tour, step: 2, moveTo: 1 });
+    expect(tourNamed('Side by side')?.steps.map((each) => each.beside)).toEqual([
+      { view: 'overview' },
+      { view: 'overview', camera: { x: 10, y: 20, zoom: 2 } },
+    ]);
+    await tools.value('add_tour_step', { tour, viewState: { view: 'overview' }, title: 'Plain' });
+    await tools.value('remove_tour_step', { tour, step: 1 });
+    expect(tourNamed('Side by side')?.steps.map((each) => each.beside)).toEqual([
+      { view: 'overview', camera: { x: 10, y: 20, zoom: 2 } },
+      undefined,
+    ]);
     await tools.value('update_tour_step', { tour, step: 1, beside: { view: 'overview' } });
     expect(tourNamed('Side by side')?.steps[0]?.beside).toEqual({ view: 'overview' });
+    await tools.value('update_tour_step', { tour, step: 2, beside: { view: 'overview' } });
     await tools.value('update_tour_step', { tour, step: 2, beside: null });
     expect(tourNamed('Side by side')?.steps[1]).not.toHaveProperty('beside');
     expect(

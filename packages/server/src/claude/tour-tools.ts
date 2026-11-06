@@ -83,9 +83,12 @@ const viewState = () =>
 /** The view a step shows beside it, in the pane right of the tour's (ADR 0102). */
 const beside = () =>
   z
-    .object({ view: id().describe('The view shown beside the step.'), ...STATE_PARTS })
+    .object({
+      view: id().describe('The view shown beside the step.'),
+      camera: STATE_PARTS.camera,
+    })
     .describe(
-      'A view shown beside the step, in the pane right of the one the tour plays in, as a viewState is given: the pane shows its view, at its camera, or else the whole view, gliding there as steps do. Use it to show, beside a story, the view of how its data is stored. Left out, that pane stays as the step before left it; when the tour ends, the panes come back as they were.',
+      'A view shown beside the step, in the pane right of the one the tour plays in: for now only its view, at its camera as a viewState gives one, or else the whole view, gliding there as steps do. Use it to show, beside a story, the view of how its data is stored. Left out, that pane shows what the nearest step before with one shows beside it, or the panes as the tour found them; when the tour ends, the panes come back as they were.',
     );
 
 const caption = () => ({
@@ -264,7 +267,7 @@ const newStep = () =>
 
 type NewStepArgs = z.infer<ReturnType<typeof newStep>>;
 
-const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} beside shows another view state, given the same way, in the pane right of the tour's. Its caption has a title and a text, and place puts its card in a corner; marks highlight elements, relations, notes and arrows; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; emphasis style restyles what the step marks rather than laying a halo over it; play plays a scenario over the step's view from one of its steps to another, and its choices the alternative to play at each of the scenario's decisions (read_scenario gives their ids), every other decision playing its default; advance moves on by itself; pointTo ties the caption to one of the step's marks with a leader line; pulse sends a marker along a chain of relations, to show what follows what; transition cut always cuts, where the step would otherwise glide the shapes it shares with the step before into another view; notes are the speaker's. With escapeText: true, the caption's text, the reveals' texts and the notes are written as the characters they are (use it for outside material); the title is plain text always. The answer says how the camera gets to the step (glide, cut, stay, fit or follows, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
+const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} beside shows another view, with a camera if you like, in the pane right of the tour's; only its view and its camera show there, for now. Its caption has a title and a text, and place puts its card in a corner; marks highlight elements, relations, notes and arrows; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; emphasis style restyles what the step marks rather than laying a halo over it; play plays a scenario over the step's view from one of its steps to another, and its choices the alternative to play at each of the scenario's decisions (read_scenario gives their ids), every other decision playing its default; advance moves on by itself; pointTo ties the caption to one of the step's marks with a leader line; pulse sends a marker along a chain of relations, to show what follows what; transition cut always cuts, where the step would otherwise glide the shapes it shares with the step before into another view; notes are the speaker's. With escapeText: true, the caption's text, the reveals' texts and the notes are written as the characters they are (use it for outside material); the title is plain text always. The answer says how the camera gets to the step (glide, cut, stay, fit or follows, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
 
 // ——— Read ———
 
@@ -355,7 +358,7 @@ Example, building one picture up: { "tour": "how-booking-works", "viewState": { 
 Example, pointing at the reference that ties two tables and pulsing along the chain: { "tour": "audit-model", "viewState": { "view": "audit-tables" }, "title": "A finding belongs to a case", "text": "Each finding names its case, and each case its subject.", "marks": ["finding", "case", "finding-case"], "pointTo": "finding-case", "pulse": { "relations": ["finding-case", "case-subject"], "repeat": 2 } }
 Example, a fresh start that always cuts: { "tour": "audit-model", "viewState": { "view": "billing" }, "title": "Billing, apart", "transition": "cut" }
 Example, with the physical-space panel beside the canvas: { "tour": "pick-a-part", "viewState": { "view": "workcell", "select": ["wrist-camera"], "space": { "root": "arm", "camera": { "target": { "x": 0, "y": 0.8, "z": 0 }, "azimuth": 45, "elevation": 20, "distance": 2.5 } } }, "title": "The wrist camera", "text": "It looks down at the bin from the wrist." }
-Example, a story beside the view of how its data is stored: { "tour": "audit-model", "viewState": { "view": "audit-story" }, "beside": { "view": "audit-tables", "select": ["finding"] }, "title": "Where a finding is kept", "marks": ["auditor-writes-finding"] }
+Example, a story beside the view of how its data is stored: { "tour": "audit-model", "viewState": { "view": "audit-story" }, "beside": { "view": "audit-tables" }, "title": "Where a finding is kept", "marks": ["auditor-writes-finding"] }
 Example, a caption quoting outside text as written: { "tour": "audit-model", "viewState": { "view": "audit-tables" }, "title": "The remark", "text": "From the DDL: *_id columns are keys", "escapeText": true }`,
   input: {
     tour: tourId(),

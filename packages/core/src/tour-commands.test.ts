@@ -779,6 +779,22 @@ describe('update-tour', () => {
     expect(outcome.state.tours[0]?.name).toBe('A stroll');
   });
 
+  it('replaces every step with steps that show views beside them, undoing exactly (ADR 0102)', () => {
+    const { state } = withTour();
+    const steps: NewTourStep[] = [
+      { ...START, beside: { view: 'overview', camera: { x: 1, y: 2, zoom: 1 } } },
+      { ...API, beside: { view: 'overview', select: ['db'] } },
+      START,
+    ];
+    const outcome = done(state, { type: 'update-tour', id: 'walk', changes: { steps } });
+    expect(outcome.state.tours[0]?.steps.map((step) => step.beside)).toEqual([
+      { view: 'overview', camera: { x: 1, y: 2, zoom: 1 } },
+      { view: 'overview', select: ['db'] },
+      undefined,
+    ]);
+    expect(applyOperations(outcome.state, outcome.inverse).state).toEqual(state);
+  });
+
   it('sets the emphasis of a tour’s steps and takes it away, undoing exactly (ADR 0100)', () => {
     const { state } = withTour();
     const styled = done(state, { type: 'update-tour', id: 'walk', changes: { emphasis: 'style' } });

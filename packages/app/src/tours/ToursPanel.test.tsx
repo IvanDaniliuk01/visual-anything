@@ -467,6 +467,28 @@ describe('the tour’s check in the panel', () => {
       expect(firstStep(sent[0])?.beside).toEqual({ view: 'storage' });
     });
 
+    it('offers to take what the pane beside shows as soon as one opens, the panel open', async () => {
+      const { tab, sent } = openTours(withStorage());
+      const steps = stepsOf(tab);
+      const capture = () =>
+        within(steps).getAllByRole('button', {
+          name: 'Use what the pane beside shows now',
+        })[0] as HTMLElement;
+      expect(capture()).toBeDisabled();
+      const panel = screen.getByRole('complementary', { name: 'Outline and model' });
+      fireEvent.click(within(panel).getByRole('tab', { name: 'Model' }));
+      fireEvent.click(
+        within(within(panel).getByRole('list', { name: 'Views' })).getByRole('button', {
+          name: 'Open "Storage" beside',
+        }),
+      );
+      fireEvent.click(within(panel).getByRole('tab', { name: 'Tours' }));
+      await waitFor(() => expect(capture()).toBeEnabled());
+      fireEvent.click(capture());
+      await vi.waitFor(() => expect(sent).toHaveLength(1));
+      expect(firstStep(sent[0])?.beside).toEqual({ view: 'storage' });
+    });
+
     it('flags a step whose view beside it is gone', () => {
       const { tab } = openTours(withStorage({ beside: { view: 'gone' } }));
       const steps = stepsOf(tab);

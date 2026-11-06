@@ -98,6 +98,11 @@ export function checkTour(
   const nameOf = (id: Id) => index.element(id)?.name ?? index.relation(id)?.name ?? id;
   const names = (ids: readonly Id[]) => ids.map((id) => `"${nameOf(id)}"`).join(', ');
 
+  // What the pane beside shows at each step: its own view beside it, or the nearest's before it, as
+  // playback shows it (ADR 0102).
+  const besides: (TourStep['beside'] | undefined)[] = [];
+  for (const [at, step] of tour.steps.entries()) besides.push(step.beside ?? besides[at - 1]);
+
   return tour.steps.map((step, at): TourStepCheck => {
     const n = at + 1;
     const before = at > 0 ? tour.steps[at - 1] : undefined;
@@ -115,7 +120,10 @@ export function checkTour(
       });
     }
 
-    const same = before !== undefined && sameViewState(before, step);
+    const same =
+      before !== undefined &&
+      sameViewState(before, step) &&
+      JSON.stringify(besides[at - 1] ?? null) === JSON.stringify(besides[at] ?? null);
     const camera = cameraOf(before, step, screen, same);
     // A step that asks to cut cuts on purpose: nothing to look at (ADR 0084).
     if (
@@ -308,12 +316,9 @@ function cameraOf(
   return move.kind === 'ease' ? 'glide' : 'cut';
 }
 
-/** Whether two steps show the same view state, and the same beside it, so that they play as one scene. */
+/** Whether two steps show the same view state, so that they play as one scene. */
 function sameViewState(a: TourStep, b: TourStep): boolean {
-  return (
-    JSON.stringify(a.viewState) === JSON.stringify(b.viewState) &&
-    JSON.stringify(a.beside ?? null) === JSON.stringify(b.beside ?? null)
-  );
+  return JSON.stringify(a.viewState) === JSON.stringify(b.viewState);
 }
 
 function meets(a: TourRect, b: TourRect): boolean {

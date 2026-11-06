@@ -271,37 +271,44 @@ describe('useTourPlayback’s stages', () => {
     expect(emphasis.get()).not.toHaveProperty('styled');
   });
 
-  it('shows a step’s view beside it once, leaves it for a step without, and gives the panes back at the end (ADR 0102)', () => {
+  it('shows each step’s view beside it, the nearest before it for a step without, and gives the panes back at the end (ADR 0102)', () => {
     const beside = {
       begin: vi.fn(),
-      show: vi.fn(),
+      show: vi.fn<TourBeside['show']>(() => false),
       end: vi.fn(),
       current: vi.fn((): ViewState => ({ view: 'data' })),
     } satisfies TourBeside;
     const [first, second] = tour.steps as [TourStep, TourStep];
+    const A = { view: VIEW, camera: { x: 1, y: 2, zoom: 1 } };
     const played: TourFile = {
       ...tour,
       steps: [
-        { ...first, beside: { view: VIEW, camera: { x: 1, y: 2, zoom: 1 } } },
+        { ...first, beside: A },
         second,
-        { ...first, id: 'three', beside: { view: 'gone' } },
+        { ...first, id: 'three', beside: { view: 'gone' }, transition: 'cut' },
       ],
     };
     const { result, start, land } = setUp({ played, beside });
     start();
     expect(beside.begin).toHaveBeenCalledTimes(1);
     expect(beside.show).toHaveBeenCalledTimes(1);
-    expect(beside.show).toHaveBeenLastCalledWith({ view: VIEW, camera: { x: 1, y: 2, zoom: 1 } });
-    // A step without one leaves the pane beside as it was, and so do its reveals.
+    expect(beside.show).toHaveBeenLastCalledWith(A, { cut: false });
+    // A step without one shows what the step before showed beside it; its reveals show nothing new.
     act(() => result.current.player.next());
     land();
+    expect(beside.show).toHaveBeenLastCalledWith(A, { cut: false });
     act(() => result.current.player.next());
     land();
-    expect(beside.show).toHaveBeenCalledTimes(1);
-    // A view beside it that is gone shows nothing there.
+    expect(beside.show).toHaveBeenCalledTimes(2);
+    // A view beside it that is gone shows the nearest before it, cutting as the step does.
     act(() => result.current.player.next());
     land();
-    expect(beside.show).toHaveBeenCalledTimes(1);
+    expect(beside.show).toHaveBeenCalledTimes(3);
+    expect(beside.show).toHaveBeenLastCalledWith(A, { cut: true });
+    // Coming back to the step without one shows the same as coming to it forward.
+    act(() => result.current.player.goTo(1));
+    land();
+    expect(beside.show).toHaveBeenLastCalledWith(A, { cut: false });
     expect(beside.end).not.toHaveBeenCalled();
     act(() => result.current.player.end());
     expect(beside.end).toHaveBeenCalledTimes(1);
@@ -309,8 +316,43 @@ describe('useTourPlayback’s stages', () => {
     // The tours panel reads what the pane beside shows, and Show shows a step's view beside it too.
     expect(result.current.host.beside()).toEqual({ view: 'data' });
     act(() => result.current.host.show(played.steps[0] as TourStep));
-    expect(beside.show).toHaveBeenCalledTimes(2);
+    expect(beside.show).toHaveBeenLastCalledWith(A, { cut: false });
     expect(beside.begin).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the panes as the tour found them for steps with nothing beside them before', () => {
+    const beside = {
+      begin: vi.fn(),
+      show: vi.fn<TourBeside['show']>(() => false),
+      end: vi.fn(),
+      current: vi.fn(() => undefined),
+    } satisfies TourBeside;
+    const { start } = setUp({ beside });
+    start();
+    expect(beside.show).toHaveBeenLastCalledWith(undefined, { cut: false });
+  });
+
+  it('places the step’s own camera once the panes are laid out again, when its view beside opened a pane', () => {
+    const beside = {
+      begin: vi.fn(),
+      show: vi.fn<TourBeside['show']>(() => true),
+      end: vi.fn(),
+      current: vi.fn(() => undefined),
+    } satisfies TourBeside;
+    const [first, second] = tour.steps as [TourStep, TourStep];
+    const played: TourFile = { ...tour, steps: [{ ...first, beside: { view: VIEW } }, second] };
+    const { result, asked, pass } = setUp({ played, beside });
+    act(() => result.current.host.play(played, 0));
+    pass(40);
+    // The view beside went first and opened a pane: the tour's pane is narrower from the next layout.
+    expect(beside.show).toHaveBeenCalledTimes(1);
+    expect(asked).toHaveLength(0);
+    pass(40);
+    expect(asked).toHaveLength(1);
+    // A step whose view beside opens nothing goes at once.
+    beside.show.mockReturnValue(false);
+    act(() => result.current.player.next());
+    expect(asked).toHaveLength(2);
   });
 
   it('brings a reveal in one press at a time, and takes it away one press back', () => {
