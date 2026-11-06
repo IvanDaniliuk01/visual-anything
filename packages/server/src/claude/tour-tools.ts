@@ -6,7 +6,8 @@
  * one, with a caption, the elements and relations it marks, reveals that bring in more one press at a
  * time, dimming of the rest, a scenario it plays, advancing by itself, a mark its caption points at,
  * a pulse along a chain of relations, a transition that always cuts (ADR 0084), how it marks what it
- * marks, with a halo or in its own style (ADR 0100), and speaker notes;
+ * marks, with a halo or in its own style (ADR 0100), a view shown beside it in the pane right of the
+ * tour's (ADR 0102), and speaker notes;
  * with `escapeText`, its caption's text, its reveals' texts and its notes are written as the
  * characters they are (ADR 0082). check_tour
  * says how a tour plays, step by step, reading marks outside a camera from the app's own scene.
@@ -77,6 +78,17 @@ const viewState = () =>
     .object({ view: id().describe('The view the step shows.'), ...STATE_PARTS })
     .describe(
       'Where the step takes the canvas, and how it reads there: a view, and if you like where the canvas looks, a selection, filters, focus, a scenario open at a step, and the physical-space panel open beside the canvas (space), with its joints’ positions (space.joints), which glide from the step before. Left out, the canvas shows the selection, or else the whole view.',
+    );
+
+/** The view a step shows beside it, in the pane right of the tour's (ADR 0102). */
+const beside = () =>
+  z
+    .object({
+      view: id().describe('The view shown beside the step.'),
+      camera: STATE_PARTS.camera,
+    })
+    .describe(
+      'A view shown beside the step, in the pane right of the one the tour plays in: for now only its view, at its camera as a viewState gives one, or else the whole view, gliding there as steps do. Use it to show, beside a story, the view of how its data is stored. Left out, that pane shows what the nearest step before with one shows beside it, or the panes as the tour found them; when the tour ends, the panes come back as they were.',
     );
 
 const caption = () => ({
@@ -238,6 +250,7 @@ const advance = () =>
 const newStep = () =>
   z.object({
     viewState: viewState(),
+    beside: beside().optional(),
     ...caption(),
     place: place().optional(),
     marks: marks().optional(),
@@ -254,14 +267,14 @@ const newStep = () =>
 
 type NewStepArgs = z.infer<ReturnType<typeof newStep>>;
 
-const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} Its caption has a title and a text, and place puts its card in a corner; marks highlight elements, relations, notes and arrows; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; emphasis style restyles what the step marks rather than laying a halo over it; play plays a scenario over the step's view from one of its steps to another, and its choices the alternative to play at each of the scenario's decisions (read_scenario gives their ids), every other decision playing its default; advance moves on by itself; pointTo ties the caption to one of the step's marks with a leader line; pulse sends a marker along a chain of relations, to show what follows what; transition cut always cuts, where the step would otherwise glide the shapes it shares with the step before into another view; notes are the speaker's. With escapeText: true, the caption's text, the reveals' texts and the notes are written as the characters they are (use it for outside material); the title is plain text always. The answer says how the camera gets to the step (glide, cut, stay, fit or follows, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
+const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} beside shows another view, with a camera if you like, in the pane right of the tour's; only its view and its camera show there, for now. Its caption has a title and a text, and place puts its card in a corner; marks highlight elements, relations, notes and arrows; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; emphasis style restyles what the step marks rather than laying a halo over it; play plays a scenario over the step's view from one of its steps to another, and its choices the alternative to play at each of the scenario's decisions (read_scenario gives their ids), every other decision playing its default; advance moves on by itself; pointTo ties the caption to one of the step's marks with a leader line; pulse sends a marker along a chain of relations, to show what follows what; transition cut always cuts, where the step would otherwise glide the shapes it shares with the step before into another view; notes are the speaker's. With escapeText: true, the caption's text, the reveals' texts and the notes are written as the characters they are (use it for outside material); the title is plain text always. The answer says how the camera gets to the step (glide, cut, stay, fit or follows, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
 
 // ——— Read ———
 
 const readTour = tool({
   name: 'read_tour',
   title: 'Read a tour',
-  description: `Reads a tour: its steps in order, each with its number, id, view state, caption (and its place, when fixed in a corner), marks, reveals, dimRest, emphasis, the scenario it plays, advance and its speaker notes, and what it names that the project no longer holds: such a step is kept and flagged as broken, and plays without it. Read it before changing a tour's steps; check_tour says how it plays.
+  description: `Reads a tour: its steps in order, each with its number, id, view state, the view state beside it, caption (and its place, when fixed in a corner), marks, reveals, dimRest, emphasis, the scenario it plays, advance and its speaker notes, and what it names that the project no longer holds: such a step is kept and flagged as broken, and plays without it. Read it before changing a tour's steps; check_tour says how it plays.
 
 Example: { "tour": "how-booking-works" }`,
   input: { tour: tourId() },
@@ -345,6 +358,7 @@ Example, building one picture up: { "tour": "how-booking-works", "viewState": { 
 Example, pointing at the reference that ties two tables and pulsing along the chain: { "tour": "audit-model", "viewState": { "view": "audit-tables" }, "title": "A finding belongs to a case", "text": "Each finding names its case, and each case its subject.", "marks": ["finding", "case", "finding-case"], "pointTo": "finding-case", "pulse": { "relations": ["finding-case", "case-subject"], "repeat": 2 } }
 Example, a fresh start that always cuts: { "tour": "audit-model", "viewState": { "view": "billing" }, "title": "Billing, apart", "transition": "cut" }
 Example, with the physical-space panel beside the canvas: { "tour": "pick-a-part", "viewState": { "view": "workcell", "select": ["wrist-camera"], "space": { "root": "arm", "camera": { "target": { "x": 0, "y": 0.8, "z": 0 }, "azimuth": 45, "elevation": 20, "distance": 2.5 } } }, "title": "The wrist camera", "text": "It looks down at the bin from the wrist." }
+Example, a story beside the view of how its data is stored: { "tour": "audit-model", "viewState": { "view": "audit-story" }, "beside": { "view": "audit-tables" }, "title": "Where a finding is kept", "marks": ["auditor-writes-finding"] }
 Example, a caption quoting outside text as written: { "tour": "audit-model", "viewState": { "view": "audit-tables" }, "title": "The remark", "text": "From the DDL: *_id columns are keys", "escapeText": true }`,
   input: {
     tour: tourId(),
@@ -384,7 +398,7 @@ Example, a caption quoting outside text as written: { "tour": "audit-model", "vi
 const updateTourStep = tool({
   name: 'update_tour_step',
   title: 'Change a step of a tour',
-  description: `Changes one step of a tour, as one undoable action: what you give replaces what the step has, and what you leave out stays. viewState replaces the step's view state as a whole, and reveal its reveals as a whole; null takes the text, marks, reveals, play, advance, pointTo, pulse or notes away, dimRest false stops dimming, emphasis null lets the step mark as its tour says, place auto lets the caption find its side again, and transition glide lets the step glide again. moveTo moves the step to another number. Fixing a broken step means giving it back what it names without what was deleted.
+  description: `Changes one step of a tour, as one undoable action: what you give replaces what the step has, and what you leave out stays. viewState replaces the step's view state as a whole, and reveal its reveals as a whole; null takes the beside view, text, marks, reveals, play, advance, pointTo, pulse or notes away, dimRest false stops dimming, emphasis null lets the step mark as its tour says, place auto lets the caption find its side again, and transition glide lets the step glide again. moveTo moves the step to another number. Fixing a broken step means giving it back what it names without what was deleted.
 
 ${STEP_HELP}
 
@@ -395,11 +409,13 @@ Example: { "tour": "how-booking-works", "step": 5, "advance": "after-scenario", 
 Example: { "tour": "how-booking-works", "step": 5, "reveal": null, "dimRest": false, "advance": null, "place": "auto" }
 Example, playing the other alternative: { "tour": "how-booking-works", "step": 4, "play": { "scenario": "patient-books-appointment", "from": 4, "to": 5, "choices": { "free-slot": "has-slot" } } }
 Example: { "tour": "audit-model", "step": 3, "pointTo": "finding-case", "pulse": { "relations": ["finding-case", "case-subject"] } }
-Example: { "tour": "audit-model", "step": 3, "pointTo": null, "pulse": null, "transition": "cut" }`,
+Example: { "tour": "audit-model", "step": 3, "pointTo": null, "pulse": null, "transition": "cut" }
+Example: { "tour": "audit-model", "step": 2, "beside": { "view": "audit-tables", "camera": { "x": 400, "y": 300, "zoom": 1 } } }`,
   input: {
     tour: tourId(),
     step: stepRef(),
     viewState: viewState().optional(),
+    beside: beside().nullable().optional(),
     title: caption().title.optional(),
     text: caption().text.unwrap().nullable().optional(),
     place: place().optional(),
@@ -429,6 +445,12 @@ Example: { "tour": "audit-model", "step": 3, "pointTo": null, "pulse": null, "tr
       const asked = askedState(args.viewState, state);
       if (!asked.ok) return fail(`Not changed: ${asked.message}`);
       next.viewState = savedViewStateOf(asked.state);
+    }
+    if (args.beside === null) delete next.beside;
+    else if (args.beside !== undefined) {
+      const asked = askedState(args.beside, state);
+      if (!asked.ok) return fail(`Not changed: Beside it: ${asked.message}`);
+      next.beside = savedViewStateOf(asked.state);
     }
     if (args.title !== undefined) next.caption.title = args.title;
     if (args.text === null || args.text === '') delete next.caption.text;
@@ -656,6 +678,10 @@ function stepFrom(
 ): { ok: true; step: NewTourStep } | { ok: false; message: string } {
   const asked = askedState(given.viewState, state);
   if (!asked.ok) return asked;
+  const besideAsked = given.beside && askedState(given.beside, state);
+  if (besideAsked && !besideAsked.ok) {
+    return { ok: false, message: `Beside it: ${besideAsked.message}` };
+  }
   let played: TourPlayback | undefined;
   if (given.play) {
     const checked = playFrom(state, given.play);
@@ -672,6 +698,7 @@ function stepFrom(
     ok: true,
     step: withoutUndefined({
       viewState: savedViewStateOf(asked.state),
+      beside: besideAsked ? savedViewStateOf(besideAsked.state) : undefined,
       caption,
       marks: given.marks && given.marks.length > 0 ? given.marks : undefined,
       play: played,

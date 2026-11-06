@@ -10,6 +10,7 @@ import type {
   CaptionSize,
   DecisionChoices,
   Id,
+  SavedViewState,
   TourAdvance,
   TourCaption,
   TourEmphasis,
@@ -248,6 +249,7 @@ function checkedStep(given: NewTourStep, n: number): Omit<TourStep, 'id'> {
   const where = `Step ${n} of the tour`;
   const viewState = checkSavedViewState(given.viewState);
   if (!viewState.ok) reject('invalid-command', `${where}: ${viewState.message}`);
+  const beside = checkedBeside(given.beside, where);
   const caption = checkedCaption(given.caption, where);
   const marks = checkedMarks(given.marks, where);
   const play = checkedPlay(given.play, where);
@@ -263,6 +265,7 @@ function checkedStep(given: NewTourStep, n: number): Omit<TourStep, 'id'> {
   });
   return compact({
     viewState: viewState.state,
+    beside,
     caption,
     marks,
     play,
@@ -274,6 +277,17 @@ function checkedStep(given: NewTourStep, n: number): Omit<TourStep, 'id'> {
     pulse,
     notes,
   });
+}
+
+/**
+ * The view state a step shows beside it, in the pane right of the tour's (ADR 0102), checked as the
+ * step's own is; left out, that pane stays as the step before left it.
+ */
+function checkedBeside(value: unknown, where: string): SavedViewState | undefined {
+  if (value === undefined) return undefined;
+  const checked = checkSavedViewState(value);
+  if (!checked.ok) reject('invalid-command', `${where}, beside it: ${checked.message}`);
+  return checked.state;
 }
 
 function checkedCaption(value: unknown, where: string): TourCaption {

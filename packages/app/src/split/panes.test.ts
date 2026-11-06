@@ -326,3 +326,144 @@ describe('the split view’s panes', () => {
     expect(views(store)).toEqual(['a', 'b']);
   });
 });
+
+describe('the panes a tour shows views beside it in (ADR 0102)', () => {
+  it('show a view in the pane right of the active one, and keep the active pane active', () => {
+    const store = new SplitPanes(memory());
+    store.openBeside('b', 'a');
+    store.openBeside('c', 'a');
+    const right = store.snapshot().panes[1]!;
+    expect(store.rightOf(store.active.id)).toBe(right);
+    expect(store.showBeside('d')).toBe(right.id);
+    expect(views(store)).toEqual(['a', 'd', 'b']);
+    expect(store.active.view).toBe('a');
+    // The same view again changes nothing.
+    const layout = store.snapshot();
+    expect(store.showBeside('d')).toBe(right.id);
+    expect(store.snapshot()).toBe(layout);
+  });
+
+  it('open a pane right of the active one when none is there, while fewer than three are open', () => {
+    const store = new SplitPanes(memory());
+    const id = store.showBeside('b');
+    expect(views(store)).toEqual([undefined, 'b']);
+    expect(store.snapshot().panes[1]?.id).toBe(id);
+    expect(widths(store)).toEqual([0.5, 0.5]);
+    expect(store.active.id).toBe('pane-1');
+  });
+
+  it('show it in the rightmost pane but the active one when the active one is rightmost of three', () => {
+    const store = new SplitPanes(memory());
+    store.openBeside('b', 'a');
+    store.openBeside('c', 'a');
+    const panes = store.snapshot().panes;
+    store.activate(panes[2]!.id);
+    expect(store.showBeside('d')).toBe(panes[1]!.id);
+    expect(views(store)).toEqual(['a', 'd', 'b']);
+  });
+
+  it('come back exactly as a layout had them, closing what was opened since', () => {
+    const storage = memory();
+    const store = new SplitPanes(storage);
+    store.openBeside('b', 'a');
+    store.resize(0, 0.1);
+    const before = store.snapshot();
+    store.showBeside('c');
+    store.openBeside('d', 'a');
+    expect(store.snapshot().panes).toHaveLength(3);
+    store.restore(before);
+    expect(store.snapshot()).toEqual(before);
+    expect(JSON.parse(storage.kept.get(PANES_STORAGE_KEY)!)).toMatchObject({
+      panes: [{ view: 'a' }, { view: 'b' }],
+    });
+    // A pane opened after comes with a new id, never one a pane closed had.
+    store.openBeside('e', 'a');
+    expect(store.snapshot().panes[1]?.id).toBe('pane-4');
+    const one = new SplitPanes(memory());
+    const single = one.snapshot();
+    one.showBeside('b');
+    one.restore(single);
+    expect(one.snapshot().panes).toHaveLength(1);
+  });
+});
+
+describe('the panes a tour holds (ADR 0102)', () => {
+  const project = { name: 'Clinic', views: ['a', 'b', 'c', 'd'] };
+
+  it('keep the panes as the tour found them in the tab while it plays, so that a reload brings them back', () => {
+    const storage = memory();
+    const store = new SplitPanes(storage, project);
+    store.openBeside('b', 'a');
+    store.keepCamera('pane-2', { x: 3, y: 4, scale: 2 });
+    store.hold(new Map());
+    expect(store.held).toBe(true);
+    store.showBeside('c');
+    store.openBeside('d', 'a');
+    expect(views(store)).toEqual(['a', 'd', 'c']);
+    // A reload mid-tour reads the panes as the tour found them, cameras and all.
+    const reloaded = new SplitPanes(storage, project);
+    expect(reloaded.snapshot().panes.map((pane) => pane.view)).toEqual(['a', 'b']);
+    expect(reloaded.takeCamera('pane-2')).toEqual({ x: 3, y: 4, scale: 2 });
+    store.release(true);
+    expect(store.held).toBe(false);
+    expect(views(store)).toEqual(['a', 'b']);
+  });
+
+  it('keep the panes shown once let go without coming back', () => {
+    const storage = memory();
+    const store = new SplitPanes(storage, project);
+    store.openBeside('b', 'a');
+    store.hold(new Map());
+    store.close('pane-2');
+    expect(storage.kept.get(panesKey('Clinic'))).toBeDefined();
+    store.release(false);
+    expect(views(store)).toEqual(['a']);
+    expect(storage.kept.get(panesKey('Clinic'))).toBeUndefined();
+  });
+
+  it('come back without the panes of views deleted while the tour played', () => {
+    const storage = memory();
+    const store = new SplitPanes(storage, project);
+    store.openBeside('b', 'a');
+    store.openBeside('c', 'a');
+    store.hold(new Map());
+    store.showBeside('d');
+    store.setProject({ name: 'Clinic', views: ['a', 'c', 'd'] });
+    // The tab keeps the panes held without the view gone.
+    expect(
+      new SplitPanes(storage, { name: 'Clinic', views: ['a', 'c', 'd'] })
+        .snapshot()
+        .panes.map((pane) => pane.view),
+    ).toEqual(['a', 'c']);
+    store.release(true);
+    expect(views(store)).toEqual(['a', 'c']);
+    expect(widths(store)).toEqual([0.5, 0.5]);
+  });
+
+  it('never bring back another project’s panes', () => {
+    const storage = memory();
+    const store = new SplitPanes(storage, project);
+    store.openBeside('b', 'a');
+    store.hold(new Map());
+    store.showBeside('c');
+    store.setProject({ name: 'Other', views: ['x'] });
+    store.release(true);
+    expect(views(store)).toEqual([undefined]);
+    // The project the tour played in keeps its panes as the tour found them.
+    expect(new SplitPanes(storage, project).snapshot().panes.map((pane) => pane.view)).toEqual([
+      'a',
+      'b',
+    ]);
+  });
+
+  it('say which pane a view beside the active one shows in', () => {
+    const store = new SplitPanes(memory());
+    expect(store.besidePane()).toBeUndefined();
+    store.openBeside('b', 'a');
+    store.openBeside('c', 'a');
+    const panes = store.snapshot().panes;
+    expect(store.besidePane()).toBe(panes[1]);
+    store.activate(panes[2]!.id);
+    expect(store.besidePane()).toBe(panes[1]);
+  });
+});

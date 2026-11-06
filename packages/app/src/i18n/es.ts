@@ -2791,6 +2791,18 @@ export const ui: Catalog = {
   'Step {n} draws what it marks in its own style.':
     'El paso {n} dibuja lo que marca con su propio estilo.',
   'Step {n} marks as the tour says.': 'El paso {n} marca como diga el recorrido.',
+  // A view shown beside a tour's step (ADR 0102), in the pane right of the tour's.
+  'Show beside': 'Mostrar al lado',
+  'The pane right of the tour’s shows this view while the step plays; the panes come back as they were when the tour ends.':
+    'El recuadro a la derecha del recorrido muestra esta vista mientras se reproduce el paso; los recuadros vuelven a quedar como estaban cuando termina el recorrido.',
+  'Use what the pane beside shows now': 'Usar lo que muestra ahora el recuadro de al lado',
+  'Open a view beside the canvas first, then place it as the step should show it.':
+    'Primero abrir una vista al lado del lienzo y después ubicarla como el paso debería mostrarla.',
+  'Step {n} shows nothing beside it.': 'El paso {n} no muestra nada al lado.',
+  'Step {n} shows “{view}” beside it.': 'El paso {n} muestra “{view}” al lado.',
+  'Step {n} shows “{view}” beside it, as the pane beside shows it now.':
+    'El paso {n} muestra “{view}” al lado, como la muestra ahora el recuadro de al lado.',
+  '“{view}” beside it': '“{view}” al lado',
   'Step {n} always cuts.': 'El paso {n} corta siempre.',
   'Step {n} glides its shapes when it can.': 'El paso {n} desliza sus formas cuando puede.',
   'Pulses along {names}.': 'Envía un pulso por {names}.',
@@ -5130,6 +5142,9 @@ export const messages: Catalog = {
   'Step {n} of the tour takes the id "{id}", which an earlier step has.':
     'El paso {n} del recorrido usa el id "{id}", que ya tiene un paso anterior.',
   'Step {n} of the tour: {why}': 'Paso {n} del recorrido: {why}',
+  // A view shown beside a tour's step (ADR 0102), in the pane right of the tour's.
+  'Step {n} of the tour, beside it: {why}': 'Paso {n} del recorrido, al lado: {why}',
+  'Beside it: {why}': 'Al lado: {why}',
   'A view state is an object.': 'Un estado de vista es un objeto JSON.',
   'Step {n} of the tour needs a caption with a title.':
     'El paso {n} del recorrido necesita un rótulo con un título.',

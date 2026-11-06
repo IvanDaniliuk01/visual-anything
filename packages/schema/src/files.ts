@@ -2079,6 +2079,12 @@ export interface TourStep {
   id: Id;
   /** Where the step takes the canvas and how it reads there; everything but its view is optional. */
   viewState: SavedViewState;
+  /**
+   * A view shown beside the step, in the pane right of the one the tour plays in (ADR 0102): the
+   * pane shows its view, at its camera or else the whole view. Left out, that pane stays as the step
+   * before left it.
+   */
+  beside?: SavedViewState;
   /** What the caption card says while the step shows. */
   caption: TourCaption;
   /**

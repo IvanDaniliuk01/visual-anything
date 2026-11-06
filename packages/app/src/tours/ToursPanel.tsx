@@ -55,6 +55,7 @@ import { drawnBounds, drawnShapes } from './drawn-bounds';
 import { CaptionLook } from './CaptionLook';
 import { MotionPreferences } from './MotionPreferences';
 import { stepJointsFrom, withStepJoints } from './step-joints';
+import { viewsInListOrder } from '../shell/viewFolders';
 import { useSpacePanel, useSpacePanelState } from '../space/context';
 import { NO_POSITIONS } from '../space/joints';
 import { useSimulations, useSimulationVersion } from '../simulation/context';
@@ -547,6 +548,7 @@ function StepItem({
         )}
       </div>
       <StepExplains step={step} n={n} editable={editable} change={change} />
+      <StepBeside step={step} n={n} editable={editable} change={change} />
       <CaptionLook
         tour={tour}
         stored={step.caption.face}
@@ -624,6 +626,114 @@ function StepItem({
       </div>
     </li>
   );
+}
+
+/**
+ * The view a step shows beside it (ADR 0102), in the pane right of the tour's: a view chosen, which
+ * the pane shows whole, or what the pane beside the active one shows now, its view and camera; and
+ * Remove, after which that pane stays as the step before left it.
+ */
+function StepBeside({
+  step,
+  n,
+  editable,
+  change,
+}: {
+  step: TourStep;
+  n: number;
+  editable: boolean;
+  change: (update: (step: TourStep) => TourStep, done: string) => void;
+}) {
+  const t = useT();
+  const { project } = useEditor();
+  const host = useToursHost();
+  const id = useId();
+  const beside = step.beside;
+  const nameOf = (view: Id) => project.views.find((each) => each.id === view)?.name ?? view;
+  const shownBeside = host?.beside();
+  const showing = (saved: NonNullable<TourStep['beside']>, done: string) =>
+    change((each) => ({ ...each, beside: saved }), done);
+  return (
+    <div className="tour-step-beside">
+      <div className="tour-field">
+        <label htmlFor={id}>{t('Show beside')}</label>
+        <select
+          id={id}
+          value={beside?.view ?? ''}
+          disabled={!editable}
+          onChange={(event) => {
+            const chosen = event.target.value;
+            if (chosen === '') {
+              change(withoutBeside, t('Step {n} shows nothing beside it.', { n }));
+              return;
+            }
+            showing(
+              { view: chosen },
+              t('Step {n} shows “{view}” beside it.', { n, view: nameOf(chosen) }),
+            );
+          }}
+        >
+          <option value="">{t('Nothing')}</option>
+          {beside !== undefined && !project.views.some((each) => each.id === beside.view) && (
+            <option value={beside.view}>{beside.view}</option>
+          )}
+          {viewsInListOrder(project).map((each) => (
+            <option key={each.id} value={each.id}>
+              {each.name}
+            </option>
+          ))}
+        </select>
+        <p className="tour-field-hint">
+          {t(
+            'The pane right of the tour’s shows this view while the step plays; the panes come back as they were when the tour ends.',
+          )}
+        </p>
+      </div>
+      <div className="tour-step-beside-actions">
+        <button
+          type="button"
+          className="tour-button"
+          disabled={!editable || shownBeside === undefined}
+          title={
+            shownBeside === undefined
+              ? t('Open a view beside the canvas first, then place it as the step should show it.')
+              : undefined
+          }
+          onClick={() => {
+            const shown = host?.beside();
+            if (shown) {
+              showing(
+                savedViewStateOf(shown),
+                t('Step {n} shows “{view}” beside it, as the pane beside shows it now.', {
+                  n,
+                  view: nameOf(shown.view),
+                }),
+              );
+            }
+          }}
+        >
+          {t('Use what the pane beside shows now')}
+        </button>
+        {beside !== undefined && (
+          <button
+            type="button"
+            className="tour-button"
+            disabled={!editable}
+            onClick={() => change(withoutBeside, t('Step {n} shows nothing beside it.', { n }))}
+          >
+            {t('Remove')}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** A step without the view it showed beside it. */
+function withoutBeside(step: TourStep): TourStep {
+  const next = { ...step };
+  delete next.beside;
+  return next;
 }
 
 /**
@@ -1208,6 +1318,10 @@ function describeShown(t: Translator, project: ProjectSnapshot, step: TourStep):
   if (viewState.focus) parts.push(t('focus'));
   if (viewState.scenario !== undefined || step.play) parts.push(t('a scenario'));
   if (viewState.space) parts.push(t('the physical-space panel'));
+  if (step.beside) {
+    const beside = project.views.find((each) => each.id === step.beside?.view);
+    parts.push(t('“{view}” beside it', { view: beside?.name ?? step.beside.view }));
+  }
   const name = view?.name ?? viewState.view;
   return parts.length === 0
     ? t('Shows “{view}”', { view: name })

@@ -179,8 +179,10 @@ import type { ViewState } from './view-state';
  *    connected (ADR 0099): `app/shown`, with the view state to show, if any, which only the tab the
  *    person used last applies. And, in 10 too, a tour's and a tour step's `emphasis` (ADR 0100),
  *    `halo` or `style`, which an app of 9 would refuse when it opens the tour file.
+ * 11: a tour step can show a view beside it (ADR 0102): `beside`, a view state for the pane right of
+ *    the tour's, which an app of 10 would refuse when it opens the tour file.
  */
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';

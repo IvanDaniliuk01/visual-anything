@@ -764,3 +764,134 @@ describe('a caption that points, and a pulse (ADR 0084)', () => {
     expect([...ids].sort()).toEqual(['p', 'r', 'walk']);
   });
 });
+
+describe('a view shown beside a step (ADR 0102)', () => {
+  it('names nothing gone when what it shows beside it is there', () => {
+    expect(tourStepProblems(project(), step({ beside: { ...FULL, view: 'overview' } }))).toEqual(
+      [],
+    );
+    expect(isBrokenTourStep(project(), step({ beside: { view: 'other' } }))).toBe(false);
+  });
+
+  it('breaks the step when its view or what it names is gone, said to be beside it', () => {
+    const problems = tourStepProblems(
+      project(),
+      step({
+        beside: {
+          view: 'overview',
+          select: ['gone-element'],
+          focus: { degrees: 1, direction: 'both', from: ['gone-from'] },
+          scenario: 'gone-scenario',
+        },
+      }),
+    );
+    expect(problems.map((each) => [each.code, each.subject, each.part])).toEqual([
+      ['unknown-element', 'gone-element', 'beside'],
+      ['unknown-element', 'gone-from', 'beside'],
+      ['unknown-scenario', 'gone-scenario', 'beside'],
+    ]);
+    expect(problems[0]?.message).toBe(
+      'Beside it: Nothing in the view "Overview" has the id "gone-element".',
+    );
+    const gone = step({ beside: { view: 'gone-view' } });
+    expect(tourStepProblems(project(), gone)).toEqual([
+      {
+        code: 'unknown-view',
+        message: 'Beside it: The project has no view "gone-view".',
+        subject: 'gone-view',
+        part: 'beside',
+      },
+    ]);
+    expect(isBrokenTourStep(project(), gone)).toBe(true);
+  });
+
+  it('checks a scenario beside it against the view beside it, not the step’s own', () => {
+    const over = step({
+      viewState: { view: 'other' },
+      beside: { view: 'overview', scenario: 'request' },
+    });
+    expect(tourStepProblems(project(), over)).toEqual([]);
+    const wrong = step({ beside: { view: 'other', scenario: 'request' } });
+    expect(tourStepProblems(project(), wrong).map((each) => [each.subject, each.part])).toEqual([
+      ['request', 'beside'],
+    ]);
+  });
+
+  it('reads the free shapes of the view beside it, not those of the step’s view', () => {
+    const state = project();
+    const withNote: ProjectSnapshot = {
+      ...state,
+      views: state.views.map((view) =>
+        view.id === 'other'
+          ? {
+              ...view,
+              freeShapes: [
+                { id: 'aside', kind: 'note', x: 0, y: 0, width: 80, height: 40, text: 'Aside' },
+              ],
+            }
+          : view,
+      ),
+    };
+    expect(
+      tourStepProblems(withNote, step({ beside: { view: 'other', select: ['aside'] } })),
+    ).toEqual([]);
+    expect(
+      tourStepProblems(withNote, step({ beside: { view: 'overview', select: ['aside'] } })).map(
+        (each) => each.subject,
+      ),
+    ).toEqual(['aside']);
+  });
+
+  it('plays what it shows beside it without what is gone, and nothing beside it once its view is gone', () => {
+    const played = playableStep(
+      project(),
+      step({
+        marks: ['api'],
+        beside: { view: 'other', camera: { x: 1, y: 2, zoom: 1.5 }, select: ['db', 'gone'] },
+      }),
+    );
+    expect(played?.beside).toEqual({
+      view: 'other',
+      camera: { x: 1, y: 2, zoom: 1.5 },
+      select: ['db'],
+    });
+    // What is gone beside it leaves the step's own view state and marks as they are.
+    expect(played?.marks).toEqual(['api']);
+    expect(playableStep(project(), step({ beside: { view: 'gone' } }))).toEqual({
+      viewState: { view: 'overview' },
+      marks: [],
+    });
+    expect(playableStep(project(), step())).not.toHaveProperty('beside');
+  });
+
+  it('keeps a free shape the step selects that the view beside it lacks', () => {
+    const played = playableStep(
+      project(),
+      step({
+        viewState: { view: 'overview', select: ['note'] },
+        beside: { view: 'other', select: ['note'] },
+      }),
+    );
+    expect(played?.viewState.select).toEqual(['note']);
+    expect(played?.beside).toEqual({ view: 'other' });
+  });
+
+  it('names what it selects and focuses from beside it, so that no new element takes those ids', () => {
+    const ids = idsNamedByTours([
+      {
+        id: 'walk',
+        name: 'Walk',
+        steps: [
+          step({
+            beside: {
+              view: 'other',
+              select: ['e'],
+              focus: { degrees: 1, direction: 'both', from: ['f'] },
+            },
+          }),
+        ],
+      },
+    ]);
+    expect([...ids].sort()).toEqual(['e', 'f', 'walk']);
+  });
+});

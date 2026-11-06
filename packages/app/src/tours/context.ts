@@ -16,6 +16,11 @@ export interface ToursHost {
   current(): ViewState | undefined;
   /** Shows a step in the tab as playback would, without going full screen. */
   show(step: TourStep): void;
+  /**
+   * What the pane right of the active one shows now, its view and camera, which a step can show
+   * beside it (ADR 0102); none without such a pane.
+   */
+  beside(): ViewState | undefined;
 }
 
 export const ToursContext = createContext<ToursHost | undefined>(undefined);

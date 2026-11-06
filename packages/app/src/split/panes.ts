@@ -79,6 +79,12 @@ export class SplitPanes {
   #views: readonly Id[] | undefined;
   #next = 1;
   #writing: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * The panes as a tour found them, under the key of the project it played in, which the tab keeps
+   * while the tour plays, so that a reload or another project mid-tour never keeps the panes the tour
+   * changed (ADR 0102).
+   */
+  #held: { key: string; layout: PaneLayout; cameras: Map<string, Camera> } | undefined;
 
   /**
    * The panes the tab kept for the project, or one pane: what is malformed is passed over and dropped
@@ -136,39 +142,19 @@ export class SplitPanes {
       return;
     }
     this.#views = project.views;
-    const { panes, active } = this.#layout;
-    const views = new Set(project.views);
-    const gone = (pane: Pane) => pane.view !== undefined && !views.has(pane.view);
-    if (panes.length < 2) {
-      // The single canvas shows the project's first view in place of one gone.
-      if (gone(panes[0]!)) this.#set({ active, panes: [{ ...panes[0]!, view: undefined }] });
-      return;
+    // What the tab keeps while a tour plays loses the views gone too.
+    if (this.#held?.key === this.#key) {
+      this.#held = { ...this.#held, layout: withoutGone(this.#held.layout, project.views) };
     }
-    const kept = panes.filter((pane) => !gone(pane));
-    if (kept.length === panes.length) return;
-    // With every view gone, the active pane stays, showing the project's first.
-    const rest = kept.length > 0 ? kept : [{ ...activeOf(this.#layout), view: undefined }];
-    const left = new Set(rest.map((pane) => pane.id));
-    for (const pane of panes) {
+    const next = withoutGone(this.#layout, project.views);
+    if (next === this.#layout) return;
+    const left = new Set(next.panes.map((pane) => pane.id));
+    for (const pane of this.#layout.panes) {
       if (left.has(pane.id)) continue;
       this.#cameras.delete(pane.id);
       this.#restored.delete(pane.id);
     }
-    const at = panes.findIndex((pane) => pane.id === active);
-    const next = left.has(active)
-      ? active
-      : (panes
-          .slice(0, at)
-          .reverse()
-          .find((pane) => left.has(pane.id))?.id ?? rest[0]!.id);
-    const total = rest.reduce((sum, pane) => sum + pane.width, 0);
-    this.#set({
-      active: next,
-      panes: rest.map((pane) => ({
-        ...pane,
-        width: rest.length === 1 || total <= 0 ? 1 / rest.length : pane.width / total,
-      })),
-    });
+    this.#set(next);
   }
 
   readonly snapshot = (): PaneLayout => this.#layout;
@@ -223,6 +209,102 @@ export class SplitPanes {
     const added: Pane = { id: `pane-${this.#next++}`, view, width: 1 };
     const next = [...named.slice(0, at), added, ...named.slice(at)];
     this.#set({ active, panes: next.map((pane) => ({ ...pane, width: 1 / next.length })) });
+  }
+
+  /** The pane right of a pane, if there is one. */
+  rightOf(id: string): Pane | undefined {
+    const { panes } = this.#layout;
+    const at = panes.findIndex((pane) => pane.id === id);
+    return at === -1 ? undefined : panes[at + 1];
+  }
+
+  /**
+   * The pane a view beside the active one shows in (`showBeside`), when there is one already: the
+   * pane right of it, or with three open the rightmost but the active one.
+   */
+  besidePane(): Pane | undefined {
+    const { panes, active } = this.#layout;
+    const right = this.rightOf(active);
+    if (right) return right;
+    return panes.length >= MAX_PANES ? panes.findLast((pane) => pane.id !== active) : undefined;
+  }
+
+  /**
+   * Holds the panes as they are now, with these cameras, as a tour starts (ADR 0102): while the hold
+   * lasts, the tab keeps them rather than the panes shown, so that a reload mid-tour brings back the
+   * panes as the tour found them.
+   */
+  hold(cameras: ReadonlyMap<string, Camera>): void {
+    if (this.#held) return;
+    this.flush();
+    this.#held = {
+      key: this.#key,
+      layout: this.#layout,
+      cameras: new Map([...this.#cameras, ...cameras]),
+    };
+  }
+
+  /** Whether the panes are held, as while a tour plays. */
+  get held(): boolean {
+    return this.#held !== undefined;
+  }
+
+  /**
+   * The layout held, without the panes of views gone since, while the panes are held for the project
+   * shown; none otherwise, as when another project opened since.
+   */
+  heldLayout(): PaneLayout | undefined {
+    const held = this.#held;
+    if (!held || held.key !== this.#key) return undefined;
+    return this.#views === undefined ? held.layout : withoutGone(held.layout, this.#views);
+  }
+
+  /**
+   * Lets the hold go: with `restore`, the panes come back as they were held, but for those of views
+   * gone since; never another project's, when another opened since. The tab then keeps the panes
+   * shown.
+   */
+  release(restore: boolean): void {
+    const layout = restore ? this.heldLayout() : undefined;
+    this.#held = undefined;
+    if (layout) this.restore(layout);
+    else this.#write();
+  }
+
+  /**
+   * Shows a view beside the active pane, as a tour's step asks (ADR 0102): in the pane right of it;
+   * in a new pane there, the panes then sharing the width alike, while fewer than three are open;
+   * and otherwise in the rightmost pane but the active one. The pane's id; the active pane stays
+   * active.
+   */
+  showBeside(view: Id): string | undefined {
+    const { panes, active } = this.#layout;
+    const beside = this.besidePane();
+    if (beside) {
+      this.setView(beside.id, view);
+      return beside.id;
+    }
+    if (panes.length >= MAX_PANES) return undefined;
+    const added: Pane = { id: `pane-${this.#next++}`, view, width: 1 };
+    const next = [...panes, added];
+    this.#set({ active, panes: next.map((pane) => ({ ...pane, width: 1 / next.length })) });
+    return added.id;
+  }
+
+  /**
+   * Gives the panes back as a layout had them, as when a tour that showed views beside it ends: the
+   * panes it opened close, and those it showed another view in show theirs again.
+   */
+  restore(layout: PaneLayout): void {
+    if (layout === this.#layout) return;
+    const kept = new Set(layout.panes.map((pane) => pane.id));
+    for (const id of [...this.#cameras.keys()]) {
+      if (kept.has(id)) continue;
+      this.#cameras.delete(id);
+      this.#restored.delete(id);
+    }
+    this.#next = Math.max(this.#next, ...layout.panes.map((pane) => numberOf(pane.id) + 1));
+    this.#set(layout);
   }
 
   /** Shows another view in a pane, which starts from that view's camera. */
@@ -325,17 +407,21 @@ export class SplitPanes {
   #write(): void {
     const storage = this.#storage;
     if (!storage) return;
+    // While a tour holds them, the tab keeps the panes as the tour found them.
+    const held = this.#held?.key === this.#key ? this.#held : undefined;
+    const layout = held?.layout ?? this.#layout;
+    const cameras = held?.cameras ?? this.#cameras;
     try {
-      if (this.#layout.panes.length < 2) {
+      if (layout.panes.length < 2) {
         storage.removeItem(this.#key);
         return;
       }
       storage.setItem(
         this.#key,
         JSON.stringify({
-          active: this.#layout.active,
-          panes: this.#layout.panes.map((pane) => {
-            const camera = this.#cameras.get(pane.id);
+          active: layout.active,
+          panes: layout.panes.map((pane) => {
+            const camera = cameras.get(pane.id);
             return {
               id: pane.id,
               ...(pane.view === undefined ? {} : { view: pane.view }),
@@ -349,6 +435,40 @@ export class SplitPanes {
       // Without storage the panes last until the tab reloads.
     }
   }
+}
+
+/**
+ * A layout without the panes of views the project lacks, down to the single canvas under two; the
+ * pane left showing a view gone shows the project's first, and with every view gone the active pane
+ * stays, showing it. The same layout when no view it shows is gone.
+ */
+export function withoutGone(layout: PaneLayout, projectViews: readonly Id[]): PaneLayout {
+  const { panes, active } = layout;
+  const views = new Set(projectViews);
+  const gone = (pane: Pane) => pane.view !== undefined && !views.has(pane.view);
+  if (panes.length < 2) {
+    // The single canvas shows the project's first view in place of one gone.
+    return gone(panes[0]!) ? { active, panes: [{ ...panes[0]!, view: undefined }] } : layout;
+  }
+  const kept = panes.filter((pane) => !gone(pane));
+  if (kept.length === panes.length) return layout;
+  const rest = kept.length > 0 ? kept : [{ ...activeOf(layout), view: undefined }];
+  const left = new Set(rest.map((pane) => pane.id));
+  const at = panes.findIndex((pane) => pane.id === active);
+  const next = left.has(active)
+    ? active
+    : (panes
+        .slice(0, at)
+        .reverse()
+        .find((pane) => left.has(pane.id))?.id ?? rest[0]!.id);
+  const total = rest.reduce((sum, pane) => sum + pane.width, 0);
+  return {
+    active: next,
+    panes: rest.map((pane) => ({
+      ...pane,
+      width: rest.length === 1 || total <= 0 ? 1 / rest.length : pane.width / total,
+    })),
+  };
 }
 
 /** Whether two lists name the same views, in any order. */

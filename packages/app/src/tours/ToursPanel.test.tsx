@@ -1,10 +1,11 @@
 import type { Command, ProjectSnapshot } from '@visual-anything/core';
-import type { TourFile } from '@visual-anything/schema';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { TourFile, TourStep, ViewFile } from '@visual-anything/schema';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SendCommand } from '../canvas/CanvasArea';
 import { LiveContext } from '../live/context';
 import { Shell } from '../shell/Shell';
+import { panesKey } from '../split/panes';
 import { fakeLive } from '../test/fakeLive';
 import { loadSample } from '../test/sample';
 
@@ -390,6 +391,109 @@ describe('the tour’s check in the panel', () => {
     expect(styled?.type === 'update-tour' && styled.changes.steps?.[0]).not.toHaveProperty(
       'emphasis',
     );
+  });
+
+  describe('a view shown beside a step (ADR 0102)', () => {
+    const overview = sample.views[0] as ViewFile;
+    /** The sample with a second view, Storage, and its tour's first step as given. */
+    const withStorage = (first: Partial<TourStep> = {}): ProjectSnapshot => ({
+      ...sample,
+      views: [...sample.views, { ...overview, id: 'storage', name: 'Storage', positions: [] }],
+      tours: sample.tours.map((each) =>
+        each.id === tour.id
+          ? {
+              ...each,
+              steps: each.steps.map((step, at) => (at === 0 ? { ...step, ...first } : step)),
+            }
+          : each,
+      ),
+    });
+    const stepsOf = (tab: HTMLElement) => {
+      fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
+      return within(tab).getByRole('list', { name: 'Steps of “How booking works”' });
+    };
+    const firstStep = (command: Command | undefined) =>
+      command?.type === 'update-tour' ? command.changes.steps?.[0] : undefined;
+
+    afterEach(() => sessionStorage.clear());
+
+    it('chooses a view to show beside a step, and removes it', async () => {
+      const { tab, sent } = openTours(withStorage());
+      const steps = stepsOf(tab);
+      const chooser = within(steps).getAllByLabelText('Show beside')[0] as HTMLElement;
+      expect(chooser).toHaveValue('');
+      expect(within(steps).queryAllByRole('button', { name: 'Remove' })).toHaveLength(0);
+      fireEvent.change(chooser, { target: { value: 'storage' } });
+      await vi.waitFor(() => expect(sent).toHaveLength(1));
+      expect(firstStep(sent[0])?.beside).toEqual({ view: 'storage' });
+      expect(sent[0]?.type === 'update-tour' && sent[0].changes.steps?.[1]).not.toHaveProperty(
+        'beside',
+      );
+    });
+
+    it('shows what a step shows beside it, and takes it away with Remove', async () => {
+      const { tab, sent } = openTours(withStorage({ beside: { view: 'storage' } }));
+      const steps = stepsOf(tab);
+      expect(within(steps).getAllByText(/“Storage” beside it/)).toHaveLength(1);
+      expect(within(steps).getAllByLabelText('Show beside')[0]).toHaveValue('storage');
+      fireEvent.click(within(steps).getByRole('button', { name: 'Remove' }));
+      await vi.waitFor(() => expect(sent).toHaveLength(1));
+      expect(firstStep(sent[0])).not.toHaveProperty('beside');
+    });
+
+    it('takes what the pane beside shows now, only while there is one', async () => {
+      const capture = (steps: HTMLElement) =>
+        within(steps).getAllByRole('button', {
+          name: 'Use what the pane beside shows now',
+        })[0] as HTMLElement;
+      expect(capture(stepsOf(openTours(withStorage()).tab))).toBeDisabled();
+      cleanup();
+      const project = withStorage();
+      sessionStorage.setItem(
+        panesKey(project.project.name),
+        JSON.stringify({
+          active: 'pane-1',
+          panes: [
+            { id: 'pane-1', view: overview.id, width: 1 },
+            { id: 'pane-2', view: 'storage', width: 1 },
+          ],
+        }),
+      );
+      const { tab, sent } = openTours(project);
+      const button = capture(stepsOf(tab));
+      expect(button).toBeEnabled();
+      fireEvent.click(button);
+      await vi.waitFor(() => expect(sent).toHaveLength(1));
+      expect(firstStep(sent[0])?.beside).toEqual({ view: 'storage' });
+    });
+
+    it('offers to take what the pane beside shows as soon as one opens, the panel open', async () => {
+      const { tab, sent } = openTours(withStorage());
+      const steps = stepsOf(tab);
+      const capture = () =>
+        within(steps).getAllByRole('button', {
+          name: 'Use what the pane beside shows now',
+        })[0] as HTMLElement;
+      expect(capture()).toBeDisabled();
+      const panel = screen.getByRole('complementary', { name: 'Outline and model' });
+      fireEvent.click(within(panel).getByRole('tab', { name: 'Model' }));
+      fireEvent.click(
+        within(within(panel).getByRole('list', { name: 'Views' })).getByRole('button', {
+          name: 'Open "Storage" beside',
+        }),
+      );
+      fireEvent.click(within(panel).getByRole('tab', { name: 'Tours' }));
+      await waitFor(() => expect(capture()).toBeEnabled());
+      fireEvent.click(capture());
+      await vi.waitFor(() => expect(sent).toHaveLength(1));
+      expect(firstStep(sent[0])?.beside).toEqual({ view: 'storage' });
+    });
+
+    it('flags a step whose view beside it is gone', () => {
+      const { tab } = openTours(withStorage({ beside: { view: 'gone' } }));
+      const steps = stepsOf(tab);
+      within(steps).getByText('Beside it: The project has no view "gone".');
+    });
   });
 
   it('says nothing to look at in a tour that plays as written', () => {

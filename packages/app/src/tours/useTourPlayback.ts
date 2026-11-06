@@ -26,6 +26,11 @@
  * - **The physical-space panel (ADR 0076):** a step whose view state opens it shows the canvas and
  *   the panel side by side, half each (`tours.css`); its camera moves as a tour's does, eased or cut
  *   (`space/travel.ts`), through the view state applier.
+ * - **A view beside it (ADR 0102):** a step with `beside` shows that view state in the pane right of
+ *   the tour's (`beside.ts`), gliding as steps do; a step without shows what the nearest step before
+ *   it with one shows, or the pane as the tour found it. When that opens or closes a pane, the step's
+ *   own camera is worked out once the panes are laid out again, as for the first step. The panes come
+ *   back as they were when the tour ends.
  */
 import {
   playableStep,
@@ -53,6 +58,7 @@ import type { Travel } from '../view-state/applier';
 import { tourGlide, type CanvasCamera } from '../view-state/canvas';
 import type { ViewStateLink } from '../view-state/useViewState';
 import { AdvanceTimer, advanceEvery } from './advance';
+import type { TourBeside } from './beside';
 import type { ToursHost } from './context';
 import { glideSideOf } from './glide-layer';
 import { leaderLine, leaderTargetOf, type Leader } from './leader';
@@ -106,6 +112,11 @@ interface TourPlaybackInput {
    */
   reducedMotion?: boolean | undefined;
   fades?: boolean | undefined;
+  /**
+   * The panes beside the tour's, which a step's `beside` shows a view in (ADR 0102); none where there
+   * are no panes, as on the read-only page.
+   */
+  beside?: TourBeside | undefined;
 }
 
 /** The scenario a step plays, as the stage's card shows it. */
@@ -186,6 +197,10 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
   useEffect(() => {
     settings.current = { reduced, fades, canvas };
   });
+  const besideRef = useRef(input.beside);
+  useEffect(() => {
+    besideRef.current = input.beside;
+  });
   const card = useRef<HTMLElement>(null);
 
   useEffect(() => player.sync(project), [player, project]);
@@ -262,6 +277,17 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
     () => (step ? playableStep(project, step, tour?.emphasis) : undefined),
     [project, step, tour?.emphasis],
   );
+  // What the pane beside shows at this step: its own view beside it, or else the nearest step's
+  // before it, so that a step shows the same whichever way it is come to (ADR 0102).
+  const besideNow = useMemo(() => {
+    if (!tour) return undefined;
+    for (let at = Math.min(playback.step, tour.steps.length - 1); at >= 0; at--) {
+      const each = tour.steps[at];
+      const shown = each?.beside && playableStep(project, each, tour.emphasis)?.beside;
+      if (shown) return shown;
+    }
+    return undefined;
+  }, [project, tour, playback.step]);
   const { reveal } = playback;
   const cutsAlways = useRef(false);
   useEffect(() => {
@@ -272,10 +298,60 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
 
   // Each step goes to its view state once, when playback comes to it, and each reveal comes in or
   // goes once; a step whose view is gone leaves the canvas where it is.
-  const latest = useRef({ playable, go, marks, step: playback.step, reveal, project, scene });
-  useEffect(() => {
-    latest.current = { playable, go, marks, step: playback.step, reveal, project, scene };
+  const latest = useRef({
+    playable,
+    go,
+    marks,
+    step: playback.step,
+    reveal,
+    project,
+    scene,
+    beside: besideNow,
   });
+  useEffect(() => {
+    latest.current = {
+      playable,
+      go,
+      marks,
+      step: playback.step,
+      reveal,
+      project,
+      scene,
+      beside: besideNow,
+    };
+  });
+  /** A step's own camera, waiting for the panes to be laid out again after its view beside opened. */
+  const goLater = useRef<() => void>(undefined);
+  const cancelGo = useCallback(() => {
+    goLater.current?.();
+    goLater.current = undefined;
+  }, []);
+  useEffect(() => cancelGo, [cancelGo]);
+  /**
+   * Goes to a step's view state once the view beside it is shown (ADR 0102): when that opened or
+   * closed a pane, after the panes are laid out again, so that the step's camera fits the tour's pane
+   * as it is then.
+   */
+  const goBeside = useCallback(
+    (
+      made: PlayableStep,
+      beside: ViewState | undefined,
+      cut: boolean,
+      go: (made: PlayableStep) => void,
+    ) => {
+      cancelGo();
+      const resized = besideRef.current?.show(beside, { cut }) ?? false;
+      if (!resized) {
+        go(made);
+        return;
+      }
+      goLater.current = afterLayout(() => {
+        goLater.current = undefined;
+        go(made);
+      });
+    },
+    [cancelGo],
+  );
   const before = useRef<{ state: ViewState | undefined; focus: Element | null }>(undefined);
   const shown = useRef<Shown>(undefined);
   /** Whether the first step still waits for the canvas to fill the window. */
@@ -284,7 +360,11 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
   const pressed = useRef(false);
   // Where the tab is, taken before the panels hide, since the canvas's size changes then.
   const remember = useCallback(() => {
-    if (before.current === undefined) stage.reset();
+    if (before.current === undefined) {
+      stage.reset();
+      // The panes as they are, to come back to when the tour ends (ADR 0102).
+      besideRef.current?.begin();
+    }
     before.current ??= {
       state: viewState.current(),
       focus: typeof document === 'undefined' ? null : document.activeElement,
@@ -353,7 +433,9 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
           moves: now.playable !== undefined && canvasNow !== undefined,
           ...(glide ? { glide } : {}),
         });
-        if (now.playable) now.go(now.playable);
+        // The view beside it first, which may change the tour's pane's width (ADR 0102).
+        if (now.playable) goBeside(now.playable, now.beside, cutsAlways.current, now.go);
+        else besideRef.current?.show(now.beside, { cut: cutsAlways.current });
         if (told) stage.say({ kind: 'step', step: now.step, reveal: now.reveal });
       }
       shown.current = { key: shownKey, step: now.step, reveal: now.reveal, marks: now.marks };
@@ -362,7 +444,7 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
     // The first step waits for the canvas to fill the window, so that its camera fits it.
     if (first.current) return afterLayout(show);
     show();
-  }, [shownKey, target, remember, transitions, viewState, stage, stepCamera, emphasis]);
+  }, [shownKey, target, remember, transitions, viewState, stage, stepCamera, emphasis, goBeside]);
 
   // When the tour ends, the tab goes back to where it was, once the panels are back.
   useEffect(() => {
@@ -374,10 +456,12 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
     stepCamera.end();
     stage.reset();
     range.start(undefined);
+    cancelGo();
+    besideRef.current?.end();
     if (focus instanceof HTMLElement && focus.isConnected) focus.focus({ preventScroll: true });
     if (!state) return;
     return afterLayout(() => viewState.goTo({ kind: 'address', state }));
-  }, [playback.tour, viewState, range, transitions, stepCamera, stage]);
+  }, [playback.tour, viewState, range, transitions, stepCamera, stage, cancelGo]);
   useEffect(() => () => transitions.end(), [transitions]);
 
   // The scenario plays its range as the session moves on.
@@ -702,10 +786,12 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
       current: () => viewState.current(),
       show: (shownStep: TourStep) => {
         const made = playableStep(project, shownStep);
-        if (made) go(made);
+        if (made?.beside) goBeside(made, made.beside, made.transition === 'cut', go);
+        else if (made) go(made);
       },
+      beside: () => besideRef.current?.current(),
     }),
-    [player, viewState, project, go, remember],
+    [player, viewState, project, go, remember, goBeside],
   );
 
   const scenarioView = useMemo((): StageScenario | undefined => {

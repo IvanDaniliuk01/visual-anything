@@ -114,6 +114,8 @@ The executables are not signed yet, so each system warns the first time:
 
 A tour walks someone through a project one step at a time: each step takes the canvas to a view state, says what it shows in a caption card, and marks the elements and relations it explains (ADR 0058, ADR 0077, ADR 0084). Build one from the **Tours** panel, from the canvas as it is, or ask Claude to; play it full screen with **Play**, the arrow keys and Escape.
 
+A step can also **Show beside** it another view, in the pane right of the one the tour plays in, its view and camera only for now, chosen in its settings or taken with **Use what the pane beside shows now**, and the panes come back as they were when the tour ends (`beside`, ADR 0102).
+
 ### How a step marks what it marks
 
 A step marks with a halo unless it, or its tour, says otherwise (`emphasis`, ADR 0100):

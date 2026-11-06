@@ -65,6 +65,7 @@ function renderPins(project: ProjectSnapshot = sample, player = new TourPlayer()
     play: (tour, step) => player.start(tour, step),
     current: () => undefined,
     show: () => undefined,
+    beside: () => undefined,
   };
   const wrap = (children: ReactNode) => (
     <EditorContext value={editor}>

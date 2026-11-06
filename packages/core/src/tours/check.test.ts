@@ -174,6 +174,43 @@ describe('checkTour', () => {
       ['broken', ['gone']],
     ]);
   });
+
+  it('flags a step whose view beside it is gone, and reads two steps beside different views as two (ADR 0102)', () => {
+    const checks = checkTour(
+      testProject(),
+      tour(
+        step('one', { beside: { view: 'overview' } }),
+        step('two', { beside: { view: 'gone' } }),
+        step('three', { beside: { view: 'gone' } }),
+      ),
+    );
+    expect(checks[1]?.warnings.map((each) => [each.kind, each.subjects])).toEqual([
+      ['broken', ['gone']],
+    ]);
+    expect(checks[1]?.warnings[0]?.message).toBe(
+      'Step 2 names what the project no longer holds, and plays without it: Beside it: The project has no view "gone".',
+    );
+    // The same view state beside a different view is another scene; the same beside, a reveal.
+    expect(kinds(checks)[1]).not.toContain('could-be-reveal');
+    expect(kinds(checks)[2]).toEqual(['broken', 'could-be-reveal']);
+  });
+
+  it('reads a step without a view beside it as showing the nearest one before it, as playback does', () => {
+    const checks = checkTour(
+      testProject(),
+      tour(
+        step('one', { beside: { view: 'overview' } }),
+        step('two'),
+        step('three', { beside: { view: 'overview', camera: { x: 1, y: 1, zoom: 1 } } }),
+      ),
+    );
+    // Step two keeps what step one shows beside it: one scene; step three shows another beside it.
+    expect(kinds(checks)).toEqual([[], ['could-be-reveal'], []]);
+    // With nothing before it, a step shows the panes as the tour found them.
+    expect(
+      kinds(checkTour(testProject(), tour(step('a'), step('b', { beside: { view: 'overview' } })))),
+    ).toEqual([[], []]);
+  });
 });
 
 describe('checkTour on what ADR 0084 adds', () => {

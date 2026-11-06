@@ -232,6 +232,35 @@ describe('create-tour', () => {
     expect(plain.state.tours[0]).not.toHaveProperty('emphasis');
   });
 
+  it('keeps the view a step shows beside it in the form its file keeps it (ADR 0102)', () => {
+    const state = testProject();
+    const outcome = done(state, {
+      type: 'create-tour',
+      tour: {
+        name: 'Side by side',
+        steps: [
+          {
+            ...START,
+            beside: {
+              view: 'overview',
+              camera: { x: 1, y: 2, zoom: 1.5 },
+              focus: { degrees: 1, direction: 'both', isolate: false } as never,
+            },
+          },
+          START,
+        ],
+      },
+    });
+    const tour = outcome.state.tours[0] as TourFile;
+    expect(tour.steps[0]?.beside).toEqual({
+      view: 'overview',
+      camera: { x: 1, y: 2, zoom: 1.5 },
+      focus: { degrees: 1, direction: 'both' },
+    });
+    expect(tour.steps[1]).not.toHaveProperty('beside');
+    expect(applyOperations(outcome.state, outcome.inverse).state).toEqual(state);
+  });
+
   it('refuses a tour whose emphasis is neither a halo nor its own style', () => {
     expect(
       refusal(testProject(), {
@@ -340,6 +369,21 @@ describe('create-tour', () => {
       'an emphasis by another name',
       { emphasis: 'glow' as never },
       `A step's emphasis is "halo", to mark with a halo, or "style", to draw what it marks in its own style.`,
+    ],
+    [
+      'a view beside it that is not a view state',
+      { beside: 'overview' as never },
+      'Step 1 of the tour, beside it: A view state is an object.',
+    ],
+    [
+      'a view beside it that the project lacks',
+      { beside: { view: 'gone' } },
+      'Step 1 of the tour: Beside it: The project has no view "gone".',
+    ],
+    [
+      'a selection beside it that its view lacks',
+      { beside: { view: 'overview', select: ['gone'] } },
+      'Step 1 of the tour: Beside it: Nothing in the view',
     ],
     [
       'a transition by another name',
@@ -735,6 +779,22 @@ describe('update-tour', () => {
     expect(outcome.state.tours[0]?.name).toBe('A stroll');
   });
 
+  it('replaces every step with steps that show views beside them, undoing exactly (ADR 0102)', () => {
+    const { state } = withTour();
+    const steps: NewTourStep[] = [
+      { ...START, beside: { view: 'overview', camera: { x: 1, y: 2, zoom: 1 } } },
+      { ...API, beside: { view: 'overview', select: ['db'] } },
+      START,
+    ];
+    const outcome = done(state, { type: 'update-tour', id: 'walk', changes: { steps } });
+    expect(outcome.state.tours[0]?.steps.map((step) => step.beside)).toEqual([
+      { view: 'overview', camera: { x: 1, y: 2, zoom: 1 } },
+      { view: 'overview', select: ['db'] },
+      undefined,
+    ]);
+    expect(applyOperations(outcome.state, outcome.inverse).state).toEqual(state);
+  });
+
   it('sets the emphasis of a tour’s steps and takes it away, undoing exactly (ADR 0100)', () => {
     const { state } = withTour();
     const styled = done(state, { type: 'update-tour', id: 'walk', changes: { emphasis: 'style' } });
@@ -991,6 +1051,81 @@ describe('tours and the rest of the project', () => {
     const steps = deleted.tours[0]?.steps ?? [];
     expect(steps).toHaveLength(3);
     expect(steps.map((step) => isBrokenTourStep(deleted, step))).toEqual([false, false, true]);
+  });
+
+  it('flags, and previews as flagged, a step whose view beside it names what was deleted (ADR 0102)', () => {
+    const { state, tour } = withTour();
+    const second = done(state, {
+      type: 'create-view',
+      view: { id: 'second', name: 'Second', perspective: { name: 'Ownership' } },
+    }).state;
+    const beside = (viewState: NonNullable<TourStep['beside']>) => ({
+      ...START,
+      beside: viewState,
+    });
+    const toured = done(second, {
+      type: 'update-tour',
+      id: 'walk',
+      changes: {
+        steps: [
+          ...tour.steps,
+          beside({ view: 'second', select: ['db'] }),
+          beside({ view: 'overview', focus: { degrees: 1, direction: 'both', from: ['client'] } }),
+          beside({ view: 'overview', select: ['note'] }),
+          beside({ view: 'second' }),
+        ],
+      },
+    }).state;
+    const steps = toured.tours[0]?.steps ?? [];
+    expect(steps.map((step) => isBrokenTourStep(toured, step))).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    const preview = previewDelete(toured, { elements: ['db', 'client'] });
+    const after = done(toured, { type: 'delete', elements: ['db', 'client'] }).state;
+    const flagged = (now: ProjectSnapshot) =>
+      now.tours.flatMap((each) =>
+        each.steps
+          .filter((step) => isBrokenTourStep(now, step))
+          .map((step) => ({ tour: each.id, step: step.id })),
+      );
+    expect(preview.brokenTourSteps).toEqual(flagged(after));
+    expect(preview.brokenTourSteps.map((each) => each.step)).toEqual(
+      expect.arrayContaining([steps[2]?.id, steps[3]?.id]),
+    );
+    // A free shape deleted from the view beside it breaks the step as one deleted from its own.
+    const shape = previewDelete(toured, { freeShapes: ['note'] }, 'overview');
+    expect(shape.brokenTourSteps).toEqual([{ tour: 'walk', step: steps[4]?.id }]);
+    // A view beside it deleted keeps the step, flagged.
+    const gone = done(toured, { type: 'delete-view', id: 'second' }).state;
+    expect(gone.tours[0]?.steps).toEqual(steps);
+    expect(gone.tours[0]?.steps.map((step) => isBrokenTourStep(gone, step))).toEqual([
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+    ]);
+    // Given back as it is, the broken step stays; changed, it must name only what is there.
+    expect(
+      done(gone, { type: 'update-tour', id: 'walk', changes: { steps } }).state.tours[0]?.steps,
+    ).toEqual(steps);
+    expect(
+      refusal(gone, {
+        type: 'update-tour',
+        id: 'walk',
+        changes: {
+          steps: steps.map((step, at) =>
+            at === 5 ? { ...step, caption: { title: 'Changed' } } : step,
+          ),
+        },
+      }).message,
+    ).toBe('Step 6 of the tour: Beside it: The project has no view "second".');
   });
 
   it('never gives a new element an id a tour step names', () => {

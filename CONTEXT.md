@@ -369,7 +369,7 @@ The mark that moves along each relation of the step being played, from its from 
 _Avoid_: dot, token, pulse (a Pulse is a tour step's, not a scenario's)
 
 **Tour**:
-A saved sequence of steps, each a view state with an explanation, that is played to walk someone through a concept. A step can play a scenario. Created by a person or by Claude.
+A saved sequence of steps, each a view state with an explanation, that is played to walk someone through a concept. A step can play a scenario, and show another view beside it, in the pane right of the one the tour plays in (ADR 0102). Created by a person or by Claude.
 _Avoid_: walkthrough, presentation, story
 
 **Reveal**:

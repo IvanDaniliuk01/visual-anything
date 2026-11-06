@@ -678,6 +678,7 @@
 .tour-actions,
 .tour-step-marks,
 .tour-step-actions,
+.tour-step-beside-actions,
 .tour-confirm {
   display: flex;
   flex-wrap: wrap;
@@ -790,6 +791,12 @@
 
 /* What a step adds to explain (ADR 0084): the mark its caption points at, cutting, its pulse. */
 .tour-step-explains {
+  display: grid;
+  gap: var(--space-50);
+}
+
+/* The view a step shows beside it, in the pane right of the tour's (ADR 0102). */
+.tour-step-beside {
   display: grid;
   gap: var(--space-50);
 }
