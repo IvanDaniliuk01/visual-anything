@@ -147,7 +147,13 @@
 }
 
 .model-world-divider:focus-visible {
-  outline: none;
+  outline: var(--stroke-thick) solid var(--focus-ring);
+  outline-offset: calc(-1 * var(--stroke-thin));
+}
+
+.model-world-divider:active {
+  background-image: linear-gradient(var(--accent), var(--accent));
+  background-size: 100% var(--space-25);
 }
 
 /* Trees: the viewport scrolls, and only the rows in it are drawn, each at its place. */

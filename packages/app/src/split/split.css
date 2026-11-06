@@ -73,8 +73,31 @@
   cursor: pointer;
 }
 
-.canvas-pane-action:hover {
+.canvas-pane-view:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.canvas-pane-view:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.canvas-pane-view:disabled {
+  color: var(--text-muted);
+  background: var(--panel);
+  cursor: not-allowed;
+}
+
+.canvas-pane-action:hover:not(:disabled) {
   background: var(--accent-soft);
+}
+
+.canvas-pane-action:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.canvas-pane-action:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 .canvas-pane-close {
@@ -92,6 +115,10 @@
   background-size: var(--stroke-thin) 100%;
   cursor: col-resize;
   touch-action: none;
+}
+
+.canvas-pane-border:active {
+  background-color: var(--surface-pressed);
 }
 
 .canvas-pane-border:hover,
