@@ -176,6 +176,57 @@ describe('preview_face', () => {
     });
   });
 
+  it('lays a variant out at the width the face itself takes, as the canvas draws a level’s (#15)', async () => {
+    const { value } = await start();
+    const face = {
+      size: 'content',
+      markup: '<p>{{name}} — {{owner}} — Hugo Ferreyra (Paciente de prueba)</p>',
+      style: ['face { padding: 4px 8px; }', 'p { white-space: nowrap; }'],
+      variants: [{ id: 'far', markup: '<b>{{name}}</b>' }],
+    };
+    const whole = await value('preview_face', { element: 'api', face });
+    expect(whole.width).toBeGreaterThan(176);
+    const far = await value('preview_face', { element: 'api', face, variant: 'far' });
+    expect(far).toMatchObject({ width: whole.width, lines: ['API'], cut: false });
+  });
+
+  it('lays a face of size content out as a view does when given one, and says otherwise', async () => {
+    const face = {
+      size: 'content',
+      markup: '<p>{{name}} — {{owner}} — Hugo Ferreyra (Paciente de prueba)</p>',
+      style: 'p { white-space: nowrap; }',
+    };
+    const base = withDatabase();
+    const sized: ProjectSnapshot = {
+      ...base,
+      views: base.views.map((view) =>
+        view.id === 'overview'
+          ? {
+              ...view,
+              positions: view.positions.map((each) =>
+                each.element === 'api' ? { ...each, width: 150 } : each,
+              ),
+            }
+          : view,
+      ),
+    };
+    const { value, failure } = await start(sized);
+    const free = await value('preview_face', { element: 'api', face });
+    expect(free.width).toBeGreaterThan(176);
+    expect(free.widthNote).toContain('give view');
+    // The view stores a width for its shape: the canvas keeps it, the face cut in it.
+    const inView = await value('preview_face', { element: 'api', face, view: 'overview' });
+    expect(inView).toMatchObject({ width: 150, cut: true });
+    expect(inView.widthNote).toBeUndefined();
+    // The view nests the API in the system: the system keeps its own width, though the model's
+    // contents would too.
+    const holder = await value('preview_face', { element: 'system', face, view: 'overview' });
+    expect(holder.width).toBe(400);
+    expect(await failure('preview_face', { element: 'api', face, view: 'nowhere' })).toBe(
+      'There is no view "nowhere".',
+    );
+  });
+
   it('lays out a variant and a collapsed container, and says when there is no face', async () => {
     const { value, failure } = await start();
     expect(

@@ -3,7 +3,7 @@
  * it; a face of size `content` gives its shape its height before layout; a face over rows or contents
  * gives its shape a header that its rows and contents go under; an anchored part draws none.
  */
-import { layOutFace, type ProjectSnapshot } from '@visual-anything/core';
+import { layOutFace, type CleanedImage, type ProjectSnapshot } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
 import type { ShapePosition } from '@visual-anything/schema';
 import { CARD_FACE, COLUMN_FACE, SYSTEM_FACE, TABLE_FACE, withFaces } from '../test/faces';
@@ -14,8 +14,12 @@ import {
   faceHeader,
   faceOptionsOf,
   faceRect,
+  faceSignature,
+  faceWidthIn,
+  heightForFace,
   resetFaceCounts,
   shapeFaceDrawing,
+  type ShapeFace,
 } from './faces';
 import { ROWS_HEADER, ROW_HEIGHT, headerMiddle, measureRows } from './rows';
 import { buildScene, buildSceneAfresh, type ElementShape, type Scene } from './scene';
@@ -172,6 +176,122 @@ describe('faces in the scene (ADR 0083)', () => {
       expect(sized.rect.width).toBe(150);
       expect(shapeFaceDrawing(sized)!.cut).toBe(true);
     });
+
+    it('keeps the appearance’s width for a line clamp, the author’s own limit', () => {
+      const clamped = withFaces(
+        tablesProject({
+          tables: [],
+          elements: [
+            {
+              id: 'clamped',
+              component: 'systems.service',
+              name: 'Ana',
+              attributes: { description: `${NAME}, ${NAME}, ${NAME}` },
+            },
+          ],
+          positions: [{ element: 'clamped', x: 0, y: 0 }],
+        }),
+        {
+          'systems.service': {
+            size: 'content',
+            markup: ['<b>{{name}}</b>', '<p>{{description}}</p>'],
+            style: ['face { padding: 4px 8px; }', 'p { line-clamp: 1; }'],
+          },
+        },
+      );
+      const shape = shapeOf(buildScene(clamped, VIEW), 'clamped');
+      expect(shapeFaceDrawing(shape)!.cut).toBe(true);
+      expect(shape.rect.width).toBe(appearanceWidth());
+    });
+
+    it('takes the width in an ellipse’s, a person’s and a cylinder’s label area', () => {
+      const kinds = ['ellipse', 'person', 'cylinder'] as const;
+      const project = withFaces(
+        tablesProject({
+          tables: [],
+          elements: kinds.map((kind) => ({
+            id: kind,
+            component: 'systems.service',
+            name: NAME,
+            appearance: { shape: kind },
+          })),
+          positions: kinds.map((kind, at) => ({ element: kind, x: at * 900, y: 0 })),
+        }),
+        { 'systems.service': ROW_CARD },
+      );
+      const scene = buildScene(project, VIEW);
+      const whole = shapeOf(buildScene(cards(), VIEW), 'by-hand').rect.width;
+      for (const kind of kinds) {
+        const shape = shapeOf(scene, kind);
+        expect(shape.kind).toBe(kind);
+        const inside = faceWidthIn(kind, shape.rect.width);
+        // Its label area is as wide as the face needs, and no wider than a unit more.
+        expect(faceRect(shape).width).toBeCloseTo(inside);
+        expect(inside).toBeGreaterThanOrEqual(whole);
+        expect(inside).toBeLessThan(whole + (kind === 'ellipse' ? 1 : 0.001));
+        if (kind === 'ellipse') expect(shape.rect.width).toBe(Math.ceil(whole / 0.7));
+        else expect(shape.rect.width).toBe(whole);
+        expect(shape.rect.height).toBe(
+          heightForFace(kind, shape.rect.width, faceContentHeight(shape.face!, inside)),
+        );
+        const drawing = shapeFaceDrawing(shape)!;
+        expect(drawing.runs.map((run) => run.text)).toContain(NAME);
+        expect(drawing.cut).toBe(false);
+      }
+      expect(scene).toEqual(buildSceneAfresh(project, VIEW));
+    });
+
+    it('widens its container, and moves what sits after it there', () => {
+      const held = (size: 'content' | 'shape') =>
+        withFaces(
+          tablesProject({
+            tables: [],
+            elements: [
+              { id: 'billing', component: 'systems.system', name: 'Billing' },
+              { id: 'long', component: 'systems.service', name: NAME },
+              { id: 'next', component: 'systems.service', name: 'Ana' },
+            ],
+            relations: ['long', 'next'].map((id) => ({
+              id: `${id}-in`,
+              relationType: 'systems.is-part-of',
+              from: id,
+              to: 'billing',
+            })),
+            positions: [{ element: 'billing', x: 0, y: 0 }],
+          }),
+          { 'systems.service': { ...ROW_CARD, size } },
+        );
+      const before = buildScene(held('shape'), VIEW);
+      const after = buildScene(held('content'), VIEW);
+      const grown = shapeOf(after, 'long').rect.width - shapeOf(before, 'long').rect.width;
+      expect(grown).toBeGreaterThan(0);
+      expect(shapeOf(after, 'billing').rect.width).toBe(
+        shapeOf(before, 'billing').rect.width + grown,
+      );
+      expect(shapeOf(after, 'next').rect.x).toBe(shapeOf(before, 'next').rect.x + grown);
+      expect(shapeOf(after, 'next').rect.width).toBe(shapeOf(before, 'next').rect.width);
+      expect(after).toEqual(buildSceneAfresh(held('content'), VIEW));
+    });
+  });
+
+  it('signs a face by what it says, its pictures’ serials included (#15)', () => {
+    const shape = shapeOf(buildScene(systemAndService(), VIEW), 'mailer');
+    const face = shape.face!;
+    const image = {} as CleanedImage;
+    const withPicture = (serial: number): ShapeFace => ({
+      ...face,
+      pictures: { logo: { image, serial } },
+    });
+    // Faces that say the same, made apart, sign alike; another picture's serial signs otherwise.
+    expect(faceSignature({ ...face })).toBe(faceSignature(face));
+    expect(faceSignature(withPicture(1))).toBe(faceSignature(withPicture(1)));
+    expect(faceSignature(withPicture(2))).not.toBe(faceSignature(withPicture(1)));
+    expect(faceSignature(withPicture(1))).not.toBe(faceSignature(face));
+    // Another value, too; and the signature stays short, whatever the face holds.
+    const other = { ...face, input: { ...face.input, name: 'Other' } };
+    expect(faceSignature(other)).not.toBe(faceSignature(face));
+    expect(faceSignature(face).length).toBeLessThan(24);
+    expect(faceSignature(undefined)).toBe('');
   });
 
   it('arranges a container’s contents under its face’s header', () => {

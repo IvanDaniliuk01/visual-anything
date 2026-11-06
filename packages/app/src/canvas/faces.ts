@@ -77,24 +77,46 @@ export function compiledFaceOf(face: ResolvedFace): CompiledFace {
   return compiled;
 }
 
-const signatures = new WeakMap<ShapeFace, string>();
+/**
+ * The most faces told apart by what they say (`faceIdOf`) before the ids are let go: faces met again
+ * after that take new ids, which only draws their tiles once more.
+ */
+const MOST_FACE_IDS = 50_000;
+/** The id of each face that says something, by what it says. */
+const faceIds = new Map<string, number>();
+let nextFaceId = 1;
+const idsOfFaces = new WeakMap<ShapeFace, number>();
 
 /**
- * Everything about a shape's face that its drawing shows, for its tile's signature: the face compiled,
- * what fills it and the pictures it draws. A face that writes otherwise, as when only an attribute
- * its shape's detail does not show changed, makes its tile again (#15).
+ * A short id for what a face says (#15): the face compiled, what fills it and the pictures it draws.
+ * Faces that say the same share it, while it is kept; faces that say otherwise never do. Tiles'
+ * signatures and the widths kept for faces of size `content` hold it in place of what it says.
  */
-export function faceSignature(face: ShapeFace | undefined): string {
-  if (face === undefined) return '';
-  let signature = signatures.get(face);
-  if (signature === undefined) {
+export function faceIdOf(face: ShapeFace): number {
+  let id = idsOfFaces.get(face);
+  if (id === undefined) {
     const pictures = Object.entries(face.pictures ?? {}).map(
       ([ref, each]) => `${ref}=${each.serial}`,
     );
-    signature = `${face.compiled.hash} ${JSON.stringify(face.input)} ${pictures.join(',')}`;
-    signatures.set(face, signature);
+    const says = `${face.compiled.hash} ${JSON.stringify(face.input)} ${pictures.join(',')}`;
+    id = faceIds.get(says);
+    if (id === undefined) {
+      if (faceIds.size >= MOST_FACE_IDS) faceIds.clear();
+      id = nextFaceId++;
+      faceIds.set(says, id);
+    }
+    idsOfFaces.set(face, id);
   }
-  return signature;
+  return id;
+}
+
+/**
+ * What a shape's face puts in its tile's signature: the id of what it says (`faceIdOf`), so that a
+ * face that writes otherwise, as when only an attribute its shape's detail does not show changed,
+ * makes its tile again (#15), while signatures stay short.
+ */
+export function faceSignature(face: ShapeFace | undefined): string {
+  return face === undefined ? '' : `face ${faceIdOf(face)}`;
 }
 
 /** The face drawings kept for each face, by size, variant and collapsed state. */
@@ -167,30 +189,31 @@ export function faceContentHeight(face: ShapeFace, width: number, collapsed = fa
   return Math.ceil(faceDrawingOf(face, { width, ...(collapsed ? { collapsed } : {}) }).height);
 }
 
-const contentWidths = new WeakMap<ShapeFace, Map<string, number>>();
+/** The most widths of faces cut at their least width kept at once, before they are all let go. */
+const MOST_CONTENT_WIDTHS = 50_000;
+/** The widths worked out for faces cut at their least width, by what they say, kind and least width. */
+const contentWidths = new Map<string, number>();
 
 /**
  * How wide a shape of its own whose face is of size `content` is when no width is stored for it
  * (ADR 0083's clarification, #15), whether a position was given by hand or layout places it: the
  * width of its kind and appearance, `least`, while its face is not cut there; otherwise the narrowest
- * at which it is not (`faceContentWidth`), never past `FACE_CONTENT_MOST_WIDTH`. Worked out once for
- * each face, kind and least width.
+ * at which no text is cut by its width (`faceContentWidth`: a clamp never widens it), never past
+ * `FACE_CONTENT_MOST_WIDTH`. Kept by what the face says, its kind and the least width, so that the
+ * same face built again, after the definitions or the language changed, is not worked out again.
  */
 export function faceShapeWidth(face: ShapeFace, kind: ShapeKind, least: number): number {
+  if (face.compiled.size !== 'content') return least;
+  const key = `${faceIdOf(face)} ${kind} ${least}`;
+  const kept = contentWidths.get(key);
+  if (kept !== undefined) return kept;
   const inside = faceWidthIn(kind, least);
   if (!faceDrawingOf(face, { width: inside }).cut) return least;
-  let known = contentWidths.get(face);
-  const key = `${kind} ${least}`;
-  const kept = known?.get(key);
-  if (kept !== undefined) return kept;
   const most = faceWidthIn(kind, Math.max(least, FACE_CONTENT_MOST_WIDTH));
   const wanted = faceContentWidth(face.compiled, face.input, { least: inside, most });
   const width = wanted <= inside ? least : Math.ceil(kind === 'ellipse' ? wanted / 0.7 : wanted);
-  if (!known) {
-    known = new Map();
-    contentWidths.set(face, known);
-  }
-  known.set(key, width);
+  if (contentWidths.size >= MOST_CONTENT_WIDTHS) contentWidths.clear();
+  contentWidths.set(key, width);
   return width;
 }
 
