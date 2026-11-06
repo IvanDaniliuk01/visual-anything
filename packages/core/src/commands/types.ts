@@ -674,11 +674,38 @@ export interface CreateFreeShapeCommand {
   shape: NewFreeShape;
 }
 
-/** Replaces a free shape of a view. */
+/**
+ * Changes a free shape of a view: either replaced whole with `shape`, as the app sends it, or changed
+ * part by part with `id` and `changes`, merged over the shape as it is stored (ADR 0104).
+ */
 export interface UpdateFreeShapeCommand {
   type: 'update-free-shape';
   view: Id;
-  shape: FreeShape;
+  /** The free shape whole, with its id, replacing the one stored. Not with `id` and `changes`. */
+  shape?: FreeShape;
+  /** The free shape to change part by part, with `changes`. */
+  id?: Id;
+  /** Its parts to change; what they leave out stays, and `null` takes an optional part out. */
+  changes?: FreeShapeChanges;
+}
+
+/**
+ * Changes to a free shape's parts, each one its kind has: a note's `x`, `y`, `width`, `height`,
+ * `text`, `fill` and `stroke`; an arrow's `from`, `to` and `stroke`; a picture's `x`, `y`, `width`,
+ * `height`, `media` and `name`. `null` takes a color or a picture's name out. Its kind and id stay.
+ */
+export interface FreeShapeChanges {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  text?: string;
+  fill?: Color | null;
+  stroke?: Color | null;
+  from?: Point;
+  to?: Point;
+  media?: Picture['media'];
+  name?: string | null;
 }
 
 /** Deletes free shapes from a view. */

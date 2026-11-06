@@ -13,6 +13,10 @@
 - **Copy and paste elements between views, and duplicate them** (#13). Ctrl+C copies the selection, from the canvas or the Outline; Ctrl+V shows the same elements in the open view, where the pointer is, adding them to its scope when it leaves them out, so renaming one renames it everywhere; when the view shows them already, they are selected and the canvas says so. Ctrl+Shift+V, or Paste as duplicates in the canvas's menu, makes new elements instead, with everything they hold and the relations among them, inside the container under the pointer; Ctrl+D, or Duplicate in the shape's menu, does it beside the selection. Notes, arrows and pictures are pasted as copies. Pasting what another project copied is refused, for now. Claude duplicates with `duplicate_elements` (ADR 0103).
 - **Dragging an element that sits in several containers moves only the copy you grabbed** (#10). Each copy keeps its own place, so you can arrange them one by one; selecting it still highlights every copy, and moving it from the keyboard still moves them all (ADR 0007).
 
+### Claude
+
+- **Commands refuse what they do not take, and say what they take** (#14). A command Claude sends through `run_commands` with a key it does not take, such as a scope in `update-view`'s changes or `ids` in a delete, is refused, naming the keys it takes and, when another command sets it, which one, instead of doing the rest and dropping the key; so is a field left out or a value of the wrong kind. `update-free-shape` takes changes part by part, such as only a note's height, and no malformed command answers in JavaScript's words any more. The new `describe_command` gives each command's fields, which it needs, what each means and an example (ADR 0104).
+
 ## 0.1.2
 
 ### Pictures

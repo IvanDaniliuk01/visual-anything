@@ -22,11 +22,11 @@ import { loadSample } from '../test/sample';
 import { translateMessage, untranslatedParts } from './translate';
 
 /**
- * What must stay English: a command the core cannot even read, whose reason is the JavaScript
- * engine's own words. Only a command written by hand, as Claude's can be, comes to it, and the app
- * never sends one.
+ * What must stay English: nothing. A command the core cannot read was refused in the JavaScript
+ * engine's own words; since the core checks every command's shape first (ADR 0104), it is refused in
+ * words of the core's, and the engine's are only a last safety net that no command reaches.
  */
-const STAYS_ENGLISH: readonly RegExp[] = [/^The command is not well formed: /];
+const STAYS_ENGLISH: readonly RegExp[] = [];
 
 const sample = loadSample();
 

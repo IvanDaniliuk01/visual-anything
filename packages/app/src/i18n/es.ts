@@ -5598,6 +5598,60 @@ export const messages: Catalog = {
   'A command is an object with a type.': 'Un comando es un objeto JSON con un tipo.',
   'A batch needs at least one command.': 'Un lote necesita al menos un comando.',
   '"{type}" is not a command.': '"{type}" no es un comando.',
+  // The shape of a command, which the core checks before the command runs (ADR 0104).
+  '{command} does not take "{key}": it takes {keys}.':
+    '{command} no admite "{key}": admite {keys}.',
+  '{command} does not take "{field}": "{parent}" takes {keys}.':
+    '{command} no admite "{field}": "{parent}" admite {keys}.',
+  '{command} needs "{field}".': '{command} necesita "{field}".',
+  '{command} takes "{field}" as text, not {value}.':
+    '{command} recibe "{field}" como texto, no {value}.',
+  '{command} takes "{field}" as text or null, not {value}.':
+    '{command} recibe "{field}" como texto o null, no {value}.',
+  '{command} takes "{field}" as a number, not {value}.':
+    '{command} recibe "{field}" como un número, no {value}.',
+  '{command} takes "{field}" as true or false, not {value}.':
+    '{command} recibe "{field}" como true o false, no {value}.',
+  '{command} takes "{field}" as true, false or null, not {value}.':
+    '{command} recibe "{field}" como true, false o null, no {value}.',
+  '{command} takes "{field}" as a list, not {value}.':
+    '{command} recibe "{field}" como una lista, no {value}.',
+  '{command} takes "{field}" as a list or null, not {value}.':
+    '{command} recibe "{field}" como una lista o null, no {value}.',
+  '{command} takes "{field}" as an object, not {value}.':
+    '{command} recibe "{field}" como un objeto JSON, no {value}.',
+  '{command} takes "{field}" as an object or null, not {value}.':
+    '{command} recibe "{field}" como un objeto JSON o null, no {value}.',
+  '"{key}" goes in "{parent}".': '"{key}" va en "{parent}".',
+  '"{key}" goes at the command\'s level.': '"{key}" va en el nivel del comando.',
+  "A view's scope is set with set-scope.": 'El alcance de una vista se establece con set-scope.',
+  'The relation types a view leaves out are set with set-relation-types-left-out.':
+    'Los tipos de relación que una vista deja fuera se establecen con set-relation-types-left-out.',
+  "A view's overlays are set with set-overlays.":
+    'Las superposiciones de una vista se establecen con set-overlays.',
+  "A view's drawing defaults are set with set-drawing-defaults.":
+    'Los valores de dibujo de una vista se establecen con set-drawing-defaults.',
+  'Containers are collapsed with set-collapsed.': 'Los contenedores se contraen con set-collapsed.',
+  'Views are filed in folders with organize-views.':
+    'Las vistas se organizan en carpetas con organize-views.',
+  "Give the elements' ids in elements and the relations' in relations.":
+    'Indicar los ids de los elementos en elements y los de las relaciones en relations.',
+  'An id never changes.': 'Un id nunca cambia.',
+  "An element's containers change with change-container.":
+    'Los contenedores de un elemento cambian con change-container.',
+  'Where its shapes sit is set with set-positions.':
+    'El lugar de sus formas se establece con set-positions.',
+  'update-free-shape takes the free shape whole in "shape", or its "id" with "changes", not both.':
+    'update-free-shape recibe la forma libre completa en "shape", o su "id" con "changes", no ambas cosas.',
+  'update-free-shape needs the free shape whole in "shape", or its "id" with "changes".':
+    'update-free-shape necesita la forma libre completa en "shape", o su "id" con "changes".',
+  'update-free-shape needs the id of the free shape it replaces in "shape.id".':
+    'update-free-shape necesita el id de la forma libre que reemplaza en "shape.id".',
+  'A note has no "{key}": it takes {keys}.': 'Una nota no tiene "{key}": admite {keys}.',
+  'An arrow has no "{key}": it takes {keys}.': 'Una flecha no tiene "{key}": admite {keys}.',
+  'A picture has no "{key}": it takes {keys}.': 'Una imagen no tiene "{key}": admite {keys}.',
+  'Each move of restack names its shape: { "element": id }.':
+    'Cada movimiento de restack nombra su forma: { "element": id }.',
   '{key} must be a list.': '{key} debe ser una lista.',
   '"{key}" must be a list.': '"{key}" debe ser una lista.',
   'Bend points must be a list.': 'Los puntos de quiebre deben ser una lista.',

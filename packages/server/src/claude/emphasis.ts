@@ -199,8 +199,14 @@ export function escapeTexts(state: ProjectSnapshot, command: Command): Command {
         });
       case 'create-free-shape':
         return { ...each, shape: note(each.shape) };
-      case 'update-free-shape':
-        return { ...each, shape: note(each.shape) };
+      case 'update-free-shape': {
+        // A note changed part by part has its text in its changes (ADR 0104).
+        const shaped = each.shape === undefined ? each : { ...each, shape: note(each.shape) };
+        const given: unknown = shaped.changes;
+        return given !== null && typeof given === 'object' && 'text' in given
+          ? { ...shaped, changes: { ...given, text: escaped(given.text) } as typeof shaped.changes }
+          : shaped;
+      }
       case 'create-scenario':
         return { ...each, scenario: withDescription(each.scenario) };
       case 'create-tour':
