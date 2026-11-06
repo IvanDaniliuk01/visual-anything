@@ -3,7 +3,7 @@
  * on the clipboard, Ctrl+V shows the same elements or says they are there already, Ctrl+Shift+V and
  * Ctrl+D send `duplicate-elements`, and what is not a copy of elements is left alone.
  */
-import type { Command, ProjectSnapshot } from '@visual-anything/core';
+import { executeCommand, type Command, type ProjectSnapshot } from '@visual-anything/core';
 import { act, createEvent, fireEvent, render, screen } from '@testing-library/react';
 import { useMemo, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -77,6 +77,19 @@ function fire(kind: 'copy' | 'paste', target: HTMLElement, data: ReturnType<type
   Object.defineProperty(event, 'clipboardData', { value: data });
   fireEvent(target, event);
   return event;
+}
+
+/** A copy of elements as the clipboard holds it, each at the copy's top left corner. */
+function copyText(elements: string[], project = sample.project.name): string {
+  return JSON.stringify({
+    kind: COPIED_ELEMENTS,
+    project,
+    view: VIEW,
+    elements,
+    relations: [],
+    arrangement: elements.map((element) => ({ element, x: 0, y: 0 })),
+    freeShapes: [],
+  });
 }
 
 async function answers(): Promise<void> {
@@ -162,6 +175,44 @@ describe('Copy and Paste on the canvas', () => {
     await answers();
     expect(onCommand).not.toHaveBeenCalled();
     expect(status()).toHaveTextContent(/copied from another project, “Another project”/);
+  });
+
+  it('shows the same elements in a view whose scope leaves them out, as one action, and selects them', async () => {
+    const outcome = executeCommand(sample, {
+      type: 'set-scope',
+      view: VIEW,
+      scope: { include: [{ kind: 'component', component: 'systems.person' }] },
+    });
+    if (!outcome.ok) throw new Error('the scope was refused');
+    const onCommand = accepted();
+    const host = await started(selectionOf([]), onCommand, outcome.state);
+    host.focus();
+    fire('paste', host, clipboard(copyText(['clinic-booking'])));
+    await answers();
+    expect(sent(onCommand)).toEqual([
+      expect.objectContaining({
+        type: 'batch',
+        commands: [
+          { type: 'add-to-view', view: VIEW, elements: ['clinic-booking'] },
+          expect.objectContaining({ type: 'set-positions', view: VIEW }),
+        ],
+      }),
+    ]);
+    expect([...selected.elements]).toEqual(['clinic-booking']);
+  });
+
+  it('adds a pasted picture as a picture, even beside a copy of elements (ADR 0098)', async () => {
+    const onCommand = accepted();
+    const host = await started(selectionOf([]), onCommand);
+    host.focus();
+    const data = clipboard(copyText(['patient'], 'Another project'));
+    data.files = [new File(['x'], 'photo.png', { type: 'image/png' })] as unknown as FileList;
+    expect(fire('paste', host, data).defaultPrevented).toBe(true);
+    await answers();
+    // The picture's way took it: without the local program it cannot be kept, and says so.
+    expect(status()).toHaveTextContent('The project cannot be changed now.');
+    expect(status()).not.toHaveTextContent(/another project/);
+    expect(onCommand).not.toHaveBeenCalled();
   });
 
   it('copies from the Outline, which shares the selection, and nowhere else with the focus', async () => {
