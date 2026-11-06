@@ -24,7 +24,6 @@ import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import { GuidanceLayer } from '../guidance/GuidanceLayer';
 import { useSelection } from '../editor/useSelection';
 import { useExpandedInPlace } from '../canvas/layout/expand';
-import { buildScene } from '../canvas/scene';
 import {
   ZoomExpansion,
   ZoomExpansionContext,
@@ -35,9 +34,10 @@ import { useExplorer, type ViewExplore } from '../canvas/useExplorer';
 import { selectionOf } from '../editor/selection';
 import { showsViews } from '../guidance/tabs';
 import { PaneCanvas, type ShownCanvas } from '../split/PaneCanvas';
-import { SplitPanes, activeOf } from '../split/panes';
+import { SplitPanes, activeOf, tabStorage } from '../split/panes';
 import { SplitView } from '../split/SplitView';
-import { describeDrawing, viewOf } from '../split/views';
+import { ViewScenes } from '../split/scenes';
+import { describeDrawing, leadingPanes, viewOf } from '../split/views';
 import { definitionsIn, reducedMotionOf } from '@visual-anything/core';
 import { useT, type Translator } from '../i18n';
 import { LiveContext } from '../live/context';
@@ -124,8 +124,21 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
   // The panes of the split view (ADR 0102): the open view is the active pane's. Opening a view opens
   // it there, or makes active the pane that shows it already; a view state, as an address, a tour's
   // step or a jump gives one, shows its view in the active pane.
-  const [panes] = useState(() => new SplitPanes());
+  // They are each project's: another project brings back its own, and a view gone takes its panes.
+  const [panes] = useState(
+    () =>
+      new SplitPanes(tabStorage(), {
+        name: project.project.name,
+        views: project.views.map((each) => each.id),
+      }),
+  );
+  const viewIds = useMemo(() => project.views.map((each) => each.id), [project.views]);
+  useLayoutEffect(() => {
+    panes.setProject({ name: project.project.name, views: viewIds });
+  }, [panes, project.project.name, viewIds]);
   const layout = useSyncExternalStore(panes.subscribe, panes.snapshot);
+  // The pane that places new shapes of its view and follows its zoom, one for each view shown.
+  const leaders = useMemo(() => leadingPanes(project, layout), [project, layout]);
   const activePane = activeOf(layout);
   const setOpenViewId = useCallback((id: Id) => panes.open(id), [panes]);
   const showInActivePane = useCallback((id: Id) => panes.setView(panes.active.id, id), [panes]);
@@ -158,13 +171,14 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
   const zoomed = useExpandedByZoom(zoom, view?.id);
   // Expanding by zoom opens in place: the scene draws what it moved aside where it moved it, and
   // nothing is stored (ADR 0080, section 4).
-  const inPlace = useExpandedInPlace(project, view, zoomed);
+  // One scene for each view, which every pane that draws the view shares (ADR 0102).
+  const [scenes] = useState(() => new ViewScenes());
+  const inPlace = useExpandedInPlace(project, view, zoomed, scenes);
   const expanded = inPlace.expanded;
   const scene = useMemo(
-    () => (view ? buildScene(inPlace.project, view.id, expanded) : undefined),
+    () => (view ? scenes.scene(inPlace.project, view.id, expanded, t.language) : undefined),
     // The canvas writes built-in names and its own words in the language read in (ADR-0038).
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the language is read by buildScene
-    [inPlace.project, view, t.language, expanded],
+    [scenes, inPlace.project, view, t.language, expanded],
   );
   const [revealed, setRevealed] = useState<{ key: string; request: number }>();
   const reveal = useCallback((key: string) => {
@@ -603,6 +617,7 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                         layout={layout}
                                         project={project}
                                         onOpenBeside={openBeside}
+                                        held={tours.playback.tour !== undefined}
                                         overlay={
                                           <>
                                             <CommentPins store={comments} canvas={canvas} />
@@ -638,6 +653,8 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                               onSelect={setSelection}
                                               onCommand={onCommand}
                                               theme={theme}
+                                              scenes={scenes}
+                                              leads={leaders.has(pane.id)}
                                               onCanvas={onPaneCanvas}
                                               shown={active ? shownCanvas : undefined}
                                             />

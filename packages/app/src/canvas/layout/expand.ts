@@ -282,12 +282,24 @@ export function cameraToShow(
 }
 
 /** The places an expansion by zoom gives, and the stored places they stand in for. */
-interface ZoomPlaces {
+export interface ZoomPlaces {
   view: Id;
   expanded: ReadonlySet<Id>;
   /** The view's positions they were worked out from. */
   from: ViewFile['positions'];
   places: ReadonlyMap<string, { position: ShapePosition; was: ShapePosition | undefined }>;
+}
+
+/**
+ * What the canvases of one view share of expanding by zoom in place, as the panes of a split view do
+ * (ADR 0102): the places worked out for each view, and what is drawn from them, so that a pane that
+ * shows a view another one showed, or becomes active, draws the same at once.
+ */
+export interface SharedInPlace {
+  /** The places worked out last for each view. */
+  readonly places: Map<Id, ZoomPlaces>;
+  /** `make()`, or what it gave last for the same `key` and the same `inputs`. */
+  memo<T>(key: string, inputs: readonly unknown[], make: () => T): T;
 }
 
 /**
@@ -302,14 +314,24 @@ export function useExpandedInPlace(
   project: ProjectSnapshot,
   view: ViewFile | undefined,
   expanded: ReadonlySet<Id>,
+  shared?: SharedInPlace,
 ): { project: ProjectSnapshot; expanded: ReadonlySet<Id> } {
   const runner = useLayoutRunner();
-  const [ready, setReady] = useState<ZoomPlaces>();
+  const [own, setOwn] = useState<ZoomPlaces>();
   const viewId = view?.id;
   const positions = view?.positions;
+  // The places worked out last for the view, by this canvas or by another canvas of the view.
+  const ready = (viewId === undefined ? undefined : shared?.places.get(viewId)) ?? own;
+  const setReady = (places: ZoomPlaces) => {
+    shared?.places.set(places.view, places);
+    setOwn(places);
+  };
 
   useEffect(() => {
     if (!runner || viewId === undefined || positions === undefined || expanded.size === 0) return;
+    // Worked out already, by another canvas of the view.
+    const known = shared?.places.get(viewId);
+    if (known && known.expanded === expanded && known.from === positions) return;
     let current = true;
     const stop = new AbortController();
     // Worked out from the view's stored places, with the whole set the zoom expands.
@@ -358,36 +380,51 @@ export function useExpandedInPlace(
   }, [runner, viewId, positions, expanded]);
 
   return useMemo(() => {
-    if (!view || expanded.size === 0) return { project, expanded };
-    if (!runner) return { project, expanded };
-    const known = ready?.view === view.id ? ready : undefined;
-    // Until the places of what the zoom expanded come, what they are for shows as it was.
-    const all = known !== undefined && [...expanded].every((id) => known.expanded.has(id));
-    const shown = all
-      ? expanded
-      : new Set(known ? [...expanded].filter((id) => known.expanded.has(id)) : []);
-    if (!known || known.places.size === 0 || shown.size === 0) {
-      return { project, expanded: shown.size === 0 ? NOT_EXPANDED : shown };
-    }
-    const stored = new Map(view.positions.map((position) => [positionKey(position), position]));
-    const placed = new Map<string, ShapePosition>();
-    for (const [key, { position, was }] of known.places) {
-      const now = stored.get(key);
-      const unmoved =
-        now === undefined
-          ? was === undefined
-          : was !== undefined && now.x === was.x && now.y === was.y;
-      if (unmoved) placed.set(key, position);
-    }
-    if (placed.size === 0) return { project, expanded: shown };
-    const kept = view.positions.map((position) => placed.get(positionKey(position)) ?? position);
-    const added = [...placed.entries()]
-      .filter(([key]) => !stored.has(key))
-      .map(([, position]) => position);
-    const drawn: ViewFile = { ...view, positions: [...kept, ...added] };
-    return {
-      project: { ...project, views: project.views.map((each) => (each === view ? drawn : each)) },
-      expanded: shown,
-    };
-  }, [project, view, expanded, runner, ready]);
+    // Another canvas of the view draws the very project worked out here, and so the same scene.
+    const make = () => drawnInPlace(project, view, expanded, Boolean(runner), ready);
+    return shared && viewId !== undefined
+      ? shared.memo(`in-place:${viewId}`, [project, view, expanded, runner, ready], make)
+      : make();
+  }, [project, view, viewId, expanded, runner, ready, shared]);
+}
+
+/** The project to draw a view from, with the places the zoom's expansion was given, and what shows. */
+function drawnInPlace(
+  project: ProjectSnapshot,
+  view: ViewFile | undefined,
+  expanded: ReadonlySet<Id>,
+  runs: boolean,
+  ready: ZoomPlaces | undefined,
+): { project: ProjectSnapshot; expanded: ReadonlySet<Id> } {
+  if (!view || expanded.size === 0) return { project, expanded };
+  if (!runs) return { project, expanded };
+  const known = ready?.view === view.id ? ready : undefined;
+  // Until the places of what the zoom expanded come, what they are for shows as it was.
+  const all = known !== undefined && [...expanded].every((id) => known.expanded.has(id));
+  const shown = all
+    ? expanded
+    : new Set(known ? [...expanded].filter((id) => known.expanded.has(id)) : []);
+  if (!known || known.places.size === 0 || shown.size === 0) {
+    return { project, expanded: shown.size === 0 ? NOT_EXPANDED : shown };
+  }
+  const stored = new Map(view.positions.map((position) => [positionKey(position), position]));
+  const placed = new Map<string, ShapePosition>();
+  for (const [key, { position, was }] of known.places) {
+    const now = stored.get(key);
+    const unmoved =
+      now === undefined
+        ? was === undefined
+        : was !== undefined && now.x === was.x && now.y === was.y;
+    if (unmoved) placed.set(key, position);
+  }
+  if (placed.size === 0) return { project, expanded: shown };
+  const kept = view.positions.map((position) => placed.get(positionKey(position)) ?? position);
+  const added = [...placed.entries()]
+    .filter(([key]) => !stored.has(key))
+    .map(([, position]) => position);
+  const drawn: ViewFile = { ...view, positions: [...kept, ...added] };
+  return {
+    project: { ...project, views: project.views.map((each) => (each === view ? drawn : each)) },
+    expanded: shown,
+  };
 }

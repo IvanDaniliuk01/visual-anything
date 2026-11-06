@@ -9,7 +9,7 @@ import { Shell } from '../shell/Shell';
 import { fakeLive } from '../test/fakeLive';
 import { fakeCameras } from '../test/fakeCamera';
 import { loadSample } from '../test/sample';
-import { PANES_STORAGE_KEY } from './panes';
+import { panesKey } from './panes';
 
 vi.mock('../canvas/CanvasArea', () => import('../test/FakeSplitCanvas'));
 
@@ -24,6 +24,60 @@ const project: ProjectSnapshot = {
     { ...overview, id: 'storage', name: 'Storage', positions: [] },
     { ...overview, id: 'people', name: 'People', positions: [] },
   ],
+};
+
+/** Where the tab keeps the panes of this project. */
+const KEY = panesKey(project.project.name);
+
+/** Two panes, kept in the tab's storage for this project: System overview, active, and Storage. */
+function keepTwoPanes(): void {
+  sessionStorage.setItem(
+    KEY,
+    JSON.stringify({
+      active: 'pane-1',
+      panes: [
+        { id: 'pane-1', view: 'system-overview', width: 1 },
+        { id: 'pane-2', view: 'storage', width: 1 },
+      ],
+    }),
+  );
+}
+
+/** The sample, in which the Calendar component's runbook opens the Storage view, on the patient. */
+const linked: ProjectSnapshot = {
+  ...project,
+  packages: project.packages.map((file) =>
+    file.id === 'clinic'
+      ? {
+          ...file,
+          components: file.components.map((each) =>
+            each.id === 'clinic.calendar'
+              ? {
+                  ...each,
+                  attributes: [
+                    ...(each.attributes ?? []),
+                    { name: 'runbook', type: 'destination' as const },
+                  ],
+                }
+              : each,
+          ),
+        }
+      : file,
+  ),
+  model: {
+    ...project.model,
+    elements: project.model.elements.map((element) =>
+      element.id === 'appointments-db'
+        ? {
+            ...element,
+            attributes: {
+              ...element.attributes,
+              runbook: { view: 'storage', focus: ['patient'] },
+            },
+          }
+        : element,
+    ),
+  },
 };
 
 /** Another tab of the browser was used after this one. */
@@ -124,7 +178,7 @@ describe('the split view', () => {
     expect(screen.queryByRole('region', { name: /pane$/ })).toBeNull();
     expect(screen.queryByRole('combobox', { name: 'View in this pane' })).toBeNull();
     expect(headerView().getByText('Storage')).toBeInTheDocument();
-    expect(sessionStorage.getItem(PANES_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(KEY)).toBeNull();
   });
 
   it('shares the width with the arrow keys on the border, each pane keeping its least width', () => {
@@ -235,42 +289,6 @@ describe('the split view', () => {
   });
 
   it('opens a destination’s view beside the active pane, with what it names selected', () => {
-    // The Calendar component's runbook opens the Storage view, on the patient.
-    const linked: ProjectSnapshot = {
-      ...project,
-      packages: project.packages.map((file) =>
-        file.id === 'clinic'
-          ? {
-              ...file,
-              components: file.components.map((each) =>
-                each.id === 'clinic.calendar'
-                  ? {
-                      ...each,
-                      attributes: [
-                        ...(each.attributes ?? []),
-                        { name: 'runbook', type: 'destination' as const },
-                      ],
-                    }
-                  : each,
-              ),
-            }
-          : file,
-      ),
-      model: {
-        ...project.model,
-        elements: project.model.elements.map((element) =>
-          element.id === 'appointments-db'
-            ? {
-                ...element,
-                attributes: {
-                  ...element.attributes,
-                  runbook: { view: 'storage', focus: ['patient'] },
-                },
-              }
-            : element,
-        ),
-      },
-    };
     render(<Shell project={linked} />);
     fireEvent.click(
       within(screen.getByRole('tree', { name: 'Outline of System overview' })).getByText(
@@ -289,7 +307,7 @@ describe('the split view', () => {
 
   it('brings its panes, their views, widths and cameras back from the tab’s storage', () => {
     sessionStorage.setItem(
-      PANES_STORAGE_KEY,
+      KEY,
       JSON.stringify({
         active: 'pane-2',
         panes: [
@@ -308,7 +326,7 @@ describe('the split view', () => {
   });
 
   it('keeps nothing in the tab’s storage that is not read strictly', () => {
-    sessionStorage.setItem(PANES_STORAGE_KEY, '{"active":"pane-1","panes":[{"id":"x"}]}');
+    sessionStorage.setItem(KEY, '{"active":"pane-1","panes":[{"id":"x"}]}');
     render(<Shell project={project} />);
     expect(viewsDrawn()).toEqual(['system-overview']);
   });
@@ -318,7 +336,7 @@ describe('Claude’s guidance in a split view', () => {
   /** The shell with two panes open, over a session with this guidance. */
   function renderSplit(guidance: GuidanceState) {
     sessionStorage.setItem(
-      PANES_STORAGE_KEY,
+      KEY,
       JSON.stringify({
         active: 'pane-1',
         panes: [
@@ -356,5 +374,197 @@ describe('Claude’s guidance in a split view', () => {
     renderSplit({ marks: { kind: 'highlight', targets: ['patient'], view: 'people', request: 1 } });
     expect(viewsDrawn()).toEqual(['people', 'storage']);
     expect(activeView()).toBe('people');
+  });
+});
+
+describe('the panes of a split view, as the person works with them', () => {
+  it('makes the left neighbor active as the active pane closes', () => {
+    render(<Shell project={project} />);
+    openBeside('Storage');
+    openBeside('People');
+    expect(viewsDrawn()).toEqual(['system-overview', 'people', 'storage']);
+    fireEvent.pointerDown(canvases()[1] as HTMLElement);
+    const people = screen.getByRole('region', { name: 'People, the active pane' });
+    fireEvent.click(within(people).getByRole('button', { name: 'Close the pane of “People”' }));
+    expect(viewsDrawn()).toEqual(['system-overview', 'storage']);
+    expect(activeView()).toBe('system-overview');
+  });
+
+  it('opens beside from an inactive pane’s header, at three panes in the rightmost but the active one', () => {
+    render(<Shell project={project} />);
+    openBeside('Storage');
+    openBeside('People');
+    const people = screen.getByRole('region', { name: 'People, a pane' });
+    fireEvent.click(within(people).getByRole('button', { name: 'Open "People" beside' }));
+    expect(viewsDrawn()).toEqual(['system-overview', 'people', 'people']);
+    expect(activeView()).toBe('system-overview');
+  });
+
+  it('opens a destination’s view beside at three panes in the rightmost but the active one', () => {
+    render(<Shell project={linked} />);
+    openBeside('Storage');
+    openBeside('People');
+    fireEvent.pointerDown(canvases()[2] as HTMLElement);
+    expect(activeView()).toBe('storage');
+    fireEvent.click(screen.getByRole('tab', { name: 'Outline' }));
+    fireEvent.click(
+      within(screen.getByRole('tree', { name: 'Outline of Storage' })).getByText('Appointments DB'),
+    );
+    fireEvent.click(
+      within(inspector()).getByRole('button', {
+        name: 'Open the view “Storage” beside the active pane',
+      }),
+    );
+    expect(viewsDrawn()).toEqual(['system-overview', 'storage', 'storage']);
+    expect(canvases()[2]).toHaveAttribute('data-active', 'true');
+    expect(canvases()[1]).toHaveAttribute('data-selected', 'patient');
+  });
+
+  it('moves a border with the pointer, which comes back from past its limit without drifting', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains('canvas-panes')
+        ? new DOMRect(0, 0, 1000, 600)
+        : new DOMRect(0, 0, 0, 0);
+    });
+    try {
+      render(<Shell project={project} />);
+      openBeside('Storage');
+      const border = screen.getByRole('separator', {
+        name: 'Resize “System overview” and “Storage”',
+      });
+      fireEvent.pointerDown(border, { pointerId: 1, button: 0, clientX: 500 });
+      fireEvent.pointerMove(border, { pointerId: 1, clientX: 600 });
+      expect(border).toHaveAttribute('aria-valuenow', '60');
+      // Far past the least width of the left pane, 240 pixels of 1000, and back.
+      fireEvent.pointerMove(border, { pointerId: 1, clientX: -2000 });
+      expect(border).toHaveAttribute('aria-valuenow', '24');
+      fireEvent.pointerMove(border, { pointerId: 1, clientX: 450 });
+      expect(border).toHaveAttribute('aria-valuenow', '45');
+      fireEvent.pointerUp(border, { pointerId: 1, clientX: 450 });
+      fireEvent.pointerMove(border, { pointerId: 1, clientX: 900 });
+      expect(border).toHaveAttribute('aria-valuenow', '45');
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('draws the same scene in a pane as it becomes active and as it stops being so', () => {
+    render(<Shell project={project} />);
+    openBeside('Storage');
+    fireEvent.pointerDown(canvases()[1] as HTMLElement);
+    expect(activeView()).toBe('storage');
+    fireEvent.pointerDown(canvases()[0] as HTMLElement);
+    expect(activeView()).toBe('system-overview');
+    expect(canvases().map((canvas) => canvas.dataset.scenes)).toEqual(['1', '1']);
+  });
+
+  it('places the new shapes of a view two panes show in one of them, the active one first', () => {
+    render(<Shell project={project} />);
+    openBeside('Storage');
+    openBeside('Storage');
+    expect(viewsDrawn()).toEqual(['system-overview', 'storage', 'storage']);
+    const places = () => canvases().map((canvas) => canvas.dataset.placesNew);
+    // The leftmost of the two, while neither is active.
+    expect(places()).toEqual(['true', 'true', 'false']);
+    fireEvent.pointerDown(canvases()[2] as HTMLElement);
+    expect(places()).toEqual(['true', 'false', 'true']);
+  });
+
+  it('keeps a tour in the pane it plays in, the other panes beside it', () => {
+    render(
+      <LiveContext value={fakeLive({ project })}>
+        <Shell project={project} />
+      </LiveContext>,
+    );
+    openBeside('Storage');
+    const panel = screen.getByRole('complementary', { name: 'Outline and model' });
+    fireEvent.click(within(panel).getByRole('tab', { name: 'Tours' }));
+    fireEvent.click(
+      within(within(panel).getByRole('tabpanel', { name: 'Tours' })).getByRole('button', {
+        name: 'Play “How booking works” full screen',
+      }),
+    );
+    expect(document.querySelector('.shell')).toHaveClass('tour-playing');
+    expect(viewsDrawn()).toEqual(['system-overview', 'storage']);
+    fireEvent.pointerDown(canvases()[1] as HTMLElement);
+    fireEvent.focus(canvases()[1] as HTMLElement);
+    expect(activeView()).toBe('system-overview');
+    expect(screen.getByRole('article')).toHaveTextContent('Clinic booking');
+  });
+});
+
+describe('the panes the tab keeps for a project', () => {
+  it('reads no other project’s panes', () => {
+    sessionStorage.setItem(
+      panesKey('Another project'),
+      JSON.stringify({
+        active: 'pane-1',
+        panes: [
+          { id: 'pane-1', view: 'system-overview', width: 1 },
+          { id: 'pane-2', view: 'storage', width: 1 },
+        ],
+      }),
+    );
+    render(<Shell project={project} />);
+    expect(viewsDrawn()).toEqual(['system-overview']);
+  });
+
+  it('passes over panes that name a view the project lacks, and drops them', () => {
+    sessionStorage.setItem(
+      KEY,
+      JSON.stringify({
+        active: 'pane-1',
+        panes: [
+          { id: 'pane-1', view: 'system-overview', width: 1 },
+          { id: 'pane-2', view: 'gone', width: 1 },
+        ],
+      }),
+    );
+    render(<Shell project={project} />);
+    expect(viewsDrawn()).toEqual(['system-overview']);
+    expect(sessionStorage.getItem(KEY)).toBeNull();
+  });
+
+  it('closes the panes of a view deleted, down to the single canvas', () => {
+    keepTwoPanes();
+    const shown = render(<Shell project={project} />);
+    expect(viewsDrawn()).toEqual(['system-overview', 'storage']);
+    fireEvent.pointerDown(canvases()[1] as HTMLElement);
+    shown.rerender(
+      <Shell
+        project={{ ...project, views: project.views.filter((view) => view.id !== 'storage') }}
+      />,
+    );
+    expect(viewsDrawn()).toEqual(['system-overview']);
+    expect(activeView()).toBe('system-overview');
+    expect(sessionStorage.getItem(KEY)).toBeNull();
+  });
+
+  it('brings back each project’s own panes as another opens in the tab', () => {
+    const other: ProjectSnapshot = {
+      ...project,
+      project: { ...project.project, name: 'Another project' },
+    };
+    sessionStorage.setItem(
+      panesKey('Another project'),
+      JSON.stringify({
+        active: 'pane-3',
+        panes: [
+          { id: 'pane-2', view: 'people', width: 1 },
+          { id: 'pane-3', view: 'storage', width: 1 },
+        ],
+      }),
+    );
+    keepTwoPanes();
+    const shown = render(<Shell project={project} />);
+    expect(viewsDrawn()).toEqual(['system-overview', 'storage']);
+    shown.rerender(<Shell project={other} />);
+    expect(viewsDrawn()).toEqual(['people', 'storage']);
+    expect(activeView()).toBe('storage');
+    shown.rerender(<Shell project={project} />);
+    expect(viewsDrawn()).toEqual(['system-overview', 'storage']);
+    expect(activeView()).toBe('system-overview');
   });
 });

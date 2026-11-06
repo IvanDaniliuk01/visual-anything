@@ -39,6 +39,8 @@ interface SplitViewProps {
   children: (pane: Pane, active: boolean) => ReactNode;
   /** What shows over the active pane. */
   overlay: ReactNode;
+  /** Whether the active pane stays active whatever is pressed, as while a tour plays in it. */
+  held?: boolean;
 }
 
 export function SplitView({
@@ -48,13 +50,15 @@ export function SplitView({
   onOpenBeside,
   children,
   overlay,
+  held = false,
 }: SplitViewProps) {
   const t = useT();
   const container = useRef<HTMLDivElement>(null);
   const split = layout.panes.length > 1;
   // Pressing in a pane makes it active first, as moving the focus into it does; its header, whose
-  // controls act on that pane by itself, does not.
+  // controls act on that pane by itself, does not. While a tour plays, it stays in its pane.
   const activate = (pane: Pane, target: EventTarget) => {
+    if (held) return;
     if (target instanceof Element && target.closest('.canvas-pane-header') !== null) return;
     store.activate(pane.id);
   };
@@ -171,11 +175,11 @@ function PaneHeader({
   );
 }
 
-/** Where a drag of a border started, and the share it started from. */
+/** Where a drag of a border started, and the left pane's share then. */
 interface Drag {
   pointer: number;
   x: number;
-  moved: number;
+  width: number;
 }
 
 /**
@@ -216,16 +220,21 @@ function PaneBorder({
     event.preventDefault();
     event.currentTarget.focus();
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    drag.current = { pointer: event.pointerId, x: event.clientX, moved: 0 };
+    const width = store.snapshot().panes[border]?.width;
+    if (width === undefined) return;
+    drag.current = { pointer: event.pointerId, x: event.clientX, width };
   };
 
   const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
     const current = drag.current;
     const total = width();
     if (current?.pointer !== event.pointerId || total <= 0) return;
-    const moved = (event.clientX - current.x) / total;
-    store.resize(border, moved - current.moved, minimumShare(total));
-    current.moved = moved;
+    // The left pane takes the share it started from and what the pointer moved, as far as the least
+    // widths let it, so that a pointer gone past the limit moves the border only once it is back.
+    const now = store.snapshot().panes[border]?.width;
+    if (now === undefined) return;
+    const wanted = current.width + (event.clientX - current.x) / total;
+    store.resize(border, wanted - now, minimumShare(total));
   };
 
   const onPointerEnd = (event: PointerEvent<HTMLDivElement>) => {

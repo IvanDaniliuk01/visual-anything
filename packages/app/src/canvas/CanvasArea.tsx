@@ -87,7 +87,7 @@ import { addRowCommand } from './rowCommands';
 import { indexScene, withoutShapes, type IndexedScene } from './hit';
 import { InlineEditor } from './InlineEditor';
 import { CANVAS_KEYS_HINT } from './keys';
-import { forThisTab } from '../guidance/tabs';
+import { forThisTab, handleInThisTab, handledInThisTab } from '../guidance/tabs';
 import type { LayoutScope } from './layout/input';
 import { EXPAND_CAMERA_MS, cameraToShow, collapseCommand, showInPlace } from './layout/expand';
 import { laidOutBounds } from './layout/laidOut';
@@ -173,6 +173,11 @@ interface CanvasAreaProps {
    * window's stacking keys, shares what it hovers, and speaks in a polite live region.
    */
   active?: boolean;
+  /**
+   * Whether this canvas lays out the shapes of its view that appear without a position: true unless
+   * given. Of the panes of a split view that show one view, only one does (ADR 0102).
+   */
+  placesNew?: boolean;
 }
 
 /**
@@ -265,6 +270,7 @@ export function CanvasArea({
   onTurning,
   comparison,
   active = true,
+  placesNew = true,
 }: CanvasAreaProps) {
   const t = useT();
   const frameRef = useRef<HTMLDivElement>(null);
@@ -351,8 +357,10 @@ export function CanvasArea({
   const passedOver = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (askedLayout?.answer === undefined || guidedLayout !== undefined) return;
-    if (passedOver.current === askedLayout.request) return;
+    // Answered once in the tab, whichever of its panes passed it over (ADR 0102).
+    if (passedOver.current === askedLayout.request || handledInThisTab(askedLayout)) return;
     passedOver.current = askedLayout.request;
+    handleInThisTab(askedLayout);
     answerLayout?.(askedLayout.answer, { passed: 'other-tab' });
   }, [askedLayout, guidedLayout, answerLayout]);
   // Once Claude's layout is done, the canvas fits what it laid out (ADR-0029, 2026-10-26).
@@ -364,6 +372,7 @@ export function CanvasArea({
     selection,
     send: onCommand,
     announce: (text) => setAnnouncement((last) => ({ text, count: last.count + 1 })),
+    placesNew,
     ...(guidedLayout === undefined ? {} : { guided: guidedLayout }),
     // Placing what the newest action added joins it (ADR 0065).
     ...(live?.actions === undefined ? {} : { actions: live.actions }),

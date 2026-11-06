@@ -24,6 +24,7 @@ import type { Id, ViewFile } from '@visual-anything/schema';
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { sizeOf, type Selection } from '../../editor/selection';
 import type { GuidedLayoutAnswer, GuidedLayoutRequest } from '../../guidance/state';
+import { handleInThisTab, handledInThisTab } from '../../guidance/tabs';
 import { t } from '../../i18n';
 import type { Scene } from '../scene';
 import { setCollapsedCommand } from '../collapse';
@@ -84,6 +85,11 @@ export interface LayoutOptions {
   /** Says something to screen readers. */
   announce: (text: string) => void;
   /**
+   * Whether shapes without a position are laid out as they appear: true unless given. Of the panes of
+   * a split view that show one view, one does (ADR 0102), so that a new shape is placed once.
+   */
+  placesNew?: boolean;
+  /**
    * Claude's latest request for a layout, as the tab's guidance holds it (ADR-0029): run once, as
    * Layout runs, when the view it names is the one open.
    */
@@ -141,6 +147,7 @@ export function useLayout({
   selection,
   send,
   announce,
+  placesNew = true,
   guided,
   actions,
   onGuidedDone,
@@ -335,6 +342,14 @@ export function useLayout({
     }, AUTO_DELAY);
   });
   useEffect(() => {
+    // A canvas that leaves them to another keeps none waiting, and starts as if the view opened once
+    // it places them.
+    if (!placesNew) {
+      seen.current = undefined;
+      waiting.current = new Set();
+      clearTimeout(timer.current);
+      return;
+    }
     const last = seen.current;
     const opened = last === undefined || last.view !== view.id;
     if (opened) waiting.current = new Set();
@@ -347,7 +362,7 @@ export function useLayout({
     }
     seen.current = { view: view.id, keys };
     if (waiting.current.size > 0 && editable && runner) layOutSoon();
-  }, [scene, view.id, editable, runner]);
+  }, [scene, view.id, editable, runner, placesNew]);
   useEffect(() => () => clearTimeout(timer.current), []);
 
   // Claude's request runs once, as Layout does, once its view is open and the project can change: the
@@ -361,6 +376,7 @@ export function useLayout({
   );
   const layOutAsked = useEffectEvent((request: GuidedLayoutRequest) => {
     ran.current = request.request;
+    handleInThisTab(request);
     // Each container asked for is answered, in order: one the canvas draws holding no shapes, empty.
     const asked: (LayoutScope | Id)[] =
       request.containers === undefined
@@ -385,10 +401,12 @@ export function useLayout({
     });
   });
   useEffect(() => {
-    if (!guided || ran.current === guided.request || !editable) return;
+    // A request another canvas of the tab acted on, as another pane did, never runs again (ADR 0102).
+    if (!guided || ran.current === guided.request || handledInThisTab(guided) || !editable) return;
     if (!runner) {
       // Without web workers nothing is laid out: Claude hears so rather than waiting (M3d).
       ran.current = guided.request;
+      handleInThisTab(guided);
       guidedAnswered(guided, { passed: 'cannot-lay-out' });
       return;
     }

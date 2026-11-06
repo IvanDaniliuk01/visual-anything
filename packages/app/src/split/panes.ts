@@ -18,7 +18,7 @@ export const MIN_PANE_PIXELS = 240;
 export const MIN_PANE_SHARE = 0.1;
 /** How much of the canvas area's width an arrow key moves a border by. */
 export const RESIZE_STEP = 0.02;
-/** Where the tab keeps its panes. */
+/** Where the tab keeps its panes; each project's under its own key (`panesKey`). */
 export const PANES_STORAGE_KEY = 'visual-anything.panes';
 /** How long the camera's moves wait before they are written, so that a pan writes once. */
 const CAMERA_WRITE_DELAY = 250;
@@ -34,6 +34,20 @@ export interface Pane {
 export interface PaneLayout {
   panes: readonly Pane[];
   active: string;
+}
+
+/**
+ * The project the panes show views of: its name, which is what the app knows of a project that stays
+ * (as the view list's folders key by it), and the ids of its views.
+ */
+export interface PaneProject {
+  name: string;
+  views: readonly Id[];
+}
+
+/** Where the tab keeps a project's panes. */
+export function panesKey(project: string | undefined): string {
+  return project === undefined ? PANES_STORAGE_KEY : `${PANES_STORAGE_KEY}.${project}`;
 }
 
 /** What the store needs of the tab's session storage. */
@@ -60,18 +74,78 @@ export class SplitPanes {
   readonly #restored = new Map<string, Camera>();
   readonly #listeners = new Set<() => void>();
   readonly #storage: PaneStorage | undefined;
-  #next: number;
+  #key = PANES_STORAGE_KEY;
+  #next = 1;
   #writing: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(storage: PaneStorage | undefined = tabStorage()) {
+  /**
+   * The panes the tab kept for the project, or one pane: what names a view the project lacks is
+   * passed over whole, and dropped from the tab's storage.
+   */
+  constructor(storage: PaneStorage | undefined = tabStorage(), project?: PaneProject) {
     this.#storage = storage;
-    const kept = readPanes(storage);
-    this.#layout = kept?.layout ?? ONE_PANE;
+    this.#layout = this.#load(project);
+  }
+
+  #load(project: PaneProject | undefined): PaneLayout {
+    this.#key = panesKey(project?.name);
+    this.#cameras.clear();
+    this.#restored.clear();
+    const kept = readPanes(this.#storage, this.#key, project?.views);
+    if (!kept) {
+      try {
+        this.#storage?.removeItem(this.#key);
+      } catch {
+        // Nothing kept, or nothing to keep it in.
+      }
+    }
+    const layout = kept?.layout ?? ONE_PANE;
     for (const [id, camera] of kept?.cameras ?? []) {
       this.#cameras.set(id, camera);
-      if (id !== this.#layout.active) this.#restored.set(id, camera);
+      if (id !== layout.active) this.#restored.set(id, camera);
     }
-    this.#next = Math.max(...this.#layout.panes.map((pane) => numberOf(pane.id))) + 1;
+    this.#next = Math.max(...layout.panes.map((pane) => numberOf(pane.id))) + 1;
+    return layout;
+  }
+
+  /**
+   * Follows the project the shell shows: another project brings back its own panes, and a view gone
+   * from this one takes the panes that show it with it, down to the single canvas under two.
+   */
+  setProject(project: PaneProject): void {
+    if (panesKey(project.name) !== this.#key) {
+      this.flush();
+      this.#layout = this.#load(project);
+      for (const listener of [...this.#listeners]) listener();
+      return;
+    }
+    const { panes, active } = this.#layout;
+    if (panes.length < 2) return;
+    const views = new Set(project.views);
+    const kept = panes.filter((pane) => pane.view === undefined || views.has(pane.view));
+    if (kept.length === panes.length) return;
+    // With every view gone, the active pane stays, showing the project's first.
+    const rest = kept.length > 0 ? kept : [activeOf(this.#layout)];
+    for (const pane of panes) {
+      if (rest.includes(pane)) continue;
+      this.#cameras.delete(pane.id);
+      this.#restored.delete(pane.id);
+    }
+    const at = panes.findIndex((pane) => pane.id === active);
+    const next = rest.some((pane) => pane.id === active)
+      ? active
+      : (panes
+          .slice(0, at)
+          .reverse()
+          .find((pane) => rest.includes(pane))?.id ?? rest[0]!.id);
+    const total = rest.reduce((sum, pane) => sum + pane.width, 0);
+    this.#set({
+      active: next,
+      panes: rest.map((pane) => ({
+        ...pane,
+        width: rest.length === 1 || total <= 0 ? 1 / rest.length : pane.width / total,
+      })),
+    });
   }
 
   readonly snapshot = (): PaneLayout => this.#layout;
@@ -229,11 +303,11 @@ export class SplitPanes {
     if (!storage) return;
     try {
       if (this.#layout.panes.length < 2) {
-        storage.removeItem(PANES_STORAGE_KEY);
+        storage.removeItem(this.#key);
         return;
       }
       storage.setItem(
-        PANES_STORAGE_KEY,
+        this.#key,
         JSON.stringify({
           active: this.#layout.active,
           panes: this.#layout.panes.map((pane) => {
@@ -270,13 +344,19 @@ function numberOf(id: string): number {
   return Number(/^pane-(\d+)$/.exec(id)?.[1] ?? 0);
 }
 
-/** The panes the tab kept, read strictly: anything else is passed over and one pane shows. */
+/**
+ * The panes the tab kept under `key`, read strictly: anything else is passed over and one pane shows,
+ * as are panes of which one names a view that `views`, the project's, lacks. Each pane gets at least
+ * its least share of the width.
+ */
 export function readPanes(
   storage: PaneStorage | undefined,
+  key: string = PANES_STORAGE_KEY,
+  views?: readonly Id[],
 ): { layout: PaneLayout; cameras: Map<string, Camera> } | undefined {
   let stored: unknown;
   try {
-    const text = storage?.getItem(PANES_STORAGE_KEY);
+    const text = storage?.getItem(key);
     if (!text) return undefined;
     stored = JSON.parse(text);
   } catch {
@@ -296,16 +376,40 @@ export function readPanes(
     if (view !== undefined && (typeof view !== 'string' || view === '' || view.length > 200)) {
       return undefined;
     }
+    if (view !== undefined && views !== undefined && !views.includes(view)) return undefined;
     if (typeof width !== 'number' || !Number.isFinite(width) || width <= 0) return undefined;
     read.push({ id, view: view, width });
     if (isCamera(camera)) cameras.set(id, { x: camera.x, y: camera.y, scale: camera.scale });
   }
   if (!read.some((pane) => pane.id === active)) return undefined;
-  const total = read.reduce((sum, pane) => sum + pane.width, 0);
+  const shares = atLeast(
+    read.map((pane) => pane.width),
+    MIN_PANE_SHARE,
+  );
   return {
-    layout: { active, panes: read.map((pane) => ({ ...pane, width: pane.width / total })) },
+    layout: { active, panes: read.map((pane, index) => ({ ...pane, width: shares[index]! })) },
     cameras,
   };
+}
+
+/**
+ * Widths as shares of the whole, each at least `least`: those narrower take `least`, and the others
+ * share what is left as they shared the rest.
+ */
+function atLeast(widths: readonly number[], least: number): number[] {
+  const pinned = new Set<number>();
+  for (;;) {
+    const total = widths.reduce((sum, width, index) => (pinned.has(index) ? sum : sum + width), 0);
+    const free = 1 - pinned.size * least;
+    const shares = widths.map((width, index) =>
+      pinned.has(index) ? least : (width / total) * free,
+    );
+    const narrow = shares
+      .map((share, index) => (!pinned.has(index) && share < least ? index : -1))
+      .filter((index) => index !== -1);
+    if (narrow.length === 0 || pinned.size + narrow.length >= widths.length) return shares;
+    for (const index of narrow) pinned.add(index);
+  }
 }
 
 function isCamera(value: unknown): value is Camera {

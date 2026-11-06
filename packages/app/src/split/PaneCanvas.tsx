@@ -24,7 +24,6 @@ import {
   useFollowZoom,
   type ZoomExpansion,
 } from '../canvas/overlays/useZoomExpansion';
-import { buildScene } from '../canvas/scene';
 import { useExplorer, type ExploredViews } from '../canvas/useExplorer';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
@@ -34,6 +33,7 @@ import type { AttributeLookup } from '../live-values/lookup';
 import { useLiveScene } from '../live-values/useLiveValues';
 import type { CanvasCamera } from '../view-state/canvas';
 import type { Pane, SplitPanes } from './panes';
+import type { ViewScenes } from './scenes';
 import { describeDrawing, viewOf } from './views';
 
 /** What the active pane's canvas draws, as the shell works it out, and what shows after it. */
@@ -62,6 +62,13 @@ interface PaneCanvasProps {
   onSelect: (selection: Selection) => void;
   onCommand?: SendCommand | undefined;
   theme: ThemeName;
+  /** The scene of each view, which every pane that draws it shares. */
+  scenes: ViewScenes;
+  /**
+   * Whether the pane places the new shapes of its view and follows its zoom: the one pane of those
+   * that show its view that does.
+   */
+  leads: boolean;
   /** Given the pane's canvas once it is made, and undefined once it goes. */
   onCanvas: (pane: string, canvas: CanvasCamera | undefined) => void;
   /** What the active pane draws; absent for the others. */
@@ -83,6 +90,8 @@ export function PaneCanvas({
   onSelect,
   onCommand,
   theme,
+  scenes,
+  leads,
   onCanvas,
   shown,
 }: PaneCanvasProps) {
@@ -100,16 +109,18 @@ export function PaneCanvas({
   const [own] = useState(() => new EmphasisStore());
   const view = active ? undefined : viewOf(project, pane.view);
   const zoomed = useExpandedByZoom(zoom, view?.id);
-  const inPlace = useExpandedInPlace(project, view, zoomed);
+  const inPlace = useExpandedInPlace(project, view, zoomed, scenes);
   const expanded = inPlace.expanded;
+  // The same scene the shell draws for the view as the active pane's, so that becoming active, or
+  // ceasing to be, changes nothing the canvas draws.
   const scene = useMemo(
-    () => (view ? buildScene(inPlace.project, view.id, expanded) : undefined),
+    () => (view ? scenes.scene(inPlace.project, view.id, expanded, t.language) : undefined),
     // The canvas writes built-in names and its own words in the language read in (ADR-0038).
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the language is read by buildScene
-    [inPlace.project, view, t.language, expanded],
+    [scenes, inPlace.project, view, t.language, expanded],
   );
   const [canvas, setCanvas] = useState<CanvasCamera>();
-  useFollowZoom(zoom, project, view, scene, canvas);
+  // Of two panes of one view, one follows its zoom, which the view's expansion is one for both.
+  useFollowZoom(zoom, project, leads ? view : undefined, scene, canvas);
   const explore = useExplorer({
     project,
     viewId: view?.id,
@@ -184,6 +195,7 @@ export function PaneCanvas({
             key={shown?.key ?? 'view'}
             {...drawn}
             active={active}
+            placesNew={leads}
             onCanvas={reportCanvas}
           />
         )}

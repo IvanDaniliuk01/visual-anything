@@ -30,6 +30,7 @@ import { createPortal } from 'react-dom';
 import { useT } from '../i18n';
 import { MoreIcon } from '../shell/icons';
 import { useOutsidePress } from './focus';
+import { useActivePane } from './activePane';
 import {
   MORE_ORDER,
   OVERFLOW_ORDER,
@@ -61,7 +62,6 @@ class RowFit {
   readonly #plan = new OverflowPlan();
   readonly #listeners = new Set<() => void>();
   #under = 0;
-  #placed: string | undefined;
 
   readonly subscribe = (listener: () => void): (() => void) => {
     this.#listeners.add(listener);
@@ -105,8 +105,8 @@ class RowFit {
       shown?.getBoundingClientRect().bottom ?? 0,
     );
     const value = `${Math.max(0, Math.round(bottom - top))}px`;
-    if (this.#placed === value) return;
-    this.#placed = value;
+    // Read from the canvas area, which another pane's toolbar may have set while that one was active.
+    if (area.style.getPropertyValue(TOOLBAR_BOTTOM) === value) return;
     area.style.setProperty(TOOLBAR_BOTTOM, value);
   }
 }
@@ -147,10 +147,26 @@ export function OverflowToolbar({ children, onKeyDown, ...props }: ComponentProp
       ) as Record<OverflowGroup, (element: HTMLElement | null) => void>,
   );
 
-  // After each change of what is under More, and of More itself, until the row settles.
+  // After each change of what is under More, and of More itself, until the row settles; and as its
+  // pane becomes active, whose toolbar then says where it ends (ADR 0102).
+  const active = useActivePane();
   useLayoutEffect(() => {
     if (toolbar.current !== null) fit.measure(toolbar.current);
-  }, [fit, count, open, slots]);
+  }, [fit, count, open, slots, active]);
+  // Where the toolbar ends goes with it, if it was the active pane's: in the commit that closes the
+  // pane, before the pane made active measures its own.
+  const activeNow = useRef(active);
+  useLayoutEffect(() => {
+    activeNow.current = active;
+  });
+  useLayoutEffect(() => {
+    const element = toolbar.current;
+    return () => {
+      if (activeNow.current) {
+        element?.closest<HTMLElement>('.canvas-area')?.style.removeProperty(TOOLBAR_BOTTOM);
+      }
+    };
+  }, []);
 
   // A change of the toolbar's size: the canvas got narrower or wider, or a label longer.
   useEffect(() => {
@@ -161,10 +177,7 @@ export function OverflowToolbar({ children, onKeyDown, ...props }: ComponentProp
         ? undefined
         : new ResizeObserver(() => fit.measure(element));
     observer?.observe(element);
-    return () => {
-      observer?.disconnect();
-      element.closest<HTMLElement>('.canvas-area')?.style.removeProperty(TOOLBAR_BOTTOM);
-    };
+    return () => observer?.disconnect();
   }, [fit]);
 
   // Nothing under More: there is no panel to keep open.

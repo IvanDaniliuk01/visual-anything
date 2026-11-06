@@ -3,6 +3,7 @@ import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
 import type { Scene } from '../canvas/scene';
 import type { Translator } from '../i18n';
+import type { PaneLayout } from './panes';
 
 /** The view a pane shows: the one it names, or the project's first while it names none or a gone one. */
 export function viewOf(project: ProjectSnapshot, view: Id | undefined): ViewFile | undefined {
@@ -30,4 +31,20 @@ export function describeDrawing(t: Translator, view: ViewFile, scene: Scene): st
     relations,
     free,
   });
+}
+
+/**
+ * The panes that place the new shapes of their view and follow its zoom: of the panes that show one
+ * view, the active one, or else the leftmost (ADR 0102).
+ */
+export function leadingPanes(project: ProjectSnapshot, layout: PaneLayout): ReadonlySet<string> {
+  const shown = (view: Id | undefined) => viewOf(project, view)?.id;
+  const active = layout.panes.find((pane) => pane.id === layout.active);
+  const led = new Map<Id | undefined, string>();
+  if (active) led.set(shown(active.view), active.id);
+  for (const pane of layout.panes) {
+    const view = shown(pane.view);
+    if (!led.has(view)) led.set(view, pane.id);
+  }
+  return new Set(led.values());
 }

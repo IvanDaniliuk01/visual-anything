@@ -135,6 +135,22 @@ export function setTabUseForTests(tracker: TabUse | undefined): void {
 
 const decided = new WeakMap<object, boolean>();
 
+/**
+ * The guidance requests a canvas of this tab has acted on, or answered it passed over: the tab's, not
+ * one canvas's, so that a pane that becomes active later never acts on one again (ADR 0102).
+ */
+const handled = new WeakSet<object>();
+
+/** Whether a canvas of this tab has acted on the request, or answered it passed over. */
+export function handledInThisTab(request: object): boolean {
+  return handled.has(request);
+}
+
+/** Notes that a canvas of this tab has acted on the request, or answered it passed over. */
+export function handleInThisTab(request: object): void {
+  handled.add(request);
+}
+
 /** What says which views this tab's panes show (ADR 0102), each shell's while it is mounted. */
 const shownViews = new Set<() => readonly (Id | undefined)[]>();
 

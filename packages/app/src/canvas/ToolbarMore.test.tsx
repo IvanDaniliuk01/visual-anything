@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadSample } from '../test/sample';
 import { CanvasToolbar } from './CanvasToolbar';
 import type { StackingAction, StackingMove } from './stacking';
+import { ActivePaneContext } from './activePane';
 import { TOOLBAR_BOTTOM } from './ToolbarMore';
 
 const project = loadSample();
@@ -211,5 +212,65 @@ describe('the canvas toolbar in a narrow window', () => {
     expect(row).not.toHaveAttribute('data-overflow');
     expect(within(row).queryByRole('button', { name: 'More' })).toBeNull();
     expect(within(row).getByRole('button', { name: 'Note' })).toBeVisible();
+  });
+});
+
+describe('the toolbars of a split view (ADR 0102)', () => {
+  /** The canvas area with a pane for each of `shown`, each with its toolbar. */
+  function panes(active: string, shown: readonly string[]) {
+    return (
+      <main className="canvas-area">
+        {shown.map((id) => (
+          <section
+            key={id}
+            className="canvas-pane"
+            data-pane={id}
+            {...(id === active ? { 'data-active': '' } : {})}
+          >
+            <div className="canvas-pane-body">
+              <ActivePaneContext value={id === active}>
+                <CanvasToolbar
+                  project={project}
+                  editable
+                  scale={1}
+                  onAdd={() => {}}
+                  onAddNote={() => {}}
+                  onAddArrow={() => {}}
+                  onZoom={() => {}}
+                  onFit={() => {}}
+                  stacking={STACKING}
+                  layout={{ label: 'Layout', title: '', enabled: true, busy: false, run: () => {} }}
+                  grid={{ grid: true, snapToGrid: true, rulers: false }}
+                  onGrid={() => {}}
+                />
+              </ActivePaneContext>
+            </div>
+          </section>
+        ))}
+      </main>
+    );
+  }
+
+  it('says where the active pane’s toolbar ends, as it becomes active and as a pane closes', () => {
+    // The second pane's toolbar wraps onto two rows.
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element,
+    ) {
+      if (!this.matches('.canvas-toolbar')) return new DOMRect(0, 0, 0, 0);
+      return new DOMRect(0, 10, 2000, this.closest('[data-pane="b"]') ? 60 : 30);
+    });
+    const shown = render(panes('a', ['a', 'b']));
+    const bottom = () =>
+      document.querySelector<HTMLElement>('.canvas-area')?.style.getPropertyValue(TOOLBAR_BOTTOM);
+    expect(bottom()).toBe('40px');
+    shown.rerender(panes('b', ['a', 'b']));
+    expect(bottom()).toBe('70px');
+    // The active pane closes, and its neighbor becomes active.
+    shown.rerender(panes('a', ['a']));
+    expect(bottom()).toBe('40px');
+    // A pane that is not the active one closes: the active one's stays.
+    shown.rerender(panes('a', ['a', 'b']));
+    shown.rerender(panes('a', ['a']));
+    expect(bottom()).toBe('40px');
   });
 });

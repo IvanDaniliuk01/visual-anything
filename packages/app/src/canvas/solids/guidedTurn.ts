@@ -12,7 +12,7 @@ import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id, SolidCamera } from '@visual-anything/schema';
 import { useEffect, useRef } from 'react';
 import type { GuidedTurnRequest } from '../../guidance/state';
-import { forThisTab } from '../../guidance/tabs';
+import { forThisTab, handleInThisTab, handledInThisTab } from '../../guidance/tabs';
 import type { IndexedScene } from '../hit';
 
 /** What the guidance needs of the canvas: the controller's `turn` and `reveal`. */
@@ -48,20 +48,26 @@ export function useGuidedTurn(
 ): void {
   const applied = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (!request || applied.current === request.request) return;
+    // A request another canvas of the tab applied, as another pane did, never applies again (ADR 0102).
+    if (!request || applied.current === request.request || handledInThisTab(request)) return;
     if (!forThisTab(request, viewId)) {
       applied.current = request.request;
+      handleInThisTab(request);
       return;
     }
     const named = request.view;
     if (named !== undefined && named !== viewId) {
       // The view opens first; a view the project lacks never will.
-      if (!project.views.some((view) => view.id === named)) applied.current = request.request;
+      if (!project.views.some((view) => view.id === named)) {
+        applied.current = request.request;
+        handleInThisTab(request);
+      }
       return;
     }
     const turning = canvas();
     if (!turning || !indexed) return;
     applied.current = request.request;
+    handleInThisTab(request);
     const key = guidedTurnKey(indexed, request.target);
     if (key === undefined) return;
     turning.reveal(key);

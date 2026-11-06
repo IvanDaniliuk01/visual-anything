@@ -4,6 +4,7 @@ import {
   PANES_STORAGE_KEY,
   SplitPanes,
   minimumShare,
+  panesKey,
   readPanes,
   type PaneStorage,
 } from './panes';
@@ -221,5 +222,67 @@ describe('the split view’s panes', () => {
     );
     expect(kept?.layout.panes).toHaveLength(2);
     expect(kept?.cameras.size).toBe(0);
+  });
+
+  it('give each pane at least its least share of the width as they come back', () => {
+    const kept = readPanes(
+      memory({
+        active: 'pane-1',
+        panes: [
+          { id: 'pane-1', width: 0.0001 },
+          { id: 'pane-2', width: 1 },
+          { id: 'pane-3', width: 0.001 },
+        ],
+      }),
+    );
+    const shares = kept?.layout.panes.map((pane) => pane.width) ?? [];
+    expect(shares[0]).toBeCloseTo(MIN_PANE_SHARE);
+    expect(shares[1]).toBeCloseTo(0.8);
+    expect(shares[2]).toBeCloseTo(MIN_PANE_SHARE);
+  });
+
+  it('come back for their project only, and not when one names a view it lacks', () => {
+    const stored = {
+      active: 'pane-1',
+      panes: [
+        { id: 'pane-1', view: 'a', width: 1 },
+        { id: 'pane-2', view: 'b', width: 1 },
+      ],
+    };
+    const storage = memory();
+    storage.kept.set(panesKey('One'), JSON.stringify(stored));
+    expect(views(new SplitPanes(storage, { name: 'Two', views: ['a', 'b'] }))).toEqual([undefined]);
+    expect(views(new SplitPanes(storage, { name: 'One', views: ['a', 'b'] }))).toEqual(['a', 'b']);
+    expect(views(new SplitPanes(storage, { name: 'One', views: ['a'] }))).toEqual([undefined]);
+    // What names a view the project lacks is dropped from the tab's storage.
+    expect(storage.kept.has(panesKey('One'))).toBe(false);
+  });
+
+  it('close the panes of a view gone from the project, down to one pane', () => {
+    const storage = memory();
+    const store = new SplitPanes(storage, { name: 'One', views: ['a', 'b', 'c'] });
+    store.openBeside('b', 'a');
+    store.openBeside('c');
+    expect(views(store)).toEqual(['a', 'c', 'b']);
+    const [, c] = store.snapshot().panes;
+    store.activate(c!.id);
+    store.setProject({ name: 'One', views: ['a', 'b'] });
+    expect(views(store)).toEqual(['a', 'b']);
+    // The active pane went: its left neighbor is active.
+    expect(store.active.view).toBe('a');
+    expect(widths(store)).toEqual([0.5, 0.5]);
+    store.setProject({ name: 'One', views: ['a'] });
+    expect(views(store)).toEqual(['a']);
+    expect(storage.kept.has(panesKey('One'))).toBe(false);
+  });
+
+  it('follow another project to its own panes, keeping this one’s', () => {
+    const storage = memory();
+    const store = new SplitPanes(storage, { name: 'One', views: ['a', 'b'] });
+    store.openBeside('b', 'a');
+    store.setProject({ name: 'Two', views: ['x'] });
+    expect(views(store)).toEqual([undefined]);
+    store.setProject({ name: 'One', views: ['a', 'b'] });
+    expect(views(store)).toEqual(['a', 'b']);
   });
 });
