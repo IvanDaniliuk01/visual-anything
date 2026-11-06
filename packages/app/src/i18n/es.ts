@@ -4675,6 +4675,11 @@ export const messages: Catalog = {
     'La vista "{name}" no se puede eliminar: {scenarios} se reproducen sobre ella.',
   'A package is listed twice.': 'Un paquete aparece dos veces.',
   'Organize the views': 'Ordenar las vistas',
+  'Height of World': 'Alto de Mundo',
+  'Its own height, {n} pixels': 'Su propio alto, {n} píxeles',
+  '{n} pixels': '{n} píxeles',
+  'Drag to give World more or less room; double-click to give it its own height again.':
+    'Arrastrar para darle más o menos lugar a Mundo; doble clic para que vuelva a su propio alto.',
   'A folder needs a name.': 'Una carpeta necesita un nombre.',
   'The folder "{id}" is listed twice.': 'La carpeta "{id}" aparece dos veces.',
   'The view "{name}" is filed twice.': 'La vista "{name}" está archivada dos veces.',

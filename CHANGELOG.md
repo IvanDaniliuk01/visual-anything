@@ -5,6 +5,7 @@
 ### Views
 
 - **File views in folders** (#11). The view list shows view folders you make, nested as deep as you want, in the order you choose: New folder… beside New view…, drag views and folders where they go, or move them from their settings. Folders open and close, and each person's browser remembers which are closed; a view no folder holds shows after them. Claude files views too, with `organize_views` (ADR 0101).
+- **Give World's tree more room:** drag the divider under it in the Model tab, or move it with the arrow keys; double-click it to give the tree its own height again. Your browser remembers the height.
 
 ### The canvas
 
