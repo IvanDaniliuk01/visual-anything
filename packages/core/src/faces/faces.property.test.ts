@@ -10,7 +10,13 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { sha256 } from '../code/hash';
 import { compileFace, type ResolvedFace } from './compile';
-import { faceContentWidth, faceIgnoresHeight, layOutFace, type FaceDrawing } from './layout';
+import {
+  faceContentWidth,
+  faceIgnoresHeight,
+  layOutFace,
+  overflowsIn,
+  type FaceDrawing,
+} from './layout';
 import { ADR_FACE, face, input } from './test-faces';
 
 const EPSILON = 1e-6;
@@ -283,11 +289,12 @@ describe('faces, whatever they hold', () => {
           const width = faceContentWidth(compiled, data, { least, most });
           expect(width).toBeGreaterThanOrEqual(least);
           expect(width).toBeLessThanOrEqual(most);
-          const cutAt = (at: number) => layOutFace(compiled, data, { width: at }).cut;
+          // Only text cut by its width makes it wider: never a clamp, nor a height.
+          const cutAt = (at: number) => overflowsIn(compiled, data, at);
           if (resolved.size === 'shape' || !cutAt(least)) expect(width).toBe(least);
           if (width > least && width < most) {
             grown += 1;
-            // The narrowest whole width it is whole at.
+            // A whole width at which no text is cut by its width.
             expect(Number.isInteger(width)).toBe(true);
             expect(cutAt(width)).toBe(false);
           }

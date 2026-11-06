@@ -22,6 +22,7 @@ import {
   layOutFace,
   modelIndexOf,
   resolveAppearance,
+  shapesInView,
   type AppearanceChanges,
   type Command,
   type Definitions,
@@ -33,7 +34,7 @@ import {
   type StoredColorsInDark,
   type TraitOrigin,
 } from '@visual-anything/core';
-import type { Element, FaceVariant, Id } from '@visual-anything/schema';
+import type { Element, FaceVariant, Id, ViewFile } from '@visual-anything/schema';
 import { z } from 'zod';
 import { storedColorsInDarkOf } from './appearance-tools';
 import { READ, WRITE, act, fail, id, ok, tool } from './kit';
@@ -352,7 +353,10 @@ function sampleOf(state: ProjectSnapshot, component: Id): Element | undefined {
 
 /**
  * Where a face is laid out for an element: as a row, the width of the container that draws it and a
- * row's height; otherwise its shape's width and, for a face of size `shape`, its height.
+ * row's height; otherwise its shape's width and, for a face of size `shape`, its height. With a view,
+ * the size it stores for the element's shape, as the canvas takes it. `ownShape` says that the
+ * canvas gives the shape the width its face of size `content` is not cut at (#15): a shape that holds
+ * nothing, in the view or else in the model, with no free geometry and no width stored.
  */
 function sizeFor(
   state: ProjectSnapshot,
@@ -360,6 +364,7 @@ function sizeFor(
   element: Element | undefined,
   appearance: ResolvedAppearance,
   face: ResolvedFace,
+  view?: ViewFile,
 ): { width: number; height?: number; asRow: boolean; ownShape?: boolean } {
   if (element !== undefined) {
     const index = modelIndexOf(state);
@@ -370,15 +375,29 @@ function sizeFor(
       if (shown.contentsAsRows) return { width: shown.width, height: ROW_BAND, asRow: true };
     }
   }
-  const width = inShape(appearance, appearance.width);
+  const stored =
+    view && element
+      ? view.positions.find((each) => each.element === element.id && each.width !== undefined)
+      : undefined;
+  const width = inShape(appearance, stored?.width ?? appearance.width);
   const regions = face.markup.some((line) => /<(rows|contents)\s*\/>/.test(line));
   if (face.size === 'content' || regions || appearance.contentsAsRows) {
     // A shape of its own, which holds nothing, takes the width its face is not cut at (#15).
-    const holds = element !== undefined && modelIndexOf(state).contentsOf(element.id).length > 0;
-    const ownShape = face.size === 'content' && !regions && !appearance.contentsAsRows && !holds;
+    const holds =
+      element !== undefined &&
+      (view
+        ? shapesInView(state, view).contentsOf(element.id).length > 0
+        : modelIndexOf(state).contentsOf(element.id).length > 0);
+    const ownShape =
+      face.size === 'content' &&
+      !regions &&
+      !appearance.contentsAsRows &&
+      !holds &&
+      appearance.geometry === undefined &&
+      stored === undefined;
     return { width, asRow: false, ...(ownShape ? { ownShape } : {}) };
   }
-  return { width, height: appearance.height, asRow: false };
+  return { width, height: stored?.height ?? appearance.height, asRow: false };
 }
 
 /** The width a face is laid out at in a shape of this appearance and width: in an ellipse, 0.7 of it. */
@@ -447,6 +466,11 @@ Example, collapsed: { "element": "billing", "collapsed": true }`,
       .max(4096)
       .optional()
       .describe('In canvas units; for a face of size "shape", its shape’s by default.'),
+    view: id()
+      .optional()
+      .describe(
+        'A view to lay it out as its canvas does: with the size the view stores for the element’s shape, and what the view nests in it.',
+      ),
   },
   hints: READ,
   run: async (args, program) => {
@@ -483,7 +507,12 @@ Example, collapsed: { "element": "billing", "collapsed": true }`,
         problems: problems.map(problemAnswer),
       });
     }
-    const size = sizeFor(state, definitions, element, appearance, face);
+    const view =
+      args.view === undefined ? undefined : state.views.find((each) => each.id === args.view);
+    if (args.view !== undefined && view === undefined) {
+      return fail(`There is no view "${args.view}".`);
+    }
+    const size = sizeFor(state, definitions, element, appearance, face, view);
     const height = args.height ?? size.height;
     const input = element
       ? faceInputOf(element, definitions, {
@@ -499,16 +528,19 @@ Example, collapsed: { "element": "billing", "collapsed": true }`,
     const rows = element ? modelIndexOf(state).contentsOf(element.id).length : 0;
     const compiled = compileFace(face);
     // A shape of its own takes the width its face of size `content` is not cut at, as the canvas
-    // gives it when no width is stored (ADR 0083's clarification, #15).
+    // gives it when no width is stored (ADR 0083's clarification, #15). The canvas measures the face
+    // itself, and draws a level's variant at that width: so does this.
     const width =
       args.width ??
       (size.ownShape && args.collapsed !== true
         ? faceContentWidth(compiled, input, {
             least: size.width,
             most: inShape(appearance, Math.max(appearance.width, FACE_CONTENT_MOST_WIDTH)),
-            ...(args.variant === undefined ? {} : { variant: args.variant }),
           })
         : size.width);
+    // Without a view, what a view nests in the element or stores for its shape is not known.
+    const mayDiffer =
+      view === undefined && element !== undefined && args.width === undefined && size.ownShape;
     const drawing = layOutFace(
       compiled,
       appearance.contentsAsRows
@@ -529,6 +561,12 @@ Example, collapsed: { "element": "billing", "collapsed": true }`,
           ? `nothing is made from it yet, so a stand-in named "${target.name}" with no attributes`
           : `the element "${element.name}" (${element.id})${size.asRow ? ', on its row' : ''}`,
       width: round(width),
+      ...(mayDiffer
+        ? {
+            widthNote:
+              'As wide as the model and the appearance make its shape. On a view, a width stored for the shape, or contents the view nests in it, keep the canvas at its own width: give view to lay it out as that view does.',
+          }
+        : {}),
       height: round(drawing.height),
       cut: drawing.cut,
       ...(drawing.fallback === undefined

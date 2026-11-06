@@ -1,6 +1,7 @@
 /**
  * The benchmark's phases with faces (ADR 0083, F5), with `?faces`: every component the view draws
- * gains a face through a project appearance; with `?tables`, every table a header with its name and
+ * gains a face through a project appearance, every service one of size `content` whose line does not
+ * wrap, which makes it wider before layout (#15); with `?tables`, every table a header with its name and
  * its component over its rows, and every column its name in monospace, its type in italics and its
  * badges, as Data modeling's faces draw them. The canvas then lays out each face its tiles draw, and
  * draws its boxes and its text by glyph quads, while the camera pans and zooms where faces show.
@@ -47,10 +48,26 @@ export const BENCH_CARD_FACE: Face = {
   ],
 };
 
+/**
+ * A service's face, of size `content`: its name and its component's on one line that does not wrap,
+ * too long for the service's width, so that each service takes the width that line asks for before
+ * layout (#15), and the cost of working it out is measured with the first build.
+ */
+export const BENCH_LINE_FACE: Face = {
+  size: 'content',
+  markup: ['<p><b>{{name}}</b> · {{component}} · {{name}}</p>', '<small>{{component}}</small>'],
+  style: [
+    'face { padding: 4px 8px; gap: 2px; }',
+    'p { white-space: nowrap; }',
+    'small { color: var(--text-muted); }',
+  ],
+};
+
 /** The face the benchmark gives a component, by its id. */
 function benchFaceOf(component: Id): Face {
   if (component === 'data-modeling.table') return BENCH_TABLE_FACE;
   if (component === 'data-modeling.column') return BENCH_COLUMN_FACE;
+  if (component === 'systems.service') return BENCH_LINE_FACE;
   return BENCH_CARD_FACE;
 }
 

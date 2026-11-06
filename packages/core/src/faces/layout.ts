@@ -278,13 +278,41 @@ export interface FaceWidthOptions extends Pick<FaceLayoutOptions, 'variant' | 'c
 }
 
 /**
+ * Whether a face laid out at a width, its own height, cuts text by that width: a line that does not
+ * wrap, or a box's overflow, but not a line clamp nor a height (#15). A face that cannot be laid out
+ * cuts nothing so. For `faceContentWidth` and its tests.
+ */
+export function overflowsIn(
+  compiled: CompiledFace,
+  input: FaceInput,
+  width: number,
+  options: Pick<FaceLayoutOptions, 'variant' | 'collapsed'> = {},
+): boolean {
+  if (compiled.problems.some((each) => each.severity === 'error')) return false;
+  const { markup, withoutContents } = markupFor(compiled, options);
+  if (markup === undefined) return false;
+  try {
+    const laid = new Layout(compiled, input, width, undefined, withoutContents);
+    laid.drawing(markup);
+    return laid.overflowed;
+  } catch (thrown) {
+    if (thrown instanceof TooLarge) return false;
+    throw thrown;
+  }
+}
+
+/**
  * How wide a face of size `content` is laid out when no width is stored for its shape (ADR 0083's
- * clarification, #15): the narrowest whole width from `least` up to `most` at which nothing is cut,
- * as a line that does not wrap, a line clamp or a box's overflow cut it. It is `least` when nothing
- * is cut there; when no width, up to its content's with everything on one line, keeps it from being
- * cut, as its own most height cuts it; for a face of size `shape`; and for one that cannot be drawn.
- * It is `most` when it is still cut there. Text that wraps is never cut, so a face that only wraps
- * keeps `least`.
+ * clarification, #15): the narrowest whole width from `least` up to `most` at which no text is cut
+ * by its width, a line that does not wrap or a box's overflow. A line clamp is the author's own
+ * limit, and a height cuts whatever the width: neither makes a face wider. It is `least` when no
+ * text is cut by its width there; when no width, up to its content's with everything on one line,
+ * keeps it whole; for a face of size `shape`; and for one that cannot be drawn. It is `most` when
+ * text is still cut there. Text that wraps is never cut by its width, so a face that only wraps keeps
+ * `least`.
+ *
+ * It lays the face out twice when the answer is the width its lines that do not wrap ask for, as for
+ * a line of a name and a role, and only bisects when something else, a flex row's shares, decides it.
  */
 export function faceContentWidth(
   compiled: CompiledFace,
@@ -297,34 +325,38 @@ export function faceContentWidth(
   if (compiled.problems.some((each) => each.severity === 'error')) return least;
   const { markup, withoutContents } = markupFor(compiled, options);
   if (markup === undefined) return least;
-  const shown: Omit<FaceLayoutOptions, 'width'> = {
-    ...(options.variant === undefined ? {} : { variant: options.variant }),
-    ...(options.collapsed ? { collapsed: true } : {}),
-  };
-  const cutAt = (width: number) => {
-    const drawing = layOutFace(compiled, input, { width, ...shown });
-    return drawing.cut || drawing.fallback !== undefined;
-  };
-  const first = layOutFace(compiled, input, { width: least, ...shown });
-  if (!first.cut || first.fallback !== undefined) return least;
+  const layout = (width: number) => new Layout(compiled, input, width, undefined, withoutContents);
+  const overflowsAt = (width: number) => overflowsIn(compiled, input, width, options);
+  if (!overflowsAt(least)) return least;
+  let needed: number;
   let whole: number;
   try {
-    whole = Math.ceil(
-      new Layout(compiled, input, least, undefined, withoutContents).widest(markup),
-    );
+    // What its lines that do not wrap ask for, and its whole content's width, on one line.
+    ({ needed, whole } = layout(least).widths(markup));
   } catch (thrown) {
     if (thrown instanceof TooLarge) return least;
     throw thrown;
   }
-  // When nothing on one line keeps it whole, what cuts it is not its width.
-  if (whole <= least || cutAt(whole)) return least;
-  let high = Math.min(whole, most);
-  if (high < whole && cutAt(high)) return high;
-  // The narrowest whole width it is not cut at, between `low`, where it is, and `high`.
+  // No width past everything on one line, or past `most`, is worth trying.
+  const top = Math.min(whole, most);
+  if (top <= least) return least;
+  // Below what its lines that do not wrap ask for, they are cut: the search starts there.
+  const start = Math.min(Math.max(needed, Math.floor(least) + 1), top);
   let low = least;
+  let high = start;
+  if (overflowsAt(start)) {
+    low = start;
+    high = top;
+    if (high <= low || overflowsAt(high)) {
+      // Cut at its whole content's width, something else cuts it; past `most`, it stays cut.
+      if (whole <= most || overflowsAt(whole)) return least;
+      return most;
+    }
+  } else if (start >= needed) return start;
+  // The narrowest whole width at which no text is cut by its width, between `low` and `high`.
   while (high - low > 1) {
     const middle = Math.floor((low + high) / 2);
-    if (cutAt(middle)) low = middle;
+    if (overflowsAt(middle)) low = middle;
     else high = middle;
   }
   return high;
@@ -386,6 +418,9 @@ class Layout {
   private texts = 0;
   private readonly absolutes: Box[] = [];
   private readonly contentSizes = new WeakMap<Child, number>();
+  private readonly unwrappedSizes = new WeakMap<Child, number>();
+  /** After `drawing`: whether text in it was cut by its width (`Output.overflow`). */
+  overflowed = false;
 
   constructor(
     private readonly compiled: CompiledFace,
@@ -404,9 +439,17 @@ class Layout {
     return root;
   }
 
-  /** How wide the face is with nothing wrapped: what it says, each paragraph on one line. */
-  widest(markup: CompiledMarkup): number {
-    return this.contentWidth(this.rootOf(markup));
+  /**
+   * How wide the face is with nothing wrapped, each paragraph on one line (`whole`), and how wide
+   * what does not wrap in it needs it to be, text that wraps taking no width (`needed`), in whole
+   * units.
+   */
+  widths(markup: CompiledMarkup): { needed: number; whole: number } {
+    const root = this.rootOf(markup);
+    return {
+      needed: Math.ceil(this.contentWidth(root, true) - EPSILON),
+      whole: Math.ceil(this.contentWidth(root) - EPSILON),
+    };
   }
 
   drawing(markup: CompiledMarkup): FaceDrawing {
@@ -426,6 +469,7 @@ class Layout {
     for (const each of flow)
       out.emit(each, 0, 0, { x: 0, y: 0, width: this.width, height: faceHeight });
     out.finish();
+    this.overflowed = out.overflow;
     if (out.runs.length > FACE_CAPS.runs) {
       throw new TooLarge(`A face lays out at most ${FACE_CAPS.runs} runs of text.`);
     }
@@ -775,20 +819,28 @@ class Layout {
 
   // ——— Sizes ————————————————————————————————————————————————————————————————————————————————————
 
-  /** How wide a child is with nothing wrapped. */
-  private contentWidth(child: Child): number {
-    const known = this.contentSizes.get(child);
+  /**
+   * How wide a child is with nothing wrapped; with `unwrapped`, how wide what does not wrap in it
+   * needs it to be, a paragraph that wraps taking no width.
+   */
+  private contentWidth(child: Child, unwrapped = false): number {
+    const sizes = unwrapped ? this.unwrappedSizes : this.contentSizes;
+    const known = sizes.get(child);
     if (known !== undefined) return known;
     let width: number;
     if (child.kind === 'paragraph') {
       width = 0;
-      for (const line of linesOf(child, Infinity).lines) width = Math.max(width, line.width);
+      if (!unwrapped || child.style.nowrap) {
+        for (const line of linesOf(child, Infinity).lines) width = Math.max(width, line.width);
+      }
     } else {
       const { style } = child;
       const inset = insets(style);
       if (style.width !== undefined && 'px' in style.width) width = style.width.px;
       else {
-        const children = child.children.map((each) => this.contentWidth(each) + marginsX(each));
+        const children = child.children.map(
+          (each) => this.contentWidth(each, unwrapped) + marginsX(each),
+        );
         let inner: number;
         if (style.display === 'flex' && style.flexDirection === 'row') {
           inner =
@@ -811,7 +863,7 @@ class Layout {
       }
       width = clampLength(width, style.minWidth, style.maxWidth, undefined);
     }
-    this.contentSizes.set(child, width);
+    sizes.set(child, width);
     return width;
   }
 
@@ -827,6 +879,7 @@ class Layout {
         children: [],
         lines: laid.lines,
         cut: laid.cut,
+        ...(laid.overflow ? { overflow: true } : {}),
       };
     }
     return this.layOutBox(child, width, height, room);
@@ -1256,11 +1309,13 @@ function atomsOf(paragraph: Paragraph): Atom[] {
 function linesOf(
   paragraph: Paragraph,
   width: number,
-): { lines: Line[]; height: number; cut: boolean } {
+): { lines: Line[]; height: number; cut: boolean; overflow: boolean } {
   const { style } = paragraph;
   const wraps = !style.nowrap && Number.isFinite(width);
   const lines: Line[] = [];
   let cut = false;
+  /** Whether some text was wider than the width: a line that does not wrap, or one character. */
+  let overflow = false;
   let current: Piece[] = [];
   let x = 0;
   let space: Atom | undefined;
@@ -1319,6 +1374,7 @@ function linesOf(
           if (current.length === 0) {
             stopped = true;
             cut = true;
+            overflow = true;
             break;
           }
           finish();
@@ -1341,6 +1397,7 @@ function linesOf(
       if (line.width > width + EPSILON) {
         ellipsized(line, width);
         cut = true;
+        overflow = true;
       }
     }
   }
@@ -1365,7 +1422,7 @@ function linesOf(
       if (shift > 0) for (const piece of line.pieces) piece.x += shift;
     }
   }
-  return { lines, height: y, cut };
+  return { lines, height: y, cut, overflow };
 }
 
 function lineHeightOf(style: FaceStyle): number {
@@ -1487,6 +1544,8 @@ interface Laid extends FaceRect {
   children: Laid[];
   lines?: Line[];
   cut: boolean;
+  /** Whether text in it was wider than it (`linesOf`'s `overflow`). */
+  overflow?: boolean;
 }
 
 function intersect(a: FaceRect, b: FaceRect): FaceRect | undefined {
@@ -1516,6 +1575,8 @@ class Output {
   images: FaceImage[] = [];
   regions: FaceRegion[] = [];
   cut = false;
+  /** Whether text was cut by its width, rather than by a clamp or a height (#15). */
+  overflow = false;
   private line = 0;
   private paragraph = 0;
   /** The lowest line written so far, to end in "…" if lines below it are left out. */
@@ -1528,6 +1589,7 @@ class Output {
   emit(laid: Laid, left: number, top: number, clip: FaceRect): void {
     const rect = { x: left + laid.x, y: top + laid.y, width: laid.width, height: laid.height };
     if (laid.cut) this.cut = true;
+    if (laid.overflow) this.overflow = true;
     if (laid.lines !== undefined) {
       this.text(laid.lines, rect, clip);
       return;
@@ -1653,6 +1715,7 @@ class Output {
       const x = rect.x + piece.x;
       if (piece.text === '' || x + piece.width > right || x < clip.x - EPSILON) {
         this.cut = true;
+        if (piece.text !== '') this.overflow = true;
         continue;
       }
       const y = rect.y + line.baseline + piece.ink.shift;

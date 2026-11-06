@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { robotoWidth } from '../text/roboto';
 import { compileFace } from './compile';
-import { faceContentWidth, faceDrawingText, layOutFace, type FaceDrawing } from './layout';
+import {
+  faceContentWidth,
+  faceDrawingText,
+  layOutFace,
+  overflowsIn,
+  type FaceDrawing,
+} from './layout';
 import { ADR_FACE, face, input } from './test-faces';
 
 function draw(
@@ -409,11 +415,30 @@ describe('how wide a face of size content is (#15)', () => {
     expect(width).toBe(Math.ceil(text.width + 16));
   });
 
-  it('fits a clamped paragraph within its lines', () => {
+  it('keeps the least width for a line clamp, the author’s own limit', () => {
     const compiled = card('p { line-clamp: 1; }');
-    const width = faceContentWidth(compiled, who(long), { least: 120, most: 640 });
+    expect(layOutFace(compiled, who(long), { width: 120 }).cut).toBe(true);
+    expect(faceContentWidth(compiled, who(long), { least: 120, most: 640 })).toBe(120);
+    // A clamped line that does not wrap is cut by its width, and grows.
+    const nowrap = card('p { line-clamp: 1; white-space: nowrap; }');
+    const width = faceContentWidth(nowrap, who(long), { least: 120, most: 640 });
     expect(width).toBeGreaterThan(120);
-    expect(layOutFace(compiled, who(long), { width }).cut).toBe(false);
+    expect(layOutFace(nowrap, who(long), { width }).cut).toBe(false);
+  });
+
+  it('grows past a wrapping paragraph beside the line that does not wrap, in a flex row', () => {
+    const row = compileFace(
+      face(
+        ['<div class="row"><p class="name">{{who}}</p><p>{{name}} and more words here</p></div>'],
+        ['.row { display: flex; gap: 4px; }', '.name { white-space: nowrap; }'],
+        { size: 'content' },
+      ),
+    );
+    const width = faceContentWidth(row, who(long), { least: 160, most: 640 });
+    expect(width).toBeGreaterThan(160);
+    expect(width).toBeLessThan(640);
+    expect(overflowsIn(row, who(long), width)).toBe(false);
+    expect(overflowsIn(row, who(long), width - 1)).toBe(true);
   });
 
   it('grows no wider than the most it is given, still cut there', () => {
@@ -423,12 +448,14 @@ describe('how wide a face of size content is (#15)', () => {
   });
 
   it('keeps the least width when no width keeps it from being cut', () => {
-    // Cut by its own most height, which no width helps.
-    const compiled = card([
-      'face { max-height: 10px; overflow: hidden; }',
-      'p { white-space: nowrap; }',
-    ]);
-    expect(faceContentWidth(compiled, who(long), { least: 160, most: 640 })).toBe(160);
+    // Its line sits in a box of its own fixed width, which no width of the face helps.
+    const fixed = card('p { white-space: nowrap; width: 100px; }');
+    expect(overflowsIn(fixed, who(long), 640)).toBe(true);
+    expect(faceContentWidth(fixed, who(long), { least: 160, most: 640 })).toBe(160);
+    // Cut by its own most height, which a width does not cut by: it keeps its width too.
+    const low = card(['face { max-height: 10px; overflow: hidden; }', 'p { line-clamp: 2; }']);
+    expect(layOutFace(low, who(long), { width: 160 }).cut).toBe(true);
+    expect(faceContentWidth(low, who(long), { least: 160, most: 640 })).toBe(160);
   });
 
   it('keeps the least width for a face of size shape, and for one that cannot be drawn', () => {
