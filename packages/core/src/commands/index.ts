@@ -41,6 +41,7 @@ import { resetRoute, setRoute, settleRoutes } from './routes';
 import { addOverlay, moveOverlay, removeOverlays, setOverlays, updateOverlay } from './overlays';
 import { restack } from './stacking';
 import { changeContainer } from './containers';
+import { duplicateElements } from './duplicate';
 import { setPackageCode } from './code';
 import { createScenario, deleteScenario, updateScenario } from './scenarios';
 import { addComment, createThread, deleteThread, editComment, resolveThread } from './comments';
@@ -258,6 +259,9 @@ function dispatch(draft: Draft, command: Command): string {
       return restack(draft, command);
     case 'change-container':
       return changeContainer(draft, command);
+    // Duplicates (ADR 0103).
+    case 'duplicate-elements':
+      return duplicateElements(draft, command);
     case 'update-component':
       return updateComponent(draft, command);
     case 'update-relation-type':

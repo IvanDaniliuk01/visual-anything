@@ -22,7 +22,7 @@ export function historyShortcut(keys: ShortcutKeys): HistoryAction | undefined {
 }
 
 /** The letter a key types: the key itself on Latin layouts, and its place on the others. */
-function letterOf({ key, code }: ShortcutKeys): string {
+export function letterOf({ key, code }: Pick<ShortcutKeys, 'key' | 'code'>): string {
   const typed = key.toLowerCase();
   if (/^[a-z]$/.test(typed)) return typed;
   return /^Key([A-Z])$/.exec(code)?.[1]?.toLowerCase() ?? typed;

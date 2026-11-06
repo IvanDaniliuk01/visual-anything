@@ -84,7 +84,7 @@ export function moveParts(
   }
   const freeShapes = view.freeShapes
     .filter((shape) => selection.freeShapes.has(shape.id))
-    .map((shape) => moved(shape, dx, dy));
+    .map((shape) => movedFreeShape(shape, dx, dy));
 
   const commands: Command[] = [];
   if (positions.size > 0) {
@@ -166,7 +166,8 @@ function insideAnyOf(key: string, keys: ReadonlySet<string>): boolean {
   return false;
 }
 
-function moved(shape: FreeShape, dx: number, dy: number): FreeShape {
+/** A free shape moved by `dx` and `dy` in canvas units, as dragging it moves it. */
+export function movedFreeShape(shape: FreeShape, dx: number, dy: number): FreeShape {
   if (shape.kind === 'note') {
     const note: Note = { ...shape, x: shape.x + dx, y: shape.y + dy };
     return note;

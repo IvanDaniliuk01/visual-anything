@@ -23,7 +23,7 @@ Two operations hide behind "copy and paste": showing **the same element** in ano
   - the relations among what is duplicated duplicated too, between the duplicates; relations to anything else are not (a choice to bring those along may come later);
   - inside the container under the pointer, through the nesting relation type the view chooses as creating an element there does (`nestingTypeFor`), or in World; keeping their arrangement.
 - **Duplicate (Ctrl+D, and in the shape menu)** pastes the selection as duplicates beside itself, in the same view, without touching the clipboard.
-- **The clipboard is the system's**, holding the copied ids and arrangement with the project's name, so a paste works in another tab of the same project. A paste of something copied from another project is refused, saying so, for now: its components may not exist in this one.
+- **The clipboard is the system's**, holding the copied ids and arrangement with the project's name, so a paste works in another tab of the same project. The payload names the project by its name and by the sorted ids of the packages it uses, since ids are made from names and two projects of the same name may share them. A paste of something copied from another project is refused, saying so, for now: its components may not exist in this one.
 
 ### The core and Claude
 
