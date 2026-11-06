@@ -24,6 +24,7 @@ import { addToViewCommand, leaveOutCommand } from './scope';
 import { hitAt, indexScene, indexSceneAfresh, shapesAt, type IndexedScene } from './hit';
 import { drawnBoundsOf, nameTagOf } from './nameTags';
 import { buildScene, buildSceneAfresh, type ElementShape, type Scene } from './scene';
+import { shapeSignature } from './tiles';
 
 const VIEW = 'system-overview';
 
@@ -129,6 +130,8 @@ type Edit =
   | { kind: 'move-note'; dx: number; dy: number }
   | { kind: 'rename'; element: number; name: string }
   | { kind: 'attribute'; element: number; value: number }
+  // An attribute that faces write and details do not (#15), of a few words or none.
+  | { kind: 'describe'; element: number; words: number }
   | { kind: 'recolor'; element: number; fill: number }
   | { kind: 'resize-component'; element: number; width: number }
   | { kind: 'relate'; from: number; to: number; type: number }
@@ -184,6 +187,14 @@ const edit: fc.Arbitrary<Edit> = fc.oneof(
   {
     weight: 2,
     arbitrary: fc.record({ kind: fc.constant('attribute'), element: pick, value: pick }),
+  },
+  {
+    weight: 2,
+    arbitrary: fc.record({
+      kind: fc.constant('describe'),
+      element: pick,
+      words: fc.nat({ max: 12 }),
+    }),
   },
   { weight: 1, arbitrary: fc.record({ kind: fc.constant('recolor'), element: pick, fill: pick }) },
   {
@@ -343,6 +354,18 @@ function commandOf(edit: Edit, project: ProjectSnapshot, scene: Scene): Command 
           type: 'update-element',
           id: element.id,
           changes: { attributes: { load: edit.value, primaryKey: edit.value % 2 === 0 } },
+        }
+      );
+    }
+    case 'describe': {
+      const element = at(elements, edit.element);
+      const words = ['Hugo', 'Ferreyra', '(Paciente)', 'turno', 'tarde', 'clínica', 'norte'];
+      const text = Array.from({ length: edit.words }, (_, i) => words[(i * 3) % words.length]);
+      return (
+        element && {
+          type: 'update-element',
+          id: element.id,
+          changes: { attributes: { description: text.join(' ') } },
         }
       );
     }
@@ -559,12 +582,21 @@ function run(start: ProjectSnapshot, edits: readonly Edit[]): void {
     for (const shape of scene.shapes) {
       const was = keys.get(shape.key);
       if (was && was !== shape) expect(was).not.toEqual(shape);
+      // A shape whose face writes otherwise is drawn again: its tile is not kept (#15).
+      if (was && (faceSays(was) !== faceSays(shape) || was.header !== shape.header)) {
+        expect(shapeSignature(shape)).not.toBe(shapeSignature(was));
+      }
     }
     // The index made from the scene before it equals one made from nothing.
     const indexed = indexScene(scene);
     expect([...indexed.bands]).toEqual(freshBands(scene));
     sameIndex(indexed, indexSceneAfresh(scene));
   }
+}
+
+/** What a shape's face says: its face compiled, and what fills it. */
+function faceSays(shape: ElementShape): string {
+  return shape.face ? `${shape.face.compiled.hash} ${JSON.stringify(shape.face.input)}` : '';
 }
 
 /** Two indexes of one scene find the same things, in the same order. */
@@ -690,7 +722,21 @@ describe('a scene built after an edit', () => {
       }),
       { numRuns: 25 },
     );
-  }, 120_000);
+    // Cards whose lines do not wrap, which take the width they are not cut at (#15).
+    const lines = withFaces(richSample(), {
+      'systems.service': {
+        size: 'content',
+        markup: ['<b>{{name}}</b>', '<p if="description">{{description}}</p>'],
+        style: ['face { padding: 4px 8px; }', 'b, p { white-space: nowrap; }'],
+      },
+    });
+    fc.assert(
+      fc.property(fc.array(edit, { minLength: 1, maxLength: 16 }), (edits) => {
+        run(lines, edits);
+      }),
+      { numRuns: 25 },
+    );
+  }, 180_000);
 
   it('equals one built from nothing in a view beyond boxes, with drawings with parts', () => {
     fc.assert(
@@ -788,6 +834,34 @@ describe('a scene built after an edit', () => {
     expect(after).toEqual(buildSceneAfresh(referenced.state, VIEW));
     const changed = after.shapes.filter((shape, at) => shape !== first.shapes[at]);
     expect(changed.map((shape) => shape.key)).toEqual(['users/users-org']);
+  });
+
+  it('draws again a face of size content whose attributes alone changed (#15)', () => {
+    // A row-like card whose face writes an attribute its detail does not show.
+    const card = {
+      size: 'content' as const,
+      markup: ['<b>{{name}}</b>', '<p>{{owner ?? "—"}}</p>'],
+      style: ['face { padding: 4px 8px; }', 'p { white-space: nowrap; }'],
+    };
+    const project = withFaces(tables(), { 'data-modeling.table': card });
+    const first = buildScene(project, VIEW);
+    const users = (scene: Scene) => scene.shapes.find((shape) => shape.key === 'users')!;
+    const edited = executeCommand(project, {
+      type: 'update-element',
+      id: 'users',
+      changes: { attributes: { owner: 'Ana' } },
+    });
+    if (!edited.ok) throw new Error('The edit was refused.');
+    const after = buildScene(edited.state, VIEW);
+    expect(after).toEqual(buildSceneAfresh(edited.state, VIEW));
+    const before = users(first);
+    const now = users(after);
+    expect(now.face?.input.attributes.find((each) => each.name === 'owner')?.value).toBe('Ana');
+    // Its place, its size and its detail are as they were, but what its face writes is not: its
+    // tile is drawn again rather than kept.
+    expect(now.rect).toEqual(before.rect);
+    expect(now.detail).toBe(before.detail);
+    expect(shapeSignature(now)).not.toBe(shapeSignature(before));
   });
 
   it('keeps a shape that did not change the same object after a take-out is undone twice', () => {
