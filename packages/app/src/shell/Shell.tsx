@@ -173,6 +173,10 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
   // nothing is stored (ADR 0080, section 4).
   // One scene for each view, which every pane that draws the view shares (ADR 0102).
   const [scenes] = useState(() => new ViewScenes());
+  // What no pane draws any longer, as a view deleted or a pane closed, is let go.
+  useLayoutEffect(() => {
+    scenes.keep(layout.panes.flatMap((pane) => viewOf(project, pane.view)?.id ?? []));
+  }, [scenes, layout, project]);
   const inPlace = useExpandedInPlace(project, view, zoomed, scenes);
   const expanded = inPlace.expanded;
   const scene = useMemo(

@@ -75,12 +75,15 @@ export class SplitPanes {
   readonly #listeners = new Set<() => void>();
   readonly #storage: PaneStorage | undefined;
   #key = PANES_STORAGE_KEY;
+  /** The views of the project the panes are of, once it is known. */
+  #views: readonly Id[] | undefined;
   #next = 1;
   #writing: ReturnType<typeof setTimeout> | undefined;
 
   /**
-   * The panes the tab kept for the project, or one pane: what names a view the project lacks is
-   * passed over whole, and dropped from the tab's storage.
+   * The panes the tab kept for the project, or one pane: what is malformed is passed over and dropped
+   * from the tab's storage; what names a view the project lacks is passed over and left there, as it
+   * may be another project's of the same name.
    */
   constructor(storage: PaneStorage | undefined = tabStorage(), project?: PaneProject) {
     this.#storage = storage;
@@ -89,10 +92,11 @@ export class SplitPanes {
 
   #load(project: PaneProject | undefined): PaneLayout {
     this.#key = panesKey(project?.name);
+    this.#views = project?.views;
     this.#cameras.clear();
     this.#restored.clear();
     const kept = readPanes(this.#storage, this.#key, project?.views);
-    if (!kept) {
+    if (!kept && !readPanes(this.#storage, this.#key)) {
       try {
         this.#storage?.removeItem(this.#key);
       } catch {
@@ -110,34 +114,53 @@ export class SplitPanes {
 
   /**
    * Follows the project the shell shows: another project brings back its own panes, and a view gone
-   * from this one takes the panes that show it with it, down to the single canvas under two.
+   * from this one takes the panes that show it with it, down to the single canvas under two; the pane
+   * left showing a view gone shows the project's first. The same project under another name, with
+   * the same views, keeps its panes, under its new name.
    */
   setProject(project: PaneProject): void {
     if (panesKey(project.name) !== this.#key) {
       this.flush();
+      const renamed =
+        this.#views !== undefined &&
+        sameViews(this.#views, project.views) &&
+        !readPanes(this.#storage, panesKey(project.name), project.views);
+      if (renamed) {
+        this.#key = panesKey(project.name);
+        this.#views = project.views;
+        this.#write();
+        return;
+      }
       this.#layout = this.#load(project);
       for (const listener of [...this.#listeners]) listener();
       return;
     }
+    this.#views = project.views;
     const { panes, active } = this.#layout;
-    if (panes.length < 2) return;
     const views = new Set(project.views);
-    const kept = panes.filter((pane) => pane.view === undefined || views.has(pane.view));
+    const gone = (pane: Pane) => pane.view !== undefined && !views.has(pane.view);
+    if (panes.length < 2) {
+      // The single canvas shows the project's first view in place of one gone.
+      if (gone(panes[0]!)) this.#set({ active, panes: [{ ...panes[0]!, view: undefined }] });
+      return;
+    }
+    const kept = panes.filter((pane) => !gone(pane));
     if (kept.length === panes.length) return;
     // With every view gone, the active pane stays, showing the project's first.
-    const rest = kept.length > 0 ? kept : [activeOf(this.#layout)];
+    const rest = kept.length > 0 ? kept : [{ ...activeOf(this.#layout), view: undefined }];
+    const left = new Set(rest.map((pane) => pane.id));
     for (const pane of panes) {
-      if (rest.includes(pane)) continue;
+      if (left.has(pane.id)) continue;
       this.#cameras.delete(pane.id);
       this.#restored.delete(pane.id);
     }
     const at = panes.findIndex((pane) => pane.id === active);
-    const next = rest.some((pane) => pane.id === active)
+    const next = left.has(active)
       ? active
       : (panes
           .slice(0, at)
           .reverse()
-          .find((pane) => rest.includes(pane))?.id ?? rest[0]!.id);
+          .find((pane) => left.has(pane.id))?.id ?? rest[0]!.id);
     const total = rest.reduce((sum, pane) => sum + pane.width, 0);
     this.#set({
       active: next,
@@ -175,12 +198,13 @@ export class SplitPanes {
   /**
    * Opens a view in a new pane right of the active one, the panes then sharing the width alike; with
    * three open, the rightmost pane but the active one shows it instead. `shown` is the view the active
-   * pane draws now, kept by its id from then on. The active pane stays active.
+   * pane draws now, kept by its id from then on, also in place of one it names that is gone. The
+   * active pane stays active.
    */
   openBeside(view: Id, shown?: Id): void {
     const { panes, active } = this.#layout;
     const named = panes.map((pane) =>
-      pane.id === active && pane.view === undefined && shown !== undefined
+      pane.id === active && shown !== undefined && pane.view !== shown
         ? { ...pane, view: shown }
         : pane,
     );
@@ -325,6 +349,12 @@ export class SplitPanes {
       // Without storage the panes last until the tab reloads.
     }
   }
+}
+
+/** Whether two lists name the same views, in any order. */
+function sameViews(one: readonly Id[], other: readonly Id[]): boolean {
+  const set = new Set(one);
+  return set.size === new Set(other).size && other.every((view) => set.has(view));
 }
 
 /** The active pane of a layout. */

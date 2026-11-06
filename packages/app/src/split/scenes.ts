@@ -27,6 +27,23 @@ export class ViewScenes implements SharedInPlace {
     return value;
   }
 
+  /**
+   * Keeps only what the panes draw: what was worked out for a view no pane shows any longer, as one
+   * deleted or closed, goes.
+   */
+  keep(views: Iterable<Id>): void {
+    const shown = new Set(views);
+    for (const view of this.places.keys()) if (!shown.has(view)) this.places.delete(view);
+    for (const key of this.#made.keys()) {
+      if (!shown.has(key.slice(key.indexOf(':') + 1))) this.#made.delete(key);
+    }
+  }
+
+  /** How many views something is kept for, for tests. */
+  get size(): number {
+    return new Set([...this.#made.keys()].map((key) => key.slice(key.indexOf(':') + 1))).size;
+  }
+
   /** The scene of a view, the same for every pane that draws it from the same project. */
   scene(project: ProjectSnapshot, view: Id, expanded: ReadonlySet<Id>, language: string): Scene {
     return this.memo(`scene:${view}`, [project, expanded, language], () =>

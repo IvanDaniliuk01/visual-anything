@@ -254,8 +254,48 @@ describe('the split view’s panes', () => {
     expect(views(new SplitPanes(storage, { name: 'Two', views: ['a', 'b'] }))).toEqual([undefined]);
     expect(views(new SplitPanes(storage, { name: 'One', views: ['a', 'b'] }))).toEqual(['a', 'b']);
     expect(views(new SplitPanes(storage, { name: 'One', views: ['a'] }))).toEqual([undefined]);
-    // What names a view the project lacks is dropped from the tab's storage.
+    // What names a view the project lacks is another project's of the same name: it stays.
+    expect(storage.kept.has(panesKey('One'))).toBe(true);
+    // What is malformed goes.
+    storage.kept.set(panesKey('One'), '{');
+    expect(views(new SplitPanes(storage, { name: 'One', views: ['a', 'b'] }))).toEqual([undefined]);
     expect(storage.kept.has(panesKey('One'))).toBe(false);
+  });
+
+  it('show the project’s first view in place of one deleted, and keep a split opened then', () => {
+    const storage = memory();
+    const store = new SplitPanes(storage, { name: 'One', views: ['x', 'w', 'z'] });
+    store.open('x');
+    store.setProject({ name: 'One', views: ['w', 'z'] });
+    expect(views(store)).toEqual([undefined]);
+    // The shell draws the project's first, W, and opens Z beside it.
+    store.openBeside('z', 'w');
+    expect(views(store)).toEqual(['w', 'z']);
+    store.setProject({ name: 'One', views: ['w', 'z'] });
+    expect(views(store)).toEqual(['w', 'z']);
+    expect(readPanes(storage, panesKey('One'), ['w', 'z'])?.layout.panes).toHaveLength(2);
+  });
+
+  it('name the view the active pane draws as another opens beside it, for one gone', () => {
+    const store = new SplitPanes(memory(), { name: 'One', views: ['x', 'w', 'z'] });
+    store.openBeside('z', 'x');
+    expect(views(store)).toEqual(['x', 'z']);
+    // The active pane names X, but draws W, as when X is gone: W is the view it shows from then on.
+    store.close(store.snapshot().panes[1]!.id);
+    store.openBeside('z', 'w');
+    expect(views(store)).toEqual(['w', 'z']);
+  });
+
+  it('keep their panes as the project is renamed, with the same views', () => {
+    const storage = memory();
+    const store = new SplitPanes(storage, { name: 'One', views: ['a', 'b'] });
+    store.openBeside('b', 'a');
+    store.setProject({ name: 'Uno', views: ['b', 'a'] });
+    expect(views(store)).toEqual(['a', 'b']);
+    expect(readPanes(storage, panesKey('Uno'), ['a', 'b'])?.layout.panes).toHaveLength(2);
+    // A project of another name and other views brings its own.
+    store.setProject({ name: 'Two', views: ['c'] });
+    expect(views(store)).toEqual([undefined]);
   });
 
   it('close the panes of a view gone from the project, down to one pane', () => {

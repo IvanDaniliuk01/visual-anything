@@ -329,6 +329,7 @@ describe('the split view', () => {
     sessionStorage.setItem(KEY, '{"active":"pane-1","panes":[{"id":"x"}]}');
     render(<Shell project={project} />);
     expect(viewsDrawn()).toEqual(['system-overview']);
+    expect(sessionStorage.getItem(KEY)).toBeNull();
   });
 });
 
@@ -511,7 +512,7 @@ describe('the panes the tab keeps for a project', () => {
     expect(viewsDrawn()).toEqual(['system-overview']);
   });
 
-  it('passes over panes that name a view the project lacks, and drops them', () => {
+  it('passes over panes that name a view the project lacks, leaving them to their own project', () => {
     sessionStorage.setItem(
       KEY,
       JSON.stringify({
@@ -524,7 +525,8 @@ describe('the panes the tab keeps for a project', () => {
     );
     render(<Shell project={project} />);
     expect(viewsDrawn()).toEqual(['system-overview']);
-    expect(sessionStorage.getItem(KEY)).toBeNull();
+    // Another project of the same name may have kept them.
+    expect(sessionStorage.getItem(KEY)).not.toBeNull();
   });
 
   it('closes the panes of a view deleted, down to the single canvas', () => {
