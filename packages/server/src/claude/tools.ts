@@ -1674,12 +1674,16 @@ Example: {}`,
       .describe('The command type, such as "update-view"; left out, the list of them.'),
   },
   hints: READ,
-  run: async (args) => {
-    if (args.type === undefined) return ok({ commands: listCommands() });
+  run: (args) => {
+    if (args.type === undefined) return Promise.resolve(ok({ commands: listCommands() }));
     const described = describeCommand(args.type);
-    return described === undefined
-      ? fail(`"${args.type}" is not a command. Call describe_command without a type for the list.`)
-      : ok(described);
+    return Promise.resolve(
+      described === undefined
+        ? fail(
+            `"${args.type}" is not a command. Call describe_command without a type for the list.`,
+          )
+        : ok(described),
+    );
   },
 });
 

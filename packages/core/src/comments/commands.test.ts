@@ -321,11 +321,23 @@ describe('create-thread', () => {
 
   it('refuses text a comment cannot hold', () => {
     const anchor = { kind: 'view', view: 'overview' } as const;
-    for (const text of ['   ', 'x'.repeat(20_001), 'a\u0000b', 7]) {
+    // Text that is no text is a command not well shaped (ADR 0104).
+    expect(
+      refusal(testProject(), {
+        type: 'create-thread',
+        thread: { anchor, comment: { text: 7 as unknown as string, author: ANA } },
+      }),
+    ).toMatchObject([
+      {
+        code: 'invalid-command',
+        message: 'create-thread takes "thread.comment.text" as text, not 7.',
+      },
+    ]);
+    for (const text of ['   ', 'x'.repeat(20_001), 'a\u0000b']) {
       expect(
         refusal(testProject(), {
           type: 'create-thread',
-          thread: { anchor, comment: { text: text as string, author: ANA } },
+          thread: { anchor, comment: { text, author: ANA } },
         }),
       ).toMatchObject([{ code: 'invalid-comment' }]);
     }

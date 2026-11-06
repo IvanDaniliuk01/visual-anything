@@ -441,7 +441,8 @@ describe('set-overlays', () => {
       overlays: [overlay as never],
     });
     const cases: [unknown, ProblemCode, string][] = [
-      ['fill', 'invalid-overlay', 'An overlay is an object with a channel.'],
+      // A command's shape is checked first (ADR 0104): an overlay that is no object is malformed.
+      ['fill', 'invalid-command', 'set-overlays takes "overlays[0]" as an object, not "fill".'],
       [
         { ...owner, color: 1 },
         'invalid-overlay',
@@ -720,7 +721,11 @@ describe('add-overlay, update-overlay, remove-overlays and move-overlay', () => 
         },
         start(),
       ),
-    ).toEqual({ code: 'invalid-overlay', message: 'An overlay has no "id" to change.' });
+    ).toEqual({
+      code: 'invalid-command',
+      message:
+        'update-overlay does not take "changes.id": "changes" takes name, of, attribute, channel, mapping, off.',
+    });
     expect(
       refused({ type: 'update-overlay', view: 'overview', overlay: 'gone', changes: {} }, start())
         .code,

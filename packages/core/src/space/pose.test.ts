@@ -121,9 +121,11 @@ describe('pose in update-element', () => {
   });
 
   it('refuses what is not a pose', () => {
+    // A pose that is no object is a command not well shaped (ADR 0104).
+    for (const pose of ['here', []]) {
+      expect(refused(lab(), setPose('lamp', pose)).code).toBe('invalid-command');
+    }
     for (const pose of [
-      'here',
-      [],
       { at: { x: 0, y: 0 } },
       { at: { x: '1', y: 0, z: 0 } },
       { at: { x: 0, y: 0, z: 0 }, scale: 2 },

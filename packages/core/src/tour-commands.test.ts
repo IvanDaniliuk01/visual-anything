@@ -543,7 +543,7 @@ describe('create-tour', () => {
       'a tour that is not an object',
       { type: 'create-tour', tour: 'walk' } as unknown as Command,
       'invalid-command',
-      'A tour is an object with a name.',
+      'create-tour takes "tour" as an object, not "walk".',
     ],
   ])('refuses %s', (_, command, code, message) => {
     expect(refusal(testProject(), command)).toEqual({ code, message });
