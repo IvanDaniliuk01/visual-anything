@@ -16,6 +16,7 @@ import { executeCommand, type Command, type CommandOutcome, type CommandType } f
 import { applyOperations } from './operations';
 import type { ProjectSnapshot } from './snapshot';
 import { sequentialIds, testProject } from './test/fixtures';
+import { BUILTIN_PACKAGES } from './builtin';
 
 function run(command: unknown, state: ProjectSnapshot = testProject()): CommandOutcome {
   return executeCommand(state, command as Command, { newId: sequentialIds() });
@@ -387,4 +388,33 @@ describe('malformed commands', () => {
       );
     },
   );
+});
+
+describe('the command shapes, from review', () => {
+  it('names no inherited property as a hint for a key such as "constructor"', () => {
+    for (const key of ['constructor', 'toString', '__proto__']) {
+      const [message] = refusal(JSON.parse(`{"type":"delete","elements":[],"${key}":1}`));
+      expect(message).toContain(`does not take "${key}"`);
+      expect(message).not.toMatch(/native code|\[object Object\]/);
+    }
+  });
+
+  it('gives examples whose built-in relation types and components exist', () => {
+    const defined = new Set(
+      BUILTIN_PACKAGES.flatMap((file) => [
+        ...file.components.map((each) => each.id),
+        ...file.relationTypes.map((each) => each.id),
+      ]),
+    );
+    const prefixes = new Set(BUILTIN_PACKAGES.map((file) => `${file.id}.`));
+    const named: string[] = [];
+    const walk = (value: unknown) => {
+      if (typeof value === 'string') {
+        if ([...prefixes].some((prefix) => value.startsWith(prefix))) named.push(value);
+      } else if (Array.isArray(value)) value.forEach(walk);
+      else if (value && typeof value === 'object') Object.values(value).forEach(walk);
+    };
+    for (const shape of Object.values(COMMAND_SHAPES)) walk(shape.example);
+    expect(named.filter((id) => !defined.has(id))).toEqual([]);
+  });
 });

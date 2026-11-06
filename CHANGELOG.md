@@ -15,7 +15,7 @@
 
 ### Claude
 
-- **Commands refuse what they do not take, and say what they take** (#14). A command Claude sends through `run_commands` with a key it does not take, such as a scope in `update-view`'s changes or `ids` in a delete, is refused, naming the keys it takes and, when another command sets it, which one, instead of doing the rest and dropping the key; so is a field left out or a value of the wrong kind. `update-free-shape` takes changes part by part, such as only a note's height, and no malformed command answers in JavaScript's words any more. The new `describe_command` gives each command's fields, which it needs, what each means and an example (ADR 0104).
+- **Commands refuse what they do not take, and say what they take** (#14). A command Claude sends through `run_commands` with a key it does not take, such as a scope in `update-view`'s changes or `ids` in a delete, is refused, naming the keys it takes and, when another command sets it, which one, instead of doing the rest and dropping the key; so is a field left out or a value of the wrong kind. `update-free-shape` takes changes part by part, such as only a note's height, and no malformed command answers in JavaScript's words any more. The new `describe_command` gives each command's fields, which it needs, what each means and an example (ADR 0104). The commands a package's code returns are checked the same way.
 
 ## 0.1.2
 

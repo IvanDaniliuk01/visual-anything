@@ -371,7 +371,7 @@ export const COMMAND_SHAPES: Shapes = {
     },
     example: {
       type: 'create-relation',
-      relation: { relationType: 'systems.calls', from: 'web-app', to: 'orders-api' },
+      relation: { relationType: 'systems.communicates-with', from: 'web-app', to: 'orders-api' },
     },
   },
   'update-relation': {
@@ -659,7 +659,7 @@ export const COMMAND_SHAPES: Shapes = {
         kind: 'object',
         required: true,
         meaning:
-          'The shape, with its kind: a note has x, y, width, height and text; an arrow from and to.',
+          'The shape, with its kind: a note has x, y, width, height and text; an arrow from and to; a picture x, y, width, height, media and an optional name.',
       },
     },
     example: {
@@ -1062,7 +1062,7 @@ export const COMMAND_SHAPES: Shapes = {
     },
     example: {
       type: 'set-relation-type-appearance',
-      relationType: 'systems.calls',
+      relationType: 'systems.communicates-with',
       appearanceTraits: { dash: 'dashed' },
     },
   },
@@ -1228,7 +1228,7 @@ export const COMMAND_SHAPES: Shapes = {
     example: {
       type: 'set-relation-types-left-out',
       view: 'claims-flow',
-      relationTypes: [{ relationType: 'systems.reads' }],
+      relationTypes: [{ relationType: 'systems.reads-from' }],
     },
   },
   'define-image': {
@@ -1835,7 +1835,12 @@ function unknownKey(
     at === ''
       ? `${type} does not take "${key}": it takes ${keys}.`
       : `${type} does not take "${at}${key}": "${parent}" takes ${keys}.`;
-  const hint = shape.hints?.[`${at}${key}`] ?? whereItGoes(shape, key, at);
+  // Only the hints the table gives: a key such as "constructor" names nothing of its own.
+  const own =
+    shape.hints !== undefined && Object.hasOwn(shape.hints, `${at}${key}`)
+      ? shape.hints[`${at}${key}`]
+      : undefined;
+  const hint = own ?? whereItGoes(shape, key, at);
   return hint === undefined ? said : `${said} ${hint}`;
 }
 

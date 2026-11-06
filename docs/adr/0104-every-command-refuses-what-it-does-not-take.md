@@ -18,6 +18,8 @@ Claude writes commands by hand through `run_commands`, and nothing told it when 
 - **Claude's `describe_command`** (read-only) answers a command's fields, which are needed, what each means, the keys of its fixed objects, and its example, from the same table; without a type, the list of commands. `run_commands` names it.
 - **No command answers in the engine's words.** A property test sends random JSON, shaped by the table, for every command type, and checks that each is done or refused in the core's words. The core still turns a `TypeError` into a refusal, as a last safety net; nothing reaches it today, so the Spanish catalog no longer keeps an English exception for it.
 
+**Package code too.** The commands a package's code returns (ADR 0054) go through the same check, so a package that sends a key a command does not take is refused, saying which; the example packages send none.
+
 ## Considered options
 
 - **The JSON Schema the schema package can generate, for the `Command` type:** rejected. The commands' types live in `core`, which exports source and has no build step; the generator runs at build time over `files.ts`, and its output would need committing and reading back at run time. It gives no hints for misplaced keys, and its descriptions would come from doc comments written for programmers. The table is checked by the compiler as strictly, runs in the core with no I/O, and serves the check and `describe_command` alike.
