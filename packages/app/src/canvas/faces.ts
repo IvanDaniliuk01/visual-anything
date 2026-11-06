@@ -7,9 +7,10 @@
  * - **Laid out once.** A face drawing is kept for each face and what fills it (`ShapeFace`, which
  *   the scene keeps per element), and for each size, variant and collapsed state, so that panning
  *   and zooming never lay anything out; a tile lays out only the faces it writes.
- * - **Sizes before layout.** A face of size `content` gives its shape its height, and a face over
- *   rows or contents gives its shape a header as tall as what comes before `<rows/>` or
- *   `<contents/>`; the scene works both out before layout, which reads them like any size.
+ * - **Sizes before layout.** A face of size `content` gives its shape its height, and, when no width
+ *   is stored, the width it is not cut at (#15); a face over rows or contents gives its shape a header
+ *   as tall as what comes before `<rows/>` or `<contents/>`; the scene works them out before
+ *   layout, which reads them like any size.
  * - **Where it is drawn:** in the shape's label area, in its free geometry's `label` rectangle, over a
  *   row's band, or in the header of a shape that draws rows or holds contents.
  * - **What it takes the place of** (ADR 0083's clarification of F5): a shape whose face writes its name
@@ -20,7 +21,9 @@
  * This module is pure, for the scene; `faceDraw.ts` draws.
  */
 import {
+  FACE_CONTENT_MOST_WIDTH,
   compileFace,
+  faceContentWidth,
   faceDrawingText,
   faceIgnoresHeight,
   layOutFace,
@@ -72,6 +75,26 @@ export function compiledFaceOf(face: ResolvedFace): CompiledFace {
     compiledFaces.set(face, compiled);
   }
   return compiled;
+}
+
+const signatures = new WeakMap<ShapeFace, string>();
+
+/**
+ * Everything about a shape's face that its drawing shows, for its tile's signature: the face compiled,
+ * what fills it and the pictures it draws. A face that writes otherwise, as when only an attribute
+ * its shape's detail does not show changed, makes its tile again (#15).
+ */
+export function faceSignature(face: ShapeFace | undefined): string {
+  if (face === undefined) return '';
+  let signature = signatures.get(face);
+  if (signature === undefined) {
+    const pictures = Object.entries(face.pictures ?? {}).map(
+      ([ref, each]) => `${ref}=${each.serial}`,
+    );
+    signature = `${face.compiled.hash} ${JSON.stringify(face.input)} ${pictures.join(',')}`;
+    signatures.set(face, signature);
+  }
+  return signature;
 }
 
 /** The face drawings kept for each face, by size, variant and collapsed state. */
@@ -142,6 +165,33 @@ export function faceDrawingOf(face: ShapeFace, options: FaceLayoutOptions): Face
  */
 export function faceContentHeight(face: ShapeFace, width: number, collapsed = false): number {
   return Math.ceil(faceDrawingOf(face, { width, ...(collapsed ? { collapsed } : {}) }).height);
+}
+
+const contentWidths = new WeakMap<ShapeFace, Map<string, number>>();
+
+/**
+ * How wide a shape of its own whose face is of size `content` is when no width is stored for it
+ * (ADR 0083's clarification, #15), whether a position was given by hand or layout places it: the
+ * width of its kind and appearance, `least`, while its face is not cut there; otherwise the narrowest
+ * at which it is not (`faceContentWidth`), never past `FACE_CONTENT_MOST_WIDTH`. Worked out once for
+ * each face, kind and least width.
+ */
+export function faceShapeWidth(face: ShapeFace, kind: ShapeKind, least: number): number {
+  const inside = faceWidthIn(kind, least);
+  if (!faceDrawingOf(face, { width: inside }).cut) return least;
+  let known = contentWidths.get(face);
+  const key = `${kind} ${least}`;
+  const kept = known?.get(key);
+  if (kept !== undefined) return kept;
+  const most = faceWidthIn(kind, Math.max(least, FACE_CONTENT_MOST_WIDTH));
+  const wanted = faceContentWidth(face.compiled, face.input, { least: inside, most });
+  const width = wanted <= inside ? least : Math.ceil(kind === 'ellipse' ? wanted / 0.7 : wanted);
+  if (!known) {
+    known = new Map();
+    contentWidths.set(face, known);
+  }
+  known.set(key, width);
+  return width;
 }
 
 /**

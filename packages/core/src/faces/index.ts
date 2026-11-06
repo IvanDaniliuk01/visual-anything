@@ -46,8 +46,15 @@ export type {
   FaceRect,
   FaceRegion,
   FaceRun,
+  FaceWidthOptions,
 } from './layout';
-export { faceDrawingText, faceIgnoresHeight, layOutFace } from './layout';
+export {
+  FACE_CONTENT_MOST_WIDTH,
+  faceContentWidth,
+  faceDrawingText,
+  faceIgnoresHeight,
+  layOutFace,
+} from './layout';
 export type { FacePalette } from './palette';
 export { facePalette, readableOn, resolveFaceColor } from './palette';
 export { faceContrastProblems } from './contrast';

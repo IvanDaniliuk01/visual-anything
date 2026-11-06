@@ -5,6 +5,7 @@
  * try, and answers its text as laid out, its size and its problems, changing nothing.
  */
 import {
+  FACE_CONTENT_MOST_WIDTH,
   appearanceOf,
   appearanceOriginsOf,
   compileFace,
@@ -12,6 +13,7 @@ import {
   definitionsIn,
   drawnColorsOf,
   editableAppearanceOf,
+  faceContentWidth,
   faceDrawingText,
   faceInputOf,
   faceMessage,
@@ -358,7 +360,7 @@ function sizeFor(
   element: Element | undefined,
   appearance: ResolvedAppearance,
   face: ResolvedFace,
-): { width: number; height?: number; asRow: boolean } {
+): { width: number; height?: number; asRow: boolean; ownShape?: boolean } {
   if (element !== undefined) {
     const index = modelIndexOf(state);
     for (const container of index.containersOf(element.id)) {
@@ -368,11 +370,20 @@ function sizeFor(
       if (shown.contentsAsRows) return { width: shown.width, height: ROW_BAND, asRow: true };
     }
   }
-  const width = appearance.shape === 'ellipse' ? appearance.width * 0.7 : appearance.width;
+  const width = inShape(appearance, appearance.width);
   const regions = face.markup.some((line) => /<(rows|contents)\s*\/>/.test(line));
-  if (face.size === 'content' || regions || appearance.contentsAsRows)
-    return { width, asRow: false };
+  if (face.size === 'content' || regions || appearance.contentsAsRows) {
+    // A shape of its own, which holds nothing, takes the width its face is not cut at (#15).
+    const holds = element !== undefined && modelIndexOf(state).contentsOf(element.id).length > 0;
+    const ownShape = face.size === 'content' && !regions && !appearance.contentsAsRows && !holds;
+    return { width, asRow: false, ...(ownShape ? { ownShape } : {}) };
+  }
   return { width, height: appearance.height, asRow: false };
+}
+
+/** The width a face is laid out at in a shape of this appearance and width: in an ellipse, 0.7 of it. */
+function inShape(appearance: ResolvedAppearance, width: number): number {
+  return appearance.shape === 'ellipse' ? width * 0.7 : width;
 }
 
 /** The lines of a face drawing as laid out, top to bottom: each the runs side by side at its height. */
@@ -473,7 +484,6 @@ Example, collapsed: { "element": "billing", "collapsed": true }`,
       });
     }
     const size = sizeFor(state, definitions, element, appearance, face);
-    const width = args.width ?? size.width;
     const height = args.height ?? size.height;
     const input = element
       ? faceInputOf(element, definitions, {
@@ -487,8 +497,20 @@ Example, collapsed: { "element": "billing", "collapsed": true }`,
         })
       : { name: target.name, component: target.name, attributes: [] };
     const rows = element ? modelIndexOf(state).contentsOf(element.id).length : 0;
+    const compiled = compileFace(face);
+    // A shape of its own takes the width its face of size `content` is not cut at, as the canvas
+    // gives it when no width is stored (ADR 0083's clarification, #15).
+    const width =
+      args.width ??
+      (size.ownShape && args.collapsed !== true
+        ? faceContentWidth(compiled, input, {
+            least: size.width,
+            most: inShape(appearance, Math.max(appearance.width, FACE_CONTENT_MOST_WIDTH)),
+            ...(args.variant === undefined ? {} : { variant: args.variant }),
+          })
+        : size.width);
     const drawing = layOutFace(
-      compileFace(face),
+      compiled,
       appearance.contentsAsRows
         ? { ...input, rowsHeight: Math.max(1, rows) * ROW_BAND + ROWS_FOOT }
         : input,

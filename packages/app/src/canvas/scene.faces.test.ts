@@ -5,6 +5,7 @@
  */
 import { layOutFace, type ProjectSnapshot } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
+import type { ShapePosition } from '@visual-anything/schema';
 import { CARD_FACE, COLUMN_FACE, SYSTEM_FACE, TABLE_FACE, withFaces } from '../test/faces';
 import { VIEW, tablesProject, usersAndOrders } from '../test/tables';
 import {
@@ -109,6 +110,68 @@ describe('faces in the scene (ADR 0083)', () => {
     const drawing = shapeFaceDrawing(mailer)!;
     expect(drawing.cut).toBe(false);
     expect(drawing.runs.map((run) => run.text).join('')).toContain('Mailer');
+  });
+
+  describe('a face of size content without a stored width (#15)', () => {
+    // A row-like card whose one line does not wrap, cut at the appearance's width.
+    const ROW_CARD = {
+      size: 'content' as const,
+      markup: ['<p>{{name}}</p>', '<small>{{component}}</small>'],
+      style: ['face { padding: 4px 8px; }', 'p { white-space: nowrap; font-weight: 600; }'],
+    };
+    const NAME = 'Hugo Ferreyra (Paciente de prueba)';
+    const POSITIONS: ShapePosition[] = [
+      { element: 'by-hand', x: 0, y: 0 },
+      { element: 'pinned', x: 0, y: 200, pinned: true },
+      { element: 'sized', x: 0, y: 400, width: 150 },
+      { element: 'short', x: 0, y: 600 },
+    ];
+    function cards(size: 'content' | 'shape' = 'content'): ProjectSnapshot {
+      return withFaces(
+        tablesProject({
+          tables: [],
+          elements: ['by-hand', 'pinned', 'sized', 'placed', 'short'].map((id) => ({
+            id,
+            component: 'systems.service',
+            name: id === 'short' ? 'Ana' : NAME,
+          })),
+          positions: POSITIONS,
+        }),
+        { 'systems.service': { ...ROW_CARD, size } },
+      );
+    }
+    /** The width the appearance gives, which a face of size `shape` keeps. */
+    const appearanceWidth = () => shapeOf(buildScene(cards('shape'), VIEW), 'by-hand').rect.width;
+
+    it('takes its content’s width whether a position was given by hand or layout placed it', () => {
+      const project = cards();
+      const scene = buildScene(project, VIEW);
+      const widths = ['by-hand', 'pinned', 'placed'].map((id) => {
+        const shape = shapeOf(scene, id);
+        expect(shape.positioned).toBe(
+          id === 'placed' ? 'placed' : id === 'pinned' ? 'pinned' : 'stored',
+        );
+        const drawing = shapeFaceDrawing(shape)!;
+        expect(drawing.cut).toBe(false);
+        expect(drawing.runs.map((run) => run.text)).toContain(NAME);
+        expect(shape.rect.height).toBe(faceContentHeight(shape.face!, shape.rect.width));
+        return shape.rect.width;
+      });
+      expect(widths[0]).toBeGreaterThan(appearanceWidth());
+      expect(new Set(widths).size).toBe(1);
+      expect(scene).toEqual(buildSceneAfresh(project, VIEW));
+    });
+
+    it('keeps the appearance’s width when what it says fits, and a stored width always', () => {
+      const scene = buildScene(cards(), VIEW);
+      const short = shapeOf(scene, 'short');
+      expect(shapeFaceDrawing(short)!.cut).toBe(false);
+      expect(short.rect.width).toBe(appearanceWidth());
+      // A width stored by hand wins, the face cut in it.
+      const sized = shapeOf(scene, 'sized');
+      expect(sized.rect.width).toBe(150);
+      expect(shapeFaceDrawing(sized)!.cut).toBe(true);
+    });
   });
 
   it('arranges a container’s contents under its face’s header', () => {
