@@ -45,7 +45,8 @@ export function duplicateElements(draft: Draft, command: DuplicateElementsComman
     command.beside === true || command.container === undefined || command.container === worldId
       ? undefined
       : draft.element(command.container);
-  const places = new Map<Id, { x: number; y: number }>();
+  // Each given element's places, by the container they are relative to; '' for any container.
+  const places = new Map<Id, Map<string, { x: number; y: number }>>();
   for (const place of requireList(command.positions, 'positions')) {
     if (!seen.has(place.element)) {
       reject(
@@ -54,10 +55,16 @@ export function duplicateElements(draft: Draft, command: DuplicateElementsComman
         [place.element],
       );
     }
-    places.set(place.element, {
+    const container: unknown = place.container;
+    if (container !== undefined && (typeof container !== 'string' || !isId(container))) {
+      reject('invalid-id', `${JSON.stringify(container) ?? 'undefined'} is not a valid id.`);
+    }
+    const own = places.get(place.element) ?? new Map<string, { x: number; y: number }>();
+    own.set(command.beside === true ? (container ?? '') : '', {
       x: requireNumber(place.x, 'x'),
       y: requireNumber(place.y, 'y'),
     });
+    places.set(place.element, own);
   }
   const suffix = command.suffix ?? COPY_SUFFIX;
   if (typeof suffix !== 'string') reject('invalid-command', 'A suffix is a text.');
@@ -237,12 +244,15 @@ export function duplicateElements(draft: Draft, command: DuplicateElementsComman
     return element !== undefined && appearanceOf(element, definitions).contentsAsRows === true;
   };
   const positions: PositionChange[] = [];
-  for (const [id, place] of places) {
+  for (const [id, own] of places) {
     if (!landsIn.has(id)) continue;
     const element = duplicates.get(id) as Id;
     const containers = sits.containersOf(element) ?? [];
     for (const container of containers.length === 0 ? [undefined] : containers) {
       if (rows(container)) continue;
+      // With `beside`, the place given for this container, else the one for any.
+      const place = own.get(container ?? '') ?? own.get('');
+      if (place === undefined) continue;
       const original =
         stored.get(`${id}\u0000${(command.beside === true ? container : undefined) ?? ''}`) ??
         firstOf.get(id);

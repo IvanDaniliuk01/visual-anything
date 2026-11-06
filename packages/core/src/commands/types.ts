@@ -862,9 +862,11 @@ export interface DuplicateElementsCommand {
    * Where the shapes of the duplicates that land go, by the id of the given element: relative to the
    * shape of the container they land in, or to the canvas in World, left for layout to change. One
    * without a place, or in a container that draws rows, is placed by layout. The duplicates of what
-   * they hold keep their originals' places inside them.
+   * they hold keep their originals' places inside them. With `beside`, a place may name the
+   * container whose shape it is relative to, for an original that sits in several; a place without
+   * one goes in every container that has no place of its own.
    */
-  positions?: { element: Id; x: number; y: number }[];
+  positions?: { element: Id; container?: Id; x: number; y: number }[];
   /** What a duplicate landing where its original sits adds to its name; " (copy)" by default. */
   suffix?: string;
 }

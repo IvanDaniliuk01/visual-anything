@@ -9,18 +9,23 @@ import {
   type Command,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { Id } from '@visual-anything/schema';
-import { describe, expect, it } from 'vitest';
+import type { FreeShape, Id } from '@visual-anything/schema';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { selectionOf } from '../editor/selection';
 import { loadSample } from '../test/sample';
 import {
   COPIED_ELEMENTS,
+  MOST_COPIED,
+  MOST_READ,
+  TOO_LARGE,
   copiedText,
   copyOf,
   duplicateCommand,
   elementCopyShortcut,
+  keepCopied,
   pasteAsDuplicatesCommand,
   pasteCommand,
+  readClipboardCopy,
   readCopied,
   type CopiedElements,
 } from './elementCopy';
@@ -73,14 +78,14 @@ function copied(elements: Id[], freeShapes: Id[] = []): CopiedElements {
 const shapeOf = (id: Id) => indexed.byElement.get(id)?.[0];
 
 describe('copyOf', () => {
-  it('takes the elements, the relations among them, and where each sat', () => {
+  it('takes the elements and where each sat, naming the project and the packages it uses', () => {
     const copy = copied(['patient', 'whatsapp']);
     expect(copy).toMatchObject({
       kind: COPIED_ELEMENTS,
       project: sample.project.name,
+      packages: [...sample.project.packages].sort(),
       view: VIEW,
       elements: ['patient', 'whatsapp'],
-      relations: ['patient-to-whatsapp'],
     });
     const patient = shapeOf('patient')!;
     const whatsapp = shapeOf('whatsapp')!;
@@ -104,6 +109,36 @@ describe('copyOf', () => {
       reason: 'Select elements or free shapes to copy them.',
     });
   });
+
+  it('refuses a copy past what a paste reads, saying why', () => {
+    const tooLarge = {
+      reason:
+        'A copy holds at most 10000 elements and free shapes, in at most 8 MiB: copy fewer at once.',
+      tooLarge: true,
+    };
+    const notesIn = (notes: FreeShape[]): ProjectSnapshot => ({
+      ...sample,
+      views: sample.views.map((view) => (view.id === VIEW ? { ...view, freeShapes: notes } : view)),
+    });
+    const every = (notes: FreeShape[]) =>
+      selectionOf(notes.map((note) => ({ kind: 'free-shape' as const, id: note.id })));
+    // More shapes than a copy holds.
+    const notes: FreeShape[] = Array.from({ length: MOST_COPIED + 1 }, (_, at) => ({
+      kind: 'note',
+      id: `n${at}`,
+      x: at,
+      y: 0,
+      width: 10,
+      height: 10,
+      text: '',
+    }));
+    expect(copyOf(notesIn(notes), VIEW, indexed, every(notes))).toEqual(tooLarge);
+    // Fewer, but more text than a paste reads.
+    const long = notes
+      .slice(0, 9)
+      .map((note) => ({ ...note, text: 'x'.repeat(Math.ceil(MOST_READ / 8)) }));
+    expect(copyOf(notesIn(long), VIEW, indexed, every(long))).toEqual(tooLarge);
+  });
 });
 
 describe('readCopied', () => {
@@ -125,6 +160,49 @@ describe('readCopied', () => {
     expect(
       readCopied(JSON.stringify({ ...copy, freeShapes: [{ kind: 'script', src: 'x' }] })),
     ).toBeUndefined();
+    expect(readCopied(JSON.stringify({ ...copy, packages: undefined }))).toBeUndefined();
+    // Text that only mentions the kind further on is not a copy.
+    expect(
+      readCopied(JSON.stringify({ note: 'x'.repeat(80), kind: COPIED_ELEMENTS })),
+    ).toBeUndefined();
+  });
+
+  it('tells a copy past the limits apart from text that is no copy', () => {
+    const copy = copied(['patient']);
+    const many = Array.from({ length: MOST_COPIED + 1 }, (_, at) => `e${at}`);
+    expect(readCopied(JSON.stringify({ ...copy, elements: many }))).toBe(TOO_LARGE);
+    expect(readCopied(copiedText(copy) + ' '.repeat(MOST_READ))).toBe(TOO_LARGE);
+    expect(readCopied('x'.repeat(MOST_READ + 1))).toBeUndefined();
+  });
+});
+
+describe('readClipboardCopy', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const withClipboard = (readText: () => Promise<string>) =>
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { readText } });
+
+  it('reads a copy from the system’s clipboard', async () => {
+    const copy = copied(['patient']);
+    withClipboard(() => Promise.resolve(copiedText(copy)));
+    expect(await readClipboardCopy()).toEqual(copy);
+  });
+
+  it('reads other text there as no copy, even after this tab copied', async () => {
+    keepCopied(copied(['patient']));
+    withClipboard(() => Promise.resolve('Patient\nWhatsApp'));
+    expect(await readClipboardCopy()).toBeUndefined();
+  });
+
+  it('falls back to what this tab copied last when the browser does not let it read', async () => {
+    const copy = copied(['whatsapp']);
+    keepCopied(copy);
+    withClipboard(() => Promise.reject(new DOMException('Denied', 'NotAllowedError')));
+    expect(await readClipboardCopy()).toEqual(copy);
+    vi.stubGlobal('navigator', { ...navigator, clipboard: undefined });
+    expect(await readClipboardCopy()).toEqual(copy);
   });
 });
 
@@ -175,6 +253,17 @@ describe('pasteCommand', () => {
       reason:
         'These were copied from another project, “Another”, so they are not pasted: its components may not exist in this one.',
     });
+    expect(pasteAsDuplicatesCommand(sample, VIEW, copy, { x: 0, y: 0 }, undefined)).toHaveProperty(
+      'reason',
+    );
+  });
+
+  it('refuses a copy from another project of the same name, which uses other packages', () => {
+    const copy = { ...copied(['patient']), packages: ['another-package'] };
+    expect(pasteCommand(sample, VIEW, copy, { x: 0, y: 0 })).toHaveProperty(
+      'reason',
+      expect.stringContaining(`copied from another project, “${sample.project.name}”`),
+    );
     expect(pasteAsDuplicatesCommand(sample, VIEW, copy, { x: 0, y: 0 }, undefined)).toHaveProperty(
       'reason',
     );
@@ -286,8 +375,9 @@ describe('duplicateCommand', () => {
 describe('elementCopyShortcut', () => {
   const press = (
     code: string,
-    more: { shiftKey?: boolean; altKey?: boolean; metaKey?: boolean },
+    more: { key?: string; shiftKey?: boolean; altKey?: boolean; metaKey?: boolean },
   ) => ({
+    key: more.key ?? '',
     code,
     ctrlKey: more.metaKey !== true,
     metaKey: more.metaKey === true,
@@ -299,6 +389,18 @@ describe('elementCopyShortcut', () => {
     expect(elementCopyShortcut(press('KeyD', {}))).toBe('duplicate');
     expect(elementCopyShortcut(press('KeyD', { metaKey: true }))).toBe('duplicate');
     expect(elementCopyShortcut(press('KeyV', { shiftKey: true }))).toBe('paste-as-duplicates');
+  });
+
+  it('reads the letter typed first, as on Dvorak, and the key’s place on other scripts', () => {
+    // On Dvorak, D is typed where QWERTY has H, and V where it has the full stop.
+    expect(elementCopyShortcut(press('KeyH', { key: 'd' }))).toBe('duplicate');
+    expect(elementCopyShortcut(press('Period', { key: 'V', shiftKey: true }))).toBe(
+      'paste-as-duplicates',
+    );
+    // Where QWERTY has D, Dvorak types E: not Duplicate.
+    expect(elementCopyShortcut(press('KeyD', { key: 'e' }))).toBeUndefined();
+    // On a Cyrillic layout, the key’s place says it.
+    expect(elementCopyShortcut(press('KeyD', { key: 'в' }))).toBe('duplicate');
   });
 
   it('leaves Copy and Paste to the browser’s events, and appearance’s keys alone', () => {

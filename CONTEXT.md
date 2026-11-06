@@ -656,7 +656,7 @@ Taking every Style and Text trait one element or relation is drawn with, to set 
 _Avoid_: format painter, copy style
 
 **Copy** (of elements):
-Putting the selection, from the canvas or the Outline, on the system's clipboard: its elements by id, the relations among them, and its free shapes with where each sits relative to the others, with the project's name. **Paste** shows the same elements in the open view, adding to its scope those it leaves out and never changing containment; free shapes are always pasted as copies (ADR 0103).
+Putting the selection, from the canvas or the Outline, on the system's clipboard: its elements by id, which bring the relations among them along, and its free shapes, with where each sits relative to the others, the project's name and the packages it uses. **Paste** shows the same elements in the open view, adding to its scope those it leaves out and never changing containment; free shapes are always pasted as copies (ADR 0103).
 _Avoid_: paste as reference, link (for showing the same element)
 
 **Duplicate**:

@@ -26,7 +26,18 @@ Example: { "view": "system-overview", "elements": ["reminder-service"], "beside"
       .optional()
       .describe('true: each lands in the containers its original sits in. Not with into.'),
     positions: z
-      .array(z.object({ element: id(), x: z.number(), y: z.number() }))
+      .array(
+        z.object({
+          element: id(),
+          container: id()
+            .optional()
+            .describe(
+              'With beside, the container this place is relative to, for an original in several; left out, every container without a place of its own.',
+            ),
+          x: z.number(),
+          y: z.number(),
+        }),
+      )
       .optional()
       .describe('Where the duplicate of each given element goes, by the given element’s id.'),
   },

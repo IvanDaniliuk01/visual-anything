@@ -120,8 +120,11 @@ import {
   pasteCommand,
   readClipboardCopy,
   readCopied,
+  tooLargeReason,
+  TOO_LARGE,
   writeClipboardCopy,
   type CopiedElements,
+  type ReadCopy,
 } from './elementCopy';
 import { useSpacePanel } from '../space/context';
 import { showInSpace, showInSpaceOf } from '../space/show';
@@ -934,7 +937,12 @@ export function CanvasArea({
    */
   const copyElements = (data?: DataTransfer | null): boolean => {
     const made = copyOf(project, view.id, indexed, selection);
-    if ('reason' in made) return false;
+    if ('reason' in made) {
+      // A copy too large is refused, saying so, rather than leaving the browser to copy nothing.
+      if (made.tooLarge !== true) return false;
+      tell(made.reason, 'warning');
+      return true;
+    }
     void writeClipboardCopy(made.copied, data).catch(() => {
       announce(t('Could not put the copy on the clipboard.'));
     });
@@ -944,15 +952,22 @@ export function CanvasArea({
   };
 
   /**
+   * Whether what the clipboard holds is a copy of elements to paste; when it is not, or is one too
+   * large, it says so.
+   */
+  const pastable = (copied: ReadCopy): copied is CopiedElements => {
+    if (copied === TOO_LARGE) tell(tooLargeReason(), 'warning');
+    else if (copied === undefined) tell(t('Copy elements or free shapes first.'));
+    return copied !== TOO_LARGE && copied !== undefined;
+  };
+
+  /**
    * Paste (ADR 0103): shows the same elements copied in the open view, as one action, at `world` or
    * where the pointer is, then selects them; when the view shows them all already, it only selects
    * them and says so.
    */
-  const pasteElements = async (copied: CopiedElements | undefined, world?: Point) => {
-    if (!copied) {
-      tell(t('Copy elements or free shapes first.'));
-      return;
-    }
+  const pasteElements = async (copied: ReadCopy, world?: Point) => {
+    if (!pastable(copied)) return;
     if (!editable) {
       announce(t('The project cannot be changed now.'));
       return;
@@ -1004,11 +1019,8 @@ export function CanvasArea({
    * Paste as duplicates (ADR 0103): makes new elements like the ones copied, inside the container at
    * `world` or under the pointer, or in World, as one action, then selects them.
    */
-  const pasteAsDuplicates = async (copied: CopiedElements | undefined, world?: Point) => {
-    if (!copied) {
-      tell(t('Copy elements or free shapes first.'));
-      return;
-    }
+  const pasteAsDuplicates = async (copied: ReadCopy, world?: Point) => {
+    if (!pastable(copied)) return;
     if (!editable) {
       announce(t('The project cannot be changed now.'));
       return;

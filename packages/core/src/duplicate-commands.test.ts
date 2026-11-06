@@ -141,6 +141,84 @@ describe('duplicate-elements', () => {
     expect(positionsOf(state, client)).toEqual([{ element: client, x: -250, y: 200 }]);
   });
 
+  it('places a duplicate beside its original in each container it sits in, by the place for each', () => {
+    // API sits in System and in Contract, with a place of its own in each.
+    const start = testProject();
+    const twice: ProjectSnapshot = {
+      ...start,
+      model: {
+        ...start.model,
+        relations: [
+          ...start.model.relations,
+          { id: 'api-in-contract', relationType: 'test.inside', from: 'api', to: 'contract' },
+        ],
+      },
+      views: start.views.map((view) =>
+        view.id === VIEW
+          ? {
+              ...view,
+              positions: [
+                ...view.positions.filter((each) => each.element !== 'api'),
+                { element: 'api', container: 'system', x: 20, y: 40, width: 120 },
+                { element: 'api', container: 'contract', x: 300, y: 10 },
+              ],
+            }
+          : view,
+      ),
+    };
+    const outcome = ok(
+      duplicate(['api'], {
+        beside: true,
+        positions: [
+          { element: 'api', container: 'system', x: 180, y: 40 },
+          { element: 'api', container: 'contract', x: 460, y: 10 },
+        ],
+      }),
+      twice,
+    );
+    const [api] = outcome.created;
+    expect(
+      relationsFrom(outcome.state, api)
+        .filter((each) => each.relationType === 'test.inside')
+        .map((each) => each.to)
+        .sort(),
+    ).toEqual(['contract', 'system']);
+    expect(positionsOf(outcome.state, api)).toEqual(
+      expect.arrayContaining([
+        { element: api, container: 'system', x: 180, y: 40, width: 120 },
+        { element: api, container: 'contract', x: 460, y: 10 },
+      ]),
+    );
+    expect(positionsOf(outcome.state, api)).toHaveLength(2);
+    // A place that names no container goes wherever there is no place of its own.
+    const either = ok(
+      duplicate(['api'], {
+        beside: true,
+        positions: [
+          { element: 'api', x: 0, y: 0 },
+          { element: 'api', container: 'contract', x: 460, y: 10 },
+        ],
+      }),
+      twice,
+    );
+    const [other] = either.created;
+    expect(positionsOf(either.state, other)).toEqual(
+      expect.arrayContaining([
+        { element: other, container: 'system', x: 0, y: 0, width: 120 },
+        { element: other, container: 'contract', x: 460, y: 10 },
+      ]),
+    );
+    expect(
+      refused(
+        duplicate(['api'], {
+          beside: true,
+          positions: [{ element: 'api', container: '', x: 0, y: 0 }],
+        }),
+        twice,
+      ).map((each) => each.code),
+    ).toEqual(['invalid-id']);
+  });
+
   it('duplicates a relation that ends on a relation when both its ends are duplicated', () => {
     const outcome = ok(duplicate(['client', 'system', 'contract']));
     const { state, created } = outcome;

@@ -4139,8 +4139,8 @@ export const ui: Catalog = {
     'Seleccione elementos o formas libres para copiarlos.',
   'Select elements or free shapes to duplicate them.':
     'Seleccione elementos o formas libres para duplicarlos.',
-  'A copy holds at most {n} elements and free shapes.':
-    'Una copia contiene como máximo {n} elementos y formas libres.',
+  'A copy holds at most {n} elements and free shapes, in at most 8 MiB: copy fewer at once.':
+    'Una copia contiene como máximo {n} elementos y formas libres, en 8 MiB como máximo: copie menos a la vez.',
   'These were copied from another project, “{name}”, so they are not pasted: its components may not exist in this one.':
     'Se copiaron de otro proyecto, “{name}”, así que no se pegan: sus componentes pueden no existir en este.',
   'There is no view open to paste into.': 'No hay ninguna vista abierta en la que pegar.',

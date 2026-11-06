@@ -1,10 +1,11 @@
 /**
  * Copy, Paste, Paste as duplicates and Duplicate (ADR 0103).
  *
- * - Copying takes the selection, from the canvas or the Outline, which share it: its elements, the
- *   relations among them, and its free shapes, with where each sat relative to the others. It goes on
- *   the system's clipboard as text, with the project's name, so that another tab of the same project
- *   can paste it.
+ * - Copying takes the selection, from the canvas or the Outline, which share it: its elements and its
+ *   free shapes, with where each sat relative to the others; the relations among the elements come
+ *   with them, as the view shows them or the core duplicates them. It goes on the system's clipboard as
+ *   text, with the project's name and the packages it uses, so that another tab of the same project can
+ *   paste it and another project refuses it.
  * - Pasting shows the same elements in the open view: one `add-to-view` for those its scope leaves
  *   out, and positions for those that land directly in World, anchored where the pointer is. It never
  *   changes containment: an element shows inside the containers of its the view draws. Free shapes
@@ -29,6 +30,7 @@ import type { FreeShape, Id } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
 import { t } from '../i18n';
 import { IS_APPLE } from '../live/platform';
+import { letterOf } from '../live/shortcuts';
 import type { Point } from './geometry';
 import { BESIDE_GAP, movedFreeShape } from './gestures';
 import type { IndexedScene } from './hit';
@@ -37,9 +39,13 @@ import type { ElementShape } from './scene';
 /** What marks a copy of elements on the clipboard as this app's. */
 export const COPIED_ELEMENTS = 'visual-anything/elements';
 /** The most text of the clipboard read as copied elements, so that a huge paste is not parsed. */
-const MOST_READ = 8 * 1024 * 1024;
-/** The most elements, relations and free shapes one copy carries. */
+export const MOST_READ = 8 * 1024 * 1024;
+/** The most elements and free shapes one copy carries. */
 export const MOST_COPIED = 10_000;
+/** What reading the clipboard answers for a copy of elements past the limits, which is not pasted. */
+export const TOO_LARGE = 'too-large';
+/** What the clipboard holds: a copy of elements, one too large to paste, or nothing of the kind. */
+export type ReadCopy = CopiedElements | typeof TOO_LARGE | undefined;
 
 /** The keys of Duplicate and Paste as duplicates, as shown and as `aria-keyshortcuts` names them. */
 export const ELEMENT_COPY_KEYS = {
@@ -54,10 +60,12 @@ export const ELEMENT_COPY_KEYS = {
 
 /**
  * Whether a key press duplicates the selection or pastes as duplicates: Ctrl+D or Ctrl+Shift+V, ⌘D
- * or ⇧⌘V on Apple's keyboards, read by the key's place so that any layout takes it; undefined for any
- * other. Copy and Paste come as the browser's own `copy` and `paste` events.
+ * or ⇧⌘V on Apple's keyboards, read by the letter typed, as the browser's own Copy and Paste are, and
+ * by the key's place on layouts that type no Latin letters; undefined for any other. Copy and Paste
+ * come as the browser's own `copy` and `paste` events.
  */
 export function elementCopyShortcut(event: {
+  key: string;
   code: string;
   ctrlKey: boolean;
   metaKey: boolean;
@@ -65,8 +73,9 @@ export function elementCopyShortcut(event: {
   shiftKey: boolean;
 }): 'duplicate' | 'paste-as-duplicates' | undefined {
   if (event.altKey || !(event.ctrlKey || event.metaKey)) return undefined;
-  if (event.code === 'KeyD' && !event.shiftKey) return 'duplicate';
-  if (event.code === 'KeyV' && event.shiftKey) return 'paste-as-duplicates';
+  const letter = letterOf(event);
+  if (letter === 'd' && !event.shiftKey) return 'duplicate';
+  if (letter === 'v' && event.shiftKey) return 'paste-as-duplicates';
   return undefined;
 }
 
@@ -75,11 +84,14 @@ export interface CopiedElements {
   kind: typeof COPIED_ELEMENTS;
   /** The name of the project it was copied from. */
   project: string;
+  /**
+   * The ids of the packages that project uses, sorted: with its name, what tells it from another
+   * project of the same name, whose ids, made from names, may be the same.
+   */
+  packages: Id[];
   /** The view it was copied in. */
   view: Id;
   elements: Id[];
-  /** The relations among the elements copied. */
-  relations: Id[];
   /**
    * Where each element's shape sat, its top left corner relative to the copy's, in canvas units;
    * absent for an element no shape showed.
@@ -136,35 +148,36 @@ function selectedShapes(
   return { elements, freeShapes };
 }
 
+/** The packages a project uses, sorted, as a copy names them. */
+function packagesOf(project: ProjectSnapshot): Id[] {
+  return [...project.project.packages].sort();
+}
+
+/** Why a copy too large is not taken or not pasted: it holds more than a paste reads. */
+export function tooLargeReason(): string {
+  return t(
+    'A copy holds at most {n} elements and free shapes, in at most 8 MiB: copy fewer at once.',
+    { n: MOST_COPIED },
+  );
+}
+
 /**
- * What Copy takes of the selection: its elements, the relations among them, its free shapes and
- * where each sat. A reason, translated, when it holds no element and no free shape.
+ * What Copy takes of the selection: its elements, its free shapes and where each sat. A reason,
+ * translated, when it holds no element and no free shape, or, marked `tooLarge`, more than a paste
+ * reads.
  */
 export function copyOf(
   project: ProjectSnapshot,
   viewId: Id,
   indexed: IndexedScene | undefined,
   selection: Pick<Selection, 'elements' | 'freeShapes'>,
-): { copied: CopiedElements } | { reason: string } {
+): { copied: CopiedElements } | { reason: string; tooLarge?: true } {
   const { elements, freeShapes } = selectedShapes(project, viewId, indexed, selection);
   if (elements.length === 0 && freeShapes.length === 0) {
     return { reason: t('Select elements or free shapes to copy them.') };
   }
   if (elements.length + freeShapes.length > MOST_COPIED) {
-    return { reason: t('A copy holds at most {n} elements and free shapes.', { n: MOST_COPIED }) };
-  }
-  const ids = new Set(elements.map((each) => each.id));
-  const among = new Set<Id>();
-  for (let grew = true; grew;) {
-    grew = false;
-    for (const relation of project.model.relations) {
-      if (among.has(relation.id)) continue;
-      const inside = (end: Id) => ids.has(end) || among.has(end);
-      if (inside(relation.from) && inside(relation.to)) {
-        among.add(relation.id);
-        grew = true;
-      }
-    }
+    return { reason: tooLargeReason(), tooLarge: true };
   }
   const origin = around([
     ...elements.flatMap(({ shape }) =>
@@ -174,21 +187,20 @@ export function copyOf(
     ),
     ...freeShapes.map(boundsOfFreeShape),
   ]) ?? { x: 0, y: 0, right: 0, bottom: 0 };
-  return {
-    copied: {
-      kind: COPIED_ELEMENTS,
-      project: project.project.name,
-      view: viewId,
-      elements: elements.map((each) => each.id),
-      relations: project.model.relations
-        .filter((relation) => among.has(relation.id))
-        .map((relation) => relation.id),
-      arrangement: elements.flatMap(({ id, shape }) =>
-        shape ? [{ element: id, x: shape.rect.x - origin.x, y: shape.rect.y - origin.y }] : [],
-      ),
-      freeShapes: freeShapes.map((shape) => movedFreeShape(shape, -origin.x, -origin.y)),
-    },
+  const copied: CopiedElements = {
+    kind: COPIED_ELEMENTS,
+    project: project.project.name,
+    packages: packagesOf(project),
+    view: viewId,
+    elements: elements.map((each) => each.id),
+    arrangement: elements.flatMap(({ id, shape }) =>
+      shape ? [{ element: id, x: shape.rect.x - origin.x, y: shape.rect.y - origin.y }] : [],
+    ),
+    freeShapes: freeShapes.map((shape) => movedFreeShape(shape, -origin.x, -origin.y)),
   };
+  // A paste reads no more text than this, so a copy never holds more.
+  if (copiedText(copied).length > MOST_READ) return { reason: tooLargeReason(), tooLarge: true };
+  return { copied };
 }
 
 /** A copy as the clipboard holds it. */
@@ -201,18 +213,21 @@ const isNumber = (value: unknown): value is number =>
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const isIdList = (value: unknown): value is Id[] =>
-  Array.isArray(value) &&
-  value.length <= MOST_COPIED &&
-  value.every((each) => typeof each === 'string' && isId(each));
+  Array.isArray(value) && value.every((each) => typeof each === 'string' && isId(each));
 const isPoint = (value: unknown): boolean =>
   isObject(value) && isNumber(value.x) && isNumber(value.y);
 
+/** How far into the text a copy says what it is: its kind comes first. */
+const HEAD = 64;
+
 /**
- * A copy of elements read from the clipboard's text, strictly: undefined for any text that is not
- * one, as anything else pasted is. The free shapes it carries are checked again by the core.
+ * A copy of elements read from the clipboard's text, strictly: `TOO_LARGE` for one past the limits
+ * a copy keeps to, which is not read further, and undefined for any text that is not one, as anything
+ * else pasted is. The free shapes it carries are checked again by the core.
  */
-export function readCopied(text: string): CopiedElements | undefined {
-  if (text.length > MOST_READ || !text.includes(COPIED_ELEMENTS)) return undefined;
+export function readCopied(text: string): ReadCopy {
+  if (!text.slice(0, HEAD).includes(COPIED_ELEMENTS)) return undefined;
+  if (text.length > MOST_READ) return TOO_LARGE;
   let value: unknown;
   try {
     value = JSON.parse(text);
@@ -220,25 +235,21 @@ export function readCopied(text: string): CopiedElements | undefined {
     return undefined;
   }
   if (!isObject(value) || value.kind !== COPIED_ELEMENTS) return undefined;
-  const { project, view, elements, relations, arrangement, freeShapes } = value;
+  const { project, packages, view, elements, arrangement, freeShapes } = value;
   if (typeof project !== 'string' || typeof view !== 'string' || !isId(view)) return undefined;
-  if (!isIdList(elements) || !isIdList(relations)) return undefined;
+  if (!isIdList(packages) || !isIdList(elements)) return undefined;
+  if (!Array.isArray(arrangement) || !Array.isArray(freeShapes)) return undefined;
+  if (elements.length + freeShapes.length > MOST_COPIED || arrangement.length > elements.length) {
+    return TOO_LARGE;
+  }
   const isPlace = (each: unknown): each is CopiedElements['arrangement'][number] =>
     isObject(each) &&
     typeof each.element === 'string' &&
     isId(each.element) &&
     isNumber(each.x) &&
     isNumber(each.y);
+  if (!(arrangement as unknown[]).every(isPlace)) return undefined;
   if (
-    !Array.isArray(arrangement) ||
-    arrangement.length > MOST_COPIED ||
-    !(arrangement as unknown[]).every(isPlace)
-  ) {
-    return undefined;
-  }
-  if (
-    !Array.isArray(freeShapes) ||
-    freeShapes.length > MOST_COPIED ||
     !freeShapes.every(
       (each) =>
         isObject(each) &&
@@ -256,9 +267,9 @@ export function readCopied(text: string): CopiedElements | undefined {
   return {
     kind: COPIED_ELEMENTS,
     project,
+    packages: [...new Set(packages)].sort(),
     view,
     elements: [...new Set(elements)],
-    relations: [...new Set(relations)],
     arrangement: (arrangement as CopiedElements['arrangement']).map((each) => ({
       element: each.element,
       x: each.x,
@@ -268,9 +279,17 @@ export function readCopied(text: string): CopiedElements | undefined {
   };
 }
 
-/** Why a copy from another project is not pasted, translated; undefined for one of this project. */
+/**
+ * Why a copy from another project is not pasted, translated; undefined for one of this project: the
+ * same name, and the same packages, since another project of the same name may have the same ids.
+ */
 function fromElsewhere(project: ProjectSnapshot, copied: CopiedElements): string | undefined {
-  return copied.project === project.project.name
+  const packages = packagesOf(project);
+  const same =
+    copied.project === project.project.name &&
+    copied.packages.length === packages.length &&
+    copied.packages.every((id, at) => id === packages[at]);
+  return same
     ? undefined
     : t(
         'These were copied from another project, “{name}”, so they are not pasted: its components may not exist in this one.',
@@ -448,7 +467,7 @@ export function pasteAsDuplicatesCommand(
 /**
  * The one action that duplicates the selection beside itself, in the same view: each element's
  * duplicate in the containers it sits in, the whole selection's width and `BESIDE_GAP` to the right of
- * its original, and its free shapes' copies as far. A reason, translated, for a selection of nothing
+ * its original's shape in each, and its free shapes' copies as far. A reason, translated, for a selection of nothing
  * that can be duplicated.
  */
 export function duplicateCommand(
@@ -482,16 +501,17 @@ export function duplicateCommand(
           view: viewId,
           elements: elements.map((each) => each.id),
           beside: true,
-          positions: elements.flatMap(({ id, shape }) =>
-            shape && shape.row === undefined
-              ? [
-                  {
-                    element: id,
-                    x: Math.round(shape.offset.x + step),
-                    y: Math.round(shape.offset.y),
-                  },
-                ]
-              : [],
+          // A place beside each of its shapes, named by the container it sits in, so that an
+          // element in several containers is duplicated beside itself in each.
+          positions: elements.flatMap(({ id }) =>
+            (indexed?.byElement.get(id) ?? [])
+              .filter((shape) => shape.row === undefined)
+              .map((shape) => ({
+                element: id,
+                ...(shape.container === undefined ? {} : { container: shape.container }),
+                x: Math.round(shape.offset.x + step),
+                y: Math.round(shape.offset.y),
+              })),
           ),
           suffix: t(' (copy)'),
         };
@@ -523,10 +543,10 @@ export function keepCopied(copied: CopiedElements): void {
 
 /**
  * What the system's clipboard holds as copied elements, read when a menu or Ctrl+Shift+V pastes,
- * which no `paste` event brings: undefined when it holds anything else. Where the browser does not
- * let it be read, what this tab copied last.
+ * which no `paste` event brings: `TOO_LARGE` for a copy past the limits, undefined when it holds
+ * anything else. Where the browser does not let it be read, what this tab copied last.
  */
-export async function readClipboardCopy(): Promise<CopiedElements | undefined> {
+export async function readClipboardCopy(): Promise<ReadCopy> {
   const clipboard = typeof navigator === 'undefined' ? undefined : navigator.clipboard;
   if (clipboard?.readText === undefined) return kept;
   try {
