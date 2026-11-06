@@ -10,7 +10,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { sha256 } from '../code/hash';
 import { compileFace, type ResolvedFace } from './compile';
-import { faceIgnoresHeight, layOutFace, type FaceDrawing } from './layout';
+import { faceContentWidth, faceIgnoresHeight, layOutFace, type FaceDrawing } from './layout';
 import { ADR_FACE, face, input } from './test-faces';
 
 const EPSILON = 1e-6;
@@ -267,6 +267,35 @@ describe('faces, whatever they hold', () => {
     );
     expect(ignoring).toBeGreaterThan(20);
     expect(faceIgnoresHeight(compileFace(ADR_FACE))).toBe(ADR_FACE.size === 'content');
+  });
+
+  it('take a width between the least and the most, uncut there unless at either end (#15)', () => {
+    let grown = 0;
+    fc.assert(
+      fc.property(
+        faceArbitrary,
+        inputArbitrary,
+        fc.integer({ min: 0, max: 300 }),
+        fc.integer({ min: 0, max: 400 }),
+        (resolved, data, least, more) => {
+          const compiled = compileFace(resolved);
+          const most = least + more;
+          const width = faceContentWidth(compiled, data, { least, most });
+          expect(width).toBeGreaterThanOrEqual(least);
+          expect(width).toBeLessThanOrEqual(most);
+          const cutAt = (at: number) => layOutFace(compiled, data, { width: at }).cut;
+          if (resolved.size === 'shape' || !cutAt(least)) expect(width).toBe(least);
+          if (width > least && width < most) {
+            grown += 1;
+            // The narrowest whole width it is whole at.
+            expect(Number.isInteger(width)).toBe(true);
+            expect(cutAt(width)).toBe(false);
+          }
+        },
+      ),
+      { numRuns: 80 },
+    );
+    expect(grown).toBeGreaterThan(0);
   });
 
   it('lay out the same, run after run, as data only', () => {

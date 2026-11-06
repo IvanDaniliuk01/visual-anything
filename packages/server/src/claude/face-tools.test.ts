@@ -158,6 +158,24 @@ describe('preview_face', () => {
     expect(session.actions).toEqual([]);
   });
 
+  it('lays a face of size content out as wide as the canvas makes its shape: not cut (#15)', async () => {
+    const { value } = await start();
+    const face = {
+      size: 'content',
+      markup: '<b>{{name}}</b>\n<p>{{owner}} — Hugo Ferreyra (Paciente de prueba)</p>',
+      style: 'face { padding: 4px 8px; }\np { white-space: nowrap; }',
+    };
+    const grown = await value('preview_face', { element: 'api', face });
+    expect(grown).toMatchObject({ cut: false });
+    expect(grown.width).toBeGreaterThan(176);
+    expect(grown.lines).toContain('Team A — Hugo Ferreyra (Paciente de prueba)');
+    // A width given is kept, the face cut in it.
+    expect(await value('preview_face', { element: 'api', face, width: 120 })).toMatchObject({
+      width: 120,
+      cut: true,
+    });
+  });
+
   it('lays out a variant and a collapsed container, and says when there is no face', async () => {
     const { value, failure } = await start();
     expect(

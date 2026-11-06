@@ -224,15 +224,7 @@ export function layOutFace(
       ? undefined
       : Math.max(0, options.height);
   const failure = compiled.problems.find((each) => each.severity === 'error');
-  let markup = compiled.markup;
-  let withoutContents = false;
-  if (options.variant !== undefined) markup = compiled.variants.get(options.variant) ?? markup;
-  else if (options.collapsed) {
-    const collapsed =
-      compiled.collapsed === undefined ? undefined : compiled.variants.get(compiled.collapsed);
-    if (collapsed !== undefined) markup = collapsed;
-    else withoutContents = true;
-  }
+  const { markup, withoutContents } = markupFor(compiled, options);
   if (failure !== undefined || markup === undefined) {
     return fallbackDrawing(input, width, height, failure ?? missingMarkup);
   }
@@ -249,6 +241,93 @@ export function layOutFace(
       reason: thrown.reason,
     });
   }
+}
+
+/** The markup a face is laid out from with these options, and whether it leaves its contents out. */
+function markupFor(
+  compiled: CompiledFace,
+  options: Pick<FaceLayoutOptions, 'variant' | 'collapsed'>,
+): { markup: CompiledMarkup | undefined; withoutContents: boolean } {
+  if (options.variant !== undefined) {
+    return {
+      markup: compiled.variants.get(options.variant) ?? compiled.markup,
+      withoutContents: false,
+    };
+  }
+  if (options.collapsed) {
+    const collapsed =
+      compiled.collapsed === undefined ? undefined : compiled.variants.get(compiled.collapsed);
+    if (collapsed !== undefined) return { markup: collapsed, withoutContents: false };
+    return { markup: compiled.markup, withoutContents: true };
+  }
+  return { markup: compiled.markup, withoutContents: false };
+}
+
+/**
+ * The widest a shape of its own grows, in canvas units, for a face of size `content` cut at its
+ * appearance's width (#15), unless that width is wider: past it, a face is cut as before.
+ */
+export const FACE_CONTENT_MOST_WIDTH = 640;
+
+/** Between which widths a face of size `content` takes its own (`faceContentWidth`). */
+export interface FaceWidthOptions extends Pick<FaceLayoutOptions, 'variant' | 'collapsed'> {
+  /** The width it never goes under: its shape's, as its appearance gives it. */
+  least: number;
+  /** The width it never goes past, however much it says. */
+  most: number;
+}
+
+/**
+ * How wide a face of size `content` is laid out when no width is stored for its shape (ADR 0083's
+ * clarification, #15): the narrowest whole width from `least` up to `most` at which nothing is cut,
+ * as a line that does not wrap, a line clamp or a box's overflow cut it. It is `least` when nothing
+ * is cut there; when no width, up to its content's with everything on one line, keeps it from being
+ * cut, as its own most height cuts it; for a face of size `shape`; and for one that cannot be drawn.
+ * It is `most` when it is still cut there. Text that wraps is never cut, so a face that only wraps
+ * keeps `least`.
+ */
+export function faceContentWidth(
+  compiled: CompiledFace,
+  input: FaceInput,
+  options: FaceWidthOptions,
+): number {
+  const least = Math.max(0, Number.isFinite(options.least) ? options.least : 0);
+  const most = Math.max(least, Number.isFinite(options.most) ? options.most : least);
+  if (compiled.size !== 'content') return least;
+  if (compiled.problems.some((each) => each.severity === 'error')) return least;
+  const { markup, withoutContents } = markupFor(compiled, options);
+  if (markup === undefined) return least;
+  const shown: Omit<FaceLayoutOptions, 'width'> = {
+    ...(options.variant === undefined ? {} : { variant: options.variant }),
+    ...(options.collapsed ? { collapsed: true } : {}),
+  };
+  const cutAt = (width: number) => {
+    const drawing = layOutFace(compiled, input, { width, ...shown });
+    return drawing.cut || drawing.fallback !== undefined;
+  };
+  const first = layOutFace(compiled, input, { width: least, ...shown });
+  if (!first.cut || first.fallback !== undefined) return least;
+  let whole: number;
+  try {
+    whole = Math.ceil(
+      new Layout(compiled, input, least, undefined, withoutContents).widest(markup),
+    );
+  } catch (thrown) {
+    if (thrown instanceof TooLarge) return least;
+    throw thrown;
+  }
+  // When nothing on one line keeps it whole, what cuts it is not its width.
+  if (whole <= least || cutAt(whole)) return least;
+  let high = Math.min(whole, most);
+  if (high < whole && cutAt(high)) return high;
+  // The narrowest whole width it is not cut at, between `low`, where it is, and `high`.
+  let low = least;
+  while (high - low > 1) {
+    const middle = Math.floor((low + high) / 2);
+    if (cutAt(middle)) low = middle;
+    else high = middle;
+  }
+  return high;
 }
 
 /**
@@ -316,11 +395,22 @@ class Layout {
     private readonly withoutContents: boolean,
   ) {}
 
-  drawing(markup: CompiledMarkup): FaceDrawing {
+  /** The face's own box, filled from the element. */
+  private rootOf(markup: CompiledMarkup): Box {
     const rootMatch: Matched = { name: 'face', classes: [] };
     const rootStyle = computeStyle(INITIAL_STYLE, cascade(this.compiled.rules, rootMatch, []));
     const root: Box = { kind: 'box', tag: 'face', style: rootStyle, children: [] };
     this.fill(markup.nodes, root, {}, [rootMatch], undefined);
+    return root;
+  }
+
+  /** How wide the face is with nothing wrapped: what it says, each paragraph on one line. */
+  widest(markup: CompiledMarkup): number {
+    return this.contentWidth(this.rootOf(markup));
+  }
+
+  drawing(markup: CompiledMarkup): FaceDrawing {
+    const root = this.rootOf(markup);
     const shapeSized = this.compiled.size === 'shape' && this.height !== undefined;
     const laid = this.layOutBox(
       root,

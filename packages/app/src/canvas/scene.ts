@@ -81,6 +81,7 @@ import {
   faceContentHeight,
   faceHeader,
   faceImageRefs,
+  faceShapeWidth,
   faceWidthIn,
   heightForFace,
   type ShapeFace,
@@ -2103,8 +2104,17 @@ function measured(
     const boxRight = (box.offset?.x ?? 0) + box.width;
     if (right === undefined || boxRight > right) right = boxRight;
   }
-  const width = containerSize(position?.width, appearance.width, right);
   const shaped = shapedBy(look, shaping);
+  const ownFace =
+    face?.compiled.size === 'content' && contents.length === 0 && shaped.outline === undefined
+      ? face
+      : undefined;
+  // A face of size `content` gives a shape of its own the width it is not cut at, when none is
+  // stored, whether a position was given by hand or layout places it (ADR 0083's clarification, #15).
+  const width =
+    ownFace && position?.width === undefined
+      ? faceShapeWidth(ownFace, appearance.shape, appearance.width)
+      : containerSize(position?.width, appearance.width, right);
   // A face over contents is their container's header, which they are arranged under (ADR 0083).
   const header =
     face && contents.length > 0 ? faceHeader(face, width, kindHeaderOf(laying)) : undefined;
@@ -2116,14 +2126,13 @@ function measured(
   }
   // A face of size `content` gives a shape of its own its height (ADR 0083): the stored height and
   // the appearance's give way, as rows give a table its height.
-  const height =
-    face?.compiled.size === 'content' && contents.length === 0 && shaped.outline === undefined
-      ? heightForFace(
-          appearance.shape,
-          width,
-          faceContentHeight(face, faceWidthIn(appearance.shape, width)),
-        )
-      : containerSize(position?.height, appearance.height, bottom);
+  const height = ownFace
+    ? heightForFace(
+        appearance.shape,
+        width,
+        faceContentHeight(ownFace, faceWidthIn(appearance.shape, width)),
+      )
+    : containerSize(position?.height, appearance.height, bottom);
   return {
     placement,
     width,

@@ -26,6 +26,7 @@ import {
   type Point,
   type Rect,
 } from './geometry';
+import { faceSignature } from './faces';
 import type { IndexedScene } from './hit';
 import { outlineSignature } from './outlined';
 import { curvePieces } from './routing/curves';
@@ -462,6 +463,9 @@ export function shapeSignature(shape: ElementShape): string {
       // Its turn and mirroring (ADR 0088).
       shape.rotation ?? 0,
       shape.flip ?? '',
+      // Its face, what fills it and the header it gives (ADR 0083, #15).
+      shape.header ?? -1,
+      faceSignature(shape.face),
     ].join(' ');
     signatures.set(shape, signature);
   }

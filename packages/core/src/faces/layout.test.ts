@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { robotoWidth } from '../text/roboto';
 import { compileFace } from './compile';
-import { faceDrawingText, layOutFace, type FaceDrawing } from './layout';
+import { faceContentWidth, faceDrawingText, layOutFace, type FaceDrawing } from './layout';
 import { ADR_FACE, face, input } from './test-faces';
 
 function draw(
@@ -375,5 +375,70 @@ describe('laying a face out', () => {
       a: Array.from({ length: 32 }, (_, at) => at),
     });
     expect(boxes.fallback?.reason).toContain('256 boxes');
+  });
+});
+
+describe('how wide a face of size content is (#15)', () => {
+  const card = (style: string | string[], size: 'content' | 'shape' = 'content') =>
+    compileFace(face(['<b>{{name}}</b>', '<p>{{who}}</p>'], style, { size }));
+  const who = (text: string) => input({ who: text }, { name: 'Hugo' });
+  const long = 'Hugo Ferreyra (Paciente de prueba, turno de la tarde)';
+
+  it('keeps the least width when nothing is cut there', () => {
+    const compiled = card('p { white-space: nowrap; }');
+    expect(faceContentWidth(compiled, who('Hugo'), { least: 160, most: 640 })).toBe(160);
+    // Text that wraps is never cut, however long.
+    const wraps = card('face { padding: 8px; }');
+    expect(faceContentWidth(wraps, who(`${long} ${long}`), { least: 160, most: 640 })).toBe(160);
+  });
+
+  it('takes the narrowest width at which nothing is cut, laid out whole there', () => {
+    const compiled = card('face { padding: 0 8px; } p { white-space: nowrap; }');
+    expect(layOutFace(compiled, who(long), { width: 160 }).cut).toBe(true);
+    const width = faceContentWidth(compiled, who(long), { least: 160, most: 640 });
+    expect(width).toBeGreaterThan(160);
+    expect(width).toBeLessThan(640);
+    expect(Number.isInteger(width)).toBe(true);
+    const drawing = layOutFace(compiled, who(long), { width });
+    expect(drawing.cut).toBe(false);
+    expect(drawing.runs.map((run) => run.text)).toContain(long);
+    // One unit narrower, it is cut.
+    expect(layOutFace(compiled, who(long), { width: width - 1 }).cut).toBe(true);
+    // As wide as its text, its padding included, to the unit.
+    const text = drawing.runs.find((run) => run.text === long)!;
+    expect(width).toBe(Math.ceil(text.width + 16));
+  });
+
+  it('fits a clamped paragraph within its lines', () => {
+    const compiled = card('p { line-clamp: 1; }');
+    const width = faceContentWidth(compiled, who(long), { least: 120, most: 640 });
+    expect(width).toBeGreaterThan(120);
+    expect(layOutFace(compiled, who(long), { width }).cut).toBe(false);
+  });
+
+  it('grows no wider than the most it is given, still cut there', () => {
+    const compiled = card('p { white-space: nowrap; }');
+    const endless = `${long} ${long} ${long} ${long}`;
+    expect(faceContentWidth(compiled, who(endless), { least: 160, most: 400 })).toBe(400);
+  });
+
+  it('keeps the least width when no width keeps it from being cut', () => {
+    // Cut by its own most height, which no width helps.
+    const compiled = card([
+      'face { max-height: 10px; overflow: hidden; }',
+      'p { white-space: nowrap; }',
+    ]);
+    expect(faceContentWidth(compiled, who(long), { least: 160, most: 640 })).toBe(160);
+  });
+
+  it('keeps the least width for a face of size shape, and for one that cannot be drawn', () => {
+    expect(
+      faceContentWidth(card('p { white-space: nowrap; }', 'shape'), who(long), {
+        least: 160,
+        most: 640,
+      }),
+    ).toBe(160);
+    const broken = compileFace(face('<script>{{name}}</script>', [], { size: 'content' }));
+    expect(faceContentWidth(broken, who(long), { least: 160, most: 640 })).toBe(160);
   });
 });
