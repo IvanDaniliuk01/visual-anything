@@ -49,6 +49,7 @@ import type { Author } from '../history';
 import { createTour, deleteTour, updateTour } from './tours';
 import { organizeViews } from './view-folders';
 import { resolveConflicts } from './conflicts';
+import { commandShapeProblems } from './shapes';
 import type { Command } from './types';
 import {
   createFreeShape,
@@ -208,6 +209,9 @@ function dispatch(draft: Draft, command: Command): string {
   if (typeof command !== 'object' || command === null || typeof command.type !== 'string') {
     reject('invalid-command', 'A command is an object with a type.');
   }
+  // A key it does not take, a field it needs left out, a value of the wrong kind (ADR 0104).
+  const malformed = commandShapeProblems(command);
+  if (malformed.length > 0) throw new Rejection(malformed);
   switch (command.type) {
     case 'create-element':
       return createElement(draft, command);

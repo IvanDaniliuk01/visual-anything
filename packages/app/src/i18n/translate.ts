@@ -177,6 +177,8 @@ function patternOf(name: string): string {
     return '(\\d+(?:[.,]\\d+)?)';
   }
   if (name === 'file' || name === 'path') return '(\\S+)';
+  // The keys a command takes, as the core lists them (ADR 0104): names and commas, never a sentence.
+  if (name === 'keys') return '([\\w.-]+(?:, [\\w.-]+)*)';
   if (NESTED_VALUES.has(name)) return '(.+?)';
   return '((?:(?!["”][.!?] \\p{Lu}).)+?)';
 }

@@ -209,6 +209,32 @@ describe('pictures name only files the program kept (ADR 0098)', () => {
     );
     expect(outcome).toMatchObject({ ok: false, problems: [{ code: 'media-file-missing' }] });
   });
+
+  it('refuses a picture changed part by part to a file the project does not have (ADR 0104)', async () => {
+    const { session: opened } = await open();
+    const client = new FakeClient();
+    await put(opened, client, PNG);
+    const { media } = stored(client);
+    const created = await opened.execute(
+      {
+        type: 'create-free-shape',
+        view: 'overview',
+        shape: { kind: 'picture', id: 'photo', x: 0, y: 0, width: 32, height: 32, media },
+      },
+      'user',
+    );
+    expect(created.ok).toBe(true);
+    const outcome = await opened.execute(
+      {
+        type: 'update-free-shape',
+        view: 'overview',
+        id: 'photo',
+        changes: { media: { ...media, hash: 'e'.repeat(64), bytes: 9 } },
+      },
+      'claude',
+    );
+    expect(outcome).toMatchObject({ ok: false, problems: [{ code: 'media-file-missing' }] });
+  });
 });
 
 describe('media/get (ADR 0098)', () => {

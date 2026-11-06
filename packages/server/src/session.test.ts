@@ -325,12 +325,12 @@ describe('execute', () => {
 
     const outcome = await session.execute(
       {
-        type: 'create-element',
-        element: {
-          component: 'systems.service',
-          name: 'Odd',
-          // A value the core does not check, which only the file's schema refuses.
-          description: 7 as unknown as string,
+        type: 'update-view',
+        id: 'overview',
+        changes: {
+          // A value the core does not check, which only the file's schema refuses: the core checks
+          // a command's shape (ADR 0104), but reads a perspective as a whole.
+          perspective: { name: 'Odd', description: 7 as unknown as string },
         },
       },
       'user',
@@ -341,7 +341,7 @@ describe('execute', () => {
     expect(outcome.problems).toHaveLength(1);
     expect(outcome.problems[0]?.code).toBe('invalid-file');
     expect(outcome.problems[0]?.message).toMatch(
-      /^The change would make model\.vamodel invalid: \/elements\/5\/description must be a string/,
+      /^The change would make views\/overview\.vaview invalid: \/perspective\/description must be a string/,
     );
     expect(written).toEqual([]);
     expect(session.snapshot).toEqual(testProject());

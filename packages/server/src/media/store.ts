@@ -301,10 +301,15 @@ export class MediaStore {
       return { ok: true };
     }
     const shape = command.shape as { kind?: unknown; media?: Partial<MediaRef> } | undefined;
-    if (shape?.kind !== 'picture' || typeof shape.media !== 'object' || shape.media === null) {
-      return { ok: true };
-    }
-    const { hash, format, bytes } = shape.media;
+    // A picture changed part by part names its file in its changes (ADR 0104); only a picture
+    // takes one there, so the core refuses it for any other shape.
+    const changes =
+      command.type === 'update-free-shape'
+        ? (command.changes as { media?: Partial<MediaRef> } | undefined)
+        : undefined;
+    const media = shape?.kind === 'picture' ? shape.media : changes?.media;
+    if (typeof media !== 'object' || media === null) return { ok: true };
+    const { hash, format, bytes } = media;
     // A reference the core would refuse is left for the core to refuse, with its own words.
     if (typeof hash !== 'string' || !/^[0-9a-f]{64}$/.test(hash) || typeof format !== 'string') {
       return { ok: true };

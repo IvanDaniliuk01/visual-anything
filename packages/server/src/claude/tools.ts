@@ -10,8 +10,10 @@ import {
   MAX_GUIDANCE_TARGETS,
   automaticRouteStyleOf,
   definitionsIn,
+  describeCommand,
   executeCommand,
   freshId,
+  listCommands,
   modelIndexOf,
   previewDelete,
   randomIds,
@@ -1657,10 +1659,38 @@ Example: { "packages": ["systems", "data-modeling"] }`,
     ),
 });
 
+const describeCommandTool = tool({
+  name: 'describe_command',
+  title: 'Describe a command',
+  description: `Says what a command of run_commands takes: its fields with their types, which it needs, what each means, the keys of the objects it holds whose keys are fixed, and an example. Without a type, it lists every command with what it does. It reads the same table the program checks commands against, so a command written as it says is never refused for its shape.
+
+Example: { "type": "update-free-shape" }
+Example: {}`,
+  input: {
+    type: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('The command type, such as "update-view"; left out, the list of them.'),
+  },
+  hints: READ,
+  run: (args) => {
+    if (args.type === undefined) return Promise.resolve(ok({ commands: listCommands() }));
+    const described = describeCommand(args.type);
+    return Promise.resolve(
+      described === undefined
+        ? fail(
+            `"${args.type}" is not a command. Call describe_command without a type for the list.`,
+          )
+        : ok(described),
+    );
+  },
+});
+
 const runCommands = tool({
   name: 'run_commands',
   title: 'Run commands as one action',
-  description: `Runs several of Visual Anything's commands as one undoable action, for changes no other tool makes at once. Each command is an object with a type, as the program's core takes it, such as "create-element", "update-element", "delete", "create-relation", "update-relation", "create-package", "define-component", "remove-component", "define-relation-type", "remove-relation-type", "create-view", "update-view", "delete-view", "set-positions", "remove-positions", "create-free-shape", "update-free-shape", "delete-free-shapes", "update-project", "restack", "change-container", "set-route", "reset-route", "set-component-appearance" and "set-relation-type-appearance". Either all of them are done, or none is and the answer says which one was refused and why. Prefer the other tools when one fits.
+  description: `Runs several of Visual Anything's commands as one undoable action, for changes no other tool makes at once. Each command is an object with a type, as the program's core takes it, such as "create-element", "update-element", "delete", "create-relation", "update-relation", "create-package", "define-component", "remove-component", "define-relation-type", "remove-relation-type", "create-view", "update-view", "delete-view", "set-positions", "remove-positions", "create-free-shape", "update-free-shape", "delete-free-shapes", "update-project", "restack", "change-container", "set-route", "reset-route", "set-component-appearance" and "set-relation-type-appearance". Either all of them are done, or none is and the answer says which one was refused and why. A command refuses a key it does not take, naming the keys it takes; describe_command gives each command's fields, which it needs, what each means and an example. Prefer the other tools when one fits.
 
 A delete, or a change-container, that would take more than it names (relations ending on what it deletes, or on the nesting relations it takes away; a nesting relation with data of its own) or break a scenario step is refused, as delete_from_model and change_container refuse it, each previewed over the project as the commands before it leave it: tell the person what would go, then call again with cascade true.
 
@@ -1863,6 +1893,7 @@ export const TOOLS: readonly Tool[] = [
   updateFreeShape,
   deleteFreeShapes,
   updateProject,
+  describeCommandTool,
   runCommands,
   highlight,
   focus,
@@ -1938,9 +1969,11 @@ export async function runTool(
 
 /**
  * The read tools that say themselves what the proposal holds, or read no project: the versions are
- * compared with the project now, which the proposal is not part of.
+ * compared with the project now, which the proposal is not part of, and the commands' shapes are
+ * no project's.
  */
 const OWN_PROPOSAL_NOTE: ReadonlySet<string> = new Set([
+  'describe_command',
   'read_proposal',
   'list_versions',
   'compare_versions',

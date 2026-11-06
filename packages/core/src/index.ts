@@ -197,6 +197,17 @@ export { containmentCycles, limitWarnings, previewDelete, wouldFormCycle } from 
 export type * from './commands/types';
 export type { CommandContext, CommandOutcome, ContainerChangePreview } from './commands';
 export { executeCommand, previewChangeContainer } from './commands';
+// The shape of every command, which the core checks and describe_command answers (ADR 0104).
+export {
+  COMMAND_SHAPES,
+  commandShapeProblems,
+  describeCommand,
+  listCommands,
+  type CommandDescription,
+  type CommandShape,
+  type FieldDescription,
+  type FieldShape,
+} from './commands/shapes';
 
 export type { Author, History, HistoryEntry, HistorySummary, Step as HistoryStep } from './history';
 export {

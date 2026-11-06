@@ -41,6 +41,7 @@ import type {
   CreateViewCommand,
   DeleteFreeShapesCommand,
   DeleteViewCommand,
+  FreeShapeChanges,
   NewFreeShape,
   PositionChange,
   RemovePositionsCommand,
@@ -309,13 +310,34 @@ export function createFreeShape(draft: Draft, command: CreateFreeShapeCommand): 
 
 export function updateFreeShape(draft: Draft, command: UpdateFreeShapeCommand): string {
   const view = draft.view(command.view);
-  const current = view.freeShapes.find((each) => each.id === command.shape?.id);
-  const shape = checkedFreeShape(command.shape, view.name, current);
-  if (current === undefined) {
-    reject('unknown-free-shape', `The view "${view.name}" has no free shape "${shape.id}".`, [
-      shape.id,
-    ]);
+  const partly = command.id !== undefined || command.changes !== undefined;
+  if (command.shape !== undefined && partly) {
+    reject(
+      'invalid-command',
+      'update-free-shape takes the free shape whole in "shape", or its "id" with "changes", not both.',
+    );
   }
+  if (command.shape === undefined && (command.id === undefined || command.changes === undefined)) {
+    reject(
+      'invalid-command',
+      'update-free-shape needs the free shape whole in "shape", or its "id" with "changes".',
+    );
+  }
+  const id = command.shape === undefined ? command.id : command.shape.id;
+  if (typeof id !== 'string') {
+    reject(
+      'invalid-command',
+      'update-free-shape needs the id of the free shape it replaces in "shape.id".',
+    );
+  }
+  const current = view.freeShapes.find((each) => each.id === id);
+  const unknown = (): never =>
+    reject('unknown-free-shape', `The view "${view.name}" has no free shape "${id}".`, [id]);
+  if (command.shape === undefined && current === undefined) unknown();
+  const next =
+    command.shape ?? mergedFreeShape(current as FreeShape, command.changes as FreeShapeChanges);
+  const shape = checkedFreeShape(next, view.name, current);
+  if (current === undefined) return unknown();
   draft.apply({ op: 'replace', collection: { name: 'freeShapes', view: view.id }, item: shape });
   const colorsOnly =
     shape.kind !== 'picture' &&
@@ -332,6 +354,41 @@ export function updateFreeShape(draft: Draft, command: UpdateFreeShapeCommand): 
       : `${verb} the color of an arrow in "${view.name}"`;
   }
   return `Edit ${FREE_SHAPE_NOUN[shape.kind]} in "${view.name}"`;
+}
+
+/** The parts each kind of free shape lets `changes` set. */
+const FREE_SHAPE_PARTS: Record<FreeShape['kind'], readonly (keyof FreeShapeChanges)[]> = {
+  note: ['x', 'y', 'width', 'height', 'text', 'fill', 'stroke'],
+  arrow: ['from', 'to', 'stroke'],
+  picture: ['x', 'y', 'width', 'height', 'media', 'name'],
+};
+
+/** What a refusal calls each kind of free shape, at the start of a sentence. */
+const FREE_SHAPE_SUBJECT: Record<FreeShape['kind'], string> = {
+  note: 'A note',
+  arrow: 'An arrow',
+  picture: 'A picture',
+};
+
+/**
+ * A free shape with changes merged over it (ADR 0104): each part its kind has, `null` taking an
+ * optional one out. A part its kind does not have is refused, naming the ones it has.
+ */
+function mergedFreeShape(current: FreeShape, changes: FreeShapeChanges): FreeShape {
+  const parts = FREE_SHAPE_PARTS[current.kind];
+  const merged: Record<string, unknown> = { ...current };
+  for (const [key, value] of Object.entries(changes)) {
+    if (value === undefined) continue;
+    if (!parts.includes(key as keyof FreeShapeChanges)) {
+      reject(
+        'invalid-command',
+        `${FREE_SHAPE_SUBJECT[current.kind]} has no "${key}": it takes ${parts.join(', ')}.`,
+      );
+    }
+    if (value === null) delete merged[key];
+    else merged[key] = value;
+  }
+  return merged as unknown as FreeShape;
 }
 
 /** What a history label calls each kind of free shape. */

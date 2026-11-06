@@ -559,6 +559,94 @@ const ALONE: readonly [string, unknown][] = [
       shape: { kind: 'note', x: 0, y: 0, width: 9, height: 9 },
     },
   ],
+  // The shape of a command (ADR 0104, #14): keys it does not take, fields it needs, values of the
+  // wrong kind, and where a key given in the wrong place goes.
+  [
+    'a scope given to update-view',
+    { type: 'update-view', id: VIEW, changes: { routeStyle: 'straight', scope: {} } },
+  ],
+  ...(['relationTypesLeftOut', 'overlays', 'drawing', 'collapsed', 'folder', 'id'] as const).map(
+    (key): [string, unknown] => [
+      `${key} given to update-view`,
+      { type: 'update-view', id: VIEW, changes: { [key]: [] } },
+    ],
+  ),
+  ['ids given to delete', { type: 'delete', ids: ['patient'] }],
+  ...(['containers', 'positions', 'id'] as const).map((key): [string, unknown] => [
+    `${key} given to update-element`,
+    { type: 'update-element', id: 'patient', changes: { [key]: [] } },
+  ]),
+  ['a name beside the changes', { type: 'update-view', id: VIEW, name: 'Renamed' }],
+  [
+    'a place inside the new element',
+    {
+      type: 'create-element',
+      element: { component: 'systems.box', name: 'Box', before: 'patient' },
+    },
+  ],
+  [
+    'a key of no command',
+    { type: 'set-collapsed', view: VIEW, elements: [], collapsed: true, all: true },
+  ],
+  ['update-view without its id', { type: 'update-view', changes: { name: 'Renamed' } }],
+  ['a name that is no text', { type: 'update-view', id: VIEW, changes: { name: 5 } }],
+  ['a route style that is no text', { type: 'update-view', id: VIEW, changes: { routeStyle: 5 } }],
+  [
+    'a coordinate that is no number',
+    { type: 'update-free-shape', view: VIEW, id: 'calendar-note', changes: { x: 'left' } },
+  ],
+  [
+    'collapsed that is no boolean',
+    { type: 'set-collapsed', view: VIEW, elements: [], collapsed: 'yes' },
+  ],
+  [
+    'fading that is no boolean',
+    { type: 'update-view', id: VIEW, changes: { selectionFadesLines: 'yes' } },
+  ],
+  ['elements that are no list', { type: 'delete', elements: 'patient' }],
+  ['an element id that is no text', { type: 'delete', elements: [5] }],
+  [
+    'bend points that are no list',
+    { type: 'set-route', view: VIEW, relation: 'api-writes-db', bendPoints: 5 },
+  ],
+  ['changes that are no object', { type: 'update-view', id: VIEW, changes: [] }],
+  [
+    'an appearance that is no object',
+    { type: 'update-element', id: 'patient', changes: { appearance: 5 } },
+  ],
+  ['a thread that is null', { type: 'create-thread', thread: null }],
+  [
+    'a free shape whole and in part',
+    {
+      type: 'update-free-shape',
+      view: VIEW,
+      id: 'calendar-note',
+      changes: { x: 1 },
+      shape: { kind: 'note', id: 'calendar-note', x: 0, y: 0, width: 9, height: 9, text: 'x' },
+    },
+  ],
+  [
+    'a free shape neither whole nor in part',
+    { type: 'update-free-shape', view: VIEW, changes: { x: 1 } },
+  ],
+  [
+    'a whole free shape without its id',
+    {
+      type: 'update-free-shape',
+      view: VIEW,
+      shape: { kind: 'note', x: 0, y: 0, width: 9, height: 9, text: 'x' },
+    },
+  ],
+  [
+    'a note changed where it has no part',
+    {
+      type: 'update-free-shape',
+      view: VIEW,
+      id: 'calendar-note',
+      changes: { from: { x: 0, y: 0 } },
+    },
+  ],
+  restack('a move without its shape', [{ to: 'front' }]),
   [
     'view arranged by a type that does not nest',
     {
@@ -1117,6 +1205,23 @@ const IN_ORDER: readonly [string, readonly unknown[]][] = [
           text: 'Moved.',
         },
       },
+      // Part by part (ADR 0104): a part the shape's kind has, then ones it has not.
+      { type: 'update-free-shape', view: VIEW, id: 'calendar-note', changes: { height: 90 } },
+      { type: 'update-free-shape', view: VIEW, id: 'pointer', changes: { text: 'Here' } },
+      {
+        type: 'create-free-shape',
+        view: VIEW,
+        shape: {
+          kind: 'picture',
+          id: 'front-desk',
+          x: 0,
+          y: 0,
+          width: 40,
+          height: 30,
+          media: { hash: 'ab'.repeat(32), format: 'png', width: 800, height: 600, bytes: 1200 },
+        },
+      },
+      { type: 'update-free-shape', view: VIEW, id: 'front-desk', changes: { fill: '#FFFFFF' } },
     ],
   ],
   [

@@ -84,11 +84,11 @@ describe('the tools', () => {
     }
   });
 
-  it('say which only read: those that get, list, find, read, preview, export, check, capture or compare', () => {
+  it('say which only read: those that get, list, find, read, describe, preview, export, check, capture or compare', () => {
     const readOnly = TOOLS.filter((each) => each.hints.readOnlyHint).map((each) => each.name);
     expect(readOnly).toEqual(
       TOOLS.map((each) => each.name).filter((name) =>
-        /^(get|list|find|read|preview|export|check|capture|compare)_/.test(name),
+        /^(get|list|find|read|describe|preview|export|check|capture|compare)_/.test(name),
       ),
     );
     expect(readOnly).toEqual(
@@ -102,6 +102,7 @@ describe('the tools', () => {
         'list_versions',
         'compare_versions',
         'list_conflicts',
+        'describe_command',
       ]),
     );
   });
@@ -457,6 +458,54 @@ describe('other write tools', () => {
     await value('run_commands', { label: 'Remove the API', commands, cascade: true });
     expect(element('api')).toBeUndefined();
     expect(session.history.undo).toEqual({ label: 'Remove the API', author: 'claude' });
+  });
+
+  it('refuse a command with a key it does not take, naming the keys it takes (#14)', async () => {
+    const message = await failure('run_commands', {
+      label: 'Straighten and scope',
+      commands: [
+        {
+          type: 'update-view',
+          id: 'overview',
+          changes: { routeStyle: 'straight', scope: { include: [] } },
+        },
+      ],
+    });
+    expect(message).toContain(
+      `update-view does not take "changes.scope": "changes" takes name, description, perspective, nestingRelationTypes, routeStyle, rows, selectionFadesLines. A view's scope is set with set-scope.`,
+    );
+    expect(session.history).toEqual({});
+  });
+
+  it('change a free shape part by part (#14)', async () => {
+    await value('run_commands', {
+      label: 'Taller note',
+      commands: [
+        { type: 'update-free-shape', view: 'overview', id: 'note', changes: { height: 340 } },
+      ],
+    });
+    const note = session.snapshot.views[0]?.freeShapes.find((each) => each.id === 'note');
+    expect(note).toMatchObject({ kind: 'note', height: 340 });
+  });
+
+  it('describe each command from the table the core checks them against (#14)', async () => {
+    const list = await value('describe_command');
+    expect(list.commands).toContainEqual({
+      type: 'update-free-shape',
+      meaning: expect.stringContaining('part by part') as unknown,
+    });
+    const described = await value('describe_command', { type: 'delete' });
+    expect(described).toMatchObject({
+      type: 'delete',
+      fields: [
+        { name: 'elements', type: 'Id[]', required: false },
+        { name: 'relations', type: 'Id[]', required: false },
+      ],
+      example: { type: 'delete' },
+    });
+    expect(await failure('describe_command', { type: 'scope' })).toBe(
+      '"scope" is not a command. Call describe_command without a type for the list.',
+    );
   });
 
   it('preview each delete in a batch over the project the commands before it leave', async () => {

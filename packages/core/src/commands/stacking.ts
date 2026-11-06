@@ -32,6 +32,9 @@ export function restack(draft: Draft, command: RestackCommand): string {
   const names: { element: string; reference?: string }[] = [];
 
   for (const move of moves) {
+    if (typeof move.shape !== 'object' || move.shape === null) {
+      reject('invalid-command', 'Each move of restack names its shape: { "element": id }.');
+    }
     const element = draft.element(move.shape.element);
     if (element.id === worldId) {
       reject('world-not-allowed', 'World has no shape; it is the canvas itself.', [element.id]);
