@@ -8,10 +8,14 @@
  * would. The physical-space panel opens, shows, moves and frames as `useGuidedSpace.ts` says, and
  * a simulation opens, plays, pauses and closes as `useGuidedSimulation.ts` says.
  * Nothing here changes the project.
+ *
+ * Claude's pictures wait for the guidance sent before them (#16): the layer says when it applied the
+ * guidance it shows, once every view it opened for it shows and its move has been drawn.
  */
 import type { ProjectSnapshot } from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
 import { useContext, useEffect, useMemo, useRef } from 'react';
-import { EditorContext } from '../editor/EditorContext';
+import { EditorContext, type Editor } from '../editor/EditorContext';
 import { useEmphasisSource } from '../editor/emphasis';
 import { useT } from '../i18n';
 import { LiveContext } from '../live/context';
@@ -28,6 +32,12 @@ import { useGuidedSimulation } from './useGuidedSimulation';
 import { useGuidedSpace } from './useGuidedSpace';
 import './guidance.css';
 
+/**
+ * How long a view guidance opened, or a move it asked for, is waited for before Claude's pictures no
+ * longer wait for it, in milliseconds, as when the shell does not open it (#16).
+ */
+const OPENING_WAIT = 10_000;
+
 interface GuidanceLayerProps {
   /** The tab's scenario session, which Claude's playback guidance plays; absent, it is ignored. */
   scenarios?: ScenarioSession;
@@ -40,16 +50,20 @@ export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
   const editor = useContext(EditorContext);
   const guidance = live?.guidance ?? NO_GUIDANCE;
   const { marks, panTo, caption } = guidance;
-  useGuidedRequests(guidance, editor, scenarios);
+  // The view shown when guidance last opened another, and when: Claude's pictures wait until the
+  // view shown changes (#16).
+  const openingRef = useRef<{ from: Id | undefined; at: number } | undefined>(undefined);
+  const guided = useOpeningNoted(editor, openingRef);
+  useGuidedRequests(guidance, guided, scenarios);
   const spacePanel = useSpacePanel();
   const { reduced } = useMotion();
-  useGuidedSpace(guidance.space, editor, spacePanel, reduced);
+  useGuidedSpace(guidance.space, guided, spacePanel, reduced);
   const simulations = useSimulations();
-  useGuidedSimulation(guidance.simulation, editor, simulations);
+  useGuidedSimulation(guidance.simulation, guided, simulations);
   const project = editor?.project;
   const scene = editor?.scene;
   const viewId = editor?.viewId;
-  const openView = editor?.openView;
+  const openView = guided?.openView;
   const reveal = editor?.reveal;
 
   // Marks Claude made for a view show in that view only; marks for no view show in the open one.
@@ -81,6 +95,10 @@ export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
   // A move waits until its view is open and drawn, then happens once; a tab that does not open its
   // view passes it over.
   const moved = useRef<number | undefined>(undefined);
+  // Whether a move was just asked of the shell, which the canvas has not drawn yet (#16).
+  const revealing = useRef(false);
+  // The move waited for, and since when (#16).
+  const panWaited = useRef<{ request: number; at: number } | undefined>(undefined);
   useEffect(() => {
     if (panTo === undefined || moved.current === panTo.request || scene === undefined) return;
     if (!forThisTab(panTo, viewId)) {
@@ -91,8 +109,35 @@ export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
     if (project === undefined) return;
     moved.current = panTo.request;
     const key = revealKeyFor(panTo.target, scene, project);
-    if (key !== undefined) reveal?.(key);
+    if (key === undefined || reveal === undefined) return;
+    reveal(key);
+    // The canvas moves when the shell has drawn again, which draws this layer again too.
+    revealing.current = true;
   }, [panTo, scene, viewId, reveal, project]);
+
+  // Says when the guidance shown is applied, which Claude's pictures wait for (#16): every view it
+  // opened shows, or the person went elsewhere, and its move, if any, has been drawn.
+  const applied = live?.guidanceApplied;
+  useEffect(() => {
+    if (applied === undefined) return;
+    const asked = openingRef.current;
+    if (asked !== undefined && (asked.from !== viewId || Date.now() - asked.at > OPENING_WAIT)) {
+      openingRef.current = undefined;
+    }
+    if (openingRef.current !== undefined) return;
+    if (revealing.current) {
+      revealing.current = false;
+      return;
+    }
+    // A move for this tab waits for its view and its scene, as long as a view guidance opened.
+    if (panTo !== undefined && moved.current !== panTo.request) {
+      if (panWaited.current?.request !== panTo.request) {
+        panWaited.current = { request: panTo.request, at: Date.now() };
+      }
+      if (Date.now() - panWaited.current.at <= OPENING_WAIT) return;
+    }
+    applied(guidance);
+  });
 
   // A caption is Claude's own text, shown as Claude wrote it. Marks are said by what the open view
   // shows of them, once their view is the one open.
@@ -129,6 +174,27 @@ export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
       )}
     </>
   );
+}
+
+/**
+ * The editor as guidance uses it: opening a view through it notes the view shown then, which Claude's
+ * pictures wait to change (#16).
+ */
+function useOpeningNoted(
+  editor: Editor | undefined,
+  openingRef: { current: { from: Id | undefined; at: number } | undefined },
+): Editor | undefined {
+  return useMemo(() => {
+    const openView = editor?.openView;
+    if (editor === undefined || openView === undefined) return editor;
+    return {
+      ...editor,
+      openView: (view: Id) => {
+        if (view !== editor.viewId) openingRef.current = { from: editor.viewId, at: Date.now() };
+        openView(view);
+      },
+    };
+  }, [editor, openingRef]);
 }
 
 /** Whether the project has a view with this id. */

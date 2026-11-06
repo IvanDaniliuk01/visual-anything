@@ -67,6 +67,8 @@ export async function startToolHarness(
     preferences?: PreferencesStore;
     /** Whether opening the browser fails, as inside a container without xdg-open (ADR 0099). */
     browserFails?: boolean;
+    /** How long a picture waits for the app, in milliseconds; 20 s by default (ADR 0081). */
+    captureWait?: number;
   } = {},
 ): Promise<ToolHarness> {
   const profile = await realpath(await mkdtemp(join(tmpdir(), 'va-tools-')));
@@ -80,6 +82,7 @@ export async function startToolHarness(
     out: () => {},
     err: () => {},
     ...(options.preferences === undefined ? {} : { preferences: options.preferences }),
+    ...(options.captureWait === undefined ? {} : { captureWait: options.captureWait }),
   });
   if (!result.ok) throw new Error('The test project does not open.');
   const { session } = result;

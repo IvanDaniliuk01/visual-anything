@@ -15,7 +15,7 @@ import type {
   VersionRef,
   VersionsListedMessage,
 } from '@visual-anything/core';
-import type { GuidedLayoutAnswer } from '../guidance/state';
+import type { GuidanceState, GuidedLayoutAnswer } from '../guidance/state';
 import type { LiveValueBook } from '../live-values/book';
 import type {
   CommandResult,
@@ -28,6 +28,7 @@ import type {
   SendOptions,
   StartChoice,
   TakeCapture,
+  CaptureWaitsFor,
 } from './connection';
 
 /** How the local program answered a change of preferences: what it holds now, or why it refused. */
@@ -68,9 +69,17 @@ export interface Live extends LiveState {
   answerLayout?: (answer: string, outcome: GuidedLayoutAnswer) => void;
   /**
    * Lends the live session what takes Claude's pictures with this tab's canvas (ADR 0081); returns
-   * what takes it back. Absent where there is no live session to answer.
+   * what takes it back. Absent where there is no live session to answer. `waitsFor` says what the
+   * canvas still waits for before it shows what a picture needs, which a picture waits for (#16).
    */
-  lendCapture?: (capture: TakeCapture) => () => void;
+  lendCapture?: (capture: TakeCapture, waitsFor?: CaptureWaitsFor) => () => void;
+  /**
+   * Says the tab's guidance layer applied this guidance: the views it named opened and its move
+   * happened, which a picture asked for after it waits for (#16).
+   */
+  guidanceApplied?: (guidance: GuidanceState) => void;
+  /** Says what a picture waits for may have changed, as when the canvas drew another scene (#16). */
+  captureChanged?: () => void;
   /**
    * Asks the local program to change some of the person's preferences; absent where there is no live
    * session to carry them, as in tests that give components a session of their own.

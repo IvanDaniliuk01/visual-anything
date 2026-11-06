@@ -207,4 +207,30 @@ describe('CanvasRenderer.captureImage', () => {
     });
     expect(renderer.drawnFrom.indexed).toBe(indexed);
   });
+
+  it('draws in a tab in the background, where no frame comes and toBlob may wait (#16)', async () => {
+    const { renderer } = await started();
+    // The browser draws no frame: requestAnimationFrame never runs.
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    const toBlob = vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(() => {});
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(
+      'data:image/png;base64,iVBORw0KGgo=',
+    );
+    renderer.show(indexed);
+
+    const drawn = await renderer.captureImage({
+      frame: { x: 0, y: 0, width: 800, height: 400 },
+      pixelsPerUnit: 1,
+      width: 800,
+      height: 400,
+      asShown: false,
+      whole: false,
+    });
+
+    expect(drawn).toMatchObject({ width: 800, height: 400 });
+    expect(drawn.blob.type).toBe('image/png');
+    expect(toBlob).not.toHaveBeenCalled();
+    expect(rendered).toHaveLength(1);
+  });
 });

@@ -186,6 +186,49 @@ describe('toPng', () => {
     } as unknown as HTMLCanvasElement;
     await expect(toPng(canvas)).rejects.toBeInstanceOf(ImageError);
   });
+
+  it('encodes at once in a tab in the background, whose browser may put toBlob off (#16)', async () => {
+    const bytes =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    // Never called back, as a hidden tab may keep it waiting.
+    const toBlob = vi.fn();
+    const canvas = {
+      toBlob,
+      toDataURL: vi.fn((type: string) => `data:${type};base64,${bytes}`),
+    } as unknown as HTMLCanvasElement;
+    const blob = await toPng(canvas, true);
+    expect(toBlob).not.toHaveBeenCalled();
+    expect(blob.type).toBe('image/png');
+    const read = new Uint8Array(await blob.arrayBuffer());
+    expect(btoa(String.fromCharCode(...read))).toBe(bytes);
+  });
+
+  it('encodes at once when the tab goes to the background while toBlob encodes (#16)', async () => {
+    const bytes = 'iVBORw0KGgo=';
+    const toBlob = vi.fn();
+    const canvas = {
+      toBlob,
+      toDataURL: (type: string) => `data:${type};base64,${bytes}`,
+    } as unknown as HTMLCanvasElement;
+    const hidden = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    try {
+      const png = toPng(canvas, false, document);
+      expect(toBlob).toHaveBeenCalledOnce();
+      hidden.mockReturnValue('hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+      const blob = await png;
+      expect(blob.type).toBe('image/png');
+      // What toBlob gives later is let go.
+      (toBlob.mock.calls[0]?.[0] as (blob: Blob | null) => void)(null);
+    } finally {
+      hidden.mockRestore();
+    }
+  });
+
+  it('fails as an image error in the background too when the browser makes no PNG', async () => {
+    const canvas = { toDataURL: () => 'data:,' } as unknown as HTMLCanvasElement;
+    await expect(toPng(canvas, true)).rejects.toBeInstanceOf(ImageError);
+  });
 });
 
 describe('imageFileName', () => {

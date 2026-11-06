@@ -32,7 +32,7 @@ const captureView = tool({
   title: 'See a view as the app draws it',
   description: `Answers a picture of a view as the app the person has open draws it, as a PNG image you can look at: its shapes, lines, names and details as the canvas writes them at that size, the theme, the overlays and their legend, what is collapsed, and what filters and focus hide or dim, without the selection's or guidance's marks. The tab the person used last draws it off screen, so their tab neither moves nor flickers, and nothing changes: no view, no history, no camera. Use it to check a view after you build it or lay it out (lay_out_view), before you tell the person it is done, and look for overlapping shapes, lines across names, and what reads badly.
 
-region is "whole" (the default), "viewport" (what the tab shows now), or a list of ids of elements, notes and arrows whose shapes to frame, to read a part closely. width is the picture's width in pixels, ${CAPTURE_WIDTH.least} to ${CAPTURE_WIDTH.most}, ${CAPTURE_WIDTH.initial} by default; a region taller than ${MAX_CAPTURE_HEIGHT} pixels at that width is drawn narrower. The canvas writes names only where shapes are large enough on screen, so a large view seen whole shows blocks: frame some elements, or widen it, to read them. A picture past ${MAX_CAPTURE_BYTES / MIB} MiB is refused, saying so. It pictures only a view a tab shows: with view left out, the one the tab shows; it never opens another, nor a browser. With no app open, open_app opens one.
+region is "whole" (the default), "viewport" (what the tab shows now), or a list of ids of elements, notes and arrows whose shapes to frame, to read a part closely. width is the picture's width in pixels, ${CAPTURE_WIDTH.least} to ${CAPTURE_WIDTH.most}, ${CAPTURE_WIDTH.initial} by default; a region taller than ${MAX_CAPTURE_HEIGHT} pixels at that width is drawn narrower. The canvas writes names only where shapes are large enough on screen, so a large view seen whole shows blocks: frame some elements, or widen it, to read them. A picture past ${MAX_CAPTURE_BYTES / MIB} MiB is refused, saying so. It pictures only a view a tab shows: with view left out, the one the tab shows; it never opens another, nor a browser. Guidance sent before it is applied first: after pan_to or highlight opens another view, the picture waits until the tab shows that view drawn. With no app open, open_app opens one.
 
 Example: { "view": "system-overview" }
 Example: { "view": "system-overview", "region": ["checkout", "payments"], "width": 1600 }
@@ -112,9 +112,7 @@ function answerOf(state: ProjectSnapshot, ask: CaptureAsk, report: CaptureReport
   }
   switch (report.unanswered) {
     case 'timed-out':
-      return fail(
-        `The app did not answer within ${Math.round((report.waited ?? 0) / 1000)} s, so there is no picture. Try a smaller width or a region, or call capture_view again in a moment.`,
-      );
+      return fail(timedOut(state, ask, report));
     case 'gone':
       return fail(
         'The app closed before it answered, so there is no picture. Call open_app to open it again, then call capture_view again.',
@@ -124,6 +122,25 @@ function answerOf(state: ProjectSnapshot, ask: CaptureAsk, report: CaptureReport
         'No open tab took the picture: only the tab the person used last does, and none of the open tabs is. Ask the person to bring the app’s tab to the front, or call open_app, then call capture_view again.',
       );
   }
+}
+
+/**
+ * Why no picture came in time (#16): what the program waited for, and for how long, and what may have
+ * held the tab back.
+ */
+function timedOut(state: ProjectSnapshot, ask: CaptureAsk, report: CaptureReport): string {
+  const seconds = (report.waited ?? 0) / 1000;
+  const view =
+    ask.view === undefined ? 'the view it shows' : `the view ${viewName(state, ask.view)}`;
+  const region =
+    ask.region === 'whole'
+      ? 'whole'
+      : ask.region === 'viewport'
+        ? 'as it shows it now'
+        : `framing ${names(state, ask.region)}`;
+  const tabs =
+    report.apps === 1 ? 'The one open tab was asked' : `All ${report.apps} open tabs were asked`;
+  return `The program waited ${Number(seconds.toFixed(2))} s for the tab the person used last to draw ${view}, ${region}, ${ask.width} pixels wide, and answer with the picture, and no answer came, so there is no picture. ${tabs}; a tab that is not the one used last passes a picture over at once. A tab in the background, or in a minimized window, may be held back by its browser: ask the person to bring the app's tab to the front, then call capture_view again. Otherwise try a smaller width or a region.`;
 }
 
 /** The short text beside a picture: the view, what it shows, its size, theme and zoom. */

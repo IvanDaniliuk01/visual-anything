@@ -3,9 +3,11 @@
  * renderer of its own, started in that theme in a host outside the window, given what the tab's
  * canvas draws from (its scene, emphasis, overlays' legend, package code's drawings and comparison),
  * and the camera of the tab for what it shows now. It draws one frame, then the picture through the
- * PNG export's path, and goes. The person's canvas is never touched: it does not move or flicker.
+ * PNG export's path, and goes; in a tab in the background, which draws no frames, it draws that
+ * frame at once (#16). The person's canvas is never touched: it does not move or flicker.
  */
 import { MAX_CAPTURE_WAIT } from '../canvas/capture';
+import { pageHidden } from '../canvas/hidden';
 import type { Camera } from '../canvas/camera';
 import type { Size } from '../canvas/geometry';
 import {
@@ -28,7 +30,9 @@ export interface MirrorView {
 
 /**
  * Draws a picture off screen in `theme`, from what the tab's canvas draws. With `view`, it looks
- * where the tab's canvas looks, at the tab's size, as a picture of what it shows now needs.
+ * where the tab's canvas looks, at the tab's size, as a picture of what it shows now needs. With
+ * `until`, a time of `performance.now()`, it waits for its start and its frame no later (#16), so
+ * that the tab answers within the program's wait.
  */
 export async function drawOffScreen(
   from: DrawnFrom,
@@ -36,7 +40,10 @@ export async function drawOffScreen(
   image: CaptureImage,
   view?: MirrorView,
   target: Document = document,
+  until?: number,
 ): Promise<DrawnImage> {
+  const left = (most: number) =>
+    until === undefined ? most : Math.max(0, Math.min(most, until - performance.now()));
   const indexed = from.indexed;
   if (indexed === undefined) throw new ImageError({ reason: 'not-ready' });
   const host = target.createElement('div');
@@ -62,7 +69,7 @@ export async function drawOffScreen(
         { theme, firstFit: 'whole' },
       );
     });
-    await within(ready, MIRROR_START_WAIT, 'The canvas off screen did not start in time.');
+    await within(ready, left(MIRROR_START_WAIT), 'The canvas off screen did not start in time.');
     const mirror = renderer as unknown as CanvasRenderer;
     if (from.codeDrawings !== undefined) mirror.setCodeDrawings(from.codeDrawings);
     mirror.setLegend(from.legend);
@@ -71,17 +78,20 @@ export async function drawOffScreen(
     mirror.show(indexed);
     if (view !== undefined) mirror.setCamera(view.camera);
     // One frame, as the canvas draws one before an image: what it plans and the pictures it makes.
-    await new Promise<void>((resolve) => {
-      let stop: () => void = () => {};
-      const timer = setTimeout(() => {
-        stop();
-        resolve();
-      }, MAX_CAPTURE_WAIT);
-      stop = mirror.afterNextFrame(() => {
-        clearTimeout(timer);
-        resolve();
+    // A tab in the background draws no frame, so the canvas off screen draws it at once (#16).
+    if (pageHidden(target)) mirror.renderNow();
+    else
+      await new Promise<void>((resolve) => {
+        let stop: () => void = () => {};
+        const timer = setTimeout(() => {
+          stop();
+          resolve();
+        }, left(MAX_CAPTURE_WAIT));
+        stop = mirror.afterNextFrame(() => {
+          clearTimeout(timer);
+          resolve();
+        });
       });
-    });
     return await mirror.captureImage(image);
   } finally {
     renderer?.destroy();

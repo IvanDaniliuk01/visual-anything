@@ -29,15 +29,25 @@ export interface CaptureCanvas {
   seen(): CaptureSeen | undefined;
   /** Draws a picture in the canvas's own theme. */
   draw(image: CaptureImage): Promise<DrawnImage>;
-  /** Draws a picture off screen in another theme, from what the canvas draws. */
-  drawIn(theme: ThemeName, image: CaptureImage): Promise<DrawnImage>;
+  /**
+   * Draws a picture off screen in another theme, from what the canvas draws, waiting for nothing past
+   * `until`, a time of `performance.now()` (#16).
+   */
+  drawIn(theme: ThemeName, image: CaptureImage, until?: number): Promise<DrawnImage>;
 }
 
 /** A picture taken, or why none was. */
 export type CaptureOutcome = { picture: CapturePicture } | CaptureFailure;
 
-/** Takes the picture Claude asked for, or says why it took none. */
-export async function takeCapture(ask: CaptureAsk, canvas: CaptureCanvas): Promise<CaptureOutcome> {
+/**
+ * Takes the picture Claude asked for, or says why it took none; what drawing it waits for, it waits
+ * for until `until` at most, a time of `performance.now()` (#16).
+ */
+export async function takeCapture(
+  ask: CaptureAsk,
+  canvas: CaptureCanvas,
+  until?: number,
+): Promise<CaptureOutcome> {
   const view = canvas.view;
   if (ask.view !== undefined && ask.view !== view) return { failed: 'other-view', shows: view };
   const seen = canvas.seen();
@@ -56,7 +66,8 @@ export async function takeCapture(ask: CaptureAsk, canvas: CaptureCanvas): Promi
   const theme = ask.theme ?? canvas.theme;
   let drawn: DrawnImage;
   try {
-    drawn = theme === canvas.theme ? await canvas.draw(image) : await canvas.drawIn(theme, image);
+    drawn =
+      theme === canvas.theme ? await canvas.draw(image) : await canvas.drawIn(theme, image, until);
   } catch (error) {
     return failureOf(error);
   }
