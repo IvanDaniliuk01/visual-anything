@@ -59,6 +59,10 @@ Every tab keeps its address in step with where you are: the open view, where the
 
 The port changes from one run to the next unless `--port` fixes it, so what lasts of a view address is the part from `#` on.
 
+## Views side by side
+
+**Open beside** splits the canvas into panes, up to three, each showing one view with its own camera, filters and focus (ADR 0102): press Beside on a view's row in the view list, beside Follow for a destination that opens a view of this project, or in a pane's header. The view opens right of the active pane, which stays active; with three panes open, it shows in the rightmost pane but the active one. Each pane's header changes its view and closes it; drag the border between two panes, or focus it and press the arrow keys (Shift for bigger steps), to share the width. Pressing in a pane makes it active, shown by its border, and the inspector, the outline, search, export, Copy address, scenarios, tours and Claude's guidance follow it; selecting an element selects it in every pane that draws it. The panes come back when the tab reloads, but are not in the view address, and closing all but one gives the single canvas again.
+
 ## Views that show part of the model
 
 A view shows the whole model, or the part its scope gives (ADR 0040): rules on components, relation types, a container's contents or an attribute, and elements added or left out by hand. Leaving an element out of a view never deletes it.
