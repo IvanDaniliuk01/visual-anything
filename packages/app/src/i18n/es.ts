@@ -2840,6 +2840,8 @@ export const ui: Catalog = {
   'Speaker notes': 'Notas del orador',
   // M3d: text emphasis (ADR 0082), in the fields that edit a text and the attribute editor.
   'As it is drawn': 'Como se dibuja',
+  // A9: Math (ADR 0106) that cannot be typeset, as a panel draws it.
+  'Math that cannot be typeset:': 'Notación matemática que no se puede componer:',
   'Takes text emphasis': 'Admite énfasis de texto',
   'Its values may be written with **bold**, *italic*, `code` and the rest; leave it off for identifiers and code.':
     'Sus valores pueden escribirse con **negrita**, *cursiva*, `código` y el resto; dejarlo desactivado para identificadores y código.',
@@ -8086,6 +8088,31 @@ export const messages: Catalog = {
     'El hash de un archivo multimedia es su SHA-256, en 64 dígitos hexadecimales en minúscula.',
   'A media file is a PNG, JPEG, WebP, GIF or SVG.':
     'Un archivo multimedia es un PNG, un JPEG, un WebP, un GIF o un SVG.',
+  // A9: what checking a project's Math says (ADR 0106), with where each text is. KaTeX's own message
+  // after the colon stays as KaTeX writes it.
+  'Math in {of} is drawn as its TeX, "{tex}", since it cannot be typeset: {error}':
+    'La notación matemática de {of} se dibuja como su TeX, "{tex}", porque no se puede componer: {error}',
+  'Math is read in {of}: write \\$ for a dollar sign that is not Math.':
+    'Se lee notación matemática en {of}: escribir \\$ para un signo de dólar que no sea notación matemática.',
+  '…and {n} more piece of Math cannot be typeset.':
+    '…y {n} notación matemática más no se puede componer.',
+  '…and {n} more pieces of Math cannot be typeset.':
+    '…y {n} notaciones matemáticas más no se pueden componer.',
+  '…and {n} more text reads as Math.': '…y {n} texto más se lee como notación matemática.',
+  '…and {n} more texts read as Math.': '…y {n} textos más se leen como notación matemática.',
+  'Math in {n} text was not checked: one check typesets at most {limit} pieces of Math.':
+    'La notación matemática de {n} texto no se revisó: una revisión compone como mucho {limit} notaciones matemáticas.',
+  'Math in {n} texts was not checked: one check typesets at most {limit} pieces of Math.':
+    'La notación matemática de {n} textos no se revisó: una revisión compone como mucho {limit} notaciones matemáticas.',
+  'the description of {of}': 'la descripción de {of}',
+  'the description of the project': 'la descripción del proyecto',
+  'the attribute "{attribute}" of {of}': 'el atributo "{attribute}" de {of}',
+  'the value of "{attribute}" of {of}': 'el valor de "{attribute}" de {of}',
+  'the perspective of {of}': 'la perspectiva de {of}',
+  'a note in {of}': 'una nota en {of}',
+  'the caption of step {n} of {of}': 'el rótulo del paso {n} de {of}',
+  'reveal {m} of step {n} of {of}': 'la revelación {m} del paso {n} de {of}',
+  'the speaker notes of step {n} of {of}': 'las notas del orador del paso {n} de {of}',
 };
 
 /**

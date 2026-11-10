@@ -125,3 +125,31 @@
   border-left: var(--stroke-thick) solid var(--border);
   font-size: var(--text-sm);
 }
+
+/*
+ * Math (ADR 0106): drawn by KaTeX in its own fonts and in the text's color; a block of its own
+ * scrolls sideways when it is wider than its panel, as code does, and is never broken.
+ */
+.emphasis-math-display {
+  display: block;
+}
+
+.emphasis-math-display > .katex-display {
+  margin: var(--space-25) 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.emphasis-text .emphasis-math-block {
+  margin: var(--space-25) 0;
+}
+
+/* A piece that cannot be typeset: its TeX as typed, with a warning mark. */
+.emphasis-math-error {
+  white-space: pre-wrap;
+}
+
+.emphasis-math-mark {
+  margin-inline-end: var(--space-20);
+  color: var(--warning);
+}

@@ -1,9 +1,10 @@
 /**
  * Text emphasis in panels (ADR 0082): the core's blocks and runs written as React elements. A run is
  * `strong`, `em`, `s`, `u`, `code` and `mark` around its text; a link is an `a` that opens in a new
- * tab with no opener and no referrer. Nothing is ever turned into HTML: every character of the text
- * is a text node, so markup in it is drawn as the characters it is and the Trusted Types policy
- * stays as it is.
+ * tab with no opener and no referrer. Math, within a line or as a block of its own, is drawn by KaTeX
+ * (`MathFormula.tsx`, ADR 0106). Nothing is ever turned into HTML: every character of the text is a
+ * text node, or a node KaTeX builds, so markup in it is drawn as the characters it is and the Trusted
+ * Types policy stays as it is.
  */
 import {
   parseEmphasis,
@@ -14,6 +15,7 @@ import {
 import { Fragment, useMemo, type ReactNode } from 'react';
 import { useT } from '../i18n/useT';
 import { drawsDifferently } from './drawn';
+import { MathFormula } from './MathFormula';
 import './text.css';
 
 /** A text of one line, such as an attribute's value that takes emphasis: its runs, inline. */
@@ -53,7 +55,7 @@ export function EmphasisBlocks({ text, className, headingLevel = 4 }: EmphasisBl
 
 /**
  * The drawn text under a field that edits its source, when it is drawn differently from how it is
- * written; nothing otherwise.
+ * written, as a text that holds Math always is; nothing otherwise.
  */
 export function EmphasisPreview({
   text,
@@ -65,7 +67,10 @@ export function EmphasisPreview({
   headingLevel?: number;
 }) {
   const t = useT();
-  const different = useMemo(() => drawsDifferently(text, blocks), [text, blocks]);
+  const different = useMemo(
+    () => drawsDifferently(text, blocks) || holdsMath(text, blocks),
+    [text, blocks],
+  );
   if (!different) return null;
   return (
     <div className="emphasis-preview" role="group" aria-label={t('As it is drawn')}>
@@ -76,6 +81,31 @@ export function EmphasisPreview({
       )}
     </div>
   );
+}
+
+/** Whether a text holds Math (ADR 0106), which its preview then shows typeset. */
+function holdsMath(text: string, blocks: boolean): boolean {
+  if (!text.includes('$') && !(blocks && text.includes('math'))) return false;
+  const runsHold = (runs: readonly EmphasisRun[]) => runs.some((run) => run.math !== undefined);
+  const hold = (list: readonly EmphasisBlock[]): boolean =>
+    list.some((block) => {
+      switch (block.kind) {
+        case 'math':
+          return true;
+        case 'paragraph':
+        case 'heading':
+          return runsHold(block.runs);
+        case 'list':
+          return block.items.some((item) => hold(item.blocks));
+        case 'quote':
+          return hold(block.blocks);
+        case 'table':
+          return block.head.some(runsHold) || block.rows.some((row) => row.some(runsHold));
+        default:
+          return false;
+      }
+    });
+  return hold(parseEmphasis(text, { blocks }));
 }
 
 function Blocks({ blocks, level }: { blocks: readonly EmphasisBlock[]; level: number }) {
@@ -119,6 +149,12 @@ function Block({ block, level }: { block: EmphasisBlock; level: number }): React
         <pre>
           <code>{block.text}</code>
         </pre>
+      );
+    case 'math':
+      return (
+        <div className="emphasis-math-block">
+          <MathFormula tex={block.tex} display typed={block.tex} />
+        </div>
       );
     case 'table': {
       const alignOf = (column: number) => {
@@ -199,7 +235,12 @@ function Runs({ runs }: { runs: readonly EmphasisRun[] }) {
 }
 
 function Run({ run }: { run: EmphasisRun }) {
-  let node: ReactNode = <Lines text={run.text} />;
+  let node: ReactNode =
+    run.math === undefined ? (
+      <Lines text={run.text} />
+    ) : (
+      <MathFormula tex={run.math.tex} display={run.math.display} typed={run.text} />
+    );
   if (run.code) node = <code>{node}</code>;
   if (run.highlight) node = <mark>{node}</mark>;
   if (run.underline) node = <u>{node}</u>;

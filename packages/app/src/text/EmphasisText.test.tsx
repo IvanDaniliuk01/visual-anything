@@ -92,6 +92,56 @@ describe('EmphasisPreview', () => {
     rerender(<EmphasisPreview text="the **orders** table" />);
     expect(container.querySelector('strong')?.textContent).toBe('orders');
   });
+
+  it('shows a text that holds Math typeset, in a field of one line or several', () => {
+    const { container, rerender } = render(<EmphasisPreview text="costs $20 and $30" />);
+    expect(container.innerHTML).toBe('');
+    rerender(<EmphasisPreview text="loss $x^2$" />);
+    expect(screen.getByRole('group', { name: 'As it is drawn' })).toBeInTheDocument();
+    expect(container.querySelector('.katex')).not.toBeNull();
+    rerender(<EmphasisPreview text="a | $y$ |" blocks={false} />);
+    expect(container.querySelector('.katex annotation')?.textContent).toBe('y');
+    rerender(<EmphasisPreview text={'| a |\n|---|\n| $z$ |'} />);
+    expect(container.querySelector('td .katex annotation')?.textContent).toBe('z');
+  });
+});
+
+describe('Math (ADR 0106)', () => {
+  it('draws Math within a line in its run, with KaTeX, among the text around it', () => {
+    const { container } = render(<EmphasisRuns text="the loss $\frac{1}{n}$ and $$x$$ here" />);
+    const pieces = container.querySelectorAll('.emphasis-math');
+    expect(pieces).toHaveLength(2);
+    expect(pieces[0]?.querySelector('annotation')?.textContent).toBe('\\frac{1}{n}');
+    expect(pieces[1]).toHaveClass('emphasis-math-display');
+    expect(container.firstChild?.textContent).toBe('the loss ');
+    expect(container.lastChild?.textContent).toBe(' here');
+  });
+
+  it('draws a math block, from dollars or a fence, as a block of display style', () => {
+    const { container } = render(
+      <EmphasisBlocks
+        text={'Before\n\n$$\n\\sum_i i\n$$\n\n```math\ne = mc^2\n```\n\n- $a$ in a list'}
+      />,
+    );
+    const blocks = container.querySelectorAll('.emphasis-math-block');
+    expect(blocks).toHaveLength(2);
+    for (const block of blocks) expect(block.querySelector('.katex-display')).not.toBeNull();
+    expect(container.querySelector('li .emphasis-math .katex')).not.toBeNull();
+    expect(container.querySelector('pre')).toBeNull();
+  });
+
+  it('leaves dollars that are not Math as text', () => {
+    const { container } = render(<EmphasisBlocks text={'$20,000 and $30,000\n\n\\$x$ and $ y$'} />);
+    expect(container.querySelector('.emphasis-math')).toBeNull();
+    expect(container.textContent).toBe('$20,000 and $30,000$x$ and $ y$');
+  });
+
+  it('draws Math that cannot be typeset as its TeX as typed, with a warning mark', () => {
+    const { container } = render(<EmphasisBlocks text={'a $\\nope$ b\n\n$$\n\\nope\n$$'} />);
+    const failed = container.querySelectorAll('.emphasis-math-error');
+    expect([...failed].map((each) => each.lastChild?.textContent)).toEqual(['$\\nope$', '\\nope']);
+    expect(failed[1]).toHaveClass('emphasis-math-display');
+  });
 });
 
 function Field({ initial }: { initial: string }) {
