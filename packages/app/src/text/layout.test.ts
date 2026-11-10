@@ -1,8 +1,9 @@
-import { emphasisRuns, parseEmphasis } from '@visual-anything/core';
+import { MATH_EM, emphasisRuns, parseEmphasis, typesetMath } from '@visual-anything/core';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
   LINE_HEIGHT,
+  holdsMath,
   layOutBlocks,
   layOutRuns,
   lineText,
@@ -238,5 +239,227 @@ describe('a run’s font variant', () => {
   it('is monospace for code whatever else it takes', () => {
     const run = emphasisRuns('`x`')[0]!;
     expect(variantOf({ ...run, bold: true })).toBe('mono');
+  });
+});
+
+describe('Math in text (ADR 0106)', () => {
+  const blocks = (text: string) => parseEmphasis(text, { blocks: true });
+  const drawingOf = (tex: string, display = false) => {
+    const typeset = typesetMath(tex, { display });
+    if (!typeset.ok) throw new Error(typeset.error);
+    return typeset.drawing;
+  };
+  const mathPieces = (laid: LaidText) =>
+    laid.lines.flatMap((line) => line.pieces.filter((piece) => piece.math));
+
+  it('lays a formula out as one piece, measured by its drawing at 1.21 times the text', () => {
+    const laid = layOutRuns(emphasisRuns('area $\\pi r^2$ here'), {
+      measure,
+      size: SIZE,
+      width: 500,
+      align: 'left',
+    });
+    const [piece] = mathPieces(laid);
+    expect(piece?.text).toBe('$\\pi r^2$');
+    expect(piece?.math?.tex).toBe('\\pi r^2');
+    expect(piece?.math?.size).toBeCloseTo(SIZE * MATH_EM);
+    expect(piece?.math?.scale).toBe(1);
+    const width = drawingOf('\\pi r^2').width * SIZE * MATH_EM;
+    const line = laid.lines[0]!;
+    const after = line.pieces[line.pieces.indexOf(piece!) + 1]!;
+    expect(after.x).toBeCloseTo(piece!.x + width);
+    expect(lineText(line)).toBe('area $\\pi r^2$ here');
+    expect(holdsMath(laid)).toBe(true);
+    expect(laid.cut).toBe(false);
+  });
+
+  it('keeps a line as tall as one of text when its formula fits in it', () => {
+    const laid = layOutRuns(emphasisRuns('a $x$ b'), {
+      measure,
+      size: SIZE,
+      width: 500,
+      align: 'left',
+    });
+    expect(laid.lines[0]!.height).toBe(SIZE * LINE_HEIGHT);
+  });
+
+  it('makes a line that holds a tall formula as tall as the formula, the next line under it', () => {
+    const tex = '\\dfrac{a+b}{\\sum_{i=1}^{n} c_i}';
+    const laid = layOutRuns(emphasisRuns(`first $${tex}$ second`), {
+      measure,
+      size: SIZE,
+      width: 60,
+      align: 'left',
+      maxLines: 6,
+    });
+    const drawing = drawingOf(tex);
+    const em = SIZE * MATH_EM;
+    const tall = laid.lines.find((line) => line.pieces.some((piece) => piece.math))!;
+    expect(tall.height).toBeGreaterThan(SIZE * LINE_HEIGHT);
+    expect(tall.baseline - tall.top).toBeGreaterThanOrEqual(drawing.height * em);
+    expect(tall.top + tall.height - tall.baseline).toBeGreaterThanOrEqual(drawing.depth * em);
+    const next = laid.lines[laid.lines.indexOf(tall) + 1]!;
+    expect(next.top).toBeCloseTo(tall.top + tall.height);
+    expect(laid.height).toBeCloseTo(laid.lines.reduce((sum, line) => sum + line.height, 0));
+    // Its fraction's line is a band of the formula's rules.
+    expect(tall.bands.some((band) => band.kind === 'rule')).toBe(true);
+  });
+
+  it('never breaks a formula: it goes to a line of its own when it does not fit after text', () => {
+    const tex = 'a+b+c';
+    const width = drawingOf(tex).width * SIZE * MATH_EM;
+    const laid = layOutRuns(emphasisRuns(`word $${tex}$`), {
+      measure,
+      size: SIZE,
+      width: width + 5,
+      align: 'left',
+      maxLines: 3,
+    });
+    expect(texts(laid)).toEqual(['word', `$${tex}$`]);
+    expect(laid.cut).toBe(false);
+  });
+
+  it('shrinks a formula wider than its line, down to 70 %, and counts the text as cut', () => {
+    const tex = 'a+b+c+d';
+    const width = drawingOf(tex).width * SIZE * MATH_EM;
+    const laid = layOutRuns(emphasisRuns(`$${tex}$`), {
+      measure,
+      size: SIZE,
+      width: width * 0.8,
+      align: 'left',
+    });
+    const [piece] = mathPieces(laid);
+    expect(piece?.math?.scale).toBeCloseTo(0.8);
+    expect(piece?.math?.clip).toBeUndefined();
+    expect(laid.lines[0]!.width).toBeLessThanOrEqual(width * 0.8 + 1e-9);
+    expect(laid.cut).toBe(true);
+  });
+
+  it('cuts a formula still too wide at 70 %, ending in "…" within its width', () => {
+    const tex = '\\frac{a}{b}+c+d+e+f+g+h';
+    const width = drawingOf(tex).width * SIZE * MATH_EM;
+    const laid = layOutRuns(emphasisRuns(`$${tex}$`), {
+      measure,
+      size: SIZE,
+      width: width * 0.4,
+      align: 'left',
+    });
+    const line = laid.lines[0]!;
+    const [piece] = mathPieces(laid);
+    expect(piece?.math?.scale).toBe(0.7);
+    expect(piece?.math?.clip).toBeGreaterThan(0);
+    expect(line.pieces.at(-1)?.text).toBe('…');
+    expect(line.width).toBeLessThanOrEqual(width * 0.4 + 1e-9);
+    // Its rules end where it is cut.
+    for (const band of line.bands) {
+      expect(band.x + band.width).toBeLessThanOrEqual(piece!.x + piece!.math!.clip! + 1e-9);
+    }
+    expect(laid.cut).toBe(true);
+  });
+
+  it('draws a formula that fails as its TeX in Roboto Mono, with a dotted line under it', () => {
+    const laid = layOutRuns(emphasisRuns('see $\\color{red}{x}$ here'), {
+      measure,
+      size: SIZE,
+      width: 500,
+      align: 'left',
+    });
+    const line = laid.lines[0]!;
+    expect(mathPieces(laid)).toEqual([]);
+    expect(lineText(line)).toBe('see $\\color{red}{x}$ here');
+    const tex = line.pieces.find((piece) => piece.text.includes('color'));
+    expect(tex?.variant).toBe('mono');
+    const dashes = line.bands.filter((band) => band.kind === 'warning');
+    expect(dashes.length).toBeGreaterThan(1);
+    for (const dash of dashes) expect(dash.y).toBeGreaterThan(line.baseline);
+  });
+
+  it('cuts by height: a line whose formula does not fit in the room is left out', () => {
+    const runs = emphasisRuns('one two $\\dfrac{\\dfrac{a}{b}}{\\dfrac{c}{d}}$');
+    const options = { measure, size: SIZE, width: 30, align: 'left' as const, maxLines: 6 };
+    const whole = layOutRuns(runs, options);
+    expect(whole.lines).toHaveLength(3);
+    const cut = layOutRuns(runs, { ...options, maxHeight: SIZE * LINE_HEIGHT * 2.5 });
+    expect(cut.lines).toHaveLength(2);
+    expect(cut.cut).toBe(true);
+    expect(lineText(cut.lines[1]!).endsWith('…')).toBe(true);
+    // Lines of text alone cut by height as they did by lines.
+    const plain = layOutRuns(emphasisRuns('one two three four'), {
+      ...options,
+      maxHeight: SIZE * LINE_HEIGHT * 2,
+    });
+    expect(plain.lines).toHaveLength(2);
+  });
+
+  it('centers a math block on a line of its own, in display style', () => {
+    const laid = layOutBlocks(blocks('before\n\n$$\n\\sum_{i=1}^{n} i\n$$\n\nafter'), {
+      measure,
+      size: SIZE,
+      width: 300,
+      align: 'left',
+    });
+    expect(laid.lines).toHaveLength(3);
+    const [before, block, after] = laid.lines;
+    const piece = block!.pieces[0]!;
+    expect(piece.math?.display).toBe(true);
+    const width = drawingOf('\\sum_{i=1}^{n} i', true).width * SIZE * MATH_EM;
+    expect(piece.x).toBeCloseTo((300 - width) / 2);
+    expect(block!.top).toBeGreaterThanOrEqual(before!.top + before!.height);
+    expect(after!.top).toBeGreaterThan(block!.top + block!.height);
+    expect(block!.height).toBeGreaterThan(SIZE * LINE_HEIGHT);
+  });
+
+  it('draws a math block that fails as its TeX, with a dotted line', () => {
+    const laid = layOutBlocks(blocks('$$\\href{x}{y}$$'), {
+      measure,
+      size: SIZE,
+      width: 300,
+      align: 'left',
+    });
+    expect(texts(laid)).toEqual(['$$\\href{x}{y}$$']);
+    expect(laid.lines[0]!.pieces[0]!.variant).toBe('mono');
+    expect(laid.lines[0]!.bands.some((band) => band.kind === 'warning')).toBe(true);
+  });
+
+  it('makes a table row as tall as its tallest formula, its cells on one baseline', () => {
+    const laid = layOutBlocks(blocks('| a | b |\n| - | - |\n| $\\dfrac{1}{2}$ | text |'), {
+      measure,
+      size: SIZE,
+      width: 300,
+      align: 'left',
+    });
+    const row = laid.lines[1]!;
+    expect(row.height).toBeGreaterThan(SIZE * LINE_HEIGHT);
+    expect(row.pieces.some((piece) => piece.math)).toBe(true);
+    expect(laid.lines[0]!.height).toBe(SIZE * LINE_HEIGHT);
+  });
+
+  it('never draws a line wider than its width, whatever formulas it holds', () => {
+    const part = fc.constantFrom(
+      'word',
+      '$x^2$',
+      '$\\frac{a}{b}$',
+      '$a+b+c+d+e$',
+      '$\\bad$',
+      '**b**',
+    );
+    fc.assert(
+      fc.property(
+        fc.array(part, { maxLength: 8 }),
+        fc.integer({ min: 10, max: 200 }),
+        (parts, width) => {
+          const laid = layOutRuns(emphasisRuns(parts.join(' ')), {
+            measure,
+            size: SIZE,
+            width,
+            align: 'left',
+            maxLines: 4,
+          });
+          for (const line of laid.lines) expect(line.width).toBeLessThanOrEqual(width + 1e-6);
+          for (const piece of mathPieces(laid))
+            expect(piece.math!.scale).toBeGreaterThanOrEqual(0.7);
+        },
+      ),
+    );
   });
 });

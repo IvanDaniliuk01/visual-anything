@@ -5,8 +5,9 @@
 import { blocksText, parseEmphasis } from '@visual-anything/core';
 
 /**
- * True when some of it is emphasised, a link or a block other than a paragraph, or when its plain
- * text differs from its source, as an escape does. `blocks` is false for a text of one line.
+ * True when some of it is emphasised, a link, a formula (ADR 0106) or a block other than a
+ * paragraph, or when its plain text differs from its source, as an escape does. `blocks` is false for
+ * a text of one line.
  */
 export function drawsDifferently(text: string, blocks = true): boolean {
   const parsed = parseEmphasis(text, { blocks });
@@ -23,7 +24,8 @@ export function drawsDifferently(text: string, blocks = true): boolean {
             run.underline ||
             run.code ||
             run.highlight ||
-            run.link !== undefined,
+            run.link !== undefined ||
+            run.math !== undefined,
         ),
     ) || blocksText(parsed) !== shown
   );

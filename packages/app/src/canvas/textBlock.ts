@@ -168,8 +168,12 @@ export function placeTextBlock(input: TextBlockInput): TextBlock {
   let detailLines = 0;
   let detail: LaidText | undefined;
   let detailCut = false;
+  let detailHeight = 0;
   if (input.detail !== '') {
-    const room = Math.floor((usable - nameHeight - GAP) / detailLineHeight + 1e-6);
+    // Cut by height, not by lines times one height: a line that holds a formula is as tall as the
+    // formula (ADR 0106). Lines of text alone come to what they did.
+    const roomHeight = usable - nameHeight - GAP;
+    const room = Math.floor(roomHeight / detailLineHeight + 1e-6);
     const most = Math.min(input.lines ?? DEFAULT_DETAIL_LINES, Math.max(0, room));
     if (most > 0) {
       detail = layOutRuns(input.detailRuns ?? [plainRun(input.detail)], {
@@ -177,16 +181,18 @@ export function placeTextBlock(input: TextBlockInput): TextBlock {
         size: detailSize,
         width: wrap,
         align: 'center',
-        maxLines: most,
+        maxLines: input.lines ?? DEFAULT_DETAIL_LINES,
+        maxHeight: roomHeight,
         lineHeight,
       });
       detailLines = detail.lines.length;
-      detailCut = detail.cut;
+      detailCut = detail.cut || detailLines === 0;
+      const asText = detailLines * detailLineHeight;
+      detailHeight = Math.abs(detail.height - asText) < 1e-6 ? asText : detail.height;
     } else {
       detailCut = true;
     }
   }
-  const detailHeight = detailLines * detailLineHeight;
   const height = nameHeight + (detailLines > 0 ? GAP + detailHeight : 0);
   const top =
     placement === 'top'

@@ -36,6 +36,21 @@ describe('a detail with text emphasis', () => {
     expect(runsText(runs ?? [])).toBe('**open · close** and it');
   });
 
+  it('draws a formula in a value that takes emphasis, and says its TeX as written (ADR 0106)', () => {
+    const runs = detailRunsOf(
+      [
+        { kind: 'attribute', attribute: 'note', text: '$x^2$' },
+        { kind: 'attribute', attribute: 'default', text: '$1' },
+      ],
+      takes,
+    );
+    expect(runs?.find((run) => run.math)?.math).toEqual({ tex: 'x^2', display: false });
+    expect(runsText(runs ?? [])).toBe('$x^2$ · $1');
+    expect(detailRunsOf([{ kind: 'attribute', attribute: 'default', text: '$x$' }], takes)).toBe(
+      undefined,
+    );
+  });
+
   it('is announced by its plain text', () => {
     const detailRuns = detailRunsOf(parts, takes);
     expect(

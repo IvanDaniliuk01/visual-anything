@@ -94,6 +94,7 @@ import { CodeDrawingLayer } from './code-drawings';
 import type { Drawing as CodeDrawing } from '@visual-anything/core';
 import { TileImages, type ImageView } from './images-draw';
 import { bitmapText, installFonts } from './labels';
+import { onMathFontsInstalled, wantMathOfScene } from './mathFonts';
 import { loadRobotoFonts } from './robotoFonts';
 import type { FaceShow } from './faces';
 import { THEMES, type CanvasTheme } from '../theme/themes';
@@ -715,6 +716,8 @@ export class CanvasRenderer {
   private markCount = 0;
   private marksStale = false;
   private observer: ResizeObserver | undefined;
+  /** Stops drawing a frame when KaTeX's families are installed (ADR 0106). */
+  private stopFollowingMath: (() => void) | undefined;
   private frame = 0;
   private settleTimer: ReturnType<typeof setTimeout> | undefined;
   /** Whether the camera rests, so that spare time can go to the tiles around the screen. */
@@ -871,6 +874,8 @@ export class CanvasRenderer {
   show(indexed: IndexedScene): void {
     this.noteActivity();
     this.indexed = indexed;
+    // KaTeX's families load and install now, outside the frames that draw the formulas (ADR 0106).
+    wantMathOfScene(indexed.scene);
     const drawing = drawingOfScene(indexed.scene);
     if (drawing !== this.painter.drawing) this.painter = painterOf(this.painter.theme, drawing);
     // The grid draws lines or dots, as the drawing says (ADR 0086).
@@ -2048,6 +2053,8 @@ export class CanvasRenderer {
 
   /** Releases the canvas, now or as soon as its start finishes. */
   destroy(): void {
+    this.stopFollowingMath?.();
+    this.stopFollowingMath = undefined;
     if (this.status === 'ready') {
       this.stopFollowingResolution?.();
       this.observer?.disconnect();
@@ -2129,6 +2136,8 @@ export class CanvasRenderer {
       return;
     }
     this.status = 'ready';
+    // Formulas drawn without their glyphs are drawn again once their families are installed.
+    this.stopFollowingMath = onMathFontsInstalled(() => this.requestRender());
     this.resolution = this.app.renderer.resolution;
     this.app.stage.addChild(this.world);
     this.app.stage.addChild(this.farNames.container);

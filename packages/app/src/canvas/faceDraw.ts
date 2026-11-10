@@ -19,7 +19,9 @@ import {
 } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import { Container, Graphics, type Texture } from 'pixi.js';
-import { drawGlyphs } from './emphasisLabels';
+import { mathRuleBands } from '../text/layout';
+import { clearMathPaths, drawGlyphs, drawMath } from './emphasisLabels';
+import { repaintWhenMathFontsInstalled, type MathRepaint } from './mathFonts';
 import {
   faceBoxPieces,
   facePaints,
@@ -67,7 +69,9 @@ export interface DrawnPicture {
 
 /**
  * Draws a face drawing at `at`: its boxes, its pictures (with `picture`, which gives each one's
- * texture), its bands, then its runs, in this palette's colors.
+ * texture), its bands, then its runs, in this palette's colors. A formula (ADR 0106) draws its glyphs
+ * and rules in `graphics`, and its paths into `math.paths` when given; when a family its glyphs need
+ * is not installed yet, `math.waiting` is drawn again once it is.
  */
 export function drawFaceDrawing(
   graphics: Graphics,
@@ -75,6 +79,7 @@ export function drawFaceDrawing(
   at: Point,
   palette: FacePalette,
   picture?: (image: FaceImage, box: Rect) => DrawnPicture | undefined,
+  math?: { paths: Container; waiting?: MathRepaint },
 ): void {
   const color = (each: string) => resolveFaceColor(each, palette);
   for (const box of drawing.boxes) {
@@ -113,6 +118,23 @@ export function drawFaceDrawing(
     graphics.rect(at.x + band.x, at.y + band.y, band.width, band.height).fill(color(band.color));
   }
   for (const run of drawing.runs) {
+    if (run.math) {
+      const tint = color(run.color);
+      const x = at.x + run.x;
+      const baseline = at.y + run.y;
+      for (const rule of mathRuleBands(
+        run.math.drawing,
+        x,
+        baseline,
+        run.math.size,
+        run.math.clip,
+      )) {
+        graphics.rect(rule.x, rule.y, rule.width, rule.height).fill(tint);
+      }
+      const ready = drawMath(graphics, math?.paths, run.math, x, baseline, tint);
+      if (!ready && math?.waiting) repaintWhenMathFontsInstalled(math.waiting);
+      continue;
+    }
     drawGlyphs(
       graphics,
       run.text,
@@ -141,8 +163,10 @@ export interface FaceLabelPictures {
  * (`paint`), since its colors are its tokens' on the shape's fill, and once a picture's texture it
  * waited for is made (`repaint`).
  */
-export class FaceLabel extends Container {
+export class FaceLabel extends Container implements MathRepaint {
   readonly graphics = new Graphics();
+  /** Its formulas' paths, each tinted in its run's color (ADR 0106). */
+  readonly paths = new Container();
   #painted: [ThemeName, string, string] | undefined;
 
   constructor(
@@ -151,19 +175,21 @@ export class FaceLabel extends Container {
     readonly sources?: FaceLabelPictures,
   ) {
     super();
-    this.addChild(this.graphics);
+    this.addChild(this.graphics, this.paths);
   }
 
   /** Draws it in the colors of a shape of this fill and stroke, in a theme. */
   paint(theme: ThemeName, fill: string, stroke: string): void {
     this.#painted = [theme, fill, stroke];
     this.graphics.clear();
+    clearMathPaths(this.paths);
     drawFaceDrawing(
       this.graphics,
       this.drawing,
       this.at,
       facePalette(theme, fill, stroke),
       this.sources && this.#picture,
+      { paths: this.paths, waiting: this },
     );
   }
 

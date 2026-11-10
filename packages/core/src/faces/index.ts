@@ -43,6 +43,7 @@ export type {
   FaceDrawing,
   FaceImage,
   FaceLayoutOptions,
+  FaceMath,
   FaceRect,
   FaceRegion,
   FaceRun,
@@ -54,6 +55,10 @@ export {
   faceDrawingText,
   faceIgnoresHeight,
   layOutFace,
+  MATH_EM,
+  MATH_LEAST_SCALE,
+  MATH_LINE_GAP,
+  warningDashes,
 } from './layout';
 export type { FacePalette } from './palette';
 export { facePalette, readableOn, resolveFaceColor } from './palette';
