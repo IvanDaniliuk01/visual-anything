@@ -2,7 +2,7 @@
 label: wayfinder:task
 title: Prove the explorable frame in Chrome, Firefox and Safari
 status: open
-assignee:
+assignee: claude
 blocked_by: [03-sandboxing-an-explorable.md]
 ---
 

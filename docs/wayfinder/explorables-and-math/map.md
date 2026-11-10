@@ -29,6 +29,7 @@ Two milestones ready for builders: **Math** (TeX notation typeset in every text)
 - [What the va API hands an explorable](07-the-va-api.md): the element with its attribute definitions, what it holds one level down and its relations, up to 500 elements; a loose one may be bound to an element; declared parameters that tour steps set; everything again on a change; `va.select`; theme as CSS variables; `api: 1`.
 - [How the person approves an explorable and its libraries](08-approving-an-explorable.md): a dialog naming who wrote it, its libraries, its code and the WebRTC caveat; kept by hash in preferences as package code's, up to 1,024; Claude's writes through the program continue an approval; only approved explorables go live into the read-only page; revocable; Claude never approves.
 - [Prove that our layout of KaTeX's tree matches KaTeX](11-prove-math-layout-against-katex.md): it does: 86 of 86 formulas, every glyph within 0.5 px of Chrome, about 0.3 ms per formula; KaTeX pinned exactly, its double-underscore tree API kept under a golden test; MathJax not needed.
+- [Write the Math ADR and milestone](09-write-the-math-adr-and-milestone.md): ADR 0106 and milestone A9 · Math, its seam first; Claude reads and writes Math as the TeX typed.
 
 ## Not yet specified
 
@@ -36,7 +37,6 @@ Two milestones ready for builders: **Math** (TeX notation typeset in every text)
 - **How Claude learns to write explorables well.** The guidance Claude reads before writing one: the `va` API, the libraries at hand, sizes, the theme, Math inside it.
 - **Accessibility.** What a screen reader and the keyboard reach inside an explorable, and what the canvas says about one that is still.
 - **Limits.** An explorable's size, a library's size, how many libraries a project keeps, and what happens when one is over.
-- **Math as Claude reads it.** Whether `read_view` and `get_item` answer the TeX as written, and how a capture draws it.
 
 ## Out of scope
 

@@ -196,7 +196,7 @@ What laying a face out for one element answers: boxes, runs of text in Roboto wi
 _Avoid_: render, rendering, template output
 
 **Math**:
-Mathematical notation in a text, written in TeX between `$…$` within a line or `$$…$$` as a block of its own, and drawn as typeset notation wherever the text shows: on the canvas, in the inspector, in tours, in exports and in explorables. Only the notation is typeset; nothing compiles a whole document.
+Mathematical notation in a text, written in TeX between `$…$` within a line or `$$…$$` as a block of its own, and drawn as typeset notation wherever the text shows: on the canvas, in the inspector, in tours, in exports and in explorables. Only the notation is typeset; nothing compiles a whole document (ADR 0106).
 _Avoid_: formula (a computed value is something else), equation (alone), LaTeX document, compile
 
 **Text emphasis**:
