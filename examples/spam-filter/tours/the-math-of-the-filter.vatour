@@ -1,0 +1,81 @@
+{
+  "id": "the-math-of-the-filter",
+  "name": "The math of the filter",
+  "description": "From the words of an email to a probability of spam, how wrong that probability is, and how the filter learns.",
+  "steps": [
+    {
+      "id": "words-to-a-score",
+      "viewState": {
+        "view": "the-model",
+        "select": [
+          "linear-score"
+        ]
+      },
+      "caption": {
+        "title": "From words to a score",
+        "text": "Each email is a vector $x$ of word counts. The filter weighs every word and adds the weights up:\n\n$$\nz = w^\\top x + b\n$$",
+        "pointTo": "linear-score"
+      },
+      "marks": [
+        "word-counts",
+        "linear-score"
+      ]
+    },
+    {
+      "id": "score-to-a-probability",
+      "viewState": {
+        "view": "the-model",
+        "select": [
+          "logistic-function"
+        ]
+      },
+      "caption": {
+        "title": "From a score to a probability",
+        "text": "The logistic function squeezes the score into a probability between $0$ and $1$, $\\hat p = \\sigma(z) = \\frac{1}{1 + e^{-z}}$.",
+        "pointTo": "logistic-function"
+      },
+      "marks": [
+        "logistic-function",
+        "spam-probability"
+      ]
+    },
+    {
+      "id": "how-wrong",
+      "viewState": {
+        "view": "the-model",
+        "select": [
+          "log-loss"
+        ]
+      },
+      "caption": {
+        "title": "How wrong it is",
+        "text": "The log loss is small when $\\hat p$ is near the label $y$, and grows without bound when the filter is sure and wrong:\n\n$$\n-\\big[ y \\log \\hat p + (1 - y) \\log (1 - \\hat p) \\big]\n$$",
+        "pointTo": "log-loss"
+      },
+      "marks": [
+        "spam-probability",
+        "log-loss"
+      ],
+      "notes": "For an email with $y = 1$, the loss is $-\\log \\hat p$: 0.1 at $\\hat p = 0.9$, and 2.3 at $\\hat p = 0.1$."
+    },
+    {
+      "id": "learning",
+      "viewState": {
+        "view": "training",
+        "select": [
+          "gradient-descent"
+        ]
+      },
+      "caption": {
+        "title": "How it learns",
+        "text": "Gradient descent steps every weight against the gradient, $w \\leftarrow w - \\eta \\nabla_w L$. The Brier score, the mean squared error of the probabilities, says how far they are from the labels.",
+        "pointTo": "gradient-descent"
+      },
+      "marks": [
+        "gradient-descent",
+        "spam-filter",
+        "brier-score"
+      ]
+    }
+  ]
+}

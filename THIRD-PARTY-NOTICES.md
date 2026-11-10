@@ -4,7 +4,7 @@
 
 Visual Anything is under the MIT License (`LICENSE`). What it ships from others is below, each under its own license: every npm package a production build puts in the app, its workers, the read-only page it exports, or the single executable, and the fonts, pictures and data it ships. The single executable also holds Node.js, under the MIT License with the licenses of what Node.js bundles; its notice, `THIRD-PARTY-NOTICES.txt` beside it, names the version.
 
-## Code from npm (78 packages)
+## Code from npm (79 packages)
 
 Not under a permissive license, and shipped as their licenses allow: `elkjs` (EPL-2.0 OR GPL-3.0-or-later), `satori` (MPL-2.0). The notes under each say how.
 
@@ -1759,6 +1759,40 @@ SOFTWARE.
 MIT License
 
 Copyright (c) 2017 Evgeny Poberezkin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+</details>
+
+### `katex` 0.19.1
+
+- License: MIT
+- Source: https://github.com/KaTeX/KaTeX, and https://registry.npmjs.org/katex/-/katex-0.19.1.tgz
+- Ships in: the app, the read-only page, the single executable, the single executable's drawing worker, the single executable's solid cleaner
+
+<details><summary>LICENSE</summary>
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2013-2020 Khan Academy and other contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

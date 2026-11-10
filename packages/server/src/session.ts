@@ -419,7 +419,9 @@ export class Session implements LiveSession {
   #watcher: ProjectWatcher | undefined;
   #closed = false;
   #closing: Promise<void> | undefined;
-  #warnings: { state: ProjectSnapshot; warnings: ProjectFileProblem[] } | undefined;
+  #warnings:
+    | { state: ProjectSnapshot; warnings: ProjectFileProblem[]; notices: ProjectFileProblem[] }
+    | undefined;
   /** The live values of the open project (ADR 0057), in memory only. */
   readonly #live: LiveValues;
   /** What fetches for package code granted an origin (ADR 0063). */
@@ -603,18 +605,35 @@ export class Session implements LiveSession {
 
   /** What the project breaks now of the rules that only warn, each against its file. */
   warnings(): ProjectFileProblem[] {
+    return this.#checked().warnings;
+  }
+
+  /**
+   * What the project's check only tells now, each against its file, such as the texts that read as
+   * Math (ADR 0106): neither wrong nor warned about.
+   */
+  notices(): ProjectFileProblem[] {
+    return this.#checked().notices;
+  }
+
+  /** The project's warnings and notices as it is now, checked once for each state. */
+  #checked(): { warnings: ProjectFileProblem[]; notices: ProjectFileProblem[] } {
     let known = this.#warnings;
     if (known?.state !== this.#state) {
-      const { warnings } = checkProject(this.#state);
+      const { warnings, notices = [] } = checkProject(this.#state);
       // Whether a destination's project is there is for the program to tell (ADR 0056).
       warnings.push(...projectDestinationWarnings(this.#state, this.folder));
       // So is whether the files the solids name are there, and clean (ADR 0075).
       warnings.push(...solidFileWarnings(this.#state, this.folder));
       warnings.push(...this.#solids.warnings(this.#state));
-      known = { state: this.#state, warnings: locateProblems(warnings, this.#state, this.files) };
+      known = {
+        state: this.#state,
+        warnings: locateProblems(warnings, this.#state, this.files),
+        notices: locateProblems(notices, this.#state, this.files),
+      };
       this.#warnings = known;
     }
-    return known.warnings;
+    return known;
   }
 
   connect(client: SessionClient, options: ConnectOptions = {}): () => void {
@@ -630,6 +649,8 @@ export class Session implements LiveSession {
     try {
       const warnings = this.warnings();
       if (warnings.length > 0) this.#send(client, warningNotice(warnings));
+      const notices = this.notices();
+      if (notices.length > 0) this.#send(client, infoNotice(notices));
     } catch (error) {
       this.#err(`Could not check the project for warnings: ${reasonOf(error)}`);
     }
@@ -2401,6 +2422,8 @@ export class Session implements LiveSession {
     this.#listHistory();
     const warnings = this.warnings();
     if (warnings.length > 0) this.#broadcast(warningNotice(warnings));
+    const notices = this.notices();
+    if (notices.length > 0) this.#broadcast(infoNotice(notices));
   }
 
   /** Takes a project as opened: its files, where they live and their bytes. The history starts empty. */
@@ -2542,6 +2565,16 @@ function warningNotice(warnings: readonly ProjectFileProblem[]): NoticeMessage {
     type: 'notice',
     level: 'warning',
     message: `The project has ${count}:\n${warnings.map(formatProjectProblem).join('\n')}`,
+  };
+}
+
+/** The notice that tells what the project's check only tells, as info (ADR 0106). */
+function infoNotice(notices: readonly ProjectFileProblem[]): NoticeMessage {
+  const count = `${notices.length} notice${notices.length === 1 ? '' : 's'}`;
+  return {
+    type: 'notice',
+    level: 'info',
+    message: `The project has ${count}:\n${notices.map(formatProjectProblem).join('\n')}`,
   };
 }
 

@@ -12,6 +12,7 @@ import {
 } from '@visual-anything/core';
 import { z } from 'zod';
 import type { CommandAnswer, ExecuteOptions, Program } from './bridge';
+import { mathSaid, mayWriteMath } from './math-said';
 import type { Tool, ToolHints, ToolOutcome } from './tools';
 import { elementsTouched, undefinedAttributesAnswer } from './undefined-attributes';
 
@@ -75,7 +76,9 @@ export type More = Record<string, unknown> & { warnings?: readonly string[] };
  * Sends a command as Claude's action, and says what was done or why not; `more` adds to the answer
  * of a command that was done, its warnings after the core's, and the warnings of the core it says
  * itself are left out of the rest. The answer also names, once per component, the attributes the
- * command set on the elements it created or changed that their components do not define (#17).
+ * command set on the elements it created or changed that their components do not define (#17), and
+ * what the texts it wrote say of their Math (ADR 0106): as notices, those that read as Math, and as
+ * warnings, Math that cannot be typeset.
  */
 export async function act(
   program: Program,
@@ -88,7 +91,10 @@ export async function act(
   // The project before a command that changes elements, so that the answer names only the
   // attributes it set that their components do not define (#17). Without it, the answer names all.
   const updated = elementsTouched(command, []);
-  const before = updated.length === 0 ? undefined : await program.project().catch(() => undefined);
+  // And the project before a command that can write Math, so that the answer tells of its own Math.
+  const math = mayWriteMath(command);
+  const before =
+    updated.length === 0 && !math ? undefined : await program.project().catch(() => undefined);
   const answer = await program.execute(command, how);
   if (!answer.ok) {
     return fail(
@@ -101,18 +107,32 @@ export async function act(
   const extra =
     touched.length === 0
       ? given
-      : { ...given, ...undefinedAttributesAnswer(before, await program.project(), touched) };
+      : {
+          ...given,
+          ...undefinedAttributesAnswer(
+            updated.length === 0 ? undefined : before,
+            await program.project(),
+            touched,
+          ),
+        };
+  const said =
+    math && answer.changed && before !== undefined
+      ? mathSaid(before, await program.project())
+      : { warnings: [], notices: [] };
   const warnings = [
     ...answer.warnings
       .filter((each) => !saidByMore.includes(each.code))
       .map((each) => each.message),
     ...added,
+    ...said.warnings,
   ];
+  const { notices } = said;
   if (answer.proposed !== undefined) {
     return ok({
       ...proposedAnswer(answer.label, answer.proposed),
       ...extra,
       ...(warnings.length > 0 ? { warnings } : {}),
+      ...(notices.length > 0 ? { notices } : {}),
     });
   }
   return ok({
@@ -120,6 +140,7 @@ export async function act(
     ...(answer.changed ? { undo: 'The person can undo it in the app.' } : {}),
     ...extra,
     ...(warnings.length > 0 ? { warnings } : {}),
+    ...(notices.length > 0 ? { notices } : {}),
   });
 }
 

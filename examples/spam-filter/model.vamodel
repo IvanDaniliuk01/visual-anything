@@ -1,0 +1,243 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "World"
+  },
+  "elements": [
+    {
+      "id": "labeled-emails",
+      "component": "machine-learning.dataset",
+      "name": "Labeled emails",
+      "description": "Forty thousand emails, each labeled by hand: $y_i = 1$ for spam and $y_i = 0$ for wanted email.",
+      "attributes": {
+        "format": "Parquet",
+        "rows": 40000,
+        "split": "train"
+      }
+    },
+    {
+      "id": "test-emails",
+      "component": "machine-learning.dataset",
+      "name": "Test emails",
+      "description": "Ten thousand emails never seen in training, to judge the filter on.",
+      "attributes": {
+        "format": "Parquet",
+        "rows": 10000,
+        "split": "test"
+      }
+    },
+    {
+      "id": "word-counts",
+      "component": "machine-learning.tensor",
+      "name": "Word counts",
+      "description": "Each email as a vector $x \\in \\mathbb{R}^{5000}$: how often each of the 5,000 most common words appears in it, weighed by how rare the word is.",
+      "attributes": {
+        "dtype": "float32",
+        "shape": "[batch, 5000]"
+      }
+    },
+    {
+      "id": "spam-filter",
+      "component": "machine-learning.model",
+      "name": "Spam filter",
+      "description": "A logistic regression: it weighs every word, adds the weights up, and turns the sum into the probability that an email is spam.\n\n$$\nP(y = 1 \\mid x) = \\sigma\\left(w^\\top x + b\\right)\n$$\n\nIt learns 5,000 weights $w_j$ and one bias $b$.",
+      "attributes": {
+        "framework": "scikit-learn",
+        "metric": "Accuracy 0.97",
+        "parameters": 5001
+      }
+    },
+    {
+      "id": "linear-score",
+      "component": "machine-learning.dense-layer",
+      "name": "Linear score",
+      "description": "One score for each email, the weighted sum of its words:\n\n$$\nz = w^\\top x + b = \\sum_{j=1}^{5000} w_j x_j + b\n$$\n\nA word with $w_j > 0$ points to spam, and one with $w_j < 0$ to wanted email.",
+      "attributes": {
+        "activation": "none",
+        "kind": "Linear",
+        "units": 1
+      }
+    },
+    {
+      "id": "logistic-function",
+      "component": "machine-learning.layer",
+      "name": "Logistic function",
+      "description": "Squeezes any score into a probability between 0 and 1:\n\n$$\n\\sigma(z) = \\frac{1}{1 + e^{-z}}\n$$\n\nA score of $0$ gives $\\sigma(0) = 0.5$, and $\\sigma(-z) = 1 - \\sigma(z)$.",
+      "attributes": {
+        "activation": "sigmoid",
+        "kind": "Sigmoid"
+      }
+    },
+    {
+      "id": "spam-probability",
+      "component": "machine-learning.tensor",
+      "name": "Spam probability",
+      "description": "$\\hat p = P(y = 1 \\mid x)$ for each email. Above $0.5$, the email goes to the spam folder.",
+      "attributes": {
+        "dtype": "float32",
+        "shape": "[batch, 1]"
+      }
+    },
+    {
+      "id": "log-loss",
+      "component": "machine-learning.loss",
+      "name": "Log loss",
+      "description": "Binary cross-entropy: how surprised the filter is by the true labels, on average.\n\n$$\nL(w, b) = -\\frac{1}{n} \\sum_{i=1}^{n} \\Big[ y_i \\log \\hat p_i + (1 - y_i) \\log (1 - \\hat p_i) \\Big]\n$$\n\nIt grows without bound when the filter is sure and wrong. It is convex in $w$ and $b$, so gradient descent finds its one minimum."
+    },
+    {
+      "id": "gradient-descent",
+      "component": "machine-learning.optimizer",
+      "name": "Gradient descent",
+      "description": "Steps the weights against the gradient of the loss, batch by batch:\n\n$$\nw \\leftarrow w - \\eta \\, \\nabla_w L, \\qquad \\nabla_w L = \\frac{1}{n} \\sum_{i=1}^{n} (\\hat p_i - y_i) \\, x_i\n$$\n\nwith a learning rate of $\\eta = 0.1$. The gradient is that simple because $\\sigma'(z) = \\sigma(z) \\, (1 - \\sigma(z))$.",
+      "attributes": {
+        "learningRate": 0.1
+      }
+    },
+    {
+      "id": "brier-score",
+      "component": "machine-learning.metric",
+      "name": "Brier score",
+      "description": "The mean squared error of the probabilities, on the test emails:\n\n$$\n\\mathrm{BS} = \\frac{1}{n} \\sum_{i=1}^{n} (\\hat p_i - y_i)^2\n$$\n\n$0$ is perfect, and answering $0.5$ for every email scores $0.25$.",
+      "attributes": {
+        "higherIsBetter": false,
+        "value": 0.025
+      }
+    },
+    {
+      "id": "accuracy",
+      "component": "machine-learning.metric",
+      "name": "Accuracy",
+      "description": "The share of test emails filed where they belong, reading $\\hat p > 0.5$ as spam: $\\frac{TP + TN}{n}$.",
+      "attributes": {
+        "higherIsBetter": true,
+        "value": 0.97
+      }
+    },
+    {
+      "id": "nightly-training",
+      "component": "machine-learning.training-run",
+      "name": "Nightly training",
+      "description": "Twenty passes over the labeled emails in batches of 256, with a penalty $\\lambda \\lVert w \\rVert^2$ added to the loss, $\\lambda = 10^{-4}$, so that no single word weighs too much.",
+      "attributes": {
+        "epochs": 20,
+        "hardware": "CPU",
+        "seed": 7
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "linear-score-in-filter",
+      "relationType": "machine-learning.is-part-of",
+      "from": "linear-score",
+      "to": "spam-filter"
+    },
+    {
+      "id": "logistic-in-filter",
+      "relationType": "machine-learning.is-part-of",
+      "from": "logistic-function",
+      "to": "spam-filter"
+    },
+    {
+      "id": "probability-in-filter",
+      "relationType": "machine-learning.is-part-of",
+      "from": "spam-probability",
+      "to": "spam-filter"
+    },
+    {
+      "id": "emails-to-counts",
+      "relationType": "machine-learning.flows-into",
+      "from": "labeled-emails",
+      "to": "word-counts",
+      "name": "A batch",
+      "attributes": {
+        "shape": "[256, 5000]"
+      }
+    },
+    {
+      "id": "counts-to-score",
+      "relationType": "machine-learning.flows-into",
+      "from": "word-counts",
+      "to": "linear-score",
+      "attributes": {
+        "shape": "[256, 5000]"
+      }
+    },
+    {
+      "id": "score-to-logistic",
+      "relationType": "machine-learning.flows-into",
+      "from": "linear-score",
+      "to": "logistic-function",
+      "attributes": {
+        "shape": "[256, 1]"
+      }
+    },
+    {
+      "id": "logistic-to-probability",
+      "relationType": "machine-learning.flows-into",
+      "from": "logistic-function",
+      "to": "spam-probability",
+      "attributes": {
+        "shape": "[256, 1]"
+      }
+    },
+    {
+      "id": "probability-to-loss",
+      "relationType": "machine-learning.flows-into",
+      "from": "spam-probability",
+      "to": "log-loss",
+      "attributes": {
+        "shape": "[256, 1]"
+      }
+    },
+    {
+      "id": "run-trains-on-emails",
+      "relationType": "machine-learning.trains-on",
+      "from": "nightly-training",
+      "to": "labeled-emails",
+      "attributes": {
+        "split": "train"
+      }
+    },
+    {
+      "id": "filter-judged-on-test",
+      "relationType": "machine-learning.trains-on",
+      "from": "spam-filter",
+      "to": "test-emails",
+      "attributes": {
+        "split": "test"
+      }
+    },
+    {
+      "id": "descent-minimizes-loss",
+      "relationType": "machine-learning.minimizes",
+      "from": "gradient-descent",
+      "to": "log-loss"
+    },
+    {
+      "id": "descent-updates-filter",
+      "relationType": "machine-learning.updates",
+      "from": "gradient-descent",
+      "to": "spam-filter"
+    },
+    {
+      "id": "run-updates-filter",
+      "relationType": "machine-learning.updates",
+      "from": "nightly-training",
+      "to": "spam-filter"
+    },
+    {
+      "id": "filter-measured-by-brier",
+      "relationType": "machine-learning.is-measured-by",
+      "from": "spam-filter",
+      "to": "brier-score"
+    },
+    {
+      "id": "filter-measured-by-accuracy",
+      "relationType": "machine-learning.is-measured-by",
+      "from": "spam-filter",
+      "to": "accuracy"
+    }
+  ]
+}

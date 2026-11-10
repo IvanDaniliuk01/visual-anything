@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { anchoredElements, findPart, imagesIn } from '@visual-anything/core';
+import { anchoredElements, checkProject, findPart, imagesIn } from '@visual-anything/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadProject } from './project';
 import { solidFileWarnings } from './solids/files';
@@ -34,11 +34,12 @@ describe('the sample projects the program holds', () => {
     ).toBe(samplesText());
   });
 
-  it('are the C4, data-science, machine learning, physical-ai, process, healthcare, finance and data modeling samples, each with its starter packages', () => {
+  it('are the C4, data-science, two machine learning, physical-ai, process, healthcare, finance and data modeling samples, each with its starter packages', () => {
     expect(samples().map(({ id, packages }) => ({ id, packages }))).toEqual([
       { id: 'c4-architecture', packages: ['c4'] },
       { id: 'data-science-pipeline', packages: ['data-science'] },
       { id: 'churn-classifier', packages: ['data-science', 'machine-learning'] },
+      { id: 'spam-filter', packages: ['data-science', 'machine-learning'] },
       { id: 'robot-arm', packages: ['physical-ai', 'robot-arm'] },
       { id: 'order-process', packages: ['process'] },
       { id: 'clinic-claim', packages: ['healthcare'] },
@@ -49,6 +50,7 @@ describe('the sample projects the program holds', () => {
       'c4-architecture',
       'data-science-pipeline',
       'churn-classifier',
+      'spam-filter',
       'robot-arm',
       'order-process',
       'clinic-claim',
@@ -135,6 +137,42 @@ describe('the sample projects the program holds', () => {
     expect(loaded.project.scenarios.map((each) => [each.id, each.view])).toEqual([
       ['forward-pass', 'architecture'],
     ]);
+  });
+});
+
+describe('the Spam filter sample', () => {
+  it('explains its model in Math that typesets whole: descriptions, notes, a scenario and a tour (A9)', async () => {
+    const sample = sampleOf('spam-filter');
+    if (sample === undefined) throw new Error('No sample spam-filter.');
+    expect((await writeNewProject(join(root, 'spam'), sample.files)).ok).toBe(true);
+    const loaded = await loadProject(join(root, 'spam'));
+    if (!loaded.ok) throw new Error(JSON.stringify(loaded.errors));
+    // Every piece of Math typesets: none is drawn as its TeX with math-error.
+    const checked = checkProject(loaded.project);
+    expect(checked.warnings).toEqual([]);
+    const read = (checked.notices ?? []).map((each) => each.message);
+    for (const where of [
+      'the description of the project',
+      'the description of the element "Log loss"',
+      'the description of the element "Logistic function"',
+      'the description of the element "Brier score"',
+      'the description of the element "Gradient descent"',
+      'a note in the view "The model"',
+      'a note in the view "Training"',
+      'the description of the scenario "Scoring a batch of emails"',
+      'the caption of step 1 of the tour "The math of the filter"',
+      'the speaker notes of step 3 of the tour "The math of the filter"',
+    ]) {
+      expect(read, where).toContain(
+        `Math is read in ${where}: write \\$ for a dollar sign that is not Math.`,
+      );
+    }
+    // A loss and a probability, as display Math of their own.
+    const described = (id: string) =>
+      loaded.project.model.elements.find((each) => each.id === id)?.description ?? '';
+    expect(described('log-loss')).toContain('$$\nL(w, b) = -\\frac{1}{n}');
+    expect(described('logistic-function')).toContain('$$\n\\sigma(z) = \\frac{1}{1 + e^{-z}}\n$$');
+    expect(described('brier-score')).toContain('(\\hat p_i - y_i)^2');
   });
 });
 

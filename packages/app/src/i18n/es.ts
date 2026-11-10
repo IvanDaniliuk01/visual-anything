@@ -201,6 +201,8 @@ export const ui: Catalog = {
     'Cómo un negocio de suscripciones convierte sus datos en un modelo de bajas.',
   'A Transformer that reads each customer’s last events to tell who will cancel.':
     'Un Transformer que lee los últimos eventos de cada cliente para predecir quién se dará de baja.',
+  'A spam filter’s probability, loss and training, written out in Math.':
+    'La probabilidad, la pérdida y el entrenamiento de un filtro de spam, escritos en notación matemática.',
   'A six-axis arm drawn as a solid that turns, with its motors, control loop and software.':
     'Un brazo de seis ejes dibujado como un sólido que gira, con sus motores, su lazo de control y su software.',
   'An online order, from its stock check to shipping, and the states it goes through.':
@@ -3416,6 +3418,11 @@ export const ui: Catalog = {
   'Machine learning: churn classifier': 'Aprendizaje automático: clasificador de bajas',
   'A Transformer that reads each customer’s last 90 events to tell who will cancel, beside the pipeline that feeds it, with a scenario of its forward pass.':
     'Un Transformer que lee los últimos 90 eventos de cada cliente para saber quién va a cancelar, junto a la canalización que lo alimenta, con un escenario de su paso hacia adelante.',
+  // A9.4: the sample that explains a model in Math (ADR 0106).
+  'Machine learning: the math of a spam filter':
+    'Aprendizaje automático: la matemática de un filtro de spam',
+  'A logistic regression that tells spam from wanted email, written out in Math: the probability it gives, the log loss it brings down, how gradient descent trains it and how it is judged, with a scenario that scores a batch of emails and a tour of its math.':
+    'Una regresión logística que distingue el spam del correo deseado, escrita en notación matemática: la probabilidad que da, la pérdida logarítmica que reduce, cómo la entrena el descenso por gradiente y cómo se la evalúa, con un escenario que puntúa un lote de correos y un recorrido por su matemática.',
 
   // M11b: a comparison on the canvas, in the Changes tab and in its exports (ADR 0070).
   Changes: 'Cambios',
@@ -4359,6 +4366,8 @@ export const messages: Catalog = {
   '{n} components or elements': '{n} componentes o elementos',
   '1 warning': '1 advertencia',
   '{n} warnings': '{n} advertencias',
+  '1 notice': '1 aviso',
+  '{n} notices': '{n} avisos',
 
   // The undo history's labels.
   'Create "{name}"': 'Crear "{name}"',
@@ -8090,8 +8099,46 @@ export const messages: Catalog = {
     'Un archivo multimedia es un PNG, un JPEG, un WebP, un GIF o un SVG.',
   // A9: what checking a project's Math says (ADR 0106), with where each text is. KaTeX's own message
   // after the colon stays as KaTeX writes it.
-  'Math in {of} is drawn as its TeX, "{tex}", since it cannot be typeset: {error}':
-    'La notación matemática de {of} se dibuja como su TeX, "{tex}", porque no se puede componer: {error}',
+  'Math in {of} is drawn as its TeX, "{tex}", since it cannot be typeset: {why}':
+    'La notación matemática de {of} se dibuja como su TeX, "{tex}", porque no se puede componer: {why}',
+  // KaTeX's own message, which stays as KaTeX writes it.
+  'KaTeX parse error: {katex}': 'KaTeX parse error: {katex}',
+  // A9.4: why the core does not typeset a piece of Math (ADR 0106).
+  'Math does not take {command}: colors come from the theme.':
+    'La notación matemática no admite {command}: los colores vienen del tema.',
+  'Math does not take {command}: a link is written with its own syntax.':
+    'La notación matemática no admite {command}: una dirección web se escribe con su propia sintaxis.',
+  'Math does not take {command}.': 'La notación matemática no admite {command}.',
+  'Math does not take images: \\includegraphics is not allowed.':
+    'La notación matemática no admite imágenes: \\includegraphics no está permitido.',
+  'Math does not take links: a link is written with its own syntax.':
+    'La notación matemática no admite direcciones web: una dirección web se escribe con su propia sintaxis.',
+  'Math does not take colored backgrounds: colors come from the theme.':
+    'La notación matemática no admite rellenos de color: los colores vienen del tema.',
+  'Math does not take colored borders: colors come from the theme.':
+    'La notación matemática no admite bordes de color: los colores vienen del tema.',
+  'Math cannot lay out {command} yet.':
+    'La notación matemática todavía no puede componer {command}.',
+  'Math cannot lay out a tag (\\tag) yet.':
+    'La notación matemática todavía no puede componer una etiqueta (\\tag).',
+  'Math cannot lay out the CD environment yet.':
+    'La notación matemática todavía no puede componer el entorno CD.',
+  'Math cannot lay out flush-left formulas yet.':
+    'La notación matemática todavía no puede alinear su notación a la izquierda.',
+  'Math cannot lay out tags on the left yet.':
+    'La notación matemática todavía no puede componer etiquetas a la izquierda.',
+  'Math cannot lay out tags or numbered formulas yet: use \\notag, or a starred environment such as align*.':
+    'La notación matemática todavía no puede componer etiquetas ni numerar: usar \\notag, o un entorno con asterisco como align*.',
+  'Math cannot lay out this formula.': 'La notación matemática no puede componer esta notación.',
+  'Math cannot draw a command that KaTeX does not trust.':
+    'La notación matemática no puede dibujar un comando en el que KaTeX no confía.',
+  'Math cannot draw an image in a formula.': 'La notación matemática no puede dibujar imágenes.',
+  'Math cannot draw “{char}”: KaTeX’s fonts do not hold it. Write it inside \\text{} as plain text, outside the formula.':
+    'La notación matemática no puede dibujar “{char}”: las fuentes de KaTeX no lo tienen. Escribirlo dentro de \\text{} como texto simple, fuera de la notación.',
+  'Math has no font {family}.': 'La notación matemática no tiene la fuente {family}.',
+  'Math could not typeset this formula.': 'La notación matemática no pudo componer esta notación.',
+  'A formula takes at most {limit} characters; this one has {n}.':
+    'Cada notación matemática admite como mucho {limit} caracteres; esta tiene {n}.',
   'Math is read in {of}: write \\$ for a dollar sign that is not Math.':
     'Se lee notación matemática en {of}: escribir \\$ para un signo de dólar que no sea notación matemática.',
   '…and {n} more piece of Math cannot be typeset.':

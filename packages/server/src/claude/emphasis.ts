@@ -1,6 +1,6 @@
 /**
- * What Claude's tools say of text emphasis (ADR 0082): which texts take Markdown, and the subset
- * they take. Claude writes markers on purpose, and writes the text of outside material as text: with
+ * What Claude's tools say of text emphasis (ADR 0082) and Math (ADR 0106): which texts take Markdown,
+ * the subset they take, and how they write TeX. Claude writes markers on purpose, and writes the text of outside material as text: with
  * `escapeText: true`, the program escapes the texts a call sets before the command, so that they
  * read as the material writes them.
  */
@@ -19,7 +19,7 @@ import type { Program } from './bridge';
 
 /** The subset, as a text of several lines takes it. */
 export const MARKDOWN_SUBSET =
-  'Markdown, kept as typed: **bold**, *italic*, ~~struck~~, `code`, ==highlight== and ++underline++; headings `#` to `###`; lists nested to three levels and task lists (`- [ ]`, `- [x]`); `>` quotes; `---` rules; fenced code; GitHub tables of at most 12 columns and 50 rows; and [links](https://…) to http, https and mailto addresses. Raw HTML and images are drawn as the characters they are, and a backslash writes a marker as a character.';
+  'Markdown, kept as typed: **bold**, *italic*, ~~struck~~, `code`, ==highlight== and ++underline++; headings `#` to `###`; lists nested to three levels and task lists (`- [ ]`, `- [x]`); `>` quotes; `---` rules; fenced code; GitHub tables of at most 12 columns and 50 rows; and [links](https://…) to http, https and mailto addresses; and Math, TeX between $…$ within a line or between lines that are $$ alone. Raw HTML and images are drawn as the characters they are, and a backslash writes a marker as a character: \\$ is a dollar sign.';
 
 /** What a field that takes Markdown says of itself. */
 export const TAKES_MARKDOWN = `Takes ${MARKDOWN_SUBSET}`;
@@ -34,11 +34,14 @@ export const escapeTextInput = () =>
     .boolean()
     .optional()
     .describe(
-      `true to write ${ESCAPED_TEXTS} as the characters they are: the program puts a backslash before each marker, so that a * or a _ stays a character. Use it for the text of outside material, such as a file’s comments or a table’s remarks. Left out, the texts are written as given, and their markers are emphasis.`,
+      `true to write ${ESCAPED_TEXTS} as the characters they are: the program puts a backslash before each marker, so that a *, a _ or a $ stays a character. Use it for the text of outside material, such as a file’s comments or a table’s remarks. Left out, the texts are written as given, and their markers are emphasis.`,
     );
 
+/** What the instructions say of Math (ADR 0106), after what they say of text emphasis. */
+export const MATH_INSTRUCTIONS = String.raw`Math: write mathematical notation as TeX in any text that takes emphasis, never in a name: $\sigma(z)$ within a line, and a formula of its own between two lines that are $$ alone. Pandoc's rule reads the dollars: no space right after the opening $ nor right before the closing one, and no digit right after the closing one, so "$20 and $30" stays text; write \$ for a dollar sign that would read as Math. KaTeX typesets it, without \color, \textcolor, \colorbox or \href, at most 2,000 characters a formula and 200 formulas a text; what it cannot typeset is drawn as its TeX. A write's answer lists as notices the texts it set that read as Math, and as warnings the Math that cannot be typeset. Every tool reads the TeX back as written.`;
+
 /** What the instructions say of text emphasis. */
-export const EMPHASIS_INSTRUCTIONS = `Descriptions (of elements, relations, components, relation types, attributes, views, scenarios, tours, packages and the project), a note's text, a tour step's caption text, its reveals' text and its speaker notes take ${MARKDOWN_SUBSET} A string attribute takes the inline part of it (bold, italic, strikethrough, code, highlight, underline) only when its definition sets "format": "emphasis" (define_component, update_component); every other attribute, and every name, is plain, so that identifiers such as col_*_id and SQL such as '**'::text stay as written. Use emphasis to point at what matters, sparingly. When you put the text of outside material into a text that takes it, give escapeText: true to the tool that writes it (add_to_model, update_element, run_commands, create_tour, add_tour_step, update_tour_step and the others that set a description, a note, a caption's text, a reveal's text or speaker notes), and the program writes it as text; do not escape it by hand. Find, filters and sorting read texts without their markers.`;
+export const EMPHASIS_INSTRUCTIONS = `Descriptions (of elements, relations, components, relation types, attributes, views, scenarios, tours, packages and the project), a note's text, a tour step's caption text, its reveals' text and its speaker notes take ${MARKDOWN_SUBSET} A string attribute takes the inline part of it (bold, italic, strikethrough, code, highlight, underline, Math within a line) only when its definition sets "format": "emphasis" (define_component, update_component); every other attribute, and every name, is plain, so that identifiers such as col_*_id and SQL such as '**'::text stay as written. Use emphasis to point at what matters, sparingly. When you put the text of outside material into a text that takes it, give escapeText: true to the tool that writes it (add_to_model, update_element, run_commands, create_tour, add_tour_step, update_tour_step and the others that set a description, a note, a caption's text, a reveal's text or speaker notes), and the program writes it as text; do not escape it by hand. Find, filters and sorting read texts without their markers. ${MATH_INSTRUCTIONS}`;
 
 /** A text escaped, or what is not a text as it is: `null` takes a text out, and stays `null`. */
 function escaped<T>(value: T): T {

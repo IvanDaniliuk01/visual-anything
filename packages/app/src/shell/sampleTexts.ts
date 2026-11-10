@@ -24,6 +24,12 @@ export const SAMPLE_TEXTS: Readonly<
       'A Transformer that reads each customer’s last 90 events to tell who will cancel, beside the pipeline that feeds it, with a scenario of its forward pass.',
     summary: 'A Transformer that reads each customer’s last events to tell who will cancel.',
   },
+  'spam-filter': {
+    title: 'Machine learning: the math of a spam filter',
+    description:
+      'A logistic regression that tells spam from wanted email, written out in Math: the probability it gives, the log loss it brings down, how gradient descent trains it and how it is judged, with a scenario that scores a batch of emails and a tour of its math.',
+    summary: 'A spam filter’s probability, loss and training, written out in Math.',
+  },
   'robot-arm': {
     title: 'Physical AI: a pick-and-place arm',
     description:

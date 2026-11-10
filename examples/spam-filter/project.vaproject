@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "name": "Spam filter",
+  "description": "A sample of Math with the machine learning package: a logistic regression that tells spam from wanted email, $\\hat p = \\sigma(w^\\top x + b)$, the loss it brings down, how gradient descent trains it and how it is judged, each written out as typeset notation.",
+  "packages": [
+    "data-science",
+    "machine-learning"
+  ]
+}

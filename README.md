@@ -105,6 +105,8 @@ Each world has a sample project. `pnpm exec tsx packages/server/src/cli.ts new <
 
 ![Machine learning: the churn-classifier sample](docs/images/churn-classifier.svg)
 
+`spam-filter`: a spam filter's logistic regression, its loss, its training and its metrics, written out as typeset Math.
+
 ### Data modeling
 
 `bookshop-database`: a bookshop's tables, columns and foreign keys, which export as SQL.
