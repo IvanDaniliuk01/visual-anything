@@ -30,11 +30,12 @@ Two milestones ready for builders: **Math** (TeX notation typeset in every text)
 - [How the person approves an explorable and its libraries](08-approving-an-explorable.md): a dialog naming who wrote it, its libraries, its code and the WebRTC caveat; kept by hash in preferences as package code's, up to 1,024; Claude's writes through the program continue an approval; only approved explorables go live into the read-only page; revocable; Claude never approves.
 - [Prove that our layout of KaTeX's tree matches KaTeX](11-prove-math-layout-against-katex.md): it does: 86 of 86 formulas, every glyph within 0.5 px of Chrome, about 0.3 ms per formula; KaTeX pinned exactly, its double-underscore tree API kept under a golden test; MathJax not needed.
 - [Write the Math ADR and milestone](09-write-the-math-adr-and-milestone.md): ADR 0106 and milestone A9 · Math, its seam first; Claude reads and writes Math as the TeX typed.
+- [Prove the explorable frame in Chrome, Firefox and Safari](12-prove-the-explorable-frame-in-browsers.md): it holds in Chrome and Firefox with four changes (a fresh `*.localhost` per frame, libraries inlined as globals, line endings normalized before hashing, `font-src data:` in the page); Firefox freezes on a looping `srcdoc`, so outside Chromium the page runs explorables only on Run; string-compiling libraries need functions; Safari untested.
 
 ## Not yet specified
 
 - **Versions and merging.** How an explorable's file, and a library's, show in comparisons (ADR 0070) and pass through the merge driver (ADR 0072); whether two branches editing one explorable conflict as text.
-- **How Claude learns to write explorables well.** The guidance Claude reads before writing one: the `va` API, the libraries at hand, sizes, the theme, Math inside it.
+- **How Claude learns to write explorables well.** The guidance Claude reads before writing one: the `va` API, the libraries at hand, sizes, the theme, Math inside it, and no `eval` (functions rather than formula strings, `d3.csvParseRows` rather than `d3.csvParse`).
 - **Accessibility.** What a screen reader and the keyboard reach inside an explorable, and what the canvas says about one that is still.
 - **Limits.** An explorable's size, a library's size, how many libraries a project keeps, and what happens when one is over.
 
