@@ -1,0 +1,4844 @@
+[
+  {
+    "tex": "\\frac{a}{b}",
+    "d": false,
+    "width": 9.75,
+    "glyphs": [
+      {
+        "char": "b",
+        "x": 2.46875,
+        "w": 4.8125,
+        "baseline": 5.53125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "a",
+        "x": 1.90625,
+        "w": 5.9375,
+        "baseline": -6.296875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      }
+    ],
+    "rules": [{ "kind": "frac-line", "x": 1.90625, "y": -5.671875, "w": 5.9375, "h": 2 }],
+    "svgs": []
+  },
+  {
+    "tex": "\\frac{1}{1+\\frac{1}{x}}",
+    "d": true,
+    "width": 41.59375,
+    "glyphs": [
+      {
+        "char": "1",
+        "x": 1.90625,
+        "w": 8,
+        "baseline": 11.765625,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 13.453125,
+        "w": 12.453125,
+        "baseline": 11.765625,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 31.359375,
+        "w": 6.421875,
+        "baseline": 17.296875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "1",
+        "x": 31.765625,
+        "w": 5.609375,
+        "baseline": 5.46875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "1",
+        "x": 16.796875,
+        "w": 8,
+        "baseline": -10.828125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [
+      { "kind": "frac-line", "x": 31.359375, "y": 6.09375, "w": 6.421875, "h": 2 },
+      { "kind": "frac-line", "x": 1.90625, "y": -5.671875, "w": 37.78125, "h": 2 }
+    ],
+    "svgs": []
+  },
+  {
+    "tex": "\\dfrac{a+b}{c} + \\tfrac{1}{2}",
+    "d": false,
+    "width": 67.671875,
+    "glyphs": [
+      {
+        "char": "c",
+        "x": 15.875,
+        "w": 6.9375,
+        "baseline": 10.984375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "a",
+        "x": 1.90625,
+        "w": 8.46875,
+        "baseline": -10.828125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 13.921875,
+        "w": 12.453125,
+        "baseline": -10.828125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "b",
+        "x": 29.921875,
+        "w": 6.875,
+        "baseline": -10.828125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 42.25,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "2",
+        "x": 60.15625,
+        "w": 5.609375,
+        "baseline": 5.53125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "1",
+        "x": 60.15625,
+        "w": 5.609375,
+        "baseline": -6.296875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      }
+    ],
+    "rules": [
+      { "kind": "frac-line", "x": 1.90625, "y": -5.671875, "w": 34.890625, "h": 2 },
+      { "kind": "frac-line", "x": 60.15625, "y": -5.671875, "w": 5.609375, "h": 2 }
+    ],
+    "svgs": []
+  },
+  {
+    "tex": "\\sqrt{x}",
+    "d": false,
+    "width": 22.46875,
+    "glyphs": [
+      {
+        "char": "x",
+        "x": 13.3125,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": [{ "kind": "hide-tail", "x": 0, "y": -13.421875, "w": 22.46875, "h": 17.265625 }]
+  },
+  {
+    "tex": "\\sqrt[3]{x^2+y^2}",
+    "d": true,
+    "width": 65.484375,
+    "glyphs": [
+      {
+        "char": "3",
+        "x": 4.4375,
+        "w": 4,
+        "baseline": -7.421875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 8
+      },
+      {
+        "char": "x",
+        "x": 15.5625,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "2",
+        "x": 24.71875,
+        "w": 5.609375,
+        "baseline": -4.625,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "+",
+        "x": 34.671875,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "y",
+        "x": 50.671875,
+        "w": 7.84375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "2",
+        "x": 59.078125,
+        "w": 5.609375,
+        "baseline": -4.625,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      }
+    ],
+    "rules": [],
+    "svgs": [{ "kind": "hide-tail", "x": -0.4375, "y": -16.734375, "w": 65.921875, "h": 20.46875 }]
+  },
+  {
+    "tex": "\\sqrt{\\frac{a}{b}}",
+    "d": true,
+    "width": 28.28125,
+    "glyphs": [
+      {
+        "char": "b",
+        "x": 18.703125,
+        "w": 6.875,
+        "baseline": 10.984375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "a",
+        "x": 17.90625,
+        "w": 8.46875,
+        "baseline": -10.828125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [{ "kind": "frac-line", "x": 17.90625, "y": -5.671875, "w": 8.46875, "h": 2 }],
+    "svgs": [{ "kind": "hide-tail", "x": 0, "y": -25.34375, "w": 28.28125, "h": 39.671875 }]
+  },
+  {
+    "tex": "\\sqrt{1+\\sqrt{1+\\sqrt{1+x}}}",
+    "d": true,
+    "width": 137.109375,
+    "glyphs": [
+      {
+        "char": "1",
+        "x": 16,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 27.546875,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "1",
+        "x": 59.546875,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 71.09375,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "1",
+        "x": 100.40625,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 111.953125,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 127.953125,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": [
+      { "kind": "hide-tail", "x": 87.09375, "y": -15.25, "w": 50.015625, "h": 17.265625 },
+      { "kind": "hide-tail", "x": 43.546875, "y": -23.484375, "w": 93.5625, "h": 30.078125 },
+      { "kind": "hide-tail", "x": 0, "y": -30.109375, "w": 137.109375, "h": 39.671875 }
+    ]
+  },
+  {
+    "tex": "\\sum_{i=1}^{n} i^2",
+    "d": true,
+    "width": 37.703125,
+    "glyphs": [
+      {
+        "char": "i",
+        "x": 2.453125,
+        "w": 3.875,
+        "baseline": 18.84375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "=",
+        "x": 6.328125,
+        "w": 8.71875,
+        "baseline": 18.84375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "1",
+        "x": 15.046875,
+        "w": 5.609375,
+        "baseline": 18.84375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "∑",
+        "x": 0,
+        "w": 23.109375,
+        "baseline": 0,
+        "font": "KaTeX_Size2",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "n",
+        "x": 8.1875,
+        "w": 6.734375,
+        "baseline": -20,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "i",
+        "x": 25.765625,
+        "w": 5.53125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "2",
+        "x": 31.296875,
+        "w": 5.609375,
+        "baseline": -6.609375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\sum_{i=1}^{n} i^2",
+    "d": false,
+    "width": 50.5,
+    "glyphs": [
+      {
+        "char": "∑",
+        "x": 0,
+        "w": 16.90625,
+        "baseline": 0,
+        "font": "KaTeX_Size1",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 16.90625,
+        "w": 3.875,
+        "baseline": 4.796875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "=",
+        "x": 20.78125,
+        "w": 8.71875,
+        "baseline": 4.796875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "1",
+        "x": 29.5,
+        "w": 5.609375,
+        "baseline": 4.796875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "n",
+        "x": 16.90625,
+        "w": 6.734375,
+        "baseline": -8.046875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "i",
+        "x": 38.5625,
+        "w": 5.53125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "2",
+        "x": 44.09375,
+        "w": 5.609375,
+        "baseline": -5.8125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\int_0^\\infty e^{-x^2}\\,dx",
+    "d": true,
+    "width": 79.015625,
+    "glyphs": [
+      {
+        "char": "∫",
+        "x": 0,
+        "w": 8.90625,
+        "baseline": -0.015625,
+        "font": "KaTeX_Size2",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "0",
+        "x": 8.90625,
+        "w": 5.609375,
+        "baseline": 14.578125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "∞",
+        "x": 16.015625,
+        "w": 11.203125,
+        "baseline": -17.8125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "e",
+        "x": 30.671875,
+        "w": 7.46875,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "−",
+        "x": 38.140625,
+        "w": 8.71875,
+        "baseline": -6.609375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "x",
+        "x": 46.859375,
+        "w": 6.421875,
+        "baseline": -6.609375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "2",
+        "x": 53.28125,
+        "w": 4,
+        "baseline": -11.421875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 8
+      },
+      {
+        "char": "d",
+        "x": 61.53125,
+        "w": 8.328125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 69.859375,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\int_0^1 f(x)\\,dx",
+    "d": false,
+    "width": 71.0625,
+    "glyphs": [
+      {
+        "char": "∫",
+        "x": 0,
+        "w": 7.5625,
+        "baseline": 0,
+        "font": "KaTeX_Size1",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "0",
+        "x": 7.5625,
+        "w": 5.609375,
+        "baseline": 5.6875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "1",
+        "x": 10.671875,
+        "w": 5.609375,
+        "baseline": -8.9375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "f",
+        "x": 19.734375,
+        "w": 7.84375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 29.296875,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 35.53125,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 44.6875,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "d",
+        "x": 53.578125,
+        "w": 8.328125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 61.90625,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\prod_{k=1}^{\\infty} \\left(1 - \\frac{1}{p_k^s}\\right)^{-1}",
+    "d": true,
+    "width": 108.265625,
+    "glyphs": [
+      {
+        "char": "k",
+        "x": 0,
+        "w": 5.84375,
+        "baseline": 19.234375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "=",
+        "x": 6.1875,
+        "w": 8.71875,
+        "baseline": 19.234375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "1",
+        "x": 14.90625,
+        "w": 5.609375,
+        "baseline": 19.234375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "∏",
+        "x": 0.03125,
+        "w": 20.453125,
+        "baseline": 0,
+        "font": "KaTeX_Size2",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "∞",
+        "x": 4.65625,
+        "w": 11.203125,
+        "baseline": -20,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "(",
+        "x": 23.171875,
+        "w": 11.78125,
+        "baseline": 0,
+        "font": "KaTeX_Size3",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "1",
+        "x": 34.953125,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "−",
+        "x": 46.5,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "p",
+        "x": 64.40625,
+        "w": 8.0625,
+        "baseline": 10.984375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "k",
+        "x": 72.46875,
+        "w": 5.84375,
+        "baseline": 15.796875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "s",
+        "x": 72.46875,
+        "w": 5.265625,
+        "baseline": 5.46875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "1",
+        "x": 67.921875,
+        "w": 8,
+        "baseline": -10.828125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 81.359375,
+        "w": 11.78125,
+        "baseline": 0,
+        "font": "KaTeX_Size3",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "−",
+        "x": 93.140625,
+        "w": 8.71875,
+        "baseline": -19.25,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "1",
+        "x": 101.859375,
+        "w": 5.609375,
+        "baseline": -19.25,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      }
+    ],
+    "rules": [{ "kind": "frac-line", "x": 64.40625, "y": -5.671875, "w": 15.046875, "h": 2 }],
+    "svgs": []
+  },
+  {
+    "tex": "\\lim_{x \\to 0} \\frac{\\sin x}{x} = 1",
+    "d": true,
+    "width": 90.515625,
+    "glyphs": [
+      {
+        "char": "x",
+        "x": 0,
+        "w": 6.421875,
+        "baseline": 9.875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "→",
+        "x": 6.421875,
+        "w": 11.203125,
+        "baseline": 9.875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "0",
+        "x": 17.625,
+        "w": 5.609375,
+        "baseline": 9.875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "l",
+        "x": 0.5,
+        "w": 4.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 4.953125,
+        "w": 4.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "m",
+        "x": 9.40625,
+        "w": 13.328125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 38.953125,
+        "w": 9.15625,
+        "baseline": 10.984375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "s",
+        "x": 27.796875,
+        "w": 6.3125,
+        "baseline": -10.828125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 34.109375,
+        "w": 4.453125,
+        "baseline": -10.828125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "n",
+        "x": 38.5625,
+        "w": 8.90625,
+        "baseline": -10.828125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 50.125,
+        "w": 9.15625,
+        "baseline": -10.828125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "=",
+        "x": 65.625,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "1",
+        "x": 82.515625,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [{ "kind": "frac-line", "x": 27.796875, "y": -5.671875, "w": 31.484375, "h": 2 }],
+    "svgs": []
+  },
+  {
+    "tex": "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}",
+    "d": true,
+    "width": 56.359375,
+    "glyphs": [
+      {
+        "char": "(",
+        "x": 0,
+        "w": 11.78125,
+        "baseline": 0,
+        "font": "KaTeX_Size3",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "a",
+        "x": 11.78125,
+        "w": 8.46875,
+        "baseline": -9.75,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "c",
+        "x": 12.546875,
+        "w": 6.9375,
+        "baseline": 9.453125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "b",
+        "x": 36.96875,
+        "w": 6.875,
+        "baseline": -9.75,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "d",
+        "x": 36.25,
+        "w": 8.328125,
+        "baseline": 9.453125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 44.578125,
+        "w": 11.78125,
+        "baseline": 0,
+        "font": "KaTeX_Size3",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\begin{bmatrix} 1 & 0 & 0 \\\\ 0 & 1 & 0 \\\\ 0 & 0 & 1 \\end{bmatrix}",
+    "d": true,
+    "width": 77.34375,
+    "glyphs": [
+      {
+        "char": "1",
+        "x": 10.671875,
+        "w": 8,
+        "baseline": -19.359375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "0",
+        "x": 10.671875,
+        "w": 8,
+        "baseline": -0.15625,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "0",
+        "x": 10.671875,
+        "w": 8,
+        "baseline": 19.046875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "0",
+        "x": 34.671875,
+        "w": 8,
+        "baseline": -19.359375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "1",
+        "x": 34.671875,
+        "w": 8,
+        "baseline": -0.15625,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "0",
+        "x": 34.671875,
+        "w": 8,
+        "baseline": 19.046875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "0",
+        "x": 58.671875,
+        "w": 8,
+        "baseline": -19.359375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "0",
+        "x": 58.671875,
+        "w": 8,
+        "baseline": -0.15625,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "1",
+        "x": 58.671875,
+        "w": 8,
+        "baseline": 19.046875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": [
+      { "kind": "", "x": 0, "y": -32.796875, "w": 10.671875, "h": 57.59375 },
+      { "kind": "", "x": 66.671875, "y": -32.796875, "w": 10.671875, "h": 57.59375 }
+    ]
+  },
+  {
+    "tex": "\\left( \\frac{a}{b} \\right)",
+    "d": true,
+    "width": 31.40625,
+    "glyphs": [
+      {
+        "char": "(",
+        "x": 0,
+        "w": 9.5625,
+        "baseline": 0,
+        "font": "KaTeX_Size2",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "b",
+        "x": 12.265625,
+        "w": 6.875,
+        "baseline": 10.984375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "a",
+        "x": 11.46875,
+        "w": 8.46875,
+        "baseline": -10.828125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 21.84375,
+        "w": 9.5625,
+        "baseline": 0,
+        "font": "KaTeX_Size2",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [{ "kind": "frac-line", "x": 11.46875, "y": -5.671875, "w": 8.46875, "h": 2 }],
+    "svgs": []
+  },
+  {
+    "tex": "\\left[ \\sum_{i} x_i \\right]",
+    "d": true,
+    "width": 58.25,
+    "glyphs": [
+      {
+        "char": "[",
+        "x": 0,
+        "w": 9.328125,
+        "baseline": 0,
+        "font": "KaTeX_Size4",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 18.9375,
+        "w": 3.875,
+        "baseline": 18.84375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "∑",
+        "x": 9.328125,
+        "w": 23.109375,
+        "baseline": 0,
+        "font": "KaTeX_Size2",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 35.09375,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 44.25,
+        "w": 3.875,
+        "baseline": 2.390625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "]",
+        "x": 48.921875,
+        "w": 9.328125,
+        "baseline": 0,
+        "font": "KaTeX_Size4",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\Bigg( \\bigg( \\Big( \\big( x \\big) \\Big) \\bigg) \\Bigg)",
+    "d": false,
+    "width": 91.875,
+    "glyphs": [
+      {
+        "char": "(",
+        "x": 0,
+        "w": 12.6875,
+        "baseline": 0,
+        "font": "KaTeX_Size4",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 12.6875,
+        "w": 11.78125,
+        "baseline": 0,
+        "font": "KaTeX_Size3",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 24.46875,
+        "w": 9.5625,
+        "baseline": 0,
+        "font": "KaTeX_Size2",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 34.03125,
+        "w": 7.328125,
+        "baseline": 0,
+        "font": "KaTeX_Size1",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 41.359375,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 50.515625,
+        "w": 7.328125,
+        "baseline": 0,
+        "font": "KaTeX_Size1",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 57.84375,
+        "w": 9.5625,
+        "baseline": 0,
+        "font": "KaTeX_Size2",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 67.40625,
+        "w": 11.78125,
+        "baseline": 0,
+        "font": "KaTeX_Size3",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 79.1875,
+        "w": 12.6875,
+        "baseline": 0,
+        "font": "KaTeX_Size4",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\left\\{ \\begin{array}{c} a \\\\ b \\\\ c \\\\ d \\end{array} \\right.",
+    "d": true,
+    "width": 40.609375,
+    "glyphs": [
+      {
+        "char": "⎩",
+        "x": 0,
+        "w": 14.234375,
+        "baseline": 20,
+        "font": "KaTeX_Size4",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "⎨",
+        "x": 0,
+        "w": 14.234375,
+        "baseline": 0,
+        "font": "KaTeX_Size4",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "⎧",
+        "x": 0,
+        "w": 14.234375,
+        "baseline": -28,
+        "font": "KaTeX_Size4",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "a",
+        "x": 22.234375,
+        "w": 8.46875,
+        "baseline": -28.953125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "b",
+        "x": 23.03125,
+        "w": 6.875,
+        "baseline": -9.75,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "c",
+        "x": 23,
+        "w": 6.9375,
+        "baseline": 9.453125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "d",
+        "x": 22.296875,
+        "w": 8.328125,
+        "baseline": 28.640625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": [
+      { "kind": "", "x": 0, "y": 10.28125, "w": 14.21875, "h": 9.84375 },
+      { "kind": "", "x": 0, "y": -28.125, "w": 14.21875, "h": 9.84375 }
+    ]
+  },
+  {
+    "tex": "\\hat{x} + \\vec{v} + \\bar{y} + \\tilde{z} + \\dot{a}",
+    "d": false,
+    "width": 120.703125,
+    "glyphs": [
+      {
+        "char": "x",
+        "x": 0,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "^",
+        "x": 1.03125,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 12.703125,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "v",
+        "x": 28.703125,
+        "w": 7.765625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 40.578125,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "y",
+        "x": 56.578125,
+        "w": 7.84375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "ˉ",
+        "x": 57.671875,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 68.53125,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "z",
+        "x": 84.53125,
+        "w": 7.453125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "~",
+        "x": 85.5,
+        "w": 8,
+        "baseline": -5.59375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 96.234375,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "a",
+        "x": 112.234375,
+        "w": 8.46875,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "˙",
+        "x": 114.25,
+        "w": 4.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": [
+      { "kind": "katex-overlay", "x": 29.546875, "y": -11.421875, "w": 7.53125, "h": 11.421875 }
+    ]
+  },
+  {
+    "tex": "\\overline{AB} + \\underline{CD}",
+    "d": false,
+    "width": 70.78125,
+    "glyphs": [
+      {
+        "char": "A",
+        "x": 0,
+        "w": 12,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "B",
+        "x": 12,
+        "w": 12.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 28.5,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "C",
+        "x": 44.5,
+        "w": 11.453125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "D",
+        "x": 57.09375,
+        "w": 13.25,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [
+      { "kind": "overline-line", "x": 0, "y": -14.84375, "w": 24.953125, "h": 2 },
+      { "kind": "underline-line", "x": 44.5, "y": 0.5625, "w": 26.28125, "h": 2 }
+    ],
+    "svgs": []
+  },
+  {
+    "tex": "\\widehat{xyz} + \\widetilde{abc}",
+    "d": false,
+    "width": 67.53125,
+    "glyphs": [
+      {
+        "char": "x",
+        "x": 0,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "y",
+        "x": 9.15625,
+        "w": 7.84375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "z",
+        "x": 17.5625,
+        "w": 7.453125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 29.265625,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "a",
+        "x": 45.265625,
+        "w": 8.46875,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "b",
+        "x": 53.71875,
+        "w": 6.875,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "c",
+        "x": 60.59375,
+        "w": 6.9375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": [
+      { "kind": "", "x": 0, "y": -11.671875, "w": 25.71875, "h": 4.796875 },
+      { "kind": "", "x": 45.265625, "y": -15.671875, "w": 22.265625, "h": 4.5625 }
+    ]
+  },
+  {
+    "tex": "x_i^2 + y_{i,j}^{(k)} + a^{b^{c}}",
+    "d": false,
+    "width": 97.109375,
+    "glyphs": [
+      {
+        "char": "x",
+        "x": 0,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 9.15625,
+        "w": 3.875,
+        "baseline": 4.140625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "2",
+        "x": 9.15625,
+        "w": 5.609375,
+        "baseline": -5.8125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "+",
+        "x": 19.109375,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "y",
+        "x": 35.109375,
+        "w": 7.84375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 42.953125,
+        "w": 3.875,
+        "baseline": 4.421875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": ",",
+        "x": 46.828125,
+        "w": 3.125,
+        "baseline": 4.421875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "j",
+        "x": 49.953125,
+        "w": 4.625,
+        "baseline": 4.421875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "(",
+        "x": 43.515625,
+        "w": 4.359375,
+        "baseline": -8.328125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "k",
+        "x": 47.875,
+        "w": 5.84375,
+        "baseline": -8.328125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": ")",
+        "x": 54.0625,
+        "w": 4.359375,
+        "baseline": -8.328125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "+",
+        "x": 62.765625,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "a",
+        "x": 78.765625,
+        "w": 8.46875,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "b",
+        "x": 87.234375,
+        "w": 4.8125,
+        "baseline": -5.8125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "c",
+        "x": 92.046875,
+        "w": 3.46875,
+        "baseline": -10.625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 8
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "e^{i\\pi} + 1 = 0",
+    "d": false,
+    "width": 75.78125,
+    "glyphs": [
+      {
+        "char": "e",
+        "x": 0,
+        "w": 7.46875,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 7.46875,
+        "w": 3.875,
+        "baseline": -5.8125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "π",
+        "x": 11.328125,
+        "w": 6.390625,
+        "baseline": -5.8125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "+",
+        "x": 22.453125,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "1",
+        "x": 38.453125,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "=",
+        "x": 50.890625,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "0",
+        "x": 67.78125,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\text{if } x > 0 \\text{ then } y",
+    "d": false,
+    "width": 99.375,
+    "glyphs": [
+      {
+        "char": "i",
+        "x": 0,
+        "w": 4.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "f",
+        "x": 4.4375,
+        "w": 4.921875,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 13.359375,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ">",
+        "x": 26.953125,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "0",
+        "x": 43.84375,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "t",
+        "x": 55.84375,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "h",
+        "x": 62.0625,
+        "w": 8.90625,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "e",
+        "x": 70.953125,
+        "w": 7.125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "n",
+        "x": 78.0625,
+        "w": 8.90625,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "y",
+        "x": 90.96875,
+        "w": 7.84375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\begin{aligned} a &= b + c \\\\ d + e &= f \\end{aligned}",
+    "d": true,
+    "width": 90.03125,
+    "glyphs": [
+      {
+        "char": "a",
+        "x": 26.875,
+        "w": 8.46875,
+        "baseline": -12.15625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "d",
+        "x": 0,
+        "w": 8.328125,
+        "baseline": 11.84375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 11.875,
+        "w": 12.453125,
+        "baseline": 11.84375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "e",
+        "x": 27.875,
+        "w": 7.46875,
+        "baseline": 11.84375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "=",
+        "x": 39.78125,
+        "w": 12.453125,
+        "baseline": -12.15625,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "b",
+        "x": 56.671875,
+        "w": 6.875,
+        "baseline": -12.15625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 67.09375,
+        "w": 12.453125,
+        "baseline": -12.15625,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "c",
+        "x": 83.09375,
+        "w": 6.9375,
+        "baseline": -12.15625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "=",
+        "x": 39.78125,
+        "w": 12.453125,
+        "baseline": 11.84375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "f",
+        "x": 56.671875,
+        "w": 7.84375,
+        "baseline": 11.84375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\mathbb{R}^n \\to \\mathbb{C}",
+    "d": false,
+    "width": 55.53125,
+    "glyphs": [
+      {
+        "char": "R",
+        "x": 0,
+        "w": 11.5625,
+        "baseline": 0,
+        "font": "KaTeX_AMS",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "n",
+        "x": 11.5625,
+        "w": 6.734375,
+        "baseline": -5.8125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "→",
+        "x": 23.53125,
+        "w": 16,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "C",
+        "x": 43.96875,
+        "w": 11.5625,
+        "baseline": 0,
+        "font": "KaTeX_AMS",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\alpha + \\beta + \\Gamma + \\Delta + \\omega + \\varepsilon",
+    "d": false,
+    "width": 159.25,
+    "glyphs": [
+      {
+        "char": "α",
+        "x": 0,
+        "w": 10.25,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 13.84375,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "β",
+        "x": 29.84375,
+        "w": 9.0625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 43.296875,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "Γ",
+        "x": 59.296875,
+        "w": 10,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 72.84375,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "Δ",
+        "x": 88.84375,
+        "w": 13.328125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 105.71875,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "ω",
+        "x": 121.71875,
+        "w": 9.953125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 135.78125,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "ε",
+        "x": 151.78125,
+        "w": 7.46875,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\operatorname{argmax}_{x} f(x) + \\sin\\theta + \\log n",
+    "d": false,
+    "width": 195.4375,
+    "glyphs": [
+      {
+        "char": "a",
+        "x": 0,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "r",
+        "x": 8,
+        "w": 6.28125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "g",
+        "x": 14.265625,
+        "w": 8.015625,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "m",
+        "x": 22.265625,
+        "w": 13.34375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "a",
+        "x": 35.59375,
+        "w": 8.015625,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 43.59375,
+        "w": 8.46875,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 52.0625,
+        "w": 6.421875,
+        "baseline": 3.90625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "f",
+        "x": 61.9375,
+        "w": 7.84375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 71.5,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 77.734375,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 86.890625,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 96.671875,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "s",
+        "x": 112.671875,
+        "w": 6.3125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 118.984375,
+        "w": 4.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "n",
+        "x": 123.4375,
+        "w": 8.90625,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "θ",
+        "x": 135,
+        "w": 7.515625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 146.5,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "l",
+        "x": 162.5,
+        "w": 4.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "o",
+        "x": 166.953125,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "g",
+        "x": 174.953125,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "n",
+        "x": 185.828125,
+        "w": 9.609375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\binom{n}{k} = \\frac{n!}{k!(n-k)!}",
+    "d": true,
+    "width": 126.53125,
+    "glyphs": [
+      {
+        "char": "(",
+        "x": 0,
+        "w": 11.78125,
+        "baseline": 0,
+        "font": "KaTeX_Size3",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "k",
+        "x": 12.15625,
+        "w": 8.34375,
+        "baseline": 10.984375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "n",
+        "x": 11.78125,
+        "w": 9.609375,
+        "baseline": -10.828125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 21.390625,
+        "w": 11.78125,
+        "baseline": 0,
+        "font": "KaTeX_Size3",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "=",
+        "x": 37.609375,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "k",
+        "x": 56.40625,
+        "w": 8.34375,
+        "baseline": 10.984375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "!",
+        "x": 65.25,
+        "w": 4.453125,
+        "baseline": 10.984375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 69.703125,
+        "w": 6.234375,
+        "baseline": 10.984375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "n",
+        "x": 75.9375,
+        "w": 9.609375,
+        "baseline": 10.984375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "−",
+        "x": 89.09375,
+        "w": 12.453125,
+        "baseline": 10.984375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "k",
+        "x": 105.09375,
+        "w": 8.34375,
+        "baseline": 10.984375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 113.9375,
+        "w": 6.234375,
+        "baseline": 10.984375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "!",
+        "x": 120.15625,
+        "w": 4.46875,
+        "baseline": 10.984375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "n",
+        "x": 83.484375,
+        "w": 9.609375,
+        "baseline": -10.828125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "!",
+        "x": 93.09375,
+        "w": 4.453125,
+        "baseline": -10.828125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [{ "kind": "frac-line", "x": 56.40625, "y": -5.671875, "w": 68.21875, "h": 2 }],
+    "svgs": []
+  },
+  {
+    "tex": "f(x) = \\begin{cases} x & x \\ge 0 \\\\ -x & x < 0 \\end{cases}",
+    "d": true,
+    "width": 143.421875,
+    "glyphs": [
+      {
+        "char": "f",
+        "x": 0,
+        "w": 7.84375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 9.5625,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 15.796875,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 24.953125,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "=",
+        "x": 35.625,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "{",
+        "x": 52.515625,
+        "w": 12.90625,
+        "baseline": 0,
+        "font": "KaTeX_Size4",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 65.421875,
+        "w": 9.15625,
+        "baseline": -10.90625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "−",
+        "x": 65.421875,
+        "w": 12.453125,
+        "baseline": 12.125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 77.875,
+        "w": 9.15625,
+        "baseline": 12.125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 103.03125,
+        "w": 9.15625,
+        "baseline": -10.90625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "≥",
+        "x": 116.625,
+        "w": 12.453125,
+        "baseline": -10.90625,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "0",
+        "x": 133.515625,
+        "w": 8,
+        "baseline": -10.90625,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 103.03125,
+        "w": 9.15625,
+        "baseline": 12.125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "<",
+        "x": 116.625,
+        "w": 12.453125,
+        "baseline": 12.125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "0",
+        "x": 133.515625,
+        "w": 8,
+        "baseline": 12.125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\sum_{i=1}^{n} \\sum_{j=1}^{m} a_{ij} x_i y_j + \\sum_{k} b_k z_k - \\lambda \\|w\\|_2^2",
+    "d": false,
+    "width": 262.203125,
+    "glyphs": [
+      {
+        "char": "∑",
+        "x": 0,
+        "w": 16.90625,
+        "baseline": 0,
+        "font": "KaTeX_Size1",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 16.90625,
+        "w": 3.875,
+        "baseline": 4.796875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "=",
+        "x": 20.78125,
+        "w": 8.71875,
+        "baseline": 4.796875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "1",
+        "x": 29.5,
+        "w": 5.609375,
+        "baseline": 4.796875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "n",
+        "x": 16.90625,
+        "w": 6.734375,
+        "baseline": -8.046875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "∑",
+        "x": 38.5625,
+        "w": 16.90625,
+        "baseline": 0,
+        "font": "KaTeX_Size1",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "j",
+        "x": 55.46875,
+        "w": 4.625,
+        "baseline": 4.796875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "=",
+        "x": 60.734375,
+        "w": 8.71875,
+        "baseline": 4.796875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "1",
+        "x": 69.453125,
+        "w": 5.609375,
+        "baseline": 4.796875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "m",
+        "x": 55.46875,
+        "w": 9.84375,
+        "baseline": -8.046875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "a",
+        "x": 78.515625,
+        "w": 8.46875,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 86.984375,
+        "w": 3.875,
+        "baseline": 2.390625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "j",
+        "x": 90.84375,
+        "w": 4.625,
+        "baseline": 2.390625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "x",
+        "x": 96.90625,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 106.0625,
+        "w": 3.875,
+        "baseline": 2.390625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "y",
+        "x": 110.734375,
+        "w": 7.84375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "j",
+        "x": 118.578125,
+        "w": 4.625,
+        "baseline": 2.390625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "+",
+        "x": 128.1875,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "∑",
+        "x": 144.1875,
+        "w": 16.90625,
+        "baseline": 0,
+        "font": "KaTeX_Size1",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "k",
+        "x": 161.09375,
+        "w": 5.84375,
+        "baseline": 4.796875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "b",
+        "x": 170.734375,
+        "w": 6.875,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "k",
+        "x": 177.609375,
+        "w": 5.84375,
+        "baseline": 2.390625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "z",
+        "x": 184.59375,
+        "w": 7.453125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "k",
+        "x": 192.046875,
+        "w": 5.84375,
+        "baseline": 2.390625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "−",
+        "x": 202.578125,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "λ",
+        "x": 218.578125,
+        "w": 9.328125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "∥",
+        "x": 227.90625,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "w",
+        "x": 235.90625,
+        "w": 11.46875,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "∥",
+        "x": 247.796875,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "2",
+        "x": 255.796875,
+        "w": 5.609375,
+        "baseline": 3.96875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "2",
+        "x": 255.796875,
+        "w": 5.609375,
+        "baseline": -5.8125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\mathcal{L}(\\theta) = -\\frac{1}{N}\\sum_{n=1}^N \\log p_\\theta(x_n)",
+    "d": true,
+    "width": 178.984375,
+    "glyphs": [
+      {
+        "char": "L",
+        "x": 0,
+        "w": 11.046875,
+        "baseline": 0,
+        "font": "KaTeX_Caligraphic",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 11.046875,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "θ",
+        "x": 17.28125,
+        "w": 7.515625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 25.234375,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "=",
+        "x": 35.90625,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "−",
+        "x": 52.796875,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "N",
+        "x": 67.15625,
+        "w": 12.859375,
+        "baseline": 10.984375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "1",
+        "x": 70.453125,
+        "w": 8,
+        "baseline": -10.828125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "n",
+        "x": 87.328125,
+        "w": 6.734375,
+        "baseline": 18.671875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "=",
+        "x": 94.0625,
+        "w": 8.71875,
+        "baseline": 18.671875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "1",
+        "x": 102.78125,
+        "w": 5.609375,
+        "baseline": 18.671875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "∑",
+        "x": 86.3125,
+        "w": 23.109375,
+        "baseline": 0,
+        "font": "KaTeX_Size2",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "N",
+        "x": 92.75,
+        "w": 9,
+        "baseline": -20,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "l",
+        "x": 112.078125,
+        "w": 4.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "o",
+        "x": 116.53125,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "g",
+        "x": 124.53125,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "p",
+        "x": 135.40625,
+        "w": 8.0625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "θ",
+        "x": 143.46875,
+        "w": 5.265625,
+        "baseline": 2.390625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "(",
+        "x": 149.828125,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 156.0625,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "n",
+        "x": 165.21875,
+        "w": 6.734375,
+        "baseline": 2.390625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": ")",
+        "x": 172.75,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [{ "kind": "frac-line", "x": 67.15625, "y": -5.671875, "w": 14.59375, "h": 2 }],
+    "svgs": []
+  },
+  {
+    "tex": "\\nabla \\cdot \\mathbf{E} = \\frac{\\rho}{\\varepsilon_0}",
+    "d": false,
+    "width": 72.15625,
+    "glyphs": [
+      {
+        "char": "∇",
+        "x": 0,
+        "w": 13.328125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "⋅",
+        "x": 16.875,
+        "w": 4.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "E",
+        "x": 24.875,
+        "w": 12.109375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "700",
+        "size": 16
+      },
+      {
+        "char": "=",
+        "x": 41.421875,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "ε",
+        "x": 60.21875,
+        "w": 5.234375,
+        "baseline": 5.53125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "0",
+        "x": 65.453125,
+        "w": 4,
+        "baseline": 7.140625,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 8
+      },
+      {
+        "char": "ρ",
+        "x": 62.328125,
+        "w": 5.796875,
+        "baseline": -7.125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      }
+    ],
+    "rules": [{ "kind": "frac-line", "x": 60.21875, "y": -5.671875, "w": 10.03125, "h": 2 }],
+    "svgs": []
+  },
+  {
+    "tex": "P(A \\mid B) = \\frac{P(B \\mid A)\\,P(A)}{P(B)}",
+    "d": true,
+    "width": 191.265625,
+    "glyphs": [
+      {
+        "char": "P",
+        "x": 0,
+        "w": 10.28125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 12.5,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "A",
+        "x": 18.734375,
+        "w": 12,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "∣",
+        "x": 35.171875,
+        "w": 4.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "B",
+        "x": 44.0625,
+        "w": 12.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 57.015625,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "=",
+        "x": 67.6875,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "P",
+        "x": 118.953125,
+        "w": 10.28125,
+        "baseline": 10.984375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 131.453125,
+        "w": 6.234375,
+        "baseline": 10.984375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "B",
+        "x": 137.6875,
+        "w": 12.15625,
+        "baseline": 10.984375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 150.640625,
+        "w": 6.234375,
+        "baseline": 10.984375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "P",
+        "x": 86.484375,
+        "w": 10.28125,
+        "baseline": -10.828125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 98.984375,
+        "w": 6.234375,
+        "baseline": -10.828125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "B",
+        "x": 105.21875,
+        "w": 12.15625,
+        "baseline": -10.828125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "∣",
+        "x": 122.609375,
+        "w": 4.453125,
+        "baseline": -10.828125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "A",
+        "x": 131.5,
+        "w": 12,
+        "baseline": -10.828125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 143.5,
+        "w": 6.234375,
+        "baseline": -10.828125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "P",
+        "x": 152.390625,
+        "w": 10.28125,
+        "baseline": -10.828125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 164.890625,
+        "w": 6.234375,
+        "baseline": -10.828125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "A",
+        "x": 171.125,
+        "w": 12,
+        "baseline": -10.828125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 183.125,
+        "w": 6.234375,
+        "baseline": -10.828125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [{ "kind": "frac-line", "x": 86.484375, "y": -5.671875, "w": 102.875, "h": 2 }],
+    "svgs": []
+  },
+  {
+    "tex": "\\iint_D f\\,dA \\quad \\oint_C \\mathbf{F}\\cdot d\\mathbf{r}",
+    "d": true,
+    "width": 141.828125,
+    "glyphs": [
+      {
+        "char": "∬",
+        "x": 0,
+        "w": 17.359375,
+        "baseline": -0.015625,
+        "font": "KaTeX_Size2",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "D",
+        "x": 17.359375,
+        "w": 9.28125,
+        "baseline": 14.578125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "f",
+        "x": 30.390625,
+        "w": 7.84375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "d",
+        "x": 42.609375,
+        "w": 8.328125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "A",
+        "x": 50.9375,
+        "w": 12,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "∮",
+        "x": 81.59375,
+        "w": 8.90625,
+        "baseline": -0.015625,
+        "font": "KaTeX_Size2",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "C",
+        "x": 90.5,
+        "w": 8.015625,
+        "baseline": 14.578125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "F",
+        "x": 102.765625,
+        "w": 11.59375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "700",
+        "size": 16
+      },
+      {
+        "char": "⋅",
+        "x": 117.90625,
+        "w": 4.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "d",
+        "x": 125.90625,
+        "w": 8.328125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "r",
+        "x": 134.234375,
+        "w": 7.59375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "700",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\sigma(z) = \\frac{1}{1 + e^{-z}}",
+    "d": false,
+    "width": 86.140625,
+    "glyphs": [
+      {
+        "char": "σ",
+        "x": 0,
+        "w": 9.140625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 9.703125,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "z",
+        "x": 15.9375,
+        "w": 7.453125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 24.09375,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "=",
+        "x": 34.765625,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "1",
+        "x": 53.5625,
+        "w": 5.609375,
+        "baseline": 5.53125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "+",
+        "x": 59.171875,
+        "w": 8.71875,
+        "baseline": 5.53125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "e",
+        "x": 67.890625,
+        "w": 5.234375,
+        "baseline": 5.53125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "−",
+        "x": 73.125,
+        "w": 6.234375,
+        "baseline": 2.328125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 8
+      },
+      {
+        "char": "z",
+        "x": 79.359375,
+        "w": 3.734375,
+        "baseline": 2.328125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 8
+      },
+      {
+        "char": "1",
+        "x": 66.09375,
+        "w": 5.609375,
+        "baseline": -6.296875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      }
+    ],
+    "rules": [{ "kind": "frac-line", "x": 53.5625, "y": -5.671875, "w": 30.671875, "h": 2 }],
+    "svgs": []
+  },
+  {
+    "tex": "\\mathrm{softmax}(z)_i = \\frac{e^{z_i}}{\\sum_j e^{z_j}}",
+    "d": true,
+    "width": 149.296875,
+    "glyphs": [
+      {
+        "char": "s",
+        "x": 0,
+        "w": 6.3125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "o",
+        "x": 6.296875,
+        "w": 8.015625,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "f",
+        "x": 14.296875,
+        "w": 4.90625,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "t",
+        "x": 19.1875,
+        "w": 6.25,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "m",
+        "x": 25.421875,
+        "w": 13.34375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "a",
+        "x": 38.75,
+        "w": 8.015625,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 46.75,
+        "w": 8.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 55.203125,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "z",
+        "x": 61.4375,
+        "w": 7.453125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 69.59375,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 75.828125,
+        "w": 3.875,
+        "baseline": 2.390625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "=",
+        "x": 84.9375,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "∑",
+        "x": 103.734375,
+        "w": 16.90625,
+        "baseline": 10.984375,
+        "font": "KaTeX_Size1",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "j",
+        "x": 120.640625,
+        "w": 4.625,
+        "baseline": 15.78125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "e",
+        "x": 129.359375,
+        "w": 7.46875,
+        "baseline": 10.984375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "z",
+        "x": 136.828125,
+        "w": 5.21875,
+        "baseline": 6.09375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "j",
+        "x": 142.046875,
+        "w": 3.296875,
+        "baseline": 7.703125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 8
+      },
+      {
+        "char": "e",
+        "x": 117.03125,
+        "w": 7.46875,
+        "baseline": -10.828125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "z",
+        "x": 124.5,
+        "w": 5.21875,
+        "baseline": -16.640625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "i",
+        "x": 129.71875,
+        "w": 2.765625,
+        "baseline": -15.03125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 8
+      }
+    ],
+    "rules": [{ "kind": "frac-line", "x": 103.734375, "y": -5.671875, "w": 43.65625, "h": 2 }],
+    "svgs": []
+  },
+  {
+    "tex": "\\hat{\\beta} = (X^\\top X)^{-1} X^\\top y",
+    "d": false,
+    "width": 129.765625,
+    "glyphs": [
+      {
+        "char": "β",
+        "x": 0,
+        "w": 9.0625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "^",
+        "x": 2.296875,
+        "w": 8,
+        "baseline": -4.203125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "=",
+        "x": 14.34375,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "(",
+        "x": 31.234375,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "X",
+        "x": 37.46875,
+        "w": 13.25,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "⊤",
+        "x": 51.96875,
+        "w": 8.71875,
+        "baseline": -5.8125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "X",
+        "x": 61.484375,
+        "w": 13.25,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ")",
+        "x": 75.984375,
+        "w": 6.234375,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "−",
+        "x": 82.21875,
+        "w": 8.71875,
+        "baseline": -5.8125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "1",
+        "x": 90.9375,
+        "w": 5.609375,
+        "baseline": -5.8125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "X",
+        "x": 97.34375,
+        "w": 13.25,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "⊤",
+        "x": 111.84375,
+        "w": 8.71875,
+        "baseline": -5.8125,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "y",
+        "x": 121.359375,
+        "w": 7.84375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\overbrace{a+b+c}^{3} + \\underbrace{x+y}_{2}",
+    "d": true,
+    "width": 118.03125,
+    "glyphs": [
+      {
+        "char": "a",
+        "x": 0,
+        "w": 8.46875,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 12.015625,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "b",
+        "x": 28.015625,
+        "w": 6.875,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 38.4375,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "c",
+        "x": 54.4375,
+        "w": 6.9375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "3",
+        "x": 27.875,
+        "w": 5.609375,
+        "baseline": -24.6875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "+",
+        "x": 64.921875,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "2",
+        "x": 96.671875,
+        "w": 5.609375,
+        "baseline": 23.90625,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "x",
+        "x": 80.921875,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "+",
+        "x": 93.625,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "y",
+        "x": 109.625,
+        "w": 7.84375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": [
+      { "kind": "brace-left", "x": 0, "y": -21.46875, "w": 15.390625, "h": 8.765625 },
+      { "kind": "brace-center", "x": 15.34375, "y": -21.46875, "w": 30.6875, "h": 8.765625 },
+      { "kind": "brace-right", "x": 45.984375, "y": -21.46875, "w": 15.390625, "h": 8.765625 },
+      { "kind": "brace-left", "x": 80.921875, "y": 4.71875, "w": 9.3125, "h": 8.765625 },
+      { "kind": "brace-center", "x": 90.1875, "y": 4.71875, "w": 18.546875, "h": 8.765625 },
+      { "kind": "brace-right", "x": 108.71875, "y": 4.71875, "w": 9.3125, "h": 8.765625 }
+    ]
+  },
+  {
+    "tex": "a \\xrightarrow{f} b \\xleftarrow[g]{} c",
+    "d": true,
+    "width": 87.03125,
+    "glyphs": [
+      {
+        "char": "a",
+        "x": 0,
+        "w": 8.46875,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "f",
+        "x": 21.296875,
+        "w": 5.5,
+        "baseline": -9.953125,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "b",
+        "x": 40.84375,
+        "w": 6.875,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "g",
+        "x": 61.03125,
+        "w": 5.34375,
+        "baseline": 6.765625,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "c",
+        "x": 80.09375,
+        "w": 6.9375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": [
+      { "kind": "hide-tail", "x": 12.90625, "y": -8.171875, "w": 23.5, "h": 8.34375 },
+      { "kind": "hide-tail", "x": 52.15625, "y": -8.171875, "w": 23.5, "h": 8.34375 }
+    ]
+  },
+  {
+    "tex": "\\left\\| \\mathbf{x} \\right\\|_2 = \\sqrt{\\sum_i x_i^2}",
+    "d": true,
+    "width": 110.78125,
+    "glyphs": [
+      {
+        "char": "∥",
+        "x": 0,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 8,
+        "w": 9.71875,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "700",
+        "size": 16
+      },
+      {
+        "char": "∥",
+        "x": 17.71875,
+        "w": 8,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "2",
+        "x": 25.71875,
+        "w": 5.609375,
+        "baseline": 4.796875,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "=",
+        "x": 36.5625,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 79.0625,
+        "w": 3.875,
+        "baseline": 18.84375,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "∑",
+        "x": 69.453125,
+        "w": 23.109375,
+        "baseline": 0,
+        "font": "KaTeX_Size2",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "x",
+        "x": 95.21875,
+        "w": 9.15625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "i",
+        "x": 104.375,
+        "w": 3.875,
+        "baseline": 4.421875,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 11.2
+      },
+      {
+        "char": "2",
+        "x": 104.375,
+        "w": 5.609375,
+        "baseline": -5.515625,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      }
+    ],
+    "rules": [],
+    "svgs": [{ "kind": "hide-tail", "x": 53.453125, "y": -24.9375, "w": 57.328125, "h": 49.265625 }]
+  },
+  {
+    "tex": "\\mathfrak{g}, \\mathscr{F}, \\mathsf{T}, \\mathtt{code}",
+    "d": false,
+    "width": 90.421875,
+    "glyphs": [
+      {
+        "char": "g",
+        "x": 0,
+        "w": 8.078125,
+        "baseline": 0,
+        "font": "KaTeX_Fraktur",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ",",
+        "x": 8.078125,
+        "w": 4.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "F",
+        "x": 15.1875,
+        "w": 14.328125,
+        "baseline": 0,
+        "font": "KaTeX_Script",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ",",
+        "x": 31.6875,
+        "w": 4.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "T",
+        "x": 38.796875,
+        "w": 10.90625,
+        "baseline": 0,
+        "font": "KaTeX_SansSerif",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": ",",
+        "x": 49.703125,
+        "w": 4.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "c",
+        "x": 56.8125,
+        "w": 8.40625,
+        "baseline": 0,
+        "font": "KaTeX_Typewriter",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "o",
+        "x": 65.203125,
+        "w": 8.421875,
+        "baseline": 0,
+        "font": "KaTeX_Typewriter",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "d",
+        "x": 73.609375,
+        "w": 8.40625,
+        "baseline": 0,
+        "font": "KaTeX_Typewriter",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "e",
+        "x": 82,
+        "w": 8.421875,
+        "baseline": 0,
+        "font": "KaTeX_Typewriter",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      }
+    ],
+    "rules": [],
+    "svgs": []
+  },
+  {
+    "tex": "\\boxed{E=mc^2}",
+    "d": false,
+    "width": 71.046875,
+    "glyphs": [
+      {
+        "char": "E",
+        "x": 4.796875,
+        "w": 11.8125,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "=",
+        "x": 21.953125,
+        "w": 12.453125,
+        "baseline": 0,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "m",
+        "x": 38.84375,
+        "w": 14.0625,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "c",
+        "x": 52.90625,
+        "w": 6.9375,
+        "baseline": 0,
+        "font": "KaTeX_Math",
+        "style": "italic",
+        "weight": "400",
+        "size": 16
+      },
+      {
+        "char": "2",
+        "x": 59.84375,
+        "w": 5.609375,
+        "baseline": -6.609375,
+        "font": "KaTeX_Main",
+        "style": "normal",
+        "weight": "400",
+        "size": 11.2
+      }
+    ],
+    "rules": [
+      { "kind": "katex-stretchy.fbox", "x": 0, "y": -19.25, "w": 71.046875, "h": 24.703125 }
+    ],
+    "svgs": []
+  }
+]

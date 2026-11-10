@@ -1,0 +1,178 @@
+[
+  {
+    "tex": "\\frac{a}{b}",
+    "d": false
+  },
+  {
+    "tex": "\\frac{1}{1+\\frac{1}{x}}",
+    "d": true
+  },
+  {
+    "tex": "\\dfrac{a+b}{c} + \\tfrac{1}{2}",
+    "d": false
+  },
+  {
+    "tex": "\\sqrt{x}",
+    "d": false
+  },
+  {
+    "tex": "\\sqrt[3]{x^2+y^2}",
+    "d": true
+  },
+  {
+    "tex": "\\sqrt{\\frac{a}{b}}",
+    "d": true
+  },
+  {
+    "tex": "\\sqrt{1+\\sqrt{1+\\sqrt{1+x}}}",
+    "d": true
+  },
+  {
+    "tex": "\\sum_{i=1}^{n} i^2",
+    "d": true
+  },
+  {
+    "tex": "\\sum_{i=1}^{n} i^2",
+    "d": false
+  },
+  {
+    "tex": "\\int_0^\\infty e^{-x^2}\\,dx",
+    "d": true
+  },
+  {
+    "tex": "\\int_0^1 f(x)\\,dx",
+    "d": false
+  },
+  {
+    "tex": "\\prod_{k=1}^{\\infty} \\left(1 - \\frac{1}{p_k^s}\\right)^{-1}",
+    "d": true
+  },
+  {
+    "tex": "\\lim_{x \\to 0} \\frac{\\sin x}{x} = 1",
+    "d": true
+  },
+  {
+    "tex": "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}",
+    "d": true
+  },
+  {
+    "tex": "\\begin{bmatrix} 1 & 0 & 0 \\\\ 0 & 1 & 0 \\\\ 0 & 0 & 1 \\end{bmatrix}",
+    "d": true
+  },
+  {
+    "tex": "\\left( \\frac{a}{b} \\right)",
+    "d": true
+  },
+  {
+    "tex": "\\left[ \\sum_{i} x_i \\right]",
+    "d": true
+  },
+  {
+    "tex": "\\Bigg( \\bigg( \\Big( \\big( x \\big) \\Big) \\bigg) \\Bigg)",
+    "d": false
+  },
+  {
+    "tex": "\\left\\{ \\begin{array}{c} a \\\\ b \\\\ c \\\\ d \\end{array} \\right.",
+    "d": true
+  },
+  {
+    "tex": "\\hat{x} + \\vec{v} + \\bar{y} + \\tilde{z} + \\dot{a}",
+    "d": false
+  },
+  {
+    "tex": "\\overline{AB} + \\underline{CD}",
+    "d": false
+  },
+  {
+    "tex": "\\widehat{xyz} + \\widetilde{abc}",
+    "d": false
+  },
+  {
+    "tex": "x_i^2 + y_{i,j}^{(k)} + a^{b^{c}}",
+    "d": false
+  },
+  {
+    "tex": "e^{i\\pi} + 1 = 0",
+    "d": false
+  },
+  {
+    "tex": "\\text{if } x > 0 \\text{ then } y",
+    "d": false
+  },
+  {
+    "tex": "\\begin{aligned} a &= b + c \\\\ d + e &= f \\end{aligned}",
+    "d": true
+  },
+  {
+    "tex": "\\mathbb{R}^n \\to \\mathbb{C}",
+    "d": false
+  },
+  {
+    "tex": "\\alpha + \\beta + \\Gamma + \\Delta + \\omega + \\varepsilon",
+    "d": false
+  },
+  {
+    "tex": "\\operatorname{argmax}_{x} f(x) + \\sin\\theta + \\log n",
+    "d": false
+  },
+  {
+    "tex": "\\binom{n}{k} = \\frac{n!}{k!(n-k)!}",
+    "d": true
+  },
+  {
+    "tex": "f(x) = \\begin{cases} x & x \\ge 0 \\\\ -x & x < 0 \\end{cases}",
+    "d": true
+  },
+  {
+    "tex": "\\sum_{i=1}^{n} \\sum_{j=1}^{m} a_{ij} x_i y_j + \\sum_{k} b_k z_k - \\lambda \\|w\\|_2^2",
+    "d": false
+  },
+  {
+    "tex": "\\mathcal{L}(\\theta) = -\\frac{1}{N}\\sum_{n=1}^N \\log p_\\theta(x_n)",
+    "d": true
+  },
+  {
+    "tex": "\\nabla \\cdot \\mathbf{E} = \\frac{\\rho}{\\varepsilon_0}",
+    "d": false
+  },
+  {
+    "tex": "P(A \\mid B) = \\frac{P(B \\mid A)\\,P(A)}{P(B)}",
+    "d": true
+  },
+  {
+    "tex": "\\iint_D f\\,dA \\quad \\oint_C \\mathbf{F}\\cdot d\\mathbf{r}",
+    "d": true
+  },
+  {
+    "tex": "\\sigma(z) = \\frac{1}{1 + e^{-z}}",
+    "d": false
+  },
+  {
+    "tex": "\\mathrm{softmax}(z)_i = \\frac{e^{z_i}}{\\sum_j e^{z_j}}",
+    "d": true
+  },
+  {
+    "tex": "\\hat{\\beta} = (X^\\top X)^{-1} X^\\top y",
+    "d": false
+  },
+  {
+    "tex": "\\overbrace{a+b+c}^{3} + \\underbrace{x+y}_{2}",
+    "d": true
+  },
+  {
+    "tex": "a \\xrightarrow{f} b \\xleftarrow[g]{} c",
+    "d": true
+  },
+  {
+    "tex": "\\left\\| \\mathbf{x} \\right\\|_2 = \\sqrt{\\sum_i x_i^2}",
+    "d": true
+  },
+  {
+    "tex": "\\mathfrak{g}, \\mathscr{F}, \\mathsf{T}, \\mathtt{code}",
+    "d": false
+  },
+  {
+    "tex": "\\boxed{E=mc^2}",
+    "d": false
+  }
+]

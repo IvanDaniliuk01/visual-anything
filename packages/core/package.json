@@ -7,13 +7,15 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./math-outlines": "./src/math/outlines.ts"
   },
   "scripts": {
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@visual-anything/schema": "workspace:*"
+    "@visual-anything/schema": "workspace:*",
+    "katex": "0.19.1"
   },
   "devDependencies": {
     "fast-check": "^4.10.2"
