@@ -21,6 +21,7 @@ import {
   decodeBase64,
   picturesOf,
   solidsIn,
+  type MathFont,
   type Problem,
   type ProjectSnapshot,
 } from '@visual-anything/core';
@@ -36,6 +37,7 @@ import type {
   ViewFile,
 } from '@visual-anything/schema';
 import type { ValidationResult } from '@visual-anything/schema/validate';
+import { readPageMathFonts } from './math-families';
 import { readPageSolids, type PageSolids } from './solids';
 
 /** The version of the page's data format; a page of a later one is refused with what to do. */
@@ -78,6 +80,12 @@ export interface PageData {
    * reader, and one that fails is drawn as a missing picture.
    */
   media?: Record<string, string>;
+  /**
+   * KaTeX's fonts its project's Math uses (ADR 0106), each family's woff2 file in base64; left out
+   * when it uses none. Data, never fetched and never run: read strictly on opening, and installed
+   * from their bytes (`math-families.ts`).
+   */
+  mathFonts?: Partial<Record<MathFont, string>>;
 }
 
 /** What else a page's data says, besides the project. */
@@ -88,6 +96,8 @@ export interface PageDataOptions {
   solids?: PageSolids;
   /** The media files its pictures show, by hash, in base64 (ADR 0098). */
   media?: Record<string, string>;
+  /** The fonts its Math uses, by family, in base64 (ADR 0106). */
+  mathFonts?: Partial<Record<MathFont, string>>;
 }
 
 /** The data of a page made from a project as it is open. */
@@ -110,6 +120,9 @@ export function pageDataOf(project: ProjectSnapshot, options: PageDataOptions = 
     ...(options.media === undefined || Object.keys(options.media).length === 0
       ? {}
       : { media: options.media }),
+    ...(options.mathFonts === undefined || Object.keys(options.mathFonts).length === 0
+      ? {}
+      : { mathFonts: options.mathFonts }),
   };
 }
 
@@ -192,6 +205,8 @@ export type PageRead =
       solids?: PageSolids;
       /** The media files it holds that passed their checks, by hash (ADR 0098). */
       media?: Record<string, Uint8Array>;
+      /** KaTeX's fonts it holds, read strictly, by family (ADR 0106); none when it holds none. */
+      mathFonts?: Map<MathFont, Uint8Array>;
     }
   | { ok: false; problems: string[] };
 
@@ -259,6 +274,7 @@ export function readPageData(text: string, validate: ValidateFile): PageRead {
   });
   const solids = data.solids === undefined ? undefined : readPageSolids(data.solids);
   if (solids && !solids.ok) problems.push(solids.problem);
+  const mathFonts = readPageMathFonts(data.mathFonts, problems);
   if (!project || !model || problems.length > 0) return { ok: false, problems };
 
   onceEach(packages, 'package', problems);
@@ -304,6 +320,7 @@ export function readPageData(text: string, validate: ValidateFile): PageRead {
     warnings: [...checked.warnings, ...media.warnings],
     ...(solids?.ok ? { solids: solids.solids } : {}),
     ...(Object.keys(media.files).length === 0 ? {} : { media: media.files }),
+    ...(mathFonts.size === 0 ? {} : { mathFonts }),
   };
 }
 

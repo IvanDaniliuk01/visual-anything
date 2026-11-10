@@ -6,9 +6,9 @@
 //
 // `pnpm build` builds it after the app, so that the program serves it beside the app and the single
 // executable holds it; paths are the app package's.
-import { writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
@@ -39,6 +39,7 @@ export default defineConfig({
   plugins: [
     react(),
     validators(),
+    mathFontsBeside(),
     scriptAndStyleOnly(),
     listModules(process.env[MODULES_LIST]),
     shippedModules('viewer'),
@@ -157,14 +158,53 @@ function listModules(file: string | undefined): Plugin {
   };
 }
 
-/** Leaves only the script and the stylesheet: the page that served as the build's entry is no output. */
+/**
+ * Leaves only the script, the stylesheet and KaTeX's fonts: the page that served as the build's entry
+ * is no output.
+ */
 function scriptAndStyleOnly(): Plugin {
   return {
     name: 'visual-anything:script-and-style-only',
     enforce: 'post',
     generateBundle(_options, bundle) {
       for (const name of Object.keys(bundle)) {
-        if (name !== 'viewer.js' && name !== 'viewer.css') delete bundle[name];
+        if (name !== 'viewer.js' && name !== 'viewer.css' && !MATH_FONT_FILE.test(name)) {
+          delete bundle[name];
+        }
+      }
+    },
+  };
+}
+
+/** Where the build writes each of KaTeX's fonts, beside the script (`src/viewer/math-families.ts`). */
+const MATH_FONT_FILE = /^fonts\/KaTeX_[A-Za-z0-9-]+\.woff2$/;
+
+/** How the canvas imports KaTeX's fonts as bytes (`src/canvas/mathFonts.ts`). */
+const MATH_FONT_IMPORT = /^katex\/dist\/fonts\/(KaTeX_[A-Za-z0-9-]+)\.woff2\?inline$/;
+
+/**
+ * KaTeX's fonts beside the script, not in it (ADR 0106): a page holds only the families its
+ * project's Math uses, as data the page writer adds, and the viewer installs them from there. The
+ * canvas's imports of them become empty modules here, and each font is written as
+ * `fonts/KaTeX_<family>.woff2`, as KaTeX ships it.
+ */
+function mathFontsBeside(): Plugin {
+  const prefix = '\0visual-anything:math-font:';
+  return {
+    name: 'visual-anything:math-fonts-beside',
+    enforce: 'pre',
+    resolveId: (id) => (MATH_FONT_IMPORT.test(id) ? `${prefix}${id}` : undefined),
+    load: (id) => (id.startsWith(prefix) ? 'export default "";' : undefined),
+    generateBundle() {
+      const katex = createRequire(import.meta.url).resolve('katex/package.json');
+      const folder = join(dirname(katex), 'dist', 'fonts');
+      for (const file of readdirSync(folder).sort()) {
+        if (!file.endsWith('.woff2')) continue;
+        this.emitFile({
+          type: 'asset',
+          fileName: `fonts/${file}`,
+          source: readFileSync(join(folder, file)),
+        });
       }
     },
   };

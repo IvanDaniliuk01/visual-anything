@@ -10,7 +10,9 @@
  * - its pictures, `<icon/>` as the shape's own image and `<image ref="…"/>` as an image of its
  *   component's package, each fitted in its box with its proportions kept, as symbols;
  * - its runs, each line a `<text>` with a `<tspan>` per run at its own `x` and baseline, in its
- *   weight, style and family: Roboto, Roboto Mono for `mono`, which the PDF embeds.
+ *   weight, style and family: Roboto, Roboto Mono for `mono`, which the PDF embeds;
+ * - its formulas (ADR 0106), each from its math drawing on its run's baseline, its rules as
+ *   rectangles and its glyphs as outlines (`math-svg.ts`), in its run's color.
  *
  * Its colors are its tokens' on the shape's fill in the theme drawn (`facePalette`), as on the canvas.
  */
@@ -25,6 +27,7 @@ import {
 import type { Point, Rect } from '../canvas/geometry';
 import { deepestFaceShow, faceBoxPieces } from '../canvas/faces';
 import { MONO_FAMILY } from './emphasis-svg';
+import { MathSvg } from './math-svg';
 import { element, empty, textElement, type AttributeValue } from './markup';
 
 /**
@@ -57,7 +60,8 @@ function runValues(run: FaceRun): Record<string, AttributeValue> {
 /**
  * A face drawing written at `at`, its top left, in this palette's colors, in a group of its own
  * (`data-part="face"`). `texts` gets each line's text, for the PDF's check of the glyphs its fonts
- * lack; `picture` draws its pictures, which are left out without it.
+ * lack; `picture` draws its pictures, which are left out without it; `math` writes its formulas,
+ * keeping what they share in the document's `<defs>`, which without it are written in the group.
  */
 export function faceSvg(
   drawing: FaceDrawing,
@@ -65,6 +69,7 @@ export function faceSvg(
   palette: FacePalette,
   texts?: string[],
   picture?: FacePicture,
+  math?: MathSvg,
 ): string {
   const color = (each: string) => resolveFaceColor(each, palette);
   let written = '';
@@ -104,26 +109,51 @@ export function faceSvg(
       });
     }
   }
-  written += runsSvg(drawing.runs, at, color, texts);
+  const formulas = math ?? new MathSvg(new Map());
+  written += runsSvg(drawing.runs, at, color, texts, formulas);
+  if (!math) written = formulas.defs + written;
   return written === ''
     ? ''
     : element('g', { 'data-part': 'face', 'font-family': FACE_FONT_FAMILY }, written);
 }
 
-/** A face's runs, each of its lines a `<text>` with a `<tspan>` for each run. */
+/**
+ * A face's runs, each of its lines a `<text>` with a `<tspan>` for each run, and its formulas after
+ * it.
+ */
 function runsSvg(
   runs: readonly FaceRun[],
   at: Point,
   color: (each: string) => string,
   texts: string[] | undefined,
+  math: MathSvg,
 ): string {
   let written = '';
   let line: FaceRun[] = [];
   const flush = () => {
-    if (line.length === 0) return;
-    const fill = color((line[0] as FaceRun).color);
+    const shown = line.filter((run) => !run.math);
+    // The line's color: its text's, or its formula's when it holds nothing else.
+    const first = shown[0] ?? line[0];
+    if (!first) return;
+    const fill = color(first.color);
     const spans: string[] = [];
+    let drawn = '';
     for (const run of line) {
+      if (run.math) {
+        drawn += math.formula(
+          {
+            drawing: run.math.drawing,
+            x: at.x + run.x,
+            baseline: at.y + run.y,
+            size: run.math.size,
+            ...(run.math.clip === undefined ? {} : { clip: run.math.clip }),
+            tex: run.text,
+          },
+          color(run.color),
+          { rules: true },
+        );
+        continue;
+      }
       // Spaces at a run's start are moved past, since readers of SVG fold them away.
       const text = run.text.trimStart();
       if (text.trim() === '') continue;
@@ -139,9 +169,10 @@ function runsSvg(
       );
     }
     if (spans.length > 0) {
-      texts?.push(line.map((run) => run.text).join(''));
+      texts?.push(shown.map((run) => run.text).join(''));
       written += element('text', { fill }, spans.join(''));
     }
+    written += drawn;
     line = [];
   };
   for (const run of runs) {

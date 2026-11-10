@@ -4,7 +4,9 @@
  * in a process of its own, and reads which modules its script holds and what it says. It also builds
  * the solid worker as a page holds it (ADR 0075): three.js is in it and nowhere else, so that neither
  * the viewer nor a page without solids holds it, and a page with solids' files holds it as text its
- * policy lets it start, and nothing else.
+ * policy lets it start, and nothing else. And it holds KaTeX's code and rules but none of its fonts,
+ * which its build writes beside it: a page holds those its project's Math uses, as data, and its
+ * policy does not change (ADR 0106).
  */
 import { execFile } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
@@ -13,10 +15,16 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
-import { encodeBase64, solidHash } from '@visual-anything/core';
+import {
+  encodeBase64,
+  solidHash,
+  type MathFont,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import { ARM_FILE, withSolids } from '../test/solids';
 import { workcell } from '../test/space';
 import { pageDataOf } from './data';
+import { MATH_FAMILIES, mathFontFile } from './math-families';
 import { SOLID_WORKER_ID, writePage } from './page';
 import { withPoses } from './solids';
 
@@ -96,6 +104,12 @@ const NOT_IN_THE_PAGE = [
   'node_modules/parse5/',
   'node_modules/satori/',
   'node_modules/harfbuzzjs/',
+  // KaTeX's fonts and the glyphs' outlines (ADR 0106): a page holds the fonts its Math uses as data,
+  // and only the exports draw outlines.
+  'node_modules/katex/dist/fonts/',
+  'packages/core/src/math/outlines.ts',
+  'packages/core/src/math/outlines.json',
+  'packages/app/src/export/math-svg.ts',
 ];
 
 /**
@@ -137,6 +151,26 @@ let style = '';
 let modules: string[] = [];
 let workerOut = '';
 let solidWorker = '';
+/** KaTeX's fonts as the build writes them beside the viewer. */
+let mathFonts: Partial<Record<MathFont, Uint8Array>> = {};
+
+/** A formula with fractions, sums and hats, in a display block. */
+const LOSS = '$$\\frac{1}{n}\\sum_i (y_i - \\hat y_i)^2$$';
+
+/** The sample, its first element described with this text. */
+function withFormula(project: ProjectSnapshot, description: string): ProjectSnapshot {
+  return {
+    ...project,
+    model: {
+      ...project.model,
+      elements: project.model.elements.map((element, at) =>
+        at === 0 ? { ...element, description } : element,
+      ),
+    },
+  };
+}
+
+const kB = (bytes: number) => `${(bytes / 1000).toFixed(1)} kB`;
 
 /** What only three.js's own code says: the revision it registers itself under. */
 const THREE_MARK = '__THREE__';
@@ -176,6 +210,12 @@ beforeAll(async () => {
   script = readFileSync(join(out, 'viewer.js'), 'utf8');
   style = readFileSync(join(out, 'viewer.css'), 'utf8');
   modules = JSON.parse(readFileSync(join(out, 'modules.json'), 'utf8')) as string[];
+  mathFonts = Object.fromEntries(
+    MATH_FAMILIES.map((font) => [
+      font,
+      new Uint8Array(readFileSync(join(out, mathFontFile(font)))),
+    ]),
+  );
   workerOut = mkdtempSync(join(tmpdir(), 'visual-anything-solid-worker-'));
   await run(
     process.execPath,
@@ -201,10 +241,61 @@ afterAll(() => {
 });
 
 describe('The viewer’s bundle', () => {
-  it('is one script and one stylesheet', () => {
-    expect(readdirSync(out).sort()).toEqual(['modules.json', 'viewer.css', 'viewer.js']);
+  it('is one script and one stylesheet, with KaTeX’s fonts beside them', () => {
+    expect(readdirSync(out).sort()).toEqual(['fonts', 'modules.json', 'viewer.css', 'viewer.js']);
+    expect(readdirSync(join(out, 'fonts')).sort()).toEqual(
+      MATH_FAMILIES.map((font) => mathFontFile(font).slice('fonts/'.length)).sort(),
+    );
     expect(script.length).toBeGreaterThan(0);
     expect(style.length).toBeGreaterThan(0);
+  });
+
+  it('holds KaTeX and its rules, but none of its fonts and no glyph outlines (ADR 0106)', () => {
+    expect(modules.some((path) => path.includes('node_modules/katex/'))).toBe(true);
+    expect(style).toContain('.katex');
+    expect(style).not.toMatch(/@font-face[^}]*KaTeX/);
+    for (const font of MATH_FAMILIES) {
+      // A font written into the script would hold its first bytes in base64.
+      const head = encodeBase64(mathFonts[font]!.subarray(0, 48));
+      expect(script.includes(head), font).toBe(false);
+    }
+    // What the script and the stylesheet weigh, and what KaTeX's fonts would add to them.
+    const total = Object.values(mathFonts).reduce((sum, bytes) => sum + bytes.length, 0);
+    console.info(
+      `viewer.js ${kB(Buffer.byteLength(script))}, viewer.css ${kB(Buffer.byteLength(style))}; KaTeX's 20 fonts ${kB(total)}, ${kB(Math.ceil(total / 3) * 4)} in base64`,
+    );
+  });
+
+  it('makes a page whose Math holds the families it uses alone, and keeps its policy', async () => {
+    const plain = await writePage({
+      assets: { script, style, mathFonts },
+      data: pageDataOf(loadSample()),
+      title: 'My systems',
+    });
+    expect(plain.html).not.toContain('"mathFonts"');
+    const math = await writePage({
+      assets: { script, style, mathFonts },
+      data: pageDataOf(withFormula(loadSample(), LOSS)),
+      title: 'My systems',
+    });
+    const held = /"mathFonts":(\{[^}]*\})/.exec(math.html);
+    const families = Object.keys(JSON.parse(held?.[1] ?? '{}') as object);
+    expect(families).toEqual(['Main-Regular', 'Math-Italic', 'Size2-Regular']);
+    // Its policy names no font source: the viewer installs the fonts from their bytes.
+    const shape = (policy: string) => policy.replace(/'sha256-[^']+'/g, 'HASH');
+    expect(shape(math.policy)).toBe(shape(plain.policy));
+    expect(math.policy).not.toContain('font-src');
+    expect(math.policy).toContain("default-src 'none'");
+    const added = math.bytes - plain.bytes;
+    const fonts = families.reduce(
+      (sum, font) => sum + Math.ceil(mathFonts[font as MathFont]!.length / 3) * 4,
+      0,
+    );
+    expect(added).toBeGreaterThanOrEqual(fonts);
+    expect(added).toBeLessThan(fonts + 1_000);
+    console.info(
+      `A page of the sample: ${kB(plain.bytes)}; with ${LOSS}, ${kB(math.bytes)}: its ${families.length} fonts add ${kB(added)}`,
+    );
   });
 
   it('holds the viewer and the renderer, with the page’s Trusted Types policy installed first', () => {

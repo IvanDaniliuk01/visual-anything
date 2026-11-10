@@ -14,6 +14,7 @@ import {
   ViewerMissing,
   fetchViewerAssets,
   fragmentOf,
+  mathFontsOfProject,
   pageFileName,
   sizeText,
 } from './page-export';
@@ -506,5 +507,38 @@ describe('The page’s file and its viewer', () => {
         Promise.resolve(served('text/html', '<!doctype html>')),
       ),
     ).rejects.toBeInstanceOf(ViewerMissing);
+  });
+
+  it('fetches the KaTeX fonts a page’s Math uses, and leaves out one it cannot have (ADR 0106)', async () => {
+    const asked: string[] = [];
+    const font = new Uint8Array([0x77, 0x4f, 0x46, 0x32]);
+    const assets = await fetchViewerAssets(
+      'http://127.0.0.1:4700/',
+      (url) => {
+        asked.push(url);
+        const type = url.endsWith('.js')
+          ? 'text/javascript'
+          : url.endsWith('.css')
+            ? 'text/css'
+            : url.includes('Math-Italic')
+              ? 'font/woff2'
+              : 'text/html';
+        return Promise.resolve({
+          ok: true,
+          headers: new Headers({ 'content-type': type }),
+          text: () => Promise.resolve(type),
+          arrayBuffer: () => Promise.resolve(font.slice().buffer),
+        });
+      },
+      { mathFonts: ['Math-Italic', 'Main-Regular'] },
+    );
+    expect(asked).toEqual([
+      'http://127.0.0.1:4700/viewer/viewer.js',
+      'http://127.0.0.1:4700/viewer/viewer.css',
+      'http://127.0.0.1:4700/viewer/fonts/KaTeX_Math-Italic.woff2',
+      'http://127.0.0.1:4700/viewer/fonts/KaTeX_Main-Regular.woff2',
+    ]);
+    expect(assets.mathFonts).toEqual({ 'Math-Italic': font });
+    expect(mathFontsOfProject(sample)).toEqual([]);
   });
 });

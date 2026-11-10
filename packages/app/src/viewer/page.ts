@@ -11,10 +11,16 @@
  * that Trusted Types policy; a page without solids, or with their pictures only, holds none of it and
  * keeps its policy.
  *
+ * A page whose project holds Math (ADR 0106) holds the KaTeX fonts its formulas use, and only those,
+ * in its data (`math-families.ts`), which the viewer installs from their bytes: its policy does not
+ * change.
+ *
  * Pure TypeScript with Web Crypto, so that the app writes a page in the browser and the command line
  * writes the same page in Node.
  */
+import type { MathFont } from '@visual-anything/core';
 import { PAGE_DATA_ID, type PageData } from './data';
+import { mathFontsOfFiles, pageMathFonts } from './math-families';
 import { PAGE_THEME_KEY } from './keys';
 import { SOLID_WORKER_START } from './solids';
 
@@ -27,6 +33,12 @@ export interface ViewerAssets {
    * three.js, which a page holds only when its views show solids whose files it holds.
    */
   solidWorker?: string;
+  /**
+   * KaTeX's fonts, by family, as the viewer's build writes them beside it (`viewer/fonts/`): a page
+   * holds those its project's Math uses (ADR 0106). Without them, a page holds none, and its
+   * formulas draw without their glyphs.
+   */
+  mathFonts?: Partial<Record<MathFont, Uint8Array>>;
 }
 
 /** Why a page that holds solids' files cannot be written: the build holds no solid worker. */
@@ -125,8 +137,9 @@ export function pageTitle(projectName: string): string {
 }
 
 /** Writes a page. */
-export async function writePage({ assets, data, title }: PageInput): Promise<WrittenPage> {
+export async function writePage({ assets, data: given, title }: PageInput): Promise<WrittenPage> {
   const script = scriptText(assets.script);
+  const data = withMathFonts(given, assets);
   if (/<\/style/i.test(assets.style)) {
     throw new Error('The viewer’s stylesheet holds "</style", which would end it early.');
   }
@@ -190,6 +203,24 @@ export async function writePage({ assets, data, title }: PageInput): Promise<Wri
       (worker === undefined ? 0 : encoder.encode(worker).length + SOLID_WORKER_SCRIPT.length);
   }
   return { html, bytes, policy, large: bytes > LARGE_PAGE, solidBytes };
+}
+
+/**
+ * The data with the fonts its project's Math uses (ADR 0106), from those the viewer came with: the
+ * data as it is when it holds fonts already, or when its project uses none.
+ */
+function withMathFonts(data: PageData, assets: ViewerAssets): PageData {
+  if (data.mathFonts !== undefined || assets.mathFonts === undefined) return data;
+  const files = {
+    project: data.project,
+    model: data.model,
+    packages: data.packages,
+    views: data.views,
+    scenarios: data.scenarios,
+    tours: data.tours,
+  };
+  const fonts = pageMathFonts(mathFontsOfFiles(files), assets.mathFonts);
+  return fonts === undefined ? data : { ...data, mathFonts: fonts };
 }
 
 /**
