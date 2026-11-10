@@ -1,0 +1,77 @@
+{
+  "id": "the-model",
+  "name": "The model",
+  "description": "How the filter turns an email into the probability that it is spam, and the loss that probability is judged by.",
+  "perspective": {
+    "name": "The model"
+  },
+  "nestingRelationTypes": [
+    "machine-learning.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "labeled-emails",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "word-counts",
+      "x": 0,
+      "y": 168
+    },
+    {
+      "element": "spam-filter",
+      "x": 256,
+      "y": 0,
+      "width": 240,
+      "height": 400
+    },
+    {
+      "element": "linear-score",
+      "container": "spam-filter",
+      "x": 32,
+      "y": 56
+    },
+    {
+      "element": "logistic-function",
+      "container": "spam-filter",
+      "x": 32,
+      "y": 176
+    },
+    {
+      "element": "spam-probability",
+      "container": "spam-filter",
+      "x": 32,
+      "y": 296
+    },
+    {
+      "element": "log-loss",
+      "x": 576,
+      "y": 312
+    }
+  ],
+  "freeShapes": [
+    {
+      "kind": "note",
+      "id": "the-whole-model",
+      "x": 576,
+      "y": 0,
+      "width": 336,
+      "height": 232,
+      "text": "**The whole model**\n\n$$\n\\hat p = \\sigma\\left(w^\\top x + b\\right) = \\frac{1}{1 + e^{-(w^\\top x + b)}}\n$$\n\nTraining makes $L(w, b)$ as small as it can."
+    }
+  ],
+  "scope": {
+    "include": [
+      {
+        "kind": "contents",
+        "container": "spam-filter"
+      }
+    ],
+    "added": [
+      "labeled-emails",
+      "word-counts",
+      "log-loss"
+    ]
+  }
+}

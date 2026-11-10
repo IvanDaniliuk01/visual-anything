@@ -1,0 +1,55 @@
+{
+  "id": "score-a-batch",
+  "name": "Scoring a batch of emails",
+  "description": "A batch of labeled emails goes through the filter, from their words to the loss, as $\\hat p = \\sigma(w^\\top x + b)$ says.",
+  "view": "the-model",
+  "steps": [
+    {
+      "id": "read-batch",
+      "description": "A batch of 256 labeled emails is read.",
+      "relations": [
+        "emails-to-counts"
+      ],
+      "dataOut": {
+        "emails": 256
+      }
+    },
+    {
+      "id": "count-words",
+      "description": "Each email becomes its word counts.",
+      "relations": [
+        "counts-to-score"
+      ],
+      "dataOut": {
+        "shape": "[256, 5000]"
+      }
+    },
+    {
+      "id": "score",
+      "description": "The counts of each email are weighed and summed into one score.",
+      "relations": [
+        "score-to-logistic"
+      ],
+      "dataOut": {
+        "shape": "[256, 1]"
+      }
+    },
+    {
+      "id": "squeeze",
+      "description": "The logistic function turns each score into a probability of spam.",
+      "relations": [
+        "logistic-to-probability"
+      ]
+    },
+    {
+      "id": "loss",
+      "description": "The log loss compares each probability with the label of its email.",
+      "relations": [
+        "probability-to-loss"
+      ],
+      "dataOut": {
+        "loss": 0.08
+      }
+    }
+  ]
+}

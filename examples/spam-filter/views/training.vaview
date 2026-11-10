@@ -1,0 +1,90 @@
+{
+  "id": "training",
+  "name": "Training",
+  "description": "How gradient descent trains the filter every night, the loss it brings down, and how the filter is judged.",
+  "perspective": {
+    "name": "Training"
+  },
+  "nestingRelationTypes": [],
+  "positions": [
+    {
+      "element": "labeled-emails",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "nightly-training",
+      "x": 0,
+      "y": 168
+    },
+    {
+      "element": "gradient-descent",
+      "x": 0,
+      "y": 336
+    },
+    {
+      "element": "spam-filter",
+      "x": 288,
+      "y": 168
+    },
+    {
+      "element": "log-loss",
+      "x": 288,
+      "y": 336
+    },
+    {
+      "element": "test-emails",
+      "x": 576,
+      "y": 0
+    },
+    {
+      "element": "brier-score",
+      "x": 576,
+      "y": 168
+    },
+    {
+      "element": "accuracy",
+      "x": 576,
+      "y": 288
+    }
+  ],
+  "freeShapes": [
+    {
+      "kind": "note",
+      "id": "one-step",
+      "x": 288,
+      "y": 472,
+      "width": 464,
+      "height": 168,
+      "text": "**One step of training**\n\n$$\nw \\leftarrow w - \\eta \\, \\frac{1}{n} \\sum_{i=1}^{n} (\\hat p_i - y_i) \\, x_i\n$$"
+    }
+  ],
+  "scope": {
+    "include": [
+      {
+        "kind": "component",
+        "component": "machine-learning.dataset"
+      },
+      {
+        "kind": "component",
+        "component": "machine-learning.model"
+      },
+      {
+        "kind": "component",
+        "component": "machine-learning.loss"
+      },
+      {
+        "kind": "component",
+        "component": "machine-learning.optimizer"
+      },
+      {
+        "kind": "component",
+        "component": "machine-learning.metric"
+      },
+      {
+        "kind": "component",
+        "component": "machine-learning.training-run"
+      }
+    ]
+  }
+}

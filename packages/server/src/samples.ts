@@ -19,6 +19,7 @@ export const SAMPLE_IDS = [
   'c4-architecture',
   'data-science-pipeline',
   'churn-classifier',
+  'spam-filter',
   'robot-arm',
   'order-process',
   'clinic-claim',

@@ -4,7 +4,7 @@
  * listed counts and past the most a check typesets. Every warning and notice must read in Spanish,
  * KaTeX's own message after the colon left as KaTeX writes it.
  */
-import { checkProject, type ProjectSnapshot } from '@visual-anything/core';
+import { checkProject, typesetMath, type ProjectSnapshot } from '@visual-anything/core';
 import type { PackageFile, TourFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
@@ -162,6 +162,91 @@ describe('the messages about Math', () => {
       ),
     ).toBe(
       'Se lee notación matemática en la revelación 1 del paso 1 del recorrido "Math": escribir \\$ para un signo de dólar que no sea notación matemática.',
+    );
+  });
+});
+
+/** TeX that the core refuses, one for each of its reasons, and one KaTeX cannot parse. */
+const REFUSED = [
+  String.raw`\color{red}{x}`,
+  String.raw`\textcolor{red}{x}`,
+  String.raw`\colorbox{red}{x}`,
+  String.raw`\fcolorbox{red}{blue}{x}`,
+  String.raw`\href{https://example.com}{x}`,
+  String.raw`\url{https://example.com}`,
+  String.raw`\raisebox{1em}{x}`,
+  String.raw`\vcenter{x}`,
+  String.raw`\tag{1} x`,
+  String.raw`\includegraphics{a.png}`,
+  String.raw`\htmlStyle{color:red}{x}`,
+  String.raw`\htmlClass{a}{x}`,
+  String.raw`\htmlId{a}{x}`,
+  String.raw`\htmlData{a=b}{x}`,
+  String.raw`\begin{CD} A @>>> B \end{CD}`,
+  String.raw`\begin{equation} x \end{equation}`,
+  String.raw`\angl{n}`,
+  String.raw`\pmb{x}`,
+  String.raw`\reflectbox{x}`,
+  String.raw`\text{日本}`,
+  'x'.repeat(2_001),
+  String.raw`x \nope`,
+];
+
+/** Why the core does not typeset a piece of TeX. */
+function refusalOf(tex: string): string {
+  const typeset = typesetMath(tex, { display: true });
+  if (typeset.ok) throw new Error(`${tex} is typeset.`);
+  return typeset.error;
+}
+
+describe('why the core does not typeset a piece of Math', () => {
+  it.each(REFUSED.map((tex) => [tex.slice(0, 40), tex]))(
+    'reads in Spanish for %j, alone and in the warning',
+    (_, tex) => {
+      const why = refusalOf(tex);
+      expect(untranslatedParts('es', why)).toEqual([]);
+      const quoted = tex.length > 40 ? `${tex.slice(0, 39)}…` : tex;
+      const warning = `Math in the description of the element "Regression" is drawn as its TeX, "${quoted}", since it cannot be typeset: ${why}`;
+      expect(untranslatedParts('es', warning)).toEqual([]);
+      // KaTeX's own message stays as KaTeX writes it; the core's are Spanish.
+      if (!why.startsWith('KaTeX')) expect(translateMessage('es', why)).not.toBe(why);
+    },
+  );
+
+  it('read as Spanish people would write them', () => {
+    expect(translateMessage('es', refusalOf(String.raw`\color{red}{x}`))).toBe(
+      'La notación matemática no admite \\color: los colores vienen del tema.',
+    );
+    expect(translateMessage('es', refusalOf('x'.repeat(2_001)))).toBe(
+      'Cada notación matemática admite como mucho 2,000 caracteres; esta tiene 2,001.',
+    );
+    expect(
+      translateMessage(
+        'es',
+        `Math in a note in the view "Overview" is drawn as its TeX, "\\url{x}", since it cannot be typeset: ${refusalOf(String.raw`\url{x}`)}`,
+      ),
+    ).toBe(
+      'La notación matemática de una nota en la vista "Overview" se dibuja como su TeX, "\\url{x}", porque no se puede componer: La notación matemática no admite \\url: una dirección web se escribe con su propia sintaxis.',
+    );
+  });
+});
+
+describe('the notice of what a project only tells', () => {
+  it('reads in Spanish, with one notice or more', () => {
+    const line = (file: string, where: string) =>
+      `${file}: Math is read in ${where}: write \\$ for a dollar sign that is not Math.`;
+    for (const message of [
+      `The project has 1 notice:\n${line('model.vamodel /elements/1', 'the description of the element "API"')}`,
+      [
+        'The project has 2 notices:',
+        line('model.vamodel /elements/1', 'the description of the element "API"'),
+        line('views/overview.vaview', 'a note in the view "Overview"'),
+      ].join('\n'),
+    ]) {
+      expect(untranslatedParts('es', message), message).toEqual([]);
+    }
+    expect(translateMessage('es', 'The project has 2 notices:')).toBe(
+      'El proyecto tiene 2 avisos:',
     );
   });
 });

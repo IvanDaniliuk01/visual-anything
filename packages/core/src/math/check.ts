@@ -214,13 +214,21 @@ function quoted(tex: string): string {
 
 /** Checks the Math of every text that takes text emphasis. */
 export function mathFindings(state: ProjectSnapshot, definitions: Definitions): MathFindings {
+  return mathFindingsIn(emphasisTexts(state, definitions));
+}
+
+/**
+ * Checks the Math of the texts given, as {@link mathFindings} checks a project's: Claude's tools check
+ * only the texts a change wrote, so that each answer tells of its own.
+ */
+export function mathFindingsIn(texts: Iterable<EmphasisTextOf>): MathFindings {
   const errors: Problem[] = [];
   const notices: Problem[] = [];
   let failed = 0;
   let read = 0;
   let unchecked = 0;
   const checked = new Map<string, string | undefined>();
-  for (const { text, blocks, where, subject } of emphasisTexts(state, definitions)) {
+  for (const { text, blocks, where, subject } of texts) {
     const found = mathIn(text, blocks);
     if (found.length === 0) continue;
     const subjects = subject === undefined ? [] : [subject];
