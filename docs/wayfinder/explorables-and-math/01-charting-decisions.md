@@ -36,3 +36,5 @@ Grilled with the user on 2026-11-10, in three rounds. Each answer is the user's.
 - **Q7, Math.** Only the notation, typeset with KaTeX: `$…$` within a line, `$$…$$` as a block, in descriptions, notes, faces, tour texts and attributes, on the canvas, in exports and inside explorables. No TeX engine, no compiled documents.
 - **Q8, words.** **Explorable**, **Explorable panel** and **Math**, now in `CONTEXT.md`.
 - **Q21, order.** Math first, then Explorables, then A8.2 (videos).
+
+**Amended on 2026-11-10, after [Prove the explorable frame in Chrome, Firefox and Safari](12-prove-the-explorable-frame-in-browsers.md):** the user dropped live explorables from exports ("no quiero tanto tema para la exportación"). Q17 and Q40 now read: the read-only page, like SVG, PDF and PNG, holds only an explorable's still picture or its card.

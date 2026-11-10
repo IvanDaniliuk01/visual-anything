@@ -264,7 +264,7 @@ An element's shape drawn as a named part, because its appearance names that part
 _Avoid_: hotspot, mapped area, region (a region is a container drawn as an area), overlay (an overlay is a rule of a view)
 
 **Explorable**:
-A page of HTML, CSS and JavaScript, defined by a package and kept as one file the person can edit, that explains something by letting a person play with it: a function's graph with sliders, an algorithm stepping through its data. An element shows it, or every element of a component, each with its own data, or it sits loose on the canvas; it reads the data of what shows it, and a tour step can set what it shows. It runs walled off from the app, the person's files and the network, and only once the person approves it; on the canvas it is a still picture until explored.
+A page of HTML, CSS and JavaScript, defined by a package and kept as one file the person can edit, that explains something by letting a person play with it: a function's graph with sliders, an algorithm stepping through its data. An element shows it, or every element of a component, each with its own data, or it sits loose on the canvas; it reads the data of what shows it, and a tour step can set what it shows. It runs walled off from the app, the person's files and the network, and only once the person approves it; on the canvas it is a still picture until explored, and exports and the read-only page hold only that picture (ADR 0107).
 _Avoid_: widget, applet, plugin, page (a read-only page is something else), HTML view, iframe, visualization
 
 **Script library**:

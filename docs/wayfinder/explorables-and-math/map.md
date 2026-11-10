@@ -1,12 +1,14 @@
 ---
 label: wayfinder:map
 title: Explorables and Math
-status: open
+status: closed
 ---
 
 # Explorables and Math
 
 ## Destination
+
+**Reached on 2026-11-10:** ADR 0106 with milestone A9 · Math, and ADR 0107 with milestone A10 · Explorables. What stays under "Not yet specified" is left to those milestones.
 
 Two milestones ready for builders: **Math** (TeX notation typeset in every text) and then **Explorables** (HTML, CSS and JavaScript pages that explain interactively, beside the physical-space panel). Each has an accepted ADR, its terms in `CONTEXT.md` and a milestone in `docs/spec-v0.1.md` with tasks whose interfaces are fixed. The Explorables ADR supersedes the spec's "Not planned" line on storing HTML with scripts in a project.
 
@@ -31,6 +33,7 @@ Two milestones ready for builders: **Math** (TeX notation typeset in every text)
 - [Prove that our layout of KaTeX's tree matches KaTeX](11-prove-math-layout-against-katex.md): it does: 86 of 86 formulas, every glyph within 0.5 px of Chrome, about 0.3 ms per formula; KaTeX pinned exactly, its double-underscore tree API kept under a golden test; MathJax not needed.
 - [Write the Math ADR and milestone](09-write-the-math-adr-and-milestone.md): ADR 0106 and milestone A9 · Math, its seam first; Claude reads and writes Math as the TeX typed.
 - [Prove the explorable frame in Chrome, Firefox and Safari](12-prove-the-explorable-frame-in-browsers.md): it holds in Chrome and Firefox with four changes (a fresh `*.localhost` per frame, libraries inlined as globals, line endings normalized before hashing, `font-src data:` in the page); Firefox freezes on a looping `srcdoc`, so outside Chromium the page runs explorables only on Run; string-compiling libraries need functions; Safari untested.
+- [Write the Explorables ADR and milestone](10-write-the-explorables-adr-and-milestone.md): ADR 0107 and milestone A10 · Explorables; exports hold only stills, as the user chose after the browser proof.
 
 ## Not yet specified
 
@@ -40,6 +43,8 @@ Two milestones ready for builders: **Math** (TeX notation typeset in every text)
 - **Limits.** An explorable's size, a library's size, how many libraries a project keeps, and what happens when one is over.
 
 ## Out of scope
+
+- **Explorables live in exports and the read-only page.** Dropped by the user after the browser proof found that a looping page freezes Firefox's tab ("no quiero tanto tema para la exportación"); exports hold the still picture. See [Write the Explorables ADR and milestone](10-write-the-explorables-adr-and-milestone.md).
 
 - **Whole LaTeX documents compiled to PDF.** Only the notation is typeset (decided in [What explorables and Math are](01-charting-decisions.md), Q7).
 - **An explorable writing to the model,** even as a proposal (Q4). It may come back as a new effort.
