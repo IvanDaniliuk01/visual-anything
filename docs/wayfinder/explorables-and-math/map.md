@@ -26,6 +26,7 @@ Two milestones ready for builders: **Math** (TeX notation typeset in every text)
 - [How an explorable becomes a still picture, for the canvas, exports and Claude](05-capturing-an-explorable.md): the frame draws its own still with a built-in html-to-image and posts a PNG the app cleans; taken only after approval, kept for the session by a hash of what it shows; a card from data before approval; `capture_explorable` with console errors.
 - [How an explorable runs walled off, in the app and in the read-only page](03-sandboxing-an-explorable.md): one frame document built in the core, scripts only by hash, sandboxed `allow-scripts` only; in the app a second loopback listener under the other loopback name; in the page `srcdoc`; one `MessageChannel`, a watchdog; WebRTC cannot be blocked, so approval is the real line.
 - [How explorables are kept and named by what shows them](06-explorable-files-and-what-shows-them.md): one editable `explorables/<name>.html`, defined in a package with the hash last read; named by `explorable` in an appearance, by a new `explorable` free shape and by tour steps; Claude writes through `write_explorable`, undoable; the term Script library.
+- [What the va API hands an explorable](07-the-va-api.md): the element with its attribute definitions, what it holds one level down and its relations, up to 500 elements; a loose one may be bound to an element; declared parameters that tour steps set; everything again on a change; `va.select`; theme as CSS variables; `api: 1`.
 
 ## Not yet specified
 

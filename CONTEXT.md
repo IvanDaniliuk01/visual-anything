@@ -440,7 +440,7 @@ One moment of a simulation run, numbered from 0, standing for the simulation's d
 _Avoid_: step (a step is a scenario's), frame, iteration
 
 **Parameter**:
-A value a simulation run starts from that the person, a view state or Claude chooses within its declared range, such as arrivals per second; kept by the tab, never in the model.
+A value a simulation run starts from, or an explorable shows, that the person, a view state, a tour step or Claude chooses within its declared range, such as arrivals per second or a slope; kept by the tab, never in the model.
 _Avoid_: setting, input, attribute (an attribute is the model's)
 
 **Simulated value**:
