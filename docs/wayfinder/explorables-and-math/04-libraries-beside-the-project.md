@@ -22,3 +22,5 @@ Findings: `docs/wayfinder/explorables-and-math/research/libraries.md` on branch 
 - **Approval.** Before a byte is fetched the person sees who asks, the package, the exact version and the two registry addresses; afterwards the files and sizes. An explorable's approval covers its libraries' hashes.
 - **Seams.** Address checks factored out of `server/src/live-fetch.ts`; a new `server/src/libraries/` (registry fetch, strict gzip and tar reader on `node:zlib`, store); core caps and protocol messages, `schema/src/files.ts`, a Claude tool `request_library`, `app/src/viewer/page.ts`.
 - **Risks passed on.** Multi-file ESM (three.js) and CSS with relative `url()` (KaTeX fonts) do not resolve from blob URLs, so ticket 03's frame must serve or rewrite them; Safari has refused blob URLs from sandboxed frames; Plotly adds about 6.5 MB to a read-only page; p5.js is LGPL-2.1. Unverified in a browser: relative imports from blob URLs.
+
+Renamed by [How explorables are kept and named by what shows them](06-explorable-files-and-what-shows-them.md): the folder is `script-libraries/` and the term **Script library**.
