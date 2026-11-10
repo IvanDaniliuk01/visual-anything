@@ -700,5 +700,5 @@ An attribute's value that a hook of package code computed: shown with a mark nam
 _Avoid_: derived attribute, formula
 
 **Approval**:
-The person's consent that a package's code may run, given in the app after reading it, by the hash of its text, its capabilities and, when declared, what it adds (ADR 0089), with the capabilities they grant. Built-in code needs none. It is a preference, never part of the project, so any change to the code asks again, and Claude cannot give one (ADR 0060).
+The person's consent that a package's code may run, given in the app after reading it, by the hash of its text, its capabilities and, when declared, what it adds (ADR 0089), with the capabilities they grant. Built-in code needs none. An explorable is approved the same way, by the hash of its text and its script libraries. It is a preference, never part of the project, so any change to the code asks again, and Claude cannot give one (ADR 0060); the one exception is an explorable whose approved text Claude changes through the program, whose new text continues the approval.
 _Avoid_: permission (alone), trust, whitelist
