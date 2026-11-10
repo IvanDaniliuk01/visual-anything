@@ -21,6 +21,10 @@ Two milestones ready for builders: **Math** (TeX notation typeset in every text)
 ## Decisions so far
 
 - [What explorables and Math are](01-charting-decisions.md): Math is TeX notation typeset with KaTeX in every text; an explorable is HTML/CSS/JS kept in the project, shown by an element, a component or loose, fed the model's data, run walled off after approval, still on the canvas until explored, live in its own panel, in tours and in the read-only page; any library, downloaded once and kept beside the project.
+- [How libraries are fetched once and kept beside the project](04-libraries-beside-the-project.md): from the npm registry only, checked by its integrity hash, kept as `libraries/<sha256>` with a record and its license, named by a bare id through an import map, approved before any byte is fetched.
+- [How Math is typeset on the canvas and in exports](02-math-on-the-canvas-and-in-exports.md): KaTeX parses and measures, a new `core/src/math/` lays out a math drawing per formula that the canvas draws as glyphs and SVG/PDF as outlines; Pandoc's dollar rule; MathJax 4 is the fallback if the layout cannot match KaTeX.
+- [How an explorable becomes a still picture, for the canvas, exports and Claude](05-capturing-an-explorable.md): the frame draws its own still with a built-in html-to-image and posts a PNG the app cleans; taken only after approval, kept for the session by a hash of what it shows; a card from data before approval; `capture_explorable` with console errors.
+- [How an explorable runs walled off, in the app and in the read-only page](03-sandboxing-an-explorable.md): one frame document built in the core, scripts only by hash, sandboxed `allow-scripts` only; in the app a second loopback listener under the other loopback name; in the page `srcdoc`; one `MessageChannel`, a watchdog; WebRTC cannot be blocked, so approval is the real line.
 
 ## Not yet specified
 
@@ -28,7 +32,6 @@ Two milestones ready for builders: **Math** (TeX notation typeset in every text)
 - **How Claude learns to write explorables well.** The guidance Claude reads before writing one: the `va` API, the libraries at hand, sizes, the theme, Math inside it.
 - **Accessibility.** What a screen reader and the keyboard reach inside an explorable, and what the canvas says about one that is still.
 - **Limits.** An explorable's size, a library's size, how many libraries a project keeps, and what happens when one is over.
-- **Licenses of downloaded libraries.** Whether a project's libraries must name their license, and how the read-only page credits them (ADR 0047).
 - **Math as Claude reads it.** Whether `read_view` and `get_item` answer the TeX as written, and how a capture draws it.
 
 ## Out of scope

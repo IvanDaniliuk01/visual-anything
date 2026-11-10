@@ -3,7 +3,7 @@ label: wayfinder:task
 title: Write the Explorables ADR and milestone
 status: open
 assignee:
-blocked_by: [03-sandboxing-an-explorable.md, 04-libraries-beside-the-project.md, 05-capturing-an-explorable.md, 06-explorable-files-and-what-shows-them.md, 07-the-va-api.md, 08-approving-an-explorable.md]
+blocked_by: [03-sandboxing-an-explorable.md, 04-libraries-beside-the-project.md, 05-capturing-an-explorable.md, 06-explorable-files-and-what-shows-them.md, 07-the-va-api.md, 08-approving-an-explorable.md, 12-prove-the-explorable-frame-in-browsers.md]
 ---
 
 # Write the Explorables ADR and milestone
