@@ -79,3 +79,9 @@ The user explains mathematical modules with Visual Anything and asked for "un co
   - `reads-as-math` is a notice: a project's check gains `notices`, apart from its errors and warnings, so that a project with Math is not flagged as having problems each time it opens. The editors' preview shows a text's Math as it will draw, which tells the person where their dollars read as Math.
   - The check reads only texts that hold a `$` or a `math` fence, typesets each distinct piece once and at most 1,000 in all, and lists 20 of each kind before "and N more".
   - KaTeX's stylesheet is split by `packages/app/src/text/generate-katex-css.ts` into its layout rules and its woff2 fonts, served as files under `font-src 'self'`; neither policy changes. The read-only page carries KaTeX's code and rules, about 0.33 MB, and the families it bundles are A9.3's.
+- **2026-11-10, A9's canvas.** Decided while building, under the user's delegation:
+  - A formula is drawn at 1.21 times its text's size, KaTeX's own `.katex` size, so that the canvas and the panels match; a line holding Math is as tall as its tallest formula plus 0.15 em.
+  - Each of KaTeX's twenty fonts is a family of its own, loaded from bytes and installed one per task when a scene holds Math; until a family is installed a formula draws its rules and paths, then repaints.
+  - A formula that fails is its TeX in Roboto Mono over a dotted underline in the text's color, since a label is tinted one color; a cut formula ends in "…", as cut text does.
+  - A path fitted with `slice` is held in its box by clamping its points rather than by a mask, which would break batching; one shared context is kept per piece, size and cut, up to 4,000.
+  - A detail's first line taller than its room is not drawn, and the shape counts as cut so that the hover card shows it.
