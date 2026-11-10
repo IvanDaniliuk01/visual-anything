@@ -10,6 +10,7 @@
  */
 import { readdir, readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { bundledPackages, type BundledPackage } from './notices';
 
 /** The file at the repository's root. */
@@ -125,11 +126,11 @@ export const PACKAGE_NOTES: Record<string, string> = {
 };
 
 /** What ships that is not npm code: fonts, pictures, solids and data. */
-export function contentSection(robotoLicense: string): string {
+export function contentSection(robotoLicense: string, katexFontsLicense: string): string {
   return [
     '## Fonts, pictures and data',
     '',
-    'Only content under a license on ADR 0047’s list ships (CC0-1.0, CC-BY-4.0, MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0, CC-PDM-1.0 and the public domain).',
+    'Only content under a license on ADR 0047’s list ships (CC0-1.0, CC-BY-4.0, MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0, CC-PDM-1.0 and the public domain), and fonts under the SIL Open Font License 1.1, unchanged and with their license (ADR 0108).',
     '',
     '### Roboto 2.137 Regular, Medium, Bold, Italic and Bold Italic',
     '',
@@ -147,6 +148,18 @@ export function contentSection(robotoLicense: string): string {
     '',
     '```text',
     robotoLicense,
+    '```',
+    '',
+    '### KaTeX fonts 0.19.1',
+    '',
+    '- License: OFL-1.1, as each font’s name table gives it; the code of the npm package katex is MIT and is named above.',
+    '- Source: the npm package katex 0.19.1, https://registry.npmjs.org/katex/-/katex-0.19.1.tgz, its twenty fonts taken unchanged.',
+    '- Ships in: the app (the woff2 files, for the canvas and the panels) and the read-only page (the families its project uses); and, read from the TrueType files, the tables of advance widths and glyph outlines in `packages/core/src/math/advances.json` and `outlines.json`, under the same license, which Math lays out and exports with (ADR 0106). SVG and PDF exports that draw glyphs from them are documents, which the license does not reach.',
+    '',
+    'Their license, as `packages/core/src/math/LICENSE-katex-fonts.txt` holds it:',
+    '',
+    '```text',
+    katexFontsLicense,
     '```',
     '',
     '### Icons, pictures, solids and samples',
@@ -270,11 +283,20 @@ export function thirdPartyMarkdown(packages: readonly ShippedPackage[], content:
   return `${lines.join('\n').trimEnd()}\n`;
 }
 
+/** The license of KaTeX's fonts, which ship unchanged under the SIL Open Font License (ADR 0108). */
+const KATEX_FONTS_LICENSE = fileURLToPath(
+  new URL('../../core/src/math/LICENSE-katex-fonts.txt', import.meta.url),
+);
+
 /** Reads what `bundledPackages` needs from `foldersByPart` and writes the whole notice. */
 export async function thirdPartyNotice(
   foldersByPart: Readonly<Record<string, readonly string[]>>,
   robotoLicensePath: string,
 ): Promise<string> {
-  const roboto = (await readFile(robotoLicensePath, 'utf8')).replace(/\r\n?/g, '\n').trimEnd();
-  return thirdPartyMarkdown(await shippedPackages(foldersByPart), contentSection(roboto));
+  const read = async (path: string) =>
+    (await readFile(path, 'utf8')).replace(/\r\n?/g, '\n').trimEnd();
+  return thirdPartyMarkdown(
+    await shippedPackages(foldersByPart),
+    contentSection(await read(robotoLicensePath), await read(KATEX_FONTS_LICENSE)),
+  );
 }
