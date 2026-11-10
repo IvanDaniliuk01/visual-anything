@@ -1,0 +1,170 @@
+[
+  {
+    "tex": "\\begin{array}{|c|c|}\\hline a & b \\\\ \\hline c & d \\\\ \\hline\\end{array}",
+    "d": true
+  },
+  {
+    "tex": "\\begin{array}{l:r} x & 10 \\\\ \\hdashline yy & 2 \\end{array}",
+    "d": true
+  },
+  {
+    "tex": "\\not= \\quad a \\neq b \\quad \\not\\in",
+    "d": false
+  },
+  {
+    "tex": "\\cancel{x} + \\bcancel{y} + \\xcancel{z} + \\sout{abc}",
+    "d": false
+  },
+  {
+    "tex": "\\overrightarrow{AB} + \\overleftarrow{CD} + \\overleftrightarrow{EF}",
+    "d": false
+  },
+  {
+    "tex": "\\underset{x\\to 0}{\\lim} \\; \\overset{!}{=} \\; \\stackrel{def}{=}",
+    "d": true
+  },
+  {
+    "tex": "\\left. \\frac{df}{dx} \\right|_{x=0}",
+    "d": true
+  },
+  {
+    "tex": "\\left( a \\middle| b \\right)",
+    "d": true
+  },
+  {
+    "tex": "\\smash{y_p} + \\phantom{xx} + \\hphantom{y} + \\vphantom{\\int} z",
+    "d": false
+  },
+  {
+    "tex": "\\mathllap{/}= \\; \\mathrlap{\\,/}{=} \\; \\mathclap{\\scriptstyle k}",
+    "d": false
+  },
+  {
+    "tex": "\\sum\\limits_{i=1}^{n} x_i \\quad \\lim\\limits_{n\\to\\infty} a_n",
+    "d": false
+  },
+  {
+    "tex": "\\sum_{\\substack{0<i<m \\\\ 0<j<n}} P(i,j)",
+    "d": true
+  },
+  {
+    "tex": "\\lfloor x \\rfloor + \\lceil y \\rceil + \\langle u, v \\rangle + \\lvert z \\rvert",
+    "d": false
+  },
+  {
+    "tex": "\\big\\langle \\Big\\lfloor \\bigg\\{ \\Bigg\\| x \\Bigg\\| \\bigg\\} \\Big\\rfloor \\big\\rangle",
+    "d": false
+  },
+  {
+    "tex": "a_1, \\ldots, a_n \\quad a_1 + \\cdots + a_n",
+    "d": false
+  },
+  {
+    "tex": "\\begin{pmatrix} a_{11} & \\cdots & a_{1n} \\\\ \\vdots & \\ddots & \\vdots \\\\ a_{m1} & \\cdots & a_{mn} \\end{pmatrix}",
+    "d": true
+  },
+  {
+    "tex": "\\rule{1em}{0.5em} \\; \\fbox{text} \\; \\boxed{\\frac{a}{b}}",
+    "d": false
+  },
+  {
+    "tex": "\\text{AVAT office fluffy} \\; \\textbf{bold} \\; \\textit{it}",
+    "d": false
+  },
+  {
+    "tex": "\\mathit{diff} + \\boldsymbol{\\alpha\\beta} + \\mathbf{AB} + \\mathsf{xy}",
+    "d": false
+  },
+  {
+    "tex": "\\pm \\mp \\infty \\partial \\hbar \\ell \\nabla \\emptyset \\aleph",
+    "d": false
+  },
+  {
+    "tex": "45^\\circ + 90\\degree + \\text{café}",
+    "d": false
+  },
+  {
+    "tex": "a\\kern1em b\\mkern18mu c\\hspace{0.5cm}d\\;e\\!f\\qquad g",
+    "d": false
+  },
+  {
+    "tex": "E = mc^2 \\tag{1}",
+    "d": true
+  },
+  {
+    "tex": "\\begin{gathered} a = b \\\\ c + d = e \\end{gathered}",
+    "d": true
+  },
+  {
+    "tex": "\\operatorname*{arg\\,min}_{x \\in X} f(x)",
+    "d": true
+  },
+  {
+    "tex": "\\int\\limits_0^1 \\iiint_V \\oint_{\\partial S}",
+    "d": true
+  },
+  {
+    "tex": "a \\equiv b \\pmod{m} \\quad a \\bmod b",
+    "d": false
+  },
+  {
+    "tex": "\\tbinom{n}{2} + \\dbinom{n}{3} + \\genfrac{[}{]}{0pt}{}{n}{k}",
+    "d": false
+  },
+  {
+    "tex": "\\cfrac{1}{1+\\cfrac{1}{1+\\cfrac{1}{x}}}",
+    "d": true
+  },
+  {
+    "tex": "\\overline{\\overline{x}} + \\hat{\\hat{y}} + \\vec{\\vec{z}}",
+    "d": false
+  },
+  {
+    "tex": "\\dot{x}\\ddot{x}\\breve{a}\\check{b}\\acute{c}\\grave{d}\\mathring{e}",
+    "d": false
+  },
+  {
+    "tex": "\\widecheck{abc} + \\overgroup{AB} + \\utilde{xyz}",
+    "d": false
+  },
+  {
+    "tex": "\\underbrace{a + b + \\cdots + z}_{26\\ \\text{letters}}",
+    "d": true
+  },
+  {
+    "tex": "\\xrightarrow[\\text{below}]{\\text{above}} \\xleftrightarrow{abc} \\xhookrightarrow{x}",
+    "d": true
+  },
+  {
+    "tex": "\\sqrt[n]{\\frac{a^n + b^n}{2}} \\geq \\frac{a+b}{2}",
+    "d": true
+  },
+  {
+    "tex": "\\displaystyle \\frac{1}{2} \\textstyle \\frac{1}{2} \\scriptstyle \\frac{1}{2} \\scriptscriptstyle x",
+    "d": false
+  },
+  {
+    "tex": "{\\Huge A}{\\huge B}{\\LARGE C}{\\Large D}{\\large E}{\\small f}{\\footnotesize g}{\\tiny h}",
+    "d": false
+  },
+  {
+    "tex": "a \\\\ b + c \\\\ d",
+    "d": true
+  },
+  {
+    "tex": "\\begin{Vmatrix} 1 & 2 \\\\ 3 & 4 \\end{Vmatrix} \\begin{vmatrix} x \\end{vmatrix} \\begin{smallmatrix} a & b \\\\ c & d \\end{smallmatrix}",
+    "d": true
+  },
+  {
+    "tex": "\\left\\langle \\frac{\\partial^2 u}{\\partial x^2} \\right\\rangle_{\\Omega}",
+    "d": true
+  },
+  {
+    "tex": "\\left( \\begin{array}{c} 1 \\\\ 2 \\\\ 3 \\\\ 4 \\\\ 5 \\\\ 6 \\\\ 7 \\end{array} \\right)",
+    "d": true
+  },
+  {
+    "tex": "\\sqrt{\\begin{matrix} a \\\\ b \\\\ c \\\\ d \\\\ e \\end{matrix}}",
+    "d": true
+  }
+]

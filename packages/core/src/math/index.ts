@@ -1,2 +1,2 @@
 export * from './drawing';
-export { typesetMath } from './typeset';
+export { MATH_KATEX_OPTIONS, typesetMath } from './typeset';
