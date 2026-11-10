@@ -1,5 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
+import { MAX_MATH_PER_TEXT } from '../math/drawing';
 import { stopwatch } from '../test/cpu';
 import {
   type EmphasisBlock,
@@ -243,6 +244,178 @@ describe('parseEmphasis with blocks', () => {
   });
 });
 
+/** A formula's run: its TeX as written, with its delimiters, and the marks it carries. */
+function math(text: string, tex: string, display = false, ...marks: (keyof typeof PLAIN)[]) {
+  return { ...run(text, ...marks), math: { tex, display } };
+}
+
+describe('Math (ADR 0106)', () => {
+  it('reads $…$, $$…$$ and GitHub’s $`…`$ within a line, each with its TeX as written', () => {
+    expect(emphasisRuns('area $\\pi r^2$, sum $$\\sum_i x_i$$ and $`a_b`$')).toEqual([
+      run('area '),
+      math('$\\pi r^2$', '\\pi r^2'),
+      run(', sum '),
+      math('$$\\sum_i x_i$$', '\\sum_i x_i', true),
+      run(' and '),
+      math('$`a_b`$', 'a_b'),
+    ]);
+    expect(emphasisRuns('$`` a`b ``$')).toEqual([math('$`` a`b ``$', 'a`b')]);
+  });
+
+  it('follows Pandoc’s dollar rule: prices and an unmatched dollar stay text', () => {
+    for (const text of [
+      '$20,000 and $30,000',
+      'from $5 to$10',
+      'a $ b$',
+      'a $b $',
+      '$x$1',
+      'only $x',
+      '$',
+      '$$',
+      '$$ $$',
+      '$$$x$$$',
+    ]) {
+      expect(emphasisRuns(text), text).toEqual([run(text)]);
+    }
+    // A formula's TeX is never blank: GitHub's form around a blank code span is a code span.
+    expect(emphasisRuns('$` `$')).toEqual([run('$'), run(' ', 'code'), run('$')]);
+    expect(emphasisRuns('$x$, $y$.')).toEqual([
+      math('$x$', 'x'),
+      run(', '),
+      math('$y$', 'y'),
+      run('.'),
+    ]);
+    // The closer is the next dollar: one that fails makes the opener text, and the next one opens.
+    expect(emphasisRuns('$a $b$')).toEqual([run('$a '), math('$b$', 'b')]);
+    expect(emphasisRuns('$a$$')).toEqual([math('$a$', 'a'), run('$')]);
+  });
+
+  it('reads \\$ as a dollar, inside a formula as outside, and \\\\ before a closer as TeX', () => {
+    expect(emphasisRuns('\\$x$ costs \\$5')).toEqual([run('$x$ costs $5')]);
+    expect(emphasisRuns('$a\\$b$')).toEqual([math('$a\\$b$', 'a\\$b')]);
+    expect(emphasisRuns('$a\\\\$ b')).toEqual([math('$a\\\\$', 'a\\\\'), run(' b')]);
+  });
+
+  it('takes no emphasis inside a formula, and wins over emphasis markers as a code span does', () => {
+    expect(emphasisRuns('$a*b*c_d_$')).toEqual([math('$a*b*c_d_$', 'a*b*c_d_')]);
+    expect(emphasisRuns('*a $*$')).toEqual([run('*a '), math('$*$', '*')]);
+    expect(emphasisRuns('**a $x$** ==$y$==')).toEqual([
+      run('a ', 'bold'),
+      math('$x$', 'x', false, 'bold'),
+      run(' '),
+      math('$y$', 'y', false, 'highlight'),
+    ]);
+    expect(blocks('[see $x$](https://a.example)')).toEqual([
+      {
+        kind: 'paragraph',
+        runs: [
+          { ...run('see '), link: 'https://a.example' },
+          { ...math('$x$', 'x'), link: 'https://a.example' },
+        ],
+      },
+    ]);
+  });
+
+  it('lets whichever of a code span and a formula opens first hold what follows', () => {
+    expect(emphasisRuns('`a $b` c$')).toEqual([run('a $b', 'code'), run(' c$')]);
+    expect(emphasisRuns('$a `b$ c`')).toEqual([math('$a `b$', 'a `b'), run(' c`')]);
+    // A dollar before a code span that is not GitHub's form is text, and the code span is read.
+    expect(emphasisRuns('$`a` b$')).toEqual([run('$'), run('a', 'code'), run(' b$')]);
+  });
+
+  it('never reads a formula across a line break; a text of one line reads its breaks as spaces', () => {
+    expect(blocks('$a\nb$ and $$c\nd$$')).toEqual([
+      { kind: 'paragraph', runs: [run('$a\nb$ and $$c\nd$$')] },
+    ]);
+    expect(emphasisRuns('$a\nb$')).toEqual([math('$a b$', 'a b')]);
+  });
+
+  it('reads $$ on lines of their own, a line of one $$…$$ and a math fence as math blocks', () => {
+    expect(blocks('Before\n$$\nx^2\n  + y\n$$\nafter')).toEqual([
+      { kind: 'paragraph', runs: [run('Before')] },
+      { kind: 'math', tex: 'x^2\n  + y' },
+      { kind: 'paragraph', runs: [run('after')] },
+    ]);
+    expect(blocks('a\n  $$ e^{i\\pi} $$  \nb')).toEqual([
+      { kind: 'paragraph', runs: [run('a')] },
+      { kind: 'math', tex: ' e^{i\\pi} ' },
+      { kind: 'paragraph', runs: [run('b')] },
+    ]);
+    expect(
+      blocks('```math\n\\int_0^1 f\n```\n\n~~~ math\ny\n~~~\n\n```mathematica\nz\n```'),
+    ).toEqual([
+      { kind: 'math', tex: '\\int_0^1 f' },
+      { kind: 'math', tex: 'y' },
+      { kind: 'code', text: 'z' },
+    ]);
+    expect(blocks('- $$x$$\n- $$\n  y\n  $$')).toEqual([
+      {
+        kind: 'list',
+        ordered: false,
+        items: [{ blocks: [{ kind: 'math', tex: 'x' }] }, { blocks: [{ kind: 'math', tex: 'y' }] }],
+      },
+    ]);
+  });
+
+  it('reads a line with more than one $$…$$ as display formulas in a paragraph', () => {
+    expect(blocks('$$a$$ + $$b$$')).toEqual([
+      {
+        kind: 'paragraph',
+        runs: [math('$$a$$', 'a', true), run(' + '), math('$$b$$', 'b', true)],
+      },
+    ]);
+  });
+
+  it('leaves an unclosed or empty $$ as text; an unclosed math fence runs to the end, as code does', () => {
+    expect(blocks('$$\nx')).toEqual([{ kind: 'paragraph', runs: [run('$$\nx')] }]);
+    expect(blocks('$$\n\n$$')).toEqual([
+      { kind: 'paragraph', runs: [run('$$')] },
+      { kind: 'paragraph', runs: [run('$$')] },
+    ]);
+    expect(blocks('```math\nx\n\ny')).toEqual([{ kind: 'math', tex: 'x\n\ny' }]);
+  });
+
+  it('reads $$…$$ within a line in display style when the text takes no blocks', () => {
+    expect(parseEmphasis('$$\nx\n$$', { blocks: false })).toEqual([
+      { kind: 'paragraph', runs: [math('$$ x $$', ' x ', true)] },
+    ]);
+  });
+
+  it('reads at most 200 formulas in a text, runs and blocks in reading order; the rest stay as typed', () => {
+    expect(MAX_MATH_PER_TEXT).toBe(200);
+    const runs = emphasisRuns(`${'$x$ '.repeat(200)}$*y*$ $z$`);
+    expect(runs.filter((part) => part.math)).toHaveLength(200);
+    expect(runs.at(-1)).toEqual(run(' $*y*$ $z$'));
+    const parsed = blocks(
+      `${'$x$ '.repeat(199)}\n\n$$\ny\n$$\n\n$$\n*z*\n$$\n\n$$w$$\n\n\`\`\`math\nv\n\`\`\``,
+    );
+    expect(parsed.slice(1)).toEqual([
+      { kind: 'math', tex: 'y' },
+      { kind: 'paragraph', runs: [run('$$\n*z*\n$$')] },
+      { kind: 'paragraph', runs: [run('$$w$$')] },
+      { kind: 'code', text: 'v' },
+    ]);
+  });
+
+  it('writes Math as its TeX as written in plain text', () => {
+    expect(plainText('**Area** $\\pi r^2$\n\n$$\n\\sum_i\n$$\n\n```math\nx\n```')).toBe(
+      'Area $\\pi r^2$\n$$\\sum_i$$\n$$x$$',
+    );
+    expect(plainText('$`a`$', { blocks: false })).toBe('$`a`$');
+  });
+
+  it('escapes a dollar that could open Math, and only those', () => {
+    expect(escapeEmphasis('WHERE id = $1 AND $ 2 or 3$')).toBe('WHERE id = \\$1 AND $ 2 or 3$');
+    expect(escapeEmphasis('$$\n$x$')).toBe('\\$$\n\\$x$');
+    for (const text of ['$20 and $30', '$1', '$x$', '$`a`$', '\\$a$', '$$a$$', 'a$ b$']) {
+      expect(emphasisRuns(escapeEmphasis(text)), text).toEqual([run(text)]);
+    }
+    expect(blocks(escapeEmphasis('$$\nx\n$$'))).toEqual([
+      { kind: 'paragraph', runs: [run('$$\nx\n$$')] },
+    ]);
+  });
+});
+
 describe('plainText', () => {
   it('drops every marker it read, and keeps the ones it did not', () => {
     expect(plainText('the **orders** table, `status` and C++')).toBe(
@@ -323,6 +496,15 @@ const anyText = fc
         'b',
         'é',
         '日',
+        '$',
+        '$$',
+        '\\$',
+        '$`',
+        '`$',
+        '$x$',
+        '$$\n',
+        '```math\n',
+        '1',
       ),
       fc.string({ maxLength: 4 }),
     ),
@@ -362,14 +544,22 @@ describe('properties', () => {
     );
   });
 
-  it('never throws, and gives runs and blocks that hold text', () => {
+  it('never throws, and gives runs and blocks that hold text, and formulas their TeX on one line', () => {
     fc.assert(
       fc.property(anyText, fc.boolean(), (text, withBlocks) => {
         const parsed = parseEmphasis(text, { blocks: withBlocks });
         const check = (list: EmphasisBlock[]) => {
           for (const block of list) {
             if (block.kind === 'paragraph' || block.kind === 'heading') {
-              for (const part of block.runs) expect(part.text).not.toBe('');
+              for (const part of block.runs) {
+                expect(part.text).not.toBe('');
+                if (!part.math) continue;
+                expect(part.code).toBe(false);
+                expect(part.text).not.toContain('\n');
+                expect(part.text).toMatch(/^\$[\s\S]*\$$/);
+                expect(part.text).toContain(part.math.tex);
+                expect(part.math.tex.trim()).not.toBe('');
+              }
             } else if (block.kind === 'list') {
               for (const item of block.items) check(item.blocks);
             } else if (block.kind === 'quote') check(block.blocks);
@@ -469,6 +659,20 @@ describe('properties', () => {
       (n) => '- [x] *a\n'.repeat(n),
       (n) => '```\n'.repeat(n),
       (n) => '***a\n\n'.repeat(n),
+      (n) => '$'.repeat(n),
+      (n) => '$a '.repeat(n),
+      (n) => '$$a '.repeat(n),
+      (n) => '$a \\$'.repeat(n),
+      (n) => '$\\'.repeat(n),
+      (n) => '\\'.repeat(n) + '$a$',
+      (n) => '$`a` '.repeat(n),
+      (n) => '$`'.repeat(n),
+      (n) => '$a$1 '.repeat(n),
+      (n) => '$$\n'.repeat(n),
+      (n) => '$$\na\n'.repeat(n),
+      (n) => 'a\n'.repeat(n) + '$$\n' + 'b\n'.repeat(n),
+      (n) => '$$a$$ '.repeat(n) + '\n',
+      (n) => '- $$\n  '.repeat(n),
     ];
     /** The time one reading takes, read again and again for long enough that a coarse clock counts. */
     const once = (text: string) => {

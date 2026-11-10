@@ -73,6 +73,24 @@ describe('markdownOfEmphasis', () => {
     expect(markdownOfEmphasis('one\n\\- two\n3\\. three')).toBe('one\\\n\\- two\\\n3\\. three');
   });
 
+  it('writes Math as its TeX as written, unescaped, and a dollar that is text escaped (ADR 0106)', () => {
+    expect(markdownOfEmphasis('**Area** $\\pi r_*^2$, $$\\sum$$ and $`a_b`$ for \\$5')).toBe(
+      '**Area** $\\pi r_*^2$, $$\\sum$$ and $`a_b`$ for \\$5',
+    );
+    expect(markdownOfEmphasis('**bold $x$**')).toBe('**bold $x$**');
+    expect(markdownOfEmphasis('| a |\n|---|\n| $\\|x\\|$ |')).toBe('| a |\n| --- |\n| $\\|x\\|$ |');
+  });
+
+  it('writes a math block between $$ lines, or in a math fence when $$ cannot hold it', () => {
+    expect(markdownOfEmphasis('Sum:\n\n$$\n\\sum_i\n  x_i\n$$\n\n$$e^x$$')).toBe(
+      'Sum:\n\n$$\n\\sum_i\n  x_i\n$$\n\n$$\ne^x\n$$',
+    );
+    expect(markdownOfEmphasis('```math\na\n$$\nb\n```\n\n```math\n```')).toBe(
+      '```math\na\n$$\nb\n```\n\n```math\n```',
+    );
+    expect(markdownOfEmphasis('- $$x$$')).toBe('- $$\n  x\n  $$');
+  });
+
   it('writes text that reads back as the same text, whatever it holds', () => {
     // Read back without <mark> and <ins>, which GitHub keeps but the core's reader does not take.
     const anyText = fc
@@ -80,6 +98,7 @@ describe('markdownOfEmphasis', () => {
         fc.oneof(
           fc.constantFrom('*', '**', '_', '~~', '`', '[', ']', '(', ')', '\\', '|', '#', '>', '-'),
           fc.constantFrom(' ', '\n', '\n\n', '1.', 'a', 'b', 'https://x.example', '<', '&'),
+          fc.constantFrom('$', '$$', '$x$', '\\$', '$`', '1', '$$\n', '```math\n'),
         ),
         { maxLength: 30 },
       )
