@@ -8,6 +8,8 @@ import { App } from './App';
 import { tabUse } from './guidance/tabs';
 import { takeSessionToken } from './live/session';
 import './styles.css';
+// KaTeX's fonts, as files of the app's, for Math in panels (ADR 0106); the read-only page has its own.
+import './text/katex-fonts.css';
 
 const mountPoint = document.getElementById('root');
 if (!mountPoint) throw new Error('index.html has no #root element.');

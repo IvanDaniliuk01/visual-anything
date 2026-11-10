@@ -26,11 +26,17 @@ import type { ProjectSnapshot } from './snapshot';
 import { definitionsIn, modelIndexOf } from './state';
 import { geometryFindings } from './geometry';
 import { readBlocks } from './scenarios/blocks';
+import { mathFindings } from './math/check';
 
 /** What is wrong with a project. */
 export interface ProjectCheck {
   errors: Problem[];
   warnings: Problem[];
+  /**
+   * What is only told, neither wrong nor warned about, such as a text read as Math (ADR 0106), so
+   * that a person can tell whether it was meant. Present only when there is something to tell.
+   */
+  notices?: Problem[];
 }
 
 /** Checks a project as read from its files. */
@@ -393,7 +399,12 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
   warnings.push(...duplicateExternalIdWarnings(state), ...destinationWarnings(state, definitions));
   // Threads of comments (ADR 0059): detached ones are kept, ids are not repeated.
   errors.push(...threadErrors(state));
-  return { errors, warnings };
+  // Math that cannot be typeset only warns, drawn as its TeX; a text read as Math is told (ADR 0106).
+  const math = mathFindings(state, definitions);
+  warnings.push(...math.warnings);
+  return math.notices.length > 0
+    ? { errors, warnings, notices: math.notices }
+    : { errors, warnings };
 }
 
 /** The shapes that cannot draw rows. */
