@@ -10,6 +10,7 @@
 import { solidsIn, type ProjectSnapshot, type ThemeName } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { t } from '../i18n';
+import { writtenWithMath } from './math-svg';
 import { writeMermaid } from './mermaid';
 import { writeOutline } from './outline';
 import { writePdf } from './pdf';
@@ -170,7 +171,12 @@ export async function exportView(
   signal?.throwIfAborted();
   switch (format) {
     case 'svg':
-      return textOf(writeSvg(project, viewId, { ...theme, outlineFile, ...solids, ...media }));
+      // A drawing with Math is written with its glyphs' outlines, loaded only then (ADR 0106).
+      return textOf(
+        await writtenWithMath(() =>
+          writeSvg(project, viewId, { ...theme, outlineFile, ...solids, ...media }),
+        ),
+      );
     case 'md':
       return textOf(writeOutline(project, viewId));
     case 'mermaid':

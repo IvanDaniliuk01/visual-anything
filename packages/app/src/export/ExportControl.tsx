@@ -48,6 +48,7 @@ import {
   gatherPageMedia,
   gatherPageSolids,
   makePage,
+  mathFontsOfProject,
   pageFileName,
   sizeText,
   type GatheredSolids,
@@ -420,7 +421,13 @@ function ExportDialog({
     const held: PageSolidForm = showsSolids ? form : 'files';
     const holdsWorker = (showsSolids || posed) && held === 'files';
     const assets =
-      page.assets ?? (() => fetchViewerAssets(undefined, undefined, { solidWorker: holdsWorker }));
+      page.assets ??
+      (() =>
+        fetchViewerAssets(undefined, undefined, {
+          solidWorker: holdsWorker,
+          // KaTeX's fonts its formulas use, and only those (ADR 0106).
+          mathFonts: mathFontsOfProject(page.project),
+        }));
     const source = page.solids;
     Promise.all([
       assets(),

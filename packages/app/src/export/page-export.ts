@@ -8,13 +8,19 @@
  * sends as it sends them to the canvas, with the solid worker the program serves beside the viewer;
  * or, when the person asks, only the pictures the solid worker draws of them here.
  */
-import { encodeBase64, mediaNamedBy, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  encodeBase64,
+  mediaNamedBy,
+  type MathFont,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import type { MediaFiles } from '../canvas/pictures/files';
 import { solidPictureKey } from '../canvas/shape-solids';
 import type { SolidFiles } from '../solids/solid-client';
 import { solidAskFor } from '../solids/ask';
 import { solidBucketFor } from '../solids/views';
 import { pageDataOf } from '../viewer/data';
+import { mathFontFile, mathFontsOfFiles } from '../viewer/math-families';
 import { pageTitle, writePage, type ViewerAssets, type WrittenPage } from '../viewer/page';
 import {
   pagePictureOf,
@@ -40,17 +46,23 @@ export class ViewerMissing extends Error {
 }
 
 /** Fetches a file the local program serves. */
-export type Fetch = (url: string) => Promise<Pick<Response, 'ok' | 'headers' | 'text'>>;
+export type Fetch = (
+  url: string,
+) => Promise<Pick<Response, 'ok' | 'headers' | 'text'> & Partial<Pick<Response, 'arrayBuffer'>>>;
 
 /**
- * The viewer's script and stylesheet, fetched from the local program beside the app, and the solid
- * worker when `solidWorker` asks for it. A response that is not the file asked for, as a page served
- * in its place, counts as missing.
+ * The viewer's script and stylesheet, fetched from the local program beside the app, the solid
+ * worker when `solidWorker` asks for it, and KaTeX's fonts that `mathFonts` names (ADR 0106). A
+ * response that is not the file asked for, as a page served in its place, counts as missing; a font
+ * that is missing is left out, and the page's formulas draw without its glyphs.
  */
 export async function fetchViewerAssets(
   base: string = document.baseURI,
   fetchFile: Fetch = (url) => fetch(url),
-  { solidWorker = false }: { solidWorker?: boolean } = {},
+  {
+    solidWorker = false,
+    mathFonts = [],
+  }: { solidWorker?: boolean; mathFonts?: readonly MathFont[] } = {},
 ): Promise<ViewerAssets> {
   const get = async (path: string, type: RegExp): Promise<string> => {
     let response: Awaited<ReturnType<Fetch>>;
@@ -64,12 +76,36 @@ export async function fetchViewerAssets(
     }
     return response.text();
   };
-  const [script, style, worker] = await Promise.all([
+  const font = async (name: MathFont): Promise<[MathFont, Uint8Array] | undefined> => {
+    try {
+      const response = await fetchFile(new URL(`viewer/${mathFontFile(name)}`, base).href);
+      if (!response.ok || !/font\/woff2/i.test(response.headers.get('content-type') ?? '')) {
+        return undefined;
+      }
+      if (!response.arrayBuffer) return undefined;
+      return [name, new Uint8Array(await response.arrayBuffer())];
+    } catch {
+      return undefined;
+    }
+  };
+  const [script, style, worker, fonts] = await Promise.all([
     get(VIEWER_FILES.script, /javascript/i),
     get(VIEWER_FILES.style, /css/i),
     solidWorker ? get(VIEWER_FILES.solidWorker, /javascript/i) : Promise.resolve(undefined),
+    Promise.all(mathFonts.map(font)),
   ]);
-  return { script, style, ...(worker === undefined ? {} : { solidWorker: worker }) };
+  const held = fonts.filter((each) => each !== undefined);
+  return {
+    script,
+    style,
+    ...(worker === undefined ? {} : { solidWorker: worker }),
+    ...(held.length === 0 ? {} : { mathFonts: Object.fromEntries(held) }),
+  };
+}
+
+/** The families of KaTeX's fonts a project's Math uses, which its page holds (ADR 0106). */
+export function mathFontsOfProject(project: ProjectSnapshot): MathFont[] {
+  return mathFontsOfFiles(pageDataOf(project));
 }
 
 /** How a page holds the solids its views show: their files, to turn them, or only their pictures. */

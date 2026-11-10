@@ -33,6 +33,7 @@ import { drawingName } from '../canvas/comparison/text';
 import { statusName } from '../versions/changes/describe';
 import { element, empty, num, textElement } from './markup';
 import { textWidth } from './measure';
+import { writtenWithMath } from './math-svg';
 import { PDF_PICTURES, pdfOfSvg, type PdfFile, type PdfOptions } from './pdf';
 import { svgOfScene, type SvgDrawing, type SvgOptions } from './svg';
 
@@ -495,13 +496,16 @@ export async function writeComparisonPdf(
   options: ComparisonPdfOptions = {},
 ): Promise<PdfFile> {
   options.signal?.throwIfAborted();
-  const drawing = svgOfComparison(older, newer, viewId, comparison, {
-    ...(options.theme === undefined ? {} : { theme: options.theme }),
-    ...(options.drawing === undefined ? {} : { drawing: options.drawing }),
-    ...(options.faint === undefined ? {} : { faint: options.faint }),
-    ...(options.title === undefined ? {} : { title: options.title }),
-    ...PDF_PICTURES,
-  });
+  // Math is drawn with its glyphs' outlines, loaded only when the drawing holds some (ADR 0106).
+  const drawing = await writtenWithMath(() =>
+    svgOfComparison(older, newer, viewId, comparison, {
+      ...(options.theme === undefined ? {} : { theme: options.theme }),
+      ...(options.drawing === undefined ? {} : { drawing: options.drawing }),
+      ...(options.faint === undefined ? {} : { faint: options.faint }),
+      ...(options.title === undefined ? {} : { title: options.title }),
+      ...PDF_PICTURES,
+    }),
+  );
   const view =
     newer.views.find((each) => each.id === viewId) ??
     older.views.find((each) => each.id === viewId);

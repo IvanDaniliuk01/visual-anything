@@ -25,9 +25,10 @@ describe('markdownInline', () => {
       fc.property(fc.string(), (text) => {
         const written = markdownInline(text);
         expect(written).not.toMatch(/[\r\n]/);
-        // Each markup character comes right after a backslash that is not itself escaped.
-        const unescaped = written.replace(/\\[\\`*_[\]{}()#+!|~<>]/g, '');
-        expect(unescaped).not.toMatch(/[\\`*_[\]{}()#+!|~<>]/);
+        // Each markup character comes right after a backslash that is not itself escaped: `$` too,
+        // which opens Math (ADR 0106).
+        const unescaped = written.replace(/\\[\\`*_[\]{}()#+!|~<>$]/g, '');
+        expect(unescaped).not.toMatch(/[\\`*_[\]{}()#+!|~<>$]/);
         expect(unescaped).not.toMatch(/&(?!amp;)/);
       }),
     );

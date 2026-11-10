@@ -4,10 +4,15 @@
  * that no reader flows it again, in its weight, style and family; and each band a `<rect>`, so that
  * SVG-to-PDFKit draws it exactly. Highlights and code are drawn on the backs that read under the
  * text's color (`emphasisBacks`), lines in the text's color.
+ *
+ * A formula (ADR 0106) is drawn from its math drawing, glyphs as outlines (`math-svg.ts`), on its
+ * line's baseline; its rules are among the line's bands. A formula that failed is its TeX, a piece of
+ * text like any other.
  */
 import type { Color } from '@visual-anything/schema';
 import { emphasisBacks } from '../canvas/colors';
 import type { FontVariant, LaidPiece, LaidText, Measure } from '../text/layout';
+import { MathSvg } from './math-svg';
 import { element, empty, textElement } from './markup';
 
 /** The family a monospace run is written in: Roboto Mono, which the PDF embeds. */
@@ -26,7 +31,8 @@ function pieceValues(piece: LaidPiece): Record<string, string | number | undefin
 
 /**
  * A laid out text written at (x, y), its box's top left, in `fill`. `texts` gets each line's text,
- * for the PDF's check of the glyphs its fonts lack.
+ * for the PDF's check of the glyphs its fonts lack; `math` writes its formulas, keeping what they
+ * share in the document's `<defs>`; without it, they are written with `<defs>` of their own.
  */
 export function laidTextSvg(
   laid: LaidText,
@@ -34,8 +40,10 @@ export function laidTextSvg(
   fill: Color,
   measure: Measure,
   texts?: string[],
+  math?: MathSvg,
 ): string {
   const backs = emphasisBacks(fill);
+  const formulas = math ?? new MathSvg(new Map());
   let written = '';
   for (const line of laid.lines) {
     for (const band of line.bands) {
@@ -59,7 +67,22 @@ export function laidTextSvg(
       written += empty('rect', { ...rect, fill: color });
     }
     const spans: string[] = [];
+    let drawn = '';
     for (const piece of line.pieces) {
+      if (piece.math) {
+        drawn += formulas.formula(
+          {
+            drawing: piece.math.drawing,
+            x: at.x + piece.x,
+            baseline: at.y + line.baseline,
+            size: piece.math.size,
+            ...(piece.math.clip === undefined ? {} : { clip: piece.math.clip }),
+            tex: piece.text,
+          },
+          fill,
+        );
+        continue;
+      }
       // Spaces at a piece's start are moved past, since readers of SVG fold them away.
       const text = piece.text.trimStart();
       if (text.trim() === '') continue;
@@ -69,11 +92,18 @@ export function laidTextSvg(
         textElement('tspan', { x, y: at.y + line.baseline, ...pieceValues(piece) }, text.trimEnd()),
       );
     }
-    if (spans.length === 0) continue;
-    texts?.push(line.pieces.map((piece) => piece.text).join(''));
-    written += element('text', { fill }, spans.join(''));
+    if (spans.length > 0) {
+      texts?.push(
+        line.pieces
+          .filter((piece) => !piece.math)
+          .map((piece) => piece.text)
+          .join(''),
+      );
+      written += element('text', { fill }, spans.join(''));
+    }
+    written += drawn;
   }
-  return written;
+  return math ? written : formulas.defs + written;
 }
 
 /** Whether SVG written with text emphasis uses a font the PDF embeds only when needed. */

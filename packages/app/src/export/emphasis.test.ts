@@ -11,6 +11,7 @@ import { loadSample } from '../test/sample';
 import { markdownOfEmphasis } from './markdown';
 import { writeMermaid } from './mermaid';
 import { writeOutline } from './outline';
+import { losesEmphasis } from './plain-texts';
 import { writeStructurizr } from './structurizr';
 
 const LOST = 'text emphasis (bold, italic and the rest) is written as plain text';
@@ -171,6 +172,49 @@ describe('Mermaid and Structurizr', () => {
     const project = loadSample();
     expect(writeMermaid(project, SAMPLE_VIEW).lost.join(' ')).not.toContain('emphasis');
     expect(writeStructurizr(project, SAMPLE_VIEW).lost.join(' ')).not.toContain('emphasis');
+  });
+});
+
+/** The sample, a description and the view's holding Math (ADR 0106), and no other markup. */
+function withMath(): ProjectSnapshot {
+  const project = loadSample();
+  return {
+    ...project,
+    model: {
+      ...project.model,
+      elements: project.model.elements.map((element, at) =>
+        at === 1 ? { ...element, description: 'Holds $\\frac{a}{b}$ of $`x`$ rows.' } : element,
+      ),
+    },
+    views: project.views.map((view) =>
+      view.id === SAMPLE_VIEW
+        ? { ...view, description: 'The loss:\n\n$$\nL = \\sum_i e_i^2\n$$' }
+        : view,
+    ),
+  };
+}
+
+describe('Math in Mermaid and Structurizr (ADR 0106)', () => {
+  it('writes the TeX as typed, and says nothing of emphasis for a text whose only markup is Math', () => {
+    setCurrentLanguage('en');
+    const mermaid = writeMermaid(withMath(), SAMPLE_VIEW);
+    expect(mermaid.text).toContain('accDescr: The loss: $$L = \\sum_i e_i^2$$');
+    expect(mermaid.lost.join(' ')).not.toContain('emphasis');
+    const structurizr = writeStructurizr(withMath(), SAMPLE_VIEW);
+    // The DSL holds no backslash, which it writes "∖" in every text (`dslString`).
+    expect(structurizr.text).toContain('"Holds $∖frac{a}{b}$ of $`x`$ rows."');
+    expect(structurizr.lost.join(' ')).not.toContain('emphasis');
+  });
+
+  it('still says so when a text holding Math has other emphasis too', () => {
+    setCurrentLanguage('en');
+    expect(losesEmphasis('the **loss** $x^2$')).toBe(true);
+    expect(losesEmphasis('the loss $x^2$, then $$y$$')).toBe(false);
+    expect(losesEmphasis('the loss:\n\n```math\nx^2\n```')).toBe(false);
+    expect(losesEmphasis('- $x^2$')).toBe(true);
+    // A text without Math is judged as before: an escape is written as the character it escapes.
+    expect(losesEmphasis('a \\* b')).toBe(true);
+    expect(losesEmphasis('plain $20 and $30')).toBe(false);
   });
 });
 

@@ -218,6 +218,7 @@ import { textWidth } from './measure';
 import { LINE_HEIGHT, layOutText, type TextSpec } from './text-layout';
 import { BASE_DRAWING } from '../canvas/drawing';
 import { laidTextSvg } from './emphasis-svg';
+import { MathSvg } from './math-svg';
 import { exportedFaceShow, faceSvg } from './face-svg';
 import { parseEmphasis } from '@visual-anything/core';
 import { outlinedTextBlock } from '../canvas/outlinedText';
@@ -362,6 +363,11 @@ export interface SvgDrawing {
   attribution: string[];
   /** The drawing as its layers hold it, for a reader that draws it piece by piece (`svgPieces`). */
   layers: SvgLayers;
+  /**
+   * Set when it holds Math written before the glyphs' outline table was loaded, its glyphs then
+   * characters in KaTeX's fonts: an export loads the table and writes it again (`writtenWithMath`).
+   */
+  mathOutlinesWanted?: true;
 }
 
 /** A layer of a drawing: a group, and what it holds, part by part, in the order they are drawn. */
@@ -486,6 +492,8 @@ class Writer {
   readonly #outlines = new Map<FittedOutline, OutlineSymbols>();
   /** The pictures' and outlines' symbols and filters, by their ids, in the order they were first needed. */
   readonly defsById = new Map<string, string>();
+  /** What writes its formulas (ADR 0106), keeping their glyphs and paths among its defs. */
+  readonly math = new MathSvg(this.defsById);
   readonly #filters = new Set<Color>();
   readonly #byKey: ReadonlyMap<string, ElementShape>;
   readonly #bitmaps: ReadonlySet<BitmapFormat>;
@@ -1132,6 +1140,7 @@ export function svgOfScene(
     texts: writer.texts,
     attribution,
     layers: { root, defs: new Map(writer.defsById), background, layers },
+    ...(writer.math.outlinesWanted ? { mathOutlinesWanted: true as const } : {}),
   };
 }
 
@@ -1468,8 +1477,13 @@ function faceOf(
   const icon =
     pictureOn(shape) !== undefined && drawing.images.some((each) => each.kind === 'icon');
   return {
-    svg: faceSvg(drawing, at, palette, writer.texts, (image, rect) =>
-      facePicture(writer, shape, image, rect),
+    svg: faceSvg(
+      drawing,
+      at,
+      palette,
+      writer.texts,
+      (image, rect) => facePicture(writer, shape, image, rect),
+      writer.math,
     ),
     icon,
   };
@@ -1968,6 +1982,7 @@ function styledText(
         colors.detail,
         robotoMeasure,
         writer.texts,
+        writer.math,
       )
     );
   }
@@ -2172,6 +2187,7 @@ function centredText(
         colors.detail,
         robotoMeasure,
         writer.texts,
+        writer.math,
       )
     );
   }
@@ -2470,6 +2486,7 @@ function outlinedText(
         colors.detail,
         robotoMeasure,
         writer.texts,
+        writer.math,
       )
     );
   }
@@ -3062,6 +3079,7 @@ function noteParts(writer: Writer, note: NoteShape): string {
             colors.text,
             robotoMeasure,
             writer.texts,
+            writer.math,
           )
         : writer.text({
             text: note.text,

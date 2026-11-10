@@ -12,6 +12,7 @@ import { ViewerApp } from './Viewer';
 import { pageSolidClient, pageWorkerStart } from './solid-clients';
 import { pageHasSpace } from './solids';
 import { embeddedMediaFiles } from '../canvas/pictures/media';
+import { installPageMathFonts } from './math-fonts';
 
 const mountPoint = document.getElementById('root');
 if (!mountPoint) throw new Error('The page has no #root element.');
@@ -26,6 +27,9 @@ const read: PageRead =
 if (read.ok && read.start !== undefined && window.location.hash.replace(/^#/, '') === '') {
   window.history.replaceState(window.history.state, '', `#${read.start}`);
 }
+
+// KaTeX's fonts the page holds, for its canvas and its panels, before anything draws (ADR 0106).
+installPageMathFonts(read.ok ? (read.mathFonts ?? new Map()) : new Map());
 
 const preferences = new PagePreferences(window);
 

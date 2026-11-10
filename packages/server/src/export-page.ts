@@ -17,9 +17,11 @@ import {
   encodeBase64,
   mediaNamedBy,
   writeViewState,
+  type MathFont,
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import { pageDataOf } from '@visual-anything/app/src/viewer/data';
+import { MATH_FAMILIES, mathFontFile } from '@visual-anything/app/src/viewer/math-families';
 import {
   holdsPoses,
   solidHashesShown,
@@ -184,17 +186,26 @@ function megabytes(bytes: number): string {
 export async function builtViewer(files?: AppFiles): Promise<ViewerAssets | undefined> {
   const from = files ?? (isExecutable() ? embeddedAppFiles() : await appFolderFiles());
   if (from === undefined) return undefined;
-  const [script, style, solidWorker] = await Promise.all([
+  const [script, style, solidWorker, fonts] = await Promise.all([
     from.read('viewer/viewer.js'),
     from.read('viewer/viewer.css'),
     from.read('viewer/solid-worker.js'),
+    // KaTeX's fonts, of which a page holds those its Math uses (ADR 0106).
+    Promise.all(
+      MATH_FAMILIES.map(
+        async (font) => [font, await from.read(`viewer/${mathFontFile(font)}`)] as const,
+      ),
+    ),
   ]);
   if (script === undefined || style === undefined) return undefined;
   const text = new TextDecoder('utf-8', { fatal: true });
+  const mathFonts: Partial<Record<MathFont, Uint8Array>> = {};
+  for (const [font, bytes] of fonts) if (bytes !== undefined) mathFonts[font] = bytes;
   return {
     script: text.decode(script),
     style: text.decode(style),
     ...(solidWorker === undefined ? {} : { solidWorker: text.decode(solidWorker) }),
+    ...(Object.keys(mathFonts).length === 0 ? {} : { mathFonts }),
   };
 }
 

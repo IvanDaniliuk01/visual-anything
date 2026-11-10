@@ -28,6 +28,7 @@ import {
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { svgOfComparison } from '@visual-anything/app/src/export/comparison';
+import { writtenWithMath } from '@visual-anything/app/src/export/math-svg';
 import {
   writeComparisonSummary,
   type SummaryDrawings,
@@ -269,11 +270,14 @@ async function compare(line: CompareCommandLine, environment: CompareEnvironment
     const links: SummaryDrawings = {};
     for (const drawing of DRAWINGS) {
       const name = `${stem}.${drawing}.svg`;
-      const svg = svgOfComparison(older.project, newer.project, view, whole, {
-        drawing,
-        theme: line.theme,
-        title: titleOf(older.named, newer.named),
-      });
+      // Math is drawn with its glyphs' outlines, loaded only when a drawing holds some (ADR 0106).
+      const svg = await writtenWithMath(() =>
+        svgOfComparison(older.project, newer.project, view, whole, {
+          drawing,
+          theme: line.theme,
+          title: titleOf(older.named, newer.named),
+        }),
+      );
       // A view one version lacks is drawn empty there, which loses nothing of it.
       const lacks =
         (drawing === 'before' && !hasView(older.project, view)) ||

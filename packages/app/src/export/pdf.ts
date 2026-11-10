@@ -32,6 +32,7 @@ import type { Id } from '@visual-anything/schema';
 import { t, type PluralText } from '../i18n';
 import { MEDIUM_FAMILY, svgPieces, writeSvg, type SvgDrawing, type SvgOptions } from './svg';
 import { usesEmphasisFonts } from './emphasis-svg';
+import { writtenWithMath } from './math-svg';
 
 /** Points to a canvas unit: a CSS pixel is three quarters of a point. */
 const POINTS_PER_UNIT = 0.75;
@@ -215,13 +216,17 @@ export async function writePdf(
 ): Promise<PdfFile> {
   const { signal } = options;
   signal?.throwIfAborted();
-  const drawing = writeSvg(project, viewId, {
-    ...(options.theme === undefined ? {} : { theme: options.theme }),
-    ...(options.outline === undefined ? {} : { outlineFile: options.outline.file }),
-    ...(options.solids === undefined ? {} : { solids: options.solids }),
-    ...(options.media === undefined ? {} : { media: options.media }),
-    ...PDF_PICTURES,
-  });
+  // Math is drawn with its glyphs' outlines, loaded only when the drawing holds some (ADR 0106).
+  const drawing = await writtenWithMath(() =>
+    writeSvg(project, viewId, {
+      ...(options.theme === undefined ? {} : { theme: options.theme }),
+      ...(options.outline === undefined ? {} : { outlineFile: options.outline.file }),
+      ...(options.solids === undefined ? {} : { solids: options.solids }),
+      ...(options.media === undefined ? {} : { media: options.media }),
+      ...PDF_PICTURES,
+    }),
+  );
+  signal?.throwIfAborted();
   const view = project.views.find((each) => each.id === viewId);
   const subject = view?.description?.trim();
   return pdfOfSvg(
