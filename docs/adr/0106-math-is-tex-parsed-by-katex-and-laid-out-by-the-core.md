@@ -70,3 +70,8 @@ The user explains mathematical modules with Visual Anything and asked for "un co
   - Past 200 formulas in a text, the rest read as typed: a formula within a line as plain text, a `$$` block as a paragraph, a math fence as code.
   - `escapeEmphasis` escapes a `$` only when a character other than a space or a line break follows it, which is enough for no formula to open.
   - The Markdown export writes a formula as typed and escapes the other dollars, so GitHub reads the same Math.
+- **2026-11-10, A9's layout.** Decided while building, under the user's delegation:
+  - The golden test holds every glyph within 0.5 px of Chrome at four sizes with the browser's snapping emulated, and the em layout the app draws within 1.15 px: only an array with three separators and `\hline`s gathers about 0.38 px a separator. A separator keeps KaTeX's least width of 1/16 em.
+  - KaTeX runs with `maxExpand: 1000` (its default), `maxSize: 100` ems and `strict: 'ignore'`, shared as `MATH_KATEX_OPTIONS` so that the panels typeset with the same settings.
+  - Besides the four refused commands, these draw as their TeX with `math-error` until the layout knows them: `\raisebox`, `\vcenter`, `\tag`, the `CD` environment and numbered environments (their starred forms draw), `\includegraphics`, `\url`, `\htmlStyle`, `\htmlClass`, `\htmlId`, `\htmlData`, and any character KaTeX's fonts lack.
+  - The outline table is about 1.3 MB (about 370 KB compressed), larger than first thought, so it lives behind its own entry, `@visual-anything/core/math-outlines`, and never reaches the canvas's bundle; exports load it when they write Math.
