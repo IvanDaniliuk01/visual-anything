@@ -195,6 +195,10 @@ _Avoid_: template, card (the Hover card is not a face), skin
 What laying a face out for one element answers: boxes, runs of text in Roboto with their bands, images by id, and the places where its rows, its contents and its package code's drawing go, with its height and whether anything was cut. The core makes it, the same in Node and the browser, and the canvas, the exports and the page draw it as it is (ADR 0083).
 _Avoid_: render, rendering, template output
 
+**Math**:
+Mathematical notation in a text, written in TeX between `$…$` within a line or `$$…$$` as a block of its own, and drawn as typeset notation wherever the text shows: on the canvas, in the inspector, in tours, in exports and in explorables. Only the notation is typeset; nothing compiles a whole document.
+_Avoid_: formula (a computed value is something else), equation (alone), LaTeX document, compile
+
 **Text emphasis**:
 Bold, italic, strikethrough, inline code, highlight and underline in a text, written as a small Markdown subset (`**bold**`, `*italic*`, `~~struck~~`, `` `code` ``, `==highlight==`, `++underline++`) and stored as typed. Notes, captions, reveals, speaker notes and descriptions always take it, and with it Markdown's blocks: headings, lists, task lists, quotes, rules, fenced code, tables and links to `http:`, `https:` and `mailto:` addresses. A text attribute takes the inline part when its definition's format is `emphasis`; names never do (ADR 0082). Not the canvas's emphasis of a shape.
 _Avoid_: rich text, formatting, markup
@@ -258,6 +262,14 @@ _Avoid_: badge (a badge is a text in a shape's detail), label, annotation, tag (
 **Anchored part**:
 An element's shape drawn as a named part, because its appearance names that part: inside a drawing with parts, in the part's place and at its size, with no position of its own in the view, as a row has none; elsewhere on its own, with the part's outline as its free geometry and the part's picture inside it. A part of a solid is drawn in the solid's picture, where relations end at its point, and in the physical-space panel in its place in the solid. It is selected, related, focused, filtered and colored as any shape of its element.
 _Avoid_: hotspot, mapped area, region (a region is a container drawn as an area), overlay (an overlay is a rule of a view)
+
+**Explorable**:
+A page of HTML, CSS and JavaScript, kept in the project, that explains something by letting a person play with it: a function's graph with sliders, an algorithm stepping through its data. An element shows it, or every element of a component, each with its own data, or it sits loose on the canvas; it reads the data of what shows it, and a tour step can set what it shows. It runs walled off from the app, the person's files and the network, and only once the person approves it; on the canvas it is a still picture until explored.
+_Avoid_: widget, applet, plugin, page (a read-only page is something else), HTML view, iframe, visualization
+
+**Explorable panel**:
+A panel beside the canvas, open with or without the physical-space panel, that shows the explorable of the selected element live.
+_Avoid_: HTML viewer, HTML panel, preview, viewport
 
 **Solid**:
 The form of something in three dimensions, as a package defines it: a glTF file the local program cleaned of anything that runs or names anything outside it, kept in the project's `solids/` folder under its hash, with its description, its named parts and the camera its pictures are drawn from. An appearance shows it as an icon, as the shape's drawing or with its named parts. The canvas draws it as a picture, and live only while it is turned (ADR 0075).
