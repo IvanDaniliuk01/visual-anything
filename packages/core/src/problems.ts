@@ -3,6 +3,9 @@ import type { Id } from '@visual-anything/schema';
 /** What kind of problem a command or a project has. Stable, so programs and Claude can act on it. */
 export type ProblemCode =
   | 'invalid-command'
+  // Math (ADR 0106): a formula drawn as its TeX, a warning; and a text read as Math, a notice.
+  | 'math-error'
+  | 'reads-as-math'
   /** A file holds conflicts from a merge (ADR 0072). */
   | 'merge-conflict'
   /** A proposal of Claude's holds as much as one can (ADR 0073). */

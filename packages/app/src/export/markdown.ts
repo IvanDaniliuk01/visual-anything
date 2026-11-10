@@ -154,6 +154,9 @@ function blockMarkdown(
       const fence = '`'.repeat(Math.max(3, longest + 1));
       return [fence, ...(block.text === '' ? [] : block.text.split('\n')), fence];
     }
+    case 'math':
+      // A formula on lines of its own keeps its TeX as written (ADR 0106).
+      return ['$$', ...block.tex.split('\n'), '$$'];
     case 'table': {
       const row = (cells: readonly (readonly EmphasisRun[])[]) =>
         `| ${block.align.map((_, column) => runsMarkdown(cells[column] ?? [], true)).join(' | ')} |`;

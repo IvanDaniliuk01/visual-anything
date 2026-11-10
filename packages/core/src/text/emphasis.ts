@@ -40,6 +40,12 @@ export interface EmphasisRun {
   highlight: boolean;
   /** The address the run opens when clicked: `http:`, `https:` or `mailto:` only. */
   link?: string;
+  /**
+   * Set on a run that is a formula (ADR 0106): `$…$` or `` $`…`$ `` within a line, `$$…$$` within a
+   * line in display style. Its `text` is the TeX as written, with its delimiters, so that what reads
+   * runs as plain text reads the notation; it takes no emphasis inside.
+   */
+  math?: { tex: string; display: boolean };
 }
 
 /** Where a table's column puts its text. */
@@ -64,6 +70,8 @@ export type EmphasisBlock =
   | { kind: 'rule' }
   /** Fenced code: its text as written, never highlighted as a language and never run. */
   | { kind: 'code'; text: string }
+  /** A formula on lines of its own (ADR 0106): `$$…$$` alone, or a fence whose language is `math`. */
+  | { kind: 'math'; tex: string }
   /** A GitHub table: a cell is its runs, and a row has as many cells as the head. */
   | { kind: 'table'; align: TableAlign[]; head: EmphasisRun[][]; rows: EmphasisRun[][][] };
 

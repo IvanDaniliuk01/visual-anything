@@ -404,6 +404,8 @@ export type { TextBlock } from './plain-text';
 export { textBlocks } from './plain-text';
 // Text emphasis (ADR 0082): the Markdown subset texts take, read into blocks and runs.
 export * from './text/emphasis';
+// Math (ADR 0106): formulas typeset by KaTeX and laid out by the core.
+export * from './math';
 // Roboto's widths (ADR 0083), which faces are laid out in and the exports measure with.
 export type { RobotoVariant } from './text/roboto';
 export { ROBOTO_VARIANTS, robotoEms, robotoWidth, unmeasuredEms } from './text/roboto';
