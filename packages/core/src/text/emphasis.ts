@@ -12,7 +12,15 @@
  *
  * Nothing it answers is HTML: a reader of runs writes them as text, so a `<u>` in a text is drawn as
  * the three characters it is.
+ *
+ * It also reads Math (ADR 0106), before emphasis and as a code span is read, by Pandoc's
+ * `tex_math_dollars` rule: `$…$` and GitHub's `` $`…`$ `` within a line, `$$…$$` within a line in
+ * display style, and, in a text that takes blocks, `$$` on lines of its own, a line that is one
+ * `$$…$$`, or a fence whose language is `math` as a math block. At most `MAX_MATH_PER_TEXT`
+ * formulas are read; the rest stay text as typed.
  */
+
+import { MAX_MATH_PER_TEXT } from '../math/drawing';
 
 /** The most runs a text is read into; past them the rest of each text is one plain run. */
 export const MAX_EMPHASIS_RUNS = 4_000;
@@ -87,7 +95,7 @@ export interface EmphasisOptions {
 
 /** Reads a text into blocks of runs. It never throws: whatever it cannot read is plain text. */
 export function parseEmphasis(text: string, options: EmphasisOptions): EmphasisBlock[] {
-  const context: Context = { runs: 0, blocks: 0 };
+  const context: Context = { runs: 0, blocks: 0, math: 0 };
   const normalized = text.replace(/\r\n?/g, '\n');
   try {
     if (!options.blocks) {
@@ -114,7 +122,8 @@ export function emphasisRuns(text: string): EmphasisRun[] {
 /**
  * A text without the markers it was read with: for search, find, filters on text, sorting and what
  * is announced. Blocks are written a line each, a link as its label, and a table's cells with a tab
- * between them.
+ * between them. Math keeps its TeX as written, delimiters and all: `$tex$` for a formula within a
+ * line, `$$tex$$` for a math block (ADR 0106).
  */
 export function plainText(text: string, options: EmphasisOptions = { blocks: true }): string {
   return blocksText(parseEmphasis(text, options));
@@ -145,6 +154,10 @@ export function blocksText(blocks: readonly EmphasisBlock[]): string {
           break;
         case 'code':
           lines.push(block.text);
+          break;
+        case 'math':
+          // The TeX as written, so that search and screen readers read the notation (ADR 0106).
+          lines.push(`$$${block.tex}$$`);
           break;
         case 'table':
           for (const row of [block.head, ...block.rows]) lines.push(row.map(runsText).join('\t'));
@@ -195,6 +208,17 @@ export function escapeEmphasis(text: string): string {
       case '|':
         out += `\\${char}`;
         break;
+      case '$': {
+        // A dollar that could open Math (ADR 0106): one with a character other than a space or a
+        // line break right after it. With none open, no dollar closes one, so SQL's `$1` or
+        // `$20 and $30` read back as written.
+        const next = text[at + 1];
+        out +=
+          next === undefined || next === ' ' || next === '\t' || next === '\n' || next === '\r'
+            ? '$'
+            : '\\$';
+        break;
+      }
       case '_':
         out += isWordCharacter(text, at - 1, -1) && isWordCharacter(text, at + 1, 1) ? '_' : '\\_';
         break;
@@ -240,6 +264,8 @@ export function escapeEmphasis(text: string): string {
 interface Context {
   runs: number;
   blocks: number;
+  /** The formulas read so far, runs and blocks, in reading order (ADR 0106). */
+  math: number;
 }
 
 interface Depth {
@@ -264,6 +290,16 @@ function readBlocks(source: readonly string[], depth: Depth, context: Context): 
   const add = (block: EmphasisBlock) => {
     context.blocks++;
     blocks.push(block);
+  };
+  /** A math block or, past the most formulas a text takes, a paragraph of its lines as typed. */
+  const addMath = (tex: string, typed: string) => {
+    if (context.math < MAX_MATH_PER_TEXT) {
+      context.math++;
+      add({ kind: 'math', tex });
+    } else {
+      context.runs++;
+      add({ kind: 'paragraph', runs: [plainRun(typed)] });
+    }
   };
   let at = 0;
   while (at < lines.length) {
@@ -297,8 +333,34 @@ function readBlocks(source: readonly string[], depth: Depth, context: Context): 
           }
           code.push(candidate.slice(Math.min(indent, candidateIndent)));
         }
-        add({ kind: 'code', text: code.join('\n') });
+        // A fence whose language is `math` is GitHub's form of a math block (ADR 0106).
+        if (fence.math && context.math < MAX_MATH_PER_TEXT) {
+          context.math++;
+          add({ kind: 'math', tex: code.join('\n') });
+        } else add({ kind: 'code', text: code.join('\n') });
         at = next;
+        continue;
+      }
+      const closer = mathCloserOf(lines, at);
+      if (closer !== undefined) {
+        // `$$` on a line of its own, up to the next: the lines between are the TeX.
+        const tex = lines
+          .slice(at + 1, closer)
+          .map((candidate) => candidate.slice(Math.min(indent, leadingSpaces(candidate))));
+        addMath(
+          tex.join('\n'),
+          lines
+            .slice(at, closer + 1)
+            .map(trimLeadingSpaces)
+            .join('\n'),
+        );
+        at = closer + 1;
+        continue;
+      }
+      const display = displayLineOf(rest);
+      if (display !== undefined) {
+        addMath(display, trimSpaces(rest));
+        at++;
         continue;
       }
       const heading = headingOf(rest);
@@ -445,6 +507,7 @@ function interrupts(lines: readonly string[], at: number, depth: Depth): boolean
   if (indent >= 4) return false;
   const rest = line.slice(indent);
   if (fenceOf(rest) || headingOf(rest) || isRule(rest)) return true;
+  if (mathCloserOf(lines, at) !== undefined || displayLineOf(rest) !== undefined) return true;
   if (depth.quote < MAX_QUOTE_DEPTH && rest.startsWith('>')) return true;
   if (depth.list < MAX_LIST_DEPTH) {
     const marker = listMarkerOf(line);
@@ -499,14 +562,64 @@ function listMarkerOf(line: string): ListMarker | undefined {
   return { ordered, type, start, contentIndent: indent + width + spaces, content, empty };
 }
 
-function fenceOf(rest: string): { char: string; length: number } | undefined {
+function fenceOf(rest: string): { char: string; length: number; math: boolean } | undefined {
   const char = rest[0];
   if (char !== '`' && char !== '~') return undefined;
   let length = 0;
   while (rest[length] === char) length++;
   if (length < 3) return undefined;
   if (char === '`' && rest.indexOf('`', length) !== -1) return undefined;
-  return { char, length };
+  // The info string's first word is its language: `math` makes a math block (ADR 0106).
+  const info = trimSpaces(rest.slice(length));
+  const math = info.startsWith('math') && (info.length === 4 || isBlank(info[4]!));
+  return { char, length, math };
+}
+
+/** Whether a line, without its indent, is `$$` alone: it opens or closes a math block. */
+function isMathFence(rest: string): boolean {
+  return trimSpaces(rest) === '$$';
+}
+
+/**
+ * When the line at `at` is `$$` alone and opens a math block, the line that closes it: the next
+ * line that is `$$` alone, with something other than blank lines between them. Undefined when it
+ * opens none: an unclosed `$$` stays text, unlike an unclosed fence, so that a stray `$$` never
+ * takes the rest of a text as TeX. Only a container's last `$$` can be unclosed, so the search stays
+ * linear in the text.
+ */
+function mathCloserOf(lines: readonly string[], at: number): number | undefined {
+  const line = lines[at]!;
+  const indent = leadingSpaces(line);
+  if (indent >= 4 || !isMathFence(line.slice(indent))) return undefined;
+  let blank = true;
+  for (let next = at + 1; next < lines.length; next++) {
+    const candidate = lines[next]!;
+    const candidateIndent = leadingSpaces(candidate);
+    if (candidateIndent < 4 && isMathFence(candidate.slice(candidateIndent))) {
+      return blank ? undefined : next;
+    }
+    if (!isBlank(candidate)) blank = false;
+  }
+  return undefined;
+}
+
+/**
+ * The TeX of a line, without its indent, that is one `$$…$$` and nothing else, as the inline reader
+ * reads one: a math block in a text that takes blocks. Undefined for any other line.
+ */
+function displayLineOf(rest: string): string | undefined {
+  const line = trimSpaces(rest);
+  if (line.length < 5 || !line.startsWith('$$') || line[2] === '$') return undefined;
+  let at = 2;
+  while (at < line.length) {
+    const char = line[at]!;
+    if (char === '\\') at += 2;
+    else if (char === '$' && line[at + 1] === '$') break;
+    else at++;
+  }
+  if (at !== line.length - 2) return undefined;
+  const tex = line.slice(2, at);
+  return isBlank(tex) ? undefined : tex;
 }
 
 function closesFence(rest: string, fence: { char: string; length: number }): boolean {
@@ -604,10 +717,12 @@ type Style = 'bold' | 'italic' | 'strike' | 'underline' | 'highlight';
 
 /** A node of a line's tree; siblings are linked both ways, so that wrapping them stays linear. */
 interface Node {
-  kind: 'text' | 'code' | 'break' | 'span' | 'link' | 'edge';
+  kind: 'text' | 'code' | 'math' | 'break' | 'span' | 'link' | 'edge';
   text: string;
   style?: Style;
   href?: string;
+  /** A formula's TeX and style, on a `math` node, whose text is the TeX as written. */
+  math?: { tex: string; display: boolean };
   first?: Node;
   last?: Node;
   prev?: Node;
@@ -630,11 +745,11 @@ interface Bracket {
   below: Delimiter | undefined;
 }
 
-const SPECIAL = /[\\`*_~=+[\]\n]/g;
+const SPECIAL = /[\\`*_~=+$[\]\n]/g;
 
 /** Reads a paragraph's, a heading's or a cell's text into runs. */
 function readInline(text: string, links: boolean, context: Context): EmphasisRun[] {
-  const runs = runsOf(treeOf(text, links));
+  const runs = runsOf(treeOf(text, links, context));
   const room = MAX_EMPHASIS_RUNS - context.runs;
   let kept = runs;
   if (runs.length > Math.max(room, 1)) {
@@ -645,7 +760,7 @@ function readInline(text: string, links: boolean, context: Context): EmphasisRun
   return kept;
 }
 
-function treeOf(text: string, links: boolean): Node {
+function treeOf(text: string, links: boolean, context: Context): Node {
   const start: Node = { kind: 'edge', text: '' };
   const end: Node = { kind: 'edge', text: '' };
   start.next = end;
@@ -662,6 +777,54 @@ function treeOf(text: string, links: boolean): Node {
   /** Brackets below this index on the stack are inactive: a link was made after them. */
   let activeFrom = 0;
   const backticks = backtickRuns(text);
+  let dollars: ReturnType<typeof dollarRuns> | undefined;
+  let lineEnd = -1;
+  /** Where the line that holds `from` ends: a cursor that only moves on, as the reading does. */
+  const lineEndAfter = (from: number) => {
+    if (lineEnd < from) {
+      lineEnd = text.indexOf('\n', from);
+      if (lineEnd === -1) lineEnd = text.length;
+    }
+    return lineEnd;
+  };
+  /**
+   * The formula that the run of `length` dollars at `at` opens, by Pandoc's `tex_math_dollars`
+   * rule and GitHub's `` $`…`$ ``: where it ends, its TeX and its style. A formula never crosses a
+   * line break, and its TeX is never blank.
+   */
+  const mathAt = (
+    at: number,
+    length: number,
+  ): { end: number; tex: string; display: boolean } | undefined => {
+    const end = lineEndAfter(at);
+    dollars ??= dollarRuns(text);
+    if (length === 2) {
+      const closer = dollars.pair(at + 2);
+      if (closer === undefined || closer >= end) return undefined;
+      const tex = text.slice(at + 2, closer);
+      return isBlank(tex) ? undefined : { end: closer + 2, tex, display: true };
+    }
+    if (text[at + 1] === '`') {
+      // GitHub's form: a code span right between two dollars. A dollar before any other code span
+      // is text, and the code span is read as one.
+      let ticks = 1;
+      while (text[at + 1 + ticks] === '`') ticks++;
+      const closer = backticks.after(ticks, at + 1 + ticks);
+      if (closer === undefined || closer >= end || text[closer + ticks] !== '$') return undefined;
+      const tex = codeText(text.slice(at + 1 + ticks, closer));
+      return isBlank(tex) ? undefined : { end: closer + ticks + 1, tex, display: false };
+    }
+    // Pandoc's rule: a non-space right after the opener; the closer is the next dollar not escaped,
+    // with a non-space right before it and no digit right after it.
+    if (at + 1 >= text.length || isSpace(characterAt(text, at + 1))) return undefined;
+    const closer = dollars.single(at + 1);
+    if (closer === undefined || closer >= end || isSpace(characterBefore(text, closer))) {
+      return undefined;
+    }
+    const after = text[closer + 1];
+    if (after !== undefined && after >= '0' && after <= '9') return undefined;
+    return { end: closer + 1, tex: text.slice(at + 1, closer), display: false };
+  };
   let buffer = '';
   const flush = () => {
     if (buffer !== '') append({ kind: 'text', text: buffer });
@@ -792,6 +955,30 @@ function treeOf(text: string, links: boolean): Node {
         at = closer + length;
         break;
       }
+      case '$': {
+        // Math (ADR 0106), read as a code span is: whichever of the two opens first holds what
+        // follows as its own, and neither takes emphasis inside.
+        let length = 1;
+        while (text[at + length] === '$') length++;
+        const formula = length <= 2 ? mathAt(at, length) : undefined;
+        if (!formula) {
+          buffer += '$'.repeat(length);
+          at += length;
+          break;
+        }
+        flush();
+        const typed = text.slice(at, formula.end);
+        if (context.math < MAX_MATH_PER_TEXT) {
+          context.math++;
+          append({
+            kind: 'math',
+            text: typed,
+            math: { tex: formula.tex, display: formula.display },
+          });
+        } else append({ kind: 'text', text: typed });
+        at = formula.end;
+        break;
+      }
       case '[':
         if (!links) {
           buffer += '[';
@@ -910,12 +1097,15 @@ function runsOf(start: Node): EmphasisRun[] {
   };
   const links: (string | undefined)[] = [];
   const parents: Node[] = [];
-  const emit = (text: string, code: boolean) => {
+  const emit = (text: string, code: boolean, math: Node['math']) => {
     if (text === '') return;
     const link = links.at(-1);
     const last = runs.at(-1);
+    // A formula is a run of its own, never merged with its neighbours.
     if (
+      math === undefined &&
       last &&
+      last.math === undefined &&
       last.code === code &&
       last.bold === depth.bold > 0 &&
       last.italic === depth.italic > 0 &&
@@ -937,6 +1127,7 @@ function runsOf(start: Node): EmphasisRun[] {
       highlight: depth.highlight > 0,
     };
     if (link !== undefined) run.link = link;
+    if (math !== undefined) run.math = { tex: math.tex, display: math.display };
     runs.push(run);
   };
   let node: Node | undefined = start.next;
@@ -956,7 +1147,7 @@ function runsOf(start: Node): EmphasisRun[] {
       node = node.first;
       continue;
     }
-    if (node.kind !== 'edge') emit(node.text, node.kind === 'code');
+    if (node.kind !== 'edge') emit(node.text, node.kind === 'code', node.math);
     node = node.next;
   }
   return runs;
@@ -987,6 +1178,39 @@ function backtickRuns(text: string): {
       return list[cursor];
     },
   };
+}
+
+/**
+ * Where the dollars no backslash escapes are, alone and as the first of two, to find a formula's
+ * closer in linear time: each search moves a cursor on, as the reading does.
+ */
+function dollarRuns(text: string): {
+  single: (from: number) => number | undefined;
+  pair: (from: number) => number | undefined;
+} {
+  const singles: number[] = [];
+  const pairs: number[] = [];
+  let backslashes = 0;
+  for (let at = 0; at < text.length; at++) {
+    const char = text[at];
+    if (char === '\\') {
+      backslashes++;
+      continue;
+    }
+    if (char === '$' && backslashes % 2 === 0) {
+      singles.push(at);
+      if (text[at + 1] === '$') pairs.push(at);
+    }
+    backslashes = 0;
+  }
+  const cursor = (list: readonly number[]) => {
+    let at = 0;
+    return (from: number) => {
+      while (at < list.length && list[at]! < from) at++;
+      return list[at];
+    };
+  };
+  return { single: cursor(singles), pair: cursor(pairs) };
 }
 
 /** A code span's text: its line breaks as spaces, and one space taken from each end if both have one. */

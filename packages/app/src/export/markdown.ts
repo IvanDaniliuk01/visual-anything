@@ -6,8 +6,11 @@
  */
 import { parseEmphasis, type EmphasisBlock, type EmphasisRun } from '@visual-anything/core';
 
-/** The characters CommonMark reads as markup within a line, escaped with a backslash. */
-const INLINE = /[\\`*_[\]{}()#+!|~<>]/g;
+/**
+ * The characters CommonMark reads as markup within a line, escaped with a backslash, and `$`, which
+ * GitHub and the core's reader read as Math (ADR 0106).
+ */
+const INLINE = /[\\`*_[\]{}()#+!|~<>$]/g;
 
 /** What starts a block in CommonMark at the start of a line: a list item, a quote, a heading, a rule. */
 const BLOCK_START = /^([-+*=>#]|\d+[.)])/;
@@ -154,9 +157,17 @@ function blockMarkdown(
       const fence = '`'.repeat(Math.max(3, longest + 1));
       return [fence, ...(block.text === '' ? [] : block.text.split('\n')), fence];
     }
-    case 'math':
-      // A formula on lines of its own keeps its TeX as written (ADR 0106).
-      return ['$$', ...block.tex.split('\n'), '$$'];
+    case 'math': {
+      // A formula on lines of its own keeps its TeX as written (ADR 0106), between `$$` lines, or
+      // in a math fence when its TeX is blank or holds a line that would close the `$$`.
+      const lines = block.tex.split('\n');
+      if (block.tex.trim() !== '' && !lines.some((line) => line.trim() === '$$')) {
+        return ['$$', ...lines, '$$'];
+      }
+      const longest = Math.max(0, ...[...block.tex.matchAll(/`+/g)].map((run) => run[0].length));
+      const fence = '`'.repeat(Math.max(3, longest + 1));
+      return [`${fence}math`, ...(block.tex === '' ? [] : lines), fence];
+    }
     case 'table': {
       const row = (cells: readonly (readonly EmphasisRun[])[]) =>
         `| ${block.align.map((_, column) => runsMarkdown(cells[column] ?? [], true)).join(' | ')} |`;
@@ -229,7 +240,11 @@ function runsMarkdown(runs: readonly EmphasisRun[], inTable: boolean): string {
         lineStart = false;
         open.push(...opening);
       }
-      if (run.code) {
+      if (run.math) {
+        // Math keeps its TeX as written, delimiters and all, never escaped (ADR 0106).
+        out += inTable ? text.replace(/\|/g, '\\|') : text;
+        lineStart = false;
+      } else if (run.code) {
         out += codeSpan(inTable ? text.replace(/\|/g, '\\|') : text);
         lineStart = false;
       } else write(text, true);
