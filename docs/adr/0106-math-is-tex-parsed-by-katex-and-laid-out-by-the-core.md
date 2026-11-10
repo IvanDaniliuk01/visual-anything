@@ -59,3 +59,14 @@ The user explains mathematical modules with Visual Anything and asked for "un co
 - The app and the executable grow by about 0.3 MB of KaTeX and 0.26 MB of woff2 fonts, plus the outline table; a read-only page with Math grows by about 0.3 MB and the families it uses.
 - Text layout gains lines of their own height, which touches the arithmetic of `lines`, `line-clamp` and text insets.
 - Not proven yet, and left to the milestone: SVG paths fitted pixel by pixel inside their boxes; Firefox and Safari in the panels; `\raisebox`, `\vcenter`, `\begin{CD}` and `\tag`, which draw as their TeX with `math-error` until the layout knows them.
+
+## Clarifications
+
+- **2026-11-10, A9's reader.** Decided while building, under the user's delegation:
+  - A code span and a formula are both atomic: whichever opens first holds what follows, as CommonMark treats a code span against an autolink. Both win over emphasis markers.
+  - A `$` right before a backtick opens only GitHub's `` $`…`$ ``; if that fails, the `$` is text.
+  - A formula within a line never crosses a line break in a text that takes blocks, and its TeX is never blank.
+  - A math block is a line `$$` alone up to the next line `$$` alone, a line that is exactly one `$$…$$`, or a fence whose language's first word is `math`; each interrupts a paragraph, as a fence does. An unclosed `$$` stays text, unlike an unclosed fence, so that a stray `$$` never turns the rest of a note into TeX.
+  - Past 200 formulas in a text, the rest read as typed: a formula within a line as plain text, a `$$` block as a paragraph, a math fence as code.
+  - `escapeEmphasis` escapes a `$` only when a character other than a space or a line break follows it, which is enough for no formula to open.
+  - The Markdown export writes a formula as typed and escapes the other dollars, so GitHub reads the same Math.
