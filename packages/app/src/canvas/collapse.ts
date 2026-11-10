@@ -15,7 +15,7 @@ import { modelIndexOf } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
 import { t } from '../i18n';
-import { layOutRuns, type Measure } from '../text/layout';
+import { LINE_HEIGHT, layOutRuns, type Measure } from '../text/layout';
 import {
   BASE_DRAWING,
   headerHeldOf,
@@ -352,7 +352,11 @@ function detailLinesOf(
     align: 'left',
     maxLines: most,
   });
-  return { lines: Math.max(1, laid.lines.length), cut: laid.cut };
+  // A line that holds a formula taller than its text counts for as many lines as it is tall, so
+  // that the header grows to hold it (ADR 0106); lines of text alone count one each.
+  const lineHeight = drawing.text.detailSize * LINE_HEIGHT;
+  const lines = Math.max(laid.lines.length, Math.ceil(laid.height / lineHeight - 1e-6));
+  return { lines: Math.max(1, lines), cut: laid.cut };
 }
 
 function plainRun(text: string): EmphasisRun {

@@ -14,6 +14,7 @@
  */
 import type { JsonValue } from '@visual-anything/schema';
 import { meetsCondition } from '../conditions';
+import { typesetMath, type MathDrawing } from '../math';
 import { emphasisRuns, type EmphasisRun } from '../text/emphasis';
 import { robotoWidth, type RobotoVariant } from '../text/roboto';
 import {
@@ -72,11 +73,41 @@ export interface FaceRun {
   paragraph: number;
   /** For a link of text emphasis: drawn as its label, underlined, and never fetched. */
   link?: string;
+  /**
+   * For a formula (ADR 0106): its drawing, drawn from the run's `x` on its baseline `y` in place of
+   * its text, which is the TeX as written. A formula that failed is a run of its TeX in Roboto Mono
+   * instead, with a `warning` band under it.
+   */
+  math?: FaceMath;
 }
 
-/** What is drawn behind a run (`back`), under it or through it. */
+/** A formula in a face, as its run draws it. */
+export interface FaceMath {
+  tex: string;
+  display: boolean;
+  drawing: MathDrawing;
+  /** An em of its drawing, in units: the run's size times `MATH_EM`, shrunk when it was too wide. */
+  size: number;
+  /** Set when it was cut: how much of its width is drawn, from its `x`; the rest is not. */
+  clip?: number;
+}
+
+/**
+ * How large a formula is beside the text around it: KaTeX's own `1.21em`, so that the canvas, the
+ * exports and the panels, which draw with KaTeX's style sheet, draw formulas alike (ADR 0106).
+ */
+export const MATH_EM = 1.21;
+/** The least a formula wider than its line is shrunk to before it is cut (ADR 0106). */
+export const MATH_LEAST_SCALE = 0.7;
+/** The room a line keeps above and below a formula taller than its text, in ems of its text. */
+export const MATH_LINE_GAP = 0.15;
+
+/**
+ * What is drawn behind a run (`back`), under it or through it; `warning` is a dash of the dotted line
+ * under a formula that failed, drawn in its text's color.
+ */
 export interface FaceBand extends FaceRect {
-  kind: 'back' | 'underline' | 'strike';
+  kind: 'back' | 'underline' | 'strike' | 'warning';
   color: FaceColor;
 }
 
@@ -165,10 +196,22 @@ interface Ink {
   link?: string;
   /** Its line's height. */
   lineHeight: number;
+  /** For the TeX of a formula that failed: a dotted line under it (ADR 0106). */
+  warning?: boolean;
   key: string;
 }
 
-type Inline = { kind: 'text'; text: string; ink: Ink } | { kind: 'break'; ink: Ink };
+/** A formula typeset, as a paragraph holds it: never broken, its TeX as written in `text`. */
+interface MathItem {
+  kind: 'math';
+  text: string;
+  tex: string;
+  display: boolean;
+  drawing: MathDrawing;
+  ink: Ink;
+}
+
+type Inline = { kind: 'text'; text: string; ink: Ink } | MathItem | { kind: 'break'; ink: Ink };
 
 interface Box {
   kind: 'box';
@@ -659,24 +702,53 @@ class Layout {
       this.texts += 1;
       if (this.texts > MAX_TEXTS)
         throw new TooLarge(`A face lays out at most ${FACE_CAPS.runs} runs of text.`);
+      // A formula (ADR 0106) is typeset, measured by its drawing's box and never broken; one that
+      // fails is its TeX as written in Roboto Mono, with a dotted line under it.
+      const typeset = run.math && typesetMath(run.math.tex, { display: run.math.display });
+      const failed = typeset !== undefined && !typeset.ok;
       const ink = this.ink(
         {
           ...style,
-          bold: style.bold || run.bold,
-          italic: style.italic || run.italic,
-          mono: style.mono || run.code,
-          underline: style.underline || run.underline || run.link !== undefined,
-          strike: style.strike || run.strike,
+          bold: !run.math && (style.bold || run.bold),
+          italic: !run.math && (style.italic || run.italic),
+          mono: failed || (!run.math && (style.mono || run.code)),
+          underline: !run.math && (style.underline || run.underline || run.link !== undefined),
+          strike: !run.math && (style.strike || run.strike),
         },
-        run.code ? 'code-back' : run.highlight ? 'highlight' : inline?.back,
+        run.math
+          ? inline?.back
+          : run.code
+            ? 'code-back'
+            : run.highlight
+              ? 'highlight'
+              : inline?.back,
         inline?.shift ?? 0,
         run.link,
+        failed,
       );
-      paragraph.items.push({ kind: 'text', text: transformed(run.text, style.textTransform), ink });
+      if (run.math && typeset?.ok) {
+        paragraph.items.push({
+          kind: 'math',
+          text: run.text,
+          tex: run.math.tex,
+          display: run.math.display,
+          drawing: typeset.drawing,
+          ink,
+        });
+        continue;
+      }
+      const text = run.math ? run.text : transformed(run.text, style.textTransform);
+      paragraph.items.push({ kind: 'text', text, ink });
     }
   }
 
-  private ink(style: FaceStyle, back: FaceColor | undefined, shift: number, link?: string): Ink {
+  private ink(
+    style: FaceStyle,
+    back: FaceColor | undefined,
+    shift: number,
+    link?: string,
+    warning = false,
+  ): Ink {
     const variant: RobotoVariant = style.mono
       ? 'mono'
       : style.bold
@@ -698,6 +770,7 @@ class Layout {
       shift,
       link,
       lineHeight,
+      warning,
     ].join('|');
     return {
       size: style.fontSize,
@@ -709,6 +782,7 @@ class Layout {
       shift,
       ...(link === undefined ? {} : { link }),
       lineHeight,
+      ...(warning ? { warning } : {}),
       key,
     };
   }
@@ -1228,8 +1302,13 @@ class Layout {
 interface Piece {
   text: string;
   x: number;
+  /** How wide it is drawn: a formula cut, its `clip`. */
   width: number;
   ink: Ink;
+  /** For a formula: what draws it, at its size. */
+  math?: Omit<FaceMath, 'clip'>;
+  /** For a formula cut to its line: how much of it is drawn. */
+  clip?: number;
 }
 
 interface Line {
@@ -1242,6 +1321,17 @@ interface Line {
 
 function measure(text: string, ink: Ink): number {
   return robotoWidth(text, ink.variant, ink.size);
+}
+
+/** How wide a formula is at its ink's size, shrunk by `scale`. */
+function mathWidth(item: MathItem, scale = 1): number {
+  return item.drawing.width * item.ink.size * MATH_EM * scale;
+}
+
+/** How wide an atom is, a formula by its drawing's box. */
+function atomWidth(atom: Atom): number {
+  if (atom.kind === 'break') return 0;
+  return atom.kind === 'math' ? mathWidth(atom) : measure(atom.text, atom.ink);
 }
 
 function transformed(text: string, transform: FaceStyle['textTransform']): string {
@@ -1276,7 +1366,9 @@ function emptyParagraph(child: Child): boolean {
   );
 }
 
-type Atom = { kind: 'word' | 'space'; text: string; ink: Ink } | { kind: 'break'; ink: Ink };
+/** A word, a space, a line break or a formula, which is a part of a word that never breaks. */
+type Atom =
+  { kind: 'word' | 'space'; text: string; ink: Ink } | MathItem | { kind: 'break'; ink: Ink };
 
 /** The paragraph's text as words, spaces and breaks, spaces folded as HTML folds them. */
 function atomsOf(paragraph: Paragraph): Atom[] {
@@ -1288,6 +1380,11 @@ function atomsOf(paragraph: Paragraph): Atom[] {
       if (atoms.at(-1)?.kind === 'space') atoms.pop();
       atoms.push(item);
       spaced = true;
+      continue;
+    }
+    if (item.kind === 'math') {
+      atoms.push(item);
+      spaced = false;
       continue;
     }
     for (const part of item.text.split(/(\s+)/u)) {
@@ -1331,6 +1428,7 @@ function linesOf(
     const last = current.at(-1);
     if (
       last !== undefined &&
+      last.math === undefined &&
       last.ink.key === ink.key &&
       Math.abs(last.x + last.width - x) < EPSILON
     ) {
@@ -1338,6 +1436,27 @@ function linesOf(
       last.width += w;
     } else current.push({ text, x, width: w, ink });
     x += w;
+  };
+  /** Places a formula whole, shrunk by `scale`: never broken, and never one piece with text. */
+  const placeMath = (item: MathItem, scale: number) => {
+    const w = mathWidth(item, scale);
+    current.push({
+      text: item.text,
+      x,
+      width: w,
+      ink: item.ink,
+      math: {
+        tex: item.tex,
+        display: item.display,
+        drawing: item.drawing,
+        size: item.ink.size * MATH_EM * scale,
+      },
+    });
+    x += w;
+  };
+  const placeAtom = (atom: Atom) => {
+    if (atom.kind === 'math') placeMath(atom, 1);
+    else if (atom.kind !== 'break') place(atom.text, atom.ink);
   };
   const atoms = atomsOf(paragraph);
   for (let at = 0; at < atoms.length && !stopped; at += 1) {
@@ -1350,24 +1469,40 @@ function linesOf(
       space = atom;
       continue;
     }
-    // A word: the atoms up to the next space or break.
+    // A word: the atoms up to the next space or break, formulas among them.
     const word: Atom[] = [atom];
-    while (atoms[at + 1]?.kind === 'word') word.push(atoms[++at]!);
-    const wordWidth = word.reduce(
-      (sum, each) => sum + (each.kind === 'break' ? 0 : measure(each.text, each.ink)),
-      0,
-    );
-    const spaceWidth = space !== undefined && current.length > 0 ? measure(' ', space.ink) : 0;
+    for (let next = atoms[at + 1]; next?.kind === 'word' || next?.kind === 'math';) {
+      word.push(next);
+      at += 1;
+      next = atoms[at + 1];
+    }
+    const wordWidth = word.reduce((sum, each) => sum + atomWidth(each), 0);
+    const spaceInk = space?.kind === 'space' ? space.ink : undefined;
+    const spaceWidth = spaceInk !== undefined && current.length > 0 ? measure(' ', spaceInk) : 0;
     if (current.length > 0 && wraps && x + spaceWidth + wordWidth > width + EPSILON) finish();
-    if (current.length > 0 && space !== undefined && space.kind !== 'break') place(' ', space.ink);
+    if (current.length > 0 && spaceInk !== undefined) place(' ', spaceInk);
     space = undefined;
     if (!wraps || x + wordWidth <= width + EPSILON) {
-      for (const each of word) if (each.kind !== 'break') place(each.text, each.ink);
+      for (const each of word) placeAtom(each);
       continue;
     }
-    // A word longer than its line breaks between characters.
+    // A word longer than its line breaks between characters; a formula in it never breaks (ADR
+    // 0106): it starts a line of its own when it does not fit after what is on the line, and one
+    // wider than its line is shrunk, down to 70 %, then cut, ending in "…".
     for (const each of word) {
-      if (each.kind === 'break') continue;
+      if (each.kind === 'break' || each.kind === 'space') continue;
+      if (each.kind === 'math') {
+        const full = mathWidth(each);
+        if (current.length > 0 && x + full > width + EPSILON) finish();
+        if (x + full <= width + EPSILON) {
+          placeMath(each, 1);
+          continue;
+        }
+        cut = true;
+        overflow = true;
+        placeMath(each, Math.max(MATH_LEAST_SCALE, (width - x) / full));
+        continue;
+      }
       for (const character of each.text) {
         const w = measure(character, each.ink);
         if (x + w > width + EPSILON) {
@@ -1401,17 +1536,29 @@ function linesOf(
       }
     }
   }
-  // Lines one under another, each aligned in the width.
+  // Lines one under another, each aligned in the width. A line that holds a formula taller than its
+  // text is as tall as the formula and a gap above and below it (ADR 0106).
   let y = 0;
   const paragraphInk = lineHeightOf(style);
   for (const line of lines) {
     const height = line.pieces.length === 0 ? paragraphInk : line.height;
     const size =
       line.pieces.reduce((most, piece) => Math.max(most, piece.ink.size), 0) || style.fontSize;
+    const textAbove = height / 2 + BASELINE_BELOW_MIDDLE * size;
+    let above = textAbove;
+    let below = height - textAbove;
+    for (const piece of line.pieces) {
+      if (piece.math === undefined) continue;
+      const gap = MATH_LINE_GAP * piece.ink.size;
+      above = Math.max(above, piece.math.drawing.height * piece.math.size + gap - piece.ink.shift);
+      below = Math.max(below, piece.math.drawing.depth * piece.math.size + gap + piece.ink.shift);
+    }
     line.top = y;
-    line.height = height;
-    line.baseline = y + height / 2 + BASELINE_BELOW_MIDDLE * size;
-    y += height;
+    // A line whose formulas fit in it is placed to the unit as a line of text alone is.
+    const grown = above !== textAbove || below !== height - textAbove;
+    line.height = grown ? above + below : height;
+    line.baseline = grown ? y + above : y + height / 2 + BASELINE_BELOW_MIDDLE * size;
+    y += line.height;
     if (Number.isFinite(width)) {
       const shift =
         style.textAlign === 'center'
@@ -1455,6 +1602,19 @@ function ellipsized(line: Line, width: number): void {
   for (;;) {
     const last = line.pieces.at(-1);
     if (last === undefined) break;
+    if (last.math !== undefined) {
+      // A formula is never broken: it is cut where the ellipsis starts, or left out when nothing of
+      // it would show.
+      if (last.x + last.width + ellipsis <= start + width + EPSILON) break;
+      const room = start + width - ellipsis - last.x;
+      if (room > EPSILON) {
+        last.clip = room;
+        last.width = room;
+        break;
+      }
+      line.pieces.pop();
+      continue;
+    }
     const trimmed = last.text.replace(/\s+$/u, '');
     if (trimmed !== last.text) {
       last.text = trimmed;
@@ -1472,7 +1632,7 @@ function ellipsized(line: Line, width: number): void {
   }
   if (ellipsis <= width + EPSILON) {
     const last = line.pieces.at(-1);
-    if (last !== undefined && last.ink.key === lastInk.key) {
+    if (last !== undefined && last.math === undefined && last.ink.key === lastInk.key) {
       last.text += ELLIPSIS;
       last.width = measure(last.text, last.ink);
     } else line.pieces.push({ text: ELLIPSIS, x: end(), width: ellipsis, ink: lastInk });
@@ -1731,18 +1891,57 @@ class Output {
         line: index,
         paragraph,
         ...(ink.link === undefined ? {} : { link: ink.link }),
+        ...(piece.math === undefined
+          ? {}
+          : { math: { ...piece.math, ...(piece.clip === undefined ? {} : { clip: piece.clip }) } }),
       });
       const thickness = Math.max(0.5, ink.size / 14);
-      const band = (kind: FaceBand['kind'], color: FaceColor, top: number, height: number) => {
-        const shown = intersect({ x, y: top, width: piece.width, height }, clip);
+      const band = (
+        kind: FaceBand['kind'],
+        color: FaceColor,
+        top: number,
+        height: number,
+        from = x,
+        across = piece.width,
+      ) => {
+        const shown = intersect({ x: from, y: top, width: across, height }, clip);
         if (shown !== undefined) bands.push({ kind, color, ...shown });
       };
+      if (piece.math !== undefined) {
+        // A formula's back is as tall as the formula; it takes no underline or strikethrough.
+        const { drawing, size } = piece.math;
+        if (ink.back !== undefined) {
+          const top = Math.min(y - ink.size * 0.93, y - drawing.height * size);
+          const bottom = Math.max(y + ink.size * 0.27, y + drawing.depth * size);
+          band('back', ink.back, top, bottom - top);
+        }
+        continue;
+      }
       if (ink.back !== undefined) band('back', ink.back, y - ink.size * 0.93, ink.size * 1.2);
       if (ink.underline) band('underline', ink.color, y + ink.size * 0.1, thickness);
       if (ink.strike) band('strike', ink.color, y - ink.size * 0.3, thickness);
+      if (ink.warning) {
+        // A formula that failed: a dotted line under its TeX (ADR 0106).
+        for (const dash of warningDashes(piece.width, ink.size)) {
+          band('warning', ink.color, y + ink.size * 0.18, thickness * 1.5, x + dash.x, dash.width);
+        }
+      }
     }
     return { runs, bands };
   }
+}
+
+/**
+ * The dashes of the dotted line under a formula that failed, along `width` at a text `size`: each
+ * as long as the gap after it, a quarter of the size, the last cut to the width.
+ */
+export function warningDashes(width: number, size: number): { x: number; width: number }[] {
+  const step = Math.max(1, size * 0.25);
+  const dashes: { x: number; width: number }[] = [];
+  for (let at = 0; at < width - EPSILON && dashes.length < 500; at += 2 * step) {
+    dashes.push({ x: at, width: Math.min(step, width - at) });
+  }
+  return dashes;
 }
 
 /** A line written so far, and where its runs and bands are. */
