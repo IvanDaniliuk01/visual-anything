@@ -14,6 +14,8 @@ import {
   h264Track,
   largeBox,
   mp4,
+  PHONE_STRINGS,
+  phoneMp4,
   placeBox,
   str,
   tags,
@@ -251,6 +253,111 @@ describe('readVideo: WebM', () => {
     for (let end = 0; end < bytes.length; end += 2) {
       expect(() => readVideo(bytes.subarray(0, end))).not.toThrow();
     }
+  });
+});
+
+describe('readVideo: nothing names a person, a place, a device or a time', () => {
+  const holds = (bytes: Uint8Array, said: string) => text(bytes).includes(said);
+
+  it('keeps of an MP4 only what a player needs, at every depth, and moves nothing', () => {
+    const bytes = phoneMp4();
+    for (const said of PHONE_STRINGS) expect(holds(bytes, said)).toBe(true);
+    const result = read(bytes);
+    expect(result.value.bytes.length).toBe(bytes.length);
+    for (const said of PHONE_STRINGS) expect(holds(result.value.bytes, said)).toBe(false);
+    // The times it was made and changed, in mvhd, both tkhd and both mdhd.
+    expect(result.value.bytes.join().includes([0xe1, 0xa2, 0xb3, 0xc4].join())).toBe(false);
+    expect(result.removed).toEqual([
+      '8 metadata boxes (udta, meta, uuid, other)',
+      'the times it was made and changed',
+      'the names of its tracks and encoder',
+      'what its free boxes held',
+    ]);
+    expect(result.value).toMatchObject({ width: 64, height: 48 });
+    const again = read(result.value.bytes);
+    expect(again.value.bytes).toEqual(result.value.bytes);
+    expect(again.removed).toEqual([]);
+  });
+
+  it.each([
+    ['moof', mp4({ after: [box('moof', box('mfhd', new Uint8Array(8)))] })],
+    ['mvex', mp4({ inMoov: [box('mvex', box('trex', new Uint8Array(24)))] })],
+    ['sidx', mp4({ before: [box('sidx', new Uint8Array(4))] })],
+  ])('refuses a fragmented MP4, whose %s it does not clean', (_, bytes) => {
+    expect(refusal(bytes).message).toContain('fragmented');
+  });
+
+  it('refuses an MP4 that refers to data outside itself', () => {
+    const outside = fullBox('url ', 0, new TextEncoder().encode('file:///Users/ana/a.mov'));
+    const track = trak('vide', [visualEntry('avc1', 8, 8, avcC())], tkhd(8, 8));
+    const bytes = mp4({ tracks: [track] });
+    // Its dinf, empty, made to hold a reference to a file elsewhere.
+    const at = text(bytes).indexOf('dinf') - 4;
+    const dinf = box('dinf', fullBox('dref', 0, Uint8Array.of(0, 0, 0, 1), outside));
+    const longer = Uint8Array.from([...bytes.subarray(0, at), ...dinf, ...bytes.subarray(at + 8)]);
+    // The boxes that hold it grow by as much.
+    const grow = (type: string) => {
+      const start = text(longer).indexOf(type) - 4;
+      const size = new DataView(longer.buffer).getUint32(start);
+      new DataView(longer.buffer).setUint32(start, size + dinf.length - 8);
+    };
+    for (const type of ['moov', 'trak', 'mdia', 'minf']) grow(type);
+    expect(refusal(longer).message).toContain('outside itself');
+  });
+
+  it('keeps of a WebM only what a player needs: no title, date, writer, track name or addition', () => {
+    const bytes = webm({
+      info: [
+        str(0x7ba9, 'Ana at the desk'),
+        uint(0x4461, 0x0a0b0c0d0e),
+        str(0x4d80, 'Lavf'),
+        str(0x5741, 'Pixel recorder'),
+        el(0x73a4, new Uint8Array(16).fill(9)),
+        el(0xbf, Uint8Array.of(1, 2, 3, 4)),
+      ],
+      tracks: [
+        trackEntry(
+          1,
+          'V_VP9',
+          str(0x536e, 'Ana camera'),
+          el(WEBM.video, uint(WEBM.pixelWidth, 64), uint(WEBM.pixelHeight, 48), str(0x2fb523, 'x')),
+        ),
+      ],
+      after: [
+        el(0x114d9b74, el(0x4dbb, el(0x53ab, Uint8Array.of(0x15, 0x49, 0xa9, 0x66)))),
+        el(
+          WEBM.cluster,
+          uint(WEBM.timestamp, 0),
+          el(
+            0xa0,
+            el(0xa1, Uint8Array.of(0x81, 0, 0, 0x80, 1)),
+            el(0x75a1, el(0xa6, uint(0xee, 1), str(0xa5, '+48.85 GPS'))),
+          ),
+        ),
+        el(WEBM.cues, el(0xbb, uint(0xb3, 0), el(0xb7, uint(0xf7, 1), uint(0xf1, 9)))),
+        tags(),
+      ],
+    });
+    const result = read(bytes);
+    expect(result.value.bytes.length).toBe(bytes.length);
+    for (const said of ['Ana', 'Lavf', 'Pixel', '+48.85', 'front desk']) {
+      expect(holds(result.value.bytes, said)).toBe(false);
+    }
+    expect(result.removed).toEqual([
+      'its title',
+      'the date it was made',
+      'the programs that wrote it',
+      'other elements',
+      'checksums',
+      'the names of its tracks',
+      'its seek head',
+      'block additions',
+      'tags',
+    ]);
+    expect(result.value).toMatchObject({ width: 64, height: 48 });
+    const again = read(result.value.bytes);
+    expect(again.value.bytes).toEqual(result.value.bytes);
+    expect(again.removed).toEqual([]);
   });
 });
 

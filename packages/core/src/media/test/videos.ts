@@ -64,9 +64,9 @@ export function tkhd(width: number, height: number, matrix = IDENTITY): Uint8Arr
   );
 }
 
-/** A handler box naming what a track holds: `vide`, `soun`, … */
-export function hdlr(handler: string): Uint8Array {
-  return fullBox('hdlr', 0, u32(0), ascii(handler), new Uint8Array(12), ascii('Track\0'));
+/** A handler box naming what a track holds: `vide`, `soun`, …, and its name, empty by default. */
+export function hdlr(handler: string, name = ''): Uint8Array {
+  return fullBox('hdlr', 0, u32(0), ascii(handler), new Uint8Array(12), ascii(`${name}\0`));
 }
 
 /** An H.264 configuration, `avcC`, of a version. */
@@ -286,14 +286,16 @@ export function webm({
   header = ebmlHeader(),
   after = [cluster()],
   sized = true,
+  info = [],
 }: {
   tracks?: readonly Uint8Array[];
   header?: Uint8Array;
   after?: readonly Uint8Array[];
   sized?: boolean;
+  info?: readonly Uint8Array[];
 } = {}): Uint8Array {
   const contents = [
-    el(WEBM.info, uint(0x2ad7b1, 1_000_000), str(0x4d80, 'test'), str(0x5741, 'test')),
+    el(WEBM.info, uint(0x2ad7b1, 1_000_000), ...info),
     el(WEBM.tracks, ...tracks),
     ...after,
   ];
@@ -310,3 +312,87 @@ export function tags(): Uint8Array {
     el(0x7373, el(0x67c8, str(0x45a3, 'TITLE'), str(0x4487, 'At the front desk'))),
   );
 }
+
+/** A time in seconds since 1904, as a phone writes when a video was made. */
+const MADE = u32(0xe1a2b3c4);
+
+/**
+ * An MP4 as a phone writes one: the times it was made and changed, its handlers' and compressor's
+ * names, its audio's vendor, and its place and serial number in boxes a player never reads, at
+ * every depth.
+ */
+export function phoneMp4(): Uint8Array {
+  const times = (rest: number) => [MADE, MADE, new Uint8Array(rest)];
+  const entry = box(
+    'avc1',
+    new Uint8Array(6),
+    u16(1),
+    new Uint8Array(16),
+    u16(64),
+    u16(48),
+    u32(0x480000),
+    u32(0x480000),
+    u32(0),
+    u16(1),
+    Uint8Array.of(10, ...ascii('Pixel AVC'), ...new Uint8Array(22)),
+    u16(0x18),
+    u16(0xffff),
+    avcC(),
+    box('uuid', new Uint8Array(16), ascii('serial 4411')),
+  );
+  const audio = box('mp4a', new Uint8Array(8), u16(0), u16(0), ascii('appl'), new Uint8Array(12));
+  const track = (handler: string, name: string, sample: Uint8Array, header: Uint8Array) =>
+    box(
+      'trak',
+      header,
+      box(
+        'mdia',
+        fullBox('mdhd', 0, ...times(12)),
+        hdlr(handler, name),
+        box(
+          'minf',
+          box(
+            'dinf',
+            fullBox(
+              'dref',
+              0,
+              u32(1),
+              fullBox('url ', 0).map((b, i) => (i === 11 ? 1 : b)),
+            ),
+          ),
+          box(
+            'stbl',
+            fullBox('stsd', 0, u32(1), sample),
+            fullBox('stts', 0, u32(0)),
+            box('gps ', ascii('+48.85')),
+          ),
+          box('udta', ascii('+48.85')),
+        ),
+      ),
+      box('meta', ascii('Owner Ana')),
+    );
+  const header = fullBox(
+    'tkhd',
+    0,
+    ...times(12),
+    new Uint8Array(16),
+    ...IDENTITY.map(u32),
+    u32(64 * 0x10000),
+    u32(48 * 0x10000),
+  );
+  return joined([
+    ftyp(),
+    box(
+      'moov',
+      fullBox('mvhd', 0, ...times(88)),
+      track('vide', 'Core Media Video', entry, header),
+      track('soun', 'Core Media Audio', audio, tkhd(0, 0)),
+      box('iods', ascii('Pixel 8 Pro')),
+    ),
+    box('free', ascii('Pixel 8 Pro')),
+    box('mdat', Uint8Array.of(0, 0, 0, 2, 0x65, 0x88)),
+  ]);
+}
+
+/** Its strings a cleaned file must not hold. */
+export const PHONE_STRINGS = ['Pixel', 'serial', 'Core Media', 'appl', '+48.85', 'Owner', 'Ana'];

@@ -4,7 +4,7 @@
  * connection's messages.
  */
 import type { MediaRef, Picture, ViewFile } from '@visual-anything/schema';
-import { isVideoFormat } from './clean';
+import { MEDIA_CAPS, isVideoFormat } from './clean';
 
 export * from './clean';
 export * from './gif';
@@ -28,6 +28,34 @@ export function mediaNamedBy(views: readonly Pick<ViewFile, 'freeShapes'>[]): Se
     for (const picture of picturesOf(view)) for (const ref of mediaOf(picture)) named.add(ref.hash);
   }
   return named;
+}
+
+/** The most bytes of one media file a read-only page holds: 32 MiB (ADR 0098, stage 2). */
+export const PAGE_MEDIA_BYTES = MEDIA_CAPS.bytes;
+
+/**
+ * The media files a read-only page of these views holds, by hash, in order: every image and poster,
+ * and a video's file when it is at most 32 MiB; and the videos it leaves to their posters, which the
+ * export says.
+ */
+export function pageMediaOf(views: readonly Pick<ViewFile, 'freeShapes'>[]): {
+  hashes: string[];
+  videosLeftOut: string[];
+} {
+  const held = new Set<string>();
+  const left = new Set<string>();
+  for (const view of views) {
+    for (const picture of picturesOf(view)) {
+      for (const ref of mediaOf(picture)) {
+        if (isVideoFormat(ref.format) && ref.bytes > PAGE_MEDIA_BYTES) left.add(ref.hash);
+        else held.add(ref.hash);
+      }
+    }
+  }
+  return {
+    hashes: [...held].sort(),
+    videosLeftOut: [...left].filter((hash) => !held.has(hash)).sort(),
+  };
 }
 
 /** Whether a picture is a video: its file an MP4 or a WebM (ADR 0098, stage 2). */
