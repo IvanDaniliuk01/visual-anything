@@ -131,7 +131,7 @@ export async function removeUnnamedMediaFiles(
       continue;
     }
     if (named.has(hash)) {
-      kept.push({ hash, message: 'A picture names this media file, so it stays.' });
+      kept.push({ hash, message: 'A picture or a link card names this media file, so it stays.' });
       continue;
     }
     const format = await findMediaFile(folder, hash);

@@ -50,6 +50,8 @@ import {
   type SolidImportOptions,
   type SolidPrepareMessage,
   type LiveFetchMessage,
+  type LinkFetchMessage,
+  LINK_CAPS,
   type LiveFilter,
   type LiveSender,
   type LiveSetMessage,
@@ -108,6 +110,8 @@ import { readProjectSolidFile } from './solids/project-file';
 import { removeUnnamedMediaFiles, unnamedMediaFiles } from './media/files';
 import { readProjectPictureFile } from './media/project-file';
 import { MediaStore, type Keeping, type MediaStoreOptions } from './media/store';
+import { fetchPreview } from './links/preview';
+import { LinkFetcher, type LinkFetcherOptions } from './links/preview-fetch';
 import {
   SolidStore,
   preparedMessage,
@@ -328,6 +332,11 @@ export interface SessionOptions {
    */
   fetcher?: FetcherOptions;
   /**
+   * How the program resolves names and fetches a link card's preview (ADR 0098, stage 3); the
+   * system's resolver and https by default.
+   */
+  links?: LinkFetcherOptions;
+  /**
    * Where the program's log goes, with `--log` (ADR-0016's clarification of W46): actions, refusals,
    * apps and Claude attaching and going, and files changed on disk. Absent, nothing is logged.
    */
@@ -431,6 +440,10 @@ export class Session implements LiveSession {
   /** The solid files the program prepared, read and checked (ADR 0075). */
   readonly #solids: SolidStore;
   readonly #media: MediaStore;
+  /** What fetches a link card's preview, only when the person asks (ADR 0098, stage 3). */
+  readonly #links: LinkFetcher;
+  /** How many previews are being fetched now. */
+  #previewsUnderWay = 0;
   /** Claude's layouts, sent to the apps one at a time, each once the one before was answered (M3d). */
   readonly #layouts: LayoutWaits;
   /** The pictures Claude asked the apps for, each waited for by its own id (ADR 0081). */
@@ -461,6 +474,7 @@ export class Session implements LiveSession {
       err: (line) => this.#err(line),
     });
     this.#fetcher = new PackageFetcher(options.fetcher);
+    this.#links = new LinkFetcher(options.links);
     this.#drawings = new DrawingQueue(options.makeDrawing);
     this.#solids = new SolidStore(folder, {
       ...options.solids,
@@ -879,6 +893,56 @@ export class Session implements LiveSession {
       case 'media-files/remove':
         await this.removeUnnamedMediaFiles(origin, message.hashes);
         return;
+      case 'link/fetch':
+        await this.#fetchLinkPreview(client, message);
+        return;
+    }
+  }
+
+  /**
+   * Fetches a link card's preview, as the person asked by pressing Fetch the preview (ADR 0098, stage
+   * 3): the only time the program reaches the internet. It never waits behind the project's own
+   * work, and changes no project file but keeping the page's image in `media/`; the app sets what it
+   * found as one undoable change.
+   */
+  async #fetchLinkPreview(client: SessionClient, message: LinkFetchMessage): Promise<void> {
+    const { requestId } = message;
+    const refuse = (problem: Problem) =>
+      this.#send(client, {
+        type: 'link/refused',
+        requestId,
+        code: problem.code,
+        message: problem.message,
+      });
+    if (this.#previewsUnderWay >= LINK_CAPS.underWay) {
+      refuse({
+        code: 'link-refused',
+        message: `${LINK_CAPS.underWay} previews are being fetched already: fetch this one once they are in.`,
+      });
+      return;
+    }
+    this.#previewsUnderWay += 1;
+    try {
+      const answer = await fetchPreview(message.url, this.#links, (bytes) =>
+        this.#media.keep(bytes),
+      );
+      if (!answer.ok) {
+        refuse(answer.problem);
+        return;
+      }
+      this.#send(client, {
+        type: 'link/fetched',
+        requestId,
+        preview: answer.preview,
+        notes: answer.notes.slice(0, 10).map((note) => note.slice(0, 1000)),
+      });
+    } catch (error) {
+      refuse({
+        code: 'link-failed',
+        message: `The preview could not be fetched: ${reasonOf(error)}`,
+      });
+    } finally {
+      this.#previewsUnderWay -= 1;
     }
   }
 

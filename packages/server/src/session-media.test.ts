@@ -294,7 +294,7 @@ describe('media-files/list and -/remove (ADR 0098)', () => {
     const answer = client.ofType('media-files/listed')[1];
     expect(answer?.removed).toEqual([gif.hash]);
     expect(answer?.kept).toEqual([
-      { hash: png.hash, message: 'A picture names this media file, so it stays.' },
+      { hash: png.hash, message: 'A picture or a link card names this media file, so it stays.' },
     ]);
     await expect(stat(mediaFilePath(at, gif.hash, 'gif'))).rejects.toThrow();
     expect((await stat(mediaFilePath(at, png.hash, 'png'))).isFile()).toBe(true);

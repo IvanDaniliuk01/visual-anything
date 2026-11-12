@@ -32,6 +32,8 @@ import {
   isVideo,
   pictureName,
   picturesOf,
+  linkCardsOf,
+  linkHost,
 } from '@visual-anything/core';
 import type {
   AttributeDefinition,
@@ -491,6 +493,7 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
     freeShapes: view.freeShapes,
     // Its pictures, by name and size, and the file each shows (ADR 0098).
     ...picturesAnswer(view),
+    ...linksAnswer(view),
     stacking,
     ...(collapsed === undefined ? {} : { collapsed }),
     // The routes chosen by hand, by relation; every other relation is routed automatically.
@@ -672,6 +675,29 @@ function page(filter: { limit?: number; offset?: number }): { offset: number; li
 
 function sameJson(a: JsonValue | undefined, b: JsonValue): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * A view's link cards as read_view lists them (ADR 0098, stage 3): their address and host, title,
+ * description, place, size and picture's file; nothing when it has none.
+ */
+function linksAnswer(view: ProjectSnapshot['views'][number]) {
+  const cards = linkCardsOf(view);
+  if (cards.length === 0) return {};
+  return {
+    links: cards.map((card) => ({
+      id: card.id,
+      url: card.url,
+      host: linkHost(card.url),
+      title: card.title,
+      ...(card.description === undefined ? {} : { description: card.description }),
+      x: card.x,
+      y: card.y,
+      width: card.width,
+      height: card.height,
+      ...(card.picture === undefined ? {} : { picture: `media/${mediaFileName(card.picture)}` }),
+    })),
+  };
 }
 
 /** A view's pictures as read_view lists them, by name and size (ADR 0098); nothing when it has none. */

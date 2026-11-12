@@ -5,8 +5,8 @@
  *   it in the cleaner's worker, one file at a time, writes it to `media/` atomically and answers with
  *   the reference a picture names it by (`media/stored`). Claude's `add_picture` keeps a file of the
  *   project folder the same way. A file is written before any shape names it.
- * - **Admitting.** A command that adds or changes a picture is taken only when the file it names, and
- *   a video's poster, are in `media/`, of the format and size they say, so that a picture never names
+ * - **Admitting.** A command that adds or changes a picture or a link card is taken only when the file
+ *   it names, a video's poster and a card's picture, are in `media/`, of the format and size they say, so that a picture never names
  *   a file the program has not kept.
  * - **Serving.** `media/get` is answered from `media/`, in pieces. The first time a file is served in
  *   a session, the worker checks that its bytes are its name's and exactly what cleaning writes; a
@@ -303,14 +303,20 @@ export class MediaStore {
     if (command.type !== 'create-free-shape' && command.type !== 'update-free-shape') {
       return { ok: true };
     }
-    type Named = { kind?: unknown; media?: Partial<MediaRef>; poster?: Partial<MediaRef> | null };
+    type Named = {
+      kind?: unknown;
+      media?: Partial<MediaRef>;
+      poster?: Partial<MediaRef> | null;
+      picture?: Partial<MediaRef> | null;
+    };
     const shape = command.shape as Named | undefined;
-    // A picture changed part by part names its file, or a video's poster, in its changes (ADR
-    // 0104); only a picture takes them there, so the core refuses them for any other shape.
+    // A picture or a link card changed part by part names its file, a video's poster or a card's
+    // picture in its changes (ADR 0104); only those take them there, so the core refuses them for
+    // any other shape.
     const changes =
       command.type === 'update-free-shape' ? (command.changes as Named | undefined) : undefined;
-    const named = shape?.kind === 'picture' ? shape : changes;
-    for (const media of [named?.media, named?.poster]) {
+    const named = shape?.kind === 'picture' || shape?.kind === 'link' ? shape : changes;
+    for (const media of [named?.media, named?.poster, named?.picture]) {
       const admitted = await this.#admitFile(media);
       if (!admitted.ok) return admitted;
     }
