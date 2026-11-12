@@ -5,16 +5,24 @@
  * frame reads the data of the element that shows it, sent again as it changes. Otherwise its card
  * says what it is and why it is not running, with what the person can do about it.
  */
-import type { ProjectSnapshot, VaData } from '@visual-anything/core';
+import {
+  cardRuns,
+  explorableCard,
+  type ExplorableCard as CoreCard,
+  type ExplorableCardReason,
+  type ProjectSnapshot,
+  type VaData,
+} from '@visual-anything/core';
 import type { ExplorableParameterValue, Id } from '@visual-anything/schema';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useT } from '../i18n';
-import { blockOf, explorableOf, type ExplorableShown } from './explorable';
+import { EmphasisRuns } from '../text/EmphasisText';
+import { placeInApp } from './faces';
 import { newFrameAddress, type FrameListener } from './frame-address';
 import { useExplorableApprovals, useExplorableData, useExplorableListener } from './hooks';
 import { FrameHost } from './host';
 import { reasonText } from './reasons';
-import { useExplorableSession, type ExplorableSession, type FrameStop } from './session';
+import { useExplorableSession, type ExplorableSession } from './session';
 import './explorables.css';
 
 export interface ExplorableViewProps {
@@ -34,33 +42,25 @@ export function ExplorableView(props: ExplorableViewProps) {
   const session = useExplorableSession();
   const { approvals } = useExplorableApprovals();
   const listener = useExplorableListener();
-  const shown = useMemo(
-    () => explorableOf(project, explorable),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- what it is follows the packages and texts
-    [project.packages, project.explorableTexts, explorable],
-  );
-  if (!shown) {
+  // The core's one card says what keeps it from running here, as the canvas's cards say it.
+  const card = explorableCard(project, explorable, {
+    approvals,
+    place: placeInApp(session, listener),
+  });
+  if (card.reason === 'unknown') {
     return (
       <p className="explorable-message">
         {t('No package defines the explorable “{id}”.', { id: explorable })}
       </p>
     );
   }
-  const block = blockOf(shown, approvals);
-  const hash = shown.hash;
-  const stop = hash === undefined ? undefined : session?.stopped(hash);
-  if (block || stop || hash === undefined || !session || listener.kind !== 'known') {
+  const { hash } = card;
+  if (!cardRuns(card) || hash === undefined || !session || listener.kind !== 'known') {
     return (
       <ExplorableCard
-        shown={shown}
-        why={
-          block?.kind ??
-          stop ??
-          (listener.kind === 'asking' ? 'starting' : !session ? 'no-app' : 'not-connected')
-        }
-        {...(block?.kind === 'library-missing' ? { library: block.library } : {})}
+        card={card}
         {...(listener.kind === 'none' ? { detail: listener.why } : {})}
-        onApprove={() => session?.review(shown.id)}
+        onApprove={() => session?.review(explorable)}
         onRun={() => hash !== undefined && session?.run(hash)}
       />
     );
@@ -69,7 +69,7 @@ export function ExplorableView(props: ExplorableViewProps) {
     <LiveFrame
       key={hash}
       {...props}
-      shown={shown}
+      name={card.name}
       hash={hash}
       listener={listener.listener}
       session={session}
@@ -77,53 +77,38 @@ export function ExplorableView(props: ExplorableViewProps) {
   );
 }
 
-/** Why an explorable shows its card. */
-export type CardReason =
-  | 'no-text'
-  | 'library-missing'
-  | 'not-approved'
-  | FrameStop
-  | 'starting'
-  | 'not-connected'
-  | 'no-app';
+/** Why an explorable shows its card in the panel: what the core's card says, but that it may run. */
+export type CardReason = Exclude<ExplorableCardReason, 'unknown' | 'outside-app' | 'explore'>;
 
 /** An explorable's card: its name, what it explains, its script libraries, and why it is not running. */
 export function ExplorableCard({
-  shown,
-  why,
-  library,
+  card,
   detail,
   onApprove,
   onRun,
 }: {
-  shown: ExplorableShown;
-  why: CardReason;
-  library?: Id;
+  card: CoreCard;
   detail?: string;
   onApprove?: () => void;
   onRun?: () => void;
 }) {
   const t = useT();
-  const { definition } = shown;
-  const libraries = shown.libraries.map((each) =>
-    each.definition ? `${each.definition.npm} ${each.definition.version}` : each.id,
-  );
+  const why = card.reason;
   return (
-    <section
-      className="explorable-card"
-      aria-label={t('Explorable “{name}”', { name: definition.name })}
-    >
-      <h3 className="explorable-card-name">{definition.name}</h3>
-      {definition.description !== undefined && definition.description.trim() !== '' && (
-        <p className="explorable-card-description">{definition.description}</p>
+    <section className="explorable-card" aria-label={t('Explorable “{name}”', { name: card.name })}>
+      <h3 className="explorable-card-name">{card.name}</h3>
+      {card.description !== undefined && (
+        <p className="explorable-card-description">
+          <EmphasisRuns text={card.description} />
+        </p>
       )}
-      {libraries.length > 0 && (
+      {card.libraries.length > 0 && (
         <p className="explorable-card-libraries">
-          {t('Script libraries: {names}', { names: libraries.join(', ') })}
+          {t('Script libraries: {names}', { names: card.libraries.join(', ') })}
         </p>
       )}
       <p className="explorable-card-why" role="status">
-        {reasonText(t, why, library)}
+        {reasonText(t, why, card.library)}
         {detail !== undefined && why === 'not-connected' && <> {t.message(detail)}</>}
       </p>
       {why === 'not-approved' && onApprove && (
@@ -158,12 +143,12 @@ function LiveFrame({
   parameters,
   step,
   onSelect,
-  shown,
+  name,
   hash,
   listener,
   session,
 }: ExplorableViewProps & {
-  shown: ExplorableShown;
+  name: string;
   hash: string;
   listener: FrameListener;
   session: ExplorableSession;
@@ -227,7 +212,7 @@ function LiveFrame({
         ref={frame}
         className="explorable-frame"
         src={address}
-        title={t('Explorable “{name}”', { name: shown.definition.name })}
+        title={t('Explorable “{name}”', { name })}
         sandbox="allow-scripts"
         referrerPolicy="no-referrer"
         loading="eager"

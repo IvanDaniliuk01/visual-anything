@@ -14,7 +14,7 @@ import {
   type VaData,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
-import type { CanvasFace } from '../../explorables/faces';
+import type { ExplorableFace } from '../../explorables/card-layout';
 import type { ExplorableStills, KeptStill } from '../../explorables/stills';
 import type { StillJob } from '../../explorables/still-queue';
 import type { ExplorableProvider, StillPicture, StillSpot } from './layer';
@@ -22,7 +22,7 @@ import type { ExplorableProvider, StillPicture, StillSpot } from './layer';
 /** What a canvas's stills are worked out from. */
 export interface CanvasExplorablesInput {
   project: ProjectSnapshot;
-  faces: ReadonlyMap<Id, CanvasFace>;
+  faces: ReadonlyMap<Id, ExplorableFace>;
   theme: 'light' | 'dark';
   language: 'en' | 'es';
   /** The computed, live and simulated values of an element, as everything else reads them. */
@@ -78,7 +78,7 @@ export class CanvasExplorables implements ExplorableProvider {
     this.#keyed.clear();
   }
 
-  face(explorable: Id): CanvasFace | undefined {
+  face(explorable: Id): ExplorableFace | undefined {
     return this.#input?.faces.get(explorable);
   }
 

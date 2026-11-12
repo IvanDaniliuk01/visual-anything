@@ -19,7 +19,7 @@ import { solidPictureKey } from '../canvas/shape-solids';
 import type { SolidFiles } from '../solids/solid-client';
 import { solidAskFor } from '../solids/ask';
 import { solidBucketFor } from '../solids/views';
-import { pageDataOf } from '../viewer/data';
+import { pageDataOf, type PageExplorableStill } from '../viewer/data';
 import { mathFontFile, mathFontsOfFiles } from '../viewer/math-families';
 import { pageTitle, writePage, type ViewerAssets, type WrittenPage } from '../viewer/page';
 import {
@@ -208,13 +208,15 @@ export interface PageOptions {
   solids?: PageSolids | undefined;
   /** The media files its pictures show, by hash, in base64 (ADR 0098). */
   media?: Record<string, string> | undefined;
+  /** The stills of its explorables the tab keeps (ADR 0107). */
+  explorableStills?: PageExplorableStill[] | undefined;
 }
 
 /** Writes the read-only page of a project. */
 export function makePage(
   project: ProjectSnapshot,
   assets: ViewerAssets,
-  { start, made, solids, media }: PageOptions = {},
+  { start, made, solids, media, explorableStills }: PageOptions = {},
 ): Promise<WrittenPage> {
   return writePage({
     assets,
@@ -223,6 +225,7 @@ export function makePage(
       ...(made === undefined ? {} : { made }),
       ...(solids === undefined ? {} : { solids }),
       ...(media === undefined ? {} : { media }),
+      ...(explorableStills === undefined ? {} : { explorableStills }),
     }),
     title: pageTitle(project.project.name),
   });

@@ -7,26 +7,15 @@
  *   const exported = await exportView(project, 'system-overview', 'pdf', { theme: 'dark' });
  *   // { format: 'pdf', bytes, mediaType: 'application/pdf', fileName: 'My systems - System overview.pdf', size, lost }
  */
-import {
-  solidsIn,
-  type ExplorableApproval,
-  type ProjectSnapshot,
-  type ThemeName,
-} from '@visual-anything/core';
-import type { ExplorableShape, Id, ViewFile } from '@visual-anything/schema';
+import { solidsIn, type ProjectSnapshot, type ThemeName } from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
 import { t } from '../i18n';
 import { writtenWithMath } from './math-svg';
 import { writeMermaid } from './mermaid';
 import { writeOutline } from './outline';
 import { writePdf } from './pdf';
 import { structurizrApplies, writeStructurizr } from './structurizr';
-import {
-  svgSolidsOf,
-  writeSvg,
-  type ExplorableStillPicture,
-  type SvgExplorables,
-  type SvgSolidPicture,
-} from './svg';
+import { svgSolidsOf, writeSvg, type SvgExplorables, type SvgSolidPicture } from './svg';
 import { SVG_SOLID_PIXELS, solidShotsOf, type SolidPainter } from './solid-pictures';
 import { buildScene } from '../canvas/scene';
 import type { MediaFiles } from '../canvas/pictures/files';
@@ -86,30 +75,11 @@ export interface ExportOptions {
   explorables?: ExportExplorables;
 }
 
-/** What an export draws explorables from. */
-export interface ExportExplorables {
-  /** The still the app holds of a shape that shows an explorable, if it holds one. */
-  stillOf?: (shape: ExplorableShape) => ExplorableStillPicture | undefined;
-  approvals?: readonly ExplorableApproval[];
-}
-
-/** The stills and approvals a drawing of a view holds, by the ids of the shapes that show them. */
-export function svgExplorablesOf(
-  view: Pick<ViewFile, 'freeShapes'>,
-  explorables: ExportExplorables | undefined,
-): SvgExplorables | undefined {
-  if (explorables === undefined) return undefined;
-  const stills = new Map<string, ExplorableStillPicture>();
-  for (const shape of view.freeShapes) {
-    if (shape.kind !== 'explorable') continue;
-    const still = explorables.stillOf?.(shape);
-    if (still !== undefined) stills.set(shape.id, still);
-  }
-  return {
-    ...(stills.size === 0 ? {} : { stills }),
-    ...(explorables.approvals === undefined ? {} : { approvals: explorables.approvals }),
-  };
-}
+/**
+ * What an export draws explorables from: the still the app keeps of each place one is drawn, a loose
+ * explorable shape or an element shape's plate, and the person's approvals.
+ */
+export type ExportExplorables = SvgExplorables;
 
 /**
  * Whether an export ended because it was stopped, rather than failing: its signal was aborted, which
@@ -212,8 +182,7 @@ export async function exportView(
       ? { media: await exportedMediaOf([view], options.media) }
       : {};
   // The stills the app holds of its explorables, and its approvals; cards otherwise (ADR 0107).
-  const drawnExplorables = svgExplorablesOf(view, options.explorables);
-  const explorables = drawnExplorables === undefined ? {} : { explorables: drawnExplorables };
+  const explorables = options.explorables === undefined ? {} : { explorables: options.explorables };
   signal?.throwIfAborted();
   switch (format) {
     case 'svg':

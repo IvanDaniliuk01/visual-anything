@@ -27,10 +27,13 @@ import { picturesOf, type Scene } from '../scene';
 import { IMAGE_SCALES } from '../shape-images';
 import {
   EXPLORABLE_CARD_COLORS,
+  cardColor,
+  cardTextColor,
   explorableCardLayout,
   type ExplorableCardColors,
   type ExplorableFace,
-} from './card';
+} from '../../explorables/card-layout';
+import { EmphasisLabel } from '../emphasisLabels';
 
 /** The name the layer's textures are kept under in the image store. */
 export const EXPLORABLE_LAYER = 'explorable-layer';
@@ -352,10 +355,8 @@ export class ExplorableLayer {
     entry.painted = { face, colors: this.#colors, rect: entry.rect };
     const colors = this.#colors;
     const { rect, box } = entry;
-    const layout = explorableCardLayout(
-      rect,
-      face ?? { name: entry.ask.explorable, libraries: [], runs: false },
-    );
+    // The one card every place draws (`card-layout.ts`).
+    const layout = explorableCardLayout(rect, face ?? { name: entry.ask.explorable });
     box.clear();
     box.roundRect(rect.x, rect.y, rect.width, rect.height, layout.radius).fill(colors.fill);
     box.rect(layout.band.x, layout.band.y, layout.band.width, layout.band.height).fill(colors.band);
@@ -366,8 +367,15 @@ export class ExplorableLayer {
     entry.texts?.destroy({ children: true });
     const texts = new Container();
     for (const text of layout.texts) {
-      const tint =
-        text.role === 'name' ? colors.name : text.role === 'why' ? colors.why : colors.description;
+      const tint = cardTextColor(colors, text.role);
+      if (text.rich) {
+        // A description with Math or emphasis, typeset as a detail is (ADR 0106).
+        const label = new EmphasisLabel(text.rich.laid);
+        label.position.set(text.x, text.rich.y);
+        label.paint(cardColor(tint));
+        texts.addChild(label);
+        continue;
+      }
       for (const line of text.text.lines) {
         const written = new Text({
           text: line.text,

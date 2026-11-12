@@ -6,6 +6,7 @@
  * the outline hovers (ADR 0076).
  */
 import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
 import {
   useEffect,
   useEffectEvent,
@@ -31,6 +32,8 @@ import { PlacedHoverCard } from '../canvas/HoverCard';
 import type { SolidClient } from '../solids/solid-client';
 import type { MediaFiles } from '../canvas/pictures/media';
 import { useHoverCard } from '../canvas/useHoverCard';
+import type { PageStill } from './data';
+import { PageExplorables } from './explorables';
 
 interface ViewerCanvasProps {
   project: ProjectSnapshot;
@@ -50,6 +53,10 @@ interface ViewerCanvasProps {
   solids?: SolidClient | undefined;
   /** The media files the page holds for its pictures (ADR 0098). */
   media?: MediaFiles | undefined;
+  /** The view drawn, whose explorables' stills the page holds by their places (ADR 0107). */
+  view?: Id | undefined;
+  /** The stills of explorables the page holds; their cards where it holds none. */
+  stills?: readonly PageStill[] | undefined;
 }
 
 /** The keys of the page's canvas, for screen readers. */
@@ -68,8 +75,12 @@ export function ViewerCanvas({
   onCanvas,
   solids,
   media,
+  view,
+  stills,
 }: ViewerCanvasProps) {
   const t = useT();
+  // Explorables draw the stills the page holds, or their cards; none runs here (ADR 0107).
+  const [explorables] = useState(() => new PageExplorables(stills));
   const hostRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<ViewerController | null>(null);
   const [failure, setFailure] = useState<string>();
@@ -129,15 +140,23 @@ export function ViewerCanvas({
     );
     controllerRef.current = controller;
     controller.setEmphasis(emphasis.current);
+    controller.renderer.setExplorables(explorables);
+    const unlisten = explorables.listen(() => controller.renderer.explorablesChanged());
     return () => {
+      unlisten();
       controller.destroy();
       controllerRef.current = null;
     };
-  }, [cameras, hoverShape, solids, media]);
+  }, [cameras, hoverShape, solids, media, explorables]);
 
   useEffect(() => {
     controllerRef.current?.renderer.setTheme(THEMES[theme].canvas);
   }, [theme]);
+
+  useEffect(() => {
+    explorables.update({ project, view: view ?? '', theme, t });
+    controllerRef.current?.renderer.explorablesChanged();
+  }, [explorables, project, view, theme, t]);
 
   // What the physical-space panel or the outline hovers is marked in each of its shapes here.
   const hover = useHover();
