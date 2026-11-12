@@ -349,6 +349,10 @@ function filesReached(operations: readonly Operation[]): Set<string> {
           case 'comments':
             one('comment');
             break;
+          // An explorable's text is its own file in `explorables/` (ADR 0107).
+          case 'explorableTexts':
+            one('explorable');
+            break;
         }
       }
     }

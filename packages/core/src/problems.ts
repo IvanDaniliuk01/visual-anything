@@ -113,6 +113,22 @@ export type ProblemCode =
   | 'code-off'
   | 'code-answer-dropped'
   | 'code-check'
+  // Explorables and script libraries (ADR 0107): one a command or a step names that no package in
+  // use defines, a definition or a parameter's value a command refuses, one past its caps; and, only
+  // as warnings on open, a file that is missing, a library's license outside ADR 0047's list, and an
+  // explorable the person has not approved, which the program refuses to serve.
+  | 'unknown-explorable'
+  | 'invalid-explorable'
+  | 'explorable-too-large'
+  | 'explorable-file-missing'
+  | 'explorable-not-approved'
+  | 'unknown-parameter'
+  | 'invalid-parameter'
+  | 'unknown-script-library'
+  | 'invalid-script-library'
+  | 'script-library-too-large'
+  | 'script-library-file-missing'
+  | 'script-library-license'
   // Simulations (ADR 0085): what a component declares it simulates that cannot be one.
   | 'invalid-simulation'
   // Overlays (ADR 0055): one a view does not have, and a value outside what an overlay allows.

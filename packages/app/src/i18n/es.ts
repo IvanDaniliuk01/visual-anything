@@ -8154,8 +8154,8 @@ export const messages: Catalog = {
   'Add a picture to "{view}"': 'Agregar una imagen a "{view}"',
   'Edit a picture in "{view}"': 'Editar una imagen en "{view}"',
   'Resize a picture': 'Cambiar el tamaño de una imagen',
-  'A free shape is a note, an arrow or a picture.':
-    'Una forma libre es una nota, una flecha o una imagen.',
+  'A free shape is a note, an arrow, a picture or an explorable.':
+    'Una forma libre es una nota, una flecha, una imagen o un explorable.',
   'A picture has no colors of its own; a picture in "{view}" shows its file.':
     'Una imagen no tiene colores propios; una imagen en "{view}" muestra su archivo.',
   "A picture's name is text of at most 200 characters.":

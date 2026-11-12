@@ -18,10 +18,12 @@ import type {
   CreateThreadCommand,
   CreateTourCommand,
   CreateViewCommand,
+  DefineExplorableCommand,
   FreeShapeChanges,
   NewComment,
   UpdateComponentCommand,
   UpdateElementCommand,
+  UpdateExplorableCommand,
   UpdateOverlayCommand,
   UpdatePackageCommand,
   UpdateProjectCommand,
@@ -1346,6 +1348,151 @@ export const COMMAND_SHAPES: Shapes = {
     meaning: 'Removes a solid that no appearance shows; its file stays.',
     fields: { id: ID_OF('The solid.') },
     example: { type: 'remove-solid', id: 'robots.arm' },
+  },
+  // Explorables and script libraries (ADR 0107).
+  'define-explorable': {
+    meaning: 'Defines an explorable, a page that explains by play, with its text (ADR 0107).',
+    fields: {
+      package: ID_OF('The package it goes in, one of the project’s own.'),
+      explorable: {
+        type: 'object',
+        kind: 'object',
+        required: true,
+        meaning: 'The explorable: its name, and what else it says.',
+        fields: fields<DefineExplorableCommand['explorable']>({
+          id: OWN_ID,
+          name: { type: 'string', kind: 'text', required: true, meaning: 'Its name.' },
+          description: NEW_DESCRIPTION,
+          file: {
+            type: 'string',
+            kind: 'text',
+            meaning:
+              'Its file inside explorables/, such as quadratic.html; made from the name when left out.',
+          },
+          scriptLibraries: {
+            type: 'Id[]',
+            kind: 'list',
+            items: 'text',
+            meaning: 'The script libraries of its package it uses, inlined in this order.',
+          },
+          parameters: {
+            type: 'ExplorableParameter[]',
+            kind: 'list',
+            items: 'object',
+            meaning:
+              'The values others choose: number, integer, boolean or choice, each with a default.',
+          },
+        }),
+      },
+      text: { type: 'string', kind: 'text', required: true, meaning: 'The page, at most 512 KiB.' },
+    },
+    example: {
+      type: 'define-explorable',
+      package: 'math',
+      explorable: {
+        name: 'Quadratic',
+        parameters: [{ name: 'a', kind: 'number', min: -5, max: 5, default: 1 }],
+      },
+      text: '<!doctype html><p>y = ax²</p>',
+    },
+  },
+  'write-explorable': {
+    meaning: 'Writes an explorable’s text; undo gives the text before back.',
+    fields: {
+      id: ID_OF('The explorable.'),
+      text: { type: 'string', kind: 'text', required: true, meaning: 'The page, at most 512 KiB.' },
+    },
+    example: { type: 'write-explorable', id: 'math.quadratic', text: '<!doctype html><p>y</p>' },
+  },
+  'record-explorable-file': {
+    meaning:
+      'Records an explorable’s file as changed outside the app; only the local program sends it.',
+    fields: {
+      id: ID_OF('The explorable.'),
+      hash: {
+        type: 'string',
+        kind: 'text',
+        required: true,
+        meaning: 'The SHA-256 of the file’s text.',
+      },
+      text: {
+        type: 'string',
+        kind: 'text',
+        meaning: 'The file’s text; left out when it is past 512 KiB or not text.',
+      },
+    },
+    example: { type: 'record-explorable-file', id: 'math.quadratic', hash: 'ab'.repeat(32) },
+  },
+  'update-explorable': {
+    meaning: 'Changes an explorable’s name, description, script libraries or parameters.',
+    fields: {
+      id: ID_OF('The explorable.'),
+      changes: {
+        type: 'object',
+        kind: 'object',
+        required: true,
+        meaning: 'What changes; what it leaves out stays.',
+        fields: fields<UpdateExplorableCommand['changes']>({
+          name: NAME_CHANGE,
+          description: DESCRIPTION_CHANGE,
+          scriptLibraries: {
+            type: 'Id[] | null',
+            kind: 'list',
+            items: 'text',
+            nullable: true,
+            meaning: 'The script libraries it uses, in order; null, none.',
+          },
+          parameters: {
+            type: 'ExplorableParameter[] | null',
+            kind: 'list',
+            items: 'object',
+            nullable: true,
+            meaning:
+              'Its parameters, all of them; null, none. A tour step setting one gone is broken.',
+          },
+        }),
+      },
+    },
+    example: { type: 'update-explorable', id: 'math.quadratic', changes: { name: 'Parabola' } },
+  },
+  'remove-explorable': {
+    meaning:
+      'Removes an explorable nothing shows; tour steps naming it become broken; its file stays.',
+    fields: { id: ID_OF('The explorable.') },
+    example: { type: 'remove-explorable', id: 'math.quadratic' },
+  },
+  'define-script-library': {
+    meaning: 'Defines a script library; only the local program sends it, for a file it fetched.',
+    fields: {
+      package: ID_OF('The package it goes in.'),
+      library: {
+        type: 'ScriptLibraryDefinition',
+        kind: 'object',
+        required: true,
+        meaning: 'The script library as its package holds it.',
+      },
+    },
+    example: {
+      type: 'define-script-library',
+      package: 'math',
+      library: {
+        id: 'math.d3',
+        npm: 'd3',
+        version: '7.9.0',
+        tarball: 'https://registry.npmjs.org/d3/-/d3-7.9.0.tgz',
+        integrity: `sha512-${'A'.repeat(86)}==`,
+        path: 'dist/d3.min.js',
+        license: 'ISC',
+        global: 'd3',
+        hash: 'ab'.repeat(32),
+        bytes: 280000,
+      },
+    },
+  },
+  'remove-script-library': {
+    meaning: 'Removes a script library no explorable uses; its file stays.',
+    fields: { id: ID_OF('The script library.') },
+    example: { type: 'remove-script-library', id: 'math.d3' },
   },
   'set-route': {
     meaning: 'Routes a relation by hand in a view (ADR 0039).',

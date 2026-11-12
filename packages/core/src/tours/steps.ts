@@ -32,6 +32,9 @@ import {
 } from '../view-state';
 import { chainBreak, pulseLegs, type ChainLink, type PulseLeg, pulseProblems } from './pulse';
 import { advanceAfter } from './timing';
+import { explorablesIn } from '../explorables/catalog';
+import { explorableParameterProblem, parameterValues } from '../explorables/data';
+import type { ExplorableParameterValue } from '@visual-anything/schema';
 
 /** The most steps a tour holds. */
 export const MAX_TOUR_STEPS = 1000;
@@ -196,7 +199,7 @@ export interface TourStepProblem {
    * Present when it is about the step's pulse (ADR 0084), the mark its caption points at, or the
    * view state it shows beside it (ADR 0102).
    */
-  part?: 'pulse' | 'point-to' | 'beside';
+  part?: 'pulse' | 'point-to' | 'beside' | 'explorable';
 }
 
 /** How the problems of the view state a step shows beside it begin (ADR 0102). */
@@ -276,6 +279,7 @@ export function tourStepProblems(project: ProjectSnapshot, step: TourStep): Tour
     // What it plays from and to lies on the timeline its choices give (ADR 0078).
     problems.push(...choicesProblems(project, scenario, choices, [from, to]));
   }
+  problems.push(...tourExplorableProblems(project, step));
   // The view state beside it is checked as its own is, and said to be beside it (ADR 0102).
   for (const each of viewStateProblems(project, step.beside)) {
     problems.push({ ...each, message: `${BESIDE}${each.message}`, part: 'beside' });
@@ -523,6 +527,12 @@ export interface PlayableStep {
    * only while the chain still joins and the view draws every relation of it (ADR 0084).
    */
   pulse?: { legs: PulseLeg[]; repeat: number };
+  /**
+   * The explorable it shows live in the explorable panel, with every parameter's value: those the
+   * step sets that its explorable still declares and takes, and the defaults for the rest (ADR 0107).
+   * Absent when it shows none, or when no package in use defines it.
+   */
+  explorable?: { id: Id; parameters: Record<string, ExplorableParameterValue> };
 }
 
 /**
@@ -589,7 +599,65 @@ export function playableStep(
   if (step.play && played && played.steps.length > 0) {
     playable.play = playedRangeOf(played, step.play);
   }
+  // Its explorable while a package defines it, with the values it sets that still fit (ADR 0107).
+  const shown = step.explorable && explorablesIn(project).explorable(step.explorable.id);
+  if (step.explorable && shown) {
+    const given = Object.fromEntries(
+      Object.entries(step.explorable.parameters ?? {}).filter(
+        (entry): entry is [string, ExplorableParameterValue] =>
+          typeof entry[1] === 'number' ||
+          typeof entry[1] === 'boolean' ||
+          typeof entry[1] === 'string',
+      ),
+    );
+    playable.explorable = {
+      id: step.explorable.id,
+      parameters: parameterValues(shown.definition.parameters ?? [], given),
+    };
+  }
   return playable;
+}
+
+/**
+ * What a step's explorable names that the project no longer holds, or sets that no longer fits
+ * (ADR 0107): an explorable no package in use defines, a parameter it no longer declares, a value
+ * its parameter does not take. Such a step is a broken step: kept, and played without them.
+ */
+export function tourExplorableProblems(
+  project: ProjectSnapshot,
+  step: Pick<TourStep, 'explorable'>,
+): TourStepProblem[] {
+  const shown = step.explorable;
+  if (shown === undefined) return [];
+  const defined = explorablesIn(project).explorable(shown.id);
+  if (!defined) {
+    return [
+      {
+        code: 'unknown-explorable',
+        message: `The step shows the explorable "${shown.id}", which no package in use defines.`,
+        subject: shown.id,
+        part: 'explorable',
+      },
+    ];
+  }
+  const problems: TourStepProblem[] = [];
+  const declared = new Map((defined.definition.parameters ?? []).map((each) => [each.name, each]));
+  for (const [name, value] of Object.entries(shown.parameters ?? {})) {
+    const parameter = declared.get(name);
+    const problem = parameter
+      ? explorableParameterProblem(parameter, value)
+      : `The explorable "${defined.definition.name}" declares no parameter "${name}".`;
+    if (problem === undefined) continue;
+    problems.push({
+      code: parameter ? 'invalid-parameter' : 'unknown-parameter',
+      message: parameter
+        ? `The step sets "${name}" to ${JSON.stringify(value)}, but ${problem}`
+        : problem,
+      subject: shown.id,
+      part: 'explorable',
+    });
+  }
+  return problems;
 }
 
 /**
@@ -710,6 +778,8 @@ export function idsNamedByTours(tours: readonly TourFile[]): ReadonlySet<Id> {
         for (const id of step.viewState.focus?.from ?? []) set.add(id);
         for (const id of step.beside?.select ?? []) set.add(id);
         for (const id of step.beside?.focus?.from ?? []) set.add(id);
+        // So that no new explorable takes the id of one a broken step still names (ADR 0107).
+        if (step.explorable !== undefined) set.add(step.explorable.id);
       }
     }
     ids = set;

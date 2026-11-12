@@ -23,6 +23,7 @@ import type {
   TourFile,
   ViewFile,
 } from '@visual-anything/schema';
+import type { ExplorableText } from './explorables/types';
 import type { ProjectSnapshot } from './snapshot';
 
 /** A list in the project that operations insert into, replace in and remove from. */
@@ -47,7 +48,9 @@ export type Collection =
   /** The project's tours (ADR 0058). */
   | { name: 'tours' }
   /** The project's threads of comments (ADR 0059). */
-  | { name: 'comments' };
+  | { name: 'comments' }
+  /** The texts of explorables' files, by explorable (ADR 0107): none until the program reads them. */
+  | { name: 'explorableTexts' };
 
 /** What each list holds. */
 export interface CollectionItems {
@@ -67,6 +70,7 @@ export interface CollectionItems {
   routes: RouteEntry;
   tours: TourFile;
   comments: CommentFile;
+  explorableTexts: ExplorableText;
 }
 
 /** A route a view keeps, with the relation it routes: how operations carry one. */
@@ -425,6 +429,8 @@ export function itemsOf(state: ProjectSnapshot, collection: Collection): readonl
       return state.tours;
     case 'comments':
       return state.comments;
+    case 'explorableTexts':
+      return state.explorableTexts ?? [];
   }
 }
 
@@ -487,7 +493,23 @@ function withItems(
       return { ...state, tours: items as TourFile[] };
     case 'comments':
       return { ...state, comments: items as CommentFile[] };
+    case 'explorableTexts':
+      return withExplorableTexts(state, items as ExplorableText[]);
   }
+}
+
+/**
+ * A project with its explorables' texts replaced. A project holding none has no list, rather than an
+ * empty one, so that undo gives back the project exactly as it was.
+ */
+function withExplorableTexts(
+  state: ProjectSnapshot,
+  texts: readonly ExplorableText[],
+): ProjectSnapshot {
+  if (texts.length > 0) return { ...state, explorableTexts: [...texts] };
+  const without: ProjectSnapshot = { ...state };
+  delete without.explorableTexts;
+  return without;
 }
 
 /**

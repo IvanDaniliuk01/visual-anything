@@ -47,6 +47,9 @@ import type {
   ShapePosition,
   SolidCamera,
   SolidDefinition,
+  ExplorableParameter,
+  ExplorableShape,
+  ScriptLibraryDefinition,
   Step,
   TourStep,
   TextStyle,
@@ -104,6 +107,14 @@ export type Command =
   | DefineSolidCommand
   | UpdateSolidCommand
   | RemoveSolidCommand
+  // Explorables and script libraries (ADR 0107).
+  | DefineExplorableCommand
+  | WriteExplorableCommand
+  | RecordExplorableFileCommand
+  | UpdateExplorableCommand
+  | RemoveExplorableCommand
+  | DefineScriptLibraryCommand
+  | RemoveScriptLibraryCommand
   | SetRouteCommand
   | ResetRouteCommand
   | SetPackageCodeCommand
@@ -668,7 +679,9 @@ export interface RemovePositionsCommand {
 }
 
 /** A new free shape. Its id is generated unless given. */
-export type NewFreeShape = (Omit<Note, 'id'> | Omit<Arrow, 'id'> | Omit<Picture, 'id'>) & {
+export type NewFreeShape = (
+  Omit<Note, 'id'> | Omit<Arrow, 'id'> | Omit<Picture, 'id'> | Omit<ExplorableShape, 'id'>
+) & {
   id?: Id;
 };
 
@@ -972,6 +985,83 @@ export interface UpdateSolidCommand {
 /** Removes a solid that no appearance shows. Its file stays in `solids/`. */
 export interface RemoveSolidCommand {
   type: 'remove-solid';
+  id: Id;
+}
+
+/**
+ * Defines an explorable in one of the project's own packages, with its text (ADR 0107): its file
+ * `explorables/<file>`, its hash worked out from the text. One action.
+ */
+export interface DefineExplorableCommand {
+  type: 'define-explorable';
+  package: Id;
+  explorable: {
+    /** Starts with the package's id; made from the name when left out. */
+    id?: Id;
+    name: string;
+    description?: string;
+    /** The file's name inside `explorables/`; made from the name when left out. */
+    file?: string;
+    scriptLibraries?: Id[];
+    parameters?: ExplorableParameter[];
+  };
+  /** The page, at most 512 KiB. */
+  text: string;
+}
+
+/** Writes an explorable's text, as Claude's `write_explorable` does: undo gives the text back. */
+export interface WriteExplorableCommand {
+  type: 'write-explorable';
+  id: Id;
+  /** The page, at most 512 KiB. */
+  text: string;
+}
+
+/**
+ * Records what an explorable's file holds now, as the local program read it after a change from
+ * outside, "The file of … changed": its hash, and its text when it is within 512 KiB. Undoing or
+ * redoing it never writes the file.
+ */
+export interface RecordExplorableFileCommand {
+  type: 'record-explorable-file';
+  id: Id;
+  /** The SHA-256 of the file's text. */
+  hash: string;
+  /** The file's text; left out when it is past 512 KiB or not text. */
+  text?: string;
+}
+
+/** Changes what an explorable says about itself, its script libraries and its parameters. */
+export interface UpdateExplorableCommand {
+  type: 'update-explorable';
+  id: Id;
+  changes: {
+    name?: string;
+    description?: string | null;
+    scriptLibraries?: Id[] | null;
+    parameters?: ExplorableParameter[] | null;
+  };
+}
+
+/** Removes an explorable that nothing shows; tour steps that name it become broken steps. Its file stays. */
+export interface RemoveExplorableCommand {
+  type: 'remove-explorable';
+  id: Id;
+}
+
+/**
+ * Defines a script library, or replaces its version, in one of the project's own packages; only the
+ * local program sends it, for a file it fetched, checked and keeps (ADR 0107).
+ */
+export interface DefineScriptLibraryCommand {
+  type: 'define-script-library';
+  package: Id;
+  library: ScriptLibraryDefinition;
+}
+
+/** Removes a script library that no explorable uses. Its file stays in `script-libraries/`. */
+export interface RemoveScriptLibraryCommand {
+  type: 'remove-script-library';
   id: Id;
 }
 

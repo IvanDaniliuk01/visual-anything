@@ -28,6 +28,16 @@ import { newSolidWarnings } from '../solids/check';
 import { checkImageReferences, defineImage, removeImage } from './images';
 import { defineSolid, removeSolid, updateSolid } from './solids';
 import {
+  checkExplorableReferences,
+  defineExplorable,
+  defineScriptLibrary,
+  recordExplorableFile,
+  removeExplorable,
+  removeScriptLibrary,
+  updateExplorable,
+  writeExplorable,
+} from './explorables';
+import {
   createElement,
   createRelation,
   deleteTargets,
@@ -113,6 +123,7 @@ export function executeCommand(
   try {
     const label = run(draft, command);
     checkImageReferences(state, draft.state, draft.operations);
+    checkExplorableReferences(state, draft.state, draft.operations);
     draft.seal();
     // Elements the action leaves drawn as a part their picture lacks are drawn as ordinary shapes,
     // and a file it leaves holding past the geometry that slows saving it says so.
@@ -167,6 +178,7 @@ export function executeOperations(
     for (const operation of operations) draft.apply(operation);
     settleRoutes(draft, state, 0);
     checkImageReferences(state, draft.state, draft.operations);
+    checkExplorableReferences(state, draft.state, draft.operations);
     draft.seal();
     const before = checkProject(state);
     const after = checkProject(draft.state);
@@ -304,6 +316,21 @@ function dispatch(draft: Draft, command: Command): string {
       return updateSolid(draft, command);
     case 'remove-solid':
       return removeSolid(draft, command);
+    // Explorables and script libraries (ADR 0107).
+    case 'define-explorable':
+      return defineExplorable(draft, command);
+    case 'write-explorable':
+      return writeExplorable(draft, command);
+    case 'record-explorable-file':
+      return recordExplorableFile(draft, command);
+    case 'update-explorable':
+      return updateExplorable(draft, command);
+    case 'remove-explorable':
+      return removeExplorable(draft, command);
+    case 'define-script-library':
+      return defineScriptLibrary(draft, command);
+    case 'remove-script-library':
+      return removeScriptLibrary(draft, command);
     case 'set-route':
       return setRoute(draft, command);
     case 'reset-route':
