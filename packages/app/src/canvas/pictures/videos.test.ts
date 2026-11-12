@@ -30,7 +30,7 @@ const video = (id: string, poster = true): PictureShape => ({
   media: ref(id, 'mp4'),
   ...(poster ? { poster: ref('p', 'jpeg') } : {}),
   video: true,
-  name: `${id} clip`,
+  name: `${id} video`,
   named: true,
 });
 
@@ -101,7 +101,7 @@ describe('videos on the canvas', () => {
     layer.frame(VIEW);
     expect(platform.decoded).toEqual([]);
     const label = nodeOf(layer).children.find((child) => child instanceof Text);
-    expect(label?.text).toBe('a clip');
+    expect(label?.text).toBe('a video');
     expect(marks(layer)).toBe(2);
   });
 

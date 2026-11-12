@@ -34,7 +34,7 @@ function withShapes(): ProjectSnapshot {
   const added: FreeShape[] = [
     {
       kind: 'picture',
-      id: 'clip',
+      id: 'video',
       x: left,
       y: below,
       width: 160,
@@ -108,14 +108,14 @@ describe('a click on a video', () => {
   it('plays it as it selects it, and an added click does not', async () => {
     const toggle = vi.spyOn(CanvasRenderer.prototype, 'toggleVideo');
     const { host, controller, select } = await canvas();
-    const video = withShapes().views[0]!.freeShapes.find((shape) => shape.id === 'clip');
+    const video = withShapes().views[0]!.freeShapes.find((shape) => shape.id === 'video');
     if (video?.kind !== 'picture') throw new Error('No video.');
     const middle = worldToScreen(controller.camera, {
       x: video.x + video.width / 2,
       y: video.y + video.height / 2,
     });
     click(host, middle);
-    expect(toggle).toHaveBeenCalledExactlyOnceWith('clip');
+    expect(toggle).toHaveBeenCalledExactlyOnceWith('video');
     expect(select).toHaveBeenCalled();
     click(host, middle, { ctrlKey: true });
     expect(toggle).toHaveBeenCalledOnce();

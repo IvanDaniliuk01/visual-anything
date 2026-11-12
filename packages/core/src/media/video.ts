@@ -529,7 +529,7 @@ function readTrack(
   const header = inTrak.find((box) => box.type === 'tkhd');
   return {
     handler,
-    size: headerSize(bytes, header) ?? (own),
+    size: headerSize(bytes, header) ?? own,
   };
 }
 

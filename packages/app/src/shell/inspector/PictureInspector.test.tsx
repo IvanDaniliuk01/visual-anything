@@ -26,7 +26,7 @@ const POSTER: MediaRef = { hash: 'e'.repeat(64), format: 'jpeg', width: 64, heig
 
 const video = (more: Partial<Picture> = {}): Picture => ({
   kind: 'picture',
-  id: 'clip',
+  id: 'video',
   x: 0,
   y: 0,
   width: 64,
@@ -66,12 +66,12 @@ describe('the inspector’s video', () => {
     const stop = onToggleVideo((id) => asked.push(id));
     shown(video({ poster: POSTER }));
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    expect(asked).toEqual(['clip']);
-    act(() => reportPlaying(canvas, new Set(['clip'])));
+    expect(asked).toEqual(['video']);
+    act(() => reportPlaying(canvas, new Set(['video'])));
     const playing = screen.getByRole('button', { name: 'Stop' });
     expect(playing.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(playing);
-    expect(asked).toEqual(['clip', 'clip']);
+    expect(asked).toEqual(['video', 'video']);
     act(() => reportPlaying(canvas, new Set()));
     expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy();
     stop();

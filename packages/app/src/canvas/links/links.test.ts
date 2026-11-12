@@ -200,7 +200,7 @@ describe('adding a card and setting its preview', () => {
     ).toMatchObject({ label: 'Resize a link card' });
     const video = {
       kind: 'picture' as const,
-      id: 'clip',
+      id: 'video',
       x: 0,
       y: 0,
       width: 64,
@@ -209,7 +209,7 @@ describe('adding a card and setting its preview', () => {
     };
     const withVideo = { ...view, freeShapes: [...view.freeShapes, video] };
     expect(
-      resizeNoteCommand(withVideo, 'clip', { x: 0, y: 0, width: 128, height: 72 }),
+      resizeNoteCommand(withVideo, 'video', { x: 0, y: 0, width: 128, height: 72 }),
     ).toMatchObject({ label: 'Resize a video' });
   });
 });
