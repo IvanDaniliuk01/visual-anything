@@ -335,6 +335,24 @@ const freeShape: fc.Arbitrary<FreeShape> = fc.oneof(
       noNullPrototype: true,
     },
   ),
+  fc.record(
+    {
+      kind: fc.constant('link' as const),
+      id,
+      x: coordinate,
+      y: coordinate,
+      width: canvasSize,
+      height: canvasSize,
+      url: fc.webUrl({ validSchemes: ['https', 'http'] }).filter((url) => url.length <= 2048),
+      title: fc.string({ minLength: 1, maxLength: 40 }),
+      description: fc.string({ minLength: 1, maxLength: 80 }),
+      picture: mediaRef,
+    },
+    {
+      requiredKeys: ['kind', 'id', 'x', 'y', 'width', 'height', 'url', 'title'],
+      noNullPrototype: true,
+    },
+  ),
 );
 
 /** A view's stacking order: never empty, and no list empty or with an id twice. */

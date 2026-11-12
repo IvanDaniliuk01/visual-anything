@@ -72,7 +72,7 @@ _Avoid_: figure, node
 A shape that represents an element or relation of the model; when the model changes, the shape reflects it. One element can have several anchored shapes in the same view, one inside each of its containers.
 
 **Free shape**:
-A shape that is drawing only and does not exist in the model: a note, an emphasis arrow, a picture, a sketch.
+A shape that is drawing only and does not exist in the model: a note, an emphasis arrow, a picture, a link card, a sketch.
 
 **Pinned shape**:
 A shape whose position was set by hand in a view; automatic layout arranges everything else around it.
@@ -256,8 +256,12 @@ _Avoid_: clip, movie, film
 A video's first frame, kept as a picture's media file when the video is added, which the video shows while it does not play and which the exports draw with a play mark (ADR 0098).
 _Avoid_: thumbnail, cover
 
+**Link card**:
+A free shape that holds a web address, a title, a description and an optional picture, drawn as a card; a click on its address opens it in a new tab of the browser, never embedded. Its preview, the page's own title, description and image, is fetched once, by the local program, only when the person presses Fetch the preview (ADR 0098).
+_Avoid_: bookmark, embed, link preview (for the shape), URL card
+
 **Media file**:
-A file a picture shows, or a video's poster, kept as `media/<sha256>.<extension>` beside the project: cleaned by the program, named by its content, written once and never changed, and never run (ADR 0098). A video's file is read by its container only, and keeps only what a player needs.
+A file a picture or a link card shows, or a video's poster, kept as `media/<sha256>.<extension>` beside the project: cleaned by the program, named by its content, written once and never changed, and never run (ADR 0098). A video's file is read by its container only, and keeps only what a player needs.
 
 **Named part**:
 A piece of an SVG image with an id of its own, such as the left ventricle in a picture of a heart, read only from the image's cleaned view; or a piece of a solid with a name of its own in its file, such as an arm's elbow, read only from its cleaned file. Its id or name is its name. It is what an anchored part is drawn as (ADR 0067, ADR 0075), and a part for short where no nesting is meant, since "is part of" names nesting.

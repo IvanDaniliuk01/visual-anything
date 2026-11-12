@@ -1412,7 +1412,7 @@ export interface ShapePosition {
  *
  * @discriminator kind
  */
-export type FreeShape = Note | Arrow | Picture | ExplorableShape;
+export type FreeShape = Note | Arrow | Picture | ExplorableShape | LinkCard;
 
 /** A free shape that holds text. */
 export interface Note {
@@ -1549,6 +1549,65 @@ export interface ExplorableShape {
    * @maxLength 200
    */
   name?: string;
+}
+
+/**
+ * A free shape that holds a web address, a title, a description and an optional picture, drawn as a
+ * card (ADR 0098, stage 3). A click on its address opens it in a new tab of the browser; nothing of
+ * the page is embedded. Its preview is fetched once, by the local program, only when the person
+ * presses Fetch the preview. It belongs to the view and is never part of the model.
+ */
+export interface LinkCard {
+  kind: 'link';
+  id: Id;
+  /**
+   * Its left edge on the canvas.
+   *
+   * @minimum -10000000
+   * @maximum 10000000
+   */
+  x: number;
+  /**
+   * Its top edge on the canvas.
+   *
+   * @minimum -10000000
+   * @maximum 10000000
+   */
+  y: number;
+  /**
+   * @exclusiveMinimum 0
+   * @maximum 10000000
+   */
+  width: number;
+  /**
+   * @exclusiveMinimum 0
+   * @maximum 10000000
+   */
+  height: number;
+  /**
+   * Its web address: absolute, `https:` or `http:`, with a host and no user name or password.
+   *
+   * @minLength 1
+   * @maxLength 2048
+   * @pattern ^[Hh][Tt][Tt][Pp][Ss]?://
+   */
+  url: string;
+  /**
+   * What it shows first, and what screen readers, the outline and find say: one line.
+   *
+   * @minLength 1
+   * @maxLength 300
+   */
+  title: string;
+  /**
+   * What it says under its title.
+   *
+   * @minLength 1
+   * @maxLength 1000
+   */
+  description?: string;
+  /** The image it shows across its top: a PNG, JPEG, WebP, GIF or SVG media file, never a video. */
+  picture?: MediaRef;
 }
 
 /** The formats a media file may have (ADR 0098): images, and from stage 2 videos, MP4 and WebM. */

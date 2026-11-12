@@ -859,6 +859,42 @@ describe('validateFile', () => {
       expect(problems.map((problem) => problem.path)).toEqual([`/freeShapes/0/media${path}`]);
     });
 
+    const card = {
+      kind: 'link',
+      id: 'guide',
+      x: 400,
+      y: 0,
+      width: 320,
+      height: 280,
+      url: 'https://example.org/guide',
+      title: 'The intake guide',
+      description: 'How a patient is received.',
+      picture: { hash: 'd'.repeat(64), format: 'png', width: 1200, height: 630, bytes: 82000 },
+    };
+
+    it('accepts a link card, and one with only its address and title (ADR 0098, stage 3)', () => {
+      const bare = { kind: 'link', id: 'bare', x: 0, y: 0, width: 320, height: 112 };
+      const linked = {
+        ...view,
+        freeShapes: [card, { ...bare, url: 'http://intranet.local/', title: 'Intranet' }],
+      };
+      expect(validateFile('view', linked)).toEqual({ ok: true, value: linked });
+    });
+
+    it.each([
+      ['an address that is not http or https', { url: 'javascript:alert(1)' }, '/url'],
+      ['an address past 2,048 characters', { url: `https://a.org/${'a'.repeat(2048)}` }, '/url'],
+      ['an empty title', { title: '' }, '/title'],
+      ['a title past 300 characters', { title: 't'.repeat(301) }, '/title'],
+      ['a description past 1,000 characters', { description: 'd'.repeat(1001) }, '/description'],
+      ['a picture that is no media reference', { picture: { hash: 'x' } }, '/picture'],
+    ])('rejects a link card with %s', (_, changed, path) => {
+      const problems = problemsIn('view', { ...view, freeShapes: [{ ...card, ...changed }] });
+      expect(problems.map((problem) => problem.path)[0]).toMatch(
+        new RegExp(`^/freeShapes/0${path}`),
+      );
+    });
+
     it('accepts the containers it keeps collapsed', () => {
       const collapsed = { ...view, collapsed: ['clinic-booking', 'scheduling'] };
       expect(validateFile('view', collapsed)).toEqual({ ok: true, value: collapsed });
@@ -891,7 +927,7 @@ describe('validateFile', () => {
         [
           {
             path: '/freeShapes/0/kind',
-            message: 'must be one of "note", "arrow", "picture", "explorable"',
+            message: 'must be one of "note", "arrow", "picture", "explorable", "link"',
           },
         ],
       ],
