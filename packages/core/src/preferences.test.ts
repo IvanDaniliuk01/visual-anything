@@ -67,6 +67,15 @@ const preferences: fc.Arbitrary<Preferences> = fc.record({
   codeTurnedOff: fc
     .uniqueArray(fc.constantFrom('gauges', 'clinic', 'sensors.v2', 'a-b'), { maxLength: 4 })
     .map((ids) => [...ids].sort()),
+  // The explorables the person approved (ADR 0107), newest first, each hash once.
+  explorableApprovals: fc.uniqueArray(
+    fc.record({
+      hash: fc.stringMatching(/^[0-9a-f]{64}$/),
+      explorable: fc.constantFrom('math.quadratic', 'math.sine', 'clinic.flow-k3f9q2'),
+      by: fc.constantFrom('person' as const, 'claude' as const),
+    }),
+    { maxLength: 4, selector: (approval) => approval.hash },
+  ),
 });
 
 function sidePanel() {
@@ -115,6 +124,7 @@ describe('DEFAULT_PREFERENCES', () => {
         inspector: { width: 320, collapsed: false },
       },
       codeTurnedOff: [],
+      explorableApprovals: [],
     });
     expect(PREFERENCE_NAMES).toEqual(Object.keys(DEFAULT_PREFERENCES));
   });
@@ -123,6 +133,7 @@ describe('DEFAULT_PREFERENCES', () => {
     expect(Object.isFrozen(DEFAULT_PREFERENCES)).toBe(true);
     expect(Object.isFrozen(DEFAULT_PREFERENCES.recentColors)).toBe(true);
     expect(Object.isFrozen(DEFAULT_PREFERENCES.codeApprovals)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_PREFERENCES.explorableApprovals)).toBe(true);
     expect(Object.isFrozen(DEFAULT_PREFERENCES.sidePanels)).toBe(true);
     expect(Object.isFrozen(DEFAULT_PREFERENCES.sidePanels.model)).toBe(true);
   });
@@ -187,6 +198,7 @@ describe('readPreferences', () => {
         inspector: { width: 2000, collapsed: false },
       },
       codeTurnedOff: ['gauges', 'clinic', 'gauges'],
+      explorableApprovals: [{ hash: 'e'.repeat(64), explorable: 'math.quadratic', by: 'claude' }],
     });
     expect(read.preferences).toEqual({
       theme: 'light',
@@ -205,6 +217,7 @@ describe('readPreferences', () => {
         inspector: { width: 2000, collapsed: false },
       },
       codeTurnedOff: ['clinic', 'gauges'],
+      explorableApprovals: [{ hash: 'e'.repeat(64), explorable: 'math.quadratic', by: 'claude' }],
     });
     expect(read.unread).toEqual([]);
   });
@@ -339,6 +352,7 @@ describe('formatPreferences', () => {
         '    }',
         '  },',
         '  "codeTurnedOff": [],',
+        '  "explorableApprovals": [],',
         '  "apple": [',
         '    1,',
         '    2',
@@ -626,5 +640,49 @@ describe('applyPreferenceChanges', () => {
     expect(after.sidePanels.model).not.toBe(changes.sidePanels?.model);
     const again = applyPreferenceChanges(after, {});
     expect(again.sidePanels.inspector).not.toBe(after.sidePanels.inspector);
+  });
+});
+
+describe('explorableApprovals (ADR 0107)', () => {
+  const approval = { hash: 'a'.repeat(64), explorable: 'math.quadratic', by: 'person' as const };
+
+  it('reads the approvals leniently: a list it cannot read approves nothing and is kept as found', () => {
+    expect(
+      readPreferences({ explorableApprovals: [approval] }).preferences.explorableApprovals,
+    ).toEqual([approval]);
+    const later = { ...approval, note: 'a key a later version adds' };
+    expect(
+      readPreferences({ explorableApprovals: [later] }).preferences.explorableApprovals,
+    ).toEqual([approval]);
+    const broken = readPreferences({ explorableApprovals: [{ ...approval, by: 'anyone' }] });
+    expect(broken.preferences.explorableApprovals).toEqual([]);
+    expect(broken.unread).toEqual(['explorableApprovals']);
+    expect(broken.kept).toEqual({ explorableApprovals: [{ ...approval, by: 'anyone' }] });
+  });
+
+  it('checks the approvals an app sends strictly', () => {
+    expect(checkPreferenceChanges({ explorableApprovals: [approval] })).toEqual({
+      ok: true,
+      changes: { explorableApprovals: [approval] },
+    });
+    for (const wrong of [
+      'not a list',
+      [{ ...approval, extra: true }],
+      [approval, approval],
+      [{ ...approval, hash: 'A'.repeat(64) }],
+      Array.from({ length: 1025 }, (_, n) => ({
+        ...approval,
+        hash: n.toString(16).padStart(64, '0'),
+      })),
+    ]) {
+      expect(checkPreferenceChanges({ explorableApprovals: wrong }).ok).toBe(false);
+    }
+  });
+
+  it('applies the approvals in a list of its own', () => {
+    const changes = { explorableApprovals: [{ ...approval }] };
+    const next = applyPreferenceChanges(DEFAULT_PREFERENCES, changes);
+    expect(next.explorableApprovals).toEqual([approval]);
+    expect(next.explorableApprovals).not.toBe(changes.explorableApprovals);
   });
 });

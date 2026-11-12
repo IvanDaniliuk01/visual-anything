@@ -31,6 +31,8 @@ import {
   type AppOpening,
 } from './claude/messages';
 import { errorReason } from './errors';
+import { startFrameListener, type FrameListener } from './explorables/listener';
+import { frameRuntime } from './explorables/runtime';
 import { toForwardSlashes } from './paths';
 import { refuseUpgrade, sendText, setSecurityHeaders } from './responses';
 import {
@@ -129,6 +131,11 @@ export interface ServerOptions {
    * absent, it refuses to.
    */
   setupClaude?: () => Promise<ClaudeSetup>;
+  /**
+   * The `va` runtime every explorable's frame starts with (ADR 0107), asked for each frame; the
+   * stand-in until the app's own runtime lands.
+   */
+  explorableRuntime?: () => string;
 }
 
 /** A theme the page can paint its first frame in. */
@@ -152,6 +159,11 @@ export interface RunningServer {
   /** Claude's credential for the Claude endpoint, which only the discovery file holds. */
   credential: string;
   /**
+   * The port of the explorables' listener on 127.0.0.1 (ADR 0107), which the app's page policy
+   * allows frames from, as `http://*.localhost:<port>`.
+   */
+  framePort: number;
+  /**
    * Makes an address that opens the app once, within two minutes, and ends the one made before:
    * `http://127.0.0.1:<port>/#launch=<code>`.
    */
@@ -171,8 +183,8 @@ interface App {
    * are taken off the HTTP server and called only for upgrades that pass the checks.
    */
   upgrades: UpgradeListener[];
-  /** The content security policy of the app's page, served from a port. */
-  pagePolicyAt(port: number): string;
+  /** The content security policy of the app's page, served from a port, framing the listener's. */
+  pagePolicyAt(port: number, framePort: number): string;
   close(): Promise<void>;
 }
 
@@ -303,7 +315,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       return;
     }
     applyContentPolicies(response, {
-      page: app.pagePolicyAt(port),
+      page: app.pagePolicyAt(port, frames.port),
       worker: WORKER_POLICY,
       codeWorker: CODE_WORKER_POLICY,
     });
@@ -354,14 +366,37 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     for (const listener of app.upgrades) listener.call(httpServer, request, socket, head);
   });
 
+  // The explorables' listener (ADR 0107) starts with the program, so that the page's policy names
+  // its port from the first page the program serves.
+  let frames: FrameListener;
   try {
-    port = await listen(httpServer, options.port, options.listen ?? HOST);
-    // Package code never fetches from the program itself (ADR 0057's clarification on addresses).
-    options.session.servesAt?.(port);
+    frames = await startFrameListener({
+      serve: (explorable, hash) =>
+        options.session.serveExplorableFrame?.(
+          explorable,
+          hash,
+          `http://${HOST}:${port}`,
+          (options.explorableRuntime ?? frameRuntime)(),
+        ) ?? Promise.resolve({ ok: false, status: 404, message: 'No project is open.' }),
+      err: (line) => console.error(line),
+    });
   } catch (error) {
     live.close();
     claude.close();
     await app.close();
+    throw error;
+  }
+  try {
+    port = await listen(httpServer, options.port, options.listen ?? HOST);
+    // Package code never fetches from the program itself (ADR 0057's clarification on addresses).
+    options.session.servesAt?.(port);
+    options.session.servesAt?.(frames.port);
+    options.session.servesExplorablesAt?.({ port: frames.port, nonce: frames.nonce });
+  } catch (error) {
+    live.close();
+    claude.close();
+    await app.close();
+    await frames.close();
     throw error;
   }
   httpServer.on('error', (error) => console.error(error));
@@ -375,6 +410,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     await new Promise<void>((resolve) => live.close(() => resolve()));
     await new Promise<void>((resolve) => claude.close(() => resolve()));
     await app.close();
+    await frames.close();
     // Whatever is still open: idle keep-alive connections and upgrades that no one took.
     for (const socket of sockets) socket.destroy();
     await stopped;
@@ -385,6 +421,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     port,
     token,
     credential,
+    framePort: frames.port,
     launchUrl,
     close: () => (closing ??= closeAll()),
   };
@@ -457,7 +494,7 @@ async function openApp(
     },
     upgrades,
     // Without Trusted Types, because Vite's error overlay writes HTML.
-    pagePolicyAt: (port) => pagePolicy(port, { trustedTypes: false, nonce }),
+    pagePolicyAt: (port, framePort) => pagePolicy(port, { trustedTypes: false, nonce, framePort }),
     close: () => vite.close(),
   };
 }
@@ -474,7 +511,8 @@ async function openBuiltApp(files: AppFiles, missing: string): Promise<App> {
       serveAppFile(files, request, response).catch((error: unknown) => fail(response, error));
     },
     upgrades: [],
-    pagePolicyAt: (port) => pagePolicy(port, { trustedTypes: true, scriptHashes }),
+    pagePolicyAt: (port, framePort) =>
+      pagePolicy(port, { trustedTypes: true, scriptHashes, framePort }),
     close: async () => {},
   };
 }

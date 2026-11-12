@@ -63,6 +63,13 @@ describe('pagePolicy', () => {
     expect(policy).toContain("style-src 'self' 'unsafe-inline'");
   });
 
+  it('frames only the labels of the explorables’ listener’s port (ADR 0107)', () => {
+    expect(pagePolicy(47715, { trustedTypes: true })).not.toContain('frame-src');
+    const policy = pagePolicy(47715, { trustedTypes: true, framePort: 47716 });
+    expect(policy).toContain('; frame-src http://*.localhost:47716;');
+    expect(policy).toContain("frame-ancestors 'none'");
+  });
+
   it('allows inline scripts by their hashes', () => {
     expect(pagePolicy(1, { trustedTypes: true, scriptHashes: ['sha256-x'] })).toContain(
       "script-src 'self' 'sha256-x'",
@@ -170,7 +177,11 @@ describe('the built app', () => {
   it('serves its page with the page policy, its inline script allowed by its hash', async () => {
     const reply = await send(server.port);
     expect(reply.headers['content-security-policy']).toBe(
-      pagePolicy(server.port, { trustedTypes: true, scriptHashes: inlineScriptHashes(INDEX) }),
+      pagePolicy(server.port, {
+        trustedTypes: true,
+        scriptHashes: inlineScriptHashes(INDEX),
+        framePort: server.framePort,
+      }),
     );
   });
 

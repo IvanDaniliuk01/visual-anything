@@ -14,6 +14,7 @@ import type {
 } from 'node:http';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { isInside } from './paths';
+import { explorableFrameSource } from '@visual-anything/core';
 
 /**
  * The largest message the live connection takes from an app, in bytes: 5 MiB, so that a picture of
@@ -53,6 +54,11 @@ export interface PagePolicyOptions {
   nonce?: string;
   /** The hashes of the inline scripts the page holds, as `sha256-…`. */
   scriptHashes?: readonly string[];
+  /**
+   * The port of the explorables' listener (ADR 0107): the page may frame its labels, as
+   * `http://*.localhost:<port>`, and nothing else.
+   */
+  framePort?: number;
 }
 
 /** The content security policy of the app's page, served from `port`. */
@@ -76,6 +82,9 @@ export function pagePolicy(port: number, options: PagePolicyOptions): string {
     "base-uri 'none'",
     "form-action 'none'",
     "frame-ancestors 'none'",
+    ...(options.framePort === undefined
+      ? []
+      : [`frame-src ${explorableFrameSource(options.framePort)}`]),
     ...(options.trustedTypes
       ? ["require-trusted-types-for 'script'", 'trusted-types default']
       : []),

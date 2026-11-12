@@ -21,10 +21,15 @@ import {
   type Problem,
   type ProblemCode,
   type ProjectSnapshot,
+  type ScriptLibraryAsk,
   type ServerMessage,
   type StartCreateMessage,
 } from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
 import { errorReason } from './errors';
+import type { FrameAnswer } from './explorables/listener';
+import type { Kept } from './script-libraries/keep';
+
 import type { LiveKept } from './live';
 import type { PreferencesStore } from './preferences';
 import { formatProjectProblem } from './project';
@@ -40,6 +45,7 @@ import type {
   CommandPlan,
   ConnectOptions,
   ExecuteOptions,
+  ExplorablesListener,
   LiveSession,
   OpenSessionResult,
   Origin,
@@ -93,6 +99,8 @@ export class StartingSession implements LiveSession {
   #closed = false;
   /** The ports the program listens on, which the project's session hears of once started. */
   readonly #ports: number[] = [];
+  /** Where the explorables' listener answers (ADR 0107), which each project's session hears of. */
+  #frames: ExplorablesListener | undefined;
   readonly #started: Promise<Session>;
   #resolveStarted: (session: Session) => void = () => {};
 
@@ -230,6 +238,30 @@ export class StartingSession implements LiveSession {
     this.#session?.servesAt(port);
   }
 
+  servesExplorablesAt(listener: ExplorablesListener): void {
+    this.#frames = listener;
+    this.#session?.servesExplorablesAt(listener);
+  }
+
+  serveExplorableFrame(
+    explorable: Id,
+    hash: string,
+    appOrigin: string,
+    runtime: string,
+  ): Promise<FrameAnswer> {
+    return (
+      this.#session?.serveExplorableFrame(explorable, hash, appOrigin, runtime) ??
+      Promise.resolve({ ok: false, status: 404, message: 'No project is open.' })
+    );
+  }
+
+  requestScriptLibrary(ask: ScriptLibraryAsk): Promise<Kept> {
+    return (
+      this.#session?.requestScriptLibrary(ask) ??
+      Promise.resolve({ ok: false, code: 'not-saved', message: 'No project is open.' })
+    );
+  }
+
   /** Closes the project's session, once started; until then there is nothing to close. */
   async close(): Promise<void> {
     this.#closed = true;
@@ -288,6 +320,7 @@ export class StartingSession implements LiveSession {
   #adopt(session: Session): void {
     this.#session = session;
     for (const port of this.#ports) session.servesAt(port);
+    if (this.#frames !== undefined) session.servesExplorablesAt(this.#frames);
     // The token went with the offer already: each app reconnects with it from then on.
     for (const client of this.#waiting) this.#disconnects.set(client, session.connect(client));
     this.#waiting.clear();
