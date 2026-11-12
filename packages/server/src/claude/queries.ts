@@ -34,6 +34,7 @@ import {
   picturesOf,
   linkCardsOf,
   linkHost,
+  missingShown,
 } from '@visual-anything/core';
 import type {
   AttributeDefinition,
@@ -41,6 +42,7 @@ import type {
   Id,
   JsonValue,
   Relation,
+  Step,
 } from '@visual-anything/schema';
 import { readDecisions } from './decision-edits';
 import { elementExplorable, explorableShapesAnswer } from './explorable-reads';
@@ -560,6 +562,8 @@ export function readScenario(state: ProjectSnapshot, scenarioId: Id) {
   );
   const broken = brokenStepsOf(state, scenario);
   const outside = timeline.entries.filter(isOutside).map((entry) => entry.first + 1);
+  const view = state.views.find((each) => each.id === scenario.view);
+  const missingShowsOf = (step: Step) => (view ? missingShown(view, step) : []);
   // Its decisions (ADR 0078): each alternative with the steps it holds, and where each step sits.
   const decisions = readDecisions(scenario, new Set(broken.map((each) => each.index + 1)));
   const within = decisions?.ok ? decisions.within : undefined;
@@ -598,6 +602,10 @@ export function readScenario(state: ProjectSnapshot, scenarioId: Id) {
         broken: relations.some((relation) => 'missing' in relation),
         ...(step.dataIn === undefined ? {} : { dataIn: step.dataIn }),
         ...(step.dataOut === undefined ? {} : { dataOut: step.dataOut }),
+        // The pictures, videos and link cards it shows, and what of them is gone (ADR 0098).
+        ...(step.shows === undefined ? {} : { shows: step.shows }),
+        ...(step.playing === undefined ? {} : { playing: step.playing }),
+        ...(missingShowsOf(step).length === 0 ? {} : { missingShows: missingShowsOf(step) }),
         ...(within?.has(at) ? { within: within.get(at) } : {}),
       };
     }),

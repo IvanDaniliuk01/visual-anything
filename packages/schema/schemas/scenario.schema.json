@@ -83,6 +83,26 @@
         "dataOut": {
           "$ref": "#/definitions/JsonValue",
           "description": "What the step produces."
+        },
+        "shows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "description": "The pictures, videos and link cards of the scenario's view the step shows (ADR 0098, stage 4): while the scenario plays, once any of its steps lists some, those of the view it does not list are hidden. A free shape deleted since stays named; the step plays without it.",
+          "minItems": 1,
+          "maxItems": 500,
+          "uniqueItems": true
+        },
+        "playing": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "description": "The videos among those it shows that play, muted and in a loop, while the step shows.",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true
         }
       },
       "required": [

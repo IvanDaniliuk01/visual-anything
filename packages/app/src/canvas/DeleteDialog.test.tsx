@@ -93,6 +93,44 @@ describe('DeleteDialog', () => {
     expect(dialog).toHaveTextContent('How booking works: The booking agent');
   });
 
+  it('says which scenario steps show a picture that goes, kept as they are (ADR 0098)', () => {
+    const scenario = sample.scenarios[0];
+    const first = scenario?.steps[0];
+    if (!scenario || !first) throw new Error('The sample has no scenario.');
+    const card = {
+      kind: 'link' as const,
+      id: 'card',
+      x: 0,
+      y: 2000,
+      width: 320,
+      height: 112,
+      url: 'https://example.com/',
+      title: 'Example',
+    };
+    const withCard = after(sample, { type: 'create-free-shape', view: scenario.view, shape: card });
+    const shown = after(withCard, {
+      type: 'update-scenario',
+      id: scenario.id,
+      changes: { steps: [{ ...first, shows: ['card'] }, ...scenario.steps.slice(1)] },
+    });
+    const preview = previewDelete(shown, { freeShapes: ['card'] }, scenario.view);
+    render(
+      <DeleteDialog
+        project={shown}
+        preview={preview}
+        freeShapes={1}
+        onConfirm={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent(
+      'This scenario step shows what goes. It is kept as it is, and plays without it:',
+    );
+    expect(dialog).toHaveTextContent(`${scenario.name}: ${first.description}`);
+    expect(dialog).not.toHaveTextContent('broken step');
+  });
+
   it('says which alternative a step that becomes broken is in (ADR 0078)', () => {
     const orders = loadSample('order-process');
     const preview = previewDelete(orders, { relations: ['cancel-to-end'] });

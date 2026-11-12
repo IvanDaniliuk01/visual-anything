@@ -161,8 +161,14 @@ export interface DeletePreview {
    */
   brokenSteps: { scenario: Id; step: Id; within?: { decision: Id; alternative: Id } }[];
   /**
+   * The scenario steps that show a picture, a video or a link card deleted from their scenario's
+   * view (ADR 0098, stage 4). They are kept as they are, naming it, and play without it; whether
+   * they are broken steps their relations alone say. A step in an alternative says which.
+   */
+  showingSteps: { scenario: Id; step: Id; within?: { decision: Id; alternative: Id } }[];
+  /**
    * The tour steps that would name what is deleted, as what they select, mark or focus from (ADR
-   * 0058), and those that select a free shape deleted from their view. They are kept, flagged, and
+   * 0058), and those that select or show a free shape deleted from their view. They are kept, flagged, and
    * play without it.
    */
   brokenTourSteps: { tour: Id; step: Id }[];
@@ -251,7 +257,16 @@ export function previewDelete(
     cascaded: relationIds.filter((id) => !askedRelations.has(id)),
     positions: removedPositions(state.views, askedElements),
     stacking: removedStacking(state.views, askedElements),
-    brokenSteps: brokenSteps(state.scenarios, relations),
+    brokenSteps: brokenSteps(state.scenarios, (step) =>
+      step.relations.some((id) => relations.has(id)),
+    ),
+    showingSteps:
+      view === undefined || (targets.freeShapes ?? []).length === 0
+        ? []
+        : brokenSteps(
+            state.scenarios.filter((scenario) => scenario.view === view),
+            (step) => (step.shows ?? []).some((id) => targets.freeShapes?.includes(id)),
+          ),
     brokenTourSteps: brokenTourSteps(
       state.tours,
       new Set([...askedElements, ...relations]),
@@ -415,14 +430,15 @@ function removedRoutes(
   return removed;
 }
 
+/** The steps of the scenarios that `names` picks, each with the alternative it is in. */
 function brokenSteps(
   scenarios: readonly ScenarioFile[],
-  relations: ReadonlySet<Id>,
+  names: (step: ScenarioFile['steps'][number]) => boolean,
 ): DeletePreview['brokenSteps'] {
   const broken: DeletePreview['brokenSteps'] = [];
   for (const scenario of scenarios) {
     for (const step of scenario.steps) {
-      if (step.relations.some((id) => relations.has(id))) {
+      if (names(step)) {
         // A step in an alternative says which, whichever plays (ADR 0078).
         const within = scenario.blocks === undefined ? undefined : alternativeOf(scenario, step.id);
         broken.push({ scenario: scenario.id, step: step.id, ...(within ? { within } : {}) });
@@ -456,7 +472,11 @@ function brokenTourSteps(
       const selectsDeletedShape = (viewState: (typeof shown)[number]) =>
         viewState.view === freeShapes?.view &&
         (viewState.select ?? []).some((id) => freeShapes.ids.has(id));
-      if (named.some((id) => deleted.has(id)) || shown.some(selectsDeletedShape)) {
+      // And those that show a picture, a video or a link card deleted from their view (ADR 0098).
+      const showsDeleted =
+        step.viewState.view === freeShapes?.view &&
+        (step.shows ?? []).some((id) => freeShapes.ids.has(id));
+      if (named.some((id) => deleted.has(id)) || shown.some(selectsDeletedShape) || showsDeleted) {
         broken.push({ tour: tour.id, step: step.id });
       }
     }

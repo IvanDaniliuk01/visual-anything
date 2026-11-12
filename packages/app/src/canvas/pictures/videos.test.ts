@@ -145,6 +145,36 @@ describe('videos on the canvas', () => {
     expect(platform.stopped).toEqual(['a', 'b']);
   });
 
+  it('leaves a video the person started playing, and plays a step’s once it is drawn', async () => {
+    const { layer, platform } = layerWith();
+    layer.setScene([video('a'), video('b')]);
+    layer.toggle('a');
+    layer.setPlaying(new Set(['b', 'c']));
+    await settle();
+    layer.setPlaying(new Set());
+    expect(layer.isPlaying('a')).toBe(true);
+    expect(platform.stopped).toEqual(['b']);
+    // A video the step asks for before its view is drawn plays once it is.
+    layer.setPlaying(new Set(['c']));
+    expect(layer.isPlaying('c')).toBe(false);
+    layer.setScene([video('a'), video('c')]);
+    expect(layer.isPlaying('c')).toBe(true);
+  });
+
+  it('starts no step’s video again once the person stops it, but after it was hidden', async () => {
+    const { layer } = layerWith();
+    layer.setScene([video('a'), video('b')]);
+    layer.setPlaying(new Set(['a', 'b']));
+    await settle();
+    layer.toggle('a');
+    layer.setScene([video('a'), video('b')]);
+    expect(layer.isPlaying('a')).toBe(false);
+    layer.setScene([video('a'), video('b')], new Set(['b']));
+    expect(layer.isPlaying('b')).toBe(false);
+    layer.setScene([video('a'), video('b')]);
+    expect(layer.isPlaying('b')).toBe(true);
+  });
+
   it('never plays a picture that is not a video', () => {
     const { layer } = layerWith();
     layer.setScene([{ ...video('a'), media: ref('a', 'png'), video: undefined }]);

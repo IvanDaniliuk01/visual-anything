@@ -33,6 +33,7 @@ import type {
   ViewFile,
 } from '@visual-anything/schema';
 import { loadSample } from './sample';
+import { stepPictureRefusals } from './step-picture-refusals';
 import { videoRefusals } from './video-refusals';
 
 /** One thing the core said, and the fixture that made it say so. */
@@ -2576,6 +2577,7 @@ export function coreRefusals(): Said[] {
   for (const [name, state] of kinematicsOnOpening(sample)) said.push(...checked(name, state));
   said.push(...cleaningRefusals());
   said.push(...videoRefusals());
+  said.push(...stepPictureRefusals(sample));
   said.push(...drawings(sample));
   said.push(...mergeConflicts(sample));
   said.push(...proposals(sample));

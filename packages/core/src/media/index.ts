@@ -9,6 +9,7 @@ import { MEDIA_CAPS, isVideoFormat } from './clean';
 export * from './clean';
 export * from './gif';
 export * from './messages';
+export * from './steps';
 export * from './video';
 
 /** The pictures of a view, in its order. */

@@ -20,6 +20,7 @@ import {
   TOUR_CHECK_SCREEN,
   chainOrder,
   checkTour,
+  choosesPictures,
   marksOf,
   modelIndexOf,
   isBrokenTourStep,
@@ -54,6 +55,7 @@ import { describeMarks } from './describe';
 import { drawnBounds, drawnShapes } from './drawn-bounds';
 import { CaptionLook } from './CaptionLook';
 import { MotionPreferences } from './MotionPreferences';
+import { StepPictures, type PictureLists } from '../scenarios/StepPictures';
 import { stepJointsFrom, withStepJoints } from './step-joints';
 import { viewsInListOrder } from '../shell/viewFolders';
 import { useSpacePanel, useSpacePanelState } from '../space/context';
@@ -547,6 +549,19 @@ function StepItem({
           </button>
         )}
       </div>
+      <StepPictures
+        view={project.views.find((each) => each.id === step.viewState.view)}
+        lists={{
+          ...(step.shows ? { shows: step.shows } : {}),
+          ...(step.playing ? { playing: step.playing } : {}),
+        }}
+        chooses={choosesPictures(tour.steps)}
+        owner="tour"
+        editable={editable}
+        onChange={(lists) =>
+          change((each) => withPictures(each, lists), t('Changed what step {n} shows.', { n }))
+        }
+      />
       <StepExplains step={step} n={n} editable={editable} change={change} />
       <StepBeside step={step} n={n} editable={editable} change={change} />
       <CaptionLook
@@ -730,6 +745,17 @@ function StepBeside({
 }
 
 /** A step without the view it showed beside it. */
+/** A step with what it shows and plays (ADR 0098, stage 4), each list left out when empty. */
+function withPictures(step: TourStep, lists: PictureLists): TourStep {
+  const next: TourStep = { ...step };
+  delete next.shows;
+  delete next.playing;
+  if (lists.shows && lists.shows.length > 0) next.shows = lists.shows;
+  const playing = (lists.playing ?? []).filter((id) => next.shows?.includes(id));
+  if (playing.length > 0) next.playing = playing;
+  return next;
+}
+
 function withoutBeside(step: TourStep): TourStep {
   const next = { ...step };
   delete next.beside;

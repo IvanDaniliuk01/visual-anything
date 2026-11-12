@@ -1,9 +1,18 @@
 /** Commands on scenarios, their steps and their decisions (ADR 0078). */
-import type { Alternative, DecisionBlock, Id, ScenarioFile, Step } from '@visual-anything/schema';
+import type {
+  Alternative,
+  DecisionBlock,
+  Id,
+  ScenarioFile,
+  Step,
+  ViewFile,
+} from '@visual-anything/schema';
 import { isId, slug } from '../ids';
+import { stepPicturesProblems } from '../media/steps';
 import { readBlocks } from '../scenarios/blocks';
 import { inReadingOrder } from '../scenarios/decisions';
-import { compact, reject, requireList, requireName, type Draft } from './draft';
+import { compact, reject, requireList, requireName, sameJson, type Draft } from './draft';
+import { checkedStepPictures } from './step-pictures';
 import type {
   CreateScenarioCommand,
   DeleteScenarioCommand,
@@ -16,7 +25,7 @@ export function createScenario(draft: Draft, command: CreateScenarioCommand): st
   const name = requireName(scenario.name, 'A scenario');
   const view = draft.view(scenario.view);
   const id = draft.idFor(scenario.id, slug(name, 'scenario'));
-  const steps = checkedSteps(draft, requireList(scenario.steps, 'steps'), []);
+  const steps = checkedSteps(draft, requireList(scenario.steps, 'steps'), [], view);
   const created: ScenarioFile = compact({
     id,
     name,
@@ -44,7 +53,12 @@ export function updateScenario(draft: Draft, command: UpdateScenarioCommand): st
   else if (changes.description !== undefined) next.description = changes.description;
   if (changes.view !== undefined) next.view = draft.view(changes.view).id;
   if (changes.steps !== undefined) {
-    next.steps = checkedSteps(draft, requireList(changes.steps, 'steps'), current.steps);
+    next.steps = checkedSteps(
+      draft,
+      requireList(changes.steps, 'steps'),
+      current.steps,
+      draft.view(next.view),
+    );
   }
   // Decisions given replace them all; otherwise a change of steps keeps them, without the steps gone.
   const blocks =
@@ -170,8 +184,15 @@ function wellFormedAlternative(alternative: unknown): Alternative {
 /**
  * Checks the steps of a scenario. A step activates at least one relation, each one once, and every
  * relation must exist, except in a step kept exactly as it was: a broken step stays until it is fixed.
+ * What it shows (ADR 0098, stage 4) must be pictures, videos and link cards of the scenario's view,
+ * and what it plays videos among them, except in lists kept exactly as they were.
  */
-function checkedSteps(draft: Draft, steps: readonly NewStep[], before: readonly Step[]): Step[] {
+function checkedSteps(
+  draft: Draft,
+  steps: readonly NewStep[],
+  before: readonly Step[],
+  view: ViewFile,
+): Step[] {
   const previous = new Map(before.map((step) => [step.id, step]));
   const ids = new Set<Id>();
   return steps.map((step, position) => {
@@ -209,12 +230,25 @@ function checkedSteps(draft: Draft, steps: readonly NewStep[], before: readonly 
     if (typeof step.description !== 'string') {
       reject('invalid-command', `Step ${position + 1} needs a description.`);
     }
+    const pictures = checkedStepPictures(step, `Step ${position + 1}`);
+    const keptPictures =
+      kept !== undefined &&
+      sameJson(pictures.shows, kept.shows) &&
+      sameJson(pictures.playing, kept.playing);
+    if (!keptPictures) {
+      const [problem] = stepPicturesProblems(view, pictures);
+      if (problem) {
+        reject(problem.code, `Step ${position + 1}: ${problem.message}`, [problem.subject]);
+      }
+    }
     return compact({
       id,
       description: step.description,
       relations: [...relations],
       dataIn: step.dataIn,
       dataOut: step.dataOut,
+      shows: pictures.shows,
+      playing: pictures.playing,
     });
   });
 }

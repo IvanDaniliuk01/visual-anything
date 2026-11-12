@@ -28,6 +28,7 @@ import { definitionsIn, modelIndexOf } from './state';
 import { geometryFindings } from './geometry';
 import { readBlocks } from './scenarios/blocks';
 import { mathFindings } from './math/check';
+import { missingShown } from './media/steps';
 
 /** What is wrong with a project. */
 export interface ProjectCheck {
@@ -352,6 +353,20 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
         [scenario.id],
       ),
     );
+    // A step that shows what its view no longer holds is kept, and plays without it (ADR 0098).
+    const view = state.views.find((each) => each.id === scenario.view);
+    for (const step of view === undefined ? [] : scenario.steps) {
+      const missing = missingShown(view, step);
+      if (missing.length > 0) {
+        warnings.push(
+          problem(
+            'unknown-free-shape',
+            `A step of the scenario "${scenario.name}" shows ${missing.map((id) => `"${id}"`).join(', ')}, which the view "${view?.name ?? scenario.view}" no longer holds: it plays without what is gone.`,
+            [scenario.id, step.id, ...missing],
+          ),
+        );
+      }
+    }
     // Decisions that do not hold together only warn: the scenario plays every step in order.
     const decisions = readBlocks(scenario);
     if (!decisions.ok) {

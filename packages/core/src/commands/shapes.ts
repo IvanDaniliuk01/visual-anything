@@ -653,7 +653,8 @@ export const COMMAND_SHAPES: Shapes = {
     },
   },
   'create-free-shape': {
-    meaning: 'Adds a free shape to a view: a note, an arrow, a picture, a link card or an explorable.',
+    meaning:
+      'Adds a free shape to a view: a note, an arrow, a picture, a link card or an explorable.',
     fields: {
       view: VIEW,
       shape: {
@@ -791,11 +792,12 @@ export const COMMAND_SHAPES: Shapes = {
           description: NEW_DESCRIPTION,
           view: { type: 'Id', kind: 'text', required: true, meaning: 'The view it plays over.' },
           steps: {
-            type: '{ id?: Id; description: string; relations: Id[] }[]',
+            type: '{ id?: Id; description: string; relations: Id[]; shows?: Id[]; playing?: Id[] }[]',
             kind: 'list',
             items: 'object',
             required: true,
-            meaning: 'Its steps in order, each over the relations it lights.',
+            meaning:
+              'Its steps in order, each over the relations it lights, with the pictures, videos and link cards of its view it shows and the videos it plays (ADR 0098).',
           },
           blocks: {
             type: 'DecisionBlock[]',
@@ -829,7 +831,7 @@ export const COMMAND_SHAPES: Shapes = {
           description: DESCRIPTION_CHANGE,
           view: { type: 'Id', kind: 'text', meaning: 'The view it plays over.' },
           steps: {
-            type: '{ id?: Id; description: string; relations: Id[] }[]',
+            type: '{ id?: Id; description: string; relations: Id[]; shows?: Id[]; playing?: Id[] }[]',
             kind: 'list',
             items: 'object',
             meaning: 'Its steps, replacing all of them.',

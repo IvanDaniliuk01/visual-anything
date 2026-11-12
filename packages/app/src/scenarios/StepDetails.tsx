@@ -1,12 +1,13 @@
 /**
  * The step playback is on, in the step panel: what moves, its description and its data in and out,
- * each edited as one command. A broken step says which relations are gone and offers to fix it; an
+ * and the pictures, videos and link cards it shows (ADR 0098, stage 4), each edited as one command. A broken step says which relations are gone and offers to fix it; an
  * aggregated step lists the steps it stands for and offers to expand its container. A step can start
  * an alternative after it, and one in an alternative can rejoin the steps after the decision there
  * (ADR 0078).
  */
 import {
   alternativesOf,
+  choosesPictures,
   deleteStep,
   describeStep,
   isOutside,
@@ -15,6 +16,7 @@ import {
   rejoinAt,
   repairStep,
   setStepData,
+  setStepPictures,
   takeOutOfStep,
   type Command,
   type NewStep,
@@ -32,6 +34,7 @@ import { expandCommand, stepOf, stepsCommand } from './commands';
 import { jsonText, readJson, sameJson } from './json';
 import { OutsideNote } from './OutsideNote';
 import { decisionsCommand } from './record-decisions';
+import { StepPictures } from './StepPictures';
 
 interface StepDetailsProps {
   project: ProjectSnapshot;
@@ -330,6 +333,24 @@ function StepEditor({
           onCommit={commitData('dataOut')}
         />
       </div>
+
+      <StepPictures
+        view={project.views.find((each) => each.id === scenario.view)}
+        lists={{
+          ...(step.shows ? { shows: step.shows } : {}),
+          ...(step.playing ? { playing: step.playing } : {}),
+        }}
+        chooses={choosesPictures(scenario.steps)}
+        owner="scenario"
+        editable={editable}
+        onChange={(lists) =>
+          void change(
+            setStepPictures(scenario.steps, at, lists),
+            fill('Choose what {step} shows', { step: label }),
+            t('Changed what step {n} shows.', { n: at + 1 }),
+          )
+        }
+      />
 
       <div className="scenario-actions">
         {onShow && (

@@ -260,6 +260,10 @@ _Avoid_: thumbnail, cover
 A free shape that holds a web address, a title, a description and an optional picture, drawn as a card; a click on its address opens it in a new tab of the browser, never embedded. Its preview, the page's own title, description and image, is fetched once, by the local program, only when the person presses Fetch the preview (ADR 0098).
 _Avoid_: bookmark, embed, link preview (for the shape), URL card
 
+**Shown pictures**:
+The pictures, videos and link cards of its view that a scenario step or a tour step lists as what it shows, and the videos among them it plays (ADR 0098). Once one step of a scenario or tour lists some, the others of the view are hidden while it plays, and its videos play muted while their step shows; one none of whose steps lists any shows them all. A step keeps naming one deleted since, and plays without it.
+_Avoid_: slide media, visible pictures, assets
+
 **Media file**:
 A file a picture or a link card shows, or a video's poster, kept as `media/<sha256>.<extension>` beside the project: cleaned by the program, named by its content, written once and never changed, and never run (ADR 0098). A video's file is read by its container only, and keeps only what a player needs.
 

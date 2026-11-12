@@ -32,6 +32,7 @@ import {
 } from '../view-state';
 import { chainBreak, pulseLegs, type ChainLink, type PulseLeg, pulseProblems } from './pulse';
 import { advanceAfter } from './timing';
+import { stepPicturesProblems } from '../media/steps';
 import { explorablesIn } from '../explorables/catalog';
 import { explorableParameterProblem, parameterValues } from '../explorables/data';
 import type { ExplorableParameterValue } from '@visual-anything/schema';
@@ -280,6 +281,8 @@ export function tourStepProblems(project: ProjectSnapshot, step: TourStep): Tour
     problems.push(...choicesProblems(project, scenario, choices, [from, to]));
   }
   problems.push(...tourExplorableProblems(project, step));
+  // The pictures, videos and link cards it shows, of its view (ADR 0098, stage 4).
+  if (view !== undefined) problems.push(...stepPicturesProblems(view, step));
   // The view state beside it is checked as its own is, and said to be beside it (ADR 0102).
   for (const each of viewStateProblems(project, step.beside)) {
     problems.push({ ...each, message: `${BESIDE}${each.message}`, part: 'beside' });
@@ -780,6 +783,8 @@ export function idsNamedByTours(tours: readonly TourFile[]): ReadonlySet<Id> {
         for (const id of step.beside?.focus?.from ?? []) set.add(id);
         // So that no new explorable takes the id of one a broken step still names (ADR 0107).
         if (step.explorable !== undefined) set.add(step.explorable.id);
+        // Nor a new free shape the id of a picture it shows (ADR 0098, stage 4).
+        for (const id of step.shows ?? []) set.add(id);
       }
     }
     ids = set;
