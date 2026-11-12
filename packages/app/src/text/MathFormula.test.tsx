@@ -3,11 +3,13 @@ import { render } from '@testing-library/react';
 import katex from 'katex';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MONO_FAMILY, cssFontFamily } from '../canvas/robotoFonts';
+import { setCurrentLanguage } from '../i18n/language';
 import { drawnMath } from './drawnMath';
 import { MathFormula } from './MathFormula';
 
 afterEach(() => {
   vi.restoreAllMocks();
+  setCurrentLanguage('en');
 });
 
 describe('MathFormula', () => {
@@ -51,6 +53,25 @@ describe('MathFormula', () => {
       expect(holder.textContent).toBe(`⚠Math that cannot be typeset: ${typed}`);
     },
   );
+
+  it('gives why as its title in Spanish: the core’s refusals translated, KaTeX’s message as written', () => {
+    setCurrentLanguage('es');
+    const title = (tex: string) =>
+      (
+        render(<MathFormula tex={tex} display={false} typed={`$${tex}$`} />).container
+          .firstElementChild as HTMLElement
+      ).title;
+    expect(title(String.raw`\color{red}{x}`)).toBe(
+      'La notación matemática no admite \\color: los colores vienen del tema.',
+    );
+    expect(title('x'.repeat(2_001))).toBe(
+      'Cada notación matemática admite como mucho 2,000 caracteres; esta tiene 2,001.',
+    );
+    const failed = typesetMath(String.raw`\nope x`, { display: false });
+    if (failed.ok) throw new Error('\\nope typesets');
+    expect(failed.error.startsWith('KaTeX')).toBe(true);
+    expect(title(String.raw`\nope x`)).toBe(failed.error);
+  });
 
   it('typesets with the core’s settings, and draws the same TeX only once', () => {
     const rendered = vi.spyOn(katex, 'render');

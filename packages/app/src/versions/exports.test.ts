@@ -1,9 +1,12 @@
+import { compareProjects } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
 import type { ShownComparison } from '../canvas/comparison/mode';
 import type { FileExportContext } from '../export/formats';
+import { forgetMathOutlines, loadedMathOutlines, mathGlyphId } from '../export/math-svg';
 import { buildScene } from '../canvas/scene';
 import { translatorFor } from '../i18n/t';
-import { VIEW, comparedSample } from '../test/comparison';
+import { VIEW, comparedSample, done } from '../test/comparison';
+import { withEmphasis } from '../test/emphasis';
 import { comparisonExports } from './exports';
 import { CompareSession } from './session';
 import { chosenOf } from './versions';
@@ -94,6 +97,33 @@ describe('the comparison’s exports', () => {
     expect(text).toContain('- Older version: main · `a1b2c3d4e5f6` · 2026-10-28');
     expect(text).toContain('- Newer version: The project now · 2026-10-29');
     expect(text).toContain('WhatsApp Business');
+  });
+
+  it('writes Math’s glyphs as outlines, loading the outline table first (ADR 0106)', async () => {
+    const older = withEmphasis('$\\frac{1}{n}\\sum_i x_i$', {
+      detail: { attributes: ['note'], componentName: false },
+    });
+    const newer = done(older, {
+      type: 'update-element',
+      id: 'whatsapp',
+      changes: { name: 'WhatsApp Business' },
+    });
+    const { shown, context } = shownSample();
+    const withMath: ShownComparison = {
+      ...shown,
+      older,
+      newer,
+      comparison: compareProjects(older, newer),
+    };
+    const exports = comparisonExports(withMath, VIEW);
+    for (const drawing of ['before', 'after', 'comparison']) {
+      forgetMathOutlines();
+      const svg = exports.find((each) => each.id === `comparison-${drawing}-svg`);
+      const text = (await (await svg?.make({ ...context, project: newer }))?.blob.text()) ?? '';
+      expect(loadedMathOutlines()).toBeDefined();
+      expect(text, drawing).not.toContain('KaTeX');
+      expect(text, drawing).toContain(`href="#${mathGlyphId('Main-Regular', '1')}"`);
+    }
   });
 
   it('names no version in the summary of a comparison Compare with… did not show', () => {

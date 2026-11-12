@@ -5,12 +5,14 @@ import {
   forgetMathFonts,
   mathFamily,
   mathFontInstalled,
+  mathFontsPending,
   mathGlyphFont,
   onMathFontsInstalled,
   repaintWhenMathFontsInstalled,
   wantMathDrawing,
   wantMathFonts,
   wantMathOfScene,
+  whenMathFontsSettled,
 } from './mathFonts';
 
 beforeEach(() => forgetMathFonts());
@@ -98,5 +100,27 @@ describe('KaTeX’s fonts on the canvas (ADR 0106)', () => {
     expect(mathFontInstalled('Math-Italic')).toBe(true);
     expect(mathFontInstalled('Main-Regular')).toBe(true);
     expect(mathFontInstalled('Size1-Regular') || mathFontInstalled('Size2-Regular')).toBe(true);
+  });
+
+  it('tells when every family on its way is installed or failed, after drawing again what waited', async () => {
+    withFakeMathFonts({ tasks: 'run', failing: ['Size1-Regular'] });
+    await expect(whenMathFontsSettled()).resolves.toBe(true);
+    const repaint = vi.fn();
+    expect(mathGlyphFont('Main-Regular')).toBeUndefined();
+    expect(mathGlyphFont('Size1-Regular')).toBeUndefined();
+    repaintWhenMathFontsInstalled({ repaint });
+    expect(mathFontsPending()).toBe(true);
+    await expect(whenMathFontsSettled()).resolves.toBe(true);
+    expect(repaint).toHaveBeenCalledTimes(1);
+    expect(mathFontsPending()).toBe(false);
+    expect(mathFontInstalled('Main-Regular')).toBe(true);
+    expect(mathFontInstalled('Size1-Regular')).toBe(false);
+  });
+
+  it('stops waiting after its time, for a family that never loads', async () => {
+    withFakeMathFonts({ tasks: 'run', loading: 1_000 });
+    wantMathFonts(['Main-Regular']);
+    await expect(whenMathFontsSettled(10)).resolves.toBe(false);
+    expect(mathFontsPending()).toBe(true);
   });
 });
