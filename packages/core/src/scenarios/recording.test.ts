@@ -11,6 +11,7 @@ import {
   recordRelation,
   repairStep,
   setStepData,
+  setStepPictures,
   takeOutOfStep,
 } from './recording';
 import { scenarioProject, step, theScenario, withSteps } from './test/fixtures';
@@ -149,6 +150,20 @@ describe('step edits', () => {
       dataOut: [1, 2],
     });
     expect(setStepData(two, 0, 'dataIn', null)[0]).toEqual({ ...two[0], dataIn: null });
+  });
+
+  it('sets what a step shows and plays, each list left out when empty (ADR 0098)', () => {
+    const shown = setStepPictures(two, 1, {
+      shows: ['photo', 'video', 'photo'],
+      playing: ['video', 'card'],
+    });
+    expect(shown[1]).toEqual({ ...two[1], shows: ['photo', 'video'], playing: ['video'] });
+    expect(shown[0]).toBe(two[0]);
+    expect(setStepPictures(shown, 1, { shows: ['photo'], playing: ['video'] })[1]).toEqual({
+      ...two[1],
+      shows: ['photo'],
+    });
+    expect(setStepPictures(shown, 1, {})[1]).toEqual(two[1]);
   });
 
   it('takes a relation out of a step, unless it is the step’s last', () => {

@@ -88,6 +88,27 @@ export function setStepData(
 }
 
 /**
+ * The steps with what one step shows and plays (ADR 0098, stage 4) set: each list left out when
+ * empty, and the videos it plays kept only among what it shows.
+ */
+export function setStepPictures(
+  steps: readonly NewStep[],
+  at: number,
+  lists: { shows?: readonly Id[] | undefined; playing?: readonly Id[] | undefined },
+): NewStep[] {
+  const step = steps[at];
+  if (!step) return [...steps];
+  const shows = [...new Set(lists.shows ?? [])];
+  const playing = [...new Set(lists.playing ?? [])].filter((id) => shows.includes(id));
+  const changed: NewStep = { ...step };
+  delete changed.shows;
+  delete changed.playing;
+  if (shows.length > 0) changed.shows = shows;
+  if (playing.length > 0) changed.playing = playing;
+  return replaced(steps, at, changed);
+}
+
+/**
  * The steps with a relation taken out of one step, and with it any the step uses that no longer
  * exist; undefined when that would leave the step with none, or there is no such step.
  */

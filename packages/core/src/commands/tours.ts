@@ -49,6 +49,7 @@ import {
 } from './draft';
 import { checkedFace } from './traits';
 import { checkedTourExplorable } from './explorables';
+import { checkedStepPictures } from './step-pictures';
 import type { CreateTourCommand, DeleteTourCommand, NewTourStep, UpdateTourCommand } from './types';
 
 export function createTour(draft: Draft, command: CreateTourCommand): string {
@@ -265,6 +266,8 @@ function checkedStep(given: NewTourStep, n: number): Omit<TourStep, 'id'> {
     notText: 'Speaker notes are text.',
     tooLong: `Speaker notes hold at most ${MAX_SPEAKER_NOTES} characters.`,
   });
+  // The pictures, videos and link cards it shows, and the videos it plays (ADR 0098, stage 4).
+  const { shows, playing } = checkedStepPictures(given, where);
   return compact({
     viewState: viewState.state,
     beside,
@@ -279,6 +282,8 @@ function checkedStep(given: NewTourStep, n: number): Omit<TourStep, 'id'> {
     transition,
     pulse,
     notes,
+    shows,
+    playing,
   });
 }
 

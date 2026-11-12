@@ -1773,6 +1773,24 @@ export interface Step {
   dataIn?: JsonValue;
   /** What the step produces. */
   dataOut?: JsonValue;
+  /**
+   * The pictures, videos and link cards of the scenario's view the step shows (ADR 0098, stage 4):
+   * while the scenario plays, once any of its steps lists some, those of the view it does not list
+   * are hidden. A free shape deleted since stays named; the step plays without it.
+   *
+   * @minItems 1
+   * @maxItems 500
+   * @uniqueItems true
+   */
+  shows?: Id[];
+  /**
+   * The videos among those it shows that play, muted and in a loop, while the step shows.
+   *
+   * @minItems 1
+   * @maxItems 4
+   * @uniqueItems true
+   */
+  playing?: Id[];
 }
 
 // ——— Overlays and levels of detail (ADR 0055) ———————————————————————————————————————————————————
@@ -2289,6 +2307,24 @@ export interface TourStep {
    * @maxLength 20000
    */
   notes?: string;
+  /**
+   * The pictures, videos and link cards of the step's view it shows (ADR 0098, stage 4): while the
+   * tour plays, once any of its steps lists some, those of the view it does not list are hidden. A
+   * free shape deleted since stays named; the step plays without it.
+   *
+   * @minItems 1
+   * @maxItems 500
+   * @uniqueItems true
+   */
+  shows?: Id[];
+  /**
+   * The videos among those it shows that play, muted and in a loop, while the step shows.
+   *
+   * @minItems 1
+   * @maxItems 4
+   * @uniqueItems true
+   */
+  playing?: Id[];
 }
 
 /**

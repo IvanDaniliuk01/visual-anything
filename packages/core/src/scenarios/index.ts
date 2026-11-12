@@ -64,5 +64,6 @@ export {
   recordRelation,
   repairStep,
   setStepData,
+  setStepPictures,
   takeOutOfStep,
 } from './recording';

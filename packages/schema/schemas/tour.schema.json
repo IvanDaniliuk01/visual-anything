@@ -127,6 +127,26 @@
           "description": "What the person presenting reads while the step shows, in the speaker notes window only: plain text, as a caption's.",
           "minLength": 1,
           "maxLength": 20000
+        },
+        "shows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "description": "The pictures, videos and link cards of the step's view it shows (ADR 0098, stage 4): while the tour plays, once any of its steps lists some, those of the view it does not list are hidden. A free shape deleted since stays named; the step plays without it.",
+          "minItems": 1,
+          "maxItems": 500,
+          "uniqueItems": true
+        },
+        "playing": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "description": "The videos among those it shows that play, muted and in a loop, while the step shows.",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true
         }
       },
       "required": [

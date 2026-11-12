@@ -216,7 +216,11 @@ export class Draft {
       ) ||
       state.scenarios.some(
         (scenario) =>
-          scenario.id === id || scenario.steps.some((step) => step.relations.includes(id)),
+          scenario.id === id ||
+          scenario.steps.some(
+            // What a step shows, too, so that it never comes to show something new (ADR 0098).
+            (step) => step.relations.includes(id) || (step.shows ?? []).includes(id),
+          ),
       ) ||
       state.packages.some((file) => file.id === id) ||
       // A tour's id, and what its steps name, so that a step never comes to mean something new.
