@@ -828,11 +828,32 @@ describe('validateFile', () => {
       expect(validateFile('view', pictured)).toEqual({ ok: true, value: pictured });
     });
 
+    it('accepts a video with its poster (ADR 0098, stage 2)', () => {
+      const video = {
+        ...picture,
+        id: 'check-in',
+        media: { hash: 'b'.repeat(64), format: 'mp4', width: 1920, height: 1080, bytes: 52428800 },
+        poster: { hash: 'c'.repeat(64), format: 'jpeg', width: 1920, height: 1080, bytes: 210000 },
+      };
+      // One Claude adds has no poster.
+      const webm = { ...picture, id: 'webm', media: { ...video.media, format: 'webm' } };
+      const shown = { ...view, freeShapes: [video, webm] };
+      expect(validateFile('view', shown)).toEqual({ ok: true, value: shown });
+    });
+
+    it('rejects a poster that is not a media reference', () => {
+      const problems = problemsIn('view', {
+        ...view,
+        freeShapes: [{ ...picture, poster: { ...picture.media, hash: 'x' } }],
+      });
+      expect(problems.map((problem) => problem.path)).toEqual(['/freeShapes/0/poster/hash']);
+    });
+
     it.each([
       ['a hash that is not lowercase hex', { ...picture.media, hash: 'A'.repeat(64) }, '/hash'],
       ['an unknown format', { ...picture.media, format: 'bmp' }, '/format'],
       ['a side past 8192 pixels', { ...picture.media, width: 8193 }, '/width'],
-      ['a file past 32 MiB', { ...picture.media, bytes: 33554433 }, '/bytes'],
+      ['a file past 50 MiB', { ...picture.media, bytes: 52428801 }, '/bytes'],
     ])('rejects a picture whose media has %s', (_, media, path) => {
       const problems = problemsIn('view', { ...view, freeShapes: [{ ...picture, media }] });
       expect(problems.map((problem) => problem.path)).toEqual([`/freeShapes/0/media${path}`]);

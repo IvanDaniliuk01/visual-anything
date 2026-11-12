@@ -318,3 +318,58 @@ describe('add_picture’s reading (ADR 0098)', () => {
     });
   });
 });
+
+/** A 64 × 48 MP4 of H.264, its container only, with a phone's place in udta. */
+const MP4 = decodeBase64(
+  'AAAAHGZ0eXBpc29tAAACAGlzb21pc28yYXZjMQAAAeVtb292AAAAbG12aGQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABT3RyYWsAAABcdGtoZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAQAAAADAAAAAAAOttZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAmaGRscgAAAAAAAAAAdmlkZQAAAAAAAAAAAAAAAFRyYWNrAAAAAJ1taW5mAAAACGRpbmYAAACNc3RibAAAAHVzdHNkAAAAAAAAAAEAAABlYXZjMQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAABAADAASAAAAEgAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABj//wAAAA9hdmNDAWQAH//gAAAAABBzdHRzAAAAAAAAAAAAAAAidWR0YQAAABqpeHl6KzQ4Ljg1ODQrMDAyLjI5NDUvAAAADm1kYXQAAAACZYg=',
+) as Uint8Array;
+
+describe('videos (ADR 0098, stage 2)', () => {
+  it('keeps an MP4, its place overwritten, and serves it back as kept', async () => {
+    const { session: opened, folder: at } = await open();
+    const client = new FakeClient();
+    await put(opened, client, MP4);
+    const { media, removed } = stored(client);
+    expect(media).toMatchObject({ format: 'mp4', width: 64, height: 48, bytes: MP4.length });
+    expect(removed).toContain('1 metadata box (udta)');
+    const written = await readFile(mediaFilePath(at, media.hash, 'mp4'));
+    expect(written.includes(Buffer.from('+48.8584'))).toBe(false);
+    await ask(opened, client, { type: 'media/get', requestId: 'g', hash: media.hash });
+    expect(client.ofType('media/piece')[0]?.piece.count).toBe(1);
+  });
+
+  it('takes a video only when its file and its poster are kept, and lists neither as unnamed', async () => {
+    const { session: opened } = await open();
+    const client = new FakeClient();
+    await put(opened, client, MP4, 'v');
+    await put(opened, client, PNG, 'p');
+    const [media, poster] = client.ofType('media/stored').map((each) => each.media) as [
+      MediaRef,
+      MediaRef,
+    ];
+    const video = { kind: 'picture' as const, x: 0, y: 0, width: 64, height: 48, media };
+    const missing = await opened.execute(
+      {
+        type: 'create-free-shape',
+        view: 'overview',
+        shape: { ...video, poster: { ...poster, hash: 'e'.repeat(64) } },
+      },
+      'user',
+    );
+    expect(missing).toMatchObject({ ok: false, problems: [{ code: 'media-file-missing' }] });
+    const added = await opened.execute(
+      { type: 'create-free-shape', view: 'overview', shape: { ...video, poster } },
+      'user',
+    );
+    expect(added.ok).toBe(true);
+    await ask(opened, client, { type: 'media-files/list', requestId: 'l' });
+    expect(client.ofType('media-files/listed')[0]?.files).toEqual([]);
+  });
+
+  it('reads a video of the project folder for add_video', async () => {
+    const { session: opened, folder: at } = await open();
+    await writeFile(join(at, 'check-in.mp4'), MP4);
+    const kept = await opened.keepProjectPicture('check-in.mp4');
+    expect(kept).toMatchObject({ ok: true, media: { format: 'mp4' }, fileName: 'check-in.mp4' });
+  });
+});

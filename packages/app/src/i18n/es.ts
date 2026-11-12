@@ -4279,6 +4279,31 @@ export const ui: Catalog = {
   'Pointing at the picture “{name}”.': 'Apunta a la imagen “{name}”.',
   'Pictures whose files are missing are drawn as gray boxes.':
     'Las imágenes cuyos archivos faltan se dibujan como recuadros grises.',
+  // A8.2: videos, pictures whose file is a video (ADR 0098, stage 2).
+  Video: 'Video',
+  'Video.': 'Video.',
+  'Video: {name}': 'Video: {name}',
+  Stop: 'Detener',
+  'Make its poster': 'Crear su póster',
+  'Its poster:': 'Su póster:',
+  'A video: it plays muted and in a loop when clicked, and shows its poster otherwise.':
+    'Un video: se reproduce sin sonido y en bucle al hacer clic, y si no muestra su póster.',
+  'The browser could not show a frame of this video.':
+    'El navegador no pudo mostrar un cuadro de este video.',
+  'Visual Anything takes PNG, JPEG, WebP, GIF and SVG pictures, and MP4 and WebM videos.':
+    'Visual Anything acepta imágenes PNG, JPEG, WebP, GIF y SVG, y videos MP4 y WebM.',
+  '"{name}" is over 50 MiB, the most a video takes.':
+    '"{name}" pasa de 50 MiB, lo más que admite un video.',
+  '"{name}" is over 25 MiB: it joins the project’s folder, and its git history if the project is in git.':
+    '"{name}" pasa de 25 MiB: entra en la carpeta del proyecto, y en su historial de git si el proyecto está en git.',
+  'The browser could not show a frame of "{name}": it is added without a poster, and plays when clicked if the browser can play it.':
+    'El navegador no pudo mostrar un cuadro de "{name}": se agrega sin póster, y se reproduce al hacer clic si el navegador puede reproducirlo.',
+  'Pointing at a video.': 'Apunta a un video.',
+  'Pointing at the video “{name}”.': 'Apunta al video “{name}”.',
+  '{count} videos are past 32 MiB: the page shows their posters, and they do not play.': {
+    one: 'Un video pasa de 32 MiB: la página muestra su póster, y no se reproduce.',
+    other: '{count} videos pasan de 32 MiB: la página muestra sus pósteres, y no se reproducen.',
+  },
   '{count} pictures are left out: pictures are drawn only in the canvas, the PNG, the SVG, the PDF and the read-only page.':
     {
       one: 'Se omite una imagen: las imágenes solo se dibujan en el lienzo, el PNG, el SVG, el PDF y la página de solo lectura.',
@@ -8141,6 +8166,15 @@ export const messages: Catalog = {
     'El hash de un archivo multimedia es su SHA-256, en 64 dígitos hexadecimales en minúscula.',
   'A media file is a PNG, JPEG, WebP, GIF or SVG.':
     'Un archivo multimedia es un PNG, un JPEG, un WebP, un GIF o un SVG.',
+  // A8.2: videos, pictures whose file is a video (ADR 0098, stage 2).
+  'Add a video to "{view}"': 'Agregar un video a "{view}"',
+  'Edit a video in "{view}"': 'Editar un video en "{view}"',
+  'A media file is a PNG, JPEG, WebP, GIF or SVG picture, or an MP4 or WebM video.':
+    'Un archivo multimedia es una imagen PNG, JPEG, WebP, GIF o SVG, o un video MP4 o WebM.',
+  "A video's poster is a PNG, JPEG or WebP picture.":
+    'El póster de un video es una imagen PNG, JPEG o WebP.',
+  'Only a video has a poster; a picture in "{view}" is not one.':
+    'Solo un video tiene póster; una imagen en "{view}" no lo es.',
   // A9: what checking a project's Math says (ADR 0106), with where each text is. KaTeX's own message
   // after the colon stays as KaTeX writes it.
   'Math in {of} is drawn as its TeX, "{tex}", since it cannot be typeset: {why}':

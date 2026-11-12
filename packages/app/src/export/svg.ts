@@ -141,6 +141,7 @@ import {
 import { avoidedScene } from '../canvas/routing/avoided';
 import { drawnCurve } from '../canvas/routing/curves';
 import { ROWS_HEADER } from '../canvas/rows';
+import { playMark } from '../canvas/pictures/mark';
 import { ROW_INSIDE, ROW_SEPARATOR, drawsRows, isRow, rowColorsOf } from '../canvas/rowsDraw';
 import {
   arrowWidthOf,
@@ -148,6 +149,7 @@ import {
   drawingOfScene,
   picturesOf,
   standsFor,
+  stillOf,
   type ArrowShape,
   type ElementShape,
   type NoteShape,
@@ -560,8 +562,62 @@ class Writer {
    * warning for a file the export does not have.
    */
   mediaPicture(picture: PictureShape): string {
-    const media = this.#media?.get(picture.media.hash);
-    let id = this.#mediaSymbols.get(picture.media.hash);
+    const still = stillOf(picture);
+    const drawn = this.#mediaPicture(picture, still);
+    if (!picture.video) return drawn;
+    // A video is drawn as its poster, with a play mark in its middle (ADR 0098, stage 2).
+    const { disc, triangle } = playMark(picture.rect);
+    const points = [];
+    for (let at = 0; at < triangle.length; at += 2) {
+      points.push(`${triangle[at]},${triangle[at + 1]}`);
+    }
+    return element(
+      'g',
+      { 'data-video': 'true' },
+      drawn +
+        empty('circle', {
+          cx: disc.x,
+          cy: disc.y,
+          r: disc.radius,
+          fill: '#000000',
+          'fill-opacity': 0.55,
+        }) +
+        empty('polygon', { points: points.join(' '), fill: '#ffffff' }),
+    );
+  }
+
+  #mediaPicture(picture: PictureShape, still: PictureShape['media'] | undefined): string {
+    if (still === undefined) {
+      // A video without a poster, as the canvas draws it: a dark box with its name.
+      const { x, y, width, height } = picture.rect;
+      const size = Math.max(4, Math.min(14, height / 6, width / 10));
+      return element(
+        'g',
+        { 'data-free-shape': picture.id, role: 'img', 'aria-label': picture.name },
+        empty('rect', {
+          x,
+          y,
+          width,
+          height,
+          fill: '#18181b',
+          stroke: '#71717a',
+          'stroke-width': 1,
+        }) +
+          this.text({
+            text: picture.name,
+            size,
+            fill: '#e4e4e7',
+            x: x + size * 0.6,
+            align: 'start',
+            y: y + size * 0.5,
+            anchor: 'top',
+            wrap: Math.max(1, width - size * 1.2),
+            room: Math.max(1, height - size),
+          }),
+      );
+    }
+    const media = this.#media?.get(still.hash);
+    let id = this.#mediaSymbols.get(still.hash);
     if (id === undefined && media !== undefined) {
       const made = `va-media-${this.#mediaSymbols.size + 1}`;
       let symbol: string | undefined;
@@ -584,7 +640,7 @@ class Writer {
       );
       id = symbol === undefined ? null : made;
       if (symbol !== undefined) this.defsById.set(made, symbol);
-      this.#mediaSymbols.set(picture.media.hash, id);
+      this.#mediaSymbols.set(still.hash, id);
     }
     const { x, y, width, height } = picture.rect;
     if (typeof id === 'string') {

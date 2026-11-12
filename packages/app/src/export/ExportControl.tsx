@@ -302,6 +302,8 @@ function ExportDialog({
     Made<WrittenPage> & {
       openAtNow: boolean;
       missing?: number;
+      /** How many videos it leaves to their posters, their files past 32 MiB (ADR 0098). */
+      videosLeftOut?: number;
       /** Whether it holds some solid's file or picture, rather than the worker for poses alone. */
       solidsHeld?: boolean;
     }
@@ -451,11 +453,12 @@ function ExportDialog({
           }),
           missing:
             showsSolids && !source ? solidHashesShown(page.project).length : gathered.missing,
+          videosLeftOut: pictures.videosLeftOut,
           solidsHeld: gathered.solids !== undefined,
         }),
       )
       .then(
-        ({ written, missing, solidsHeld }) => {
+        ({ written, missing, videosLeftOut, solidsHeld }) => {
           if (requested.current === request) {
             setMadePage({
               state: 'made',
@@ -463,6 +466,7 @@ function ExportDialog({
               bytes: written.bytes,
               openAtNow: asked,
               missing,
+              videosLeftOut,
               solidsHeld,
             });
           }
@@ -786,6 +790,18 @@ function ExportDialog({
                       '{count} solids could not be had, and the page draws them as their placeholders.',
                   },
                   { count: pageMade.missing ?? 0 },
+                )}
+              </p>
+            )}
+            {pageMade && (pageMade.videosLeftOut ?? 0) > 0 && (
+              <p className="dialog-note">
+                {t(
+                  {
+                    one: 'One video is past 32 MiB: the page shows its poster, and it does not play.',
+                    other:
+                      '{count} videos are past 32 MiB: the page shows their posters, and they do not play.',
+                  },
+                  { count: pageMade.videosLeftOut ?? 0 },
                 )}
               </p>
             )}

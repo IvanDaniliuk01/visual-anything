@@ -183,8 +183,11 @@ import type { ViewState } from './view-state';
  *    the tour's, which an app of 10 would refuse when it opens the tour file. And, in 11 too, since no
  *    build of 11 shipped, a component's `openAttributes` (ADR 0105), which an app of 10 would refuse
  *    when it opens the package file.
+ * 12: videos (ADR 0098, stage 2): a picture's media file may be a video, `mp4` or `webm` of up to
+ *    50 MiB, in 50 pieces, with a `poster`, which an app of 11 would refuse when it opens the view file
+ *    or reads `media/stored`.
  */
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';

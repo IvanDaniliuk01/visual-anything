@@ -1490,10 +1490,16 @@ export interface Picture {
    * @maximum 10000000
    */
   height: number;
-  /** The media file it shows. */
+  /** The media file it shows: an image, or a video (ADR 0098, stage 2). */
   media: MediaRef;
   /**
-   * What screen readers and the outline say, and what a missing file shows; "Picture" when left out.
+   * A video's poster: its first frame, kept as a PNG, JPEG or WebP media file when it is added, which
+   * it shows until it plays. Only a video has one, and one Claude adds has none.
+   */
+  poster?: MediaRef;
+  /**
+   * What screen readers and the outline say, and what a missing file shows; "Picture", or "Video" for
+   * a video, when left out.
    *
    * @minLength 1
    * @maxLength 200
@@ -1545,8 +1551,8 @@ export interface ExplorableShape {
   name?: string;
 }
 
-/** The formats a media file may have (ADR 0098). */
-export type MediaFormat = 'png' | 'jpeg' | 'webp' | 'gif' | 'svg';
+/** The formats a media file may have (ADR 0098): images, and from stage 2 videos, MP4 and WebM. */
+export type MediaFormat = 'png' | 'jpeg' | 'webp' | 'gif' | 'svg' | 'mp4' | 'webm';
 
 /**
  * Which media file a picture shows and what it is, so that the scene can place it and an export can
@@ -1578,10 +1584,10 @@ export interface MediaRef {
    */
   height: number;
   /**
-   * The size of the cleaned file, in bytes.
+   * The size of the cleaned file, in bytes: an image's at most 32 MiB, a video's at most 50 MiB.
    *
    * @minimum 1
-   * @maximum 33554432
+   * @maximum 52428800
    * @asType integer
    */
   bytes: number;

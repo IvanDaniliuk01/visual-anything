@@ -7,7 +7,8 @@ import type {
   ShapePosition,
   ViewFile,
 } from '@visual-anything/schema';
-import { MEDIA_CAPS } from '../media/clean';
+import { MEDIA_CAPS, isVideoFormat } from '../media/clean';
+import { VIDEO_CAPS } from '../media/video';
 import { slug } from '../ids';
 import { nestingTypesInView } from '../containers';
 import { appearanceOf } from '../definitions';
@@ -294,9 +295,7 @@ export function removePositions(draft: Draft, command: RemovePositionsCommand): 
 export function createFreeShape(draft: Draft, command: CreateFreeShapeCommand): string {
   const view = draft.view(command.view);
   const taken = new Set(view.freeShapes.map((shape) => shape.id));
-  const id = draft.idFor(command.shape.id, command.shape.kind ?? 'shape', (each) =>
-    taken.has(each),
-  );
+  const id = draft.idFor(command.shape.id, idPrefixOf(command.shape), (each) => taken.has(each));
   const shape = checkedFreeShape({ ...command.shape, id }, view.name);
   draft.apply({
     op: 'insert',
@@ -305,7 +304,23 @@ export function createFreeShape(draft: Draft, command: CreateFreeShapeCommand): 
     item: shape,
   });
   draft.created.push(id);
-  return `Add ${FREE_SHAPE_NOUN[shape.kind]} to "${view.name}"`;
+  return `Add ${nounOf(shape)} to "${view.name}"`;
+}
+
+/** What a new free shape's id starts with: its kind, or "video" for a video (ADR 0098, stage 2). */
+function idPrefixOf(shape: NewFreeShape): string {
+  const media = (shape as { media?: { format?: unknown } }).media;
+  if (shape.kind === 'picture' && typeof media?.format === 'string') {
+    if (VIDEO_FORMATS.has(media.format)) return 'video';
+  }
+  return shape.kind ?? 'shape';
+}
+
+/** What a history label calls a free shape: by its kind, a video as a video. */
+function nounOf(shape: FreeShape): string {
+  return shape.kind === 'picture' && isVideoFormat(shape.media.format)
+    ? 'a video'
+    : FREE_SHAPE_NOUN[shape.kind];
 }
 
 export function updateFreeShape(draft: Draft, command: UpdateFreeShapeCommand): string {
@@ -353,14 +368,14 @@ export function updateFreeShape(draft: Draft, command: UpdateFreeShapeCommand): 
       ? `${verb} the colors of a note in "${view.name}"`
       : `${verb} the color of an arrow in "${view.name}"`;
   }
-  return `Edit ${FREE_SHAPE_NOUN[shape.kind]} in "${view.name}"`;
+  return `Edit ${nounOf(shape)} in "${view.name}"`;
 }
 
 /** The parts each kind of free shape lets `changes` set. */
 const FREE_SHAPE_PARTS: Record<FreeShape['kind'], readonly (keyof FreeShapeChanges)[]> = {
   note: ['x', 'y', 'width', 'height', 'text', 'fill', 'stroke'],
   arrow: ['from', 'to', 'stroke'],
-  picture: ['x', 'y', 'width', 'height', 'media', 'name'],
+  picture: ['x', 'y', 'width', 'height', 'media', 'poster', 'name'],
   explorable: ['x', 'y', 'width', 'height', 'explorable', 'element', 'name'],
 };
 
@@ -531,6 +546,12 @@ function checkedFreeShape(
     if (name !== undefined && (typeof name !== 'string' || name.length > 200)) {
       reject('invalid-command', "A picture's name is text of at most 200 characters.");
     }
+    const media = checkedMediaRef(shape.media, IMAGE_FORMATS_OR_VIDEOS);
+    // A video's poster is an image of `media/` (ADR 0098, stage 2); only a video has one.
+    const given = (shape as { poster?: unknown }).poster;
+    if (given !== undefined && !isVideoFormat(media.format)) {
+      reject('invalid-command', `Only a video has a poster; ${of} is not one.`);
+    }
     return compact({
       kind: 'picture',
       id: (shape as FreeShape).id,
@@ -538,22 +559,38 @@ function checkedFreeShape(
       y: requireNumber(shape.y, 'y'),
       width: requireNumber(shape.width, 'A width', true),
       height: requireNumber(shape.height, 'A height', true),
-      media: checkedMediaRef(shape.media),
+      media,
+      poster: given === undefined ? undefined : checkedMediaRef(given, POSTER_FORMATS),
       name,
     });
   }
   reject('invalid-command', 'A free shape is a note, an arrow or a picture.');
 }
 
-/** The formats a media file may have (ADR 0098). */
-const MEDIA_FORMATS: ReadonlySet<string> = new Set(['png', 'jpeg', 'webp', 'gif', 'svg']);
+/** The formats a video's file may have (ADR 0098, stage 2). */
+const VIDEO_FORMATS: ReadonlySet<string> = new Set(['mp4', 'webm']);
+
+/** The formats a picture's file may have, and what a refusal says of them. */
+const IMAGE_FORMATS_OR_VIDEOS = {
+  formats: new Set(['png', 'jpeg', 'webp', 'gif', 'svg', 'mp4', 'webm']),
+  said: 'A media file is a PNG, JPEG, WebP, GIF or SVG picture, or an MP4 or WebM video.',
+};
+
+/** The formats a video's poster may have: a still image, as the app makes it. */
+const POSTER_FORMATS = {
+  formats: new Set(['png', 'jpeg', 'webp']),
+  said: "A video's poster is a PNG, JPEG or WebP picture.",
+};
 
 /**
  * A picture's media file as a command names it, checked and with nothing else (ADR 0098). Only its
  * reference travels in a command, never its bytes, so a picture weighs no more in the history than a
- * note.
+ * note. An image's file is at most 32 MiB, a video's at most 50 MiB.
  */
-function checkedMediaRef(media: unknown): MediaRef {
+function checkedMediaRef(
+  media: unknown,
+  taken: { formats: ReadonlySet<string>; said: string },
+): MediaRef {
   const ref = media as Partial<Record<keyof MediaRef, unknown>> | undefined;
   if (typeof ref !== 'object' || ref === null) {
     reject('invalid-command', 'A picture needs the media file it shows.');
@@ -561,8 +598,8 @@ function checkedMediaRef(media: unknown): MediaRef {
   if (typeof ref.hash !== 'string' || !/^[0-9a-f]{64}$/.test(ref.hash)) {
     reject('invalid-command', "A media file's hash is its SHA-256, in 64 lowercase hex digits.");
   }
-  if (typeof ref.format !== 'string' || !MEDIA_FORMATS.has(ref.format)) {
-    reject('invalid-command', 'A media file is a PNG, JPEG, WebP, GIF or SVG.');
+  if (typeof ref.format !== 'string' || !taken.formats.has(ref.format)) {
+    reject('invalid-command', taken.said);
   }
   const whole = (value: unknown, what: string, max: number): number => {
     if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > max) {
@@ -578,6 +615,10 @@ function checkedMediaRef(media: unknown): MediaRef {
     format: ref.format as MediaFormat,
     width: whole(ref.width, "A media file's width", MEDIA_CAPS.side),
     height: whole(ref.height, "A media file's height", MEDIA_CAPS.side),
-    bytes: whole(ref.bytes, "A media file's size", MEDIA_CAPS.bytes),
+    bytes: whole(
+      ref.bytes,
+      "A media file's size",
+      VIDEO_FORMATS.has(ref.format) ? VIDEO_CAPS.bytes : MEDIA_CAPS.bytes,
+    ),
   };
 }

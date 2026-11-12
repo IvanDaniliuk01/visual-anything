@@ -286,10 +286,12 @@ const mediaRef: fc.Arbitrary<MediaRef> = fc.record(
       'webp' as const,
       'gif' as const,
       'svg' as const,
+      'mp4' as const,
+      'webm' as const,
     ),
     width: fc.integer({ min: 1, max: 8192 }),
     height: fc.integer({ min: 1, max: 8192 }),
-    bytes: fc.integer({ min: 1, max: 33554432 }),
+    bytes: fc.integer({ min: 1, max: 52428800 }),
   },
   { noNullPrototype: true },
 );
@@ -325,6 +327,7 @@ const freeShape: fc.Arbitrary<FreeShape> = fc.oneof(
       width: canvasSize,
       height: canvasSize,
       media: mediaRef,
+      poster: mediaRef,
       name: fc.string({ minLength: 1, maxLength: 20 }),
     },
     {

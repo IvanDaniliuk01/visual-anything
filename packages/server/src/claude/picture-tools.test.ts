@@ -66,7 +66,7 @@ describe('add_picture', () => {
   it.each([
     ['a path outside the folder', '../outside.png', /outside the project folder/],
     ['an address', 'https://example.com/a.png', /never fetches anything/],
-    ['a file that is not an image', 'photos/notes.txt', /not an image file/],
+    ['a file that is not an image', 'photos/notes.txt', /not an image or video file/],
   ])('refuses %s, and changes nothing', async (_, path, says) => {
     expect(await tools.failure('add_picture', { view: 'overview', path })).toMatch(says);
     expect(
@@ -80,5 +80,47 @@ describe('add_picture', () => {
     expect(
       await tools.failure('add_picture', { view: 'overview', path: 'photos/fake.png' }),
     ).toMatch(/invalid-image/);
+  });
+});
+
+/** A 64 × 48 MP4 of H.264, its container only, with a phone's place in udta. */
+const MP4 = decodeBase64(
+  'AAAAHGZ0eXBpc29tAAACAGlzb21pc28yYXZjMQAAAeVtb292AAAAbG12aGQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABT3RyYWsAAABcdGtoZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAQAAAADAAAAAAAOttZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAmaGRscgAAAAAAAAAAdmlkZQAAAAAAAAAAAAAAAFRyYWNrAAAAAJ1taW5mAAAACGRpbmYAAACNc3RibAAAAHVzdHNkAAAAAAAAAAEAAABlYXZjMQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAABAADAASAAAAEgAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABj//wAAAA9hdmNDAWQAH//gAAAAABBzdHRzAAAAAAAAAAAAAAAidWR0YQAAABqpeHl6KzQ4Ljg1ODQrMDAyLjI5NDUvAAAADm1kYXQAAAACZYg=',
+) as Uint8Array;
+
+describe('add_video (ADR 0098, stage 2)', () => {
+  it('keeps the video in media/ and places it without a poster, which read_view says', async () => {
+    await writeFile(join(tools.session.folder, 'photos', 'check-in.mp4'), MP4);
+    const answer = await tools.value('add_video', {
+      view: 'overview',
+      path: 'photos/check-in.mp4',
+      name: 'Checking in',
+    });
+    expect(answer).toMatchObject({ format: 'mp4', ownSize: { width: 64, height: 48 } });
+    expect(String(answer.poster)).toMatch(/Make its poster/);
+    expect(String(answer.file)).toMatch(/^media\/[0-9a-f]{64}\.mp4$/);
+    expect(tools.session.history.undo).toMatchObject({
+      author: 'claude',
+      label: expect.stringContaining('a video'),
+    });
+    const view = await tools.value('read_view', { view: 'overview' });
+    expect(view.pictures).toEqual([
+      expect.objectContaining({
+        id: answer.shape,
+        name: 'Checking in',
+        format: 'mp4',
+        video: true,
+      }),
+    ]);
+  });
+
+  it('sends each kind of file to its own tool', async () => {
+    await writeFile(join(tools.session.folder, 'photos', 'check-in.mp4'), MP4);
+    expect(
+      await tools.failure('add_picture', { view: 'overview', path: 'photos/check-in.mp4' }),
+    ).toMatch(/add_video/);
+    expect(await tools.failure('add_video', { view: 'overview', path: 'photos/desk.png' })).toMatch(
+      /not a video file/,
+    );
   });
 });

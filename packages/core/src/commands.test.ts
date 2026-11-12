@@ -736,6 +736,84 @@ describe('pictures (ADR 0098)', () => {
   });
 });
 
+describe('videos (ADR 0098, stage 2)', () => {
+  const media = {
+    hash: 'cd'.repeat(32),
+    format: 'mp4' as const,
+    width: 1920,
+    height: 1080,
+    bytes: 40 * 1024 * 1024,
+  };
+  const poster = {
+    hash: 'ef'.repeat(32),
+    format: 'jpeg' as const,
+    width: 1920,
+    height: 1080,
+    bytes: 90_000,
+  };
+  const video = { kind: 'picture' as const, x: 0, y: 0, width: 480, height: 270, media, poster };
+
+  it('adds a video with its poster, past the 32 MiB of an image, and calls it a video', () => {
+    const added = ok({ type: 'create-free-shape', view: 'overview', shape: video });
+    expect(added.created).toEqual(['video-1']);
+    expect(added.label).toBe('Add a video to "Overview"');
+    expect(added.state.views[0]?.freeShapes.at(-1)).toEqual({ ...video, id: 'video-1' });
+    const moved = ok(
+      { type: 'update-free-shape', view: 'overview', id: 'video-1', changes: { x: 40 } },
+      added.state,
+    );
+    expect(moved.label).toBe('Edit a video in "Overview"');
+  });
+
+  it('adds a WebM without a poster, as Claude adds one, and gives it one later or takes it out', () => {
+    const webm = { ...video, media: { ...media, format: 'webm' as const }, poster: undefined };
+    const added = ok({ type: 'create-free-shape', view: 'overview', shape: webm });
+    const shape = added.state.views[0]?.freeShapes.at(-1);
+    expect(shape).not.toHaveProperty('poster');
+    const postered = ok(
+      { type: 'update-free-shape', view: 'overview', id: 'video-1', changes: { poster } },
+      added.state,
+    );
+    expect(postered.state.views[0]?.freeShapes.at(-1)).toMatchObject({ poster });
+    const bare = ok(
+      { type: 'update-free-shape', view: 'overview', id: 'video-1', changes: { poster: null } },
+      postered.state,
+    );
+    expect(bare.state.views[0]?.freeShapes.at(-1)).not.toHaveProperty('poster');
+  });
+
+  it.each([
+    ['a file past 50 MiB', { media: { ...media, bytes: 50 * 1024 * 1024 + 1 } }],
+    ['a poster that is a video', { poster: { ...poster, format: 'webm' } }],
+    ['a poster that is a GIF', { poster: { ...poster, format: 'gif' } }],
+    ['a poster past 32 MiB', { poster: { ...poster, bytes: 33_554_433 } }],
+    ['a poster with no hash', { poster: { ...poster, hash: undefined } }],
+  ])('refuses a video with %s', (_, change) => {
+    expect(
+      rejected({
+        type: 'create-free-shape',
+        view: 'overview',
+        shape: { ...video, ...change } as never,
+      }),
+    ).toEqual(['invalid-command']);
+  });
+
+  it('refuses a poster on a picture that is not a video, and an image past 32 MiB', () => {
+    const image = { ...video, media: { ...poster, format: 'png' as const } };
+    expect(rejected({ type: 'create-free-shape', view: 'overview', shape: image })).toEqual([
+      'invalid-command',
+    ]);
+    const large = {
+      ...image,
+      poster: undefined,
+      media: { ...image.media, bytes: 40 * 1024 * 1024 },
+    };
+    expect(rejected({ type: 'create-free-shape', view: 'overview', shape: large })).toEqual([
+      'invalid-command',
+    ]);
+  });
+});
+
 describe('scenarios', () => {
   it('creates a scenario whose steps use relations of the model', () => {
     const outcome = ok({

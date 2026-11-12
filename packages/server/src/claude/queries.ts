@@ -29,6 +29,7 @@ import {
   stackingOrderOf,
   type ProjectSnapshot,
   mediaFileName,
+  isVideo,
   pictureName,
   picturesOf,
 } from '@visual-anything/core';
@@ -688,6 +689,13 @@ function picturesAnswer(view: ProjectSnapshot['views'][number]) {
       file: `media/${mediaFileName(picture.media)}`,
       format: picture.media.format,
       ownSize: { width: picture.media.width, height: picture.media.height },
+      // A video (ADR 0098, stage 2), with the file of its poster when it has one.
+      ...(isVideo(picture)
+        ? {
+            video: true,
+            ...(picture.poster ? { poster: `media/${mediaFileName(picture.poster)}` } : {}),
+          }
+        : {}),
     })),
   };
 }

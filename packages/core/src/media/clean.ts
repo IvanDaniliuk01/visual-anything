@@ -1,5 +1,6 @@
 /**
- * Media files (ADR 0098): the files beside the project that pictures show, `media/<hash>.<extension>`.
+ * Media files (ADR 0098): the files beside the project that pictures show, `media/<hash>.<extension>`:
+ * images, and from stage 2 videos and their posters.
  * The local program cleans what an app or Claude gives it with the readers here, in a worker, before
  * it writes anything; the same readers check a file when it is served again.
  */
@@ -9,8 +10,12 @@ import { readBitmap, type BitmapCaps } from '../images/bitmap';
 import { cleanSvg } from '../images/svg';
 import { problem, type Problem } from '../problems';
 import { GIF_CAPS, readGif } from './gif';
+import { VIDEO_CAPS, readVideo, videoFormatOf } from './video';
 
-/** The caps on a picture's file (ADR 0098), unlike a package image's: it keeps its size. */
+/**
+ * The caps on an image's file (ADR 0098), unlike a package image's: it keeps its size. A video's are
+ * `VIDEO_CAPS`.
+ */
 export const MEDIA_CAPS = {
   /** Bytes in, and cleaned: 32 MiB. */
   bytes: 32 * 1024 * 1024,
@@ -35,6 +40,8 @@ export const MEDIA_EXTENSIONS: Readonly<Record<MediaFormat, string>> = {
   webp: 'webp',
   gif: 'gif',
   svg: 'svg',
+  mp4: 'mp4',
+  webm: 'webm',
 };
 
 /** The MIME type each format is served and exported as. */
@@ -44,7 +51,22 @@ export const MEDIA_TYPES: Readonly<Record<MediaFormat, string>> = {
   webp: 'image/webp',
   gif: 'image/gif',
   svg: 'image/svg+xml',
+  mp4: 'video/mp4',
+  webm: 'video/webm',
 };
+
+/** The most bytes any media file has: a video's 50 MiB. */
+export const MEDIA_FILE_BYTES = VIDEO_CAPS.bytes;
+
+/** Whether a media file is a video, MP4 or WebM (ADR 0098, stage 2). */
+export function isVideoFormat(format: MediaFormat): format is 'mp4' | 'webm' {
+  return format === 'mp4' || format === 'webm';
+}
+
+/** The most bytes a media file of a format has: 50 MiB for a video, 32 MiB for an image. */
+export function mediaBytesCap(format: MediaFormat): number {
+  return isVideoFormat(format) ? VIDEO_CAPS.bytes : MEDIA_CAPS.bytes;
+}
 
 /** A picture's file's name in `media/`: `<hash>.<extension>`. */
 export function mediaFileName(ref: Pick<MediaRef, 'hash' | 'format'>): string {
@@ -53,7 +75,7 @@ export function mediaFileName(ref: Pick<MediaRef, 'hash' | 'format'>): string {
 
 /** A file name of `media/` read back as its hash and format, or `undefined` for any other name. */
 export function mediaFileOf(name: string): { hash: string; format: MediaFormat } | undefined {
-  const match = /^([0-9a-f]{64})\.(png|jpg|webp|gif|svg)$/.exec(name);
+  const match = /^([0-9a-f]{64})\.(png|jpg|webp|gif|svg|mp4|webm)$/.exec(name);
   if (match === null) return undefined;
   const extension = match[2] as string;
   const format = (Object.keys(MEDIA_EXTENSIONS) as MediaFormat[]).find(
@@ -64,6 +86,8 @@ export function mediaFileOf(name: string): { hash: string; format: MediaFormat }
 
 /** The format a file's first bytes say it is, or `undefined` when it is none the program takes. */
 export function mediaFormatOf(bytes: Uint8Array): MediaFormat | undefined {
+  const video = videoFormatOf(bytes);
+  if (video !== undefined) return video;
   const starts = (prefix: readonly number[]) =>
     bytes.length >= prefix.length && prefix.every((byte, each) => bytes[each] === byte);
   if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'png';
@@ -88,16 +112,27 @@ export type MediaCleaning =
   | { ok: true; ref: MediaRef; bytes: Uint8Array; removed: readonly string[] }
   | { ok: false; problem: Problem };
 
-const TAKEN = 'The program takes PNG, JPEG, WebP, GIF or SVG pictures.';
+const TAKEN = 'The program takes PNG, JPEG, WebP, GIF or SVG pictures, and MP4 or WebM videos.';
 
 /**
  * Cleans a file for `media/` (ADR 0098): a PNG, JPEG or WebP through the bitmap reader, a GIF
- * through its strict reader, an SVG through `cleanSvg`, each within its caps. Anything else is
- * refused with what the program takes. Never throws on bytes.
+ * through its strict reader, an SVG through `cleanSvg`, an MP4 or a WebM through the video reader,
+ * each within its caps. Anything else is refused with what the program takes. Never throws on bytes.
  */
 export function cleanMedia(bytes: Uint8Array): MediaCleaning {
   if (!(bytes instanceof Uint8Array) || bytes.length === 0) {
     return { ok: false, problem: problem('invalid-image', `The file is empty. ${TAKEN}`) };
+  }
+  if (videoFormatOf(bytes) !== undefined) {
+    const result = readVideo(bytes);
+    if (!result.ok) return result;
+    const { format, width, height, bytes: kept } = result.value;
+    return {
+      ok: true,
+      ref: { hash: sha256Bytes(kept), format, width, height, bytes: kept.length },
+      bytes: kept,
+      removed: result.removed,
+    };
   }
   if (bytes.length > MEDIA_CAPS.bytes) {
     return {
@@ -143,11 +178,14 @@ function cleanAs(bytes: Uint8Array, format: MediaFormat): MediaCleaning {
     kept = new TextEncoder().encode(result.value.svg);
     ({ width, height } = svgSize(result.value.width, result.value.height));
     removed = result.removed;
-  } else {
+  } else if (format === 'png' || format === 'jpeg' || format === 'webp') {
     const result = readBitmap(bytes, format, PICTURE_BITMAP_CAPS);
     if (!result.ok) return result;
     ({ bytes: kept, width, height } = result.value);
     removed = result.removed;
+  } else {
+    // A video is read before, by its own reader.
+    return { ok: false, problem: problem('invalid-video', `The file is not a picture. ${TAKEN}`) };
   }
   return {
     ok: true,

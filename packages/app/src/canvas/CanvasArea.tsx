@@ -97,6 +97,9 @@ import { useGuidedTurn } from './solids/guidedTurn';
 import { useSolidClient } from './solids/useSolidClient';
 import {
   addPictureCommand,
+  isVideoFile,
+  keepPoster,
+  largeVideo,
   carriesFiles,
   pictureFilesIn,
   pictureNameOf,
@@ -1352,7 +1355,9 @@ export function CanvasArea({
     }
     const pictures = pictureFilesIn(files);
     if (pictures.length === 0) {
-      announce(t('Visual Anything takes PNG, JPEG, WebP, GIF and SVG pictures.'));
+      announce(
+        t('Visual Anything takes PNG, JPEG, WebP, GIF and SVG pictures, and MP4 and WebM videos.'),
+      );
       return;
     }
     const center = at ?? controller()?.center;
@@ -1360,12 +1365,24 @@ export function CanvasArea({
     const unchanged = intent();
     let added: Id | undefined;
     for (const [index, file] of pictures.entries()) {
+      const video = isVideoFile(file);
       if (tooLargeToSend(file)) {
         live.notify(
           'error',
-          t('"{name}" is over 32 MiB, the most a picture takes.', { name: file.name }),
+          video
+            ? t('"{name}" is over 50 MiB, the most a video takes.', { name: file.name })
+            : t('"{name}" is over 32 MiB, the most a picture takes.', { name: file.name }),
         );
         continue;
+      }
+      if (largeVideo(file)) {
+        live.notify(
+          'warning',
+          t(
+            '"{name}" is over 25 MiB: it joins the project’s folder, and its git history if the project is in git.',
+            { name: file.name },
+          ),
+        );
       }
       const bytes = new Uint8Array(await file.arrayBuffer());
       const kept = await putMedia(file.name, bytes);
@@ -1379,6 +1396,17 @@ export function CanvasArea({
         );
         continue;
       }
+      // A video's first frame, kept as its poster (ADR 0098, stage 2).
+      const poster = video ? await keepPoster(file, putMedia) : undefined;
+      if (video && poster === undefined) {
+        live.notify(
+          'warning',
+          t(
+            'The browser could not show a frame of "{name}": it is added without a poster, and plays when clicked if the browser can play it.',
+            { name: file.name },
+          ),
+        );
+      }
       const offset = index * PICTURE_STEP;
       const result = await send(
         addPictureCommand(
@@ -1386,6 +1414,7 @@ export function CanvasArea({
           kept.answer.media,
           { x: center.x + offset, y: center.y + offset },
           pictureNameOf(file.name, pasted),
+          poster,
         ),
       );
       if (result.ok) added = result.created?.[0] ?? added;

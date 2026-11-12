@@ -209,7 +209,7 @@ describe('update-free-shape', () => {
     [
       'a change of kind',
       { id: 'note', changes: { kind: 'arrow' } },
-      'update-free-shape does not take "changes.kind": "changes" takes x, y, width, height, text, fill, stroke, from, to, media, name, explorable, element.',
+      'update-free-shape does not take "changes.kind": "changes" takes x, y, width, height, text, fill, stroke, from, to, media, poster, name, explorable, element.',
     ],
   ])('refuses %s, never with a JavaScript error', (_name, fields, message) => {
     expect(refusal({ type: 'update-free-shape', view: 'overview', ...fields })).toEqual([message]);

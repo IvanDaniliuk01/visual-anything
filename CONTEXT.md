@@ -248,8 +248,16 @@ A picture a package defines, in SVG or as a small PNG, JPEG or WebP bitmap, that
 A free shape that shows a media file loose on the canvas, such as a photo, a screenshot or an animated GIF, as drawing only (ADR 0098). It belongs to its view, never to the model, and is not an image, which a package defines for an appearance to show.
 _Avoid_: image (for this), media shape
 
+**Video**:
+A picture whose media file is a video, an MP4 of H.264 or a WebM of VP8, VP9 or AV1, of at most 50 MiB. It shows its poster and plays muted and in a loop when clicked (ADR 0098).
+_Avoid_: clip, movie, film
+
+**Poster**:
+A video's first frame, kept as a picture's media file when the video is added, which the video shows while it does not play and which the exports draw with a play mark (ADR 0098).
+_Avoid_: thumbnail, cover
+
 **Media file**:
-A file a picture shows, kept as `media/<sha256>.<extension>` beside the project: cleaned by the program, named by its content, written once and never changed, and never run (ADR 0098).
+A file a picture shows, or a video's poster, kept as `media/<sha256>.<extension>` beside the project: cleaned by the program, named by its content, written once and never changed, and never run (ADR 0098). A video's file is read by its container only, and keeps only what a player needs.
 
 **Named part**:
 A piece of an SVG image with an id of its own, such as the left ventricle in a picture of a heart, read only from the image's cleaned view; or a piece of a solid with a name of its own in its file, such as an arm's elbow, read only from its cleaned file. Its id or name is its name. It is what an anchored part is drawn as (ADR 0067, ADR 0075), and a part for short where no nesting is meant, since "is part of" names nesting.

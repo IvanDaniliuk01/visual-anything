@@ -104,6 +104,8 @@ export const PAGE_POLICY_RULES: readonly (readonly [directive: string, value: st
   ['script-src', '{scripts}'],
   ['style-src', '{styles}'],
   ['img-src', 'data: blob:'],
+  // A video plays from a `blob:` address of its file (ADR 0098, stage 2).
+  ['media-src', 'blob:'],
   ['connect-src', "'none'"],
   ['worker-src', "'none'"],
   ['base-uri', "'none'"],
