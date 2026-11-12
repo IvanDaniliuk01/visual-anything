@@ -4333,8 +4333,8 @@ export const ui: Catalog = {
   'Fetch the preview': 'Traer la vista previa',
   'Fetching the preview…': 'Trayendo la vista previa…',
   'Open the address': 'Abrir la dirección',
-  'Fetch the preview reads {host} once, over https, and keeps its title, description and image. It runs nothing on the page and sends no cookie; it is the only time Visual Anything reaches the internet.':
-    'Traer la vista previa lee {host} una vez, por https, y guarda su título, su descripción y su imagen. No ejecuta nada de la página ni envía cookies; es la única vez que Visual Anything se conecta a internet.',
+  'Fetch the preview reads {host} once, over https, and keeps its title, description and image. It runs nothing on the page and sends no cookie. Visual Anything reaches the internet only when you ask: for a preview like this one, a script library you approve, or a data source you granted.':
+    'Traer la vista previa lee {host} una vez, por https, y guarda su título, su descripción y su imagen. No ejecuta nada de la página ni envía cookies. Visual Anything se conecta a internet solo cuando se le pide: para una vista previa como esta, una biblioteca de JavaScript aprobada o una fuente de datos permitida.',
   'Only an https address’s preview is fetched; write the title and add a picture.':
     'Solo se trae la vista previa de una dirección https; escribir el título y agregar una imagen.',
   'The preview is set: undo takes it back.': 'La vista previa quedó puesta: deshacer la quita.',

@@ -125,3 +125,5 @@ Reading a project needs the local program today, so a project cannot be shared, 
 <!-- Decided by Claude on 2026-10-31 under the user's standing delegation of design decisions. -->
 
 - 2026-10-31 (M9): **a page whose views show solids holds them** (ADR 0075's clarification of that date). Its data gains `solids`: their files, with the solid worker as text the page starts from a `blob:` address, its policy then saying `worker-src blob:` and `trusted-types default visual-anything-solids` and naming a third inline script by its hash; or only their pictures, its policy as it is. A page without solids holds neither, and its policy is the one above.
+
+- 2026-11-12 (A8, ADR 0098): **pictures, videos and link cards in the page.** The page holds the media files its views show, as data beside the project, read strictly when it opens; a video's file only within 32 MiB, its poster always. Its policy gains `media-src blob:`, so that a video plays from bytes the page holds, and nothing else; it still connects nowhere. A link card's address opens in a new tab with `noopener,noreferrer` after it is checked again; no other site is embedded.

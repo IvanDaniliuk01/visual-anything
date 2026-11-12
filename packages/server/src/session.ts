@@ -1052,7 +1052,7 @@ export class Session implements LiveSession {
 
   /**
    * Fetches a link card's preview, as the person asked by pressing Fetch the preview (ADR 0098, stage
-   * 3): the only time the program reaches the internet. It never waits behind the project's own
+   * 3), one of the few times the program reaches the internet, each one asked for. It never waits behind the project's own
    * work, and changes no project file but keeping the page's image in `media/`; the app sets what it
    * found as one undoable change.
    */

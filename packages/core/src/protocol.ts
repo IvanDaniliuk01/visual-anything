@@ -229,6 +229,8 @@ import type { ViewState } from './view-state';
  * 15: the files of `script-libraries/` that no package names (ADR 0107, A10.2):
  *    `script-library-files/list` and `script-library-files/remove` from an app, answered with
  *    `script-library-files/listed` or `script-library/refused`, as solid and media files are.
+ *    And in 15 too, since 15 had not shipped: a scenario or tour step's `shows` and `playing` (ADR
+ *    0098, stage 4), which an app of 14 would refuse when it opens the file.
  */
 export const PROTOCOL_VERSION = 15;
 

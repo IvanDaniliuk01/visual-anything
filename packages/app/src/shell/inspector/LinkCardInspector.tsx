@@ -205,7 +205,7 @@ export function LinkCardInspector({ card, viewId }: { card: LinkCard; viewId: st
       <p className="inspector-notes">
         {fetchable
           ? t(
-              'Fetch the preview reads {host} once, over https, and keeps its title, description and image. It runs nothing on the page and sends no cookie; it is the only time Visual Anything reaches the internet.',
+              'Fetch the preview reads {host} once, over https, and keeps its title, description and image. It runs nothing on the page and sends no cookie. Visual Anything reaches the internet only when you ask: for a preview like this one, a script library you approve, or a data source you granted.',
               { host: linkHost(card.url) },
             )
           : t('Only an https address’s preview is fetched; write the title and add a picture.')}

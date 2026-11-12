@@ -1,6 +1,7 @@
 /**
- * Fetching a link card's preview (ADR 0098, stage 3): the only time the local program reaches the
- * internet, and only when the person presses Fetch the preview in a card's inspector.
+ * Fetching a link card's preview (ADR 0098, stage 3), only when the person presses Fetch the preview
+ * in a card's inspector: one of the few times the local program reaches the internet, each one asked
+ * for (a script library the person approves, ADR 0107; a data source granted, ADR 0063).
  *
  * - **Only `https:`, to public addresses.** A name is resolved here, and every address it resolves to
  *   must be public: never this computer, the person's network, a link-local address such as the cloud
