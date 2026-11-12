@@ -4665,6 +4665,10 @@ export const messages: Catalog = {
     'Un paso reproduce videos, y "{id}" no es un video.',
   'A step of the scenario "{scenario}" shows {ids}, which the view "{view}" no longer holds: it plays without what is gone.':
     'Un paso del escenario "{scenario}" muestra {ids}, que la vista "{view}" ya no tiene: se reproduce sin lo que ya no está.',
+  'A step of the scenario "{scenario}" plays "{id}", which it does not show: it plays only the videos it shows.':
+    'Un paso del escenario "{scenario}" reproduce "{id}", que no muestra: solo reproduce los videos que muestra.',
+  'A step of the scenario "{scenario}" plays "{id}", which is no video: it plays only videos.':
+    'Un paso del escenario "{scenario}" reproduce "{id}", que no es un video: solo reproduce videos.',
   'Move {step} up': 'Subir {step}',
   'Move {step} down': 'Bajar {step}',
   'Delete {step}': 'Eliminar {step}',

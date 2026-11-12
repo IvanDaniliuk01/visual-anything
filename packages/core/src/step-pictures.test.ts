@@ -178,6 +178,28 @@ describe('a scenario step that shows pictures', () => {
     );
   });
 
+  it('warns, in the check, of a hand-edited step that plays a picture or what it does not show', () => {
+    const state = withPictures();
+    const edited = (step: Step): ProjectSnapshot => ({
+      ...state,
+      scenarios: [{ ...scenarioOf(state), steps: [step, READ] }],
+    });
+    const warned = (snapshot: ProjectSnapshot) =>
+      checkProject(snapshot).warnings.filter((each) => each.code === 'unknown-free-shape');
+    // It plays a picture it shows, and a video it does not show.
+    const wrong = warned(
+      edited({ ...CALL, shows: ['photo', 'card'], playing: ['photo', 'video'] }),
+    );
+    expect(wrong.map((each) => each.message)).toEqual([
+      'A step of the scenario "A request" plays "photo", which is no video: it plays only videos.',
+      'A step of the scenario "A request" plays "video", which it does not show: it plays only the videos it shows.',
+    ]);
+    expect(wrong[0]?.subjects).toEqual(['request', 'call', 'photo']);
+    const right = edited({ ...CALL, shows: ['video'], playing: ['video'] });
+    expect(checkProject(right).errors).toEqual([]);
+    expect(warned(right)).toEqual([]);
+  });
+
   it('never gives a deleted picture’s id to something new', () => {
     const shown = done(withPictures(), setSteps([{ ...CALL, shows: ['photo'] }, READ]));
     const deleted = done(shown.state, {
