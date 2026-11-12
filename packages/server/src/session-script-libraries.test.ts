@@ -334,7 +334,7 @@ describe('the files of script-libraries/ no package names', () => {
       requestId: 'l2',
       files: [],
       removed: [],
-      kept: [{ hash, message: expect.any(String) }],
+      kept: [{ hash, message: expect.any(String) as unknown }],
     });
     // Undo brings the definition back; its file is warned about as missing.
     await session.undo();
