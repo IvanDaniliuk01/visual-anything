@@ -6,14 +6,15 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fileKindOf } from '@visual-anything/schema';
-import { SAMPLE_IDS, isSampleSolidFile } from './samples';
+import { SAMPLE_IDS, isSampleExplorableFile, isSampleSolidFile } from './samples';
 
 /** The repository's `examples/` folder. */
 export const EXAMPLES = fileURLToPath(new URL('../../../examples', import.meta.url));
 
 /**
  * Every project file of each sample, by its path inside the sample's folder with forward slashes, in
- * sorted order, as its text; and each solid's file in its `solids/` (ADR 0075), in base64.
+ * sorted order, as its text; each explorable's file in its `explorables/` (ADR 0107), as its text;
+ * and each solid's file in its `solids/` (ADR 0075), in base64.
  */
 export function collectSamples(): Record<string, Record<string, string>> {
   const samples: Record<string, Record<string, string>> = {};
@@ -38,7 +39,7 @@ export function samplesText(): string {
 
 /**
  * The project files of a folder: those at the top, and those in the folders right inside it, with the
- * solids' files named by their hash in `solids/`.
+ * explorables' files in `explorables/` and the solids' files named by their hash in `solids/`.
  */
 function projectFilesIn(folder: string): string[] {
   const paths: string[] = [];
@@ -47,7 +48,13 @@ function projectFilesIn(folder: string): string[] {
     if (statSync(path).isDirectory()) {
       for (const inner of readdirSync(path)) {
         const inside = `${name}/${inner}`;
-        if (fileKindOf(inner) !== undefined || isSampleSolidFile(inside)) paths.push(inside);
+        if (
+          fileKindOf(inner) !== undefined ||
+          isSampleSolidFile(inside) ||
+          isSampleExplorableFile(inside)
+        ) {
+          paths.push(inside);
+        }
       }
     } else if (fileKindOf(name) !== undefined) {
       paths.push(name);

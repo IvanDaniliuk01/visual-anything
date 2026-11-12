@@ -278,7 +278,7 @@ Example: { "relationType": "neuro.nerve", "appearanceTraits": { "route": "curved
       .record(z.string(), z.unknown())
       .optional()
       .describe(
-        'Traits to set, or null to inherit again. Style: borderWidth (0 to 16; 0 draws none), dash, cornerRadius (0 to 64), opacity (0.2 to 1, text whole), shadow (none or soft), gradient ({ "to": "#RRGGBB", "direction": "down" | "right" } or "none"). Text: text { font (roboto, system, mono), size (8 to 48), bold, italic, underline, align (left, center, right), position (inside, above, below, left, right: a tag there), color, background, border, wrap, padding (0 to 48) }, each part inherited on its own. Unset, the drawing defaults draw them. Example: { "borderWidth": 3, "shadow": "soft", "text": { "bold": true, "position": "below" } }',
+        'Traits to set, or null to inherit again. Style: borderWidth (0 to 16; 0 draws none), dash, cornerRadius (0 to 64), opacity (0.2 to 1, text whole), shadow (none or soft), gradient ({ "to": "#RRGGBB", "direction": "down" | "right" } or "none"). Text: text { font (roboto, system, mono), size (8 to 48), bold, italic, underline, align (left, center, right), position (inside, above, below, left, right: a tag there), color, background, border, wrap, padding (0 to 48) }, each part inherited on its own. Unset, the drawing defaults draw them. Explorable: explorable { "explorable": id } from list_explorables, shown live in the explorable panel with each element\'s data (ADR 0107); "none" stops an inherited one. Example: { "borderWidth": 3, "shadow": "soft", "text": { "bold": true, "position": "below" } }',
       ),
   },
   hints: WRITE,

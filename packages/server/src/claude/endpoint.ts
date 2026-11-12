@@ -5,7 +5,9 @@
  * keeps, clears and reads back live values (ADR 0057), says which package code the person approved
  * (ADR 0054), asks the tab the person used last for a picture of a view (ADR 0081) and opens the app
  * when asked. It lists the project's versions and compares one with the
- * project now, as the program listed it, without the version's project (ADR 0071, ADR-0029). While the
+ * project now, as the program listed it, without the version's project (ADR 0071, ADR-0029). For
+ * explorables (ADR 0107), it says which the person approved, asks the person for a script library
+ * Claude wants, and asks the app for a still; Claude never approves one. While the
  * person reviews Claude's changes, or when a command asks to, Claude's commands join its proposal and
  * are answered with `proposal/made`; Claude may withdraw its proposal, but never accepts or refuses it
  * (ADR 0073). It never answers with the session token, and refuses every other message.
@@ -13,6 +15,7 @@
 import {
   DRAWING_LIMITS,
   ProtocolError,
+  explorablesIn,
   packagesWithCode,
   viewStateProblems,
   type CodeApproval,
@@ -81,6 +84,11 @@ export function attachClaude(
   const detach = session.attachClaude(client);
   const refuse = (requestId: string, problems: Problem[]) =>
     send({ type: 'command/rejected', requestId, problems });
+  /**
+   * The last command this Claude sent, settled or not: which explorables are approved is answered
+   * after it, since Claude's write continues an approval once its action is done (ADR 0107).
+   */
+  let lastCommand: Promise<unknown> = Promise.resolve();
 
   /**
    * HTML the person imports on the command line, as a drawing (ADR 0068): the program makes the
@@ -128,12 +136,14 @@ export function attachClaude(
         // The session answers through the client: the change, or why it was refused. A command that
         // joined Claude's proposal is answered here, at once, and never waits for the person
         // (ADR 0073): the session has shown every app and Claude the proposal by then.
-        const outcome = await session.execute(
+        const running = session.execute(
           message.command,
           'claude',
           { client, requestId: message.requestId },
           message.propose === true ? { propose: true } : {},
         );
+        lastCommand = running.catch(() => undefined);
+        const outcome = await running;
         if (outcome.ok && outcome.proposal !== undefined) {
           send({
             type: 'proposal/made',
@@ -329,6 +339,51 @@ export function attachClaude(
           at: Date.now(),
         };
         send({ type: 'live/listed', requestId: message.requestId, ...listing });
+        return;
+      }
+      case 'explorables/approvals': {
+        // Only the project's own explorables, as it holds them now; nothing of the person's other
+        // approvals. Claude can never approve one (ADR 0107).
+        await lastCommand;
+        const approved = [...explorablesIn(session.snapshot).explorables.keys()].filter(
+          (id) => session.isExplorableApproved?.(id) === true,
+        );
+        send({ type: 'explorables/approved', requestId: message.requestId, approved });
+        return;
+      }
+      case 'script-library/request': {
+        // The person decides, in the app, before any byte is fetched (ADR 0107).
+        const { requestId, package: owner, npm, version, path, global } = message;
+        if (session.requestScriptLibrary === undefined) {
+          send({
+            type: 'script-library/refused',
+            requestId,
+            code: 'program-failed',
+            message: 'This Visual Anything fetches no script libraries.',
+          });
+          return;
+        }
+        const kept = await session.requestScriptLibrary({
+          package: owner,
+          npm,
+          version,
+          ...(path === undefined ? {} : { path }),
+          ...(global === undefined ? {} : { global }),
+        });
+        send(
+          kept.ok
+            ? { type: 'script-library/kept', requestId, library: kept.library }
+            : { type: 'script-library/refused', requestId, code: kept.code, message: kept.message },
+        );
+        return;
+      }
+      case 'explorable/capture': {
+        // A read (ADR 0107): the app draws the still, and nothing changes.
+        const report =
+          session.captureExplorable === undefined
+            ? { apps: 0, unanswered: 'unsupported' as const }
+            : await session.captureExplorable(message.ask);
+        send({ type: 'explorable/captured', requestId: message.requestId, report });
         return;
       }
       case 'code-approvals': {

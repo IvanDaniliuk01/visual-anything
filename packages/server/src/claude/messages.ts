@@ -10,15 +10,18 @@
  * prepare as solids, sent in pieces or named by their path inside the project folder, which the
  * program reads itself (ADR 0075); the withdrawal of Claude's own proposal (ADR 0073); and a new
  * launch address, which `visual-anything address` prints for the person and Claude's tools never ask
- * for (ADR 0099). Undo, redo, preferences, and accepting or refusing
- * a proposal are the person's, and are refused.
+ * for (ADR 0099); and, for explorables (ADR 0107), which of the project's explorables the person
+ * approved, a script library to ask the person for, and a still of an explorable as the app draws it.
+ * Undo, redo, preferences, approving an explorable, and accepting or refusing a proposal are the
+ * person's, and are refused.
  *
  * The program answers with the live protocol's own messages (`project/opened`, `project/changed`,
  * `command/rejected`, `project/reloaded`, `live/kept`, `versions/listed`, `version/compared`,
  * `version/refused`, `proposal/shown`, `proposal/closed`), so the MCP entry point keeps its copy of
  * the project in step exactly as an app does, plus answers of its own: `guidance/shown`,
- * `capture/taken`, `app/opened`, `launch/address`, `code/approvals`, `live/cleared`, `live/listed` and
- * `proposal/made`.
+ * `capture/taken`, `app/opened`, `launch/address`, `code/approvals`, `live/cleared`, `live/listed`,
+ * `proposal/made`, `explorables/approved` and `explorable/captured`; a script library Claude asked
+ * for is answered with the live protocol's `script-library/kept` or `script-library/refused`.
  */
 import {
   FRESHNESS,
@@ -47,6 +50,15 @@ import {
   readCaptureAsk,
   readCaptureFailure,
   readCapturePicture,
+  readScriptLibraryFetch,
+  isParameterValue,
+  MAX_CONSOLE_ERRORS,
+  MAX_FRAME_ERROR,
+  MAX_PARAMETERS,
+  MAX_STILL_BYTES,
+  PARAMETER_NAME,
+  STILL_BUCKETS,
+  type ScriptLibraryAsk,
   type LiveValue,
   type Problem,
   type ServerMessage,
@@ -57,7 +69,7 @@ import type { ImportRequest } from '../import';
 import { MAX_SOLID_PATH } from '../solids/project-file';
 import { MAX_PICTURE_PATH } from '../media/project-file';
 import type { LiveAttributeCount, LiveListing, LiveSummary } from '../live';
-import type { Id } from '@visual-anything/schema';
+import type { ExplorableParameterValue, Id } from '@visual-anything/schema';
 
 /** The path of the Claude endpoint. */
 export const CLAUDE_PATH = '/claude';
@@ -177,7 +189,60 @@ export type ClaudeMessage =
       attributes?: string[];
       /** At most this many, the latest first; {@link MAX_LIVE_LISTED} when left out. */
       limit?: number;
-    };
+    }
+  /**
+   * Asks which of the open project's explorables the person approved as the project holds them now
+   * (ADR 0107), so that Claude's tools say whether one runs; answered with `explorables/approved`.
+   * Claude can never approve one: only the person can, in the app.
+   */
+  | { type: 'explorables/approvals'; requestId: string }
+  /**
+   * Asks the person, in every open app, to fetch a script library from the npm registry for one of
+   * the project's own packages (ADR 0107): the npm package at one exact version, and the file and
+   * global when Claude knows them. Answered, once the person decided and the program fetched and
+   * kept it or not, with the live protocol's `script-library/kept` or `script-library/refused`.
+   */
+  | ({ type: 'script-library/request'; requestId: string } & ScriptLibraryAsk)
+  /**
+   * Asks the app for a still of an explorable and its console errors (ADR 0107), within ADR 0081's
+   * deadlines; answered with `explorable/captured`. It changes nothing.
+   */
+  | { type: 'explorable/capture'; requestId: string; ask: ExplorableCaptureAsk };
+
+/** What Claude asks a still of an explorable for (ADR 0107). */
+export interface ExplorableCaptureAsk {
+  explorable: Id;
+  /** The element whose data it reads, as an element that shows it gives its own; none when left out. */
+  element?: Id;
+  /** The values of its parameters, by name; those left out take their defaults. */
+  parameters?: Record<string, ExplorableParameterValue>;
+  /** The still's width, in pixels: one of the still buckets, 256, 512 or 1,024. */
+  width: number;
+  /** The theme it is drawn in; the tab's when left out. */
+  theme?: 'light' | 'dark';
+}
+
+/**
+ * What came of a still Claude asked for (ADR 0107): how many open apps were asked; the still the
+ * explorable drew of itself, as a PNG in base64, and its console errors; or why there is none: the
+ * app could not draw it (`failure`), or no app answered (`unanswered`), `unsupported` when the app
+ * takes no stills of explorables for Claude.
+ */
+export interface ExplorableCaptureReport {
+  apps: number;
+  still?: { png: string; width: number; height: number };
+  /** Its console errors, oldest first: at most 50, each at most 2,000 characters. */
+  errors?: string[];
+  /** Whether it said `va.ready()` before its still was taken. */
+  ready?: boolean;
+  failure?: { reason: ExplorableCaptureFailure; message?: string };
+  unanswered?: 'passed' | 'timed-out' | 'gone' | 'unsupported';
+  /** How long the program waited, in milliseconds. */
+  waited?: number;
+}
+
+/** Why an app could not draw a still: not approved, stopped by its watchdog, or failed. */
+export type ExplorableCaptureFailure = 'not-approved' | 'stopped' | 'failed';
 
 /** Who sends live values through this endpoint. */
 export type LiveSenderKind = 'claude' | 'command-line';
@@ -287,6 +352,20 @@ export interface ProposalMadeMessage {
   apps: number;
 }
 
+/** The answer to `explorables/approvals`: the ids of the explorables that run as the project holds them. */
+export interface ExplorablesApprovedMessage {
+  type: 'explorables/approved';
+  requestId: string;
+  approved: Id[];
+}
+
+/** The answer to `explorable/capture`: the still, the failure, or why no app answered. */
+export interface ExplorableCapturedMessage {
+  type: 'explorable/captured';
+  requestId: string;
+  report: ExplorableCaptureReport;
+}
+
 /** A message the program sends to Claude. */
 export type ProgramMessage =
   | ServerMessage
@@ -297,7 +376,9 @@ export type ProgramMessage =
   | CodeApprovalsMessage
   | LiveClearedMessage
   | LiveListedMessage
-  | ProposalMadeMessage;
+  | ProposalMadeMessage
+  | ExplorablesApprovedMessage
+  | ExplorableCapturedMessage;
 
 /** Writes a message for the Claude endpoint. */
 export function encodeClaudeMessage(message: ClaudeMessage | ProgramMessage): string {
@@ -392,9 +473,34 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
       return readLiveClear(message, requestId);
     case 'live/list':
       return readLiveList(message, requestId);
+    case 'explorables/approvals':
+      if (Object.keys(message).some((key) => key !== 'type' && key !== 'requestId')) {
+        throw new ProtocolError('Asking which explorables are approved holds only its id.');
+      }
+      return { type: 'explorables/approvals', requestId };
+    case 'script-library/request': {
+      const read = readScriptLibraryFetch(message);
+      if (!read.ok) throw new ProtocolError(read.reason);
+      const { package: owner, npm, version, path, global } = read.value;
+      return {
+        type: 'script-library/request',
+        requestId,
+        package: owner,
+        npm,
+        version,
+        ...(path === undefined ? {} : { path }),
+        ...(global === undefined ? {} : { global }),
+      };
+    }
+    case 'explorable/capture': {
+      if (Object.keys(message).some((key) => !['type', 'requestId', 'ask'].includes(key))) {
+        throw new ProtocolError('A still of an explorable holds its id and what it asks for.');
+      }
+      return { type: 'explorable/capture', requestId, ask: readExplorableCaptureAsk(message.ask) };
+    }
     default:
       throw new ProtocolError(
-        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, pictures of a view, opening the app, asking which package code is approved, live values, versions, withdrawing a proposal, files to import as solids, imports from the command line and new launch addresses for the command line. Undo, redo, preferences, and accepting or refusing a proposal are the person's, in the app.`,
+        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, pictures of a view, opening the app, asking which package code or explorables are approved, live values, versions, withdrawing a proposal, files to import as solids, imports from the command line, new launch addresses for the command line, script libraries to ask the person for and stills of explorables. Undo, redo, preferences, approving an explorable, and accepting or refusing a proposal are the person's, in the app.`,
       );
   }
 }
@@ -500,6 +606,21 @@ export function decodeProgramMessage(text: string): ProgramMessage {
       return readLiveListed(message);
     case 'proposal/made':
       return readProposalMade(message);
+    case 'explorables/approved': {
+      const requestId = requestIdOf(message);
+      const { approved } = message;
+      if (
+        requestId === undefined ||
+        !Array.isArray(approved) ||
+        approved.length > MAX_APPROVED_LISTED ||
+        !approved.every(isId)
+      ) {
+        throw new ProtocolError('The answer about approved explorables is not valid.');
+      }
+      return { type: 'explorables/approved', requestId, approved: [...approved] };
+    }
+    case 'explorable/captured':
+      return readExplorableCaptured(message);
     default:
       return decodeServerMessage(text);
   }
@@ -727,6 +848,143 @@ function readProposalMade(message: Record<string, unknown>): ProposalMadeMessage
     warnings: warnings as Problem[],
     apps,
   };
+}
+
+/** The most explorables an answer about approvals names. */
+const MAX_APPROVED_LISTED = 64 * 1024;
+
+/** The tallest still an answer takes, in pixels. */
+const MAX_STILL_HEIGHT = 16_384;
+
+/** The most base64 characters a still's PNG takes. */
+const MAX_STILL_BASE64 = Math.ceil(MAX_STILL_BYTES / 3) * 4;
+
+/** Reads what a still of an explorable asks for, strictly. */
+export function readExplorableCaptureAsk(value: unknown): ExplorableCaptureAsk {
+  const refuse = (why: string): never => {
+    throw new ProtocolError(why);
+  };
+  if (!isRecord(value)) return refuse('A still of an explorable says what to draw.');
+  if (
+    Object.keys(value).some(
+      (key) => !['explorable', 'element', 'parameters', 'width', 'theme'].includes(key),
+    )
+  ) {
+    refuse(
+      'A still of an explorable names the explorable, an element, parameters, a width and a theme.',
+    );
+  }
+  const { explorable, element, parameters, width, theme } = value;
+  if (!isId(explorable)) refuse('A still names its explorable by id.');
+  if (element !== undefined && !isId(element)) refuse('A still names its element by id.');
+  if (!(STILL_BUCKETS as readonly unknown[]).includes(width)) {
+    refuse(`A still is ${STILL_BUCKETS.join(', ')} pixels wide.`);
+  }
+  if (theme !== undefined && theme !== 'light' && theme !== 'dark') {
+    refuse('A still is drawn in the light or the dark theme.');
+  }
+  let values: Record<string, ExplorableParameterValue> | undefined;
+  if (parameters !== undefined) {
+    if (!isRecord(parameters)) return refuse('Parameters are values by name.');
+    const entries = Object.entries(parameters);
+    if (
+      entries.length > MAX_PARAMETERS ||
+      entries.some(([name, each]) => !PARAMETER_NAME.test(name) || !isParameterValue(each))
+    ) {
+      refuse(
+        `Parameters are at most ${MAX_PARAMETERS} values by name, each a number, a boolean or a short text.`,
+      );
+    }
+    values = Object.fromEntries(entries) as Record<string, ExplorableParameterValue>;
+  }
+  return {
+    explorable: explorable as Id,
+    ...(element === undefined ? {} : { element: element as Id }),
+    ...(values === undefined ? {} : { parameters: values }),
+    width: width as number,
+    ...(theme === undefined ? {} : { theme: theme as 'light' | 'dark' }),
+  };
+}
+
+/** Reads the answer to `explorable/capture` strictly: a still is a PNG of a still's size. */
+function readExplorableCaptured(message: Record<string, unknown>): ExplorableCapturedMessage {
+  const refuse = (why: string): never => {
+    throw new ProtocolError(why);
+  };
+  const requestId = requestIdOf(message);
+  const report = message.report;
+  if (requestId === undefined || !isRecord(report)) {
+    return refuse('The answer to a still of an explorable is not valid.');
+  }
+  const { apps, still, errors, ready, failure, unanswered, waited } = report;
+  if (!isCount(apps)) return refuse('The answer to a still says how many apps it asked.');
+  const read: ExplorableCaptureReport = { apps };
+  if (still !== undefined) {
+    if (!isRecord(still)) return refuse('A still is a PNG and its size.');
+    const { png, width, height } = still;
+    if (
+      typeof png !== 'string' ||
+      png.length > MAX_STILL_BASE64 ||
+      !/^[A-Za-z0-9+/]*={0,2}$/.test(png) ||
+      !png.startsWith('iVBORw0KGgo')
+    ) {
+      return refuse('A still is a PNG in base64, within its cap.');
+    }
+    if (!(STILL_BUCKETS as readonly unknown[]).includes(width)) {
+      return refuse('A still has its width.');
+    }
+    if (!isCount(height) || height < 1 || height > MAX_STILL_HEIGHT) {
+      return refuse('A still has its height.');
+    }
+    read.still = { png, width: width as number, height };
+  }
+  if (errors !== undefined) {
+    if (
+      !Array.isArray(errors) ||
+      errors.length > MAX_CONSOLE_ERRORS ||
+      !errors.every((each) => typeof each === 'string' && each.length <= MAX_FRAME_ERROR)
+    ) {
+      return refuse(
+        `An explorable's console errors are at most ${MAX_CONSOLE_ERRORS} short texts.`,
+      );
+    }
+    read.errors = [...(errors as string[])];
+  }
+  if (ready !== undefined) {
+    if (typeof ready !== 'boolean') {
+      return refuse('Whether an explorable said it was ready is true or false.');
+    }
+    read.ready = ready;
+  }
+  if (failure !== undefined) {
+    const reason = isRecord(failure) ? failure.reason : undefined;
+    const text = isRecord(failure) ? failure.message : undefined;
+    if (
+      (reason !== 'not-approved' && reason !== 'stopped' && reason !== 'failed') ||
+      (text !== undefined && (typeof text !== 'string' || text.length > MAX_FRAME_ERROR))
+    ) {
+      return refuse('Why a still failed is not-approved, stopped or failed, with a short message.');
+    }
+    read.failure = { reason, ...(text === undefined ? {} : { message: text }) };
+  }
+  if (unanswered !== undefined) {
+    if (
+      unanswered !== 'passed' &&
+      unanswered !== 'timed-out' &&
+      unanswered !== 'gone' &&
+      unanswered !== 'unsupported'
+    ) {
+      return refuse('Why no app answered a still is passed, timed-out, gone or unsupported.');
+    }
+    read.unanswered = unanswered;
+  }
+  if (waited !== undefined) {
+    if (!isCount(waited)) {
+      return refuse('How long a still waited is a whole number of milliseconds.');
+    }
+    read.waited = waited;
+  }
+  return { type: 'explorable/captured', requestId, report: read };
 }
 
 function isCount(value: unknown): value is number {

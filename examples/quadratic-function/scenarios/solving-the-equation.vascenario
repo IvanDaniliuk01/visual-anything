@@ -1,0 +1,52 @@
+{
+  "id": "solving-the-equation",
+  "name": "Solving the equation",
+  "description": "Solving $x^2 - 4x + 3 = 0$, with $a = 1$, $b = -4$ and $c = 3$: from the coefficients to the discriminant and the roots, and to the vertex between them.",
+  "view": "what-decides-what",
+  "steps": [
+    {
+      "id": "coefficients-give-the-discriminant",
+      "description": "The three coefficients give the discriminant, $\\Delta = b^2 - 4ac$.",
+      "relations": [
+        "coefficient-a-decides-discriminant",
+        "coefficient-b-decides-discriminant",
+        "coefficient-c-decides-discriminant"
+      ],
+      "dataOut": {
+        "discriminant": 4
+      }
+    },
+    {
+      "id": "discriminant-gives-the-roots",
+      "description": "Since $\\Delta > 0$ there are two real roots, $\\frac{4 \\pm 2}{2}$.",
+      "relations": [
+        "discriminant-decides-roots"
+      ],
+      "dataOut": {
+        "roots": "1 and 3"
+      }
+    },
+    {
+      "id": "coefficients-give-the-vertex",
+      "description": "The coefficients put the vertex at $x_v = -\\frac{b}{2a} = 2$, halfway between the roots.",
+      "relations": [
+        "coefficient-a-decides-vertex",
+        "coefficient-b-decides-vertex",
+        "coefficient-c-decides-vertex"
+      ],
+      "dataOut": {
+        "vertex": "(2, −1)"
+      }
+    },
+    {
+      "id": "vertex-gives-the-axis",
+      "description": "The axis of symmetry is the vertical line through the vertex, $x = 2$.",
+      "relations": [
+        "vertex-decides-axis-of-symmetry"
+      ],
+      "dataOut": {
+        "axis": "x = 2"
+      }
+    }
+  ]
+}

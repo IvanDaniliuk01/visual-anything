@@ -30,6 +30,12 @@ export const SAMPLE_TEXTS: Readonly<
       'A logistic regression that tells spam from wanted email, written out in Math: the probability it gives, the log loss it brings down, how gradient descent trains it and how it is judged, with a scenario that scores a batch of emails and a tour of its math.',
     summary: 'A spam filter’s probability, loss and training, written out in Math.',
   },
+  'quadratic-function': {
+    title: 'Math: a quadratic function',
+    description:
+      'The quadratic function f(x) = ax² + bx + c, its coefficients, discriminant and roots written out in Math, and an explorable that draws its parabola as a, b and c change, with a tour that sets them step by step. The explorable runs once you approve it.',
+    summary: 'A quadratic function’s parabola, drawn live as its coefficients change.',
+  },
   'robot-arm': {
     title: 'Physical AI: a pick-and-place arm',
     description:

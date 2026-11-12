@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "name": "Quadratic function",
+  "description": "A sample of an explorable: the quadratic function $f(x) = ax^2 + bx + c$, its coefficients, its vertex, its discriminant and its roots, each written out in Math, and a page that draws its parabola as $a$, $b$ and $c$ change. The page runs only once you approve it, as every explorable does.",
+  "packages": [
+    "quadratic"
+  ]
+}

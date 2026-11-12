@@ -255,6 +255,10 @@ export class StartingSession implements LiveSession {
     );
   }
 
+  isExplorableApproved(explorable: Id): boolean {
+    return this.#session?.isExplorableApproved(explorable) ?? false;
+  }
+
   requestScriptLibrary(ask: ScriptLibraryAsk): Promise<Kept> {
     return (
       this.#session?.requestScriptLibrary(ask) ??
