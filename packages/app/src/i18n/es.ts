@@ -4405,6 +4405,8 @@ export const ui: Catalog = {
   'Not running: its package does not define the script library “{id}”.':
     'No se ejecuta: su paquete no define la biblioteca de JavaScript “{id}”.',
   'Stopped: it stopped answering.': 'Detenido: dejó de responder.',
+  'Stopped: it left its page, so it no longer gets the data.':
+    'Detenido: dejó su página, así que ya no recibe los datos.',
   'Stopped: it did not start. Its file may have changed since; run it again to try.':
     'Detenido: no llegó a empezar. Puede que su archivo haya cambiado; ejecútalo de nuevo para probar.',
   'Stopped: it was running when this tab stopped answering, so it waits for you to run it again.':

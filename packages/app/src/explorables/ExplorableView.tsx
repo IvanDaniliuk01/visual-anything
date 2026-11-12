@@ -134,11 +134,12 @@ export function ExplorableCard({
           {t('Approve…')}
         </button>
       )}
-      {(why === 'silent' || why === 'never-answered' || why === 'hung') && onRun && (
-        <button type="button" className="space-panel-tool explorable-card-action" onClick={onRun}>
-          {t('Run again')}
-        </button>
-      )}
+      {(why === 'silent' || why === 'never-answered' || why === 'hung' || why === 'left') &&
+        onRun && (
+          <button type="button" className="space-panel-tool explorable-card-action" onClick={onRun}>
+            {t('Run again')}
+          </button>
+        )}
     </section>
   );
 }
@@ -155,6 +156,8 @@ function reasonText(t: ReturnType<typeof useT>, why: CardReason, library?: Id): 
       });
     case 'silent':
       return t('Stopped: it stopped answering.');
+    case 'left':
+      return t('Stopped: it left its page, so it no longer gets the data.');
     case 'never-answered':
       return t('Stopped: it did not start. Its file may have changed since; run it again to try.');
     case 'hung':

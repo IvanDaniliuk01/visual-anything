@@ -1,7 +1,9 @@
 /**
- * The app's side of one explorable's frame (ADR 0107). On each `load` of the frame it posts
+ * The app's side of one explorable's frame (ADR 0107). On the frame's first `load` it posts
  * `{ kind: 'va/hello', api: 1, data }` with one port of a fresh `MessageChannel`, and from then on
- * hears only that port. Every message it hears is checked by the core's `readFrameMessage`, and one
+ * hears only that port. It says hello once in a frame's life: the frame's origin is opaque, so the
+ * hello goes to `*`, and a page the frame navigated to, or reloaded, must never get the element's
+ * data or a port. Any later `load` stops the frame, as having left its page. Every message it hears is checked by the core's `readFrameMessage`, and one
  * that fails is dropped whole. It sends the data again when it changes, at most once a frame.
  *
  * The watchdog pings the frame every second; a frame silent for 3 s is stopped, and so is one that
@@ -21,11 +23,11 @@ import type { Id } from '@visual-anything/schema';
 
 /** How long a frame has to load before it is stopped. */
 export const FRAME_LOAD_MS = 10_000;
-/** How many times a frame may load before it is stopped, as a page that reloads itself over and over. */
-export const MAX_FRAME_LOADS = 20;
-
-/** Why a frame was stopped: it stopped answering, or it never started to. */
-export type FrameEnd = 'silent' | 'never-answered';
+/**
+ * Why a frame was stopped: it stopped answering, it never started to, or it loaded another page (a
+ * reload, or a navigation the frame made), which never gets a hello.
+ */
+export type FrameEnd = 'silent' | 'never-answered' | 'left';
 
 /** What the host tells its owner. */
 export interface FrameHostEvents {
@@ -78,7 +80,7 @@ export class FrameHost {
   readonly #stopWatching: () => void;
   #data: VaData;
   #port: MessagePort | undefined;
-  #loads = 0;
+  #helloSent = false;
   #heardAt: number | undefined;
   #answered = false;
   #ended = false;
@@ -135,14 +137,17 @@ export class FrameHost {
 
   readonly #loaded = (): void => {
     if (this.#ended) return;
-    this.#loads += 1;
-    if (this.#loads > MAX_FRAME_LOADS) {
-      this.#stop(this.#answered ? 'silent' : 'never-answered');
+    // A second load is another document in the frame: it gets no hello, and the frame goes.
+    if (this.#helloSent) {
+      this.#stop('left');
       return;
     }
+    this.#helloSent = true;
     const target = this.#frame.contentWindow;
-    if (!target) return;
-    this.#closePort();
+    if (!target) {
+      this.#stop('never-answered');
+      return;
+    }
     const channel = new MessageChannel();
     this.#port = channel.port1;
     this.#port.onmessage = this.#hear;
