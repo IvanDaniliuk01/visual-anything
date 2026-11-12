@@ -515,6 +515,10 @@ export class ViewerController {
       this.toggleCollapse(hit.shape);
       return;
     }
+    // A click on a video whose file the page holds plays it, or stops it (ADR 0098, stage 2).
+    if (hit.kind === 'picture' && hit.picture.video && !additive) {
+      this.renderer.toggleVideo(hit.picture.id);
+    }
     if (hit.kind !== 'relation') this.current = keyOf(hit);
     const items = selectablesOf(hit);
     this.select(additive ? toggleAll(this.selection, items) : selectionOf(items));

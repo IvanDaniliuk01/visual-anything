@@ -87,6 +87,10 @@ export type ProblemCode =
   // reader or are not its name's. A file that cannot be kept is refused as an image is.
   | 'media-file-missing'
   | 'media-not-clean'
+  // Videos (ADR 0098, stage 2): a file that is not an MP4 of H.264 or a WebM of VP8, VP9 or AV1, as
+  // its container is read, and one past 50 MiB or 8,192 pixels a side.
+  | 'invalid-video'
+  | 'video-too-large'
   // Poses (ADR 0076): one a command refuses, and, only as a warning on open, one whose `in` is not
   // one of its element's containers, kept and not used.
   | 'invalid-pose'

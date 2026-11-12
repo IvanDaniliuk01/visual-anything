@@ -67,6 +67,8 @@ export function pagePolicy(port: number, options: PagePolicyOptions): string {
     `script-src ${scripts.join(' ')}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
+    // A video plays from a `blob:` address of its file (ADR 0098, stage 2).
+    'media-src blob:',
     "font-src 'self'",
     `connect-src 'self' ws://127.0.0.1:${port} ws://localhost:${port}`,
     "worker-src 'self'",

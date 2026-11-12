@@ -218,6 +218,9 @@ export function describeSelection(
     const [free] = freeShapes;
     const picture = picturesOf(indexed.scene).find((each) => each.id === free);
     // A picture is said by its name (ADR 0098).
+    if (picture?.video) {
+      return picture.named ? asSentence(t('Video: {name}', { name: picture.name })) : t('Video.');
+    }
     if (picture) {
       return picture.named
         ? asSentence(t('Picture: {name}', { name: picture.name }))

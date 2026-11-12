@@ -4,13 +4,14 @@
  *
  * - a file is written once, atomically, as a regular file inside the project folder, and never
  *   changed; a name whose bytes are already its own is left as it is;
- * - files are read as regular files within the 32 MiB cap, inside the project folder;
+ * - files are read as regular files within their cap, 32 MiB for an image and 50 MiB for a video,
+ *   inside the project folder;
  * - nothing here deletes a file on its own: the files no picture names are listed for the person.
  */
 import { lstat, readdir, realpath, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  MEDIA_CAPS,
+  mediaBytesCap,
   mediaFileName,
   mediaFileOf,
   mediaNamedBy,
@@ -26,7 +27,7 @@ import { writeFileAtomic, type WriteOptions } from '../writer';
 /** The folder of a project that holds its pictures' files. */
 export const MEDIA_FOLDER = 'media';
 
-const FORMATS: readonly MediaFormat[] = ['png', 'jpeg', 'webp', 'gif', 'svg'];
+const FORMATS: readonly MediaFormat[] = ['png', 'jpeg', 'webp', 'gif', 'svg', 'mp4', 'webm'];
 
 /** The path of a media file in a project folder. */
 export function mediaFilePath(folder: string, hash: string, format: MediaFormat): string {
@@ -44,7 +45,9 @@ export function readMediaFile(
   hash: string,
   format: MediaFormat,
 ): Promise<RegularRead> {
-  return readRegularFile(mediaFilePath(folder, hash, format), MEDIA_CAPS.bytes, { inside: folder });
+  return readRegularFile(mediaFilePath(folder, hash, format), mediaBytesCap(format), {
+    inside: folder,
+  });
 }
 
 /**

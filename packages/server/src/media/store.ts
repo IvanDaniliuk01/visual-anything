@@ -5,9 +5,9 @@
  *   it in the cleaner's worker, one file at a time, writes it to `media/` atomically and answers with
  *   the reference a picture names it by (`media/stored`). Claude's `add_picture` keeps a file of the
  *   project folder the same way. A file is written before any shape names it.
- * - **Admitting.** A command that adds or changes a picture is taken only when the file it names is in
- *   `media/`, of the format and size it says, so that a picture never names a file the program has
- *   not kept.
+ * - **Admitting.** A command that adds or changes a picture is taken only when the file it names, and
+ *   a video's poster, are in `media/`, of the format and size they say, so that a picture never names
+ *   a file the program has not kept.
  * - **Serving.** `media/get` is answered from `media/`, in pieces. The first time a file is served in
  *   a session, the worker checks that its bytes are its name's and exactly what cleaning writes; a
  *   file that fails is never served, and the picture is drawn as a missing one.
@@ -23,6 +23,9 @@ import {
   type ServerMessage,
 } from '@visual-anything/core';
 import type { MediaFormat, MediaRef } from '@visual-anything/schema';
+
+/** The formats a media file may have: images, and videos (ADR 0098, stage 2). */
+const MEDIA_FORMATS: readonly MediaFormat[] = ['png', 'jpeg', 'webp', 'gif', 'svg', 'mp4', 'webm'];
 import { checkMediaInWorker, cleanMediaInWorker } from '../solids/cleaner';
 import type { CheckedMedia, CleanedMedia } from '../solids/worker';
 import type { WriteOptions } from '../writer';
@@ -300,22 +303,30 @@ export class MediaStore {
     if (command.type !== 'create-free-shape' && command.type !== 'update-free-shape') {
       return { ok: true };
     }
-    const shape = command.shape as { kind?: unknown; media?: Partial<MediaRef> } | undefined;
-    // A picture changed part by part names its file in its changes (ADR 0104); only a picture
-    // takes one there, so the core refuses it for any other shape.
+    type Named = { kind?: unknown; media?: Partial<MediaRef>; poster?: Partial<MediaRef> | null };
+    const shape = command.shape as Named | undefined;
+    // A picture changed part by part names its file, or a video's poster, in its changes (ADR
+    // 0104); only a picture takes them there, so the core refuses them for any other shape.
     const changes =
-      command.type === 'update-free-shape'
-        ? (command.changes as { media?: Partial<MediaRef> } | undefined)
-        : undefined;
-    const media = shape?.kind === 'picture' ? shape.media : changes?.media;
+      command.type === 'update-free-shape' ? (command.changes as Named | undefined) : undefined;
+    const named = shape?.kind === 'picture' ? shape : changes;
+    for (const media of [named?.media, named?.poster]) {
+      const admitted = await this.#admitFile(media);
+      if (!admitted.ok) return admitted;
+    }
+    return { ok: true };
+  }
+
+  async #admitFile(
+    media: Partial<MediaRef> | null | undefined,
+  ): Promise<{ ok: true } | { ok: false; problems: Problem[] }> {
     if (typeof media !== 'object' || media === null) return { ok: true };
     const { hash, format, bytes } = media;
     // A reference the core would refuse is left for the core to refuse, with its own words.
     if (typeof hash !== 'string' || !/^[0-9a-f]{64}$/.test(hash) || typeof format !== 'string') {
       return { ok: true };
     }
-    const formats: readonly string[] = ['png', 'jpeg', 'webp', 'gif', 'svg'];
-    if (!formats.includes(format)) return { ok: true };
+    if (!(MEDIA_FORMATS as readonly string[]).includes(format)) return { ok: true };
     const info = await lstat(mediaFilePath(this.#folder, hash, format)).catch(() => undefined);
     if (info?.isFile() && info.size === bytes) return { ok: true };
     return {

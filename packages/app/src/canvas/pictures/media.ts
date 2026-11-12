@@ -52,7 +52,10 @@ export function mediaFilesOver(
 
 /** The media files a read-only page carries, by hash, in base64 (ADR 0098). */
 export function embeddedMediaFiles(files: Readonly<Record<string, Uint8Array>>): MediaFiles {
-  return (hash) => Promise.resolve(Object.hasOwn(files, hash) ? files[hash] : undefined);
+  const read: MediaFiles = (hash) =>
+    Promise.resolve(Object.hasOwn(files, hash) ? files[hash] : undefined);
+  read.holds = (hash) => Object.hasOwn(files, hash);
+  return read;
 }
 
 /** The largest side a picture's texture takes (ADR 0098). */

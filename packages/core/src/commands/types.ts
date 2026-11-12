@@ -697,7 +697,8 @@ export interface UpdateFreeShapeCommand {
 /**
  * Changes to a free shape's parts, each one its kind has: a note's `x`, `y`, `width`, `height`,
  * `text`, `fill` and `stroke`; an arrow's `from`, `to` and `stroke`; a picture's `x`, `y`, `width`,
- * `height`, `media` and `name`. `null` takes a color or a picture's name out. Its kind and id stay.
+ * `height`, `media`, `poster` and `name`. `null` takes a color, a picture's name or a video's poster
+ * out. Its kind and id stay.
  */
 export interface FreeShapeChanges {
   x?: number;
@@ -710,6 +711,7 @@ export interface FreeShapeChanges {
   from?: Point;
   to?: Point;
   media?: Picture['media'];
+  poster?: Picture['media'] | null;
   name?: string | null;
   /** An explorable shape's explorable, by its id (ADR 0107). */
   explorable?: Id;

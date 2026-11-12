@@ -8,4 +8,10 @@
  * holds them; `undefined` for a file that is missing or no longer what cleaning writes, which is
  * drawn as a gray box.
  */
-export type MediaFiles = (hash: string) => Promise<Uint8Array | undefined>;
+export type MediaFiles = ((hash: string) => Promise<Uint8Array | undefined>) & {
+  /**
+   * Whether a file is held at all, where that is known before asking, as in a read-only page, which
+   * leaves out a video past 32 MiB (ADR 0098, stage 2): such a video shows no play mark.
+   */
+  holds?: (hash: string) => boolean;
+};

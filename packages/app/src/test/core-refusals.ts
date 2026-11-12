@@ -1244,6 +1244,45 @@ const IN_ORDER: readonly [string, readonly unknown[]][] = [
         },
       },
       { type: 'update-free-shape', view: VIEW, id: 'front-desk', changes: { fill: '#FFFFFF' } },
+      // Videos (ADR 0098, stage 2): added and edited, then a poster where it does not go.
+      {
+        type: 'create-free-shape',
+        view: VIEW,
+        shape: {
+          kind: 'picture',
+          id: 'check-in',
+          x: 0,
+          y: 0,
+          width: 64,
+          height: 36,
+          media: { hash: 'cd'.repeat(32), format: 'mp4', width: 640, height: 360, bytes: 9000 },
+        },
+      },
+      { type: 'update-free-shape', view: VIEW, id: 'check-in', changes: { x: 10 } },
+      {
+        type: 'update-free-shape',
+        view: VIEW,
+        id: 'check-in',
+        changes: {
+          poster: { hash: 'ef'.repeat(32), format: 'gif', width: 640, height: 360, bytes: 900 },
+        },
+      },
+      {
+        type: 'update-free-shape',
+        view: VIEW,
+        id: 'front-desk',
+        changes: {
+          poster: { hash: 'ef'.repeat(32), format: 'png', width: 640, height: 360, bytes: 900 },
+        },
+      },
+      {
+        type: 'update-free-shape',
+        view: VIEW,
+        id: 'front-desk',
+        changes: {
+          media: { hash: 'ab'.repeat(32), format: 'bmp', width: 800, height: 600, bytes: 1200 },
+        },
+      },
     ],
   ],
   [

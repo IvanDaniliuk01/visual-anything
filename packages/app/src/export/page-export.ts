@@ -10,7 +10,7 @@
  */
 import {
   encodeBase64,
-  mediaNamedBy,
+  pageMediaOf,
   type MathFont,
   type ProjectSnapshot,
 } from '@visual-anything/core';
@@ -181,13 +181,14 @@ export async function gatherPageSolids(
 
 /**
  * The media files a page's pictures show (ADR 0098), by hash, in base64, as the program serves them:
- * every one it could have, and how many it could not, which then draw as missing pictures.
+ * every one it could have, and how many it could not, which then draw as missing pictures. A video's
+ * file is held only within 32 MiB; a larger one shows its poster, and is counted in `videosLeftOut`.
  */
 export async function gatherPageMedia(
   project: ProjectSnapshot,
   files: MediaFiles | undefined,
-): Promise<{ media: Record<string, string>; missing: number }> {
-  const hashes = [...mediaNamedBy(project.views)].sort();
+): Promise<{ media: Record<string, string>; missing: number; videosLeftOut: number }> {
+  const { hashes, videosLeftOut } = pageMediaOf(project.views);
   const media: Record<string, string> = {};
   let missing = 0;
   for (const hash of hashes) {
@@ -195,7 +196,7 @@ export async function gatherPageMedia(
     if (bytes === undefined) missing += 1;
     else media[hash] = encodeBase64(bytes);
   }
-  return { media, missing };
+  return { media, missing, videosLeftOut: videosLeftOut.length };
 }
 
 /** What a page opens at and says of itself. */

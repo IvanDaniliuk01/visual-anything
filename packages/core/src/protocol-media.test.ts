@@ -78,14 +78,14 @@ describe('media files over the live connection (ADR 0098)', () => {
       "A file's name is its own name, without a folder.",
     ],
     [
-      'a file of more than 32 pieces',
+      'a file of more than 50 pieces, a video’s 50 MiB',
       {
         type: 'media/put',
         requestId: 'r',
-        fileName: 'x.png',
-        piece: { index: 0, count: 33, data: '' },
+        fileName: 'x.mp4',
+        piece: { index: 0, count: 51, data: '' },
       },
-      'A file comes in 1 to 32 pieces.',
+      'A file comes in 1 to 50 pieces.',
     ],
     [
       'a put with anything else',
@@ -110,6 +110,25 @@ describe('media files over the live connection (ADR 0098)', () => {
     ],
   ])('refuses %s from an app', (_, message, why) => {
     expect(reason(() => decodeAppMessage(JSON.stringify(message)))).toBe(why);
+  });
+
+  it('reads a stored video of up to 50 MiB (ADR 0098, stage 2)', () => {
+    const video = { ...MEDIA, format: 'webm', bytes: 50 * 1024 * 1024 } as const;
+    const stored = { type: 'media/stored', requestId: 'r', media: video, removed: ['tags'] };
+    expect(decodeServerMessage(JSON.stringify(stored))).toEqual(stored);
+    expect(
+      reason(() =>
+        decodeServerMessage(
+          JSON.stringify({ ...stored, media: { ...video, bytes: 50 * 1024 * 1024 + 1 } }),
+        ),
+      ),
+    ).toBe('A stored file is named by its hash, format and sizes.');
+    const listed = {
+      type: 'media-files/listed',
+      requestId: 'r',
+      files: [{ hash: HASH, format: 'mp4', bytes: 12 }],
+    };
+    expect(decodeServerMessage(JSON.stringify(listed))).toEqual(listed);
   });
 
   it('refuses a stored file whose reference is not one a picture may name', () => {

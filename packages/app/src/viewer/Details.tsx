@@ -8,6 +8,7 @@
  */
 import {
   componentOrEssence,
+  isVideoFormat,
   modelIndexOf,
   relationTypeOrRelatesTo,
   type ProjectSnapshot,
@@ -122,7 +123,7 @@ export function Details() {
             {shape.kind === 'note'
               ? t('Note')
               : shape.kind === 'picture'
-                ? (shape.name ?? t('Picture'))
+                ? (shape.name ?? (isVideoFormat(shape.media.format) ? t('Video') : t('Picture')))
                 : t('Arrow')}
           </h2>
           {close}

@@ -1,10 +1,18 @@
 /**
  * The inspector's picture (ADR 0098): its name, which screen readers, the outline and a missing file
  * say, edited as one action; what its file is; and "Its own size", which gives it its file's size in
- * pixels as canvas units. The view's inspector lists the files of `media/` that no picture names, and
- * removes them, saying first that it cannot be undone.
+ * pixels as canvas units. A video (ADR 0098, stage 2) has Play and Stop, its poster's file, and "Make
+ * its poster" when it has none. The view's inspector lists the files of `media/` that no picture
+ * names, and removes them, saying first that it cannot be undone.
  */
-import { mediaFileName, mediaNamedBy, type UnnamedMediaFile } from '@visual-anything/core';
+import {
+  isVideoFormat,
+  mediaFileName,
+  mediaNamedBy,
+  type UnnamedMediaFile,
+} from '@visual-anything/core';
+import { toggleVideo, useVideoPlaying } from '../../canvas/pictures/playing';
+import { makePoster, posterFileName } from '../../canvas/pictures/poster';
 import type { Picture } from '@visual-anything/schema';
 import { useContext, useEffect, useId, useRef, useState } from 'react';
 import { useModalFocus } from '../../canvas/focus';
@@ -20,6 +28,8 @@ const FORMAT_NAMES: Readonly<Record<Picture['media']['format'], string>> = {
   webp: 'WebP',
   gif: 'GIF',
   svg: 'SVG',
+  mp4: 'MP4',
+  webm: 'WebM',
 };
 
 /** A media file's path in the project, which is the same in every language. */
@@ -52,16 +62,18 @@ export function PictureInspector({ picture, viewId }: { picture: Picture; viewId
     return send?.({ type: 'update-free-shape', view: viewId, shape: next });
   };
   const ownSize = picture.width === media.width && picture.height === media.height;
+  const video = isVideoFormat(media.format);
+  const unnamed = video ? t('Video') : t('Picture');
   return (
     <>
-      <h3 className="inspector-title">{picture.name ?? t('Picture')}</h3>
+      <h3 className="inspector-title">{picture.name ?? unnamed}</h3>
       <p className="inspector-notes">{t('A free shape: drawing only, not part of the model.')}</p>
       <div className="inspector-control">
         <label htmlFor={nameId}>{t('Name')}</label>
         <TextControl
           id={nameId}
           value={picture.name ?? ''}
-          placeholder={t('Picture')}
+          placeholder={unnamed}
           disabled={disabled}
           onCommit={async (text) => {
             // An empty name takes it out, and the picture is called "Picture".
@@ -95,6 +107,92 @@ export function PictureInspector({ picture, viewId }: { picture: Picture; viewId
           {t('Its own size')}
         </button>
       </div>
+      {video && (
+        <VideoControls
+          picture={picture}
+          disabled={disabled}
+          setPoster={(poster) => update({ poster })}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * A video's Play and Stop, which the canvas's click does too, its poster's file, and "Make its
+ * poster" for a video without one, as Claude adds it: its first frame, kept as any picture is.
+ */
+function VideoControls({
+  picture,
+  disabled,
+  setPoster,
+}: {
+  picture: Picture;
+  disabled: boolean;
+  setPoster: (poster: Picture['media']) => unknown;
+}) {
+  const t = useT();
+  const live = useContext(LiveContext);
+  const playing = useVideoPlaying(picture.id);
+  const [making, setMaking] = useState(false);
+  const [said, setSaid] = useState<string>();
+  const get = live?.getMediaFile;
+  const put = live?.putMedia;
+  const make = async () => {
+    if (!get || !put) return;
+    setMaking(true);
+    setSaid(undefined);
+    try {
+      const file = await get(picture.media.hash);
+      const bytes = file.ok
+        ? await makePoster(
+            new Blob([file.answer as Uint8Array<ArrayBuffer>], {
+              type: picture.media.format === 'mp4' ? 'video/mp4' : 'video/webm',
+            }),
+          )
+        : undefined;
+      const kept = bytes && (await put(posterFileName(picture.name ?? 'video'), bytes));
+      if (kept && kept.ok) await setPoster(kept.answer.media);
+      else setSaid(t('The browser could not show a frame of this video.'));
+    } finally {
+      setMaking(false);
+    }
+  };
+  return (
+    <>
+      <p className="inspector-notes">
+        {t('A video: it plays muted and in a loop when clicked, and shows its poster otherwise.')}
+      </p>
+      {picture.poster && (
+        <p className="inspector-notes">
+          {t('Its poster:')} <code>{mediaPath(picture.poster)}</code>
+        </p>
+      )}
+      <div className="components-actions">
+        <button
+          type="button"
+          className="components-action"
+          aria-pressed={playing}
+          onClick={() => toggleVideo(picture.id)}
+        >
+          {playing ? t('Stop') : t('Play')}
+        </button>
+        {!picture.poster && (
+          <button
+            type="button"
+            className="components-action"
+            disabled={disabled || making || !get || !put}
+            onClick={() => void make()}
+          >
+            {t('Make its poster')}
+          </button>
+        )}
+      </div>
+      {said !== undefined && (
+        <p className="inspector-notes" role="status">
+          {said}
+        </p>
+      )}
     </>
   );
 }
