@@ -16,6 +16,7 @@ import type {
 import { containmentTree, type Placement } from '../containment';
 import { nestingTypesInView } from '../containers';
 import type { ProjectSnapshot } from '../snapshot';
+import { isVideoShape } from '../media/steps';
 import { rotationFromDegrees } from '../space/math';
 import { definitionsIn, modelIndexOf } from '../state';
 import { testProject } from './fixtures';
@@ -26,7 +27,8 @@ export const RELATION_TYPES = ['test.calls', 'test.reads', 'test.governs', ...NE
 
 /**
  * The test project with a second relation type that nests, so that containment is attempted across
- * two of them, as views that nest by both would show it.
+ * two of them, as views that nest by both would show it; and a photo, a video and a link card in the
+ * view its scenario plays over, so that its steps show and play them (ADR 0098, stage 4).
  */
 export function propertyProject(): ProjectSnapshot {
   const project = testProject();
@@ -39,9 +41,50 @@ export function propertyProject(): ProjectSnapshot {
     direction: 'directed' as const,
     nests: true,
   };
+  const media = (hash: string, format: 'png' | 'mp4') => ({
+    hash: hash.repeat(64),
+    format,
+    width: 640,
+    height: 360,
+    bytes: 9000,
+  });
+  const pictures: FreeShape[] = [
+    {
+      kind: 'picture',
+      id: 'desk-photo',
+      x: 0,
+      y: 600,
+      width: 64,
+      height: 36,
+      media: media('a', 'png'),
+    },
+    {
+      kind: 'picture',
+      id: 'desk-video',
+      x: 100,
+      y: 600,
+      width: 64,
+      height: 36,
+      media: media('b', 'mp4'),
+    },
+    {
+      kind: 'link',
+      id: 'desk-guide',
+      x: 200,
+      y: 600,
+      width: 320,
+      height: 112,
+      url: 'https://example.org/guide',
+      title: 'A guide',
+    },
+  ];
+  const scenarioView = project.scenarios[0]?.view;
   return {
     ...project,
     packages: [{ ...own, relationTypes: [...own.relationTypes, partOf] }, ...others],
+    views: project.views.map((view) =>
+      view.id === scenarioView ? { ...view, freeShapes: [...view.freeShapes, ...pictures] } : view,
+    ),
   };
 }
 
@@ -403,6 +446,28 @@ export function pick<T>(list: readonly T[], at: number): T | undefined {
   return list.length === 0 ? undefined : list[at % list.length];
 }
 
+/**
+ * What a step shows of its view's pictures, videos and link cards, picked, and the videos among
+ * them it plays (ADR 0098, stage 4); nothing when the view holds none.
+ */
+function stepPictures(view: ViewFile, picks: readonly number[]): { shows?: Id[]; playing?: Id[] } {
+  const showable = view.freeShapes.filter(
+    (shape) => shape.kind === 'picture' || shape.kind === 'link',
+  );
+  const shown = [...new Set(picks.map((at) => pick(showable, at)))].filter(
+    (shape): shape is FreeShape => shape !== undefined,
+  );
+  if (shown.length === 0) return {};
+  const playing = shown
+    .filter((shape) => isVideoShape(shape))
+    .map((shape) => shape.id)
+    .slice(0, 4);
+  return {
+    shows: shown.map((shape) => shape.id),
+    ...(playing.length > 0 ? { playing } : {}),
+  };
+}
+
 /** The command an intent stands for in this project, if it can stand for one. */
 export function commandFor(state: ProjectSnapshot, wish: Intent): Command | undefined {
   const elements = state.model.elements.map((element) => element.id);
@@ -596,18 +661,30 @@ export function commandFor(state: ProjectSnapshot, wish: Intent): Command | unde
       const chosen = [...new Set(wish.picks.map((at) => pick(relations, at)))].filter(
         (id): id is Id => id !== undefined,
       );
-      const steps = [{ description: 'A step.', relations: chosen }];
+      // A step shows pictures, videos and link cards of its view when it holds some, and plays its
+      // videos (ADR 0098, stage 4).
+      const stepsOver = (view: ViewFile | undefined) => [
+        {
+          description: 'A step.',
+          relations: chosen,
+          ...(view ? stepPictures(view, wish.picks) : {}),
+        },
+      ];
       switch (wish.action) {
         case 'create': {
           const view = pick(state.views, wish.at);
           return view && chosen.length > 0
-            ? { type: 'create-scenario', scenario: { name: 'A story', view: view.id, steps } }
+            ? {
+                type: 'create-scenario',
+                scenario: { name: 'A story', view: view.id, steps: stepsOver(view) },
+              }
             : undefined;
         }
         case 'steps': {
-          const scenario = pick(scenarios, wish.at);
+          const scenario = pick(state.scenarios, wish.at);
+          const view = state.views.find((each) => each.id === scenario?.view);
           return scenario && chosen.length > 0
-            ? { type: 'update-scenario', id: scenario, changes: { steps } }
+            ? { type: 'update-scenario', id: scenario.id, changes: { steps: stepsOver(view) } }
             : undefined;
         }
         case 'delete': {
@@ -644,9 +721,10 @@ export function commandFor(state: ProjectSnapshot, wish: Intent): Command | unde
                     y: 0,
                     width: 64,
                     height: 48,
+                    // Every other one a video, which a step plays (ADR 0098, stage 4).
                     media: {
                       hash: 'ab'.repeat(32),
-                      format: 'png',
+                      format: Math.floor(wish.at / 3) % 2 === 1 ? 'mp4' : 'png',
                       width: 640,
                       height: 480,
                       bytes: 9000,
