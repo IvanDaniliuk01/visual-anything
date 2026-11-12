@@ -304,7 +304,11 @@ export class TileImages<
    * more to do in the next one.
    */
   frame(tiles: Iterable<ImageTile>, view: ImageView): boolean {
-    if (!this.#any) return false;
+    if (!this.#any) {
+      // No tile shows a picture, but other layers may still wait for textures: explorables' stills.
+      this.store.frameReady({ spent: view.spent });
+      return this.store.more;
+    }
     this.#solids?.begin();
     const { scale, shown } = view;
     const side = Math.max(shown.width, shown.height);
@@ -358,8 +362,10 @@ export class TileImages<
     const began = view.spent;
     const clock = performance.now();
     const spent = () => began + performance.now() - clock;
-    // Zoomed out too far for any picture to show, nothing is decoded or uploaded meanwhile.
+    // Zoomed out too far for any picture to show, nothing is decoded or uploaded meanwhile; only the
+    // textures of pictures made elsewhere are made, such as a loose explorable's still.
     const shows = scale >= IMAGE_SCALES.drawingsFrom;
+    if (!shows) this.store.frameReady({ spent: spent() });
     let facesLeft = false;
     // Pictures that just became ready first: their tiles show stand-ins or placeholders meanwhile.
     for (const id of shows
@@ -384,7 +390,7 @@ export class TileImages<
     waiting.sort((a, b) => a.distance - b.distance);
     // Faces an earlier frame's budget left to paint again.
     if (!facesLeft && this.#ready.size > 0 && shows) facesLeft = this.#repaintFaces(spent);
-    let more = (shows && this.store.more) || facesLeft;
+    let more = this.store.more || facesLeft;
     for (const each of waiting) {
       if (rebuilt >= IMAGE_LIMITS.tileRebuilds || spent() >= IMAGE_LIMITS.workAfter) {
         more = true;
