@@ -358,7 +358,7 @@ export function writeStructurizr(
     ...(leftOutRelations > 0 ? [t(LEFT_OUT_RELATIONS, { count: leftOutRelations })] : []),
     ...(free > 0 ? [t(FREE, { count: free })] : []),
     ...(pictures > 0 ? [t('Pictures are left out.')] : []),
-    ...lostPictures(picturesOf(scene).length),
+    ...lostPictures(picturesOf(scene)),
     // Free geometry, named parts and the styles of routes (M8b).
     ...lostBeyondBoxes(
       [...written.values()].map((entry) => entry.shape),

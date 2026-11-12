@@ -19,8 +19,7 @@ import {
   checkProject,
   cleanedImage,
   decodeBase64,
-  mediaOf,
-  picturesOf,
+  mediaOfFreeShape,
   solidsIn,
   type MathFont,
   type Problem,
@@ -342,11 +341,12 @@ function readPageMedia(
     problems.push('The page’s media files are not an object of files by hash.');
     return { files, warnings };
   }
-  // Every file a picture names, a video's poster included (ADR 0098, stage 2).
+  // Every file a picture names, a video's poster included (ADR 0098, stage 2), and every link card's
+  // picture (stage 3).
   const named = new Map(
     views.flatMap((view) =>
-      picturesOf(view).flatMap((picture) =>
-        mediaOf(picture).map((ref) => [ref.hash, ref] as const),
+      view.freeShapes.flatMap((shape) =>
+        mediaOfFreeShape(shape).map((ref) => [ref.hash, ref] as const),
       ),
     ),
   );

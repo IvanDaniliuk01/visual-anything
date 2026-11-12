@@ -108,7 +108,10 @@ describe('the tools', () => {
   });
 
   it('use none of the words CONTEXT.md keeps out of names', () => {
-    for (const each of TOOLS) expect(each.name).not.toMatch(/link|replay|edge|node/);
+    // "Link card" is a term of its own (ADR 0098); "link" alone is what a relation is never called.
+    for (const each of TOOLS) {
+      expect(each.name.replace('link_card', 'card')).not.toMatch(/link|replay|edge|node/);
+    }
   });
 });
 

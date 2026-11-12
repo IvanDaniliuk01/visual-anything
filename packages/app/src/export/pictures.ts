@@ -4,20 +4,16 @@
  * drawing does not play. A video is drawn as its poster (ADR 0098, stage 2), its own file never read.
  * A file that cannot be had is left out, and the drawing shows a gray box.
  */
-import {
-  composeGifFrames,
-  encodeBase64,
-  parseGif,
-  pictureStill,
-  picturesOf,
-} from '@visual-anything/core';
+import { composeGifFrames, encodeBase64, parseGif, pictureStill } from '@visual-anything/core';
 import type { MediaRef } from '@visual-anything/schema';
 import type { ViewFile } from '@visual-anything/schema';
 import type { MediaFiles } from '../canvas/pictures/files';
 import { encodePng } from './png';
 import type { ExportedMedia } from './svg';
 
-/** The media files the pictures of these views show, by hash, as a drawing holds them. */
+/**
+ * The media files the pictures and link cards of these views show, by hash, as a drawing holds them.
+ */
 export async function exportedMediaOf(
   views: readonly Pick<ViewFile, 'freeShapes'>[],
   files: MediaFiles | undefined,
@@ -26,8 +22,14 @@ export async function exportedMediaOf(
   if (files === undefined) return media;
   const refs = new Map(
     views.flatMap((view) =>
-      picturesOf(view)
-        .map(pictureStill)
+      view.freeShapes
+        .map((shape) =>
+          shape.kind === 'picture'
+            ? pictureStill(shape)
+            : shape.kind === 'link'
+              ? shape.picture
+              : undefined,
+        )
         .filter((ref): ref is MediaRef => ref !== undefined)
         .map((ref) => [ref.hash, ref] as const),
     ),

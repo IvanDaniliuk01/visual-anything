@@ -770,6 +770,9 @@ function pointingAt(t: Translator, project: ProjectSnapshot, view: string, id: s
       ? t('Pointing at a video.')
       : t('Pointing at the video “{name}”.', { name: free.name });
   }
+  if (free?.kind === 'link') {
+    return t('Pointing at the link card “{title}”.', { title: free.title });
+  }
   if (free?.kind === 'picture') {
     return free.name === undefined
       ? t('Pointing at a picture.')

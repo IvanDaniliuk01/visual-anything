@@ -31,6 +31,7 @@ import { collapseActions, type CollapseAction } from '../canvas/collapse';
 import { distance, toggleRect, type Point, type Rect } from '../canvas/geometry';
 import { hitAt, type Hit, type IndexedScene } from '../canvas/hit';
 import { onLeavingMark } from '../canvas/leavingMark';
+import { openLinkAddress } from '../canvas/links/open';
 import {
   containerOf,
   drawnRelations,
@@ -519,6 +520,11 @@ export class ViewerController {
     if (hit.kind === 'picture' && hit.picture.video && !additive) {
       this.renderer.toggleVideo(hit.picture.id);
     }
+    // A click anywhere on a link card opens its address in a new tab, as the page edits nothing
+    // (ADR 0098, stage 3); the page itself still connects nowhere.
+    if (hit.kind === 'picture' && hit.picture.link && !additive) {
+      openLinkAddress(hit.picture.link.url);
+    }
     if (hit.kind !== 'relation') this.current = keyOf(hit);
     const items = selectablesOf(hit);
     this.select(additive ? toggleAll(this.selection, items) : selectionOf(items));
@@ -530,11 +536,13 @@ export class ViewerController {
     const shape = hit?.kind === 'shape' ? hit.shape : undefined;
     // The toggle says what it does, and the mark of the relations that leave the view says which.
     const title =
-      shape && this.onToggle(shape, world, 'mouse')
-        ? toggleTitle(shape)
-        : shape?.leaving && this.project && onLeavingMark(shape, world)
-          ? leavingTitleOf(this.project, shape.leaving)
-          : '';
+      hit?.kind === 'picture' && hit.picture.link
+        ? hit.picture.link.url
+        : shape && this.onToggle(shape, world, 'mouse')
+          ? toggleTitle(shape)
+          : shape?.leaving && this.project && onLeavingMark(shape, world)
+            ? leavingTitleOf(this.project, shape.leaving)
+            : '';
     if (this.host.title !== title) this.host.title = title;
     if (shape?.key === this.hovered?.key) return;
     this.hovered = shape;

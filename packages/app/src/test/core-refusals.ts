@@ -33,6 +33,7 @@ import type {
   ViewFile,
 } from '@visual-anything/schema';
 import { loadSample } from './sample';
+import { videoRefusals } from './video-refusals';
 
 /** One thing the core said, and the fixture that made it say so. */
 export interface Said {
@@ -1283,6 +1284,58 @@ const IN_ORDER: readonly [string, readonly unknown[]][] = [
           media: { hash: 'ab'.repeat(32), format: 'bmp', width: 800, height: 600, bytes: 1200 },
         },
       },
+      // Link cards (ADR 0098, stage 3): added and edited, then what a card does not take.
+      {
+        type: 'create-free-shape',
+        view: VIEW,
+        shape: {
+          kind: 'link',
+          id: 'guide',
+          x: 0,
+          y: 0,
+          width: 320,
+          height: 112,
+          url: 'https://example.org/guide',
+          title: 'Guide',
+        },
+      },
+      { type: 'update-free-shape', view: VIEW, id: 'guide', changes: { title: 'The guide' } },
+      { type: 'update-free-shape', view: VIEW, id: 'guide', changes: { text: 'Here' } },
+      { type: 'update-free-shape', view: VIEW, id: 'guide', changes: { stroke: '#000000' } },
+      ...[
+        'javascript:alert(1)',
+        'example.org',
+        'https://a:b@example.org/',
+        `https://example.org/${'a'.repeat(2100)}`,
+        '  ',
+        42,
+      ].map((url) => ({
+        type: 'update-free-shape',
+        view: VIEW,
+        id: 'guide',
+        changes: { url },
+      })),
+      { type: 'update-free-shape', view: VIEW, id: 'guide', changes: { title: ' ' } },
+      { type: 'update-free-shape', view: VIEW, id: 'guide', changes: { description: 7 } },
+      {
+        type: 'update-free-shape',
+        view: VIEW,
+        id: 'guide',
+        changes: { description: 'd'.repeat(1001) },
+      },
+      {
+        type: 'update-free-shape',
+        view: VIEW,
+        id: 'guide',
+        changes: {
+          picture: { hash: 'cd'.repeat(32), format: 'mp4', width: 640, height: 360, bytes: 9000 },
+        },
+      },
+      {
+        type: 'create-free-shape',
+        view: VIEW,
+        shape: { kind: 'circle', x: 0, y: 0, width: 1, height: 1 },
+      },
     ],
   ],
   [
@@ -2522,6 +2575,7 @@ export function coreRefusals(): Said[] {
   for (const [name, state] of decisionsOnOpening(sample)) said.push(...checked(name, state));
   for (const [name, state] of kinematicsOnOpening(sample)) said.push(...checked(name, state));
   said.push(...cleaningRefusals());
+  said.push(...videoRefusals());
   said.push(...drawings(sample));
   said.push(...mergeConflicts(sample));
   said.push(...proposals(sample));

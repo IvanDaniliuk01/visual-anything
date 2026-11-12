@@ -25,6 +25,12 @@ function rejected(command: Command, state?: ProjectSnapshot): ProblemCode[] {
   return outcome.problems.map((each) => each.code);
 }
 
+function rejectedMessages(command: Command, state?: ProjectSnapshot): string[] {
+  const { outcome } = run(command, state);
+  if (outcome.ok) throw new Error(`Accepted: ${outcome.label}`);
+  return outcome.problems.map((each) => each.message);
+}
+
 describe('create-element', () => {
   it('creates an element with an id made from its name and returns it', () => {
     const outcome = ok({
@@ -810,6 +816,129 @@ describe('videos (ADR 0098, stage 2)', () => {
     };
     expect(rejected({ type: 'create-free-shape', view: 'overview', shape: large })).toEqual([
       'invalid-command',
+    ]);
+  });
+});
+
+describe('link cards (ADR 0098, stage 3)', () => {
+  const picture = {
+    hash: '12'.repeat(32),
+    format: 'png' as const,
+    width: 1200,
+    height: 630,
+    bytes: 82_000,
+  };
+  const card = {
+    kind: 'link' as const,
+    x: 0,
+    y: 0,
+    width: 320,
+    height: 112,
+    url: 'https://example.org/guide',
+    title: 'The intake guide',
+  };
+
+  it('adds a card with a generated id, its address as the web writes it, and deletes it', () => {
+    const added = ok({
+      type: 'create-free-shape',
+      view: 'overview',
+      shape: { ...card, url: '  HTTPS://Example.org/guide  ', title: '  The intake guide ' },
+    });
+    expect(added.created).toEqual(['link-1']);
+    expect(added.label).toBe('Add a link card to "Overview"');
+    expect(added.state.views[0]?.freeShapes.at(-1)).toEqual({ ...card, id: 'link-1' });
+    const deleted = ok(
+      { type: 'delete-free-shapes', view: 'overview', ids: ['link-1'] },
+      added.state,
+    );
+    expect(deleted.state.views[0]?.freeShapes.map((shape) => shape.id)).toEqual(['note']);
+  });
+
+  it('changes its parts, gives it a picture and a description, and takes them out', () => {
+    const added = ok({ type: 'create-free-shape', view: 'overview', shape: card });
+    const filled = ok(
+      {
+        type: 'update-free-shape',
+        view: 'overview',
+        id: 'link-1',
+        changes: {
+          title: 'Intake',
+          description: 'How a patient is received.',
+          picture,
+          url: 'http://intranet.local/intake',
+          height: 280,
+        },
+      },
+      added.state,
+    );
+    expect(filled.label).toBe('Edit a link card in "Overview"');
+    expect(filled.state.views[0]?.freeShapes.at(-1)).toEqual({
+      ...card,
+      id: 'link-1',
+      height: 280,
+      url: 'http://intranet.local/intake',
+      title: 'Intake',
+      description: 'How a patient is received.',
+      picture,
+    });
+    const bare = ok(
+      {
+        type: 'update-free-shape',
+        view: 'overview',
+        id: 'link-1',
+        changes: { description: null, picture: null },
+      },
+      filled.state,
+    );
+    const shape = bare.state.views[0]?.freeShapes.at(-1);
+    expect(shape).not.toHaveProperty('description');
+    expect(shape).not.toHaveProperty('picture');
+  });
+
+  it('keeps only what a card holds, and drops a description left empty', () => {
+    const added = ok({
+      type: 'create-free-shape',
+      view: 'overview',
+      shape: { ...card, description: ' ', text: 'stray' } as never,
+    });
+    expect(added.state.views[0]?.freeShapes.at(-1)).toEqual({ ...card, id: 'link-1' });
+  });
+
+  it.each([
+    ['an address of javascript:', { url: 'javascript:alert(1)' }],
+    ['an address of data:', { url: 'data:text/html,hi' }],
+    ['an address of file:', { url: 'file:///etc/passwd' }],
+    ['an address with a password', { url: 'https://a:b@example.org/' }],
+    ['an address that is no address', { url: 'example.org' }],
+    ['no address', { url: undefined }],
+    ['no title', { title: undefined }],
+    ['an empty title', { title: '  ' }],
+    ['a title past 300 characters', { title: 't'.repeat(301) }],
+    ['a description past 1,000 characters', { description: 'd'.repeat(1001) }],
+    ['a picture that is a video', { picture: { ...picture, format: 'mp4' } }],
+    ['a picture with no hash', { picture: { ...picture, hash: undefined } }],
+    ['a picture past 32 MiB', { picture: { ...picture, bytes: 33_554_433 } }],
+    ['a width of zero', { width: 0 }],
+    ['a stroke', { stroke: '#000000' }],
+  ])('refuses a card with %s', (_, change) => {
+    expect(
+      rejected({
+        type: 'create-free-shape',
+        view: 'overview',
+        shape: { ...card, ...change } as never,
+      }),
+    ).toEqual([!('stroke' in change) ? 'invalid-command' : 'invalid-appearance']);
+  });
+
+  it('refuses a part a card does not have, naming those it has', () => {
+    const added = ok({ type: 'create-free-shape', view: 'overview', shape: card });
+    expect(
+      rejectedMessages(
+        { type: 'update-free-shape', view: 'overview', id: 'link-1', changes: { text: 'x' } },
+        added.state,
+      ),
+    ).toEqual([
+      'A link card has no "text": it takes x, y, width, height, url, title, description, picture.',
     ]);
   });
 });

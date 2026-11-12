@@ -653,15 +653,15 @@ export const COMMAND_SHAPES: Shapes = {
     },
   },
   'create-free-shape': {
-    meaning: 'Adds a free shape to a view: a note, an arrow or a picture.',
+    meaning: 'Adds a free shape to a view: a note, an arrow, a picture, a link card or an explorable.',
     fields: {
       view: VIEW,
       shape: {
-        type: 'Note | Arrow | Picture (id optional)',
+        type: 'Note | Arrow | Picture | LinkCard (id optional)',
         kind: 'object',
         required: true,
         meaning:
-          'The shape, with its kind: a note has x, y, width, height and text; an arrow from and to; a picture x, y, width, height, media and an optional name, and a video, a picture whose media is an MP4 or a WebM, an optional poster.',
+          'The shape, with its kind: a note has x, y, width, height and text; an arrow from and to; a picture x, y, width, height, media and an optional name, and a video, a picture whose media is an MP4 or a WebM, an optional poster; a link card ("link") x, y, width, height, url, title, and an optional description and picture.',
       },
     },
     example: {
@@ -676,7 +676,7 @@ export const COMMAND_SHAPES: Shapes = {
     fields: {
       view: VIEW,
       shape: {
-        type: 'Note | Arrow | Picture | ExplorableShape',
+        type: 'Note | Arrow | Picture | ExplorableShape | LinkCard',
         kind: 'object',
         meaning:
           'The free shape whole, with its id, replacing the one stored; not with id and changes.',
@@ -734,6 +734,24 @@ export const COMMAND_SHAPES: Shapes = {
             kind: 'text',
             nullable: true,
             meaning: 'The element whose data an explorable shape reads; null unbinds it.',
+          },
+          url: {
+            type: 'string',
+            kind: 'text',
+            meaning: "A link card's web address, https: or http: (ADR 0098, stage 3).",
+          },
+          title: { type: 'string', kind: 'text', meaning: "A link card's title, one line." },
+          description: {
+            type: 'string | null',
+            kind: 'text',
+            nullable: true,
+            meaning: "A link card's description; null, none.",
+          },
+          picture: {
+            type: 'MediaRef | null',
+            kind: 'object',
+            nullable: true,
+            meaning: "A link card's picture, an image media file; null, none.",
           },
         }),
       },

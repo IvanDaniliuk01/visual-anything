@@ -31,8 +31,8 @@ const project: ProjectSnapshot = {
 };
 
 describe('PROTOCOL_VERSION', () => {
-  it('is 13, since explorables (ADR 0107)', () => {
-    expect(PROTOCOL_VERSION).toBe(13);
+  it('is 14, since a view may hold link cards (ADR 0098, stage 3)', () => {
+    expect(PROTOCOL_VERSION).toBe(14);
   });
 
   it('names the launch code and the token in the address and on the live connection', () => {

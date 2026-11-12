@@ -15,8 +15,8 @@
  * relative to it, from the new corner.
  */
 import type { Command, ProjectSnapshot, SetRouteCommand } from '@visual-anything/core';
-import { positionKey } from '@visual-anything/core';
-import type { Id, Note, Picture, ShapePosition, ViewFile } from '@visual-anything/schema';
+import { isVideoFormat, positionKey } from '@visual-anything/core';
+import type { Id, LinkCard, Note, Picture, ShapePosition, ViewFile } from '@visual-anything/schema';
 import type { GuideEdge, GuideEdges } from './align';
 import { boundsOf, type Point, type Rect } from './geometry';
 import type { IndexedScene } from './hit';
@@ -359,13 +359,14 @@ function keptBendPoints(
 }
 
 /**
- * The command that stores a note or a picture resized by hand to `rect`, as one action; undefined when
- * it stays.
+ * The command that stores a note, a picture, a video or a link card resized by hand to `rect`, as one
+ * action named for it; undefined when it stays.
  */
 export function resizeNoteCommand(view: ViewFile, id: Id, rect: Rect): Command | undefined {
   const note = view.freeShapes.find(
-    (shape): shape is Note | Picture =>
-      (shape.kind === 'note' || shape.kind === 'picture') && shape.id === id,
+    (shape): shape is Note | Picture | LinkCard =>
+      (shape.kind === 'note' || shape.kind === 'picture' || shape.kind === 'link') &&
+      shape.id === id,
   );
   if (!note) return undefined;
   const x = Math.round(rect.x);
@@ -377,7 +378,14 @@ export function resizeNoteCommand(view: ViewFile, id: Id, rect: Rect): Command |
   }
   return {
     type: 'batch',
-    label: note.kind === 'picture' ? 'Resize a picture' : 'Resize a note',
+    label:
+      note.kind === 'link'
+        ? 'Resize a link card'
+        : note.kind === 'picture'
+          ? isVideoFormat(note.media.format)
+            ? 'Resize a video'
+            : 'Resize a picture'
+          : 'Resize a note',
     commands: [
       { type: 'update-free-shape', view: view.id, shape: { ...note, x, y, width, height } },
     ],

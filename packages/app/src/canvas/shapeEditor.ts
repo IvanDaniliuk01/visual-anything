@@ -345,9 +345,10 @@ export class ShapeEditor {
     const { target, handle, modifiers } = drag;
     const scale = this.host.camera().scale;
     const delta = { x: drag.world.x - drag.start.x, y: drag.world.y - drag.start.y };
-    // A picture keeps its proportions, and Shift frees them (ADR 0098).
+    // A picture keeps its proportions, and Shift frees them (ADR 0098); a link card keeps none.
     const keeps =
-      target.kind === 'picture' || (target.kind === 'shape' && keepsProportions(target.shape));
+      (target.kind === 'picture' && target.picture.link === undefined) ||
+      (target.kind === 'shape' && keepsProportions(target.shape));
     const proportional = target.taken === 'width' ? false : keeps !== modifiers.shiftKey;
     const fromMiddle = modifiers.altKey;
     const guided = !guidesOff(modifiers);

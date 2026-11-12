@@ -52,6 +52,7 @@ export function farNameOf(t: Translator, item: RelationItem): string {
 export function typedTextOf(t: Translator, item: OutlineItem): string {
   // A picture's own name is the person's text; "Picture" is the app's.
   if (item.kind === 'picture') {
+    if (item.picture.link) return `${item.picture.link.title}, ${t('Link card')}`;
     if (item.picture.named) return item.picture.name;
     return item.picture.video ? t('Video') : t('Picture');
   }

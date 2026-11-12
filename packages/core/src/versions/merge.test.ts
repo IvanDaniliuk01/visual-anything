@@ -475,6 +475,57 @@ describe('pictures (ADR 0098)', () => {
   });
 });
 
+describe('link cards (ADR 0098, stage 3)', () => {
+  const card = {
+    kind: 'link' as const,
+    id: 'guide',
+    x: 0,
+    y: 0,
+    width: 320,
+    height: 112,
+    url: 'https://example.org/guide',
+    title: 'Guide',
+  };
+
+  it('merges a card by id: one side moves it, the other gives it a description', () => {
+    const base = done(testProject(), { type: 'create-free-shape', view: 'overview', shape: card });
+    const mine = done(base, {
+      type: 'update-free-shape',
+      view: 'overview',
+      id: 'guide',
+      changes: { x: 200 },
+    });
+    const yours = done(base, {
+      type: 'update-free-shape',
+      view: 'overview',
+      id: 'guide',
+      changes: { description: 'How a patient is received.' },
+    });
+    const merged = mergeFile('view', base.views[0], mine.views[0]!, yours.views[0]!);
+    expect(merged.conflicts).toEqual([]);
+    expect(merged.file.freeShapes.find((shape) => shape.id === 'guide')).toEqual({
+      ...card,
+      x: 200,
+      description: 'How a patient is received.',
+    });
+    expect(validateFile('view', merged.file).ok).toBe(true);
+  });
+
+  it('keeps a conflict when both sides give it another address', () => {
+    const base = done(testProject(), { type: 'create-free-shape', view: 'overview', shape: card });
+    const other = (url: string) =>
+      done(base, { type: 'update-free-shape', view: 'overview', id: 'guide', changes: { url } });
+    const merged = mergeFile(
+      'view',
+      base.views[0],
+      other('https://example.org/a').views[0]!,
+      other('https://example.org/b').views[0]!,
+    );
+    expect(merged.conflicts).toHaveLength(1);
+    expect(validateFile('view', merged.file).ok).toBe(true);
+  });
+});
+
 describe('resolve-conflicts', () => {
   function conflicted(): ProjectSnapshot {
     const base = testProject();

@@ -40,6 +40,7 @@ import type {
   FreeShape,
   Id,
   LevelOfDetail,
+  LinkCard,
   MediaRef,
   Note,
   Picture,
@@ -70,6 +71,7 @@ import {
   relationTypeOrRelatesTo,
   storedStacking,
   isVideoFormat,
+  linkHost,
   type Definitions,
   type StoredColorsInDark,
   type Placement,
@@ -564,12 +566,15 @@ export interface NoteShape {
   adapted?: true;
 }
 
-/** A picture: a free shape that shows a media file (ADR 0098). */
+/**
+ * A picture: a free shape that shows a media file (ADR 0098); or a link card (stage 3), drawn,
+ * moved, resized and picked as a picture is, which `link` marks.
+ */
 export interface PictureShape {
   id: Id;
   rect: Rect;
-  /** Its file: an image, or a video's (ADR 0098, stage 2). */
-  media: MediaRef;
+  /** Its file: an image, or a video's (ADR 0098, stage 2); a link card's picture, when it has one. */
+  media?: MediaRef;
   /** A video's poster, the image it shows until it plays; none for a picture, or a video without. */
   poster?: MediaRef;
   /** Whether it is a video, its file an MP4 or a WebM. */
@@ -578,9 +583,23 @@ export interface PictureShape {
   name: string;
   /** Whether it has a name of its own. */
   named: boolean;
+  /** Present on a link card (ADR 0098, stage 3): what its card shows. */
+  link?: LinkFace;
 }
 
-/** The image a picture shows while still: its own, or a video's poster; none for a bare video. */
+/** What a link card shows (ADR 0098, stage 3): its address, host, title and description. */
+export interface LinkFace {
+  url: string;
+  /** Its address's host, without "www.": what its last line writes. */
+  host: string;
+  title: string;
+  description?: string;
+}
+
+/**
+ * The image a picture shows while still: its own, or a video's poster; none for a bare video. A link
+ * card's is its picture, when it has one.
+ */
 export function stillOf(
   picture: Pick<PictureShape, 'media' | 'poster' | 'video'>,
 ): MediaRef | undefined {
@@ -4072,12 +4091,32 @@ function freeShapesOf(view: ViewFile, before: Built | undefined): FreeShapes {
   return {
     notes: view.freeShapes.filter(isNote).map(noteShape),
     arrows: view.freeShapes.filter(isArrow).map(arrowShape),
-    pictures: view.freeShapes.filter(isPicture).map(pictureShape),
+    // Link cards are drawn and picked with the pictures, in the view's order (ADR 0098, stage 3).
+    pictures: view.freeShapes
+      .filter(isPictureOrCard)
+      .map((shape) => (shape.kind === 'link' ? linkCardShape(shape) : pictureShape(shape))),
   };
 }
 
-function isPicture(shape: FreeShape): shape is Picture {
-  return shape.kind === 'picture';
+function isPictureOrCard(shape: FreeShape): shape is Picture | LinkCard {
+  return shape.kind === 'picture' || shape.kind === 'link';
+}
+
+/** A link card as the scene draws it (ADR 0098, stage 3): a picture that `link` marks. */
+export function linkCardShape(card: LinkCard): PictureShape {
+  return {
+    id: card.id,
+    rect: { x: card.x, y: card.y, width: card.width, height: card.height },
+    ...(card.picture === undefined ? {} : { media: card.picture }),
+    name: card.title,
+    named: true,
+    link: {
+      url: card.url,
+      host: linkHost(card.url),
+      title: card.title,
+      ...(card.description === undefined ? {} : { description: card.description }),
+    },
+  };
 }
 
 /** A picture as the scene draws it (ADR 0098). */

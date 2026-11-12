@@ -198,7 +198,8 @@
             "note",
             "arrow",
             "picture",
-            "explorable"
+            "explorable",
+            "link"
           ]
         }
       },
@@ -268,6 +269,22 @@
           },
           "then": {
             "$ref": "#/definitions/ExplorableShape"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "link"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/LinkCard"
           }
         }
       ],
@@ -555,6 +572,75 @@
       ],
       "additionalProperties": false,
       "description": "A free shape that shows an explorable (ADR 0107): its still picture, live once explored. It belongs to the view and is never part of the model; bound to an element, it reads that element's data."
+    },
+    "LinkCard": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "link"
+        },
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "x": {
+          "type": "number",
+          "description": "Its left edge on the canvas.",
+          "minimum": -10000000,
+          "maximum": 10000000
+        },
+        "y": {
+          "type": "number",
+          "description": "Its top edge on the canvas.",
+          "minimum": -10000000,
+          "maximum": 10000000
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000000
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000000
+        },
+        "url": {
+          "type": "string",
+          "description": "Its web address: absolute, `https:` or `http:`, with a host and no user name or password.",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://"
+        },
+        "title": {
+          "type": "string",
+          "description": "What it shows first, and what screen readers, the outline and find say: one line.",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "description": {
+          "type": "string",
+          "description": "What it says under its title.",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "picture": {
+          "$ref": "#/definitions/MediaRef",
+          "description": "The image it shows across its top: a PNG, JPEG, WebP, GIF or SVG media file, never a video."
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "x",
+        "y",
+        "width",
+        "height",
+        "url",
+        "title"
+      ],
+      "additionalProperties": false,
+      "description": "A free shape that holds a web address, a title, a description and an optional picture, drawn as a card (ADR 0098, stage 3). A click on its address opens it in a new tab of the browser; nothing of the page is embedded. Its preview is fetched once, by the local program, only when the person presses Fetch the preview. It belongs to the view and is never part of the model."
     },
     "StackingOrder": {
       "type": "object",

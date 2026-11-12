@@ -11,6 +11,9 @@
  *   Under reduced motion (ADR 0077) it shows its first frame, and plays while the pointer is on it.
  * - While its file comes it is drawn as a gray box; a file that is missing, or no longer what cleaning
  *   writes, is drawn as a gray box with its name and a warning, never as an error.
+ * - A link card (ADR 0098, stage 3) is drawn here too, as a card around its picture, with its title,
+ *   description and host written from its data (`cardLayout`); its picture is fetched and decoded as
+ *   any picture's, at the size its band shows it.
  * - A video (ADR 0098, stage 2) shows its poster with a play mark, or, without one, a dark box with a
  *   play mark and its name. It plays muted and in a loop once asked (`toggle`, `setPlaying`), from
  *   its file fetched then, its texture updated each frame while it plays; at most four play at once.
@@ -30,6 +33,7 @@ import { MEDIA_TYPES, parseGif, type GifDocument } from '@visual-anything/core';
 import type { Id, MediaRef } from '@visual-anything/schema';
 import type { Rect } from '../geometry';
 import { loadSvgPicture, newCanvas } from '../images';
+import { CARD_COLORS, cardLayout, type CardColors, type CardLayout } from '../links/card';
 import { stillOf, type PictureShape } from '../scene';
 import { playMark } from './mark';
 import { GifPlayer, pictureBucket, textureSize, type MediaFiles } from './media';
@@ -100,6 +104,8 @@ interface Entry {
   box: Graphics;
   /** A video's play mark, over its poster while it does not play. */
   mark?: Graphics;
+  /** A link card's layout, made again whenever its shape changes. */
+  card?: CardLayout;
   label?: Container;
   sprite?: Sprite;
   /** The source the sprite shows, and the one asked for that will replace it. */
@@ -131,6 +137,7 @@ export class PictureLayer {
   readonly #entries = new Map<Id, Entry>();
   readonly #sources = new Map<string, Source>();
   #colors = LIGHT;
+  #cardColors: CardColors = CARD_COLORS.light;
   #hovered: Id | undefined;
   #decoding = 0;
   #timer = false;
@@ -167,14 +174,14 @@ export class PictureLayer {
       let entry = this.#entries.get(shape.id);
       if (
         entry &&
-        (entry.shape.media.hash !== shape.media.hash ||
+        (entry.shape.media?.hash !== shape.media?.hash ||
           stillOf(entry.shape)?.hash !== stillOf(shape)?.hash)
       ) {
         this.#drop(entry);
         entry = undefined;
       }
       const playing = this.#playing.get(shape.id);
-      if (playing && playing.media.hash !== shape.media.hash) this.#stop(shape.id);
+      if (playing && playing.media.hash !== shape.media?.hash) this.#stop(shape.id);
       if (!entry) {
         const node = new Container();
         const box = new Graphics();
@@ -185,10 +192,11 @@ export class PictureLayer {
       }
       const moved = entry.shape !== shape;
       entry.shape = shape;
+      if (moved || (shape.link && !entry.card)) entry.card = cardOf(shape);
       entry.dim = dimmed.has(shape.id);
       entry.node.alpha = entry.dim ? 0.3 : 1;
       this.container.setChildIndex(entry.node, Math.min(at, this.container.children.length - 1));
-      if (moved || !entry.sprite) this.#paint(entry);
+      if (moved || (shape.link ? !entry.label : !entry.sprite)) this.#paint(entry);
     });
     for (const [id, entry] of this.#entries) if (!seen.has(id)) this.#drop(entry);
     for (const id of [...this.#playing.keys()]) if (!seen.has(id)) this.#stop(id);
@@ -221,11 +229,12 @@ export class PictureLayer {
     const play = this.#platform.play;
     if (!entry?.shape.video || files === undefined || play === undefined) return;
     if (!this.#playable(entry.shape)) return;
+    const { media } = entry.shape;
+    if (media === undefined) return;
     while (this.#playing.size >= PLAYING_AT_ONCE) {
       const first = this.#playing.keys().next().value as Id;
       this.#stop(first);
     }
-    const { media } = entry.shape;
     const playing: Playing = { media, stopped: false };
     this.#playing.set(id, playing);
     this.#paint(entry);
@@ -283,6 +292,7 @@ export class PictureLayer {
     const colors = dark ? DARK : LIGHT;
     if (colors === this.#colors) return;
     this.#colors = colors;
+    this.#cardColors = CARD_COLORS[dark ? 'dark' : 'light'];
     for (const entry of this.#entries.values()) this.#paint(entry);
   }
 
@@ -321,8 +331,8 @@ export class PictureLayer {
       }
     }
     for (const entry of this.#entries.values()) {
-      const { rect } = entry.shape;
-      if (!overlaps(rect, near)) continue;
+      const rect = shownRect(entry);
+      if (rect === undefined || !overlaps(rect, near)) continue;
       const still = stillOf(entry.shape);
       // A video without a poster has no image to show while still.
       if (still === undefined) continue;
@@ -453,9 +463,9 @@ export class PictureLayer {
   async readyForImage(pixelsPerUnit: number): Promise<void> {
     const loading: Promise<void>[] = [];
     for (const entry of this.#entries.values()) {
-      const { rect } = entry.shape;
+      const rect = shownRect(entry);
       const media = stillOf(entry.shape);
-      if (media === undefined) continue;
+      if (media === undefined || rect === undefined) continue;
       const bucket = pictureBucket(Math.max(rect.width, rect.height) * pixelsPerUnit, true, media);
       const shown = entry.shown;
       if (shown && (shown.state === 'missing' || shown.bucket >= bucket)) continue;
@@ -491,6 +501,10 @@ export class PictureLayer {
    * video playing as its frames, and one still with a play mark.
    */
   #paint(entry: Entry): void {
+    if (entry.shape.link) {
+      this.#paintCard(entry);
+      return;
+    }
     const { rect, name } = entry.shape;
     const { box, node } = entry;
     const playing = this.#playing.get(entry.shape.id);
@@ -573,8 +587,86 @@ export class PictureLayer {
     node.addChild(label);
   }
 
+  /**
+   * Draws a link card (ADR 0098, stage 3): its card, its picture in its band once decoded, and its
+   * title, description and host, each line where `cardLayout` puts it.
+   */
+  #paintCard(entry: Entry): void {
+    const { rect, link } = entry.shape;
+    const layout = entry.card ?? cardOf(entry.shape);
+    const { box, node } = entry;
+    const colors = this.#cardColors;
+    box.clear();
+    entry.label?.destroy({ children: true });
+    entry.label = undefined;
+    if (layout === undefined || link === undefined) return;
+    box.roundRect(rect.x, rect.y, rect.width, rect.height, layout.radius).fill(hex(colors.fill));
+    if (layout.band) {
+      const { band } = layout;
+      // The band's top corners follow the card's; its bottom is straight.
+      box.roundRect(band.x, band.y, band.width, band.height, layout.radius).fill(hex(colors.band));
+      const straight = Math.min(layout.radius, band.height);
+      box
+        .rect(band.x, band.y + band.height - straight, band.width, straight)
+        .fill(hex(colors.band));
+    }
+    box.roundRect(rect.x, rect.y, rect.width, rect.height, layout.radius).stroke({
+      color: hex(colors.border),
+      width: 1,
+    });
+    const texture = entry.shown?.decoded?.texture;
+    if (texture && layout.picture) {
+      if (!entry.sprite) {
+        entry.sprite = new Sprite(texture);
+        node.addChild(entry.sprite);
+      } else if (entry.sprite.texture !== texture) {
+        entry.sprite.texture = texture;
+      }
+      entry.sprite.position.set(layout.picture.x, layout.picture.y);
+      entry.sprite.width = layout.picture.width;
+      entry.sprite.height = layout.picture.height;
+    } else {
+      entry.sprite?.destroy();
+      entry.sprite = undefined;
+    }
+    const label = new Container();
+    for (const text of layout.texts) {
+      const tint =
+        text.role === 'title'
+          ? colors.title
+          : text.role === 'description'
+            ? colors.description
+            : colors.link;
+      for (const line of text.text.lines) {
+        const written = new Text({
+          text: line.text,
+          x: text.x,
+          // Pixi places a text by its top, about an ascent above its baseline.
+          y: line.baseline - text.size * 0.93,
+          resolution: 3,
+          style: {
+            fontFamily: 'Roboto, sans-serif',
+            fontSize: text.size,
+            fontWeight: text.bold ? '700' : '400',
+            fill: 0xffffff,
+          },
+        });
+        written.tint = hex(tint);
+        label.addChild(written);
+      }
+    }
+    entry.label = label;
+    node.addChild(label);
+  }
+
+  /** A link card's layout, for pointing: where its address line is (ADR 0098, stage 3). */
+  cardLayout(id: Id): CardLayout | undefined {
+    return this.#entries.get(id)?.card;
+  }
+
   /** Whether a video's file is there to play, as far as is known before asking for it. */
   #playable(shape: PictureShape): boolean {
+    if (shape.media === undefined) return false;
     return this.#files()?.holds?.(shape.media.hash) ?? true;
   }
 
@@ -612,6 +704,24 @@ export class PictureLayer {
   get shapes(): readonly PictureShape[] {
     return this.#shapes;
   }
+}
+
+/** A link card's layout; none for a picture. */
+function cardOf(shape: PictureShape): CardLayout | undefined {
+  return shape.link ? cardLayout(shape.rect, shape.link, shape.media) : undefined;
+}
+
+/**
+ * Where an entry's picture shows: a picture's whole rectangle, or a link card's picture in its band;
+ * none for a card without one or without room for it.
+ */
+function shownRect(entry: Entry): Rect | undefined {
+  return entry.shape.link ? entry.card?.picture : entry.shape.rect;
+}
+
+/** A color written as #rrggbb, as a number. */
+function hex(color: string): number {
+  return Number.parseInt(color.slice(1), 16);
 }
 
 function grow(rect: Rect, by: number): Rect {

@@ -9,7 +9,15 @@
  * Notes and free arrows align with element shapes; notes take a size, and arrows do not.
  */
 import { positionKey, type Command, type ProjectSnapshot } from '@visual-anything/core';
-import type { Arrow, FreeShape, Id, Note, Picture, ShapePosition } from '@visual-anything/schema';
+import type {
+  Arrow,
+  FreeShape,
+  Id,
+  LinkCard,
+  Note,
+  Picture,
+  ShapePosition,
+} from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
 import { t } from '../i18n';
 import { ALIGN_HOWS, alignedRects, fewestFor, onlyMoves, type AlignHow } from './align';
@@ -106,7 +114,7 @@ export function alignLabel(how: AlignHow, count: number): string {
 type Part =
   | { kind: 'shape'; shape: ElementShape; rect: Rect }
   | { kind: 'note'; note: Note; rect: Rect }
-  | { kind: 'picture'; picture: Picture; rect: Rect }
+  | { kind: 'picture'; picture: Picture | LinkCard; rect: Rect }
   | { kind: 'arrow'; arrow: Arrow; rect: Rect };
 
 /**
@@ -137,7 +145,7 @@ function partsOf(
         note: free,
         rect: { x: free.x, y: free.y, width: free.width, height: free.height },
       });
-    } else if (free.kind === 'picture') {
+    } else if (free.kind === 'picture' || free.kind === 'link') {
       parts.push({
         kind: 'picture',
         picture: free,

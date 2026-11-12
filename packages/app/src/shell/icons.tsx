@@ -209,6 +209,16 @@ export const PictureIcon = icon(
   </>,
 );
 
+/** A link card (ADR 0098, stage 3): Lucide's "square-arrow-out-up-right". */
+export const LinkCardIcon = icon(
+  'Link card',
+  <>
+    <path d="M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6" />
+    <path d="m21 3-9 9" />
+    <path d="M15 3h6v6" />
+  </>,
+);
+
 /** A free arrow: Lucide's "move-up-right". */
 export const ArrowIcon = icon(
   'Arrow',

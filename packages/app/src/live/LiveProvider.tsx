@@ -98,6 +98,7 @@ export function LiveProvider({
       putMedia: connection.putMedia,
       listMediaFiles: connection.listMediaFiles,
       removeMediaFiles: connection.removeMediaFiles,
+      fetchLinkPreview: connection.fetchLinkPreview,
       setUpClaude: connection.setUpClaude,
     }),
     [state, connection],

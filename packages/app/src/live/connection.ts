@@ -47,6 +47,7 @@ import {
   type MediaFilesListedMessage,
   type MediaPieceMessage,
   type MediaStoredMessage,
+  type LinkFetchedMessage,
   type SolidPreparedMessage,
   type Comparison,
   type VersionRef,
@@ -366,6 +367,7 @@ type Waiting =
   | { kind: 'claude-setup'; resolve: (result: LiveResult<ClaudeSetupAnswerMessage>) => void }
   | { kind: 'media-put'; resolve: (result: LiveResult<MediaStoredMessage>) => void }
   | { kind: 'media-files'; resolve: (result: LiveResult<MediaFilesListedMessage>) => void }
+  | { kind: 'link-fetch'; resolve: (result: LiveResult<LinkFetchedMessage>) => void }
   | SolidFileWaiting
   | (Omit<SolidFileWaiting, 'kind'> & { kind: 'media' });
 
@@ -861,6 +863,24 @@ export class LiveConnection {
       requestId,
       hashes: [...hashes],
     }));
+
+  /**
+   * Asks the local program to fetch a link card's preview (ADR 0098, stage 3), only as the person
+   * pressed Fetch the preview: resolves with what the page's preview holds, its picture already kept
+   * in `media/`, or with why there is none. It changes no project file.
+   */
+  readonly fetchLinkPreview = (url: string): Promise<LiveResult<LinkFetchedMessage>> => {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') {
+      return Promise.resolve(closedResult(NOT_CONNECTED));
+    }
+    const requestId = nextRequestId();
+    const text = encodeMessage({ type: 'link/fetch', requestId, url });
+    return new Promise((resolve) => {
+      this.waiting.set(requestId, { kind: 'link-fetch', resolve });
+      this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
+    });
+  };
 
   private mediaFilesRequest(
     message: (requestId: string) => AppMessage,
@@ -1535,6 +1555,21 @@ export class LiveConnection {
         if (answered?.kind === 'media-files') answered.resolve({ ok: true, answer: message });
         break;
       }
+      case 'link/fetched': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'link-fetch') answered.resolve({ ok: true, answer: message });
+        break;
+      }
+      case 'link/refused': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'link-fetch') {
+          answered.resolve({
+            ok: false,
+            problems: [{ code: message.code, message: message.message }],
+          });
+        }
+        break;
+      }
       case 'solid/refused': {
         const answered = this.take(message.requestId);
         if (
@@ -1598,6 +1633,7 @@ export class LiveConnection {
       taken.kind === 'media' ||
       taken.kind === 'media-put' ||
       taken.kind === 'media-files' ||
+      taken.kind === 'link-fetch' ||
       taken.kind === 'claude-setup'
         ? undefined
         : taken;

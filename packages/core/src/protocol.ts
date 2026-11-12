@@ -105,6 +105,14 @@ import {
   type MediaStoredMessage,
 } from './media/messages';
 import {
+  readLinkFetch,
+  readLinkFetched,
+  readLinkRefused,
+  type LinkFetchMessage,
+  type LinkFetchedMessage,
+  type LinkRefusedMessage,
+} from './links/messages';
+import {
   readPackageRead,
   readPackageReadAnswer,
   type PackageMessageRead,
@@ -209,8 +217,11 @@ import type { ViewState } from './view-state';
  *    messages of `explorables/protocol-messages.ts`: `explorables/listen` and `explorables/listening`,
  *    `script-library/fetch`, `script-library/consent` and `script-library/consented`, and
  *    `script-library/kept` or `script-library/refused`.
+ * 14: link cards (ADR 0098, stage 3): a view's free shapes may be link cards, `{ kind: 'link', … }`,
+ *    which an app of 13 would refuse when it opens the view file; and an app asks for a card's
+ *    preview with `link/fetch`, answered with `link/fetched` or `link/refused`.
  */
-export const PROTOCOL_VERSION = 13;
+export const PROTOCOL_VERSION = 14;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';
@@ -285,6 +296,8 @@ export type ServerMessage =
   | MediaPieceMessage
   | MediaRefusedMessage
   | MediaFilesListedMessage
+  | LinkFetchedMessage
+  | LinkRefusedMessage
   | PackageReadAnswerMessage
   | ClaudeSetupAnswerMessage
   | AppShownMessage
@@ -1078,6 +1091,7 @@ export type AppMessage =
   | ExplorablesListenMessage
   | ScriptLibraryFetchMessage
   | ScriptLibraryConsentedMessage
+  | LinkFetchMessage
   | PackageReadMessage
   | ClaudeSetupMessage;
 
@@ -1225,6 +1239,8 @@ const SERVER_TYPES = new Set<string>([
   'media/piece',
   'media/refused',
   'media-files/listed',
+  'link/fetched',
+  'link/refused',
   'package/read-answer',
   'claude/setup-answer',
   'app/shown',
@@ -1350,6 +1366,10 @@ export function decodeServerMessage(text: string): ServerMessage {
       return readSolidMessage(readScriptLibraryKept(message));
     case 'script-library/refused':
       return readSolidMessage(readScriptLibraryRefused(message));
+    case 'link/fetched':
+      return readSolidMessage(readLinkFetched(message));
+    case 'link/refused':
+      return readSolidMessage(readLinkRefused(message));
     case 'package/read-answer': {
       const { requestId } = message;
       if (typeof requestId !== 'string' || requestId === '' || requestId.length > MAX_REQUEST_ID) {
@@ -1483,6 +1503,8 @@ export function decodeAppMessage(text: string): AppMessage {
       return readSolidMessage(readScriptLibraryFetch(message));
     case 'script-library/consented':
       return readSolidMessage(readScriptLibraryConsented(message));
+    case 'link/fetch':
+      return readSolidMessage(readLinkFetch(message));
     case 'package/read':
       return readPackageMessage(readPackageRead(message, message.requestId));
     case 'claude/setup':
