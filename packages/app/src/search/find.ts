@@ -453,7 +453,10 @@ function freeShapeEntry(shape: FreeShape, view: Id): Entry {
         ? (shape.name ?? '')
         : shape.kind === 'link'
           ? [shape.title, shape.description ?? '', shape.url].join(' ')
-          : '';
+          : shape.kind === 'explorable'
+            ? // An explorable shape by its own name and its explorable's id (ADR 0107, A10.3).
+              [shape.name ?? '', shape.explorable].join(' ')
+            : '';
   return {
     kind: 'free-shape',
     id: shape.id,

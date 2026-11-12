@@ -7,6 +7,8 @@
 import {
   LAUNCH_PARAM,
   MAX_CAPTURE_WHY,
+  MAX_EXPLORABLE_CAPTURE_WHY,
+  type ExplorableCaptureRequestMessage,
   OperationError,
   SOLID_PIECE_BYTES,
   MEDIA_PIECE_BYTES,
@@ -68,6 +70,7 @@ import {
   type GuidedLayoutAnswer,
 } from '../guidance/state';
 import type { CaptureOutcome } from '../capture/take';
+import type { ExplorableCaptureOutcome, TakeExplorableCapture } from './context';
 import { tabUse } from '../guidance/tabs';
 import { fill } from '../i18n/translate';
 import type { SessionProof } from './session';
@@ -521,6 +524,8 @@ export class LiveConnection {
   private changedLast = false;
   /** What takes Claude's pictures: the canvas, while it is mounted (ADR 0081). */
   private capturer: TakeCapture | undefined;
+  /** What takes Claude's stills of explorables in this tab (ADR 0107, A10.3). */
+  private explorableCapturer: TakeExplorableCapture | undefined;
   /** What that canvas still waits for before it shows what a picture needs (#16). */
   private captureWaitsFor: CaptureWaitsFor | undefined;
   /** The guidance messages received, by the state each one left, for the guidance layer to say. */
@@ -1222,6 +1227,17 @@ export class LiveConnection {
   };
 
   /**
+   * Lends the connection what takes Claude's stills of explorables in this tab's hidden frame (ADR
+   * 0107, A10.3); returns what takes it back.
+   */
+  readonly lendExplorableCapture = (capture: TakeExplorableCapture): (() => void) => {
+    this.explorableCapturer = capture;
+    return () => {
+      if (this.explorableCapturer === capture) this.explorableCapturer = undefined;
+    };
+  };
+
+  /**
    * The tab's guidance layer says it applied this guidance (#16): the views it named opened, and its
    * move happened. A picture asked for after it waits for this.
    */
@@ -1329,6 +1345,42 @@ export class LiveConnection {
     // The program stops waiting for a tab whose connection closed.
     if (this.socket !== socket) return;
     const answer: AppMessage = { type: 'capture/answer', requestId, ...outcome };
+    this.sendOn(socket, encodeMessage(answer), requestId, () => undefined);
+  }
+
+  /**
+   * Answers a still of an explorable Claude asked for (ADR 0107, A10.3): the tab the person used last
+   * takes it in its hidden frame, or says why it took none; every other tab passes it over. Taking it
+   * changes nothing.
+   */
+  private async answerExplorableCapture(message: ExplorableCaptureRequestMessage): Promise<void> {
+    const socket = this.socket;
+    if (socket === undefined) return;
+    const { requestId, explorable, element, parameters, width, theme } = message;
+    const ask = {
+      explorable,
+      width,
+      ...(element === undefined ? {} : { element }),
+      ...(parameters === undefined ? {} : { parameters }),
+      ...(theme === undefined ? {} : { theme }),
+    };
+    const lastUsed = this.options.isLastUsed ?? (() => tabUse().isLastUsed());
+    let outcome: ExplorableCaptureOutcome | { passed: 'other-tab' };
+    const capture = this.explorableCapturer;
+    if (!lastUsed()) outcome = { passed: 'other-tab' };
+    else if (capture === undefined) {
+      outcome = { failed: 'failed', why: 'The tab shows no project whose explorables it can run.' };
+    } else {
+      try {
+        outcome = await capture(ask);
+      } catch (error) {
+        const why = error instanceof Error ? error.message : String(error);
+        outcome = { failed: 'failed', why: why.slice(0, MAX_EXPLORABLE_CAPTURE_WHY) };
+      }
+    }
+    // The program stops waiting for a tab whose connection closed.
+    if (this.socket !== socket) return;
+    const answer: AppMessage = { type: 'explorable-capture/answer', requestId, ...outcome };
     this.sendOn(socket, encodeMessage(answer), requestId, () => undefined);
   }
 
@@ -1647,6 +1699,9 @@ export class LiveConnection {
         break;
       case 'capture/request':
         void this.answerCapture(message);
+        break;
+      case 'explorable-capture/request':
+        void this.answerExplorableCapture(message);
         break;
       case 'solid/piece':
         this.solidPiece(message, 'solid');

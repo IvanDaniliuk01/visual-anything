@@ -255,7 +255,10 @@ export function readCopied(text: string): ReadCopy {
         isObject(each) &&
         (each.kind === 'arrow'
           ? isPoint(each.from) && isPoint(each.to)
-          : (each.kind === 'note' || each.kind === 'picture' || each.kind === 'link') &&
+          : (each.kind === 'note' ||
+              each.kind === 'picture' ||
+              each.kind === 'link' ||
+              each.kind === 'explorable') &&
             isNumber(each.x) &&
             isNumber(each.y) &&
             isNumber(each.width) &&

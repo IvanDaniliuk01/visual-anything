@@ -30,6 +30,7 @@ import {
   useContext,
   useEffect,
   useEffectEvent,
+  useCallback,
   useId,
   useLayoutEffect,
   useMemo,
@@ -73,7 +74,7 @@ import { ContainerChooser } from './ContainerChooser';
 import { DeleteDialog } from './DeleteDialog';
 import { confirmLabelOf, containerChangeLabel, moveToCommand, needsConfirmation } from './drop';
 import './drop.css';
-import type { Point } from './geometry';
+import type { Point, Rect } from './geometry';
 import {
   createAtCommand,
   createBesideCommand,
@@ -106,6 +107,11 @@ import {
   tooLargeToSend,
 } from './pictures/adding';
 import { addLinkCardCommand, linkAddressIn } from './links/adding';
+import { addExplorableCommand, onExplorableShapeAsked, onExploreAsked } from './explorables/adding';
+import { LiveExplorable } from './explorables/LiveExplorable';
+import { liveAfter, type LiveTarget } from './explorables/live';
+import { useCanvasExplorables } from './explorables/useCanvasExplorables';
+import { visibleRect } from './camera';
 import { mediaFilesOver } from './pictures/media';
 import type { CanvasTurning } from './solids/turningContext';
 import { pinnedInTheWay } from './layout/pinnedInTheWay';
@@ -337,6 +343,12 @@ export function CanvasArea({
   // The element the next element added goes inside, set from its menu, for the selection it was set for.
   const [addTarget, setAddTarget] = useState<{ element: Id; selection: Selection }>();
   const [editing, setEditing] = useState<Editing>();
+  // The explorable live in place on this canvas, one at a time (ADR 0107, A10.3).
+  const [liveExplorable, setLiveExplorable] = useState<LiveTarget>();
+  const liveExplorableRef = useRef<LiveTarget | undefined>(undefined);
+  useLayoutEffect(() => {
+    liveExplorableRef.current = liveExplorable;
+  }, [liveExplorable]);
   // Each message counts, so that the same words said again are heard again.
   const [announcement, setAnnouncement] = useState({ text: '', count: 0 });
   // Counts the times something holding the focus closed by itself, to give the focus to the canvas.
@@ -666,6 +678,13 @@ export function CanvasArea({
         turning: (turned) => turningChanged(turned),
         resetRoutes: () => resetRoutesFromKeys(),
         layOut: () => layOutFromKeys(),
+        explore: (target) =>
+          setLiveExplorable((now) => liveAfter(now, { kind: 'explore', target })),
+        escape: () => {
+          if (liveExplorableRef.current === undefined) return false;
+          setLiveExplorable(undefined);
+          return true;
+        },
       },
       // The canvas starts in the theme shown now, and follows it from then on.
       {
@@ -692,6 +711,37 @@ export function CanvasArea({
   useEffect(() => {
     controllerRef.current?.setGrid(grid);
   }, [grid]);
+
+  // Explorables' faces and stills (ADR 0107, A10.3), and the one live in place, if any.
+  const rendererNow = useCallback(() => controllerRef.current?.renderer, []);
+  useCanvasExplorables(rendererNow, project, theme);
+  const followLive = useEffectEvent(() => {
+    const now = liveExplorableRef.current;
+    const renderer = rendererNow();
+    const camera = cameras.current();
+    if (now === undefined || !renderer || !camera) return;
+    const next = liveAfter(now, {
+      kind: 'view',
+      rect: explorableSpotRect(latest.current.indexed, now),
+      visible: visibleRect(camera, renderer.viewport),
+    });
+    if (next === undefined) setLiveExplorable(undefined);
+  });
+  // It turns still once its shape scrolls off screen, or goes.
+  useEffect(() => cameras.subscribe(() => followLive()), [cameras]);
+  useEffect(() => {
+    followLive();
+  }, [indexed]);
+  // Explore in an explorable shape's inspector reaches the active canvas.
+  useEffect(
+    () =>
+      active
+        ? onExploreAsked((target) =>
+            setLiveExplorable((now) => liveAfter(now, { kind: 'explore', target })),
+          )
+        : undefined,
+    [active],
+  );
 
   useEffect(() => {
     controllerRef.current?.renderer.setTheme(THEMES[theme].canvas);
@@ -1452,6 +1502,36 @@ export function CanvasArea({
 
   const addLinkCardNow = useEffectEvent((url: string) => addLinkCard(url));
 
+  /**
+   * Adds an explorable shape at the middle of the view, bound to an element or not, and selects it
+   * (ADR 0107, A10.3): from Explorable… on the toolbar, or the explorable panel's Put on the canvas.
+   */
+  const addExplorable = async (explorable: Id, element?: Id) => {
+    if (!editable) {
+      announce(t('The project cannot be changed now.'));
+      return;
+    }
+    const center = controller()?.center;
+    if (!center) return;
+    const unchanged = intent();
+    const result = await send(addExplorableCommand(view.id, explorable, center, element));
+    const added = result.ok ? result.created?.[0] : undefined;
+    if (added !== undefined && unchanged()) {
+      onSelect(selectionOf([{ kind: 'free-shape', id: added }]));
+    }
+  };
+  const addExplorableNow = useEffectEvent((explorable: Id, element?: Id) =>
+    addExplorable(explorable, element),
+  );
+  // The explorable panel's Put on the canvas reaches the active canvas.
+  useEffect(
+    () =>
+      active
+        ? onExplorableShapeAsked((ask) => void addExplorableNow(ask.explorable, ask.element))
+        : undefined,
+    [active],
+  );
+
   // An image file dropped on the canvas is added where it is dropped (ADR 0098).
   useEffect(() => {
     const host = hostRef.current;
@@ -1581,6 +1661,7 @@ export function CanvasArea({
     if (frameRef.current?.contains(document.activeElement)) focusCanvas();
   };
 
+  const liveRect = liveExplorable && explorableSpotRect(indexed, liveExplorable);
   const frame = (
     <div ref={frameRef} className="canvas-frame" {...(grid.rulers ? { 'data-rulers': '' } : {})}>
       <DrawnEmphasis
@@ -1600,6 +1681,7 @@ export function CanvasArea({
           ? { onAddPictures: (files: readonly File[]) => void addPictures(files) }
           : {})}
         {...(live ? { onAddLinkCard: (url: string) => void addLinkCard(url) } : {})}
+        onAddExplorable={(explorable: Id) => void addExplorable(explorable)}
         onZoom={(factor) => controller()?.zoomBy(factor)}
         onFit={() => controller()?.fit()}
         {...(adding.place ? { addPlace: adding.place } : {})}
@@ -1624,6 +1706,21 @@ export function CanvasArea({
         tabIndex={0}
       />
       <div ref={captionRef} className="canvas-drop-caption" aria-hidden="true" />
+      {liveExplorable && liveRect && (
+        <LiveExplorable
+          key={`${liveExplorable.spot} ${liveExplorable.explorable}`}
+          target={liveExplorable}
+          project={project}
+          rect={liveRect}
+          camera={cameras.current}
+          subscribe={cameras.subscribe}
+          onSelect={(element) => onSelect(selectionOf([{ kind: 'element', id: element }]))}
+          onStill={() => {
+            setLiveExplorable(undefined);
+            focusCanvas();
+          }}
+        />
+      )}
       {hoverCard !== undefined && editing === undefined && menu === undefined && (
         <PlacedHoverCard shape={indexed?.byKey.get(hoverCard)} cameras={cameras} />
       )}
@@ -2137,4 +2234,18 @@ function PlacedEditor({
 }: Omit<ComponentProps<typeof InlineEditor>, 'camera'> & { cameras: CameraWatch }) {
   const camera = useSyncExternalStore(cameras.subscribe, cameras.current);
   return camera ? <InlineEditor {...props} camera={camera} /> : null;
+}
+
+/**
+ * Where a live explorable's spot is drawn (ADR 0107, A10.3): an element shape's explorable, on its
+ * plate, or a loose explorable shape; none once its shape shows it no more.
+ */
+function explorableSpotRect(
+  indexed: IndexedScene | undefined,
+  target: LiveTarget,
+): Rect | undefined {
+  const shape = indexed?.byKey.get(target.spot);
+  if (shape?.explorable?.id === target.explorable) return shape.explorable.rect;
+  const loose = indexed?.scene.pictures?.find((each) => each.id === target.spot);
+  return loose?.explorable?.id === target.explorable ? loose.rect : undefined;
 }

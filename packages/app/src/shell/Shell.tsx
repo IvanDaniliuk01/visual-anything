@@ -109,6 +109,7 @@ import { ExplorableView } from '../explorables/ExplorableView';
 import { ExplorablePanelStore } from '../explorables/panel-store';
 import { ScriptLibraryConsent } from '../explorables/ScriptLibraryConsent';
 import { ExplorableSession, ExplorableSessionContext } from '../explorables/session';
+import { ExplorableStillsBridge } from '../explorables/ExplorableStillsBridge';
 
 interface ShellProps {
   project: ProjectSnapshot;
@@ -786,6 +787,7 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                       <PackageChangesReviewer />
                                       <CodeApproval />
                                       <ExplorableApproval project={project} />
+                                      <ExplorableStillsBridge project={project} />
                                       <ScriptLibraryConsent />
                                       <ElementListPanel store={elementList} />
                                       {asking && (

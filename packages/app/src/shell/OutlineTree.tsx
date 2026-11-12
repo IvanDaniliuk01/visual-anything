@@ -269,6 +269,15 @@ function OutlineRow({
     case 'arrow':
       return <span className="item-name">{t('Arrow')}</span>;
     case 'picture':
+      if (item.picture.explorable) {
+        // An explorable shape, by its name, its own or its explorable's (ADR 0107, A10.3).
+        return (
+          <>
+            <span className="item-name">{item.picture.name}</span>
+            <Secondary text={t('Explorable')} />
+          </>
+        );
+      }
       if (item.picture.link) {
         // A link card, by its title and its address's host (ADR 0098, stage 3).
         return (

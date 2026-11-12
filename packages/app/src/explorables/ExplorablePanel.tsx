@@ -24,6 +24,7 @@ import { useT } from '../i18n';
 import { DismissIcon } from '../shell/icons';
 import { maxSpacePanelWidth } from '../space/store';
 import type { SpacePanelStore } from '../space/store';
+import { askExplorableShape } from '../canvas/explorables/adding';
 import { ExplorablePanelContext } from './context';
 import { explorableOf, explorableOfElement } from './explorable';
 import { ExplorableView } from './ExplorableView';
@@ -101,6 +102,23 @@ function OpenExplorablePanel({
             onClick={() => onOpenBeside(shown.id, element)}
           >
             {t('Open beside')}
+          </button>
+        )}
+        {shown && (
+          <button
+            type="button"
+            className="space-panel-tool"
+            title={t('Put “{name}” on the canvas, bound to the element selected', {
+              name: shown.definition.name,
+            })}
+            onClick={() =>
+              askExplorableShape({
+                explorable: shown.id,
+                ...(element === undefined ? {} : { element }),
+              })
+            }
+          >
+            {t('Put on the canvas')}
           </button>
         )}
         <button

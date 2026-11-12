@@ -219,6 +219,17 @@ export const LinkCardIcon = icon(
   </>,
 );
 
+/** An explorable shape (ADR 0107): a page with a slider, after Lucide's "sliders-horizontal". */
+export const ExplorableShapeIcon = icon(
+  'Explorable',
+  <>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M7 15h10" />
+    <circle cx="11" cy="15" r="2" />
+    <path d="M7 9h6" />
+  </>,
+);
+
 /** A free arrow: Lucide's "move-up-right". */
 export const ArrowIcon = icon(
   'Arrow',

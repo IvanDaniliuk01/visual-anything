@@ -1,4 +1,9 @@
-import { checkLinkAddress, definitionsIn, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  checkLinkAddress,
+  definitionsIn,
+  explorablesIn,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useId, useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react';
 import { useT } from '../i18n';
@@ -10,6 +15,7 @@ import {
   LayoutIcon,
   NoteIcon,
   LinkCardIcon,
+  ExplorableShapeIcon,
   PictureIcon,
   PlusIcon,
   SendBackwardIcon,
@@ -73,6 +79,11 @@ export interface CanvasToolbarProps {
    * has no Link card….
    */
   onAddLinkCard?: (url: string) => void;
+  /**
+   * Adds an explorable shape for the explorable chosen in Explorable shape… (ADR 0107, A10.3);
+   * absent, the toolbar has none.
+   */
+  onAddExplorable?: (explorable: Id) => void;
   onZoom: (factor: number) => void;
   onFit: () => void;
   /** Where "Add element…" puts the new element; absent, directly in World. */
@@ -120,6 +131,7 @@ export function CanvasToolbar({
   onAddArrow,
   onAddPictures,
   onAddLinkCard,
+  onAddExplorable,
   onZoom,
   onFit,
   addPlace,
@@ -173,6 +185,9 @@ export function CanvasToolbar({
       </OverflowButton>
       {onAddPictures && <PictureButton disabled={!editable} onPictures={onAddPictures} />}
       {onAddLinkCard && <LinkCardButton disabled={!editable} onAddress={onAddLinkCard} />}
+      {onAddExplorable && (
+        <ExplorableShapeButton project={project} disabled={!editable} onChoose={onAddExplorable} />
+      )}
       <ToolbarSeparator />
       {/* Arranging: the stacking order, Align and Layout. */}
       {stacking && (
@@ -483,6 +498,91 @@ function LinkCardButton({
             <span className="canvas-toolbar-link-actions">
               <button type="submit">{t('Add')}</button>
               <button type="button" onClick={close}>
+                {t('Cancel')}
+              </button>
+            </span>
+          </form>
+        )}
+      </span>
+    </Overflowing>
+  );
+}
+
+/**
+ * Explorable shape…: chooses one of the explorables the project's packages define and adds it loose
+ * on the canvas (ADR 0107, A10.3); disabled while the project defines none.
+ */
+function ExplorableShapeButton({
+  project,
+  disabled,
+  onChoose,
+}: {
+  project: ProjectSnapshot;
+  disabled: boolean;
+  onChoose: (explorable: Id) => void;
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const selectId = useId();
+  const explorables = useMemo(
+    () =>
+      [...explorablesIn(project).explorables.values()]
+        .map((each) => ({ id: each.definition.id, name: each.definition.name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- what packages define follows the packages
+    [project.packages],
+  );
+  const [chosen, setChosen] = useState<Id>();
+  const none = explorables.length === 0;
+  return (
+    <Overflowing group="shapes">
+      <span className="canvas-toolbar-link">
+        <button
+          type="button"
+          title={
+            none ? t('No package of the project defines an explorable.') : t('Explorable shape…')
+          }
+          disabled={disabled || none}
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          <ExplorableShapeIcon />
+          <span className="canvas-toolbar-label">{t('Explorable shape…')}</span>
+        </button>
+        {open && (
+          <form
+            className="canvas-menu canvas-toolbar-link-form"
+            role="dialog"
+            aria-label={t('Add an explorable shape')}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation();
+                setOpen(false);
+              }
+            }}
+            onSubmit={(event) => {
+              event.preventDefault();
+              const id = chosen ?? explorables[0]?.id;
+              if (id !== undefined) onChoose(id);
+              setOpen(false);
+            }}
+          >
+            <label htmlFor={selectId}>{t('Explorable')}</label>
+            <select
+              id={selectId}
+              value={chosen ?? explorables[0]?.id ?? ''}
+              autoFocus
+              onChange={(event) => setChosen(event.target.value)}
+            >
+              {explorables.map((each) => (
+                <option key={each.id} value={each.id}>
+                  {each.name}
+                </option>
+              ))}
+            </select>
+            <span className="canvas-toolbar-link-actions">
+              <button type="submit">{t('Add')}</button>
+              <button type="button" onClick={() => setOpen(false)}>
                 {t('Cancel')}
               </button>
             </span>

@@ -223,6 +223,10 @@ export function describeSelection(
         t('Link card: {title}, {host}', { title: picture.link.title, host: picture.link.host }),
       );
     }
+    // An explorable shape by its name, its own or its explorable's (ADR 0107, A10.3).
+    if (picture?.explorable) {
+      return asSentence(t('Explorable: {name}', { name: picture.name }));
+    }
     if (picture?.video) {
       return picture.named ? asSentence(t('Video: {name}', { name: picture.name })) : t('Video.');
     }

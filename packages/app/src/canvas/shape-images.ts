@@ -488,6 +488,48 @@ export interface PlacedPicture {
 export interface Pictured {
   image?: PlacedPicture;
   solid?: PlacedPicture;
+  /** The explorable it shows as its drawing (ADR 0107), when it shows no image and no solid. */
+  explorable?: PlacedPicture;
+}
+
+/**
+ * An explorable an element's shape shows (ADR 0107, A10.3): its still or its card, drawn as an
+ * image of placement `drawing` is, on a plate above the band its name is written in. Only a plain
+ * shape shows one: no contents shown, no rows, no row, no outline or face of its own, and no image
+ * or solid, which keep the shape's drawing. Its plate takes the room the shape leaves above its
+ * band, so that the explorable's proportions are the shape's.
+ */
+export interface ShapeExplorable extends PlacedPicture {
+  /** The explorable's id. */
+  id: Id;
+  placement: 'drawing';
+}
+
+/** Places an explorable on a plain shape as its drawing; none on any other shape, or one too small. */
+export function placeExplorable(
+  id: Id | undefined,
+  holder: ImageHolder,
+  hasDetail = false,
+): { explorable: ShapeExplorable; plate: Rect } | undefined {
+  if (id === undefined) return undefined;
+  if (
+    holder.row ||
+    holder.rows ||
+    holder.picture ||
+    holder.outline ||
+    holder.holdsContents ||
+    holder.collapsed !== undefined
+  ) {
+    return undefined;
+  }
+  const band = hasDetail ? BAND.detail : BAND.name;
+  const room = {
+    width: holder.rect.width - 2 * PLATE_MARGIN,
+    height: holder.rect.height - band - 2 * PLATE_MARGIN,
+  };
+  const drawing = drawingOf(room.width, room.height, holder.rect, band);
+  if (!drawing) return undefined;
+  return { explorable: { id, placement: 'drawing', ...drawing.image }, plate: drawing.plate };
 }
 
 /**
@@ -496,12 +538,12 @@ export interface Pictured {
  * there until its picture comes.
  */
 export function pictureOn(shape: Pictured): PlacedPicture | undefined {
-  return shape.image ?? shape.solid;
+  return shape.image ?? shape.solid ?? shape.explorable;
 }
 
-/** Whether a shape shows a picture, an image's or a solid's, which takes room beside its name. */
+/** Whether a shape shows a picture, an image's, a solid's or an explorable's, which takes room beside its name. */
 export function showsPicture(shape: Pictured): boolean {
-  return shape.image !== undefined || shape.solid !== undefined;
+  return shape.image !== undefined || shape.solid !== undefined || shape.explorable !== undefined;
 }
 
 /**
@@ -511,13 +553,14 @@ export function showsPicture(shape: Pictured): boolean {
 export function imageSignature(shape: {
   image?: ShapeImage;
   solid?: PlacedPicture & { hash: string };
+  explorable?: ShapeExplorable;
 }): string {
-  const { image, solid } = shape;
-  const shown = image ?? solid;
+  const { image, solid, explorable } = shape;
+  const shown = image ?? solid ?? explorable;
   if (!shown) return '';
   const { rect, band } = shown;
   return [
-    image ? image.serial : `solid ${solid?.hash ?? ''}`,
+    image ? image.serial : solid ? `solid ${solid.hash}` : `explorable ${explorable?.id ?? ''}`,
     shown.placement,
     image?.tint ?? '',
     image?.darkTint ?? '',

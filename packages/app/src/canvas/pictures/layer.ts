@@ -169,7 +169,8 @@ export class PictureLayer {
     this.#shapes = pictures;
     const seen = new Set<Id>();
     pictures.forEach((shape, at) => {
-      if (hidden.has(shape.id)) return;
+      // An explorable shape is the explorable layer's to draw (ADR 0107, A10.3).
+      if (hidden.has(shape.id) || shape.explorable) return;
       seen.add(shape.id);
       let entry = this.#entries.get(shape.id);
       if (

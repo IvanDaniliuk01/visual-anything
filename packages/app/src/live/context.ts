@@ -19,6 +19,9 @@ import type {
   ScriptLibraryAsk,
   ScriptLibraryFilesListedMessage,
   ScriptLibraryKeptMessage,
+  ExplorableCaptureAsk,
+  ExplorableCaptureFailure,
+  ExplorableStill,
 } from '@visual-anything/core';
 import type { GuidanceState, GuidedLayoutAnswer } from '../guidance/state';
 import type { LiveValueBook } from '../live-values/book';
@@ -78,6 +81,11 @@ export interface Live extends LiveState {
    * canvas still waits for before it shows what a picture needs, which a picture waits for (#16).
    */
   lendCapture?: (capture: TakeCapture, waitsFor?: CaptureWaitsFor) => () => void;
+  /**
+   * Lends the live session what takes Claude's stills of explorables in this tab's hidden frame (ADR
+   * 0107, A10.3); returns what takes it back. Absent where there is no live session to answer.
+   */
+  lendExplorableCapture?: (capture: TakeExplorableCapture) => () => void;
   /**
    * Says the tab's guidance layer applied this guidance: the views it named opened and its move
    * happened, which a picture asked for after it waits for (#16).
@@ -230,3 +238,13 @@ export function useLive(): Live {
   if (live === null) throw new Error('useLive() is only available inside a LiveProvider.');
   return live;
 }
+
+/** Takes a still of an explorable for Claude (ADR 0107, A10.3), or says why it took none. */
+export type TakeExplorableCapture = (
+  ask: ExplorableCaptureAsk,
+) => Promise<ExplorableCaptureOutcome>;
+
+/** What a tab answers Claude's still with: the still and its errors, or why it took none. */
+export type ExplorableCaptureOutcome =
+  | { still: ExplorableStill; errors: string[]; ready: boolean }
+  | { failed: ExplorableCaptureFailure; why?: string; errors?: string[] };

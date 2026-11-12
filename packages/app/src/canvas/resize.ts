@@ -16,7 +16,15 @@
  */
 import type { Command, ProjectSnapshot, SetRouteCommand } from '@visual-anything/core';
 import { isVideoFormat, positionKey } from '@visual-anything/core';
-import type { Id, LinkCard, Note, Picture, ShapePosition, ViewFile } from '@visual-anything/schema';
+import type {
+  ExplorableShape,
+  Id,
+  LinkCard,
+  Note,
+  Picture,
+  ShapePosition,
+  ViewFile,
+} from '@visual-anything/schema';
 import type { GuideEdge, GuideEdges } from './align';
 import { boundsOf, type Point, type Rect } from './geometry';
 import type { IndexedScene } from './hit';
@@ -364,8 +372,11 @@ function keptBendPoints(
  */
 export function resizeNoteCommand(view: ViewFile, id: Id, rect: Rect): Command | undefined {
   const note = view.freeShapes.find(
-    (shape): shape is Note | Picture | LinkCard =>
-      (shape.kind === 'note' || shape.kind === 'picture' || shape.kind === 'link') &&
+    (shape): shape is Note | Picture | LinkCard | ExplorableShape =>
+      (shape.kind === 'note' ||
+        shape.kind === 'picture' ||
+        shape.kind === 'link' ||
+        shape.kind === 'explorable') &&
       shape.id === id,
   );
   if (!note) return undefined;
@@ -379,13 +390,15 @@ export function resizeNoteCommand(view: ViewFile, id: Id, rect: Rect): Command |
   return {
     type: 'batch',
     label:
-      note.kind === 'link'
-        ? 'Resize a link card'
-        : note.kind === 'picture'
-          ? isVideoFormat(note.media.format)
-            ? 'Resize a video'
-            : 'Resize a picture'
-          : 'Resize a note',
+      note.kind === 'explorable'
+        ? 'Resize an explorable shape'
+        : note.kind === 'link'
+          ? 'Resize a link card'
+          : note.kind === 'picture'
+            ? isVideoFormat(note.media.format)
+              ? 'Resize a video'
+              : 'Resize a picture'
+            : 'Resize a note',
     commands: [
       { type: 'update-free-shape', view: view.id, shape: { ...note, x, y, width, height } },
     ],
