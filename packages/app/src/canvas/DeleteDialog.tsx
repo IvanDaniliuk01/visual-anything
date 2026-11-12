@@ -82,6 +82,12 @@ const BROKEN_STEPS: PluralText = {
   other:
     'These {count} scenario steps use a relation that goes. They become broken steps and are kept, so you can fix them:',
 };
+/** Scenario steps that show a picture, a video or a link card that goes (ADR 0098, stage 4). */
+const SHOWING_STEPS: PluralText = {
+  one: 'This scenario step shows what goes. It is kept as it is, and plays without it:',
+  other:
+    'These {count} scenario steps show what goes. They are kept as they are, and play without it:',
+};
 /** Tour steps that name what goes (ADR 0058). */
 const BROKEN_TOUR_STEPS: PluralText = {
   one: 'This tour step names what goes. It is kept, flagged, and plays without it:',
@@ -124,27 +130,29 @@ export function DeleteDialog({
     };
     const cascaded = new Set(preview.cascaded);
     const asked = preview.relations.filter((id) => !cascaded.has(id));
-    const steps = preview.brokenSteps.slice(0, LISTED).map(({ scenario, step, within }) => {
-      const found = project.scenarios.find((each) => each.id === scenario);
-      const description = found?.steps.find((each) => each.id === step)?.description;
-      const line = `${found?.name ?? scenario}: ${description || step}`;
-      // A step in an alternative says which, whichever plays (ADR 0078).
-      const decision = within && found?.blocks?.find((each) => each.id === within.decision);
-      const alternative = decision?.alternatives.find((each) => each.id === within?.alternative);
-      return decision && alternative
-        ? t('{step} (in “{label}” at “{question}”)', {
-            step: line,
-            label: alternative.label,
-            question: decision.question,
-          })
-        : line;
-    });
+    const stepsOf = (listed: DeletePreview['brokenSteps']) =>
+      listed.slice(0, LISTED).map(({ scenario, step, within }) => {
+        const found = project.scenarios.find((each) => each.id === scenario);
+        const description = found?.steps.find((each) => each.id === step)?.description;
+        const line = `${found?.name ?? scenario}: ${description || step}`;
+        // A step in an alternative says which, whichever plays (ADR 0078).
+        const decision = within && found?.blocks?.find((each) => each.id === within.decision);
+        const alternative = decision?.alternatives.find((each) => each.id === within?.alternative);
+        return decision && alternative
+          ? t('{step} (in “{label}” at “{question}”)', {
+              step: line,
+              label: alternative.label,
+              question: decision.question,
+            })
+          : line;
+      });
     return {
       elementName,
       relationName,
       asked: asked.length,
       cascaded: preview.cascaded.slice(0, LISTED).map(relationName),
-      steps,
+      steps: stepsOf(preview.brokenSteps),
+      showing: stepsOf(preview.showingSteps),
       leaving: action?.leaving.slice(0, LISTED).map(relationName) ?? [],
       withData: action?.withData.slice(0, 1).map(relationName) ?? [],
     };
@@ -202,6 +210,12 @@ export function DeleteDialog({
           <section>
             <p>{t(BROKEN_STEPS, { count: stepCount })}</p>
             <List items={shown.steps} total={stepCount} />
+          </section>
+        )}
+        {preview.showingSteps.length > 0 && (
+          <section>
+            <p>{t(SHOWING_STEPS, { count: preview.showingSteps.length })}</p>
+            <List items={shown.showing} total={preview.showingSteps.length} />
           </section>
         )}
         {preview.brokenTourSteps.length > 0 && (

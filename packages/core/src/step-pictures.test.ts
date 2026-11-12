@@ -150,7 +150,8 @@ describe('a scenario step that shows pictures', () => {
   it('keeps naming a deleted picture, kept until its lists change, and the check warns', () => {
     const shown = done(withPictures(), setSteps([{ ...CALL, shows: ['photo', 'card'] }, READ]));
     const preview = previewDelete(shown.state, { freeShapes: ['photo'] }, 'overview');
-    expect(preview.brokenSteps).toEqual([{ scenario: 'request', step: 'call' }]);
+    expect(preview.showingSteps).toEqual([{ scenario: 'request', step: 'call' }]);
+    expect(preview.brokenSteps).toEqual([]);
     const deleted = done(shown.state, {
       type: 'delete-free-shapes',
       view: 'overview',
@@ -240,8 +241,9 @@ describe('a scenario step that shows pictures', () => {
           const breaking = before.steps
             .filter((step) => (step.shows ?? []).some((id) => deleting.includes(id)))
             .map((step) => step.id);
-          expect(preview.brokenSteps.map((each) => each.step)).toEqual(breaking);
-          for (const each of preview.brokenSteps) {
+          expect(preview.showingSteps.map((each) => each.step)).toEqual(breaking);
+          expect(preview.brokenSteps).toEqual([]);
+          for (const each of preview.showingSteps) {
             if (withDecision && each.step !== 'call')
               expect(each.within?.decision).toBe('decision');
           }

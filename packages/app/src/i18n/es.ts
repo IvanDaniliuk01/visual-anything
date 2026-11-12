@@ -2709,6 +2709,11 @@ export const ui: Catalog = {
   '{series}, {label}: {value}': '{series}, {label}: {value}',
 
   // Tours (ADR 0058): the tours panel and full-screen playback.
+  'These {count} scenario steps show what goes. They are kept as they are, and play without it:': {
+    one: 'Este paso de escenario muestra algo que se elimina. Se conserva como está, y se reproduce sin eso:',
+    other:
+      'Estos {count} pasos de escenario muestran algo que se elimina. Se conservan como están, y se reproducen sin eso:',
+  },
   'These {count} tour steps name what goes. They are kept, flagged, and play without it:': {
     one: 'Este paso de recorrido nombra algo que se elimina. Se conserva, marcado, y se reproduce sin eso:',
     other:
