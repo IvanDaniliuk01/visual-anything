@@ -307,8 +307,8 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   { word: /\bajustes\b/i },
   { word: /\btableros?\b/i },
   { word: /\bplantillas?\b/i },
-  // A script library is a "biblioteca de JavaScript" (ADR 0107); a library alone stays avoided.
-  { word: /\bbibliotecas?\b/i, unless: /\bbibliotecas? de JavaScript\b/i },
+  // A script library is a "biblioteca de JavaScript" (ADR 0107); "biblioteca" alone stays avoided.
+  { word: /\bbibliotecas?\b/i, unless: /\bbibliotecas? de JavaScript\b/ },
   { word: /\bdiagramas?\b/i },
   { word: /\bra[ií]z\b/i },
   { word: /\binstant[áa]neas?\b/i },

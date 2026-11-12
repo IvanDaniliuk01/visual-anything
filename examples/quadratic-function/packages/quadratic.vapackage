@@ -1,0 +1,129 @@
+{
+  "id": "quadratic",
+  "name": "Quadratic functions",
+  "description": "The sample’s own package: a function, its coefficients and what its curve has, and the explorable that draws its parabola.",
+  "version": "1.0.0",
+  "license": "CC0-1.0",
+  "attribution": "Visual Anything contributors",
+  "components": [
+    {
+      "id": "quadratic.function",
+      "name": "Function",
+      "derivesFrom": "essence",
+      "description": "A function of one real variable; selecting one shows its explorable, which draws its curve.",
+      "attributes": [
+        {
+          "name": "formula",
+          "type": "string",
+          "description": "The function, as it is written."
+        }
+      ],
+      "appearance": {
+        "shape": "rounded-rectangle",
+        "fill": "#EEF3FC",
+        "stroke": "#2F5FB3",
+        "width": 560,
+        "height": 400,
+        "explorable": {
+          "explorable": "quadratic.parabola"
+        }
+      }
+    },
+    {
+      "id": "quadratic.coefficient",
+      "name": "Coefficient",
+      "derivesFrom": "essence",
+      "description": "A number the function is made of, which the explorable lets you change.",
+      "attributes": [
+        {
+          "name": "symbol",
+          "type": "string",
+          "description": "How the formula writes it."
+        },
+        {
+          "name": "range",
+          "type": "string",
+          "description": "The values the explorable lets it take."
+        }
+      ],
+      "appearance": {
+        "shape": "ellipse",
+        "fill": "#FFF4E0",
+        "stroke": "#8A5A00",
+        "width": 136,
+        "height": 64,
+        "detail": {
+          "attributes": [
+            "symbol"
+          ]
+        }
+      }
+    },
+    {
+      "id": "quadratic.feature",
+      "name": "Feature",
+      "derivesFrom": "essence",
+      "description": "What the curve has that the coefficients decide: a point, a line or a number.",
+      "appearance": {
+        "shape": "rectangle",
+        "fill": "#F4F6F8",
+        "stroke": "#3E4A57",
+        "width": 160,
+        "height": 64
+      }
+    }
+  ],
+  "relationTypes": [
+    {
+      "id": "quadratic.is-part-of",
+      "name": "is part of",
+      "derivesFrom": "relates-to",
+      "description": "Puts a coefficient or a feature inside the function it belongs to.",
+      "direction": "directed",
+      "nests": true
+    },
+    {
+      "id": "quadratic.decides",
+      "name": "decides",
+      "derivesFrom": "relates-to",
+      "description": "A coefficient or a feature that the other is worked out from.",
+      "direction": "directed"
+    }
+  ],
+  "explorables": [
+    {
+      "id": "quadratic.parabola",
+      "name": "Parabola",
+      "description": "Draws $f(x) = ax^2 + bx + c$ with its vertex, its axis of symmetry and its real roots, as $a$, $b$ and $c$ change, in plain JavaScript with no script library.",
+      "file": "quadratic.html",
+      "parameters": [
+        {
+          "name": "a",
+          "kind": "number",
+          "label": "Leading coefficient a",
+          "min": -5,
+          "max": 5,
+          "default": 1
+        },
+        {
+          "name": "b",
+          "kind": "number",
+          "label": "Linear coefficient b",
+          "min": -10,
+          "max": 10,
+          "default": 0
+        },
+        {
+          "name": "c",
+          "kind": "number",
+          "label": "Constant c",
+          "min": -10,
+          "max": 10,
+          "default": 0
+        }
+      ],
+      "api": 1,
+      "hash": "438fccced663e6a2f7c0f8818e2f82d6499947d4c50f6fc8c44a5acb4d84d897"
+    }
+  ]
+}
