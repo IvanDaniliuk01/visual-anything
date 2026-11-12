@@ -271,8 +271,14 @@ function OutlineRow({
     case 'picture':
       return (
         <>
-          <span className="item-name">{item.picture.named ? item.picture.name : t('Picture')}</span>
-          <Secondary text={t('Picture')} />
+          <span className="item-name">
+            {item.picture.named
+              ? item.picture.name
+              : item.picture.video
+                ? t('Video')
+                : t('Picture')}
+          </span>
+          <Secondary text={item.picture.video ? t('Video') : t('Picture')} />
         </>
       );
     case 'undrawn':

@@ -12,6 +12,7 @@
  */
 import {
   definitionsIn,
+  isVideoFormat,
   modelIndexOf,
   plainText,
   tourStepProblems,
@@ -764,6 +765,11 @@ function pointingAt(t: Translator, project: ProjectSnapshot, view: string, id: s
     return t('Pointing at the note “{text}”.', { text: firstWords(plainText(free.text)) });
   }
   if (free?.kind === 'arrow') return t('Pointing at an arrow.');
+  if (free?.kind === 'picture' && isVideoFormat(free.media.format)) {
+    return free.name === undefined
+      ? t('Pointing at a video.')
+      : t('Pointing at the video “{name}”.', { name: free.name });
+  }
   if (free?.kind === 'picture') {
     return free.name === undefined
       ? t('Pointing at a picture.')

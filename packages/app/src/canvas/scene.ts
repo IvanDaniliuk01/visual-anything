@@ -69,6 +69,7 @@ import {
   relationTypeDarkStrokeOf,
   relationTypeOrRelatesTo,
   storedStacking,
+  isVideoFormat,
   type Definitions,
   type StoredColorsInDark,
   type Placement,
@@ -567,11 +568,23 @@ export interface NoteShape {
 export interface PictureShape {
   id: Id;
   rect: Rect;
+  /** Its file: an image, or a video's (ADR 0098, stage 2). */
   media: MediaRef;
-  /** What it is called: its own name, or "Picture". */
+  /** A video's poster, the image it shows until it plays; none for a picture, or a video without. */
+  poster?: MediaRef;
+  /** Whether it is a video, its file an MP4 or a WebM. */
+  video?: true;
+  /** What it is called: its own name, or "Picture", or "Video" for a video. */
   name: string;
   /** Whether it has a name of its own. */
   named: boolean;
+}
+
+/** The image a picture shows while still: its own, or a video's poster; none for a bare video. */
+export function stillOf(
+  picture: Pick<PictureShape, 'media' | 'poster' | 'video'>,
+): MediaRef | undefined {
+  return picture.video ? picture.poster : picture.media;
 }
 
 /** The pictures a scene draws: none in a scene made without them. */
@@ -4069,11 +4082,14 @@ function isPicture(shape: FreeShape): shape is Picture {
 
 /** A picture as the scene draws it (ADR 0098). */
 export function pictureShape(picture: Picture): PictureShape {
+  const video = isVideoFormat(picture.media.format);
   return {
     id: picture.id,
     rect: { x: picture.x, y: picture.y, width: picture.width, height: picture.height },
     media: picture.media,
-    name: picture.name ?? 'Picture',
+    ...(video ? { video: true as const } : {}),
+    ...(video && picture.poster ? { poster: picture.poster } : {}),
+    name: picture.name ?? (video ? 'Video' : 'Picture'),
     named: picture.name !== undefined,
   };
 }

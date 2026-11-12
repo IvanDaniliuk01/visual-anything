@@ -72,6 +72,7 @@ describe('The read-only page', () => {
     ]);
     expect(directives.get('style-src')).toEqual([hashOf(ASSETS.style)]);
     expect(directives.get('img-src')).toEqual(['data:', 'blob:']);
+    expect(directives.get('media-src')).toEqual(['blob:']);
     expect(directives.get('connect-src')).toEqual(["'none'"]);
     expect(directives.get('worker-src')).toEqual(["'none'"]);
     expect(directives.get('base-uri')).toEqual(["'none'"]);

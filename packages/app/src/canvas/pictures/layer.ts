@@ -11,6 +11,9 @@
  *   Under reduced motion (ADR 0077) it shows its first frame, and plays while the pointer is on it.
  * - While its file comes it is drawn as a gray box; a file that is missing, or no longer what cleaning
  *   writes, is drawn as a gray box with its name and a warning, never as an error.
+ * - A video (ADR 0098, stage 2) shows its poster with a play mark, or, without one, a dark box with a
+ *   play mark and its name. It plays muted and in a loop once asked (`toggle`, `setPlaying`), from
+ *   its file fetched then, its texture updated each frame while it plays; at most four play at once.
  */
 import {
   CanvasSource,
@@ -20,13 +23,15 @@ import {
   Sprite,
   Text,
   Texture,
+  VideoSource,
   type TextureSource,
 } from 'pixi.js';
-import { parseGif, type GifDocument } from '@visual-anything/core';
+import { MEDIA_TYPES, parseGif, type GifDocument } from '@visual-anything/core';
 import type { Id, MediaRef } from '@visual-anything/schema';
 import type { Rect } from '../geometry';
 import { loadSvgPicture, newCanvas } from '../images';
-import type { PictureShape } from '../scene';
+import { stillOf, type PictureShape } from '../scene';
+import { playMark } from './mark';
 import { GifPlayer, pictureBucket, textureSize, type MediaFiles } from './media';
 
 /** A picture decoded at one size: still, or a GIF that plays. */
@@ -34,8 +39,19 @@ export type DecodedPicture =
   | { kind: 'still'; texture: Texture }
   | { kind: 'gif'; texture: Texture; player: GifPlayer; draw: (rgba: Uint8ClampedArray) => void };
 
+/** A video playing: its texture, updated from its frame each frame, and how it stops. */
+export interface PlayingVideo {
+  texture: Texture;
+  /** Takes the frame the video shows now into its texture. */
+  update(): void;
+  /** Stops it and lets its texture and its file's address go. */
+  stop(): void;
+}
+
 /** What the layer needs from the browser and the GPU; tests give it a fake. */
 export interface PicturePlatform {
+  /** Plays a video's file, muted and in a loop (ADR 0098, stage 2). */
+  play?: (bytes: Uint8Array, media: MediaRef) => Promise<PlayingVideo>;
   now(): number;
   /** Decodes a media file at a size, off the frame where the browser can. */
   decode(
@@ -82,6 +98,8 @@ interface Entry {
   shape: PictureShape;
   node: Container;
   box: Graphics;
+  /** A video's play mark, over its poster while it does not play. */
+  mark?: Graphics;
   label?: Container;
   sprite?: Sprite;
   /** The source the sprite shows, and the one asked for that will replace it. */
@@ -93,12 +111,23 @@ interface Entry {
 /** How many pictures decode at once. */
 const DECODING_AT_ONCE = 2;
 
+/** How many videos play at once; the one started first stops for another. */
+export const PLAYING_AT_ONCE = 4;
+
+/** A video asked to play: while its file comes, then playing. */
+interface Playing {
+  media: MediaRef;
+  video?: PlayingVideo;
+  stopped: boolean;
+}
+
 export class PictureLayer {
   readonly container = new Container();
   readonly #files: () => MediaFiles | undefined;
   readonly #platform: PicturePlatform;
   readonly #requestRender: () => void;
   readonly #reducedMotion: () => boolean;
+  readonly #onPlaying: (ids: ReadonlySet<Id>) => void;
   readonly #entries = new Map<Id, Entry>();
   readonly #sources = new Map<string, Source>();
   #colors = LIGHT;
@@ -106,13 +135,18 @@ export class PictureLayer {
   #decoding = 0;
   #timer = false;
   #shapes: readonly PictureShape[] = [];
+  /** The videos asked to play, by picture, the one asked first first. */
+  readonly #playing = new Map<Id, Playing>();
 
   constructor(options: {
     files: () => MediaFiles | undefined;
     platform?: PicturePlatform;
     requestRender: () => void;
     reducedMotion?: () => boolean;
+    /** Told which videos play whenever that changes. */
+    onPlaying?: (ids: ReadonlySet<Id>) => void;
   }) {
+    this.#onPlaying = options.onPlaying ?? (() => {});
     this.#files = options.files;
     this.#platform = options.platform ?? browserPicturePlatform();
     this.#requestRender = options.requestRender;
@@ -131,10 +165,16 @@ export class PictureLayer {
       if (hidden.has(shape.id)) return;
       seen.add(shape.id);
       let entry = this.#entries.get(shape.id);
-      if (entry && entry.shape.media.hash !== shape.media.hash) {
+      if (
+        entry &&
+        (entry.shape.media.hash !== shape.media.hash ||
+          stillOf(entry.shape)?.hash !== stillOf(shape)?.hash)
+      ) {
         this.#drop(entry);
         entry = undefined;
       }
+      const playing = this.#playing.get(shape.id);
+      if (playing && playing.media.hash !== shape.media.hash) this.#stop(shape.id);
       if (!entry) {
         const node = new Container();
         const box = new Graphics();
@@ -151,6 +191,80 @@ export class PictureLayer {
       if (moved || !entry.sprite) this.#paint(entry);
     });
     for (const [id, entry] of this.#entries) if (!seen.has(id)) this.#drop(entry);
+    for (const id of [...this.#playing.keys()]) if (!seen.has(id)) this.#stop(id);
+    this.#requestRender();
+  }
+
+  /** Whether a video plays, or is about to once its file comes. */
+  isPlaying(id: Id): boolean {
+    return this.#playing.has(id);
+  }
+
+  /** Plays a video that does not play, and stops one that does (ADR 0098, stage 2). */
+  toggle(id: Id): void {
+    if (this.#playing.has(id)) this.#stop(id);
+    else this.#play(id);
+  }
+
+  /**
+   * Plays exactly these videos, stopping the others: the hook a scenario or tour step uses to show
+   * its videos playing (ADR 0098, stage 4).
+   */
+  setPlaying(ids: ReadonlySet<Id>): void {
+    for (const id of [...this.#playing.keys()]) if (!ids.has(id)) this.#stop(id);
+    for (const id of ids) if (!this.#playing.has(id)) this.#play(id);
+  }
+
+  #play(id: Id): void {
+    const entry = this.#entries.get(id);
+    const files = this.#files();
+    const play = this.#platform.play;
+    if (!entry?.shape.video || files === undefined || play === undefined) return;
+    if (!this.#playable(entry.shape)) return;
+    while (this.#playing.size >= PLAYING_AT_ONCE) {
+      const first = this.#playing.keys().next().value as Id;
+      this.#stop(first);
+    }
+    const { media } = entry.shape;
+    const playing: Playing = { media, stopped: false };
+    this.#playing.set(id, playing);
+    this.#paint(entry);
+    this.#onPlaying(new Set(this.#playing.keys()));
+    void files(media.hash)
+      .then((bytes) => (bytes === undefined || playing.stopped ? undefined : play(bytes, media)))
+      .then(
+        (video) => {
+          if (playing.stopped || this.#playing.get(id) !== playing) {
+            video?.stop();
+            return;
+          }
+          if (video === undefined) {
+            this.#stop(id);
+            return;
+          }
+          playing.video = video;
+          const now = this.#entries.get(id);
+          if (now) this.#paint(now);
+        },
+        () => {
+          if (this.#playing.get(id) === playing) this.#stop(id);
+        },
+      )
+      .finally(() => this.#requestRender());
+  }
+
+  #stop(id: Id): void {
+    const playing = this.#playing.get(id);
+    if (!playing) return;
+    playing.stopped = true;
+    this.#playing.delete(id);
+    // Back to its poster before the video's texture goes.
+    const video = playing.video;
+    playing.video = undefined;
+    const entry = this.#entries.get(id);
+    if (entry) this.#paint(entry);
+    video?.stop();
+    this.#onPlaying(new Set(this.#playing.keys()));
     this.#requestRender();
   }
 
@@ -200,14 +314,23 @@ export class PictureLayer {
     let nextDue = Infinity;
     const ready: Entry[] = [];
     const advanced = new Set<DecodedPicture>();
+    for (const playing of this.#playing.values()) {
+      if (playing.video) {
+        playing.video.update();
+        made = true;
+      }
+    }
     for (const entry of this.#entries.values()) {
       const { rect } = entry.shape;
       if (!overlaps(rect, near)) continue;
+      const still = stillOf(entry.shape);
+      // A video without a poster has no image to show while still.
+      if (still === undefined) continue;
       const pixels = Math.max(rect.width, rect.height) * view.scale * view.resolution;
-      const bucket = pictureBucket(pixels, view.settled, entry.shape.media);
+      const bucket = pictureBucket(pixels, view.settled, still);
       const current = entry.wanted ?? entry.shown;
       if (current === undefined || (bucket > current.bucket && current.state !== 'missing')) {
-        const source = this.#source(entry.shape.media, bucket);
+        const source = this.#source(still, bucket);
         source.distance = Math.hypot(
           rect.x + rect.width / 2 - middle.x,
           rect.y + rect.height / 2 - middle.y,
@@ -259,6 +382,7 @@ export class PictureLayer {
 
   /** Forgets every picture, as when another project opens. */
   reset(): void {
+    for (const id of [...this.#playing.keys()]) this.#stop(id);
     for (const entry of [...this.#entries.values()]) this.#drop(entry);
     for (const source of this.#sources.values()) source.decoded?.texture.destroy(true);
     this.#sources.clear();
@@ -329,7 +453,9 @@ export class PictureLayer {
   async readyForImage(pixelsPerUnit: number): Promise<void> {
     const loading: Promise<void>[] = [];
     for (const entry of this.#entries.values()) {
-      const { rect, media } = entry.shape;
+      const { rect } = entry.shape;
+      const media = stillOf(entry.shape);
+      if (media === undefined) continue;
       const bucket = pictureBucket(Math.max(rect.width, rect.height) * pixelsPerUnit, true, media);
       const shown = entry.shown;
       if (shown && (shown.state === 'missing' || shown.bucket >= bucket)) continue;
@@ -360,15 +486,22 @@ export class PictureLayer {
     this.#paint(entry);
   }
 
-  /** Draws a picture as its source allows: its texture, or a gray box, with its name when missing. */
+  /**
+   * Draws a picture as its source allows: its texture, or a gray box, with its name when missing; a
+   * video playing as its frames, and one still with a play mark.
+   */
   #paint(entry: Entry): void {
     const { rect, name } = entry.shape;
     const { box, node } = entry;
-    const texture = entry.shown?.decoded?.texture;
+    const playing = this.#playing.get(entry.shape.id);
+    const texture = playing?.video?.texture ?? entry.shown?.decoded?.texture;
     const missing = entry.shown?.state === 'missing';
+    const bare = entry.shape.video === true && stillOf(entry.shape) === undefined;
     box.clear();
     entry.label?.destroy();
     entry.label = undefined;
+    entry.mark?.destroy();
+    entry.mark = undefined;
     if (texture) {
       if (!entry.sprite) {
         entry.sprite = new Sprite(texture);
@@ -379,15 +512,42 @@ export class PictureLayer {
       entry.sprite.position.set(rect.x, rect.y);
       entry.sprite.width = rect.width;
       entry.sprite.height = rect.height;
+      if (entry.shape.video && !playing?.video) this.#markPlay(entry);
       return;
     }
     entry.sprite?.destroy();
     entry.sprite = undefined;
     const colors = this.#colors;
+    if (bare) {
+      // A video without a poster: a dark box, its play mark, and its name.
+      box.rect(rect.x, rect.y, rect.width, rect.height).fill(0x18181b).stroke({
+        color: colors.border,
+        width: 1,
+      });
+      if (!playing?.video) this.#markPlay(entry);
+      const size = Math.max(4, Math.min(14, rect.height / 6, rect.width / 10));
+      const label = new Text({
+        text: name,
+        x: rect.x + size * 0.6,
+        y: rect.y + size * 0.5,
+        style: {
+          fontFamily: 'Roboto, sans-serif',
+          fontSize: size,
+          fill: 0xffffff,
+          wordWrap: true,
+          wordWrapWidth: Math.max(1, rect.width - size * 1.2),
+        },
+      });
+      label.tint = 0xe4e4e7;
+      entry.label = label;
+      node.addChild(label);
+      return;
+    }
     box.rect(rect.x, rect.y, rect.width, rect.height).fill(colors.box).stroke({
       color: colors.border,
       width: 1,
     });
+    if (entry.shape.video && !missing) this.#markPlay(entry);
     if (!missing) return;
     // A warning, and the picture's name, written as large as fits.
     const size = Math.max(4, Math.min(14, rect.height / 4, rect.width / 8));
@@ -411,6 +571,22 @@ export class PictureLayer {
     label.tint = colors.text;
     entry.label = label;
     node.addChild(label);
+  }
+
+  /** Whether a video's file is there to play, as far as is known before asking for it. */
+  #playable(shape: PictureShape): boolean {
+    return this.#files()?.holds?.(shape.media.hash) ?? true;
+  }
+
+  /** A video's play mark in its middle: a dark disc with a white triangle (`playMark`). */
+  #markPlay(entry: Entry): void {
+    if (!this.#playable(entry.shape)) return;
+    const mark = new Graphics();
+    const { disc, triangle } = playMark(entry.shape.rect);
+    mark.circle(disc.x, disc.y, disc.radius).fill({ color: 0x000000, alpha: 0.55 });
+    mark.poly(triangle).fill(0xffffff);
+    entry.mark = mark;
+    entry.node.addChild(mark);
   }
 
   #drop(entry: Entry): void {
@@ -455,6 +631,7 @@ function overlaps(a: Rect, b: Rect): boolean {
 export function browserPicturePlatform(): PicturePlatform {
   return {
     now: () => performance.now(),
+    play: playVideo,
     later: (ms, then) => {
       setTimeout(then, ms);
     },
@@ -476,6 +653,52 @@ export function browserPicturePlatform(): PicturePlatform {
       });
       const source = new ImageSource({ resource: bitmap, scaleMode: 'linear' });
       return { kind: 'still', texture: new Texture({ source }) };
+    },
+  };
+}
+
+/**
+ * Plays a video's file muted and in a loop from a `blob:` address (ADR 0098, stage 2), as a texture
+ * the layer updates each frame; the address goes when it stops.
+ */
+async function playVideo(bytes: Uint8Array, media: MediaRef): Promise<PlayingVideo> {
+  const address = URL.createObjectURL(
+    new Blob([bytes as Uint8Array<ArrayBuffer>], { type: MEDIA_TYPES[media.format] }),
+  );
+  const video = document.createElement('video');
+  video.muted = true;
+  video.loop = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.src = address;
+  const stop = () => {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    URL.revokeObjectURL(address);
+  };
+  try {
+    await video.play();
+  } catch (error) {
+    stop();
+    throw error;
+  }
+  const source = new VideoSource({
+    resource: video,
+    autoLoad: false,
+    autoPlay: false,
+    width: video.videoWidth || media.width,
+    height: video.videoHeight || media.height,
+    scaleMode: 'linear',
+  });
+  source.autoUpdate = false;
+  const texture = new Texture({ source });
+  return {
+    texture,
+    update: () => source.update(),
+    stop: () => {
+      stop();
+      texture.destroy(true);
     },
   };
 }

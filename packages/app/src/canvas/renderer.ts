@@ -141,6 +141,7 @@ import {
 } from './scene';
 import { PictureLayer, type PicturePlatform } from './pictures/layer';
 import type { MediaFiles } from './pictures/media';
+import { onToggleVideo, reportPlaying } from './pictures/playing';
 
 export { emphasize, type Emphasized } from './emphasize';
 import { meets } from './spatial';
@@ -775,6 +776,7 @@ export class CanvasRenderer {
   private readonly comparison: ComparisonLayer;
   /** Pictures (ADR 0098), under the notes and arrows and above the shapes and relations. */
   private readonly pictureLayer: PictureLayer;
+  private readonly stopTakingToggles: () => void;
   private media: MediaFiles | undefined;
 
   constructor(
@@ -801,9 +803,12 @@ export class CanvasRenderer {
     this.pictureLayer = new PictureLayer({
       files: () => this.media,
       requestRender: () => this.requestRender(),
+      onPlaying: (ids) => reportPlaying(this, ids),
       ...(options.picturePlatform ? { platform: options.picturePlatform } : {}),
       ...(options.reducedMotion ? { reducedMotion: options.reducedMotion } : {}),
     });
+    // The inspector's Play and Stop reach the video wherever a canvas shows it (ADR 0098).
+    this.stopTakingToggles = onToggleVideo((id) => this.pictureLayer.toggle(id));
     this.pictureLayer.setTheme(this.painter.theme.name === 'dark');
     this.comparison = new ComparisonLayer(
       bitmapMarkText,
@@ -1437,6 +1442,16 @@ export class CanvasRenderer {
     this.pictureLayer.reset();
     if (this.indexed) this.pictureLayer.setScene(picturesOf(this.indexed.scene));
     this.requestRender();
+  }
+
+  /** Plays a video, or stops it if it plays (ADR 0098, stage 2). */
+  toggleVideo(id: Id): void {
+    this.pictureLayer.toggle(id);
+  }
+
+  /** Plays exactly these videos, stopping the others: a step's hook (ADR 0098, stage 4). */
+  setPlayingVideos(ids: ReadonlySet<Id>): void {
+    this.pictureLayer.setPlaying(ids);
   }
 
   /** The picture under the pointer, which plays under reduced motion (ADR 0098). */
@@ -2107,7 +2122,9 @@ export class CanvasRenderer {
     }
     this.partLayer.destroy();
     this.solidLayer.destroy();
+    this.stopTakingToggles();
     this.pictureLayer.destroy();
+    reportPlaying(this, new Set());
     this.pictures.destroy();
     this.status = 'destroyed';
   }

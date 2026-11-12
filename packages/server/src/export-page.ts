@@ -15,7 +15,7 @@ import { realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   encodeBase64,
-  mediaNamedBy,
+  pageMediaOf,
   writeViewState,
   type MathFont,
   type ProjectSnapshot,
@@ -162,7 +162,16 @@ async function mediaOfPage(
 ): Promise<Record<string, string>> {
   const media: Record<string, string> = {};
   let missing = 0;
-  for (const hash of [...mediaNamedBy(project.views)].sort()) {
+  // A video's file only within 32 MiB; a larger one shows its poster (ADR 0098, stage 2).
+  const { hashes, videosLeftOut } = pageMediaOf(project.views);
+  if (videosLeftOut.length > 0) {
+    warnings.push(
+      videosLeftOut.length === 1
+        ? 'One video is past 32 MiB: the page shows its poster, and it does not play.'
+        : `${videosLeftOut.length} videos are past 32 MiB: the page shows their posters, and they do not play.`,
+    );
+  }
+  for (const hash of hashes) {
     const bytes = read === undefined ? undefined : await read(hash);
     if (bytes) media[hash] = encodeBase64(bytes);
     else missing += 1;

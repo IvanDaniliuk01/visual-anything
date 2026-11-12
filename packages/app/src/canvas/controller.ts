@@ -1135,6 +1135,10 @@ export class CanvasController {
         this.host.style.cursor = this.spaceHeld ? 'grab' : 'default';
         return;
       case 'press': {
+        // A click on a video plays it, or stops it, as well as selecting it (ADR 0098, stage 2).
+        if (gesture.hit.kind === 'picture' && gesture.hit.picture.video && !gesture.additive) {
+          this.renderer.toggleVideo(gesture.hit.picture.id);
+        }
         const items = selectablesOf(gesture.hit);
         // A click on one of several selected things selects it alone.
         if (

@@ -1,9 +1,17 @@
 /**
  * The media files an exported drawing shows (ADR 0098), read once each before it is written: a bitmap
  * as base64, an SVG as its cleaned markup, and a GIF as its first frame, written as a PNG, since a
- * drawing does not play. A file that cannot be had is left out, and the drawing shows a gray box.
+ * drawing does not play. A video is drawn as its poster (ADR 0098, stage 2), its own file never read.
+ * A file that cannot be had is left out, and the drawing shows a gray box.
  */
-import { composeGifFrames, encodeBase64, parseGif, picturesOf } from '@visual-anything/core';
+import {
+  composeGifFrames,
+  encodeBase64,
+  parseGif,
+  pictureStill,
+  picturesOf,
+} from '@visual-anything/core';
+import type { MediaRef } from '@visual-anything/schema';
 import type { ViewFile } from '@visual-anything/schema';
 import type { MediaFiles } from '../canvas/pictures/files';
 import { encodePng } from './png';
@@ -17,7 +25,12 @@ export async function exportedMediaOf(
   const media = new Map<string, ExportedMedia>();
   if (files === undefined) return media;
   const refs = new Map(
-    views.flatMap((view) => picturesOf(view).map((picture) => [picture.media.hash, picture.media])),
+    views.flatMap((view) =>
+      picturesOf(view)
+        .map(pictureStill)
+        .filter((ref): ref is MediaRef => ref !== undefined)
+        .map((ref) => [ref.hash, ref] as const),
+    ),
   );
   for (const [hash, ref] of refs) {
     const bytes = await files(hash);
@@ -38,7 +51,7 @@ export async function exportedMediaOf(
           width: document.width,
           height: document.height,
         });
-      } else {
+      } else if (ref.format === 'png' || ref.format === 'jpeg' || ref.format === 'webp') {
         media.set(hash, {
           kind: 'bitmap',
           format: ref.format,

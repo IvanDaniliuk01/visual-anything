@@ -392,7 +392,8 @@ function StackingIcon({ move }: { move: StackingMove }) {
 }
 
 /** The types Picture… offers to choose (ADR 0098). */
-export const PICTURE_ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg';
+export const PICTURE_ACCEPT =
+  'image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg,video/mp4,video/webm,.mp4,.m4v,.webm';
 
 /** Picture…: chooses image files to add as pictures, through a file input the button opens. */
 function PictureButton({
