@@ -136,6 +136,7 @@ import { relationTypesLegend, withRelationTypes } from './overlays/relationLegen
 import { ZoomExpansionContext, withoutZoomExpanded } from './overlays/useZoomExpansion';
 import { restackCommand, stackingActions, stackingShortcut, type StackingMove } from './stacking';
 import { appearanceShortcut } from './appearanceCopy';
+import { resetAction, resetDone, type ResetHow } from './routing/resets';
 import { copyAppearanceOf, pasteAppearanceOnto } from './useAppearanceCopy';
 
 /**
@@ -566,6 +567,30 @@ export function CanvasArea({
   const addRowFromCanvas = useEffectEvent((container: ElementShape, below?: Id) => {
     void addRow(container, below);
   });
+  /**
+   * Reset routes, or Attach ends automatically, for the selected lines and the selected shapes'
+   * lines, as one action, and says what it did, or why it did nothing (ADR 0092 §1).
+   */
+  const resetRoutes = (how: ResetHow) => {
+    if (!editable) {
+      announce(t('The project cannot be changed now.'));
+      return;
+    }
+    const action = resetAction(project, view.id, drawn, selection, how);
+    if ('reason' in action) {
+      announce(action.reason);
+      return;
+    }
+    void send(action.command).then((result) => {
+      if (result.ok) announce(resetDone(how, action.count));
+    });
+  };
+  const resetRoutesFromKeys = useEffectEvent(() => resetRoutes('routes'));
+  // Alt+Shift+L presses Layout, or says why it cannot lay out (ADR 0092 §1).
+  const layOutFromKeys = useEffectEvent(() => {
+    if (layout.control.enabled) layout.control.run();
+    else announce(layout.control.title);
+  });
 
   useEffect(() => {
     const host = hostRef.current;
@@ -635,6 +660,8 @@ export function CanvasArea({
           shareHover(key);
         },
         turning: (turned) => turningChanged(turned),
+        resetRoutes: () => resetRoutesFromKeys(),
+        layOut: () => layOutFromKeys(),
       },
       // The canvas starts in the theme shown now, and follows it from then on.
       {
@@ -814,6 +841,13 @@ export function CanvasArea({
     menu && indexed && alignableCount(indexed, project, view.id, selection) >= 2
       ? alignActions(indexed, project, view.id, selection, editable)
       : undefined;
+  // Reset routes and Attach ends automatically, for the selected shapes' lines (ADR 0092 §1).
+  const menuLines: Readonly<Record<ResetHow, boolean>> | undefined = menu
+    ? {
+        routes: 'command' in resetAction(project, view.id, drawn, selection, 'routes'),
+        ends: 'command' in resetAction(project, view.id, drawn, selection, 'ends'),
+      }
+    : undefined;
   // The target set from a menu ends once the selection changes.
   const target = addTarget && addTarget.selection === selection ? addTarget.element : undefined;
   const adding = useMemo(
@@ -1598,6 +1632,16 @@ export function CanvasArea({
                   // One that would change nothing says why, and leaves the menu open for another.
                   if (menuAlign[how].enabled) closeMenu();
                   align(how);
+                },
+              }
+            : {})}
+          {...(menuLines
+            ? {
+                lines: menuLines,
+                onResetLines: (how: ResetHow) => {
+                  // One that would change nothing says why, and leaves the menu open for another.
+                  if (menuLines[how]) closeMenu();
+                  resetRoutes(how);
                 },
               }
             : {})}

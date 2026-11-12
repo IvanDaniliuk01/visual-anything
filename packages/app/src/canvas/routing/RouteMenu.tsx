@@ -1,4 +1,5 @@
 import {
+  attachEndsCommand,
   modelIndexOf,
   relationLabel,
   type Command,
@@ -80,6 +81,12 @@ export function RouteMenu({
   );
   const [automatic] = automaticStyles;
   const anyByHand = view !== undefined && ids.some((id) => routedByHand(view, id));
+  // Attach ends automatically, for several lines, or one attached by hand at both ends (ADR 0092 §1).
+  const attachEnds =
+    one === undefined ||
+    (line !== undefined && attachedByHand(line, 'from') && attachedByHand(line, 'to'))
+      ? attachEndsCommand(project, viewId, ids)
+      : undefined;
   const title =
     one !== undefined
       ? relationLabel(index, one)
@@ -151,6 +158,7 @@ export function RouteMenu({
         role="menuitem"
         tabIndex={-1}
         title={readOnly ? notEditable : anyByHand ? undefined : t('It is routed automatically')}
+        aria-keyshortcuts="Alt+Shift+R"
         aria-disabled={readOnly || !anyByHand ? true : undefined}
         onClick={anyByHand ? press(() => resetCommand(project, viewId, ids)) : undefined}
       >
@@ -159,6 +167,18 @@ export function RouteMenu({
           <span className="canvas-menu-hint"> · {t('It is routed automatically')}</span>
         )}
       </button>
+      {attachEnds && (
+        <button
+          type="button"
+          role="menuitem"
+          tabIndex={-1}
+          title={readOnly ? notEditable : undefined}
+          aria-disabled={readOnly ? true : undefined}
+          onClick={press(() => attachEnds)}
+        >
+          {t('Attach ends automatically')}
+        </button>
+      )}
       {one !== undefined && line && attachedByHand(line, 'from') && (
         <button
           type="button"

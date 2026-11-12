@@ -104,6 +104,7 @@ export function RouteSection({ relation }: { relation: Id }) {
             type="button"
             className="inspector-action"
             disabled={disabled || !byHand}
+            aria-keyshortcuts="Alt+Shift+R"
             title={byHand ? undefined : t('It is routed automatically')}
             onClick={() => perform(resetCommand(project, viewId, [relation]))}
           >

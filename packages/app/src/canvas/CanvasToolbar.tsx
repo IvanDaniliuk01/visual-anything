@@ -195,6 +195,7 @@ export function CanvasToolbar({
           group="layout"
           type="button"
           title={layout.title}
+          aria-keyshortcuts="Alt+Shift+L"
           aria-disabled={layout.enabled ? undefined : true}
           aria-busy={layout.busy ? true : undefined}
           onClick={layout.run}

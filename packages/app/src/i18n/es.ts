@@ -1501,6 +1501,46 @@ export const ui: Catalog = {
   'Apply every change, as one action': 'Aplicar todos los cambios, como una sola acción',
   'Escape, editing a route': 'Esc, al editar una ruta',
   'Cancel, and leave the route as it was': 'Cancelar y dejar la ruta como estaba',
+  // Getting back to automatic routes, from the keys (ADR 0092 §1).
+  'Alt+Shift+R (⌥⇧R on macOS)': 'Alt+Mayús+R (⌥⇧R en macOS)',
+  'Reset the routes of the selected lines and of the lines of the selected shapes, so that they are routed automatically again':
+    'Restablecer las rutas de las líneas seleccionadas y de las líneas de las formas seleccionadas, para que se tracen automáticamente de nuevo',
+  'Ctrl+Shift+E (⌘⇧E on macOS)': 'Ctrl+Mayús+E (⌘⇧E en macOS)',
+  'Select the lines of the selected shapes, or every line when nothing is selected; a box dragged around lines selects them too':
+    'Seleccionar las líneas de las formas seleccionadas, o todas las líneas cuando no hay nada seleccionado; un recuadro arrastrado alrededor de líneas también las selecciona',
+  'Alt+Shift+L (⌥⇧L on macOS)': 'Alt+Mayús+L (⌥⇧L en macOS)',
+  'Lay out, as Layout in the toolbar does':
+    'Organizar, como lo hace Organizar en la barra de herramientas',
+  'Reset routes': 'Restablecer las rutas',
+  'Attach ends automatically': 'Conectar los extremos automáticamente',
+  'Routes the selected lines, and the lines of the selected shapes, automatically again. Alt+Shift+R':
+    'Traza de nuevo automáticamente las líneas seleccionadas y las líneas de las formas seleccionadas. Alt+Mayús+R',
+  'Attaches the ends of those lines automatically again, and keeps their bend points.':
+    'Conecta de nuevo automáticamente los extremos de esas líneas, y conserva sus puntos de quiebre.',
+  'Select lines, or shapes, to reset their routes.':
+    'Seleccione líneas, o formas, para restablecer sus rutas.',
+  'Select lines, or shapes, to attach their ends automatically.':
+    'Seleccione líneas, o formas, para conectar sus extremos automáticamente.',
+  'The selection has no lines.': 'La selección no tiene líneas.',
+  'Each of these lines is routed automatically already.':
+    'Cada una de estas líneas ya se traza automáticamente.',
+  'Each end of these lines is attached automatically already.':
+    'Cada extremo de estas líneas ya se conecta automáticamente.',
+  'Reset {count} routes.': {
+    one: 'Se restableció 1 ruta.',
+    other: 'Se restablecieron {count} rutas.',
+  },
+  'Attached the ends of {count} lines automatically.': {
+    one: 'Se conectaron automáticamente los extremos de 1 línea.',
+    other: 'Se conectaron automáticamente los extremos de {count} líneas.',
+  },
+  'This view draws no lines.': 'Esta vista no dibuja líneas.',
+  'The selected shapes have no lines.': 'Las formas seleccionadas no tienen líneas.',
+  '{count} routes chosen by hand in this view.': {
+    one: '1 ruta elegida a mano en esta vista.',
+    other: '{count} rutas elegidas a mano en esta vista.',
+  },
+  'Reset every route in this view': 'Restablecer todas las rutas de esta vista',
   // The side panels' keys, after the canvas's own (M3d).
   'Alt+Shift+M (⌥⇧M on macOS)': 'Alt+Mayús+M (⌥⇧M en macOS)',
   'Collapse the model panel, or open it again; these keys work wherever the focus is, except while typing':
@@ -4548,6 +4588,10 @@ export const messages: Catalog = {
   'Reset the route of "{relation}" in "{view}"': 'Restablecer la ruta de "{relation}" en "{view}"',
   'Reset 1 route in "{view}"': 'Restablecer 1 ruta en "{view}"',
   'Reset {n} routes in "{view}"': 'Restablecer {n} rutas en "{view}"',
+  'Attach the ends of "{relation}" automatically in "{view}"':
+    'Conectar automáticamente los extremos de "{relation}" en "{view}"',
+  'Attach the ends of {n} lines automatically in "{view}"':
+    'Conectar automáticamente los extremos de {n} líneas en "{view}"',
   'Draw "{relation}" curved in "{view}"': 'Dibujar "{relation}" curva en "{view}"',
   'Draw "{relation}" straight in "{view}"': 'Dibujar "{relation}" recta en "{view}"',
   'Draw "{relation}" orthogonal in "{view}"': 'Dibujar "{relation}" ortogonal en "{view}"',

@@ -24,6 +24,7 @@ import type { ColorTrait } from './colors';
 import { ColorControl, SelectControl } from './controls';
 import { FormatPanel } from './FormatPanel';
 import { selectionColorCommand, selectionColors } from './recolor';
+import { LinesArrange } from './LinesArrange';
 import { ShapeArrange } from './ShapeArrange';
 import { StyleTraitInput } from './StyleTraitInput';
 import { SelectionTextTraits } from './TextSection';
@@ -323,6 +324,7 @@ function SelectionArrange() {
   return (
     <>
       <ShapeArrange elements={[...selection.elements]} />
+      <LinesArrange selection={selection} />
       <div role="group" aria-label={t('Stacking order')} className="inspector-buttons">
         {STACKING_MOVES.map((move) => (
           <button

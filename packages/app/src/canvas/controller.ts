@@ -41,6 +41,7 @@ import {
 } from '../editor/selection';
 import type { Emphasis } from '../editor/emphasis';
 import { IS_APPLE } from '../live/platform';
+import { letterOf } from '../live/shortcuts';
 import { describeRelation, describeSelection, nameOfEnd } from './announce';
 import {
   panBy,
@@ -93,6 +94,7 @@ import {
   type RendererOptions,
 } from './renderer';
 import { RouteEditor } from './routing/editor';
+import { linesOf, linesWithin } from './routing/resets';
 import { sameSlot } from './rowDrop';
 import { rowMoveFor, rowTargetFor } from './rowKeys';
 import { headerMiddle } from './rows';
@@ -179,6 +181,13 @@ export interface ControllerCallbacks {
    * when it leaves it or a gesture starts.
    */
   hoverShape?(key: string | undefined, by: 'pointer' | 'keyboard'): void;
+  /**
+   * Asks to reset the routes of the selected lines and of the selected shapes' lines, as Alt+Shift+R
+   * does (ADR 0092 §1); the canvas area sends it and says what it did, or why it did nothing.
+   */
+  resetRoutes?(): void;
+  /** Asks to lay out, as Alt+Shift+L does, which the toolbar's Layout does too (ADR 0092 §1). */
+  layOut?(): void;
 }
 
 /**
@@ -1172,8 +1181,11 @@ export class CanvasController {
           box,
           this.renderer.hiddenByEmphasis,
         );
+        // The lines wholly inside the box come with the shapes (ADR 0092 §1).
+        const lines = linesWithin(indexed, box, this.renderer.hiddenByEmphasis);
         const found = selectionOf([
           ...shapes.map((shape): Selectable => ({ kind: 'element', id: shape.element })),
+          ...lines.map((id): Selectable => ({ kind: 'relation', id })),
           ...notes.map((note): Selectable => ({ kind: 'free-shape', id: note.id })),
           ...pictures.map((picture): Selectable => ({ kind: 'free-shape', id: picture.id })),
           ...arrows.map((arrow): Selectable => ({ kind: 'free-shape', id: arrow.id })),
@@ -1295,6 +1307,7 @@ export class CanvasController {
       }
       return;
     }
+    if (this.routeKeys(event)) return;
     if (this.toggleGrid(event)) return;
     if (
       event.key === 'ContextMenu' ||
@@ -2355,6 +2368,57 @@ export class CanvasController {
     if (!at) return;
     marks.across.style.transform = `translateX(${Math.round(at.x)}px)`;
     marks.down.style.transform = `translateY(${Math.round(at.y)}px)`;
+  }
+
+  /**
+   * The keys that get back to automatic routes (ADR 0092 §1): Alt+Shift+R resets the routes of the
+   * selected lines and of the selected shapes' lines, Alt+Shift+L lays out, and Ctrl+Shift+E (⌘⇧E)
+   * selects the lines of the selected shapes, or every line. Read by the key's place too, since ⌥
+   * types other letters on Apple keyboards. Says whether a key was one of them.
+   */
+  private routeKeys(event: KeyboardEvent): boolean {
+    if (event.getModifierState('AltGraph') || !event.shiftKey) return false;
+    const command = event.ctrlKey || event.metaKey;
+    const letter = letterOf(event);
+    const idle = this.gesture.kind === 'idle';
+    if (event.altKey && !command && (letter === 'r' || letter === 'l')) {
+      event.preventDefault();
+      if (!idle) return true;
+      if (letter === 'r') this.callbacks.resetRoutes?.();
+      else this.callbacks.layOut?.();
+      return true;
+    }
+    if (command && !event.altKey && letter === 'e') {
+      // Taken from the browser, which in Firefox would open its Network Monitor.
+      event.preventDefault();
+      if (idle) this.selectLines();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Selects the lines of the selected shapes, or every line the canvas draws when no shape is
+   * selected, as Ctrl+Shift+E does; what the emphasis hides is left out.
+   */
+  private selectLines(): void {
+    const scene = this.indexed?.scene;
+    if (!scene) return;
+    const elements = this.selection.elements;
+    const relations = linesOf(
+      scene,
+      elements.size === 0 ? undefined : elements,
+      this.renderer.hiddenByEmphasis,
+    );
+    if (relations.length === 0) {
+      this.announce(
+        elements.size === 0
+          ? t('This view draws no lines.')
+          : t('The selected shapes have no lines.'),
+      );
+      return;
+    }
+    this.choose(selectionOf(relations.map((id): Selectable => ({ kind: 'relation', id }))));
   }
 
   /** Shift+G and Shift+R show or hide the grid and the rulers; says whether a key was one of them. */

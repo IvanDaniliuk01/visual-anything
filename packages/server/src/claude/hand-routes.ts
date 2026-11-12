@@ -2,9 +2,9 @@
  * The relations a view routes by hand, as Claude's tools name them (M3d, "Fixes from use"). A route
  * by hand is drawn by the person, or set with `set_route`, and kept in the view's `routes`; layout and
  * moves never write one (ADR 0039). Its bend points follow its ends: all of them when both ends move
- * together, only those next to an end that moves alone (ADR 0039's clarification of 2026-10-30), so
- * after `set_positions` that moves ends apart, or once a route style draws them curved, a route by
- * hand can still run far from its ends. These answers let Claude see that and send them back to
+ * together, and stretched with the box the ends span when they move apart (ADR 0092 §5), so after
+ * `set_positions` that moves ends apart, or once a route style draws them curved, a route by hand
+ * keeps its shape stretched, which may no longer read well. These answers let Claude see that and send them back to
  * automatic routes with `reset_route`.
  */
 import { modelIndexOf, relationLabel, type ProjectSnapshot } from '@visual-anything/core';
@@ -25,7 +25,7 @@ export const MAX_HAND_ROUTES_NAMED = 100;
 
 /** What read_view says about them. */
 export const ROUTED_BY_HAND_NOTE =
-  'These relations keep a route chosen by hand in this view, by the person or with set_route: layout and moves never replace it, and its bend points follow its ends, all of them when both ends move together and only those next to an end that moves alone, so a route whose ends moved apart can run far from them. When one runs where it should not, or was not meant, reset_route sends it back to the automatic route; ask the person first when they drew it.';
+  'These relations keep a route chosen by hand in this view, by the person or with set_route: layout and moves never replace it, and its bend points follow its ends, all of them when both ends move together, and stretched with the box its ends span when they move apart, so a route keeps its shape, stretched or squeezed. When one runs where it should not, or was not meant, reset_route sends it back to the automatic route; ask the person first when they drew it.';
 
 /** The view's relations routed by hand, in the order its file keeps them. */
 export function routedByHand(state: ProjectSnapshot, view: ViewFile): RoutedByHand[] {
@@ -106,8 +106,8 @@ export function handRoutesOn(state: ProjectSnapshot, element: Id): { relation: I
 /**
  * The relations routed by hand through bend points, in a view, whose ends a move of `moved` took
  * elsewhere other than together: the core carries the bend points with both ends when they move
- * together, and otherwise only those next to an end that moved (ADR 0039's clarification of
- * 2026-10-30), so the others stay where they were and the line may run far from its ends.
+ * together, and otherwise stretches them with the box the ends span (ADR 0092 §5), so the line keeps
+ * its shape stretched or squeezed, which may no longer be what the person meant.
  */
 export function routesNotFollowing(
   before: ProjectSnapshot,
@@ -157,7 +157,7 @@ function carriedWhole(
 
 /** What set_positions says about such routes. */
 export const NOT_FOLLOWING_NOTE =
-  'These relations are routed by hand in this view through bend points of their own, and you moved their ends, but not together: the bend points next to an end you moved followed it, and the others stayed where they were, so a line may still run far from its ends. Unless the person drew them so on purpose, call reset_route for them, and the lines take automatic routes between their ends.';
+  'These relations are routed by hand in this view through bend points of their own, and you moved their ends, but not together: their bend points stretched with the box their ends span, so each line keeps its shape, stretched or squeezed, which may no longer read well. Unless the person drew them so on purpose, call reset_route for them, and the lines take automatic routes between their ends.';
 
 /**
  * The relations routed by hand through bend points in a view that take its automatic style, having

@@ -16,6 +16,7 @@ import { putInsideCommand, putInsideTarget, takeOutCommand } from './drop';
 import { menuKeyDown, useMenuInsideFrame, useOutsidePress } from './focus';
 import type { Point } from './geometry';
 import type { IndexedScene } from './hit';
+import type { ResetHow } from './routing/resets';
 import type { ElementShape } from './scene';
 import { scopeActions, type ScopeAction, type ScopeActions } from './scopeActions';
 import { describeDestination, elementDestinations } from '../destinations/follow';
@@ -85,6 +86,13 @@ export interface ShapeMenuProps {
   align?: Readonly<Record<AlignHow, AlignAction>>;
   onAlign?: (how: AlignHow) => void;
   /**
+   * Reset routes and Attach ends automatically, for the selected lines and the selected shapes'
+   * lines (ADR 0092 §1): whether each would change something, and what pressing one does, which says
+   * why when it would not. Absent, the menu offers neither.
+   */
+  lines?: Readonly<Record<ResetHow, boolean>>;
+  onResetLines?: (how: ResetHow) => void;
+  /**
    * For a shape whose solid can be turned (ADR 0075): whether it turns now, and how many animations
    * Play offers while it does, none under reduced motion; and what Turn, Stop turning, Use this view,
    * Play and Pause do.
@@ -146,6 +154,8 @@ export function ShapeMenu({
   onFollow,
   align,
   onAlign,
+  lines,
+  onResetLines,
   solid,
   onTurn,
   onEndTurning,
@@ -366,6 +376,29 @@ export function ShapeMenu({
             ))}
           </Fragment>
         ))}
+      {lines && onResetLines && (
+        <>
+          <div role="separator" className="canvas-menu-separator" />
+          <Item
+            label={t('Reset routes')}
+            title={t(
+              'Routes the selected lines, and the lines of the selected shapes, automatically again. Alt+Shift+R',
+            )}
+            disabled={!lines.routes}
+            readOnly={!editable}
+            onPress={() => onResetLines('routes')}
+          />
+          <Item
+            label={t('Attach ends automatically')}
+            title={t(
+              'Attaches the ends of those lines automatically again, and keeps their bend points.',
+            )}
+            disabled={!lines.ends}
+            readOnly={!editable}
+            onPress={() => onResetLines('ends')}
+          />
+        </>
+      )}
       {onCollapse && (collapse?.collapse || collapse?.expand) && (
         <>
           <div role="separator" className="canvas-menu-separator" />

@@ -127,13 +127,14 @@ describe('layout and moves store no route', () => {
     expect(Object.keys(laid ?? {})).toEqual(['order-fk']);
     expect(Object.keys(laid?.['order-fk'] ?? {})).toEqual(['bendPoints']);
     expect(laid?.['order-fk']?.bendPoints).toHaveLength(2);
-    // Claude moves the payments, the route's from end, alone: its first corner moves along its run
-    // to the second, which stays.
+    // Claude moves the payments, the route's from end, alone: the run into it keeps level with it,
+    // the run between the corners stretches with the ends and stays upright, and the run into the
+    // other end keeps level with it (ADR 0092 §5).
     const moved = apply(project, claudesPositions([{ element: 'payments', x: 40, y: 900 }]));
     const [first, second] = routesOf(moved)?.['order-fk']?.bendPoints ?? [];
     const [wasFirst, wasSecond] = laid?.['order-fk']?.bendPoints ?? [];
-    expect(second).toEqual(wasSecond);
-    expect(first?.x).toBe(wasFirst?.x);
+    expect(first?.x).toBe(second?.x);
+    expect(second?.y).toBe(wasSecond?.y);
     expect(first?.y).not.toBe(wasFirst?.y);
     // A style changes nothing of it.
     const curved = apply(moved, {
