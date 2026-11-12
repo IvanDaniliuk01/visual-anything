@@ -16,13 +16,13 @@
 import type { MediaFormat, MediaRef } from '@visual-anything/schema';
 import type { ProblemCode } from '../problems';
 import { SOLID_PIECE_BYTES, readSolidPiece, type SolidPiece } from '../solids/messages';
-import { MEDIA_CAPS } from './clean';
+import { MEDIA_CAPS, MEDIA_FILE_BYTES } from './clean';
 
 /** The most bytes of a file one piece carries: 1 MiB, as for solids. */
 export const MEDIA_PIECE_BYTES = SOLID_PIECE_BYTES;
 
-/** The most pieces a file to keep comes in: 32, for 32 MiB. */
-export const MAX_MEDIA_PIECES = MEDIA_CAPS.bytes / MEDIA_PIECE_BYTES;
+/** The most pieces a file to keep comes in: 50, for a video's 50 MiB (ADR 0098, stage 2). */
+export const MAX_MEDIA_PIECES = MEDIA_FILE_BYTES / MEDIA_PIECE_BYTES;
 
 /** The most files one removal names. */
 export const MAX_MEDIA_FILES_REMOVED = 1024;
@@ -106,7 +106,7 @@ export interface MediaFilesListedMessage {
 type Read<T> = { ok: true; value: T } | { ok: false; reason: string };
 
 const HASH = /^[0-9a-f]{64}$/;
-const FORMATS: readonly string[] = ['png', 'jpeg', 'webp', 'gif', 'svg'];
+const FORMATS: readonly string[] = ['png', 'jpeg', 'webp', 'gif', 'svg', 'mp4', 'webm'];
 const MAX_REQUEST_ID = 128;
 
 function fail(reason: string): { ok: false; reason: string } {
@@ -148,7 +148,7 @@ export function readMediaRef(value: unknown): MediaRef | undefined {
     !FORMATS.includes(format) ||
     !isWhole(width, 1, MEDIA_CAPS.side) ||
     !isWhole(height, 1, MEDIA_CAPS.side) ||
-    !isWhole(bytes, 1, MEDIA_CAPS.bytes)
+    !isWhole(bytes, 1, MEDIA_FILE_BYTES)
   ) {
     return undefined;
   }
@@ -212,7 +212,7 @@ export function readMediaGet(message: Record<string, unknown>): Read<MediaGetMes
   return { ok: true, value: { type: 'media/get', requestId, hash: message.hash } };
 }
 
-/** Reads `media/piece`, from the program: a piece of a file of at most 32 MiB. */
+/** Reads `media/piece`, from the program: a piece of a file of at most 50 MiB. */
 export function readMediaPieceMessage(message: Record<string, unknown>): Read<MediaPieceMessage> {
   const requestId = requestIdOf(message);
   if (requestId === undefined) return fail('The answer has no valid request id.');

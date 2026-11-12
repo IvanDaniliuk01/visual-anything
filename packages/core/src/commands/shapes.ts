@@ -659,7 +659,7 @@ export const COMMAND_SHAPES: Shapes = {
         kind: 'object',
         required: true,
         meaning:
-          'The shape, with its kind: a note has x, y, width, height and text; an arrow from and to; a picture x, y, width, height, media and an optional name.',
+          'The shape, with its kind: a note has x, y, width, height and text; an arrow from and to; a picture x, y, width, height, media and an optional name, and a video, a picture whose media is an MP4 or a WebM, an optional poster.',
       },
     },
     example: {
@@ -709,11 +709,17 @@ export const COMMAND_SHAPES: Shapes = {
           from: { type: 'Point', kind: 'object', meaning: 'Where an arrow starts: { x, y }.' },
           to: { type: 'Point', kind: 'object', meaning: 'Where an arrow ends: { x, y }.' },
           media: { type: 'MediaRef', kind: 'object', meaning: 'The media file a picture shows.' },
+          poster: {
+            type: 'MediaRef | null',
+            kind: 'object',
+            nullable: true,
+            meaning: "A video's poster, a PNG, JPEG or WebP media file; null, none.",
+          },
           name: {
             type: 'string | null',
             kind: 'text',
             nullable: true,
-            meaning: 'What a picture is called; null, "Picture".',
+            meaning: 'What a picture is called; null, "Picture", or "Video" for a video.',
           },
         }),
       },
