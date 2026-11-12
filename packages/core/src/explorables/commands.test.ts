@@ -17,14 +17,25 @@ import {
 } from './index';
 import { definitionsIn } from '../state';
 
+/** The commands only the local program runs, for what it read or fetched. */
+const PROGRAM_ONLY: readonly string[] = ['record-explorable-file', 'define-script-library'];
+
 function run(state: ProjectSnapshot, command: Command): Extract<CommandOutcome, { ok: true }> {
-  const outcome = executeCommand(state, command, { newId: sequentialIds(), author: 'claude' });
+  const outcome = executeCommand(state, command, {
+    newId: sequentialIds(),
+    author: 'claude',
+    ...(PROGRAM_ONLY.includes(command.type) ? { program: true as const } : {}),
+  });
   if (!outcome.ok) throw new Error(outcome.problems.map((each) => each.message).join(' '));
   return outcome;
 }
 
 function refusal(state: ProjectSnapshot, command: Command): string[] {
-  const outcome = executeCommand(state, command, { newId: sequentialIds(), author: 'user' });
+  const outcome = executeCommand(state, command, {
+    newId: sequentialIds(),
+    author: 'user',
+    ...(PROGRAM_ONLY.includes(command.type) ? { program: true as const } : {}),
+  });
   if (outcome.ok) throw new Error(`Accepted: ${outcome.label}`);
   return outcome.problems.map((each) => each.code);
 }
@@ -125,7 +136,6 @@ describe('defining and writing explorables', () => {
     const outcome = run(before, {
       type: 'record-explorable-file',
       id: 'test.quadratic',
-      hash: explorableTextHash(text),
       text,
     });
     expect(outcome.label).toBe('The file of "Quadratic" changed');
@@ -150,22 +160,59 @@ describe('defining and writing explorables', () => {
     ]);
   });
 
-  it('records a file past its cap by its hash alone, keeping no text', () => {
+  it('records a file past its cap by its text’s hash, keeping no text', () => {
     const before = withExplorable();
+    const big = 'é'.repeat(262_145);
     const outcome = run(before, {
       type: 'record-explorable-file',
       id: 'test.quadratic',
-      hash: 'b'.repeat(64),
+      text: big,
     });
     expect(explorableTextOf(outcome.state, 'test.quadratic')).toBeUndefined();
+    expect(explorablesIn(outcome.state).explorable('test.quadratic')?.definition.hash).toBe(
+      explorableTextHash(big),
+    );
+    // No sender names a hash: one given beside the text is refused, and none goes without a text.
+    expect(
+      refusal(before, {
+        type: 'record-explorable-file',
+        id: 'test.quadratic',
+        text: 'x',
+        hash: explorableTextHash(PAGE),
+      } as Command),
+    ).toEqual(['invalid-command']);
     expect(
       refusal(before, {
         type: 'record-explorable-file',
         id: 'test.quadratic',
         hash: 'b'.repeat(64),
-        text: 'not that',
-      }),
-    ).toEqual(['invalid-explorable']);
+      } as unknown as Command),
+    ).toContain('invalid-command');
+  });
+
+  it('takes the program’s own commands only from the program, never from an app, Claude or a batch', () => {
+    const before = withExplorable();
+    const own: Command[] = [
+      { type: 'record-explorable-file', id: 'test.quadratic', text: '<p>forged</p>' },
+      { type: 'define-script-library', package: 'test', library: library('test.plot') },
+    ];
+    for (const command of own) {
+      for (const context of [{ author: 'user' as const }, { author: 'claude' as const }, {}]) {
+        const outcome = executeCommand(before, command, { newId: sequentialIds(), ...context });
+        expect(outcome.ok ? [] : outcome.problems.map((each) => each.code)).toEqual([
+          'program-only',
+        ]);
+        const batched = executeCommand(before, { type: 'batch', commands: [command] } as Command, {
+          newId: sequentialIds(),
+          ...context,
+        });
+        expect(batched.ok).toBe(false);
+      }
+      expect(
+        executeCommand(before, command, { newId: sequentialIds(), author: 'user', program: true })
+          .ok,
+      ).toBe(true);
+    }
   });
 
   it('refuses a text past 512 KiB, a taken file, a bad parameter and the 65th explorable', () => {
@@ -534,7 +581,6 @@ describe('properties', () => {
       text.map((each): Command => ({
         type: 'record-explorable-file',
         id: 'test.quadratic',
-        hash: explorableTextHash(each),
         text: each,
       })),
       fc.constantFrom<Command>(
@@ -548,7 +594,11 @@ describe('properties', () => {
         let state = start;
         const inverses = [];
         for (const each of commands) {
-          const outcome = executeCommand(state, each, { newId: sequentialIds(), author: 'claude' });
+          const outcome = executeCommand(state, each, {
+            newId: sequentialIds(),
+            author: 'claude',
+            program: true,
+          });
           if (!outcome.ok) continue;
           inverses.push(outcome.inverse);
           state = outcome.state;

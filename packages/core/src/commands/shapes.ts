@@ -1409,19 +1409,14 @@ export const COMMAND_SHAPES: Shapes = {
       'Records an explorable’s file as changed outside the app; only the local program sends it.',
     fields: {
       id: ID_OF('The explorable.'),
-      hash: {
-        type: 'string',
-        kind: 'text',
-        required: true,
-        meaning: 'The SHA-256 of the file’s text.',
-      },
       text: {
         type: 'string',
         kind: 'text',
-        meaning: 'The file’s text; left out when it is past 512 KiB or not text.',
+        required: true,
+        meaning: 'The file’s text, whole; the core works out its hash.',
       },
     },
-    example: { type: 'record-explorable-file', id: 'math.quadratic', hash: 'ab'.repeat(32) },
+    example: { type: 'record-explorable-file', id: 'math.quadratic', text: '<p>y</p>' },
   },
   'update-explorable': {
     meaning: 'Changes an explorable’s name, description, script libraries or parameters.',

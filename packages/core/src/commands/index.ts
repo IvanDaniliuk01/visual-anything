@@ -86,6 +86,12 @@ export interface CommandContext {
   author?: Author;
   /** The time now, in milliseconds since 1970, which comments are dated with; the clock by default. */
   now?: () => number;
+  /**
+   * Present only when the local program runs a command of its own, for a file it read or fetched and
+   * checked (ADR 0107): `record-explorable-file` and `define-script-library` are refused without it.
+   * The program never sets it for a command that came from an app, Claude or package code.
+   */
+  program?: true;
 }
 
 /** What running a command produced. */
@@ -119,6 +125,7 @@ export function executeCommand(
   const draft = new Draft(state, context.newId ?? randomIds(), {
     ...(context.author === undefined ? {} : { author: context.author }),
     ...(context.now === undefined ? {} : { now: context.now }),
+    ...(context.program === true ? { program: true as const } : {}),
   });
   try {
     const label = run(draft, command);
@@ -173,6 +180,7 @@ export function executeOperations(
   const draft = new Draft(state, context.newId ?? randomIds(), {
     ...(context.author === undefined ? {} : { author: context.author }),
     ...(context.now === undefined ? {} : { now: context.now }),
+    ...(context.program === true ? { program: true as const } : {}),
   });
   try {
     for (const operation of operations) draft.apply(operation);

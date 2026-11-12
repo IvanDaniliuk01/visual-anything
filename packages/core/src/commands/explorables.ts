@@ -151,28 +151,32 @@ export function writeExplorable(draft: Draft, command: WriteExplorableCommand): 
 }
 
 export function recordExplorableFile(draft: Draft, command: RecordExplorableFileCommand): string {
+  programOnly(draft, 'record-explorable-file');
   const { definition, file } = ownExplorable(draft, command.id);
-  if (typeof command.hash !== 'string' || !HASH.test(command.hash)) {
-    invalid("A file's hash is its SHA-256, in 64 lowercase hexadecimal digits.");
-  }
-  const label = `The file of "${definition.name}" changed`;
-  if (command.text !== undefined) {
-    if (typeof command.text !== 'string') invalid("An explorable's text is text.");
-    if (explorableTextHash(command.text) !== command.hash) {
-      invalid('The text recorded is not the one its hash names.');
-    }
-  }
-  if (command.hash !== definition.hash)
-    replaceDefinition(draft, file, { ...definition, hash: command.hash });
+  if (typeof command.text !== 'string') invalid("An explorable's text is text.");
+  // The hash is always the text's own, worked out here: no sender names one.
+  const hash = explorableTextHash(command.text);
+  if (hash !== definition.hash) replaceDefinition(draft, file, { ...definition, hash });
   const kept = explorableTextOf(draft.state, definition.id);
   // A text past its cap is not kept: the explorable is warned about and never runs.
-  if (command.text === undefined || utf8Length(command.text) > MAX_EXPLORABLE_BYTES) {
-    if (kept)
+  if (utf8Length(command.text) > MAX_EXPLORABLE_BYTES) {
+    if (kept) {
       draft.apply({ op: 'remove', collection: { name: 'explorableTexts' }, key: definition.id });
+    }
   } else if (kept?.text !== command.text || kept.read !== true) {
     putText(draft, { id: definition.id, text: command.text, read: true });
   }
-  return label;
+  return `The file of "${definition.name}" changed`;
+}
+
+/** Refuses a command only the local program runs, for what it read or fetched, from anywhere else. */
+function programOnly(draft: Draft, type: string): void {
+  if (!draft.program) {
+    reject(
+      'program-only',
+      `Only Visual Anything itself runs ${type}, for a file it read or fetched and checked.`,
+    );
+  }
 }
 
 export function updateExplorable(draft: Draft, command: UpdateExplorableCommand): string {
@@ -482,6 +486,7 @@ function invalid(message: string): never {
 // ——— Script libraries ———
 
 export function defineScriptLibrary(draft: Draft, command: DefineScriptLibraryCommand): string {
+  programOnly(draft, 'define-script-library');
   const file = draft.ownPackage(command.package);
   const library = checkedLibrary(command.library);
   if (!library.id.startsWith(`${file.id}.`)) {

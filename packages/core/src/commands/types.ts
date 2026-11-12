@@ -1019,16 +1019,15 @@ export interface WriteExplorableCommand {
 
 /**
  * Records what an explorable's file holds now, as the local program read it after a change from
- * outside, "The file of … changed": its hash, and its text when it is within 512 KiB. Undoing or
- * redoing it never writes the file.
+ * outside, "The file of … changed": the core works its hash out from the text, and keeps the text
+ * when it is within 512 KiB. Only the local program runs it (`program` in the command's context).
+ * Undoing or redoing it never writes the file.
  */
 export interface RecordExplorableFileCommand {
   type: 'record-explorable-file';
   id: Id;
-  /** The SHA-256 of the file's text. */
-  hash: string;
-  /** The file's text; left out when it is past 512 KiB or not text. */
-  text?: string;
+  /** The file's text, whole, as the program read it. */
+  text: string;
 }
 
 /** Changes what an explorable says about itself, its script libraries and its parameters. */
@@ -1051,7 +1050,8 @@ export interface RemoveExplorableCommand {
 
 /**
  * Defines a script library, or replaces its version, in one of the project's own packages; only the
- * local program sends it, for a file it fetched, checked and keeps (ADR 0107).
+ * local program runs it (`program` in the command's context), for a file it fetched, checked and
+ * keeps (ADR 0107).
  */
 export interface DefineScriptLibraryCommand {
   type: 'define-script-library';

@@ -129,6 +129,8 @@ export type ProblemCode =
   | 'script-library-too-large'
   | 'script-library-file-missing'
   | 'script-library-license'
+  // A command only the local program runs, for what it read or fetched, sent from anywhere else.
+  | 'program-only'
   // Simulations (ADR 0085): what a component declares it simulates that cannot be one.
   | 'invalid-simulation'
   // Overlays (ADR 0055): one a view does not have, and a value outside what an overlay allows.
