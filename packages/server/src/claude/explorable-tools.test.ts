@@ -422,7 +422,7 @@ describe('request_script_library', () => {
 });
 
 describe('capture_explorable', () => {
-  it('answers that one not approved does not run, and that the app takes no stills yet', async () => {
+  it('answers that one not approved does not run, and that no app is open to take its still', async () => {
     const tools = await harness(withExplorable());
     expect(await tools.failure('capture_explorable', { explorable: 'shop.quadratic' })).toMatch(
       /^"Quadratic" is not approved, so it does not run and has no still: .*Only the person can approve it/,
@@ -438,7 +438,7 @@ describe('capture_explorable', () => {
         parameters: { a: -1 },
         width: 1024,
       }),
-    ).toMatch(/^The app takes no stills of explorables for you yet/);
+    ).toMatch(/^No app has the project open, so there is no still/);
     expect(await again.failure('capture_explorable', { explorable: 'shop.nothing' })).toBe(
       'No package in use defines the explorable "shop.nothing". list_explorables lists them.',
     );

@@ -70,6 +70,7 @@ import { MAX_SOLID_PATH } from '../solids/project-file';
 import { MAX_PICTURE_PATH } from '../media/project-file';
 import type { LiveAttributeCount, LiveListing, LiveSummary } from '../live';
 import type { ExplorableParameterValue, Id } from '@visual-anything/schema';
+import type { ExplorableCaptureAsk, ExplorableCaptureReport } from '@visual-anything/core';
 
 /** The path of the Claude endpoint. */
 export const CLAUDE_PATH = '/claude';
@@ -209,40 +210,13 @@ export type ClaudeMessage =
    */
   | { type: 'explorable/capture'; requestId: string; ask: ExplorableCaptureAsk };
 
-/** What Claude asks a still of an explorable for (ADR 0107). */
-export interface ExplorableCaptureAsk {
-  explorable: Id;
-  /** The element whose data it reads, as an element that shows it gives its own; none when left out. */
-  element?: Id;
-  /** The values of its parameters, by name; those left out take their defaults. */
-  parameters?: Record<string, ExplorableParameterValue>;
-  /** The still's width, in pixels: one of the still buckets, 256, 512 or 1,024. */
-  width: number;
-  /** The theme it is drawn in; the tab's when left out. */
-  theme?: 'light' | 'dark';
-}
-
-/**
- * What came of a still Claude asked for (ADR 0107): how many open apps were asked; the still the
- * explorable drew of itself, as a PNG in base64, and its console errors; or why there is none: the
- * app could not draw it (`failure`), or no app answered (`unanswered`), `unsupported` when the app
- * takes no stills of explorables for Claude.
- */
-export interface ExplorableCaptureReport {
-  apps: number;
-  still?: { png: string; width: number; height: number };
-  /** Its console errors, oldest first: at most 50, each at most 2,000 characters. */
-  errors?: string[];
-  /** Whether it said `va.ready()` before its still was taken. */
-  ready?: boolean;
-  failure?: { reason: ExplorableCaptureFailure; message?: string };
-  unanswered?: 'passed' | 'timed-out' | 'gone' | 'unsupported';
-  /** How long the program waited, in milliseconds. */
-  waited?: number;
-}
-
-/** Why an app could not draw a still: not approved, stopped by its watchdog, or failed. */
-export type ExplorableCaptureFailure = 'not-approved' | 'stopped' | 'failed';
+// What Claude asks a still of an explorable for, and what came of it (ADR 0107): the live
+// protocol's own types, since the program passes the ask to the apps and their answer back as it is.
+export type {
+  ExplorableCaptureAsk,
+  ExplorableCaptureFailure,
+  ExplorableCaptureReport,
+} from '@visual-anything/core';
 
 /** Who sends live values through this endpoint. */
 export type LiveSenderKind = 'claude' | 'command-line';

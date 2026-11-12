@@ -150,6 +150,12 @@ import {
   type ScriptLibraryFilesListedMessage,
   type ScriptLibraryFilesRemoveMessage,
 } from './explorables/protocol-messages';
+import {
+  readExplorableCaptureAnswer,
+  readExplorableCaptureRequest,
+  type ExplorableCaptureAnswerMessage,
+  type ExplorableCaptureRequestMessage,
+} from './explorables/capture-messages';
 import { readSpaceCamera } from './space/camera';
 // A type only: view-state.ts imports this module, and the app checks the view state it is shown.
 import type { ViewState } from './view-state';
@@ -229,8 +235,12 @@ import type { ViewState } from './view-state';
  * 15: the files of `script-libraries/` that no package names (ADR 0107, A10.2):
  *    `script-library-files/list` and `script-library-files/remove` from an app, answered with
  *    `script-library-files/listed` or `script-library/refused`, as solid and media files are.
+ * 16: a still of an explorable for Claude (ADR 0107, A10.3), `explorable-capture/request` from the
+ *    program, answered by the tab the person used last with `explorable-capture/answer`: the still
+ *    the explorable drew of itself in the app's hidden frame, its console errors and whether it said
+ *    `va.ready()`, or why it took none; the other tabs pass it over, as a picture of a view (ADR 0081).
  */
-export const PROTOCOL_VERSION = 15;
+export const PROTOCOL_VERSION = 16;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';
@@ -315,7 +325,9 @@ export type ServerMessage =
   | ScriptLibraryConsentMessage
   | ScriptLibraryKeptMessage
   | ScriptLibraryRefusedMessage
-  | ScriptLibraryFilesListedMessage;
+  | ScriptLibraryFilesListedMessage
+  // A still of an explorable for Claude (ADR 0107, A10.3).
+  | ExplorableCaptureRequestMessage;
 
 /**
  * Sent to every app when Claude, or the command line, asks to open the app while a tab is connected
@@ -1103,6 +1115,8 @@ export type AppMessage =
   | ScriptLibraryConsentedMessage
   | ScriptLibraryFilesListMessage
   | ScriptLibraryFilesRemoveMessage
+  // A still of an explorable for Claude (ADR 0107, A10.3).
+  | ExplorableCaptureAnswerMessage
   | LinkFetchMessage
   | PackageReadMessage
   | ClaudeSetupMessage;
@@ -1262,6 +1276,8 @@ const SERVER_TYPES = new Set<string>([
   'script-library/kept',
   'script-library/refused',
   'script-library-files/listed',
+  // A still of an explorable for Claude (ADR 0107, A10.3).
+  'explorable-capture/request',
 ]);
 
 /**
@@ -1381,6 +1397,9 @@ export function decodeServerMessage(text: string): ServerMessage {
       return readSolidMessage(readScriptLibraryRefused(message));
     case 'script-library-files/listed':
       return readSolidMessage(readScriptLibraryFilesListed(message));
+    // A still of an explorable for Claude (ADR 0107, A10.3).
+    case 'explorable-capture/request':
+      return readSolidMessage(readExplorableCaptureRequest(message));
     case 'link/fetched':
       return readSolidMessage(readLinkFetched(message));
     case 'link/refused':
@@ -1522,6 +1541,9 @@ export function decodeAppMessage(text: string): AppMessage {
       return readSolidMessage(readScriptLibraryFilesList(message));
     case 'script-library-files/remove':
       return readSolidMessage(readScriptLibraryFilesRemove(message));
+    // A still of an explorable for Claude (ADR 0107, A10.3).
+    case 'explorable-capture/answer':
+      return readSolidMessage(readExplorableCaptureAnswer(message));
     case 'link/fetch':
       return readSolidMessage(readLinkFetch(message));
     case 'package/read':
