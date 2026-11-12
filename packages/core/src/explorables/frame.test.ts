@@ -339,9 +339,60 @@ describe('the frame builder', () => {
       expect(seen.metas.filter((meta) => NEUTRAL_HTTP_EQUIV in meta)).toHaveLength(2);
     });
 
-    it('leaves a script inside SVG unhashed, so it does not run', () => {
-      const { allowed } = smuggled('<svg><script>svg()</script></svg>');
-      expect(allowed.has(`'${cspHash('svg()')}'`)).toBe(false);
+    it('hashes a script or style inside SVG only when its text reads as written', () => {
+      const { allowed, seen } = smuggled(
+        '<svg><script>svg()</script><style>rect{fill:red}</style>' +
+          '<script>a &amp;&amp; b()</script><style>x<!---->y</style></svg>' +
+          '<math><script>math()</script><style>m{}</style></math>',
+      );
+      const svg = 'http://www.w3.org/2000/svg';
+      expect(
+        seen.scripts.filter((each) => each.namespace === svg).map((each) => each.text),
+      ).toEqual(['svg()', 'a && b()']);
+      expect(allowed.has(`'${cspHash('svg()')}'`)).toBe(true);
+      expect(allowed.has(`'${cspHash('rect{fill:red}')}'`)).toBe(true);
+      for (const code of ['a && b()', 'a &amp;&amp; b()', 'xy', 'math()', 'm{}']) {
+        expect(allowed.has(`'${cspHash(code)}'`)).toBe(false);
+      }
+    });
+
+    it('renames http-equiv wherever it stands, so no reading of the page leaves a meta that acts', () => {
+      const tricky = [
+        '<math><mi><style><meta http-equiv=refresh content=0></style></mi></math>',
+        '<svg><mi><style></svg><meta http-equiv=refresh content=0></style>',
+        '<math><title><style><meta http-equiv=refresh content=0></style></title></math>',
+        '<select><style></select><meta HTTP-EQUIV=refresh content=0></style>',
+        '<svg><![CDATA[<p>]]><meta http-equiv=refresh content=0>',
+        '<math><annotation-xml><svg><foreignObject><textarea></svg><meta Http-Equiv=x></textarea>',
+        '<script>document.head.innerHTML = "<meta http-equiv=refresh>";</script>',
+      ];
+      for (const text of tricky) {
+        const { frame, seen } = smuggled(text);
+        expect(seen.metas.every((meta) => !('http-equiv' in meta))).toBe(true);
+        expect(frame.html).not.toMatch(/(?<!data-va-)http-equiv/i);
+      }
+    });
+
+    it('reads a page in time linear in its length, whatever it repeats', () => {
+      const cap = 512 * 1024;
+      const fill = (unit: string) => unit.repeat(Math.floor(cap / unit.length));
+      for (const text of [
+        fill('<!--a-->'),
+        fill('<!---'),
+        fill('<!--a--!>'),
+        '<svg>' + fill('<g>').slice(0, cap / 2) + fill('</q>').slice(0, cap / 2 - 8),
+        '<svg>' + fill('<g></g>'),
+        fill('<script><!--<script>'),
+        '<style>' + fill('</'),
+        fill('<a x="'),
+        fill('</x'),
+        fill('<p '),
+        fill('<math><mi>'),
+      ]) {
+        const started = performance.now();
+        buildFrame(input(text.slice(0, cap)));
+        expect(performance.now() - started).toBeLessThan(2000);
+      }
     });
 
     it('reads the escaped states of a script as HTML does', () => {
@@ -436,12 +487,78 @@ describe('the frame builder', () => {
       );
     });
 
+    it('leaves no meta that acts, and the runtime whole, however SVG and MathML nest', () => {
+      const tangled = fc
+        .array(
+          fc.oneof(
+            piece,
+            fc.constantFrom(
+              '<svg>',
+              '<math>',
+              '</svg>',
+              '</math>',
+              '<foreignObject>',
+              '</foreignObject>',
+              '<desc>',
+              '<title>',
+              '</title>',
+              '<mi>',
+              '</mi>',
+              '<mtext>',
+              '<mglyph>',
+              '<annotation-xml>',
+              '<annotation-xml encoding="text/html">',
+              '</annotation-xml>',
+              '<g>',
+              '</g>',
+              '<p>',
+              '</p>',
+              '<br>',
+              '</br>',
+              '<font color=red>',
+              '<select>',
+              '</select>',
+              '<table>',
+              '<style>',
+              '</style>',
+              '<textarea>',
+              '</textarea>',
+              '<script>',
+              '</script>',
+              '<![CDATA[',
+              ']]>',
+              '<!--',
+              '-->',
+              '<meta http-equiv=refresh content=0>',
+              '<meta HTTP-equiv="Content-Security-Policy" content="img-src *">',
+            ),
+          ),
+          { maxLength: 16 },
+        )
+        .map((parts) => parts.join(''));
+      fc.assert(
+        fc.property(tangled, (text) => {
+          const frame = buildFrame(input(text, ['lib()']));
+          const seen = found(frame.html);
+          expect(seen.metas.every((meta) => !('http-equiv' in meta))).toBe(true);
+          expect(seen.scripts.slice(0, 2).map((each) => each.text)).toEqual([
+            'va.start();',
+            'lib()',
+          ]);
+        }),
+        { numRuns: 500 },
+      );
+    });
+
     it('writes a page without markup as it was written, but for line endings and NUL', () => {
       fc.assert(
         fc.property(fc.string({ maxLength: 200 }), (raw) => {
           const text = raw.replace(/</g, '');
           expect(explorablePage(text).html).toBe(
-            text.replace(/\r\n?/g, '\n').replace(/\0/g, '\uFFFD'),
+            text
+              .replace(/\r\n?/g, '\n')
+              .replace(/http-equiv/gi, NEUTRAL_HTTP_EQUIV)
+              .replace(/\0/g, '\uFFFD'),
           );
         }),
         { numRuns: 300 },

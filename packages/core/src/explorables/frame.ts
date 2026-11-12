@@ -17,10 +17,11 @@
  * tokenizer's own rules (comments, raw text, attributes with quoted `>`, a script's escaped states,
  * SVG and MathML) and hashes each `<script>` without `src` and each `<style>` it finds where HTML
  * reads one. Where it cannot be sure, it hashes nothing, and what the browser finds there does not
- * run: a mistake only ever stops the author's own code. The header policy is the line: it allows no
- * `'unsafe-inline'`, `'unsafe-hashes'` or `'unsafe-eval'`, so event-handler and `style` attributes and
- * `javascript:` addresses never run, and a `<meta http-equiv>` in the text, which could only narrow a
- * policy, is renamed `data-va-http-equiv` so that it does nothing at all.
+ * run: every hash is of the author's own text, so a mistake only ever stops the author's own code.
+ * The header policy is the line: it allows no `'unsafe-inline'`, `'unsafe-hashes'` or `'unsafe-eval'`,
+ * so event-handler and `style` attributes and `javascript:` addresses never run. And every
+ * `http-equiv` in the text, wherever it stands, is renamed `data-va-http-equiv`, so that no
+ * `<meta http-equiv>` refreshes the frame or does anything else, however the page is read.
  */
 import { sha256 } from '../code/hash';
 import { encodeBase64 } from '../images/base64';
@@ -178,44 +179,41 @@ export interface ExplorablePage {
 }
 
 /**
- * The explorable's text as the frame holds it: line feeds made LF, NUL escaped, every
- * `<meta http-equiv>` made inert; with the text of each inline script and style the HTML parser finds
- * where the builder is sure it does, in order.
+ * The explorable's text as the frame holds it: line feeds made LF, NUL escaped, every `http-equiv`
+ * renamed; with the text of each inline script and style the HTML parser finds where the builder is
+ * sure it does, in order.
+ *
+ * `http-equiv` is renamed wherever it stands, in any case, whatever the scan makes of where it
+ * stands: a `<meta>` the browser honors must spell that attribute's name out, so no reading of the
+ * page, right or wrong, leaves one that does anything. In a script it stays the same JavaScript.
  */
 export function explorablePage(text: string): ExplorablePage {
   const source = lineFeeds(text);
-  const { spans, renames } = scanPage(source);
-  const edits: (Span | { start: number; end: number; kind: 'rename' })[] = [
-    ...spans,
-    ...renames.map((range) => ({ ...range, kind: 'rename' as const })),
-  ].sort((a, b) => a.start - b.start);
+  const spans = scanPage(source);
   const out: string[] = [];
   const scripts: string[] = [];
   const styles: string[] = [];
   let at = 0;
-  for (const edit of edits) {
-    out.push(markup(source.slice(at, edit.start)));
-    const inside = source.slice(edit.start, edit.end);
-    if (edit.kind === 'rename') {
-      out.push(NEUTRAL_HTTP_EQUIV);
-    } else if (edit.kind === 'script') {
-      const written = inside.replace(/\0/g, '\\x00');
-      if (edit.hashed) scripts.push(written);
-      out.push(written);
-    } else {
-      const written = markup(inside);
-      if (edit.hashed) styles.push(written);
-      out.push(written);
-    }
-    at = edit.end;
+  for (const span of spans) {
+    out.push(markup(source.slice(at, span.start)));
+    const inside = inert(source.slice(span.start, span.end));
+    const written = span.kind === 'script' ? inside.replace(/\0/g, '\\x00') : markup(inside);
+    if (span.hashed) (span.kind === 'script' ? scripts : styles).push(written);
+    out.push(written);
+    at = span.end;
   }
   out.push(markup(source.slice(at)));
   return { html: out.join(''), scripts, styles };
 }
 
-/** Markup outside scripts, with NUL made U+FFFD as the parser makes it. */
+/** Markup outside scripts, with NUL made U+FFFD as the parser makes it, and `http-equiv` renamed. */
 function markup(text: string): string {
-  return text.replace(/\0/g, '�');
+  return inert(text).replace(/\0/g, '�');
+}
+
+/** A text with every `http-equiv`, in any case, renamed {@link NEUTRAL_HTTP_EQUIV}. */
+function inert(text: string): string {
+  return text.replace(/http-equiv/gi, NEUTRAL_HTTP_EQUIV);
 }
 
 /** The content of a script or a style, and whether the builder hashes it. */
@@ -226,8 +224,16 @@ interface Span {
   hashed: boolean;
 }
 
-/** Where the scan stands: in HTML, in SVG or MathML, or in HTML again inside one of them. */
-type Frame = { kind: 'foreign' } | { kind: 'html'; name: string };
+/**
+ * An element of SVG or MathML the scan holds open, with its namespace; an integration point is one
+ * whose contents HTML reads as HTML: SVG's `foreignObject`, `desc` and `title`, MathML's `mi`, `mo`,
+ * `mn`, `ms` and `mtext`, and MathML's `annotation-xml` that says it holds HTML.
+ */
+interface Foreign {
+  name: string;
+  namespace: 'svg' | 'math';
+  integration: boolean;
+}
 
 const RAW_TEXT: ReadonlySet<string> = new Set([
   'style',
@@ -246,21 +252,12 @@ const BREAKOUT: ReadonlySet<string> = new Set(
     'listing menu meta nobr ol p pre ruby s small span strong strike sub sup table tt u ul var'
   ).split(' '),
 );
-/** The elements of SVG and MathML whose contents HTML reads as HTML. */
-const INTEGRATION: ReadonlySet<string> = new Set([
-  'foreignobject',
-  'desc',
-  'title',
-  'mi',
-  'mo',
-  'mn',
-  'ms',
-  'mtext',
-]);
+const SVG_INTEGRATION: ReadonlySet<string> = new Set(['foreignobject', 'desc', 'title']);
+const MATH_TEXT_INTEGRATION: ReadonlySet<string> = new Set(['mi', 'mo', 'mn', 'ms', 'mtext']);
 
 interface Tag {
   name: string;
-  attributes: { name: string; start: number; end: number; value: string }[];
+  attributes: { name: string; value: string }[];
   selfClosing: boolean;
   /** Just past its `>`; the text's length when the text ends inside it. */
   end: number;
@@ -269,18 +266,31 @@ interface Tag {
 }
 
 /**
- * The scripts and styles HTML finds in a page, and every `http-equiv` attribute of a `<meta>`, by
- * the tokenizer's rules. Its text has LF line endings already; NUL never changes how HTML reads.
+ * The scripts and styles HTML finds in a page, by the tokenizer's rules and as much of the tree
+ * builder's as decides them: which elements hold raw text, and where SVG and MathML begin and end.
+ * Its text has LF line endings already; NUL never changes how HTML reads. Every step moves forward,
+ * and each character is looked at a bounded number of times, so the scan is linear.
  */
-function scanPage(source: string): {
-  spans: Span[];
-  renames: { start: number; end: number }[];
-} {
+function scanPage(source: string): Span[] {
   const spans: Span[] = [];
-  const renames: { start: number; end: number }[] = [];
-  const stack: Frame[] = [];
+  /** The SVG and MathML elements open, innermost last; HTML elements are not kept. */
+  const stack: Foreign[] = [];
+  /** How many of each name the stack holds, so that an end tag of none costs nothing. */
+  const open = new Map<string, number>();
+  const push = (frame: Foreign) => {
+    stack.push(frame);
+    open.set(frame.name, (open.get(frame.name) ?? 0) + 1);
+  };
+  const pop = () => {
+    const frame = stack.pop();
+    if (frame) open.set(frame.name, (open.get(frame.name) ?? 1) - 1);
+  };
   const length = source.length;
-  const foreign = () => stack.at(-1)?.kind === 'foreign';
+  /** Whether a start tag here is read as SVG or MathML rather than as HTML. */
+  const foreign = () => {
+    const top = stack.at(-1);
+    return top !== undefined && !top.integration;
+  };
   let i = 0;
   while (i < length) {
     const lt = source.indexOf('<', i);
@@ -288,7 +298,7 @@ function scanPage(source: string): {
     i = lt + 1;
     const next = source[i];
     if (next === '!') {
-      i = markupDeclaration(source, i + 1, foreign());
+      i = markupDeclaration(source, i + 1, stack.length > 0);
       continue;
     }
     if (next === '/') {
@@ -316,58 +326,43 @@ function scanPage(source: string): {
     if (!tag.complete) break;
     i = startTag(tag, i);
   }
-  return { spans, renames };
+  return spans;
 
   function endTag(name: string): void {
-    const top = stack.at(-1);
-    if (top === undefined) return;
-    if (top.kind === 'foreign') {
-      if (name === 'svg' || name === 'math') stack.pop();
-      else if (name === 'p' || name === 'br') popForeign();
-    } else if (top.name === name) {
-      stack.pop();
+    if (stack.length === 0) return;
+    if (name === 'p' || name === 'br') {
+      if (foreign()) popToHtml();
+      return;
+    }
+    // An end tag closes the nearest SVG or MathML element of its name, and what it holds.
+    if ((open.get(name) ?? 0) === 0) return;
+    while (stack.length > 0) {
+      const closed = stack.at(-1)?.name === name;
+      pop();
+      if (closed) return;
     }
   }
 
-  function popForeign(): void {
-    while (stack.at(-1)?.kind === 'foreign') stack.pop();
+  function popToHtml(): void {
+    while (foreign()) pop();
   }
 
   /** Reads what a start tag begins, and gives where reading goes on. */
   function startTag(tag: Tag, at: number): number {
     const { name } = tag;
-    if (foreign()) {
+    const top = stack.at(-1);
+    if (top !== undefined && !top.integration) {
       const font =
         name === 'font' &&
         tag.attributes.some((each) => ['color', 'face', 'size'].includes(each.name));
-      if (!BREAKOUT.has(name) && !font) {
-        if (tag.selfClosing) return at;
-        if (name === 'svg' || name === 'math') stack.push({ kind: 'foreign' });
-        else if (
-          INTEGRATION.has(name) ||
-          (name === 'annotation-xml' &&
-            tag.attributes.some(
-              (each) =>
-                each.name === 'encoding' &&
-                ['text/html', 'application/xhtml+xml'].includes(each.value.toLowerCase()),
-            ))
-        ) {
-          stack.push({ kind: 'html', name });
-        }
-        return at;
-      }
-      popForeign();
+      if (!BREAKOUT.has(name) && !font) return foreignStart(tag, at, top);
+      popToHtml();
+    } else if (top !== undefined && MATH_TEXT_INTEGRATION.has(top.name)) {
+      // In MathML's text integration points, these two stay MathML.
+      if (name === 'mglyph' || name === 'malignmark') return foreignStart(tag, at, top);
     }
     if (name === 'svg' || name === 'math') {
-      if (!tag.selfClosing) stack.push({ kind: 'foreign' });
-      return at;
-    }
-    if (name === 'meta') {
-      for (const attribute of tag.attributes) {
-        if (attribute.name === 'http-equiv') {
-          renames.push({ start: attribute.start, end: attribute.end });
-        }
-      }
+      if (!tag.selfClosing) push({ name, namespace: name, integration: false });
       return at;
     }
     if (name === 'plaintext') return length;
@@ -385,6 +380,37 @@ function scanPage(source: string): {
       const end = rawEnd(source, at, name);
       if (name === 'style') spans.push({ start: at, end, kind: 'style', hashed: true });
       return afterEndTag(end);
+    }
+    return at;
+  }
+
+  /**
+   * A start tag read as SVG or MathML: it opens an element of the namespace it stands in, unless it
+   * closes itself. Its script or style is markup there, not raw text: the builder hashes one only
+   * when it holds no `<` and no `&`, so that its text is what it reads.
+   */
+  function foreignStart(tag: Tag, at: number, top: Foreign): number {
+    if (tag.selfClosing) return at;
+    const { name } = tag;
+    // `svg` in MathML's `annotation-xml` opens SVG; elsewhere a tag stays in its parent's namespace.
+    const namespace = name === 'svg' && top.name === 'annotation-xml' ? 'svg' : top.namespace;
+    const integration =
+      namespace === 'svg'
+        ? SVG_INTEGRATION.has(name)
+        : MATH_TEXT_INTEGRATION.has(name) ||
+          (name === 'annotation-xml' &&
+            tag.attributes.some(
+              (each) =>
+                each.name === 'encoding' &&
+                ['text/html', 'application/xhtml+xml'].includes(lower(each.value)),
+            ));
+    push({ name, namespace, integration });
+    if (namespace === 'svg' && (name === 'script' || name === 'style')) {
+      const end = source.indexOf('<', at);
+      if (end >= 0 && endTagAt(source, end, name)) {
+        const text = source.slice(at, end);
+        spans.push({ start: at, end, kind: name, hashed: !text.includes('&') });
+      }
     }
     return at;
   }
@@ -417,12 +443,14 @@ function markupDeclaration(source: string, at: number, foreign: boolean): number
     const body = at + 2;
     if (source[body] === '>') return body + 1;
     if (source[body] === '-' && source[body + 1] === '>') return body + 2;
-    let end = source.length;
-    const plain = source.indexOf('-->', body);
-    if (plain >= 0) end = plain + 3;
-    const bang = source.indexOf('--!>', body);
-    if (bang >= 0 && bang + 4 < end) end = bang + 4;
-    return end;
+    // The first `-->` or `--!>`, found in one pass: each `--` is looked at once.
+    let dashes = source.indexOf('--', body);
+    while (dashes >= 0) {
+      if (source[dashes + 2] === '>') return dashes + 3;
+      if (source[dashes + 2] === '!' && source[dashes + 3] === '>') return dashes + 4;
+      dashes = source.indexOf('--', dashes + 1);
+    }
+    return source.length;
   }
   if (source.slice(at, at + 7).toLowerCase() === 'doctype') return untilGreaterThan(source, at + 7);
   if (foreign && source.startsWith('[CDATA[', at)) {
@@ -488,7 +516,7 @@ function readTag(source: string, from: number): Tag {
         value = source.slice(from, i);
       }
     }
-    attributes.push({ name: lower(source.slice(start, end)), start, end, value });
+    attributes.push({ name: lower(source.slice(start, end)), value });
   }
 }
 
