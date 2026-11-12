@@ -19,6 +19,8 @@
  * - every relation in front of the shapes: its casing in the canvas's color, its route with its bends
  *   or its curve, automatic curves and straight lines included (ADR 0069), its dashes, its arrowhead,
  *   and its name on a back of the canvas's color;
+ * - explorables (ADR 0107) with the pictures: each one's still where the export has one, its card
+ *   otherwise, drawn from its data alone; nothing of an explorable runs in a drawing;
  * - notes and free arrows in front of everything.
  *
  * It leaves out what only the open app shows: the selection, filters, focus, guidance, playback, the
@@ -50,6 +52,13 @@ import {
 } from '@visual-anything/core';
 import type { Color, Id, ViewFile } from '@visual-anything/schema';
 import { t } from '../i18n';
+import { explorableCard, type ExplorableApproval } from '@visual-anything/core';
+import type { ExplorableShape } from '@visual-anything/schema';
+import {
+  EXPLORABLE_CARD_COLORS,
+  explorableCardLayout,
+  explorableCardTexts,
+} from '../explorables/card-layout';
 import { outlineColorOf, readableTextColors } from '../canvas/colors';
 import { imageSerial } from '../canvas/image-serials';
 import {
@@ -290,6 +299,27 @@ export interface SvgOptions {
    * its first frame. A picture whose file is missing from them is drawn as a gray box with its name.
    */
   media?: ReadonlyMap<string, ExportedMedia>;
+  /**
+   * What the drawing holds of explorables (ADR 0107): the stills the app took of them, by the id of
+   * the shape that shows each, drawn in its place; and the person's approvals, which say on a card
+   * whether it is approved. Without a still, as from the command line, which has no app to take one,
+   * each explorable is drawn as its card.
+   */
+  explorables?: SvgExplorables;
+}
+
+/** What a drawing holds of explorables: stills by shape id, and the approvals when known. */
+export interface SvgExplorables {
+  stills?: ReadonlyMap<string, ExplorableStillPicture>;
+  approvals?: readonly ExplorableApproval[];
+}
+
+/** An explorable's still as a drawing holds it: a PNG in base64, cleaned by the app. */
+export interface ExplorableStillPicture {
+  format: 'png';
+  data: string;
+  width: number;
+  height: number;
 }
 
 /** A picture's media file as a drawing holds it: a bitmap as base64, or an SVG's cleaned markup. */
@@ -1092,7 +1122,11 @@ export function svgOfScene(
   const catalog = imagesIn(project);
   const writer = new Writer(scene, options, { shown: (image) => catalog.shown(image) });
   const { theme } = writer;
-  const bounds = scene.bounds;
+  // Explorables' shapes lie in the drawing too (ADR 0107), which the scene does not draw.
+  const explorables = view.freeShapes.filter(
+    (shape): shape is ExplorableShape => shape.kind === 'explorable',
+  );
+  const bounds = withExplorables(scene.bounds, explorables);
   // Name tags lie in the drawing too, as the canvas's tiles cover them.
   const covered = bounds && coveredBy(bounds, scene.shapes);
   const drawn = covered
@@ -1144,6 +1178,10 @@ export function svgOfScene(
   const free = [
     // Pictures under the notes and arrows, as the canvas draws them (ADR 0098).
     ...picturesOf(scene).map((picture) => faintFree(picture.id, writer.mediaPicture(picture))),
+    // Explorables with the pictures: a still or a card (ADR 0107).
+    ...explorables.map((shape) =>
+      faintFree(shape.id, explorableParts(writer, project, shape, options.explorables)),
+    ),
     ...scene.notes.map((note) => faintFree(note.id, noteParts(writer, note))),
     ...scene.arrows.map((arrow) =>
       faintFree(
@@ -3176,6 +3214,85 @@ function relationLabel(writer: Writer, line: RelationLine): string {
 }
 
 // --- Free shapes ---------------------------------------------------------------------------------
+
+/** Bounds that take in explorables' shapes too; none when there is nothing at all. */
+function withExplorables(
+  bounds: Rect | undefined,
+  explorables: readonly ExplorableShape[],
+): Rect | undefined {
+  let around = bounds;
+  for (const shape of explorables) {
+    const rect = { x: shape.x, y: shape.y, width: shape.width, height: shape.height };
+    if (around === undefined) {
+      around = rect;
+      continue;
+    }
+    const left = Math.min(around.x, rect.x);
+    const top = Math.min(around.y, rect.y);
+    around = {
+      x: left,
+      y: top,
+      width: Math.max(around.x + around.width, rect.x + rect.width) - left,
+      height: Math.max(around.y + around.height, rect.y + rect.height) - top,
+    };
+  }
+  return around;
+}
+
+/**
+ * An explorable's shape (ADR 0107): its still where the drawing has one, stretched to the shape;
+ * otherwise its card, drawn from its data alone (`explorableCardLayout`): its name, what it explains,
+ * the script libraries it asks for, and why it is not running. Nothing of its page goes in.
+ */
+function explorableParts(
+  writer: Writer,
+  project: ProjectSnapshot,
+  shape: ExplorableShape,
+  explorables: SvgExplorables | undefined,
+): string {
+  const rect = { x: shape.x, y: shape.y, width: shape.width, height: shape.height };
+  const card = explorableCard(project, shape.explorable, {
+    ...(explorables?.approvals === undefined ? {} : { approvals: explorables.approvals }),
+  });
+  const label = shape.name ?? card.name;
+  const values = {
+    'data-free-shape': shape.id,
+    'data-explorable': shape.explorable,
+    role: 'img',
+    'aria-label': label,
+  };
+  const still = explorables?.stills?.get(shape.id);
+  if (still !== undefined) return element('g', values, writer.solidUse(still, rect));
+  if (card.reason === 'outside-app') {
+    writer.lost.add(t('Explorables without a still picture are drawn as their cards.'));
+  }
+  const texts = explorableCardTexts(t, card);
+  const layout = explorableCardLayout(rect, texts);
+  const colors = EXPLORABLE_CARD_COLORS[writer.theme.name === 'dark' ? 'dark' : 'light'];
+  const outline = { ...rect, rx: layout.radius };
+  let body = empty('rect', { ...outline, fill: colors.fill });
+  body += empty('rect', { ...layout.band, fill: colors.band });
+  body += empty('rect', { ...outline, fill: 'none', stroke: colors.border, 'stroke-width': 1 });
+  for (const text of layout.texts) {
+    const fill =
+      text.role === 'name' ? colors.name : text.role === 'why' ? colors.why : colors.text;
+    for (const line of text.text.lines) {
+      writer.texts.push(line.text);
+      body += textElement(
+        'text',
+        {
+          x: text.x,
+          y: line.baseline,
+          'font-size': text.size,
+          'font-weight': text.bold ? 700 : undefined,
+          fill,
+        },
+        line.text,
+      );
+    }
+  }
+  return element('g', values, body);
+}
 
 function noteParts(writer: Writer, note: NoteShape): string {
   const colors = noteColors(note, writer.theme);

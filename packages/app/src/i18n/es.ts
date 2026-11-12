@@ -4541,6 +4541,13 @@ export const ui: Catalog = {
     'La ruta del archivo admite como mucho 500 caracteres.',
   'A global is a JavaScript name, such as d3 or Plotly.':
     'Una variable global es un nombre de JavaScript, como d3 o Plotly.',
+  // A10.4: an explorable's card in the SVG, the PDF and the command line's exports (ADR 0107).
+  'Not running: no package of the project defines it.':
+    'No se ejecuta: ningún paquete del proyecto lo define.',
+  'It runs only in the Visual Anything app, which shows it live.':
+    'Solo se ejecuta en la aplicación Visual Anything, que lo muestra en vivo.',
+  'Explorables without a still picture are drawn as their cards.':
+    'Los explorables sin imagen fija se dibujan como su tarjeta.',
 };
 
 /**
