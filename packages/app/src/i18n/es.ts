@@ -201,6 +201,8 @@ export const ui: Catalog = {
     'Cómo un negocio de suscripciones convierte sus datos en un modelo de bajas.',
   'A Transformer that reads each customer’s last events to tell who will cancel.':
     'Un Transformer que lee los últimos eventos de cada cliente para predecir quién se dará de baja.',
+  'A quadratic function’s parabola, drawn live as its coefficients change.':
+    'La parábola de una función cuadrática, dibujada en vivo a medida que cambian sus coeficientes.',
   'A spam filter’s probability, loss and training, written out in Math.':
     'La probabilidad, la pérdida y el entrenamiento de un filtro de spam, escritos en notación matemática.',
   'A six-axis arm drawn as a solid that turns, with its motors, control loop and software.':
@@ -3459,6 +3461,10 @@ export const ui: Catalog = {
   'A Transformer that reads each customer’s last 90 events to tell who will cancel, beside the pipeline that feeds it, with a scenario of its forward pass.':
     'Un Transformer que lee los últimos 90 eventos de cada cliente para saber quién va a cancelar, junto a la canalización que lo alimenta, con un escenario de su paso hacia adelante.',
   // A9.4: the sample that explains a model in Math (ADR 0106).
+  // A10.4: the sample that explains a mathematical module with an explorable (ADR 0107).
+  'Math: a quadratic function': 'Matemática: una función cuadrática',
+  'The quadratic function f(x) = ax² + bx + c, its coefficients, discriminant and roots written out in Math, and an explorable that draws its parabola as a, b and c change, with a tour that sets them step by step. The explorable runs once you approve it.':
+    'La función cuadrática f(x) = ax² + bx + c, con sus coeficientes, su discriminante y sus raíces escritos en notación matemática, y un explorable que dibuja su parábola a medida que cambian a, b y c, con un recorrido que los fija paso a paso. El explorable se ejecuta solo una vez aprobado.',
   'Machine learning: the math of a spam filter':
     'Aprendizaje automático: la matemática de un filtro de spam',
   'A logistic regression that tells spam from wanted email, written out in Math: the probability it gives, the log loss it brings down, how gradient descent trains it and how it is judged, with a scenario that scores a batch of emails and a tour of its math.':

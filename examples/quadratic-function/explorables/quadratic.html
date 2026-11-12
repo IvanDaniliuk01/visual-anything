@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Parabola</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--va-surface, #ffffff);
+        color: var(--va-text, #1f2328);
+        font: 13px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+      }
+      header {
+        padding: 8px 12px 4px;
+      }
+      #formula {
+        font-weight: 600;
+        font-size: 14px;
+      }
+      #facts {
+        color: var(--va-text-muted, #59636e);
+      }
+      svg {
+        flex: 1;
+        display: block;
+        width: 100%;
+        min-height: 0;
+      }
+      .grid {
+        stroke: var(--va-border, #d1d9e0);
+        stroke-width: 1;
+      }
+      .axis {
+        stroke: var(--va-text-muted, #59636e);
+        stroke-width: 1.25;
+      }
+      .tick {
+        fill: var(--va-text-muted, #59636e);
+        font-size: 10px;
+      }
+      .symmetry {
+        stroke: var(--va-accent, #2f6fde);
+        stroke-width: 1;
+        stroke-dasharray: 4 4;
+        opacity: 0.7;
+      }
+      .curve {
+        fill: none;
+        stroke: var(--va-accent, #2f6fde);
+        stroke-width: 2.5;
+      }
+      .vertex {
+        fill: var(--va-warning, #9a6700);
+      }
+      .root {
+        fill: var(--va-surface, #ffffff);
+        stroke: var(--va-problem, #cf222e);
+        stroke-width: 2;
+      }
+      .selectable {
+        cursor: pointer;
+      }
+      .label {
+        fill: var(--va-text, #1f2328);
+        font-size: 11px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div id="formula"></div>
+      <div id="facts"></div>
+    </header>
+    <svg id="plot" role="img" aria-labelledby="formula facts"></svg>
+    <script>
+      (function () {
+        'use strict';
+        var NS = 'http://www.w3.org/2000/svg';
+        var WORDS = {
+          en: {
+            discriminant: 'discriminant',
+            vertex: 'vertex',
+            roots: 'roots',
+            doubleRoot: 'one double root',
+            noRoots: 'no real roots',
+            line: 'a = 0: a line, not a parabola',
+            opensUp: 'opens up',
+            opensDown: 'opens down',
+          },
+          es: {
+            discriminant: 'discriminante',
+            vertex: 'vértice',
+            roots: 'raíces',
+            doubleRoot: 'una raíz doble',
+            noRoots: 'sin raíces reales',
+            line: 'a = 0: una recta, no una parábola',
+            opensUp: 'abre hacia arriba',
+            opensDown: 'abre hacia abajo',
+          },
+        };
+        var plot = document.getElementById('plot');
+        var formula = document.getElementById('formula');
+        var facts = document.getElementById('facts');
+        var last;
+
+        function number(value, fallback) {
+          return typeof value === 'number' && isFinite(value) ? value : fallback;
+        }
+
+        /** A number as the page writes it: two decimals at most, and a true minus sign. */
+        function shown(value) {
+          var rounded = Math.round(value * 100) / 100;
+          if (rounded === 0) return '0';
+          return String(rounded).replace('-', '−');
+        }
+
+        /** f(x) = ax² + bx + c, written as a person would write it. */
+        function written(a, b, c) {
+          var terms = [];
+          [
+            [a, 'x²'],
+            [b, 'x'],
+            [c, ''],
+          ].forEach(function (term) {
+            var k = term[0];
+            if (k === 0) return;
+            var size = Math.abs(k);
+            var body = size === 1 && term[1] !== '' ? term[1] : shown(size) + term[1];
+            if (terms.length === 0) terms.push((k < 0 ? '−' : '') + body);
+            else terms.push((k < 0 ? '− ' : '+ ') + body);
+          });
+          return 'f(x) = ' + (terms.length === 0 ? '0' : terms.join(' '));
+        }
+
+        /** A step for grid lines that gives about `count` of them over `span`. */
+        function step(span, count) {
+          var raw = span / count;
+          var power = Math.pow(10, Math.floor(Math.log10(raw)));
+          var scaled = raw / power;
+          return (scaled < 1.5 ? 1 : scaled < 3.5 ? 2 : scaled < 7.5 ? 5 : 10) * power;
+        }
+
+        function add(name, attributes, parent) {
+          var element = document.createElementNS(NS, name);
+          Object.keys(attributes).forEach(function (key) {
+            element.setAttribute(key, String(attributes[key]));
+          });
+          (parent || plot).appendChild(element);
+          return element;
+        }
+
+        /** The element of the model a feature names, among those the function contains. */
+        function featureOf(data, pattern) {
+          var contents = data.contents || [];
+          for (var i = 0; i < contents.length; i++) {
+            if (pattern.test(contents[i].name)) return contents[i].id;
+          }
+          return undefined;
+        }
+
+        function selecting(shape, id) {
+          if (id === undefined) return;
+          shape.setAttribute('class', shape.getAttribute('class') + ' selectable');
+          shape.addEventListener('click', function () {
+            va.select(id);
+          });
+        }
+
+        function draw(data) {
+          last = data;
+          var parameters = data.parameters || {};
+          var a = number(parameters.a, 1);
+          var b = number(parameters.b, 0);
+          var c = number(parameters.c, 0);
+          var words = WORDS[data.language] || WORDS.en;
+          var f = function (x) {
+            return a * x * x + b * x + c;
+          };
+
+          // What the curve has: its vertex, its discriminant and its roots.
+          var line = a === 0;
+          var delta = b * b - 4 * a * c;
+          var vertexX = line ? 0 : -b / (2 * a);
+          var vertex = [vertexX, f(vertexX)];
+          var roots = [];
+          if (line) {
+            if (b !== 0) roots = [-c / b];
+          } else if (delta > 0) {
+            roots = [(-b - Math.sqrt(delta)) / (2 * a), (-b + Math.sqrt(delta)) / (2 * a)].sort(
+              function (p, q) {
+                return p - q;
+              },
+            );
+          } else if (delta === 0) {
+            roots = [vertexX];
+          }
+
+          formula.textContent = written(a, b, c);
+          var said = [];
+          if (line) said.push(words.line);
+          else {
+            said.push(a > 0 ? words.opensUp : words.opensDown);
+            said.push('Δ = ' + shown(delta) + ' (' + words.discriminant + ')');
+            said.push(words.vertex + ' (' + shown(vertex[0]) + ', ' + shown(vertex[1]) + ')');
+          }
+          if (roots.length === 0) said.push(words.noRoots);
+          else if (roots.length === 1 && !line) said.push(words.doubleRoot + ' x = ' + shown(roots[0]));
+          else said.push(words.roots + ' ' + roots.map(shown).join(', '));
+          facts.textContent = said.join(' · ');
+
+          // The window: the vertex, the roots and the origin, with room around them.
+          var xs = [0, vertex[0]].concat(roots);
+          var left = Math.min.apply(null, xs) - 3;
+          var right = Math.max.apply(null, xs) + 3;
+          if (right - left < 8) {
+            var middle = (left + right) / 2;
+            left = middle - 4;
+            right = middle + 4;
+          }
+          var ys = [0, c, vertex[1], f(left), f(right)];
+          var bottom = Math.min.apply(null, ys);
+          var top = Math.max.apply(null, ys);
+          var room = Math.max((top - bottom) * 0.12, 1);
+          bottom -= room;
+          top += room;
+
+          var box = plot.getBoundingClientRect();
+          var width = Math.max(box.width, 160);
+          var height = Math.max(box.height, 120);
+          var pad = 8;
+          var sx = function (x) {
+            return pad + ((x - left) / (right - left)) * (width - 2 * pad);
+          };
+          var sy = function (y) {
+            return height - pad - ((y - bottom) / (top - bottom)) * (height - 2 * pad);
+          };
+          plot.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+          while (plot.firstChild) plot.removeChild(plot.firstChild);
+
+          // The grid, its numbers, and the axes.
+          var dx = step(right - left, 8);
+          for (var gx = Math.ceil(left / dx) * dx; gx <= right; gx += dx) {
+            add('line', { class: 'grid', x1: sx(gx), x2: sx(gx), y1: 0, y2: height });
+            if (Math.abs(gx) > dx / 2) {
+              add('text', { class: 'tick', x: sx(gx) + 2, y: Math.min(Math.max(sy(0) + 12, 12), height - 2) }).textContent = shown(gx);
+            }
+          }
+          var dy = step(top - bottom, 6);
+          for (var gy = Math.ceil(bottom / dy) * dy; gy <= top; gy += dy) {
+            add('line', { class: 'grid', x1: 0, x2: width, y1: sy(gy), y2: sy(gy) });
+            if (Math.abs(gy) > dy / 2) {
+              add('text', { class: 'tick', x: Math.min(Math.max(sx(0) + 3, 2), width - 28), y: sy(gy) - 2 }).textContent = shown(gy);
+            }
+          }
+          add('line', { class: 'axis', x1: 0, x2: width, y1: sy(0), y2: sy(0) });
+          add('line', { class: 'axis', x1: sx(0), x2: sx(0), y1: 0, y2: height });
+
+          // The axis of symmetry, the curve, its vertex and its roots.
+          if (!line) {
+            add('line', { class: 'symmetry', x1: sx(vertex[0]), x2: sx(vertex[0]), y1: 0, y2: height });
+          }
+          var path = '';
+          var samples = 240;
+          for (var i = 0; i <= samples; i++) {
+            var x = left + ((right - left) * i) / samples;
+            path += (i === 0 ? 'M' : 'L') + sx(x).toFixed(2) + ' ' + sy(f(x)).toFixed(2);
+          }
+          add('path', { class: 'curve', d: path });
+          if (!line) {
+            var dot = add('circle', { class: 'vertex', cx: sx(vertex[0]), cy: sy(vertex[1]), r: 5 });
+            selecting(dot, featureOf(data, /vertex|v[eé]rtice/i));
+            add('text', {
+              class: 'label',
+              x: sx(vertex[0]) + 8,
+              y: sy(vertex[1]) + (a > 0 ? 14 : -8),
+            }).textContent = words.vertex;
+          }
+          var rootsId = featureOf(data, /root|ra[ií]z/i);
+          roots.forEach(function (root) {
+            selecting(add('circle', { class: 'root', cx: sx(root), cy: sy(0), r: 5 }), rootsId);
+          });
+          va.ready();
+        }
+
+        va.on('change', draw);
+        window.addEventListener('resize', function () {
+          if (last) draw(last);
+        });
+        if (va.data) draw(va.data);
+      })();
+    </script>
+  </body>
+</html>

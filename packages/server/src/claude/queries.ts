@@ -43,6 +43,7 @@ import type {
   Relation,
 } from '@visual-anything/schema';
 import { readDecisions } from './decision-edits';
+import { elementExplorable, explorableShapesAnswer } from './explorable-reads';
 import { appearanceRead } from './geometry-brief';
 import { handRoutesOn, routedByHandAnswer, viewsRoutingByHand } from './hand-routes';
 import { UNDEFINED_ATTRIBUTES_NOTE, undefinedAttributesOf } from './undefined-attributes';
@@ -377,6 +378,8 @@ export function describeItem(
         ? {}
         : { appearance: appearanceRead(element.appearance, options.fullGeometry) }),
       ...darkCanvasOf(state, element.appearance),
+      // The explorable it shows, and the explorable shapes bound to it (ADR 0107).
+      ...elementExplorable(state, element),
       containers: containers.map((relation) => ({
         id: relation.to,
         name: endName(relation.to, state),
@@ -494,6 +497,8 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
     // Its pictures, by name and size, and the file each shows (ADR 0098).
     ...picturesAnswer(view),
     ...linksAnswer(view),
+    // Its explorable shapes, each with the explorable it shows and the element it reads (ADR 0107).
+    ...explorableShapesAnswer(state, view),
     stacking,
     ...(collapsed === undefined ? {} : { collapsed }),
     // The routes chosen by hand, by relation; every other relation is routed automatically.

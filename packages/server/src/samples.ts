@@ -20,6 +20,7 @@ export const SAMPLE_IDS = [
   'data-science-pipeline',
   'churn-classifier',
   'spam-filter',
+  'quadratic-function',
   'robot-arm',
   'order-process',
   'clinic-claim',
@@ -35,8 +36,8 @@ export interface Sample {
   /** The packages it uses. */
   packages: Id[];
   /**
-   * Every project file of it, by its path in the project folder, as its text, and each of its solids'
-   * files (ADR 0075) as its bytes.
+   * Every project file of it, by its path in the project folder, as its text, each of its
+   * explorables' files (ADR 0107) as its text, and each of its solids' files (ADR 0075) as its bytes.
    */
   files: ReadonlyMap<string, string | Uint8Array>;
 }
@@ -47,6 +48,15 @@ export interface Sample {
  */
 export function isSampleSolidFile(path: string): boolean {
   return /^solids\/[0-9a-f]{64}\.glb$/.test(path);
+}
+
+/**
+ * Whether a sample's path is an explorable's file, `explorables/<name>.html` (ADR 0107), which the
+ * embedded samples hold as its text and a new project gets as it is: its package's definition names
+ * it by its hash, so the person approves it the first time it would run, as any other.
+ */
+export function isSampleExplorableFile(path: string): boolean {
+  return /^explorables\/[a-z0-9][a-z0-9-]{0,62}\.html$/.test(path);
 }
 
 /** The sample projects the local program holds, in the order they are offered. */

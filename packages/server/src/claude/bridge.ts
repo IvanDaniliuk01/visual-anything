@@ -30,6 +30,7 @@ import {
   type Problem,
   type ProjectSnapshot,
   type ProposalShownMessage,
+  type ScriptLibraryAsk,
   type SolidImportOptions,
   type SolidPreparedMessage,
   type SolidRefusedMessage,
@@ -38,7 +39,7 @@ import {
   type VersionRef,
   type ViewState,
 } from '@visual-anything/core';
-import type { Id } from '@visual-anything/schema';
+import type { Id, ScriptLibraryDefinition } from '@visual-anything/schema';
 import { WebSocket, type RawData } from 'ws';
 import type { ImportRequest } from '../import';
 import { toForwardSlashes } from '../paths';
@@ -65,6 +66,8 @@ import {
   importMessageRequest,
   type AppOpening,
   type ClaudeMessage,
+  type ExplorableCaptureAsk,
+  type ExplorableCaptureReport,
   type LiveSenderKind,
   type ProgramMessage,
 } from './messages';
@@ -200,11 +203,37 @@ export interface Program {
   /** Clears live values that match; resolves with how many went. Absent where it cannot. */
   clearLive?(filter: LiveClearFilter): Promise<number>;
   /**
+   * The ids of the project's explorables the person approved as the project holds them now (ADR
+   * 0107), after the commands sent before. Absent where it cannot ask, and then none is approved.
+   */
+  explorableApprovals?(): Promise<Id[]>;
+  /**
+   * Asks the person, in the open apps, to fetch a script library from the npm registry (ADR 0107),
+   * and resolves once they decided and the program kept it or not: the library as its package now
+   * defines it, or why there is none. Absent where it cannot.
+   */
+  requestScriptLibrary?(ask: ScriptLibraryAsk): Promise<ScriptLibraryAnswer>;
+  /**
+   * Asks the tab the person used last for a still of an explorable and its console errors (ADR
+   * 0107), within ADR 0081's deadlines. It changes nothing. Absent where it cannot.
+   */
+  captureExplorable?(ask: ExplorableCaptureAsk): Promise<ExplorableCaptureReport>;
+  /**
    * The live values the program keeps now (ADR 0057), everyone's, of some targets or attributes or
    * all of them, the latest first. Reading them changes nothing. Absent where it cannot.
    */
   listLive?(filter: LiveListFilter): Promise<LiveListing>;
 }
+
+/** What came of a script library Claude asked for: the library kept, or why there is none. */
+export type ScriptLibraryAnswer =
+  { ok: true; library: ScriptLibraryDefinition } | { ok: false; code: string; message: string };
+
+/**
+ * How long Claude's request for a script library waits for the program: the person's five minutes to
+ * decide, the registry's two reads of 120 s each, and a margin to keep the file (ADR 0107).
+ */
+export const SCRIPT_LIBRARY_WAIT = 5 * 60_000 + 2 * 120_000 + 30_000;
 
 /** Which live values to read: of some targets or attributes, or all of them, and at most how many. */
 export interface LiveListFilter {
@@ -613,6 +642,50 @@ export class ProgramBridge implements Program {
       }
       return { how: 'browser' };
     }
+    if (answer.type === 'command/rejected') {
+      throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  async explorableApprovals(): Promise<Id[]> {
+    const answer = await this.#request((requestId) => ({
+      type: 'explorables/approvals',
+      requestId,
+    }));
+    if (answer.type === 'explorables/approved') return answer.approved;
+    if (answer.type === 'command/rejected') {
+      throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  async requestScriptLibrary(ask: ScriptLibraryAsk): Promise<ScriptLibraryAnswer> {
+    const answer = await this.#request(
+      (requestId) => ({ type: 'script-library/request', requestId, ...ask }),
+      SCRIPT_LIBRARY_WAIT + (this.#options.requestTimeout ?? REQUEST_TIMEOUT),
+    );
+    if (answer.type === 'script-library/kept') return { ok: true, library: answer.library };
+    if (answer.type === 'script-library/refused') {
+      return { ok: false, code: answer.code, message: answer.message };
+    }
+    if (answer.type === 'command/rejected') {
+      return {
+        ok: false,
+        code: answer.problems[0]?.code ?? 'program-failed',
+        message: answer.problems.map((each) => each.message).join(' '),
+      };
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  async captureExplorable(ask: ExplorableCaptureAsk): Promise<ExplorableCaptureReport> {
+    // The program bounds the wait for the app as a picture of a view's (ADR 0081).
+    const answer = await this.#request(
+      (requestId) => ({ type: 'explorable/capture', requestId, ask }),
+      CAPTURE_WAIT + (this.#options.requestTimeout ?? REQUEST_TIMEOUT),
+    );
+    if (answer.type === 'explorable/captured') return answer.report;
     if (answer.type === 'command/rejected') {
       throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
     }

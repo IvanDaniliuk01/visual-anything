@@ -70,6 +70,7 @@ describe('a program on a folder that holds no project yet', () => {
             name: 'Spam filter',
             packages: ['data-science', 'machine-learning'],
           },
+          { id: 'quadratic-function', name: 'Quadratic function', packages: ['quadratic'] },
           { id: 'robot-arm', name: 'Pick-and-place arm', packages: ['physical-ai', 'robot-arm'] },
           { id: 'order-process', name: 'Online order', packages: ['process'] },
           { id: 'clinic-claim', name: 'Clinic claim', packages: ['healthcare'] },

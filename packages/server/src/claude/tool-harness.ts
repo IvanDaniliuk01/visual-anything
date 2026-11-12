@@ -11,12 +11,14 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
   PROTOCOL_VERSION,
+  explorablesIn,
   type CodeApproval,
   type Command,
   type Guidance,
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { PreferencesStore } from '../preferences';
+import type { RegistryOptions } from '../script-libraries/registry';
 import { startServer, type RunningServer } from '../server';
 import { openSession, type Session } from '../session';
 import { openLiveClient, testProject, writeProjectFolder, type LiveClient } from '../test-support';
@@ -69,11 +71,21 @@ export async function startToolHarness(
     browserFails?: boolean;
     /** How long a picture waits for the app, in milliseconds; 20 s by default (ADR 0081). */
     captureWait?: number;
+    /** How script libraries are fetched: a stand-in for the npm registry (ADR 0107). */
+    registry?: RegistryOptions;
   } = {},
 ): Promise<ToolHarness> {
   const profile = await realpath(await mkdtemp(join(tmpdir(), 'va-tools-')));
   const folder = join(profile, 'project');
   await writeProjectFolder(folder, project);
+  // The explorables' files the project holds texts for (ADR 0107), which the program reads on open.
+  const catalog = explorablesIn(project);
+  for (const { id, text } of project.explorableTexts ?? []) {
+    const file = catalog.explorable(id)?.definition.file;
+    if (file === undefined) continue;
+    await mkdir(join(folder, 'explorables'), { recursive: true });
+    await writeFile(join(folder, 'explorables', file), text);
+  }
   const appDir = join(profile, 'dist');
   await mkdir(appDir);
   await writeFile(join(appDir, 'index.html'), '<!doctype html><title>Visual Anything</title>');
@@ -83,6 +95,7 @@ export async function startToolHarness(
     err: () => {},
     ...(options.preferences === undefined ? {} : { preferences: options.preferences }),
     ...(options.captureWait === undefined ? {} : { captureWait: options.captureWait }),
+    ...(options.registry === undefined ? {} : { registry: options.registry }),
   });
   if (!result.ok) throw new Error('The test project does not open.');
   const { session } = result;

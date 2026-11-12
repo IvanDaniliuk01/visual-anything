@@ -1,9 +1,18 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { anchoredElements, checkProject, findPart, imagesIn } from '@visual-anything/core';
+import {
+  anchoredElements,
+  checkProject,
+  explorableTextHash,
+  explorablesIn,
+  findPart,
+  imagesIn,
+  tourStepProblems,
+} from '@visual-anything/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadProject } from './project';
+import { openSession } from './session';
 import { solidFileWarnings } from './solids/files';
 import {
   SAMPLE_IDS,
@@ -34,12 +43,13 @@ describe('the sample projects the program holds', () => {
     ).toBe(samplesText());
   });
 
-  it('are the C4, data-science, two machine learning, physical-ai, process, healthcare, finance and data modeling samples, each with its starter packages', () => {
+  it('are the C4, data-science, two machine learning, math, physical-ai, process, healthcare, finance and data modeling samples, each with its starter packages', () => {
     expect(samples().map(({ id, packages }) => ({ id, packages }))).toEqual([
       { id: 'c4-architecture', packages: ['c4'] },
       { id: 'data-science-pipeline', packages: ['data-science'] },
       { id: 'churn-classifier', packages: ['data-science', 'machine-learning'] },
       { id: 'spam-filter', packages: ['data-science', 'machine-learning'] },
+      { id: 'quadratic-function', packages: ['quadratic'] },
       { id: 'robot-arm', packages: ['physical-ai', 'robot-arm'] },
       { id: 'order-process', packages: ['process'] },
       { id: 'clinic-claim', packages: ['healthcare'] },
@@ -51,6 +61,7 @@ describe('the sample projects the program holds', () => {
       'data-science-pipeline',
       'churn-classifier',
       'spam-filter',
+      'quadratic-function',
       'robot-arm',
       'order-process',
       'clinic-claim',
@@ -102,6 +113,9 @@ describe('the sample projects the program holds', () => {
           'robot-arm.parts-bin',
           'robot-arm.machined-block',
         ]);
+      } else if (id === 'quadratic-function') {
+        // Its own package defines the explorable its function shows (A10, ADR 0107).
+        expect(own).toEqual(['quadratic']);
       } else {
         expect(own).toEqual([]);
       }
@@ -173,6 +187,81 @@ describe('the Spam filter sample', () => {
     expect(described('log-loss')).toContain('$$\nL(w, b) = -\\frac{1}{n}');
     expect(described('logistic-function')).toContain('$$\n\\sigma(z) = \\frac{1}{1 + e^{-z}}\n$$');
     expect(described('brier-score')).toContain('(\\hat p_i - y_i)^2');
+  });
+});
+
+describe('the Quadratic function sample', () => {
+  it('explains a quadratic function with an explorable that asks the first time, a tour that sets its parameters, and Math (A10)', async () => {
+    const sample = sampleOf('quadratic-function');
+    if (sample === undefined) throw new Error('No sample quadratic-function.');
+    const folder = join(root, 'quadratic');
+    expect((await writeNewProject(folder, sample.files)).ok).toBe(true);
+    // Its explorable's file comes with it, as its text, and hashes to its definition.
+    const text = await readFile(join(folder, 'explorables', 'quadratic.html'), 'utf8');
+    expect(text).toBe(sample.files.get('explorables/quadratic.html'));
+    const loaded = await loadProject(folder);
+    if (!loaded.ok) throw new Error(JSON.stringify(loaded.errors));
+    const parabola = explorablesIn(loaded.project).explorable('quadratic.parabola');
+    expect(parabola?.definition).toMatchObject({
+      file: 'quadratic.html',
+      api: 1,
+      hash: explorableTextHash(text),
+      parameters: [
+        { name: 'a', kind: 'number', min: -5, max: 5, default: 1 },
+        { name: 'b', kind: 'number', min: -10, max: 10, default: 0 },
+        { name: 'c', kind: 'number', min: -10, max: 10, default: 0 },
+      ],
+    });
+    expect(parabola?.definition.scriptLibraries).toBeUndefined();
+    // Plain JavaScript that reads its parameters, draws with the theme's variables and says ready.
+    for (const said of ['va.data', "va.on('change'", 'va.ready()', 'va.select(', 'var(--va-text']) {
+      expect(text, said).toContain(said);
+    }
+    expect(text).not.toMatch(/<script src|<link|fetch\(|eval\(|new Function/);
+    // The function's component shows it, and so does a shape bound to the function.
+    const component = loaded.project.packages
+      .find((file) => file.id === 'quadratic')
+      ?.components.find((each) => each.id === 'quadratic.function');
+    expect(component?.appearance?.explorable).toEqual({ explorable: 'quadratic.parabola' });
+    expect(
+      loaded.project.views.flatMap((view) =>
+        view.freeShapes.filter((shape) => shape.kind === 'explorable'),
+      ),
+    ).toMatchObject([{ explorable: 'quadratic.parabola', element: 'quadratic-function' }]);
+    // A tour whose steps set different parameters, none of them broken.
+    const [tour] = loaded.project.tours;
+    const values = tour?.steps.map((step) => JSON.stringify(step.explorable?.parameters));
+    expect(new Set(values).size).toBe(tour?.steps.length);
+    for (const step of tour?.steps ?? []) {
+      expect(tourStepProblems(loaded.project, step), step.id).toEqual([]);
+    }
+    // Its Math typesets whole.
+    const checked = checkProject(loaded.project);
+    expect(checked.warnings).toEqual([]);
+    const read = (checked.notices ?? []).map((each) => each.message);
+    for (const where of [
+      'the description of the element "Quadratic function"',
+      'the description of the element "Roots"',
+      'the caption of step 3 of the tour "Playing with a, b and c"',
+    ]) {
+      expect(read, where).toContain(
+        `Math is read in ${where}: write \\$ for a dollar sign that is not Math.`,
+      );
+    }
+    // Opened, its file is the one its definition names: nothing is recorded, and it waits for the
+    // person's approval the first time, as any explorable does.
+    const opened = await openSession(folder, { watch: false, out: () => {}, err: () => {} });
+    if (!opened.ok) throw new Error('The sample does not open.');
+    try {
+      await opened.session.idle();
+      expect(opened.session.actions).toEqual([]);
+      expect(opened.session.snapshot.explorableTexts).toEqual([
+        { id: 'quadratic.parabola', text, read: true },
+      ]);
+      expect(opened.session.isExplorableApproved('quadratic.parabola')).toBe(false);
+    } finally {
+      await opened.session.close();
+    }
   });
 });
 

@@ -1,0 +1,71 @@
+{
+  "id": "what-decides-what",
+  "name": "What decides what",
+  "description": "From the three coefficients to the vertex and the roots: what each feature of the parabola is worked out from.",
+  "perspective": {
+    "name": "What decides what"
+  },
+  "nestingRelationTypes": [],
+  "positions": [
+    {
+      "element": "coefficient-a",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "coefficient-b",
+      "x": 0,
+      "y": 136
+    },
+    {
+      "element": "coefficient-c",
+      "x": 0,
+      "y": 272
+    },
+    {
+      "element": "vertex",
+      "x": 256,
+      "y": 48
+    },
+    {
+      "element": "discriminant",
+      "x": 256,
+      "y": 224
+    },
+    {
+      "element": "axis-of-symmetry",
+      "x": 512,
+      "y": 48
+    },
+    {
+      "element": "roots",
+      "x": 512,
+      "y": 224
+    }
+  ],
+  "freeShapes": [
+    {
+      "kind": "note",
+      "id": "the-formula",
+      "x": 0,
+      "y": 392,
+      "width": 672,
+      "height": 96,
+      "text": "**Solving $ax^2 + bx + c = 0$**\n\n$$\nx_{1,2} = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}\n$$"
+    }
+  ],
+  "scope": {
+    "include": [
+      {
+        "kind": "component",
+        "component": "quadratic.coefficient"
+      }
+    ],
+    "added": [
+      "vertex",
+      "axis-of-symmetry",
+      "discriminant",
+      "roots"
+    ]
+  }
+}

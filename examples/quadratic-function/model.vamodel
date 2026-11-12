@@ -1,0 +1,164 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "World"
+  },
+  "elements": [
+    {
+      "id": "quadratic-function",
+      "component": "quadratic.function",
+      "name": "Quadratic function",
+      "description": "A polynomial of degree two:\n\n$$\nf(x) = ax^2 + bx + c, \\qquad a \\neq 0\n$$\n\nIts curve is a parabola. Select it to play with $a$, $b$ and $c$ in its explorable.",
+      "attributes": {
+        "formula": "f(x) = ax² + bx + c"
+      }
+    },
+    {
+      "id": "coefficient-a",
+      "component": "quadratic.coefficient",
+      "name": "Leading coefficient",
+      "description": "Says which way the parabola opens: up when $a > 0$, down when $a < 0$. The larger $|a|$, the narrower it is. With $a = 0$ the function is a line, $f(x) = bx + c$.",
+      "attributes": {
+        "range": "−5 to 5",
+        "symbol": "a"
+      }
+    },
+    {
+      "id": "coefficient-b",
+      "component": "quadratic.coefficient",
+      "name": "Linear coefficient",
+      "description": "Moves the vertex sideways and up or down, along another parabola: the vertex sits at $x_v = -\\frac{b}{2a}$.",
+      "attributes": {
+        "range": "−10 to 10",
+        "symbol": "b"
+      }
+    },
+    {
+      "id": "coefficient-c",
+      "component": "quadratic.coefficient",
+      "name": "Constant",
+      "description": "Where the curve crosses the $y$ axis, since $f(0) = c$. Changing it moves the whole parabola up or down.",
+      "attributes": {
+        "range": "−10 to 10",
+        "symbol": "c"
+      }
+    },
+    {
+      "id": "vertex",
+      "component": "quadratic.feature",
+      "name": "Vertex",
+      "description": "The lowest point of the parabola when $a > 0$, its highest when $a < 0$:\n\n$$\n\\left(-\\frac{b}{2a},\\; c - \\frac{b^2}{4a}\\right)\n$$"
+    },
+    {
+      "id": "axis-of-symmetry",
+      "component": "quadratic.feature",
+      "name": "Axis of symmetry",
+      "description": "The vertical line through the vertex, $x = -\\frac{b}{2a}$: the parabola is its own mirror image across it."
+    },
+    {
+      "id": "discriminant",
+      "component": "quadratic.feature",
+      "name": "Discriminant",
+      "description": "Says how many real roots there are before any is worked out:\n\n$$\n\\Delta = b^2 - 4ac\n$$\n\nTwo when $\\Delta > 0$, one double root when $\\Delta = 0$, none when $\\Delta < 0$."
+    },
+    {
+      "id": "roots",
+      "component": "quadratic.feature",
+      "name": "Roots",
+      "description": "Where the parabola meets the $x$ axis, $f(x) = 0$:\n\n$$\nx_{1,2} = \\frac{-b \\pm \\sqrt{\\Delta}}{2a}\n$$"
+    }
+  ],
+  "relations": [
+    {
+      "id": "coefficient-a-in-function",
+      "relationType": "quadratic.is-part-of",
+      "from": "coefficient-a",
+      "to": "quadratic-function"
+    },
+    {
+      "id": "coefficient-b-in-function",
+      "relationType": "quadratic.is-part-of",
+      "from": "coefficient-b",
+      "to": "quadratic-function"
+    },
+    {
+      "id": "coefficient-c-in-function",
+      "relationType": "quadratic.is-part-of",
+      "from": "coefficient-c",
+      "to": "quadratic-function"
+    },
+    {
+      "id": "vertex-in-function",
+      "relationType": "quadratic.is-part-of",
+      "from": "vertex",
+      "to": "quadratic-function"
+    },
+    {
+      "id": "axis-of-symmetry-in-function",
+      "relationType": "quadratic.is-part-of",
+      "from": "axis-of-symmetry",
+      "to": "quadratic-function"
+    },
+    {
+      "id": "discriminant-in-function",
+      "relationType": "quadratic.is-part-of",
+      "from": "discriminant",
+      "to": "quadratic-function"
+    },
+    {
+      "id": "roots-in-function",
+      "relationType": "quadratic.is-part-of",
+      "from": "roots",
+      "to": "quadratic-function"
+    },
+    {
+      "id": "coefficient-a-decides-vertex",
+      "relationType": "quadratic.decides",
+      "from": "coefficient-a",
+      "to": "vertex"
+    },
+    {
+      "id": "coefficient-b-decides-vertex",
+      "relationType": "quadratic.decides",
+      "from": "coefficient-b",
+      "to": "vertex"
+    },
+    {
+      "id": "coefficient-c-decides-vertex",
+      "relationType": "quadratic.decides",
+      "from": "coefficient-c",
+      "to": "vertex"
+    },
+    {
+      "id": "coefficient-a-decides-discriminant",
+      "relationType": "quadratic.decides",
+      "from": "coefficient-a",
+      "to": "discriminant"
+    },
+    {
+      "id": "coefficient-b-decides-discriminant",
+      "relationType": "quadratic.decides",
+      "from": "coefficient-b",
+      "to": "discriminant"
+    },
+    {
+      "id": "coefficient-c-decides-discriminant",
+      "relationType": "quadratic.decides",
+      "from": "coefficient-c",
+      "to": "discriminant"
+    },
+    {
+      "id": "discriminant-decides-roots",
+      "relationType": "quadratic.decides",
+      "from": "discriminant",
+      "to": "roots"
+    },
+    {
+      "id": "vertex-decides-axis-of-symmetry",
+      "relationType": "quadratic.decides",
+      "from": "vertex",
+      "to": "axis-of-symmetry"
+    }
+  ]
+}

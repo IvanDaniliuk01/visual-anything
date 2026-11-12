@@ -1,0 +1,163 @@
+{
+  "id": "playing-with-a-b-c",
+  "name": "Playing with a, b and c",
+  "description": "Each step sets the parabola’s coefficients, and shows what changes: which way it opens, where its vertex sits and how many roots it has.",
+  "steps": [
+    {
+      "id": "the-simplest",
+      "viewState": {
+        "view": "the-function",
+        "select": [
+          "quadratic-function"
+        ]
+      },
+      "caption": {
+        "title": "The simplest parabola",
+        "text": "With $a = 1$, $b = 0$ and $c = 0$ the function is $f(x) = x^2$: its vertex is the origin, and it touches the $x$ axis there, its one double root.",
+        "pointTo": "quadratic-function"
+      },
+      "marks": [
+        "quadratic-function"
+      ],
+      "explorable": {
+        "id": "quadratic.parabola",
+        "parameters": {
+          "a": 1,
+          "b": 0,
+          "c": 0
+        }
+      }
+    },
+    {
+      "id": "opening-down",
+      "viewState": {
+        "view": "the-function",
+        "select": [
+          "coefficient-a"
+        ]
+      },
+      "caption": {
+        "title": "Opening down",
+        "text": "A negative $a$ turns it over, and $c = 4$ lifts it: $f(x) = -x^2 + 4$ has its highest point at $(0, 4)$ and two roots, $x = \\pm 2$.",
+        "pointTo": "coefficient-a"
+      },
+      "marks": [
+        "coefficient-a",
+        "coefficient-c"
+      ],
+      "explorable": {
+        "id": "quadratic.parabola",
+        "parameters": {
+          "a": -1,
+          "b": 0,
+          "c": 4
+        }
+      }
+    },
+    {
+      "id": "moving-the-vertex",
+      "viewState": {
+        "view": "the-function",
+        "select": [
+          "vertex"
+        ]
+      },
+      "caption": {
+        "title": "Moving the vertex",
+        "text": "With $b = -4$ the vertex moves to $x_v = -\\frac{b}{2a} = 2$, and $c = 3$ puts it at $f(2) = -1$. The roots are $1$ and $3$, one on each side of the axis of symmetry.",
+        "pointTo": "vertex"
+      },
+      "marks": [
+        "vertex",
+        "coefficient-b",
+        "axis-of-symmetry"
+      ],
+      "explorable": {
+        "id": "quadratic.parabola",
+        "parameters": {
+          "a": 1,
+          "b": -4,
+          "c": 3
+        }
+      }
+    },
+    {
+      "id": "one-double-root",
+      "viewState": {
+        "view": "the-function",
+        "select": [
+          "discriminant"
+        ]
+      },
+      "caption": {
+        "title": "One double root",
+        "text": "For $f(x) = x^2 - 2x + 1$ the discriminant is $\\Delta = 4 - 4 = 0$: the vertex sits on the $x$ axis, and the two roots meet at $x = 1$.",
+        "pointTo": "discriminant"
+      },
+      "marks": [
+        "discriminant",
+        "roots"
+      ],
+      "explorable": {
+        "id": "quadratic.parabola",
+        "parameters": {
+          "a": 1,
+          "b": -2,
+          "c": 1
+        }
+      },
+      "notes": "Ask what happens to the roots when c grows a little past 1."
+    },
+    {
+      "id": "no-real-roots",
+      "viewState": {
+        "view": "the-function",
+        "select": [
+          "discriminant"
+        ]
+      },
+      "caption": {
+        "title": "No real roots",
+        "text": "For $f(x) = x^2 + 2x + 3$, $\\Delta = 4 - 12 = -8 < 0$: the parabola never meets the $x$ axis, and $\\sqrt{\\Delta}$ has no real value.",
+        "pointTo": "discriminant"
+      },
+      "marks": [
+        "discriminant",
+        "roots"
+      ],
+      "explorable": {
+        "id": "quadratic.parabola",
+        "parameters": {
+          "a": 1,
+          "b": 2,
+          "c": 3
+        }
+      }
+    },
+    {
+      "id": "narrow-and-wide",
+      "viewState": {
+        "view": "the-function",
+        "select": [
+          "coefficient-a"
+        ]
+      },
+      "caption": {
+        "title": "Narrow and wide",
+        "text": "A larger $|a|$ makes the parabola narrower: with $a = 3$ and $c = -2$ its roots close in to $x = \\pm\\sqrt{2/3}$.",
+        "pointTo": "coefficient-a"
+      },
+      "marks": [
+        "coefficient-a"
+      ],
+      "explorable": {
+        "id": "quadratic.parabola",
+        "parameters": {
+          "a": 3,
+          "b": 0,
+          "c": -2
+        }
+      }
+    }
+  ]
+}

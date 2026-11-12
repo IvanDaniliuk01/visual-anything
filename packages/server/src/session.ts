@@ -102,6 +102,7 @@ import { projectDestinationWarnings, type OpenOtherProject } from './other-proje
 import { LiveValues, type LiveKept, type LiveListing } from './live';
 import { LayoutWaits, type LayoutGuidance, type LayoutWait } from './layout-waits';
 import { CaptureWaits } from './capture-waits';
+import type { ExplorableCaptureAsk, ExplorableCaptureReport } from './claude/messages';
 import { PackageFetcher, networkGrantOf, type FetcherOptions } from './live-fetch';
 import type { LogEvent, ProgramEvent } from './program-log';
 import type { PreferencesStore } from './preferences';
@@ -311,6 +312,18 @@ export interface LiveSession {
    * `request_script_library` calls it. Absent where the program fetches none.
    */
   requestScriptLibrary?(ask: ScriptLibraryAsk): Promise<Kept>;
+  /**
+   * Whether an explorable runs as the project holds it now: the hash of its text and its script
+   * libraries is one the person approved (ADR 0107). Claude's tools answer `not-approved` otherwise.
+   * Absent where the program keeps no approvals, and then none runs.
+   */
+  isExplorableApproved?(explorable: Id): boolean;
+  /**
+   * Asks the tab the person used last for a still of an explorable and its console errors, within
+   * ADR 0081's deadlines, for Claude's `capture_explorable` (ADR 0107). It changes nothing. Absent
+   * where the app takes no stills of explorables for Claude, and then the endpoint says so.
+   */
+  captureExplorable?(ask: ExplorableCaptureAsk): Promise<ExplorableCaptureReport>;
 }
 
 /** Where the explorables' listener answers: its port, and the nonce every frame's path starts with. */
