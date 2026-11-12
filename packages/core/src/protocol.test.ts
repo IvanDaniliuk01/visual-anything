@@ -31,8 +31,8 @@ const project: ProjectSnapshot = {
 };
 
 describe('PROTOCOL_VERSION', () => {
-  it('is 14, since a view may hold link cards (ADR 0098, stage 3)', () => {
-    expect(PROTOCOL_VERSION).toBe(14);
+  it('is 15, since an app lists and removes the script library files no package names', () => {
+    expect(PROTOCOL_VERSION).toBe(15);
   });
 
   it('names the launch code and the token in the address and on the live connection', () => {

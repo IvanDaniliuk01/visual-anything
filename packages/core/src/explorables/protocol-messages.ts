@@ -366,3 +366,139 @@ export function readScriptLibraryRefused(
     value: { type: 'script-library/refused', requestId, code: code as ProblemCode, message: text },
   };
 }
+
+// ——— The files of `script-libraries/` no package names (A10.2, protocol 15) ———
+
+/** The most files one removal names. */
+export const MAX_SCRIPT_LIBRARY_FILES_REMOVED = 1024;
+
+export interface ScriptLibraryFilesListMessage {
+  type: 'script-library-files/list';
+  requestId: string;
+}
+
+export interface ScriptLibraryFilesRemoveMessage {
+  type: 'script-library-files/remove';
+  requestId: string;
+  /** The files to remove, by their hashes, which name them `script-libraries/<hash>.js`. */
+  hashes: string[];
+}
+
+/** A file of `script-libraries/` that no package names. */
+export interface UnnamedScriptLibraryFileEntry {
+  hash: string;
+  /** Its size, in bytes. */
+  bytes: number;
+}
+
+/** A file a removal would not remove, and why. */
+export interface KeptScriptLibraryFileEntry {
+  hash: string;
+  message: string;
+}
+
+export interface ScriptLibraryFilesListedMessage {
+  type: 'script-library-files/listed';
+  requestId: string;
+  /** The files no package names now, by hash, in order. */
+  files: UnnamedScriptLibraryFileEntry[];
+  /** For a removal: the files it removed. */
+  removed?: string[];
+  /** For a removal: the files it would not remove, and why. */
+  kept?: KeptScriptLibraryFileEntry[];
+}
+
+function isHash(value: unknown): value is string {
+  return typeof value === 'string' && HASH.test(value);
+}
+
+function isPlain(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Reads `script-library-files/list`, from an app. */
+export function readScriptLibraryFilesList(
+  message: Record<string, unknown>,
+): Read<ScriptLibraryFilesListMessage> {
+  const requestId = requestIdOf(message);
+  if (requestId === undefined) return fail('The request has no valid id.');
+  if (!onlyKeys(message, ['type', 'requestId'])) {
+    return fail('script-library-files/list holds only its id.');
+  }
+  return { ok: true, value: { type: 'script-library-files/list', requestId } };
+}
+
+/**
+ * Reads `script-library-files/remove`, from an app: hashes only, never a path, so that nothing it
+ * names can lie outside `script-libraries/`.
+ */
+export function readScriptLibraryFilesRemove(
+  message: Record<string, unknown>,
+): Read<ScriptLibraryFilesRemoveMessage> {
+  const requestId = requestIdOf(message);
+  if (requestId === undefined) return fail('The request has no valid id.');
+  if (!onlyKeys(message, ['type', 'requestId', 'hashes'])) {
+    return fail(
+      'script-library-files/remove holds only its id and the hashes of the files to remove.',
+    );
+  }
+  const { hashes } = message;
+  if (
+    !Array.isArray(hashes) ||
+    hashes.length === 0 ||
+    hashes.length > MAX_SCRIPT_LIBRARY_FILES_REMOVED ||
+    !hashes.every(isHash)
+  ) {
+    return fail(
+      `A removal names 1 to ${MAX_SCRIPT_LIBRARY_FILES_REMOVED} script library files by their SHA-256, in lowercase hexadecimal.`,
+    );
+  }
+  return {
+    ok: true,
+    value: { type: 'script-library-files/remove', requestId, hashes: [...new Set(hashes)] },
+  };
+}
+
+/** Reads `script-library-files/listed`, from the program. */
+export function readScriptLibraryFilesListed(
+  message: Record<string, unknown>,
+): Read<ScriptLibraryFilesListedMessage> {
+  const requestId = requestIdOf(message);
+  if (requestId === undefined) return fail('The answer has no valid request id.');
+  if (!onlyKeys(message, ['type', 'requestId', 'files', 'removed', 'kept'])) {
+    return fail('script-library-files/listed holds nothing else.');
+  }
+  const { files, removed, kept } = message;
+  const isFile = (file: unknown): file is UnnamedScriptLibraryFileEntry =>
+    isPlain(file) &&
+    isHash(file.hash) &&
+    typeof file.bytes === 'number' &&
+    Number.isInteger(file.bytes) &&
+    file.bytes >= 0;
+  if (!Array.isArray(files) || !files.every(isFile)) {
+    return fail('The files are listed by their hashes and sizes.');
+  }
+  if (removed !== undefined && (!Array.isArray(removed) || !removed.every(isHash))) {
+    return fail('The files removed are listed by their hashes.');
+  }
+  const isKept = (each: unknown): each is KeptScriptLibraryFileEntry =>
+    isPlain(each) &&
+    isHash(each.hash) &&
+    typeof each.message === 'string' &&
+    each.message.length <= 2000;
+  if (kept !== undefined && (!Array.isArray(kept) || !kept.every(isKept))) {
+    return fail('The files kept are listed by their hashes, each with why.');
+  }
+  return {
+    ok: true,
+    value: {
+      type: 'script-library-files/listed',
+      requestId,
+      files: files.map(({ hash, bytes }) => ({ hash, bytes })),
+      ...(removed === undefined ? {} : { removed: [...removed] }),
+      ...(kept === undefined
+        ? {}
+        : { kept: kept.map(({ hash, message: why }) => ({ hash, message: why })) }),
+    },
+  };
+}

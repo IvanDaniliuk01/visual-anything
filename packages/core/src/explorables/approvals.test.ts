@@ -252,3 +252,56 @@ describe('the live connection’s messages on explorables', () => {
     ).toThrow();
   });
 });
+
+describe('the files of script-libraries/ no package names (protocol 15)', () => {
+  it('lists and removes them by hash, and reads what the program answers', () => {
+    expect(
+      decodeAppMessage(JSON.stringify({ type: 'script-library-files/list', requestId: 'r' })),
+    ).toEqual({ type: 'script-library-files/list', requestId: 'r' });
+    expect(
+      decodeAppMessage(
+        JSON.stringify({
+          type: 'script-library-files/remove',
+          requestId: 'r',
+          hashes: [hash(1), hash(1), hash(2)],
+        }),
+      ),
+    ).toEqual({ type: 'script-library-files/remove', requestId: 'r', hashes: [hash(1), hash(2)] });
+    const listed = {
+      type: 'script-library-files/listed',
+      requestId: 'r',
+      files: [{ hash: hash(3), bytes: 120 }],
+      removed: [hash(1)],
+      kept: [{ hash: hash(2), message: 'A package names it again.' }],
+    };
+    expect(decodeServerMessage(JSON.stringify(listed))).toEqual(listed);
+  });
+
+  it('refuses paths, empty removals, and answers that hold anything else', () => {
+    for (const hashes of [[], ['../x.js'], ['A'.repeat(64)], 'all']) {
+      expect(() =>
+        decodeAppMessage(
+          JSON.stringify({ type: 'script-library-files/remove', requestId: 'r', hashes }),
+        ),
+      ).toThrow();
+    }
+    expect(() =>
+      decodeAppMessage(
+        JSON.stringify({ type: 'script-library-files/list', requestId: 'r', path: '/' }),
+      ),
+    ).toThrow();
+    for (const bad of [
+      { files: [{ hash: hash(1), bytes: -1 }] },
+      { files: [{ hash: 'x', bytes: 1 }] },
+      { files: [], removed: ['x'] },
+      { files: [], kept: [{ hash: hash(1) }] },
+      { files: [], extra: true },
+    ]) {
+      expect(() =>
+        decodeServerMessage(
+          JSON.stringify({ type: 'script-library-files/listed', requestId: 'r', ...bad }),
+        ),
+      ).toThrow();
+    }
+  });
+});

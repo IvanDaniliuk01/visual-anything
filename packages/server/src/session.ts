@@ -1025,6 +1025,12 @@ export class Session implements LiveSession {
       case 'script-library/consented':
         this.#consented(client, message);
         return;
+      case 'script-library-files/list':
+        await this.#listScriptLibraryFiles(origin);
+        return;
+      case 'script-library-files/remove':
+        await this.#removeScriptLibraryFiles(origin, message.hashes);
+        return;
       case 'link/fetch':
         await this.#fetchLinkPreview(client, message);
         return;
@@ -3100,6 +3106,46 @@ export class Session implements LiveSession {
         hashes,
       );
       return { removed, kept, files: await unnamedScriptLibraryFiles(this.folder, this.#state) };
+    });
+  }
+
+  /** Answers an app with the files of `script-libraries/` no package names (protocol 15). */
+  async #listScriptLibraryFiles(origin: Origin): Promise<void> {
+    try {
+      const files = await this.listUnnamedScriptLibraryFiles();
+      this.#send(origin.client, {
+        type: 'script-library-files/listed',
+        requestId: origin.requestId,
+        files,
+      });
+    } catch (error) {
+      this.#refuseScriptLibraryFiles(origin, error);
+    }
+  }
+
+  /** Removes the files an app names, as the person asked, and answers with what is left. */
+  async #removeScriptLibraryFiles(origin: Origin, hashes: readonly string[]): Promise<void> {
+    try {
+      const { removed, kept, files } = await this.removeUnnamedScriptLibraryFiles(hashes);
+      this.#send(origin.client, {
+        type: 'script-library-files/listed',
+        requestId: origin.requestId,
+        files,
+        removed,
+        ...(kept.length === 0 ? {} : { kept }),
+      });
+    } catch (error) {
+      this.#refuseScriptLibraryFiles(origin, error);
+    }
+  }
+
+  #refuseScriptLibraryFiles(origin: Origin, error: unknown): void {
+    this.#err(`Could not read the project's script library files: ${reasonOf(error)}`);
+    this.#send(origin.client, {
+      type: 'script-library/refused',
+      requestId: origin.requestId,
+      code: 'program-failed',
+      message: `The project's script library files could not be read: ${reasonOf(error)}`,
     });
   }
 

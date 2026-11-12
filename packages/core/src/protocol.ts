@@ -136,6 +136,9 @@ import {
   readScriptLibraryFetch,
   readScriptLibraryKept,
   readScriptLibraryRefused,
+  readScriptLibraryFilesList,
+  readScriptLibraryFilesListed,
+  readScriptLibraryFilesRemove,
   type ExplorablesListenMessage,
   type ExplorablesListeningMessage,
   type ScriptLibraryConsentMessage,
@@ -143,6 +146,9 @@ import {
   type ScriptLibraryFetchMessage,
   type ScriptLibraryKeptMessage,
   type ScriptLibraryRefusedMessage,
+  type ScriptLibraryFilesListMessage,
+  type ScriptLibraryFilesListedMessage,
+  type ScriptLibraryFilesRemoveMessage,
 } from './explorables/protocol-messages';
 import { readSpaceCamera } from './space/camera';
 // A type only: view-state.ts imports this module, and the app checks the view state it is shown.
@@ -220,8 +226,11 @@ import type { ViewState } from './view-state';
  * 14: link cards (ADR 0098, stage 3): a view's free shapes may be link cards, `{ kind: 'link', … }`,
  *    which an app of 13 would refuse when it opens the view file; and an app asks for a card's
  *    preview with `link/fetch`, answered with `link/fetched` or `link/refused`.
+ * 15: the files of `script-libraries/` that no package names (ADR 0107, A10.2):
+ *    `script-library-files/list` and `script-library-files/remove` from an app, answered with
+ *    `script-library-files/listed` or `script-library/refused`, as solid and media files are.
  */
-export const PROTOCOL_VERSION = 14;
+export const PROTOCOL_VERSION = 15;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';
@@ -305,7 +314,8 @@ export type ServerMessage =
   | ExplorablesListeningMessage
   | ScriptLibraryConsentMessage
   | ScriptLibraryKeptMessage
-  | ScriptLibraryRefusedMessage;
+  | ScriptLibraryRefusedMessage
+  | ScriptLibraryFilesListedMessage;
 
 /**
  * Sent to every app when Claude, or the command line, asks to open the app while a tab is connected
@@ -1091,6 +1101,8 @@ export type AppMessage =
   | ExplorablesListenMessage
   | ScriptLibraryFetchMessage
   | ScriptLibraryConsentedMessage
+  | ScriptLibraryFilesListMessage
+  | ScriptLibraryFilesRemoveMessage
   | LinkFetchMessage
   | PackageReadMessage
   | ClaudeSetupMessage;
@@ -1249,6 +1261,7 @@ const SERVER_TYPES = new Set<string>([
   'script-library/consent',
   'script-library/kept',
   'script-library/refused',
+  'script-library-files/listed',
 ]);
 
 /**
@@ -1366,6 +1379,8 @@ export function decodeServerMessage(text: string): ServerMessage {
       return readSolidMessage(readScriptLibraryKept(message));
     case 'script-library/refused':
       return readSolidMessage(readScriptLibraryRefused(message));
+    case 'script-library-files/listed':
+      return readSolidMessage(readScriptLibraryFilesListed(message));
     case 'link/fetched':
       return readSolidMessage(readLinkFetched(message));
     case 'link/refused':
@@ -1503,6 +1518,10 @@ export function decodeAppMessage(text: string): AppMessage {
       return readSolidMessage(readScriptLibraryFetch(message));
     case 'script-library/consented':
       return readSolidMessage(readScriptLibraryConsented(message));
+    case 'script-library-files/list':
+      return readSolidMessage(readScriptLibraryFilesList(message));
+    case 'script-library-files/remove':
+      return readSolidMessage(readScriptLibraryFilesRemove(message));
     case 'link/fetch':
       return readSolidMessage(readLinkFetch(message));
     case 'package/read':
