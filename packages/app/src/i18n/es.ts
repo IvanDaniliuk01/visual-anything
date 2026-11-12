@@ -2357,6 +2357,8 @@ export const ui: Catalog = {
   'Other parts of the model': 'Otras partes del modelo',
   'Add to this view, “{view}”': 'Agregar a esta vista, “{view}”',
   'Outside the view': 'Fuera de la vista',
+  // A8's review: a step that shows a picture, video or link card its view no longer holds.
+  'Shows what is gone': 'Muestra lo que ya no está',
   'The scope of “{view}” shows none of this step’s relations, so nothing is marked for it there. It plays all the same.':
     'El alcance de “{view}” no muestra ninguna de las relaciones de este paso, así que allí no se marca nada para él. Se reproduce igual.',
   '“{view}” leaves out the relation types of this step’s relations, so it draws no line for them. It plays all the same.':

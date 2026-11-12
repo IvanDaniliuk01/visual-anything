@@ -325,7 +325,8 @@
   white-space: nowrap;
 }
 
-.scenario-badge-broken {
+.scenario-badge-broken,
+.scenario-badge-gone {
   background: var(--warning-soft);
   color: var(--warning);
 }
