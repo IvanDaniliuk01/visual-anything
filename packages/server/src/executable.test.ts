@@ -102,7 +102,11 @@ describe('the local program serving the app the executable holds', () => {
     expect(reply.headers['content-type']).toBe('text/html; charset=utf-8');
     expect(reply.headers['cache-control']).toBe('no-store');
     expect(reply.headers['content-security-policy']).toBe(
-      pagePolicy(server.port, { trustedTypes: true, scriptHashes: inlineScriptHashes(INDEX) }),
+      pagePolicy(server.port, {
+        trustedTypes: true,
+        scriptHashes: inlineScriptHashes(INDEX),
+        framePort: server.framePort,
+      }),
     );
     expect(reply.headers['x-content-type-options']).toBe('nosniff');
     expect(reply.headers['x-frame-options']).toBe('DENY');

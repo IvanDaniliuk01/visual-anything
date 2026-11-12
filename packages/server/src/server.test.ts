@@ -103,7 +103,11 @@ function expectSecurityHeaders(reply: Reply) {
   const type = reply.headers['content-type'] ?? '';
   expect(reply.headers['content-security-policy']).toBe(
     type.startsWith('text/html')
-      ? pagePolicy(server.port, { trustedTypes: true, scriptHashes: [] })
+      ? pagePolicy(server.port, {
+          trustedTypes: true,
+          scriptHashes: [],
+          framePort: server.framePort,
+        })
       : type.startsWith('text/javascript')
         ? WORKER_POLICY
         : "frame-ancestors 'none'",

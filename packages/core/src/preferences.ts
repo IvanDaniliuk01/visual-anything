@@ -7,6 +7,8 @@
 import type { Color, Id } from '@visual-anything/schema';
 import { checkCodeApprovals, readCodeApprovals, type CodeApproval } from './code/approvals';
 import { MAX_AUTHOR_NAME, checkPerson } from './comments/authors';
+import { checkExplorableApprovals, readExplorableApprovals } from './explorables/approvals';
+import type { ExplorableApproval } from './explorables/types';
 import { isId } from './ids';
 import type { Problem } from './problems';
 
@@ -70,6 +72,11 @@ export interface Preferences {
    * clarification): their hooks stay off while the packages stay in the project, approved or not.
    */
   codeTurnedOff: Id[];
+  /**
+   * The explorables the person approved, by the hash of their frame's inputs, newest first, at most
+   * 1,024 (ADR 0107): Claude's writes continue one with `by: 'claude'`, and Claude never approves.
+   */
+  explorableApprovals: ExplorableApproval[];
 }
 
 /** The most packages whose code can be turned off. */
@@ -129,6 +136,7 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
     inspector: Object.freeze({ width: 320, collapsed: false }),
   }),
   codeTurnedOff: Object.freeze([]) as unknown as Id[],
+  explorableApprovals: Object.freeze([]) as unknown as ExplorableApproval[],
 });
 
 /** The known names, in the order the file writes them. */
@@ -146,6 +154,7 @@ export const PREFERENCE_NAMES: readonly PreferenceName[] = Object.freeze([
   'reviewClaude',
   'sidePanels',
   'codeTurnedOff',
+  'explorableApprovals',
 ]);
 
 /** What the preferences file holds, read leniently. */
@@ -330,6 +339,7 @@ const LENIENT: Record<PreferenceName, Lenient> = {
     if (!Array.isArray(value) || !(value as unknown[]).every(isId)) return undefined;
     return [...new Set(value as Id[])].sort(compareText).slice(0, MAX_CODE_TURNED_OFF);
   },
+  explorableApprovals: readExplorableApprovals,
 };
 
 type Checked = { ok: true; value: unknown } | { ok: false; message: string };
@@ -418,6 +428,7 @@ const STRICT: Record<PreferenceName, (value: unknown) => Checked> = {
   reviewClaude: (value) => strictBoolean('reviewClaude', value),
   sidePanels: checkSidePanels,
   codeTurnedOff: checkCodeTurnedOff,
+  explorableApprovals: checkExplorableApprovals,
 };
 
 /** Checks the packages whose code is turned off: ids, each once, at most 256; kept sorted. */
@@ -522,6 +533,7 @@ function copyOf(preferences: Readonly<Preferences>): Preferences {
       inspector: { ...preferences.sidePanels.inspector },
     },
     codeTurnedOff: [...preferences.codeTurnedOff],
+    explorableApprovals: preferences.explorableApprovals.map((each) => ({ ...each })),
   };
 }
 

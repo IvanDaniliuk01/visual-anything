@@ -8,6 +8,7 @@
  * the bytes of every project file as it last read or wrote them: a change on disk that differs from
  * them was made outside, and a file is never written over such a change.
  */
+import { randomUUID } from 'node:crypto';
 import { readdir, realpath } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -16,7 +17,17 @@ import {
   EMPTY_HISTORY,
   PROTOCOL_VERSION,
   applyOperations,
+  approvalHashOf,
+  builtinPackage,
   checkPreferenceChanges,
+  continuedApprovals,
+  explorableFileProblems,
+  explorableFileWrites,
+  explorableTextHash,
+  explorableTextOf,
+  explorablesIn,
+  registryAddresses,
+  scriptLibraryHashes,
   checkProject,
   codePackagesOn,
   compareProjects,
@@ -60,6 +71,11 @@ import {
   type ProposalAcceptMessage,
   type ProposalClosedMessage,
   type ProblemCode,
+  type ExplorableFileFinding,
+  type ScriptLibraryAsk,
+  type ScriptLibraryAsker,
+  type ScriptLibraryConsentedMessage,
+  type ScriptLibraryFetchMessage,
   type ProjectChangedMessage,
   type ProjectSnapshot,
   type ServerMessage,
@@ -107,6 +123,26 @@ import { planSolidImport, type SolidChoices } from './solids/import';
 import { readProjectSolidFile } from './solids/project-file';
 import { removeUnnamedMediaFiles, unnamedMediaFiles } from './media/files';
 import { readProjectPictureFile } from './media/project-file';
+import {
+  readExplorableFile,
+  readExplorableFiles,
+  readFinding,
+  writeExplorableFile,
+  type ChangedExplorableFile,
+  type ExplorableFilesRead,
+} from './explorables/files';
+import { explorableFrame } from './explorables/frame';
+import type { FrameAnswer } from './explorables/listener';
+import { watchExplorables } from './explorables/watch';
+import {
+  removeUnnamedScriptLibraryFiles,
+  scriptLibraryFindings,
+  unnamedScriptLibraryFiles,
+  type KeptScriptLibraryFile,
+  type UnnamedScriptLibraryFile,
+} from './script-libraries/files';
+import { keepScriptLibrary, type Kept } from './script-libraries/keep';
+import { RegistryFetcher, type RegistryOptions } from './script-libraries/registry';
 import { MediaStore, type Keeping, type MediaStoreOptions } from './media/store';
 import {
   SolidStore,
@@ -247,6 +283,36 @@ export interface LiveSession {
     author: Author,
     origin?: Origin,
   ): Promise<SessionOutcome>;
+  /**
+   * Says where the explorables' listener answers (ADR 0107): its port on 127.0.0.1 and the nonce made
+   * for this run of the program, which `explorables/listen` answers with. Absent where the program
+   * runs no explorables.
+   */
+  servesExplorablesAt?(listener: ExplorablesListener): void;
+  /**
+   * The frame document an explorable's address names, for the explorables' listener (ADR 0107): built
+   * from the text the project holds and its script libraries' files, served only when the hash of
+   * exactly those is the one named and the person approved it; otherwise why not.
+   */
+  serveExplorableFrame?(
+    explorable: Id,
+    hash: string,
+    appOrigin: string,
+    runtime: string,
+  ): Promise<FrameAnswer>;
+  /**
+   * Asks the person, in every open app, to fetch a script library Claude wants (ADR 0107): the npm
+   * package, its exact version and the registry's two addresses, before any byte is fetched. Resolves
+   * with the library kept, once its `define-script-library` action ran, or why there is none. Claude's
+   * `request_script_library` calls it. Absent where the program fetches none.
+   */
+  requestScriptLibrary?(ask: ScriptLibraryAsk): Promise<Kept>;
+}
+
+/** Where the explorables' listener answers: its port, and the nonce every frame's path starts with. */
+export interface ExplorablesListener {
+  port: number;
+  nonce: string;
 }
 
 /** How a command of Claude's runs: `propose` makes it join Claude's proposal (ADR 0073). */
@@ -349,6 +415,10 @@ export interface SessionOptions {
   solids?: Pick<SolidStoreOptions, 'clean' | 'check'>;
   /** How pictures' files are cleaned and checked (ADR 0098); in the cleaner's worker by default. */
   media?: Pick<MediaStoreOptions, 'clean' | 'check'>;
+  /** How script libraries are fetched from the npm registry (ADR 0107); tests give their own. */
+  registry?: RegistryOptions;
+  /** How long a request for a script library waits for the person's answer; five minutes. */
+  consentWait?: number;
 }
 
 /** The outcome of opening a session: the session, or every problem that keeps the project closed. */
@@ -447,6 +517,22 @@ export class Session implements LiveSession {
    * file, the history or the repository before it is accepted.
    */
   readonly #proposal: SessionProposal;
+  /**
+   * The bytes of each file of `explorables/` as the program last read or wrote them, by name; `null`
+   * for a file that was not there (ADR 0107). A file is written only over these bytes, and a change on
+   * disk is one that differs from them, so the program's own writes are never taken as the person's.
+   */
+  #explorableBytes = new Map<string, Buffer | null>();
+  /** What is wrong with a file of `explorables/`, by name, as last read. */
+  #explorableFindings = new Map<string, ExplorableFileFinding>();
+  #explorablesWatcher: ProjectWatcher | undefined;
+  #explorablesScanQueued = false;
+  /** Where the explorables' listener answers, once the program said (ADR 0107). */
+  #frames: ExplorablesListener | undefined;
+  /** What fetches script libraries from the npm registry (ADR 0107). */
+  readonly #registry: RegistryFetcher;
+  /** The requests for a script library that wait for the person's answer, by request id. */
+  readonly #consents = new Map<string, Consent>();
 
   private constructor(folder: string, loaded: LoadedProject, options: SessionOptions) {
     this.folder = folder;
@@ -504,6 +590,7 @@ export class Session implements LiveSession {
       warn: options.versions?.warn ?? ((line) => this.#err(line)),
     });
     this.#proposal = new SessionProposal(() => this.#now());
+    this.#registry = new RegistryFetcher(options.registry);
   }
 
   /** Opens the project in a folder; see {@link openSession}. */
@@ -524,15 +611,43 @@ export class Session implements LiveSession {
         : watchFolder(projectFolder, options.watch ?? {}, options.err ?? console.error, () =>
             onChange(),
           );
+    // The explorables' files are watched before they are read too (ADR 0107).
+    let explorablesChanged = false;
+    let onExplorables = () => {
+      explorablesChanged = true;
+    };
+    const explorablesWatcher =
+      options.watch === false
+        ? undefined
+        : watchExplorablesFolder(
+            projectFolder,
+            options.watch?.delay,
+            options.err ?? console.error,
+            () => onExplorables(),
+          );
     const loaded = await loadProject(projectFolder);
     if (!loaded.ok) {
       watcher?.close();
+      explorablesWatcher?.close();
       return { ok: false, errors: loaded.errors };
     }
-    const session = new Session(projectFolder, loaded, options);
+    const explorables = await readExplorableFiles(projectFolder, loaded.project);
+    const session = new Session(projectFolder, { ...loaded, project: explorables.state }, options);
+    session.#tookExplorables(explorables);
     session.#watcher = watcher;
+    session.#explorablesWatcher = explorablesWatcher;
     onChange = () => session.#scanSoon();
+    onExplorables = () => session.#scanExplorablesSoon();
     if (changedWhileOpening) session.#scanSoon();
+    if (explorablesChanged) session.#scanExplorablesSoon();
+    // A file that no longer hashes to its definition is recorded as the person's action.
+    if (explorables.changed.length > 0) {
+      session
+        .#enqueue(() => session.#recordExplorableFiles(explorables.changed))
+        .catch((error: unknown) =>
+          session.#err(`Could not record the explorables' files: ${reasonOf(error)}`),
+        );
+    }
     return { ok: true, session };
   }
 
@@ -626,6 +741,13 @@ export class Session implements LiveSession {
       // So is whether the files the solids name are there, and clean (ADR 0075).
       warnings.push(...solidFileWarnings(this.#state, this.folder));
       warnings.push(...this.#solids.warnings(this.#state));
+      // And whether the explorables' and script libraries' files are there and fit (ADR 0107).
+      warnings.push(
+        ...explorableFileProblems(this.#state, {
+          explorables: this.#explorableFindings,
+          scriptLibraries: scriptLibraryFindings(this.#state, this.folder),
+        }),
+      );
       known = {
         state: this.#state,
         warnings: locateProblems(warnings, this.#state, this.files),
@@ -668,6 +790,7 @@ export class Session implements LiveSession {
       this.#captures.gone(client);
       this.#solids.forget(client);
       this.#media.forget(client);
+      this.#forgetConsents(client);
     };
   }
 
@@ -878,6 +1001,15 @@ export class Session implements LiveSession {
         return;
       case 'media-files/remove':
         await this.removeUnnamedMediaFiles(origin, message.hashes);
+        return;
+      case 'explorables/listen':
+        this.#answerListen(client, message.requestId);
+        return;
+      case 'script-library/fetch':
+        await this.#fetchScriptLibrary(client, message);
+        return;
+      case 'script-library/consented':
+        this.#consented(client, message);
         return;
     }
   }
@@ -1297,6 +1429,7 @@ export class Session implements LiveSession {
         }
         const saved = await this.#save(state, operations);
         if (!saved.ok) return this.#refuseDecision(origin, saved.problems);
+        const before = this.#state;
         this.#state = state;
         const closed = this.#proposal.close('accepted', accepted.accepted);
         const action = this.#recordAction(
@@ -1318,6 +1451,7 @@ export class Session implements LiveSession {
         });
         if (closed !== undefined) this.#closedProposal(closed, origin, accepted.accepted.length);
         this.#listHistory();
+        await this.#continueApprovals(before, state);
         return announced;
       }),
     );
@@ -1743,6 +1877,7 @@ export class Session implements LiveSession {
     author: Author,
     origin: Origin | undefined,
     joins?: number,
+    how: { program?: true } = {},
   ): Promise<SessionOutcome> {
     const joined = joins === undefined ? undefined : this.#joinable(joins, command);
     let outcome: CommandOutcome;
@@ -1753,6 +1888,9 @@ export class Session implements LiveSession {
         // whose sender is not said, so that Claude's words are never the person's.
         author,
         now: () => this.#now(),
+        // Only the program's own commands, for a file it read or fetched (ADR 0107): never one that
+        // came from an app, Claude's tools or package code.
+        ...(how.program === true ? { program: true as const } : {}),
       });
     } catch (error) {
       return this.#refuse(origin, [
@@ -1773,6 +1911,7 @@ export class Session implements LiveSession {
     }
     const saved = await this.#save(state, operations);
     if (!saved.ok) return this.#refuse(origin, saved.problems);
+    const before = this.#state;
     this.#state = state;
     const action = this.#recordAction({ label, author, operations, inverse }, joined);
     const announced = this.#announce(
@@ -1789,6 +1928,7 @@ export class Session implements LiveSession {
       created,
     });
     this.#listHistory();
+    if (author === 'claude') await this.#continueApprovals(before, state);
     return announced;
   }
 
@@ -1875,6 +2015,9 @@ export class Session implements LiveSession {
       this.#closed = true;
       this.#watcher?.close();
       this.#watcher = undefined;
+      this.#explorablesWatcher?.close();
+      this.#explorablesWatcher = undefined;
+      for (const consent of [...this.#consents.values()]) consent.settle(false);
       this.#live.close();
       this.#versions.close();
       this.#layouts.close();
@@ -1926,7 +2069,8 @@ export class Session implements LiveSession {
                 refusal(`nothing-to-${kind}`, `There is nothing to ${kind}.`),
               ]);
             const operations = [...step.operations];
-            const saved = await this.#save(step.state, operations);
+            // The action's own operations say which texts it read from their files (ADR 0107).
+            const saved = await this.#save(step.state, operations, step.entry.operations);
             if (!saved.ok) return this.#refuse(origin, saved.problems);
             this.#state = step.state;
             this.#history = step.history;
@@ -2154,9 +2298,23 @@ export class Session implements LiveSession {
     for (const client of this.#clients) this.#send(client, message);
   }
 
-  /** Saves the files that operations affect, as they are in the project after them. */
-  #save(next: ProjectSnapshot, operations: readonly Operation[]): Promise<Saved> {
-    return this.#saveFiles(next, affectedFiles(operations, this.#state, next));
+  /**
+   * Saves the files that operations affect, as they are in the project after them: the explorables'
+   * files first (ADR 0107), then the project's. `forward` are the action's own operations, which an
+   * undo passes: a text the action read from its file is never written back.
+   */
+  async #save(
+    next: ProjectSnapshot,
+    operations: readonly Operation[],
+    forward: readonly Operation[] = operations,
+  ): Promise<Saved> {
+    const planned = await this.#planExplorableWrites(next, operations, forward);
+    if (!planned.ok) return planned;
+    const written = await this.#writeExplorables(planned.changes);
+    if (!written.ok) return written;
+    const saved = await this.#saveFiles(next, affectedFiles(operations, this.#state, next));
+    if (!saved.ok) await this.#putBackExplorables(planned.changes);
+    return saved;
   }
 
   /**
@@ -2402,7 +2560,9 @@ export class Session implements LiveSession {
     this.#rejected = undefined;
     const reloaded = differences(this.#known, loaded.contents);
     if (reloaded.size === 0) return;
-    this.#adopt(loaded);
+    const explorables = await readExplorableFiles(this.folder, loaded.project);
+    this.#adopt({ ...loaded, project: explorables.state });
+    this.#tookExplorables(explorables);
     // Claude's proposal stays, rebased on what was read (ADR 0073).
     this.#rebaseProposal();
     this.#log({ event: 'files-changed', files: sortedPaths(reloaded), reloaded: true });
@@ -2424,6 +2584,7 @@ export class Session implements LiveSession {
     if (warnings.length > 0) this.#broadcast(warningNotice(warnings));
     const notices = this.notices();
     if (notices.length > 0) this.#broadcast(infoNotice(notices));
+    await this.#recordExplorableFiles(explorables.changed);
   }
 
   /** Takes a project as opened: its files, where they live and their bytes. The history starts empty. */
@@ -2454,12 +2615,488 @@ export class Session implements LiveSession {
     }
   }
 
+  // ——— Explorables (ADR 0107) ———
+
+  /** Takes what reading the explorables' files came to: their bytes and what is wrong with them. */
+  #tookExplorables(read: ExplorableFilesRead): void {
+    this.#explorableBytes = new Map(read.bytes);
+    this.#explorableFindings = new Map(read.findings);
+    this.#warnings = undefined;
+  }
+
+  /**
+   * Records each file whose text no longer hashes to its definition as the person's action, "The file
+   * of … changed", which only the program runs; only from inside a turn of the queue.
+   */
+  async #recordExplorableFiles(changed: readonly ChangedExplorableFile[]): Promise<void> {
+    for (const { id, text } of changed) {
+      if (this.#closed) return;
+      await this.#guarded(undefined, () =>
+        this.#run({ type: 'record-explorable-file', id, text }, 'user', undefined, undefined, {
+          program: true,
+        }),
+      );
+    }
+  }
+
+  /** Reads the explorables' files again after the work already asked for; one check waits at a time. */
+  #scanExplorablesSoon(): void {
+    if (this.#explorablesScanQueued || this.#closed) return;
+    this.#explorablesScanQueued = true;
+    this.#enqueue(() => this.scanExplorableFiles()).catch((error: unknown) =>
+      this.#err(`Could not read the explorables' files: ${reasonOf(error)}`),
+    );
+  }
+
+  /**
+   * Reads each explorable's file and compares its bytes with those the program last read or wrote: a
+   * file saved outside the app is recorded as the person's action "The file of … changed", and the
+   * program's own writes come to nothing. The watcher calls it; tests call it too, from inside a turn
+   * of the queue or once the session is idle.
+   */
+  async scanExplorableFiles(): Promise<void> {
+    this.#explorablesScanQueued = false;
+    if (this.#closed) return;
+    const changed: ChangedExplorableFile[] = [];
+    const found = new Map<string, ExplorableFileFinding>();
+    const seen = new Set<string>();
+    for (const { definition } of explorablesIn(this.#state).explorables.values()) {
+      const { file } = definition;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      const read = await readExplorableFile(this.folder, file);
+      const bytes = read.kind === 'text' || read.kind === 'not-text' ? read.bytes : null;
+      const known = this.#explorableBytes.get(file) ?? null;
+      if (known === null ? bytes === null : bytes !== null && known.equals(bytes)) continue;
+      this.#explorableBytes.set(file, bytes);
+      const finding = readFinding(read);
+      if (finding === undefined) this.#explorableFindings.delete(file);
+      else {
+        this.#explorableFindings.set(file, finding);
+        found.set(file, finding);
+      }
+      this.#warnings = undefined;
+      if (read.kind !== 'text') continue;
+      const held = explorableTextOf(this.#state, definition.id);
+      if (explorableTextHash(read.text) === definition.hash && held?.text === read.text) continue;
+      changed.push({ id: definition.id, text: read.text });
+    }
+    if (found.size > 0) {
+      const problems = explorableFileProblems(this.#state, { explorables: found });
+      this.#broadcast(warningNotice(locateProblems(problems, this.#state, this.files)));
+    }
+    await this.#recordExplorableFiles(changed);
+  }
+
+  /**
+   * The explorables' files to write after operations, each with the bytes it replaces: only over a
+   * file whose bytes are those the program last read or wrote, so that a change saved outside the app
+   * meanwhile is read rather than written over. A file it would leave as it is is left out.
+   */
+  async #planExplorableWrites(
+    next: ProjectSnapshot,
+    operations: readonly Operation[],
+    forward: readonly Operation[],
+  ): Promise<{ ok: true; changes: ExplorableChange[] } | { ok: false; problems: Problem[] }> {
+    const changes: ExplorableChange[] = [];
+    const changed: string[] = [];
+    for (const { file, text } of explorableFileWrites(next, operations, forward)) {
+      const bytes = Buffer.from(text, 'utf8');
+      const known = this.#explorableBytes.get(file) ?? null;
+      if (known?.equals(bytes) === true) continue;
+      const read = await readExplorableFile(this.folder, file);
+      const onDisk =
+        read.kind === 'text' || read.kind === 'not-text'
+          ? read.bytes
+          : read.kind === 'missing'
+            ? null
+            : undefined;
+      const same =
+        onDisk === undefined
+          ? false
+          : onDisk === null || known === null
+            ? onDisk === known
+            : onDisk.equals(known);
+      if (same) changes.push({ file, bytes, previous: known });
+      else changed.push(`explorables/${file}`);
+    }
+    if (changed.length > 0) {
+      this.#scanExplorablesSoon();
+      return {
+        ok: false,
+        problems: [
+          refusal(
+            'changed-on-disk',
+            `${listOf(changed)} changed on disk, so this change was not made; the file is read again.`,
+          ),
+        ],
+      };
+    }
+    return { ok: true, changes };
+  }
+
+  /** Writes the explorables' files; when one fails, puts back those written before it. */
+  async #writeExplorables(changes: readonly ExplorableChange[]): Promise<Saved> {
+    const done: ExplorableChange[] = [];
+    for (const change of changes) {
+      try {
+        await writeExplorableFile(this.folder, change.file, change.bytes, this.#options.writer);
+      } catch (error) {
+        await this.#putBackExplorables(done);
+        return {
+          ok: false,
+          problems: [
+            refusal(
+              'not-saved',
+              `Could not save explorables/${change.file} (${errorReason(error)}); nothing was changed.`,
+            ),
+          ],
+        };
+      }
+      this.#explorableBytes.set(change.file, change.bytes);
+      if (this.#explorableFindings.delete(change.file)) this.#warnings = undefined;
+      done.push(change);
+    }
+    return { ok: true };
+  }
+
+  /**
+   * Puts the explorables' files written back as they were. A file that was not there stays: the
+   * program never deletes one, and one that nothing names harms nothing.
+   */
+  async #putBackExplorables(changes: readonly ExplorableChange[]): Promise<void> {
+    for (const change of [...changes].reverse()) {
+      if (change.previous === null) continue;
+      try {
+        await writeExplorableFile(this.folder, change.file, change.previous, this.#options.writer);
+        this.#explorableBytes.set(change.file, change.previous);
+      } catch (error) {
+        this.#err(`Could not put explorables/${change.file} back as it was: ${errorReason(error)}`);
+      }
+    }
+  }
+
+  /**
+   * Continues the person's approvals over a change of Claude's (ADR 0107): each explorable whose
+   * frame's inputs changed, from a text that was approved, by anyone, is approved again with
+   * `by: 'claude'`, and every app hears of it. A text Claude did not write over an approved one, or a
+   * new explorable, is never approved here: Claude never approves.
+   */
+  async #continueApprovals(before: ProjectSnapshot, after: ProjectSnapshot): Promise<void> {
+    const store = this.#options.preferences;
+    if (store === undefined) return;
+    const current = store.current().explorableApprovals;
+    let approvals = current;
+    for (const { definition } of explorablesIn(after).explorables.values()) {
+      const previous = heldApprovalHash(before, definition.id);
+      const next = heldApprovalHash(after, definition.id);
+      if (previous === undefined || next === undefined || previous === next) continue;
+      approvals = continuedApprovals(approvals, definition.id, previous, next);
+    }
+    if (isDeepStrictEqual(approvals, current)) return;
+    try {
+      const result = await store.set({ explorableApprovals: approvals });
+      for (const client of this.#clients) {
+        this.#send(client, { type: 'preferences/changed', preferences: result.preferences });
+      }
+    } catch (error) {
+      this.#err(`Could not keep the approval of Claude's explorable: ${reasonOf(error)}`);
+    }
+  }
+
+  /**
+   * Whether the explorable runs as the project holds it now: the hash of its text and its script
+   * libraries' definitions is one the person approved. Claude's tools answer `not-approved` otherwise.
+   */
+  isExplorableApproved(explorable: Id): boolean {
+    const hash = heldApprovalHash(this.#state, explorable);
+    const approvals = this.#options.preferences?.current().explorableApprovals ?? [];
+    return hash !== undefined && approvals.some((each) => each.hash === hash);
+  }
+
+  servesExplorablesAt(listener: ExplorablesListener): void {
+    this.#frames = { port: listener.port, nonce: listener.nonce };
+  }
+
+  serveExplorableFrame(
+    explorable: Id,
+    hash: string,
+    appOrigin: string,
+    runtime: string,
+  ): Promise<FrameAnswer> {
+    if (this.#closed) {
+      return Promise.resolve({ ok: false, status: 404, message: CLOSED.message });
+    }
+    return explorableFrame(
+      {
+        folder: this.folder,
+        state: this.#state,
+        approvals: this.#options.preferences?.current().explorableApprovals ?? [],
+        appOrigin,
+        runtime,
+      },
+      explorable,
+      hash,
+    );
+  }
+
+  /** Answers `explorables/listen` with the listener's port and the run's nonce, never the token. */
+  #answerListen(client: SessionClient, requestId: string): void {
+    const frames = this.#frames;
+    if (frames === undefined) {
+      this.#send(client, {
+        type: 'command/rejected',
+        requestId,
+        problems: [refusal('program-failed', 'This Visual Anything runs no explorables.')],
+      });
+      return;
+    }
+    this.#send(client, {
+      type: 'explorables/listening',
+      requestId,
+      port: frames.port,
+      nonce: frames.nonce,
+    });
+  }
+
+  /** The person asks for a script library from the app: asked again, then fetched once approved. */
+  async #fetchScriptLibrary(
+    client: SessionClient,
+    message: ScriptLibraryFetchMessage,
+  ): Promise<void> {
+    const { requestId, package: owner, npm, version, path, global } = message;
+    await this.#askAndKeep(
+      {
+        package: owner,
+        npm,
+        version,
+        ...(path === undefined ? {} : { path }),
+        ...(global === undefined ? {} : { global }),
+      },
+      'person',
+      requestId,
+      [client],
+    );
+  }
+
+  requestScriptLibrary(ask: ScriptLibraryAsk): Promise<Kept> {
+    return this.#askAndKeep(ask, 'claude', `script-library-${randomUUID()}`, [...this.#clients]);
+  }
+
+  /**
+   * Asks the apps for the person's consent to fetch a script library, naming the package, its exact
+   * version and the registry's two addresses before any byte is fetched; once one approves, fetches,
+   * checks and keeps it, runs `define-script-library` as the program's own command, and tells the
+   * apps asked what was kept, or why nothing was.
+   */
+  async #askAndKeep(
+    ask: ScriptLibraryAsk,
+    asker: ScriptLibraryAsker,
+    requestId: string,
+    asked: readonly SessionClient[],
+  ): Promise<Kept> {
+    const named = `"${ask.npm}" ${ask.version}`;
+    const answer = (kept: Kept): Kept => {
+      for (const client of asked) {
+        this.#send(
+          client,
+          kept.ok
+            ? { type: 'script-library/kept', requestId, library: kept.library }
+            : { type: 'script-library/refused', requestId, code: kept.code, message: kept.message },
+        );
+      }
+      return kept;
+    };
+    if (this.#closed) return answer({ ok: false, code: 'project-closed', message: CLOSED.message });
+    const owner = this.#state.packages.find((file) => file.id === ask.package);
+    if (owner === undefined || builtinPackage(ask.package) !== undefined) {
+      return answer({
+        ok: false,
+        code: 'unknown-package',
+        message: `The project has no package "${ask.package}" of its own to keep the script library ${named} in.`,
+      });
+    }
+    if (asked.length === 0) {
+      return answer({
+        ok: false,
+        code: 'fetch-refused',
+        message: `The script library ${named} is not fetched: no app is open to ask you first.`,
+      });
+    }
+    if (this.#consents.has(requestId)) {
+      return answer({
+        ok: false,
+        code: 'invalid-command',
+        message: 'A request for a script library with this id waits already.',
+      });
+    }
+    const { document, tarball } = registryAddresses(ask.npm, ask.version);
+    const approved = await new Promise<boolean>((resolve) => {
+      const settle = (value: boolean) => {
+        clearTimeout(timer);
+        this.#consents.delete(requestId);
+        resolve(value);
+      };
+      const timer = setTimeout(() => settle(false), this.#options.consentWait ?? CONSENT_WAIT);
+      this.#consents.set(requestId, { from: new Set(asked), settle });
+      for (const client of asked) {
+        this.#send(client, {
+          type: 'script-library/consent',
+          requestId,
+          asker,
+          ...ask,
+          document,
+          tarball,
+        });
+      }
+    });
+    if (!approved) {
+      return answer({
+        ok: false,
+        code: 'fetch-refused',
+        message: `The script library ${named} is not fetched: you did not approve it.`,
+      });
+    }
+    let kept: Kept;
+    try {
+      kept = await keepScriptLibrary({
+        folder: this.folder,
+        state: this.#state,
+        ask,
+        fetcher: this.#registry,
+        ...(this.#options.writer === undefined ? {} : { writer: this.#options.writer }),
+      });
+    } catch (error) {
+      this.#err(`Could not keep the script library ${named}: ${reasonOf(error)}`);
+      kept = {
+        ok: false,
+        code: 'program-failed',
+        message: `The script library ${named} could not be kept: ${reasonOf(error)}`,
+      };
+    }
+    if (!kept.ok) return answer(kept);
+    const library = kept.library;
+    const outcome = this.#closed
+      ? this.#refuse(undefined, [CLOSED])
+      : await this.#enqueue(() =>
+          this.#guarded(undefined, () =>
+            this.#run(
+              { type: 'define-script-library', package: ask.package, library },
+              asker === 'claude' ? 'claude' : 'user',
+              undefined,
+              undefined,
+              { program: true },
+            ),
+          ),
+        );
+    if (!outcome.ok) {
+      return answer({
+        ok: false,
+        code: outcome.problems[0]?.code ?? 'program-failed',
+        message: outcome.problems.map((each) => each.message).join(' '),
+      });
+    }
+    this.#warnings = undefined;
+    return answer({ ok: true, library });
+  }
+
+  /** The person's answer to a request for a script library, from an app that was asked. */
+  #consented(client: SessionClient, message: ScriptLibraryConsentedMessage): void {
+    const consent = this.#consents.get(message.requestId);
+    if (consent === undefined || !consent.from.has(client)) return;
+    consent.settle(message.approved);
+  }
+
+  /** An app gone answers no request: one no app is left to answer is declined. */
+  #forgetConsents(client: SessionClient): void {
+    for (const consent of [...this.#consents.values()]) {
+      if (consent.from.delete(client) && consent.from.size === 0) consent.settle(false);
+    }
+  }
+
+  /** The files of `script-libraries/` no package names, with their sizes, in the turn of the queue. */
+  listUnnamedScriptLibraryFiles(): Promise<UnnamedScriptLibraryFile[]> {
+    return this.#enqueue(() => unnamedScriptLibraryFiles(this.folder, this.#state));
+  }
+
+  /**
+   * Removes files of `script-libraries/` that no package names, as the person asks; it cannot be
+   * undone. In the turn of the queue, so that no action naming one of them runs between check and
+   * removal. Says what it removed, what it kept and why, and what is left.
+   */
+  removeUnnamedScriptLibraryFiles(hashes: readonly string[]): Promise<{
+    removed: string[];
+    kept: KeptScriptLibraryFile[];
+    files: UnnamedScriptLibraryFile[];
+  }> {
+    return this.#enqueue(async () => {
+      const { removed, kept } = await removeUnnamedScriptLibraryFiles(
+        this.folder,
+        this.#state,
+        hashes,
+      );
+      return { removed, kept, files: await unnamedScriptLibraryFiles(this.folder, this.#state) };
+    });
+  }
+
   #out(line: string): void {
     (this.#options.out ?? console.log)(line);
   }
 
   #err(line: string): void {
     (this.#options.err ?? console.error)(line);
+  }
+}
+
+/** How long a request for a script library waits for the person's answer: five minutes. */
+const CONSENT_WAIT = 5 * 60 * 1000;
+
+/** A request for a script library that waits for the person's answer (ADR 0107). */
+interface Consent {
+  /** The apps asked that have not gone. */
+  from: Set<SessionClient>;
+  settle: (approved: boolean) => void;
+}
+
+/** A file of `explorables/` to write, with the bytes it replaces; `null` when it was not there. */
+interface ExplorableChange {
+  file: string;
+  bytes: Buffer;
+  previous: Buffer | null;
+}
+
+/**
+ * The approval hash of an explorable as the project holds it (ADR 0107): the hash of its text, the one
+ * the program read or wrote, and of its script libraries' definitions; `undefined` without a text.
+ */
+function heldApprovalHash(state: ProjectSnapshot, explorable: Id): string | undefined {
+  const defined = explorablesIn(state).explorable(explorable);
+  const held = explorableTextOf(state, explorable);
+  if (defined === undefined || held === undefined) return undefined;
+  const libraries = scriptLibraryHashes(state, defined.definition);
+  return libraries === undefined
+    ? undefined
+    : approvalHashOf(explorableTextHash(held.text), libraries);
+}
+
+/** Watches a project's `explorables/` (ADR 0107); `undefined` when it cannot be watched. */
+function watchExplorablesFolder(
+  folder: string,
+  delay: number | undefined,
+  err: (line: string) => void,
+  onChange: () => void,
+): ProjectWatcher | undefined {
+  try {
+    return watchExplorables(folder, onChange, {
+      ...(delay === undefined ? {} : { delay }),
+      onError: (error) =>
+        err(`Watching ${toForwardSlashes(folder)}/explorables failed: ${reasonOf(error)}`),
+    });
+  } catch (error) {
+    err(
+      `Explorables saved outside the app will not be read: ${toForwardSlashes(folder)} cannot be watched (${reasonOf(error)}).`,
+    );
+    return undefined;
   }
 }
 

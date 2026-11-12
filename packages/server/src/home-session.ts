@@ -27,6 +27,7 @@ import {
   type Problem,
   type ProblemCode,
   type ProjectSnapshot,
+  type ScriptLibraryAsk,
   type RecentProject,
   type ServerMessage,
   type SolidImportOptions,
@@ -37,6 +38,9 @@ import type { Id, ProjectFile } from '@visual-anything/schema';
 import { formatFile } from '@visual-anything/schema/format';
 import type { MadeDrawing } from './drawings/make';
 import { errorReason } from './errors';
+import type { FrameAnswer } from './explorables/listener';
+import type { Kept } from './script-libraries/keep';
+
 import { checkHomeFolder, describeProject, folderNameFor, listProjects, samePath } from './home';
 import type { LayoutGuidance } from './layout-waits';
 import type { LiveKept, LiveListing } from './live';
@@ -55,6 +59,7 @@ import type {
   CommandPlan,
   ConnectOptions,
   ExecuteOptions,
+  ExplorablesListener,
   LiveSession,
   OpenSessionResult,
   Origin,
@@ -116,6 +121,8 @@ export class HomeSession implements LiveSession {
   /** Every Claude attached, with what detaches it from the project open now. */
   readonly #claudes = new Map<SessionClient, (() => void) | undefined>();
   readonly #ports: number[] = [];
+  /** Where the explorables' listener answers (ADR 0107), which each project's session hears of. */
+  #frames: ExplorablesListener | undefined;
   #busy = false;
   #closed = false;
   /** Counts the times the program went home or opened a project, so a late greeting is dropped. */
@@ -269,6 +276,30 @@ export class HomeSession implements LiveSession {
   servesAt(port: number): void {
     this.#ports.push(port);
     this.#inner?.servesAt(port);
+  }
+
+  servesExplorablesAt(listener: ExplorablesListener): void {
+    this.#frames = listener;
+    this.#inner?.servesExplorablesAt(listener);
+  }
+
+  serveExplorableFrame(
+    explorable: Id,
+    hash: string,
+    appOrigin: string,
+    runtime: string,
+  ): Promise<FrameAnswer> {
+    return (
+      this.session?.serveExplorableFrame(explorable, hash, appOrigin, runtime) ??
+      Promise.resolve({ ok: false, status: 404, message: 'No project is open.' })
+    );
+  }
+
+  requestScriptLibrary(ask: ScriptLibraryAsk): Promise<Kept> {
+    return (
+      this.session?.requestScriptLibrary(ask) ??
+      Promise.resolve({ ok: false, code: 'not-saved', message: 'No project is open.' })
+    );
   }
 
   makeDrawing(html: string, width: number): Promise<MadeDrawing> {
@@ -619,6 +650,7 @@ export class HomeSession implements LiveSession {
     this.#turn += 1;
     this.#inner = inner;
     for (const port of this.#ports) inner.servesAt(port);
+    if (this.#frames !== undefined) inner.servesExplorablesAt(this.#frames);
     for (const app of this.#apps.keys()) {
       const token = this.#tokens.get(app);
       this.#tokens.delete(app);
