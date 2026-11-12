@@ -112,6 +112,10 @@ export function affectedFiles(
               keys.add(`comment:${id}`);
             }
             break;
+          // An explorable's text is no project file: the explorables' writer writes `explorables/`
+          // from it after the action (ADR 0107, `explorableFileWrites`).
+          case 'explorableTexts':
+            break;
           default: {
             // A new kind of list must say which file it lives in, or its changes would not be saved.
             const unknown: never = collection;

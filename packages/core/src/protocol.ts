@@ -119,6 +119,23 @@ import {
   type ClaudeSetupRead,
 } from './claude-setup-messages';
 import { readSolidCamera } from './solids/camera';
+// Explorables (ADR 0107), protocol version 13.
+import {
+  readExplorablesListen,
+  readExplorablesListening,
+  readScriptLibraryConsent,
+  readScriptLibraryConsented,
+  readScriptLibraryFetch,
+  readScriptLibraryKept,
+  readScriptLibraryRefused,
+  type ExplorablesListenMessage,
+  type ExplorablesListeningMessage,
+  type ScriptLibraryConsentMessage,
+  type ScriptLibraryConsentedMessage,
+  type ScriptLibraryFetchMessage,
+  type ScriptLibraryKeptMessage,
+  type ScriptLibraryRefusedMessage,
+} from './explorables/protocol-messages';
 import { readSpaceCamera } from './space/camera';
 // A type only: view-state.ts imports this module, and the app checks the view state it is shown.
 import type { ViewState } from './view-state';
@@ -186,8 +203,14 @@ import type { ViewState } from './view-state';
  * 12: videos (ADR 0098, stage 2): a picture's media file may be a video, `mp4` or `webm` of up to
  *    50 MiB, in 50 pieces, with a `poster`, which an app of 11 would refuse when it opens the view file
  *    or reads `media/stored`.
+ * 13: explorables (ADR 0107): a package's `explorables` and `scriptLibraries`, an appearance's
+ *    `explorable`, the free shape `{ kind: 'explorable', … }` and a tour step's `explorable`, which an
+ *    app of 12 would refuse when it opens the files; the project's `explorableTexts`; and the
+ *    messages of `explorables/protocol-messages.ts`: `explorables/listen` and `explorables/listening`,
+ *    `script-library/fetch`, `script-library/consent` and `script-library/consented`, and
+ *    `script-library/kept` or `script-library/refused`.
  */
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';
@@ -264,7 +287,12 @@ export type ServerMessage =
   | MediaFilesListedMessage
   | PackageReadAnswerMessage
   | ClaudeSetupAnswerMessage
-  | AppShownMessage;
+  | AppShownMessage
+  // Explorables (ADR 0107).
+  | ExplorablesListeningMessage
+  | ScriptLibraryConsentMessage
+  | ScriptLibraryKeptMessage
+  | ScriptLibraryRefusedMessage;
 
 /**
  * Sent to every app when Claude, or the command line, asks to open the app while a tab is connected
@@ -1046,6 +1074,10 @@ export type AppMessage =
   | MediaGetMessage
   | MediaFilesListMessage
   | MediaFilesRemoveMessage
+  // Explorables (ADR 0107).
+  | ExplorablesListenMessage
+  | ScriptLibraryFetchMessage
+  | ScriptLibraryConsentedMessage
   | PackageReadMessage
   | ClaudeSetupMessage;
 
@@ -1196,6 +1228,11 @@ const SERVER_TYPES = new Set<string>([
   'package/read-answer',
   'claude/setup-answer',
   'app/shown',
+  // Explorables (ADR 0107).
+  'explorables/listening',
+  'script-library/consent',
+  'script-library/kept',
+  'script-library/refused',
 ]);
 
 /**
@@ -1304,6 +1341,15 @@ export function decodeServerMessage(text: string): ServerMessage {
       return readSolidMessage(readMediaRefused(message));
     case 'media-files/listed':
       return readSolidMessage(readMediaFilesListed(message));
+    // Explorables (ADR 0107).
+    case 'explorables/listening':
+      return readSolidMessage(readExplorablesListening(message));
+    case 'script-library/consent':
+      return readSolidMessage(readScriptLibraryConsent(message));
+    case 'script-library/kept':
+      return readSolidMessage(readScriptLibraryKept(message));
+    case 'script-library/refused':
+      return readSolidMessage(readScriptLibraryRefused(message));
     case 'package/read-answer': {
       const { requestId } = message;
       if (typeof requestId !== 'string' || requestId === '' || requestId.length > MAX_REQUEST_ID) {
@@ -1430,6 +1476,13 @@ export function decodeAppMessage(text: string): AppMessage {
       return readSolidMessage(readMediaFilesList(message));
     case 'media-files/remove':
       return readSolidMessage(readMediaFilesRemove(message));
+    // Explorables (ADR 0107).
+    case 'explorables/listen':
+      return readSolidMessage(readExplorablesListen(message));
+    case 'script-library/fetch':
+      return readSolidMessage(readScriptLibraryFetch(message));
+    case 'script-library/consented':
+      return readSolidMessage(readScriptLibraryConsented(message));
     case 'package/read':
       return readPackageMessage(readPackageRead(message, message.requestId));
     case 'claude/setup':

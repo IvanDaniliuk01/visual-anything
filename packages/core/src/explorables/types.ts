@@ -87,6 +87,10 @@ export interface VaAttribute {
   label?: string;
   min?: number;
   max?: number;
+  /** Its definition's description (added in A10.0: definitions have no label of their own yet). */
+  description?: string;
+  /** The values a text attribute is expected to take, as its definition lists them. */
+  choices?: string[];
 }
 
 /** An element as `va.data` gives it. */
@@ -140,3 +144,21 @@ export type FrameMessage =
   | { kind: 'va/error'; message: string }
   /** A PNG the frame drew of itself, as bytes, which the app cleans before it keeps it. */
   | { kind: 'va/still'; width: number; png: Uint8Array };
+
+/**
+ * An explorable's text as the project holds it beside its definition (A10.0, ADR 0107's
+ * clarification): the file's text, kept in the project so that the history keeps each text an action
+ * replaces and undo writes it back. The local program reads it from `explorables/<file>` when the
+ * project opens and writes it after an action that changes it; its SHA-256 is its definition's
+ * `hash`.
+ */
+export interface ExplorableText {
+  /** The explorable's id. */
+  id: Id;
+  text: string;
+  /**
+   * Present when the text is the file as the person, their editor or git left it, which the program
+   * read rather than wrote: undoing or redoing the action that recorded it never writes it back.
+   */
+  read?: true;
+}

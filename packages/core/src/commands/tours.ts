@@ -48,6 +48,7 @@ import {
   type Draft,
 } from './draft';
 import { checkedFace } from './traits';
+import { checkedTourExplorable } from './explorables';
 import type { CreateTourCommand, DeleteTourCommand, NewTourStep, UpdateTourCommand } from './types';
 
 export function createTour(draft: Draft, command: CreateTourCommand): string {
@@ -253,6 +254,7 @@ function checkedStep(given: NewTourStep, n: number): Omit<TourStep, 'id'> {
   const caption = checkedCaption(given.caption, where);
   const marks = checkedMarks(given.marks, where);
   const play = checkedPlay(given.play, where);
+  const explorable = checkedTourExplorable(given.explorable, where);
   const reveal = checkedReveals(given.reveal, where, marks ?? []);
   const dimRest = checkedDimRest(given.dimRest);
   const emphasis = checkedStepEmphasis(given.emphasis);
@@ -269,6 +271,7 @@ function checkedStep(given: NewTourStep, n: number): Omit<TourStep, 'id'> {
     caption,
     marks,
     play,
+    explorable,
     reveal,
     dimRest,
     emphasis,

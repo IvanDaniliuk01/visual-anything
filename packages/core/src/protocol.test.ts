@@ -31,8 +31,8 @@ const project: ProjectSnapshot = {
 };
 
 describe('PROTOCOL_VERSION', () => {
-  it('is 11, since a tour step can show a view beside it (ADR 0102)', () => {
-    expect(PROTOCOL_VERSION).toBe(12);
+  it('is 13, since explorables (ADR 0107)', () => {
+    expect(PROTOCOL_VERSION).toBe(13);
   });
 
   it('names the launch code and the token in the address and on the live connection', () => {

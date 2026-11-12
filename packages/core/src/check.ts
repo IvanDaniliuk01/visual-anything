@@ -15,6 +15,7 @@ import { faceWarnings } from './faces/project-check';
 import { threadErrors } from './comments/check';
 import { checkImages } from './images/check';
 import { checkSolids } from './solids/check';
+import { checkExplorables } from './explorables/check';
 import { kinematicsWarnings } from './space/kinematics';
 import { poseWarnings } from './space/pose';
 import { overlayProblems } from './overlays/check';
@@ -386,6 +387,10 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
   const solids = checkSolids(state);
   errors.push(...solids.errors);
   warnings.push(...solids.warnings);
+
+  const explorables = checkExplorables(state);
+  errors.push(...explorables.errors);
+  warnings.push(...explorables.warnings);
   // Poses only warn, and one whose `in` is not a container is kept and not used (ADR 0076).
   warnings.push(...poseWarnings(state));
   warnings.push(...kinematicsWarnings(state));

@@ -28,6 +28,16 @@ import { newSolidWarnings } from '../solids/check';
 import { checkImageReferences, defineImage, removeImage } from './images';
 import { defineSolid, removeSolid, updateSolid } from './solids';
 import {
+  checkExplorableReferences,
+  defineExplorable,
+  defineScriptLibrary,
+  recordExplorableFile,
+  removeExplorable,
+  removeScriptLibrary,
+  updateExplorable,
+  writeExplorable,
+} from './explorables';
+import {
   createElement,
   createRelation,
   deleteTargets,
@@ -76,6 +86,12 @@ export interface CommandContext {
   author?: Author;
   /** The time now, in milliseconds since 1970, which comments are dated with; the clock by default. */
   now?: () => number;
+  /**
+   * Present only when the local program runs a command of its own, for a file it read or fetched and
+   * checked (ADR 0107): `record-explorable-file` and `define-script-library` are refused without it.
+   * The program never sets it for a command that came from an app, Claude or package code.
+   */
+  program?: true;
 }
 
 /** What running a command produced. */
@@ -109,10 +125,12 @@ export function executeCommand(
   const draft = new Draft(state, context.newId ?? randomIds(), {
     ...(context.author === undefined ? {} : { author: context.author }),
     ...(context.now === undefined ? {} : { now: context.now }),
+    ...(context.program === true ? { program: true as const } : {}),
   });
   try {
     const label = run(draft, command);
     checkImageReferences(state, draft.state, draft.operations);
+    checkExplorableReferences(state, draft.state, draft.operations);
     draft.seal();
     // Elements the action leaves drawn as a part their picture lacks are drawn as ordinary shapes,
     // and a file it leaves holding past the geometry that slows saving it says so.
@@ -162,11 +180,13 @@ export function executeOperations(
   const draft = new Draft(state, context.newId ?? randomIds(), {
     ...(context.author === undefined ? {} : { author: context.author }),
     ...(context.now === undefined ? {} : { now: context.now }),
+    ...(context.program === true ? { program: true as const } : {}),
   });
   try {
     for (const operation of operations) draft.apply(operation);
     settleRoutes(draft, state, 0);
     checkImageReferences(state, draft.state, draft.operations);
+    checkExplorableReferences(state, draft.state, draft.operations);
     draft.seal();
     const before = checkProject(state);
     const after = checkProject(draft.state);
@@ -304,6 +324,21 @@ function dispatch(draft: Draft, command: Command): string {
       return updateSolid(draft, command);
     case 'remove-solid':
       return removeSolid(draft, command);
+    // Explorables and script libraries (ADR 0107).
+    case 'define-explorable':
+      return defineExplorable(draft, command);
+    case 'write-explorable':
+      return writeExplorable(draft, command);
+    case 'record-explorable-file':
+      return recordExplorableFile(draft, command);
+    case 'update-explorable':
+      return updateExplorable(draft, command);
+    case 'remove-explorable':
+      return removeExplorable(draft, command);
+    case 'define-script-library':
+      return defineScriptLibrary(draft, command);
+    case 'remove-script-library':
+      return removeScriptLibrary(draft, command);
     case 'set-route':
       return setRoute(draft, command);
     case 'reset-route':

@@ -798,6 +798,9 @@ function keysOf(collection: Collection, key: string, before: Side, after: Side):
       return [`stacking:${collection.view}:${collection.container}`];
     case 'routes':
       return [`route:${collection.view}:${key}`];
+    // An explorable's text is its file beside the project, which versions do not compare (ADR 0107).
+    case 'explorableTexts':
+      return [];
   }
 }
 

@@ -123,7 +123,10 @@ export interface ExplorableChoiceParameter {
  * @discriminator kind
  */
 export type ExplorableParameter =
-  ExplorableNumberParameter | ExplorableBooleanParameter | ExplorableChoiceParameter;
+  | ExplorableNumberParameter
+  | ExplorableIntegerParameter
+  | ExplorableBooleanParameter
+  | ExplorableChoiceParameter;
 
 /** An explorable a package defines (ADR 0107). */
 export interface ExplorableDefinition {

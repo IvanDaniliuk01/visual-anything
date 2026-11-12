@@ -1,4 +1,5 @@
 /** Commands on views: the views themselves, where their shapes sit, and their free shapes. */
+import { checkedExplorableShape } from './explorables';
 import type {
   FreeShape,
   Id,
@@ -564,7 +565,11 @@ function checkedFreeShape(
       name,
     });
   }
-  reject('invalid-command', 'A free shape is a note, an arrow or a picture.');
+  if (shape.kind === 'explorable') {
+    // Explorables (ADR 0107): whether its explorable and element exist is checked once the command is done.
+    return checkedExplorableShape(shape, (shape as FreeShape).id, viewName, requireNumber);
+  }
+  reject('invalid-command', 'A free shape is a note, an arrow, a picture or an explorable.');
 }
 
 /** The formats a video's file may have (ADR 0098, stage 2). */

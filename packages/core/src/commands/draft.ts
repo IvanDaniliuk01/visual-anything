@@ -49,6 +49,12 @@ export interface DraftContext {
   author?: Author;
   /** The time now, in milliseconds since 1970; the computer's clock by default. */
   now?: () => number;
+  /**
+   * Present when the local program itself runs the command, for what it read, fetched or checked
+   * (ADR 0107): only then are its own commands taken, `record-explorable-file` and
+   * `define-script-library`. Commands from an app, Claude's tools or package code never carry it.
+   */
+  program?: true;
 }
 
 export class Draft {
@@ -71,6 +77,11 @@ export class Draft {
   /** Who sends the command: the person, or Claude; undefined when the caller did not say. */
   get author(): Author | undefined {
     return this.context.author;
+  }
+
+  /** Whether the local program itself runs the command (see {@link DraftContext.program}). */
+  get program(): boolean {
+    return this.context.program === true;
   }
 
   /** The time now, in milliseconds since 1970. */
