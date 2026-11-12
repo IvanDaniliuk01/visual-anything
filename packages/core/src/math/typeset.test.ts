@@ -37,6 +37,15 @@ describe('typesetMath', () => {
     expect(drawing.fonts).toEqual(['Math-Italic']);
   });
 
+  it('refuses KaTeX’s color macros, which expand to \\textcolor, since colors come from the theme', () => {
+    for (const tex of ['\\red{x}', '\\blue{x}', '\\gray{x}', '\\kaBlue{x}']) {
+      expect(typesetMath(tex, { display: false })).toEqual({
+        ok: false,
+        error: 'Math does not take colors: colors come from the theme.',
+      });
+    }
+  });
+
   it('lists the distinct fonts its glyphs use, in order', () => {
     expect(drawn('\\mathbb{R} + x = 1').fonts).toEqual([
       'AMS-Regular',

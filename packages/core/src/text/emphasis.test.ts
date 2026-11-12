@@ -699,5 +699,6 @@ describe('properties', () => {
       // with its caches shared, reaches 4 on a linear one.
       expect(ratio, shape.toString()).toBeLessThan(5);
     }
-  });
+    // Some forty shapes, each read at two sizes for at least 60 ms three times: room for a busy machine.
+  }, 120_000);
 });

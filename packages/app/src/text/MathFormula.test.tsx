@@ -50,7 +50,8 @@ describe('MathFormula', () => {
       expect(holder.title).toBe(failed.error);
       expect(holder.style.fontFamily).toBe(cssFontFamily(MONO_FAMILY));
       expect(holder.querySelector('.emphasis-math-mark')).toHaveAttribute('aria-hidden', 'true');
-      expect(holder.textContent).toBe(`⚠Math that cannot be typeset: ${typed}`);
+      expect(holder.textContent).toBe(`Math that cannot be typeset: ${typed}`);
+      expect(holder.querySelector('.emphasis-math-mark svg.icon')).not.toBeNull();
     },
   );
 

@@ -197,7 +197,11 @@ _Avoid_: render, rendering, template output
 
 **Math**:
 Mathematical notation in a text, written in TeX between `$…$` within a line or `$$…$$` as a block of its own, and drawn as typeset notation wherever the text shows: on the canvas, in the inspector, in tours, in exports and in explorables. Only the notation is typeset; nothing compiles a whole document (ADR 0106).
-_Avoid_: formula (a computed value is something else), equation (alone), LaTeX document, compile
+_Avoid_: equation (alone), LaTeX document, compile
+
+**Formula**:
+One piece of Math: its TeX within a line, or a block of its own. A formula that cannot be typeset is drawn as its TeX, with a warning (ADR 0106). A value an element computes is a computed value, never a formula.
+_Avoid_: equation (alone)
 
 **Text emphasis**:
 Bold, italic, strikethrough, inline code, highlight and underline in a text, written as a small Markdown subset (`**bold**`, `*italic*`, `~~struck~~`, `` `code` ``, `==highlight==`, `++underline++`) and stored as typed. Notes, captions, reveals, speaker notes and descriptions always take it, and with it Markdown's blocks: headings, lists, task lists, quotes, rules, fenced code, tables and links to `http:`, `https:` and `mailto:` addresses. A text attribute takes the inline part when its definition's format is `emphasis`; names never do (ADR 0082). Not the canvas's emphasis of a shape.

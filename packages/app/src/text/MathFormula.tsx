@@ -5,6 +5,7 @@
  * cannot be typeset, a refused command included, is drawn as the canvas draws it: as its TeX in
  * Roboto Mono with a warning mark, and why as its title, in the app's language (`drawnMath.ts`).
  */
+import { WarningIcon } from '../shell/icons';
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { MONO_FAMILY, cssFontFamily } from '../canvas/robotoFonts';
 import { useT } from '../i18n/useT';
@@ -57,7 +58,7 @@ function MathError({
       style={{ fontFamily: MONO }}
     >
       <span className="emphasis-math-mark" aria-hidden="true">
-        ⚠
+        <WarningIcon size={12} />
       </span>
       <span className="visually-hidden">{t('Math that cannot be typeset:')} </span>
       {typed}

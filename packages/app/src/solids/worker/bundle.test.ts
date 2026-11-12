@@ -48,8 +48,15 @@ describe('the solid worker’s bundle', () => {
     });
     expect(result.errors).toEqual([]);
     expect(result.outputFiles).toHaveLength(1);
+    // What the bundle holds: a package esbuild reads and leaves out, such as KaTeX through the
+    // core's index, is not in it.
+    const held = Object.values(result.metafile.outputs).flatMap((output) =>
+      Object.entries(output.inputs)
+        .filter(([, input]) => input.bytesInOutput > 0)
+        .map(([path]) => path),
+    );
     const packages = new Set(
-      Object.keys(result.metafile.inputs)
+      held
         .filter((input) => input.includes('node_modules/'))
         .map((input) => input.replace(/.*node_modules\//, '').split('/')[0]),
     );

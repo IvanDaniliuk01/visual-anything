@@ -8130,6 +8130,8 @@ export const messages: Catalog = {
   'Math cannot lay out tags or numbered formulas yet: use \\notag, or a starred environment such as align*.':
     'La notación matemática todavía no puede componer etiquetas ni numerar: usar \\notag, o un entorno con asterisco como align*.',
   'Math cannot lay out this formula.': 'La notación matemática no puede componer esta notación.',
+  'Math does not take colors: colors come from the theme.':
+    'La notación matemática no lleva colores: los colores vienen del tema.',
   'Math cannot draw a command that KaTeX does not trust.':
     'La notación matemática no puede dibujar un comando en el que KaTeX no confía.',
   'Math cannot draw an image in a formula.': 'La notación matemática no puede dibujar imágenes.',

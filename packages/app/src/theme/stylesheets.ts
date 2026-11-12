@@ -20,12 +20,19 @@ export interface Declaration {
   value: string;
 }
 
-/** Every stylesheet of the app, by its path from `src`, but the generated tokens. */
+/**
+ * Stylesheets generated from what others wrote, which keep their own values: the tokens, and KaTeX's
+ * rules and fonts, taken from the pinned KaTeX by `text/generate-katex-css.ts` (ADR 0106), whose
+ * lengths are TeX's and whose sizes are relative to the text a formula sits in.
+ */
+const GENERATED = new Set(['theme/tokens.css', 'text/katex.css', 'text/katex-fonts.css']);
+
+/** Every stylesheet of the app, by its path from `src`, but the generated ones. */
 export function stylesheets(): string[] {
   return readdirSync(SOURCE_FOLDER, { recursive: true, encoding: 'utf8' })
     .filter((path) => path.endsWith('.css'))
     .map((path) => relative(SOURCE_FOLDER, join(SOURCE_FOLDER, path)).replaceAll('\\', '/'))
-    .filter((path) => path !== 'theme/tokens.css')
+    .filter((path) => !GENERATED.has(path))
     .sort();
 }
 

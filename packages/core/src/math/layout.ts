@@ -960,6 +960,9 @@ function lineMetrics(items: readonly Item[]): { asc: number; desc: number } {
   return { asc, desc };
 }
 
+/** The color KaTeX draws a command it does not trust in, its `errorColor` by default. */
+const KATEX_ERROR_COLOR = '#cc0000';
+
 /** Refuses a tree that holds what the layout does not emulate, before laying it out. */
 function check(node: KatexNode, options: LayoutOptions): void {
   const kind = kindOf(node);
@@ -974,7 +977,13 @@ function check(node: KatexNode, options: LayoutOptions): void {
       if (style[key]) throw new MathLayoutRefusal(what);
     }
     if (style.color && style.color !== 'transparent') {
-      throw new MathLayoutRefusal('Math cannot draw a command that KaTeX does not trust.');
+      // KaTeX draws a command it does not trust in its error color; any other color comes from a
+      // macro such as `\red` or `\blue`, which expands to `\textcolor`.
+      throw new MathLayoutRefusal(
+        style.color.toLowerCase() === KATEX_ERROR_COLOR
+          ? 'Math cannot draw a command that KaTeX does not trust.'
+          : 'Math does not take colors: colors come from the theme.',
+      );
     }
   }
   if (kind.kind === 'link') {

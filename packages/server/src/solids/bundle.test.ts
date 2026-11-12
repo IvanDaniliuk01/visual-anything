@@ -8,8 +8,15 @@ import { bundleSolidWorker } from './bundle';
 describe('the cleaner’s worker bundle', () => {
   it('holds the reader and meshoptimizer, loaded only for cleaning', async () => {
     const { code, metafile } = await bundleSolidWorker();
+    // What the bundle holds: a package esbuild reads and leaves out, such as KaTeX through the
+    // core's index, is not in it.
+    const held = Object.values(metafile.outputs).flatMap((output) =>
+      Object.entries(output.inputs)
+        .filter(([, input]) => input.bytesInOutput > 0)
+        .map(([path]) => path),
+    );
     const packages = new Set(
-      Object.keys(metafile.inputs)
+      held
         .filter((input) => input.includes('node_modules'))
         .map((input) => {
           const parts = input.split(/[\\/]/);
