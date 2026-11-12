@@ -454,9 +454,10 @@ function stepPictures(view: ViewFile, picks: readonly number[]): { shows?: Id[];
   const showable = view.freeShapes.filter(
     (shape) => shape.kind === 'picture' || shape.kind === 'link',
   );
-  const shown = [...new Set(picks.map((at) => pick(showable, at)))].filter(
-    (shape): shape is FreeShape => shape !== undefined,
-  );
+  const shown: FreeShape[] = [];
+  for (const shape of new Set(picks.map((at) => pick(showable, at)))) {
+    if (shape !== undefined) shown.push(shape);
+  }
   if (shown.length === 0) return {};
   const playing = shown
     .filter((shape) => isVideoShape(shape))
