@@ -8599,6 +8599,19 @@ export const messages: Catalog = {
     'El archivo MP4 está fragmentado: Visual Anything acepta un MP4 cuyos cuadros están todos en mdat.',
   'The MP4 file refers to data outside itself, which Visual Anything does not take.':
     'El archivo MP4 nombra datos fuera de sí mismo, lo que Visual Anything no acepta.',
+  // A8's review: what a codec's own data holds.
+  'The MP4 file holds its type, ftyp, twice.': 'El archivo MP4 tiene su tipo, ftyp, dos veces.',
+  'The MP4 file’s colr is cut short.': 'La caja colr del archivo MP4 está cortada.',
+  'The MP4 file’s AAC description is not as MPEG-4 writes it.':
+    'La descripción AAC del archivo MP4 no es como la escribe MPEG-4.',
+  'The MP4 file’s Opus description is cut short.':
+    'La descripción Opus del archivo MP4 está cortada.',
+  'The WebM file’s Opus data is not an OpusHead, as Opus writes it.':
+    'Los datos Opus del archivo WebM no son un OpusHead, como lo escribe Opus.',
+  'The WebM file’s Vorbis headers are not the three Vorbis writes.':
+    'Los encabezados Vorbis del archivo WebM no son los tres que escribe Vorbis.',
+  'The WebM file’s AV1 configuration is not as AV1 writes it.':
+    'La configuración AV1 del archivo WebM no es como la escribe AV1.',
   'The file is "{type}", not webm.': 'El archivo es "{type}", no webm.',
   'The WebM file needs a reader of version {n}, past 4.':
     'El archivo WebM necesita un lector de la versión {n}, posterior a la 4.',
