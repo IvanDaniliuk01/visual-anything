@@ -55,14 +55,17 @@ export function readBuild(
   text: string,
   options: { npm: string; global?: string; packageType?: unknown },
 ): BuildRead {
-  if (path.endsWith('.mjs') || (options.packageType === 'module' && path.endsWith('.js'))) {
-    if (!setsGlobalByShape(text)) {
-      return {
-        ok: false,
-        kind: 'module',
-        reason: `"${path}" is an ES module, which the frame cannot load`,
-      };
-    }
+  // A `.mjs` file is a module by its name; a `.js` one in a package of modules is one unless its
+  // wrapper sets a global, as a UMD build does.
+  if (
+    path.endsWith('.mjs') ||
+    (options.packageType === 'module' && path.endsWith('.js') && wrapperGlobal(text) === undefined)
+  ) {
+    return {
+      ok: false,
+      kind: 'module',
+      reason: `"${path}" is an ES module, which the frame cannot load`,
+    };
   }
   try {
     new Script(text, { filename: path });
@@ -95,11 +98,6 @@ export function readBuild(
     kind: 'no-global',
     reason: `"${path}" sets no global that can be told; name the global it sets`,
   };
-}
-
-/** Whether a file shaped as a module still assigns a global, as a UMD build may. */
-function setsGlobalByShape(text: string): boolean {
-  return wrapperGlobal(text) !== undefined;
 }
 
 /**

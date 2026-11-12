@@ -5,7 +5,8 @@
  * approved; and the commands only the program runs, refused from every other channel.
  */
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, stat, writeFile, mkdir } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -527,16 +528,60 @@ describe('the commands only the program runs (ADR 0107)', () => {
 });
 
 describe('the frame listener in the running program', () => {
-  it('starts with the program, and the page’s policy frames only its labels', async () => {
-    const tools = await startToolHarness(withExplorable());
+  it('starts with the program, answers explorables/listen, and serves an approved frame over HTTP', async () => {
+    const hash = approvalOf(PAGE);
+    const store = new Store([{ hash, explorable: 'shop.quadratic', by: 'person' }]);
+    const tools = await startToolHarness(withExplorable(), { preferences: store });
     try {
+      await writeExplorable(tools.session.folder, PAGE);
+      await tools.session.scanExplorableFiles();
       const port = new URL(tools.address).port;
-      const page = await fetch(tools.address, { headers: { host: `127.0.0.1:${port}` } });
+      const page = await fetch(tools.address);
       const policy = page.headers.get('content-security-policy') ?? '';
-      expect(policy).toMatch(/frame-src http:\/\/\*\.localhost:\d+(;|$)/);
-      const framePort = /frame-src http:\/\/\*\.localhost:(\d+)/.exec(policy)?.[1];
-      expect(framePort).not.toBe(port);
-      expect((await stat(tools.session.folder)).isDirectory()).toBe(true);
+      const framePort = Number(/frame-src http:\/\/\*\.localhost:(\d+)(;|$)/.exec(policy)?.[1]);
+      expect(framePort).toBeGreaterThan(0);
+      expect(String(framePort)).not.toBe(port);
+
+      const app = await tools.openApp();
+      app.send({ type: 'explorables/listen', requestId: 'listen' });
+      await vi.waitFor(() =>
+        expect(app.messages.some((each) => each.type === 'explorables/listening')).toBe(true),
+      );
+      const listening = app.messages.find((each) => each.type === 'explorables/listening');
+      if (listening?.type !== 'explorables/listening') throw new Error('No answer.');
+      expect(listening.port).toBe(framePort);
+
+      const address = `/${listening.nonce}/frame/shop.quadratic/${hash}`;
+      const reply = await new Promise<{ status: number; policy?: string; body: string }>(
+        (resolve, reject) => {
+          const sent = request(
+            {
+              host: '127.0.0.1',
+              port: framePort,
+              path: address,
+              headers: { host: `k3f9q2xz8w7v6u5t.localhost:${framePort}` },
+              agent: false,
+            },
+            (response) => {
+              const chunks: Buffer[] = [];
+              response.on('data', (chunk: Buffer) => chunks.push(chunk));
+              response.on('end', () =>
+                resolve({
+                  status: response.statusCode ?? 0,
+                  policy: String(response.headers['content-security-policy']),
+                  body: Buffer.concat(chunks).toString('utf8'),
+                }),
+              );
+            },
+          );
+          sent.on('error', reject);
+          sent.end();
+        },
+      );
+      expect(reply.status).toBe(200);
+      expect(reply.policy).toContain(`frame-ancestors http://127.0.0.1:${port}`);
+      expect(reply.body).toContain('<title>Quadratic</title>');
+      await app.close();
     } finally {
       await tools.close();
     }

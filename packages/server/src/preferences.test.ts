@@ -173,10 +173,34 @@ describe('openPreferences', () => {
 
   it('refuses a file larger than the cap, and a folder in its place', async () => {
     await writeFile(file, ' '.repeat(MAX_PREFERENCES_BYTES + 1));
-    expect((await openPreferences(folder)).warning).toContain('it is larger than 64 KiB');
+    expect((await openPreferences(folder)).warning).toContain('it is larger than 1 MiB');
     await rm(file);
     await mkdir(file);
     expect((await openPreferences(folder)).warning).toContain('it is not a file');
+  });
+
+  it('reads and writes 1,024 approvals of explorables beside 256 of package code (ADR 0107)', async () => {
+    const hex = (n: number, of: string) => `${of}${n.toString(16)}`.padStart(64, '0');
+    const preferences = {
+      ...DEFAULT_PREFERENCES,
+      codeApprovals: Array.from({ length: 256 }, (_, n) => ({
+        hash: hex(n, 'c'),
+        package: `clinic.package-with-a-long-name-${n}`,
+        capabilities: ['model:read', 'network:https://status.example.com', 'time'],
+      })),
+      explorableApprovals: Array.from({ length: 1024 }, (_, n) => ({
+        hash: hex(n, 'e'),
+        explorable: `clinic.an-explorable-with-a-long-name-k3f9q2-${n}`,
+        by: n % 2 === 0 ? ('person' as const) : ('claude' as const),
+      })),
+    };
+    await writeFile(file, formatPreferences(preferences, {}));
+    const { store, warning } = await openPreferences(folder);
+    expect(warning).toBeUndefined();
+    expect(store.current().explorableApprovals).toHaveLength(1024);
+    expect(await store.set({ grid: true })).toMatchObject({ saved: true });
+    const { store: again } = await openPreferences(folder);
+    expect(again.current()).toEqual({ ...preferences, grid: true });
   });
 
   it('warns once about the known names whose values it cannot read, and keeps them', async () => {
@@ -267,7 +291,8 @@ describe('openPreferences', () => {
         '      "collapsed": false',
         '    }',
         '  },',
-        '  "codeTurnedOff": []',
+        '  "codeTurnedOff": [],',
+        '  "explorableApprovals": []',
         '}',
         '',
       ].join('\n'),

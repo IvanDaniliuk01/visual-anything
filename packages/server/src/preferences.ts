@@ -30,8 +30,11 @@ import { writeFileAtomic, type WriteOptions } from './writer';
 /** The name of the preferences file in its folder. */
 export const PREFERENCES_FILE = 'preferences.json';
 
-/** The largest preferences file read; a larger one is not a preferences file. */
-export const MAX_PREFERENCES_BYTES = 64 * 1024;
+/**
+ * The largest preferences file read; a larger one is not a preferences file. 1 MiB, since 1,024
+ * approvals of explorables (ADR 0107) beside 256 of package code take about 250 KiB.
+ */
+export const MAX_PREFERENCES_BYTES = 1024 * 1024;
 
 /** The name the projects opened last are kept under in the preferences file (ADR 0093). */
 export const RECENT_PROJECTS = 'recentProjects';
@@ -304,7 +307,7 @@ async function readPreferencesFile(file: string): Promise<FileRead> {
 function tooLarge(): FileRead {
   return {
     state: 'unreadable',
-    reason: `it is larger than ${MAX_PREFERENCES_BYTES / 1024} KiB`,
+    reason: `it is larger than ${MAX_PREFERENCES_BYTES / (1024 * 1024)} MiB`,
   };
 }
 
