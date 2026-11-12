@@ -92,7 +92,6 @@ export function ScriptLibraryRequest() {
           <input
             type="text"
             value={npm}
-            placeholder="d3"
             spellCheck={false}
             autoCapitalize="off"
             onChange={(event) => setNpm(event.target.value)}
@@ -113,7 +112,6 @@ export function ScriptLibraryRequest() {
           <input
             type="text"
             value={path}
-            placeholder="dist/d3.min.js"
             spellCheck={false}
             onChange={(event) => setPath(event.target.value)}
           />
@@ -123,7 +121,6 @@ export function ScriptLibraryRequest() {
           <input
             type="text"
             value={global}
-            placeholder="d3"
             spellCheck={false}
             onChange={(event) => setGlobal(event.target.value)}
           />
