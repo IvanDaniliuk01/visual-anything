@@ -10,6 +10,7 @@ import { useSender } from './definitions/useSender';
 import { InlineProblem } from './inspector/controls';
 import { Secondary } from './Secondary';
 import { SolidsSection } from './SolidsSection';
+import { ScriptLibrariesSection } from '../explorables/ScriptLibrariesSection';
 import { shownRows, type TreeRow } from './tree';
 import { VirtualTree } from './VirtualTree';
 import { EmphasisRuns } from '../text/EmphasisText';
@@ -89,6 +90,8 @@ export function ComponentsTab({ active }: ComponentsTabProps) {
       </section>
 
       <SolidsSection />
+
+      <ScriptLibrariesSection />
 
       <section className="panel-section">
         <h3 id={unusedHeading}>{t('Not in use yet')}</h3>

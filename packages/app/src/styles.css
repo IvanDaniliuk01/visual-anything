@@ -71,21 +71,25 @@ dd {
 
 /*
  * The shell: header on top, then the model panel, the canvas area, the physical-space panel and the
- * inspector. Each side panel takes the width the person gives its edge, which the panels' store writes
- * (shell/panels/panels.css); the physical-space panel's column has no width while it is closed
- * (space/space.css).
+ * explorable panel below it, and the inspector. Each side panel takes the width the person gives its
+ * edge, which the panels' store writes (shell/panels/panels.css); the column of the physical-space and
+ * explorable panels has no width while both are closed (space/space.css, explorables/explorables.css),
+ * and the explorable panel's row no height while it is.
  */
 
 .shell {
   --panel-strip: calc(var(--control-sm) + 2 * var(--space-50));
   --model-panel-column: var(--model-panel-width, var(--size-1800));
   --space-panel-column: 0px;
+  --space-panel-row: minmax(0, 1fr);
+  --explorable-panel-row: 0px;
   --inspector-column: var(--inspector-width, var(--size-2000));
   display: grid;
   grid-template:
     'header header header header' auto
     'notice notice notice notice' auto
-    'model canvas space inspector' minmax(0, 1fr)
+    'model canvas space inspector' var(--space-panel-row)
+    'model canvas explorable inspector' var(--explorable-panel-row)
     / var(--model-panel-column) minmax(0, 1fr) var(--space-panel-column) var(--inspector-column);
   height: 100vh;
   height: 100dvh;

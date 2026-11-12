@@ -23,8 +23,8 @@ describe('the va runtime’s bundle', () => {
     expect(VA_RUNTIME).toBe(code);
     expect(code.length).toBeLessThan(32 * 1024);
     for (const each of modules) {
-      expect(each).toMatch(
-        /app[\/]src[\/](explorables[\/]runtime[\/]|theme[\/]themes\.ts$)|core[\/]src[\/](ids|explorables[\/](messages|types))\.ts$/,
+      expect(each.replaceAll('\\', '/')).toMatch(
+        /app\/src\/(explorables\/runtime\/|theme\/themes\.ts$)|core\/src\/(ids|explorables\/(messages|types))\.ts$/,
       );
     }
   });

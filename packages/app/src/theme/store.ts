@@ -47,6 +47,10 @@ export const GRID_NOT_CONNECTED =
 export const APPROVAL_NOT_CONNECTED =
   'Your approval of package code applies to this tab only: Visual Anything is not connected.';
 
+/** What an approval of an explorable says while the tab is not connected (ADR 0107). */
+export const EXPLORABLE_APPROVAL_NOT_CONNECTED =
+  'Your approval of explorables applies to this tab only: Visual Anything is not connected.';
+
 /** What turning a package's code on or off says while the tab is not connected (ADR 0089). */
 export const CODE_OFF_NOT_CONNECTED =
   'Turning package code on or off applies to this tab only: Visual Anything is not connected.';
@@ -67,6 +71,7 @@ export const MOTION_NOT_CONNECTED =
 function notConnected(changes: PreferenceChanges): string | undefined {
   if (Object.keys(changes).every((name) => name === 'sidePanels')) return undefined;
   if (changes.codeApprovals !== undefined) return APPROVAL_NOT_CONNECTED;
+  if (changes.explorableApprovals !== undefined) return EXPLORABLE_APPROVAL_NOT_CONNECTED;
   if (changes.codeTurnedOff !== undefined) return CODE_OFF_NOT_CONNECTED;
   if (changes.author !== undefined) return AUTHOR_NOT_CONNECTED;
   if (changes.theme !== undefined) return NOT_CONNECTED;
@@ -450,6 +455,17 @@ function samePreferences(a: Preferences, b: Preferences): boolean {
         approval.hash === other.hash &&
         approval.package === other.package &&
         approval.capabilities.join(' ') === other.capabilities.join(' ')
+      );
+    }) &&
+    // Approvals of explorables (ADR 0107).
+    a.explorableApprovals.length === b.explorableApprovals.length &&
+    a.explorableApprovals.every((approval, index) => {
+      const other = b.explorableApprovals[index];
+      return (
+        other !== undefined &&
+        approval.hash === other.hash &&
+        approval.explorable === other.explorable &&
+        approval.by === other.by
       );
     }) &&
     // Who the person's comments are signed as (ADR 0059).

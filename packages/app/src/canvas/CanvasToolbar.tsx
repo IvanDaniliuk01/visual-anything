@@ -18,6 +18,7 @@ import {
   ZoomOutIcon,
 } from '../shell/icons';
 import { SpacePanelToggle } from '../space/SpacePanelToggle';
+import { ExplorablePanelToggle } from '../explorables/ExplorablePanel';
 import type { AlignHow } from './align';
 import type { AlignAction } from './alignActions';
 import { AlignMenu } from './AlignMenu';
@@ -230,6 +231,7 @@ export function CanvasToolbar({
         </Overflowing>
       )}
       <SpacePanelToggle />
+      <ExplorablePanelToggle />
       <Overflowing group="keys">
         <KeyboardHelp />
       </Overflowing>

@@ -15,6 +15,7 @@ import {
 import type { Capability, PackageFile } from '@visual-anything/schema';
 import { useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useModalFocus } from '../canvas/focus';
+import { ApprovedExplorables } from '../explorables/ApprovedExplorables';
 import { useCode, type CodeContextValue } from '../code/context';
 import { capabilityText, standingText } from '../code/words';
 import { useEditor } from '../editor/EditorContext';
@@ -221,6 +222,8 @@ export function PackagesDialog({ onClose }: { onClose: () => void }) {
             ))}
           </ul>
         )}
+
+        <ApprovedExplorables project={project} />
 
         <section className="packages-add" aria-labelledby={addId}>
           <h3 id={addId}>{t('Add or update from a file')}</h3>

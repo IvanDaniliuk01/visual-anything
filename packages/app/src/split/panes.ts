@@ -23,11 +23,27 @@ export const PANES_STORAGE_KEY = 'visual-anything.panes';
 /** How long the camera's moves wait before they are written, so that a pan writes once. */
 const CAMERA_WRITE_DELAY = 250;
 
-/** One pane: its view, undefined for the project's first, and its share of the canvas area. */
+/**
+ * One pane: its view, undefined for the project's first, and its share of the canvas area; or, for
+ * a pane that shows an explorable rather than a view (ADR 0107), the explorable and the element whose
+ * data it reads. A pane of an explorable is never the active one: the open view stays a view's.
+ */
 export interface Pane {
   id: string;
   view: Id | undefined;
   width: number;
+  explorable?: PaneExplorable;
+}
+
+/** What a pane of an explorable shows: the explorable, and the element whose data it reads. */
+export interface PaneExplorable {
+  id: Id;
+  element?: Id;
+}
+
+/** Whether a pane shows a view, and may be the active one. */
+export function showsView(pane: Pane): boolean {
+  return pane.explorable === undefined;
 }
 
 /** The panes, left to right, and which one is active. */
@@ -176,7 +192,9 @@ export class SplitPanes {
   open(view: Id): void {
     const active = this.active;
     if (active.view === view) return;
-    const showing = this.#layout.panes.find((pane) => pane.id !== active.id && pane.view === view);
+    const showing = this.#layout.panes.find(
+      (pane) => pane.id !== active.id && showsView(pane) && pane.view === view,
+    );
     if (showing) this.activate(showing.id);
     else this.setView(active.id, view);
   }
@@ -201,13 +219,52 @@ export class SplitPanes {
       this.#restored.delete(replaced.id);
       this.#set({
         active,
-        panes: named.map((pane) => (pane.id === replaced.id ? { ...pane, view } : pane)),
+        panes: named.map((pane) =>
+          pane.id === replaced.id ? { id: pane.id, view, width: pane.width } : pane,
+        ),
       });
       return;
     }
     const at = named.findIndex((pane) => pane.id === active) + 1;
     const added: Pane = { id: `pane-${this.#next++}`, view, width: 1 };
     const next = [...named.slice(0, at), added, ...named.slice(at)];
+    this.#set({ active, panes: next.map((pane) => ({ ...pane, width: 1 / next.length })) });
+  }
+
+  /**
+   * Shows an explorable in a pane beside the active one (ADR 0107), as Open beside in the explorable
+   * panel asks: in the pane that shows an explorable already; else in a new pane right of the active
+   * one, the panes then sharing the width alike; and with three open, in the rightmost pane but the
+   * active one. The active pane stays active.
+   */
+  openExplorableBeside(explorable: Id, element?: Id): void {
+    const { panes, active } = this.#layout;
+    const shown: PaneExplorable =
+      element === undefined ? { id: explorable } : { id: explorable, element };
+    const holder =
+      panes.find((pane) => pane.explorable !== undefined) ??
+      (panes.length >= MAX_PANES ? panes.findLast((pane) => pane.id !== active) : undefined);
+    if (holder) {
+      this.#cameras.delete(holder.id);
+      this.#restored.delete(holder.id);
+      this.#set({
+        active,
+        panes: panes.map((pane) =>
+          pane.id === holder.id
+            ? { id: pane.id, view: undefined, width: pane.width, explorable: shown }
+            : pane,
+        ),
+      });
+      return;
+    }
+    const at = panes.findIndex((pane) => pane.id === active) + 1;
+    const added: Pane = {
+      id: `pane-${this.#next++}`,
+      view: undefined,
+      width: 1,
+      explorable: shown,
+    };
+    const next = [...panes.slice(0, at), added, ...panes.slice(at)];
     this.#set({ active, panes: next.map((pane) => ({ ...pane, width: 1 / next.length })) });
   }
 
@@ -310,11 +367,13 @@ export class SplitPanes {
   /** Shows another view in a pane, which starts from that view's camera. */
   setView(id: string, view: Id): void {
     const pane = this.#layout.panes.find((each) => each.id === id);
-    if (!pane || pane.view === view) return;
+    if (!pane || (pane.view === view && showsView(pane))) return;
     this.#restored.delete(id);
     this.#set({
       ...this.#layout,
-      panes: this.#layout.panes.map((each) => (each.id === id ? { ...each, view } : each)),
+      panes: this.#layout.panes.map((each) =>
+        each.id === id ? { id: each.id, view, width: each.width } : each,
+      ),
     });
   }
 
@@ -330,7 +389,9 @@ export class SplitPanes {
     const total = rest.reduce((sum, pane) => sum + pane.width, 0);
     this.#cameras.delete(id);
     this.#restored.delete(id);
-    const next = id === active ? (rest[Math.max(0, at - 1)]?.id ?? rest[0]!.id) : active;
+    // The pane that becomes active shows a view: the nearest left of the one closed, else right.
+    const left = rest.slice(0, Math.max(0, at)).reverse().find(showsView);
+    const next = id === active ? (left ?? rest.find(showsView) ?? rest[0]!).id : active;
     this.#set({
       active: next,
       panes: rest.map((pane) => ({
@@ -342,7 +403,8 @@ export class SplitPanes {
 
   /** Makes a pane the active one. */
   activate(id: string): void {
-    if (id === this.#layout.active || !this.#layout.panes.some((pane) => pane.id === id)) return;
+    const pane = this.#layout.panes.find((each) => each.id === id);
+    if (id === this.#layout.active || !pane || !showsView(pane)) return;
     this.#set({ ...this.#layout, active: id });
   }
 
@@ -427,6 +489,7 @@ export class SplitPanes {
               ...(pane.view === undefined ? {} : { view: pane.view }),
               width: pane.width,
               ...(camera ? { camera } : {}),
+              ...(pane.explorable === undefined ? {} : { explorable: pane.explorable }),
             };
           }),
         }),
@@ -520,7 +583,7 @@ export function readPanes(
   const cameras = new Map<string, Camera>();
   for (const each of panes as unknown[]) {
     if (typeof each !== 'object' || each === null) return undefined;
-    const { id, view, width, camera } = each as Record<string, unknown>;
+    const { id, view, width, camera, explorable } = each as Record<string, unknown>;
     if (typeof id !== 'string' || !/^pane-\d{1,6}$/.test(id)) return undefined;
     if (read.some((pane) => pane.id === id)) return undefined;
     if (view !== undefined && (typeof view !== 'string' || view === '' || view.length > 200)) {
@@ -528,10 +591,14 @@ export function readPanes(
     }
     if (view !== undefined && views !== undefined && !views.includes(view)) return undefined;
     if (typeof width !== 'number' || !Number.isFinite(width) || width <= 0) return undefined;
-    read.push({ id, view: view, width });
+    const shown = explorable === undefined ? undefined : readPaneExplorable(explorable);
+    if (explorable !== undefined && (shown === undefined || view !== undefined)) return undefined;
+    read.push(
+      shown ? { id, view: undefined, width, explorable: shown } : { id, view: view, width },
+    );
     if (isCamera(camera)) cameras.set(id, { x: camera.x, y: camera.y, scale: camera.scale });
   }
-  if (!read.some((pane) => pane.id === active)) return undefined;
+  if (!read.some((pane) => pane.id === active && showsView(pane))) return undefined;
   const shares = atLeast(
     read.map((pane) => pane.width),
     MIN_PANE_SHARE,
@@ -560,6 +627,17 @@ function atLeast(widths: readonly number[], least: number): number[] {
     if (narrow.length === 0 || pinned.size + narrow.length >= widths.length) return shares;
     for (const index of narrow) pinned.add(index);
   }
+}
+
+/** A pane's explorable as the tab kept it, read strictly. */
+function readPaneExplorable(value: unknown): PaneExplorable | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const { id, element, ...rest } = value as Record<string, unknown>;
+  if (Object.keys(rest).length > 0) return undefined;
+  const isId = (each: unknown): each is string =>
+    typeof each === 'string' && each !== '' && each.length <= 200;
+  if (!isId(id) || (element !== undefined && !isId(element))) return undefined;
+  return element === undefined ? { id } : { id, element };
 }
 
 function isCamera(value: unknown): value is Camera {

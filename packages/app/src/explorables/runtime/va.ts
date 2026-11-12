@@ -62,7 +62,8 @@ export interface VaWindow {
 
 /** The theme's colors as the CSS variables a page reads: `--va-` and each color's name in kebab case. */
 export function themeVariables(theme: 'light' | 'dark'): [string, string][] {
-  return Object.entries(THEMES[theme].shell.colors).map(([name, color]) => [
+  const colors = Object.entries(THEMES[theme].shell.colors) as [string, string][];
+  return colors.map(([name, color]) => [
     `--va-${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`,
     color.toLowerCase(),
   ]);

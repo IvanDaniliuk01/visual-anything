@@ -4347,6 +4347,106 @@ export const ui: Catalog = {
       other:
         'Se omiten {count} imágenes: las imágenes solo se dibujan en el lienzo, el PNG, el SVG, el PDF y la página de solo lectura.',
     },
+  // Explorables (ADR 0107, A10.2): the explorable panel, its card, the approval dialog, the
+  // approvals in Packages…, the script libraries in the Components tab and their consent.
+  'The explorable “{name}”': 'El explorable “{name}”',
+  'Run the explorable “{name}”?': '¿Ejecutar el explorable “{name}”?',
+  'It changed while it was open here: this is it as it is now, and nothing was approved.':
+    'Cambió mientras estaba abierto aquí: esto es como está ahora, y no se aprobó nada.',
+  'Claude wrote it, in this session.': 'Lo escribió Claude, en esta sesión.',
+  'It came from outside: an import, git or your own editor.':
+    'Vino de afuera: una importación, git o tu propio editor.',
+  'It runs walled off: it cannot see your files, this session or the network. The one thing no browser lets anyone block fully is sending data out over WebRTC, so approve it only if you trust whoever wrote it.':
+    'Se ejecuta aislado: no puede ver tus archivos, esta sesión ni la red. Lo único que ningún navegador deja bloquear del todo es enviar datos hacia afuera por WebRTC, así que apruébalo solo si confías en quien lo escribió.',
+  'The script libraries it uses:': 'Las bibliotecas de JavaScript que usa:',
+  'It uses no script library.': 'No usa ninguna biblioteca de JavaScript.',
+  'Its file in explorables/ is missing, or past 512 KiB, so it never runs.':
+    'Su archivo en explorables/ falta o pasa de 512 KiB, así que nunca se ejecuta.',
+  'Show code': 'Mostrar el código',
+  'Approved explorables': 'Explorables aprobados',
+  'No explorable is approved yet. Each asks you before it runs the first time.':
+    'Todavía no hay ningún explorable aprobado. Cada uno te pregunta antes de ejecutarse la primera vez.',
+  'Continued from your approval when Claude changed it':
+    'Continuada de tu aprobación cuando Claude lo cambió',
+  'Approved by you': 'Aprobado por ti',
+  'not in this project': 'no está en este proyecto',
+  'the text it runs now': 'el texto que ejecuta ahora',
+  'an earlier text': 'un texto anterior',
+  'Withdraw the approval of “{name}”': 'Retirar la aprobación de “{name}”',
+  Explorable: 'Explorable',
+  'Open “{name}” in a pane beside the active one':
+    'Abrir “{name}” en un recuadro al lado del activo',
+  'Open beside': 'Abrir al lado',
+  'Close the explorable panel': 'Cerrar el panel del explorable',
+  'Open the explorable panel': 'Abrir el panel del explorable',
+  'Select one element that shows an explorable, and it runs here.':
+    'Selecciona un elemento que muestre un explorable, y se ejecuta aquí.',
+  'The element selected shows no explorable.':
+    'El elemento seleccionado no muestra ningún explorable.',
+  'Width of the explorable panel': 'Ancho del panel del explorable',
+  'Height of the explorable panel': 'Alto del panel del explorable',
+  '{height} pixels': '{height} píxeles',
+  'Drag to change the height; double-click for the default height':
+    'Arrastra para cambiar el alto; doble clic para el alto predeterminado',
+  'No package defines the explorable “{id}”.': 'Ningún paquete define el explorable “{id}”.',
+  'Explorable “{name}”': 'Explorable “{name}”',
+  'Script libraries: {names}': 'Bibliotecas de JavaScript: {names}',
+  'Approve…': 'Aprobar…',
+  'Run again': 'Ejecutar de nuevo',
+  'Not approved yet: Approve to run.': 'Todavía no está aprobado: Aprobar para ejecutarlo.',
+  'Not running: its file in explorables/ is missing, or past 512 KiB.':
+    'No se ejecuta: su archivo en explorables/ falta o pasa de 512 KiB.',
+  'Not running: its package does not define the script library “{id}”.':
+    'No se ejecuta: su paquete no define la biblioteca de JavaScript “{id}”.',
+  'Stopped: it stopped answering.': 'Detenido: dejó de responder.',
+  'Stopped: it did not start. Its file may have changed since; run it again to try.':
+    'Detenido: no llegó a empezar. Puede que su archivo haya cambiado; ejecútalo de nuevo para probar.',
+  'Stopped: it was running when this tab stopped answering, so it waits for you to run it again.':
+    'Detenido: se estaba ejecutando cuando esta pestaña dejó de responder, así que espera a que lo ejecutes de nuevo.',
+  'Not running: Visual Anything is not connected.':
+    'No se ejecuta: Visual Anything no está conectado.',
+  'Not running here.': 'No se ejecuta aquí.',
+  'The project’s script-libraries/ folder holds {count} files that no package names. They stay until you remove them.':
+    {
+      one: 'La carpeta script-libraries/ del proyecto tiene {count} archivo que ningún paquete nombra. Queda hasta que se quite.',
+      other:
+        'La carpeta script-libraries/ del proyecto tiene {count} archivos que ningún paquete nombra. Quedan hasta que se quiten.',
+    },
+  'Script libraries': 'Bibliotecas de JavaScript',
+  'The project has no script library yet: an explorable asks for one when it needs it.':
+    'El proyecto todavía no tiene ninguna biblioteca de JavaScript: un explorable la pide cuando la necesita.',
+  '{npm}, version {version}': '{npm}, versión {version}',
+  'Looking in the project’s script-libraries/ folder…':
+    'Buscando en la carpeta script-libraries/ del proyecto…',
+  'Every file in the project’s script-libraries/ folder is named by a package.':
+    'Algún paquete nombra cada archivo de la carpeta script-libraries/ del proyecto.',
+  'Remove “script-libraries/{hash}.js”': 'Quitar “script-libraries/{hash}.js”',
+  'Remove the file “script-libraries/{hash}.js”?':
+    '¿Quitar el archivo “script-libraries/{hash}.js”?',
+  'Remove {count} files from the project’s script-libraries/ folder?':
+    '¿Quitar {count} archivos de la carpeta script-libraries/ del proyecto?',
+  'Fetch a script library?': '¿Descargar una biblioteca de JavaScript?',
+  'Claude asks for a script library for the package “{package}”:':
+    'Claude pide una biblioteca de JavaScript para el paquete “{package}”:',
+  'You asked for a script library for the package “{package}”:':
+    'Pediste una biblioteca de JavaScript para el paquete “{package}”:',
+  'Its file: {path}': 'Su archivo: {path}',
+  'Visual Anything reads these two addresses of the npm registry:':
+    'Visual Anything lee estas dos direcciones del registro de npm:',
+  'Nothing is fetched until you approve. It checks the package against the registry’s own hash, runs none of its install scripts and keeps one file beside the project, which only an approved explorable runs.':
+    'No se descarga nada hasta que lo apruebes. Comprueba el paquete con el resumen del propio registro, no ejecuta ninguno de sus scripts de instalación y guarda un archivo junto al proyecto, que solo ejecuta un explorable aprobado.',
+  Fetch: 'Descargar',
+  'Fetching it from the npm registry…': 'Descargándola del registro de npm…',
+  'Kept beside the project: {size} {unit}, license {license}.':
+    'Guardada junto al proyecto: {size} {unit}, licencia {license}.',
+  'Nothing was kept: {why}': 'No se guardó nada: {why}',
+  '“{id}”, which its package does not define': '“{id}”, que su paquete no define',
+  '{npm} {version} · {license} · {size} {unit}': '{npm} {version} · {license} · {size} {unit}',
+  'license not said': 'licencia no dicha',
+  '{name}, an explorable beside the views': '{name}, un explorable al lado de las vistas',
+  'Explorable: {name}': 'Explorable: {name}',
+  'Your approval of explorables applies to this tab only: Visual Anything is not connected.':
+    'Tu aprobación de explorables vale solo para esta pestaña: Visual Anything no está conectado.',
 };
 
 /**

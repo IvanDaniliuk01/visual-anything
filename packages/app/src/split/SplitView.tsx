@@ -22,6 +22,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
+import { explorableOf } from '../explorables/explorable';
 import { useT } from '../i18n';
 import { DismissIcon } from '../shell/icons';
 import { viewsInListOrder } from '../shell/viewFolders';
@@ -68,6 +69,7 @@ export function SplitView({
         {layout.panes.map((pane, index) => {
           const active = pane.id === layout.active;
           const view = viewOf(project, pane.view);
+          const name = paneName(project, pane);
           const left = layout.panes[index - 1];
           return (
             <Fragment key={pane.id}>
@@ -78,8 +80,8 @@ export function SplitView({
                   share={left.width / (left.width + pane.width)}
                   container={container}
                   label={t('Resize “{left}” and “{right}”', {
-                    left: viewOf(project, left.view)?.name ?? '',
-                    right: view?.name ?? '',
+                    left: paneName(project, left),
+                    right: name,
                   })}
                 />
               )}
@@ -89,16 +91,21 @@ export function SplitView({
                 {...(active ? { 'data-active': '' } : {})}
                 {...(split
                   ? {
-                      'aria-label': active
-                        ? t('{view}, the active pane', { view: view?.name ?? '' })
-                        : t('{view}, a pane', { view: view?.name ?? '' }),
+                      'aria-label': pane.explorable
+                        ? t('{name}, an explorable beside the views', { name })
+                        : active
+                          ? t('{view}, the active pane', { view: name })
+                          : t('{view}, a pane', { view: name }),
                       style: { flexGrow: pane.width },
                     }
                   : {})}
                 onPointerDownCapture={(event) => activate(pane, event.target)}
                 onFocusCapture={(event) => activate(pane, event.target)}
               >
-                {split && view && (
+                {split && pane.explorable && (
+                  <ExplorablePaneHeader store={store} pane={pane} name={name} />
+                )}
+                {split && !pane.explorable && view && (
                   <PaneHeader
                     store={store}
                     pane={pane}
@@ -117,6 +124,41 @@ export function SplitView({
         {overlay}
       </ActiveOverlay>
     </>
+  );
+}
+
+/** What a pane shows, by name: its view's, or its explorable's. */
+function paneName(project: ProjectSnapshot, pane: Pane): string {
+  if (pane.explorable) {
+    return explorableOf(project, pane.explorable.id)?.definition.name ?? pane.explorable.id;
+  }
+  return viewOf(project, pane.view)?.name ?? '';
+}
+
+/** The header of a pane that shows an explorable (ADR 0107): its name, and closing it. */
+function ExplorablePaneHeader({
+  store,
+  pane,
+  name,
+}: {
+  store: SplitPanes;
+  pane: Pane;
+  name: string;
+}) {
+  const t = useT();
+  return (
+    <div className="canvas-pane-header">
+      <span className="canvas-pane-explorable">{t('Explorable: {name}', { name })}</span>
+      <button
+        type="button"
+        className="canvas-pane-action canvas-pane-close"
+        aria-label={t('Close the pane of “{name}”', { name })}
+        title={t('Close the pane of “{name}”', { name })}
+        onClick={() => store.close(pane.id)}
+      >
+        <DismissIcon />
+      </button>
+    </div>
   );
 }
 

@@ -100,6 +100,11 @@ export function LiveProvider({
       removeMediaFiles: connection.removeMediaFiles,
       fetchLinkPreview: connection.fetchLinkPreview,
       setUpClaude: connection.setUpClaude,
+      listenExplorables: connection.listenExplorables,
+      fetchScriptLibrary: connection.fetchScriptLibrary,
+      answerScriptLibraryConsent: connection.answerScriptLibraryConsent,
+      listScriptLibraryFiles: connection.listScriptLibraryFiles,
+      removeScriptLibraryFiles: connection.removeScriptLibraryFiles,
     }),
     [state, connection],
   );
