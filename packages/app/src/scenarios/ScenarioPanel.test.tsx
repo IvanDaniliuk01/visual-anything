@@ -295,6 +295,32 @@ describe('ScenarioPanel', () => {
     expect(steps()[4]!.text).not.toMatch(/Broken/);
   });
 
+  it('flags in the list a step that shows a picture deleted since, which is no broken step', async () => {
+    const scenario = sample.scenarios[0]!;
+    const showing: ProjectSnapshot = {
+      ...sample,
+      scenarios: [
+        {
+          ...scenario,
+          steps: scenario.steps.map((step, at) => (at === 1 ? { ...step, shows: ['gone'] } : step)),
+        },
+        ...sample.scenarios.slice(1),
+      ],
+    };
+    const program = localProgram(showing);
+    render(<program.LiveShell />);
+    openScenario();
+    expect(steps()[1]!.text).toMatch(/Shows what is gone$/);
+    expect(steps()[1]!.text).not.toMatch(/Broken/);
+    expect(steps().filter((step) => /Shows what is gone/.test(step.text))).toHaveLength(1);
+    // Taken out in its editor, the flag goes.
+    fireEvent.click(within(panel()).getAllByRole('button', { name: /^2/ })[0]!);
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Take out what is gone' }));
+    await flush();
+    expect(program.project.scenarios[0]!.steps[1]!.shows).toBeUndefined();
+    expect(steps()[1]!.text).not.toMatch(/Shows what is gone/);
+  });
+
   it('plays the steps inside a collapsed container as one aggregated step, and expands it', async () => {
     const program = localProgram(collapsing(['scheduling']));
     render(<program.LiveShell />);

@@ -2357,6 +2357,8 @@ export const ui: Catalog = {
   'Other parts of the model': 'Otras partes del modelo',
   'Add to this view, “{view}”': 'Agregar a esta vista, “{view}”',
   'Outside the view': 'Fuera de la vista',
+  // A8's review: a step that shows a picture, video or link card its view no longer holds.
+  'Shows what is gone': 'Muestra lo que ya no está',
   'The scope of “{view}” shows none of this step’s relations, so nothing is marked for it there. It plays all the same.':
     'El alcance de “{view}” no muestra ninguna de las relaciones de este paso, así que allí no se marca nada para él. Se reproduce igual.',
   '“{view}” leaves out the relation types of this step’s relations, so it draws no line for them. It plays all the same.':
@@ -4665,6 +4667,10 @@ export const messages: Catalog = {
     'Un paso reproduce videos, y "{id}" no es un video.',
   'A step of the scenario "{scenario}" shows {ids}, which the view "{view}" no longer holds: it plays without what is gone.':
     'Un paso del escenario "{scenario}" muestra {ids}, que la vista "{view}" ya no tiene: se reproduce sin lo que ya no está.',
+  'A step of the scenario "{scenario}" plays "{id}", which it does not show: it plays only the videos it shows.':
+    'Un paso del escenario "{scenario}" reproduce "{id}", que no muestra: solo reproduce los videos que muestra.',
+  'A step of the scenario "{scenario}" plays "{id}", which is no video: it plays only videos.':
+    'Un paso del escenario "{scenario}" reproduce "{id}", que no es un video: solo reproduce videos.',
   'Move {step} up': 'Subir {step}',
   'Move {step} down': 'Bajar {step}',
   'Delete {step}': 'Eliminar {step}',
@@ -8599,6 +8605,19 @@ export const messages: Catalog = {
     'El archivo MP4 está fragmentado: Visual Anything acepta un MP4 cuyos cuadros están todos en mdat.',
   'The MP4 file refers to data outside itself, which Visual Anything does not take.':
     'El archivo MP4 nombra datos fuera de sí mismo, lo que Visual Anything no acepta.',
+  // A8's review: what a codec's own data holds.
+  'The MP4 file holds its type, ftyp, twice.': 'El archivo MP4 tiene su tipo, ftyp, dos veces.',
+  'The MP4 file’s colr is cut short.': 'La caja colr del archivo MP4 está cortada.',
+  'The MP4 file’s AAC description is not as MPEG-4 writes it.':
+    'La descripción AAC del archivo MP4 no es como la escribe MPEG-4.',
+  'The MP4 file’s Opus description is cut short.':
+    'La descripción Opus del archivo MP4 está cortada.',
+  'The WebM file’s Opus data is not an OpusHead, as Opus writes it.':
+    'Los datos Opus del archivo WebM no son un OpusHead, como lo escribe Opus.',
+  'The WebM file’s Vorbis headers are not the three Vorbis writes.':
+    'Los encabezados Vorbis del archivo WebM no son los tres que escribe Vorbis.',
+  'The WebM file’s AV1 configuration is not as AV1 writes it.':
+    'La configuración AV1 del archivo WebM no es como la escribe AV1.',
   'The file is "{type}", not webm.': 'El archivo es "{type}", no webm.',
   'The WebM file needs a reader of version {n}, past 4.':
     'El archivo WebM necesita un lector de la versión {n}, posterior a la 4.',

@@ -396,3 +396,172 @@ export function phoneMp4(): Uint8Array {
 
 /** Its strings a cleaned file must not hold. */
 export const PHONE_STRINGS = ['Pixel', 'serial', 'Core Media', 'appl', '+48.85', 'Owner', 'Ana'];
+
+// What a codec's own data holds (A8's review) ------------------------------------------------------
+
+function le32(value: number): Uint8Array {
+  return Uint8Array.of(value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff, value >>> 24);
+}
+
+/** A length in Xiph lacing: as many 255s as it holds, then the rest. */
+function xiphLength(length: number): number[] {
+  const out: number[] = [];
+  let rest = length;
+  while (rest >= 255) {
+    out.push(255);
+    rest -= 255;
+  }
+  out.push(rest);
+  return out;
+}
+
+/** Vorbis's identification header: 30 bytes, its version, channels, rate and block sizes. */
+export function vorbisIdentification(): Uint8Array {
+  return joined([
+    Uint8Array.of(1),
+    ascii('vorbis'),
+    le32(0),
+    Uint8Array.of(2),
+    le32(48_000),
+    le32(0),
+    le32(128_000),
+    le32(0),
+    Uint8Array.of(0xb8, 1),
+  ]);
+}
+
+/** Vorbis's comment header: its vendor string and its tags, as an encoder writes them. */
+export function vorbisComments(vendor: string, comments: readonly string[]): Uint8Array {
+  return joined([
+    Uint8Array.of(3),
+    ascii('vorbis'),
+    le32(vendor.length),
+    ascii(vendor),
+    le32(comments.length),
+    ...comments.flatMap((comment) => [le32(comment.length), ascii(comment)]),
+    Uint8Array.of(1),
+  ]);
+}
+
+/** Vorbis's setup header: its codebooks, which a few bytes stand for. */
+export const VORBIS_SETUP = joined([Uint8Array.of(5), ascii('vorbis'), Uint8Array.of(9, 8, 7, 6)]);
+
+/** A Vorbis track's codec data: its three headers in Xiph lacing. */
+export function vorbisPrivate(
+  comments: Uint8Array = vorbisComments('Xiph.Org libVorbis I 20200704 (Reducing Environment)', [
+    'ENCODER=Lavc60.31.102 libvorbis',
+    'DATE=2026-11-12',
+    'ARTIST=Ana at the front desk',
+    'LOCATION=+48.8584+002.2945',
+  ]),
+  identification: Uint8Array = vorbisIdentification(),
+  setup: Uint8Array = VORBIS_SETUP,
+): Uint8Array {
+  return joined([
+    Uint8Array.of(2, ...xiphLength(identification.length), ...xiphLength(comments.length)),
+    identification,
+    comments,
+    setup,
+  ]);
+}
+
+/** The strings a tagged Vorbis track names, none of which cleaning keeps. */
+export const VORBIS_STRINGS = ['Xiph', 'libVorbis', 'ENCODER', 'Lavc', 'DATE', 'Ana', '+48.85'];
+
+/** Opus's identification header, OpusHead: 19 bytes for mapping family 0. */
+export function opusHead(): Uint8Array {
+  return joined([
+    ascii('OpusHead'),
+    Uint8Array.of(1, 2),
+    Uint8Array.of(0x38, 0x01),
+    le32(48_000),
+    Uint8Array.of(0, 0, 0),
+  ]);
+}
+
+/** An AV1 configuration, av1C: its 4 bytes, then the OBUs it holds. */
+export function av1Config(...obus: Uint8Array[]): Uint8Array {
+  return joined([Uint8Array.of(0x81, 0x00, 0x0c, 0x00), ...obus]);
+}
+
+/** An AV1 OBU of a type, with its size field. */
+export function obu(type: number, payload: Uint8Array): Uint8Array {
+  return joined([Uint8Array.of((type << 3) | 0x02, payload.length), payload]);
+}
+
+/** A track's codec data, CodecPrivate. */
+export function codecPrivate(bytes: Uint8Array): Uint8Array {
+  return el(0x63a2, bytes);
+}
+
+/** `colr` of a type: `nclx` with its numbers, or `prof` with an ICC profile. */
+export function colr(
+  type: 'nclx' | 'prof',
+  profile = 'Pixel 8 Pro display, Ana, 2026',
+): Uint8Array {
+  return type === 'nclx'
+    ? box('colr', ascii('nclx'), u16(1), u16(1), u16(1), Uint8Array.of(0))
+    : box('colr', ascii('prof'), ascii(profile));
+}
+
+/** An MPEG-4 descriptor: its tag, its size in one byte, its contents. */
+export function descriptor(tag: number, ...contents: Uint8Array[]): Uint8Array {
+  const body = joined(contents);
+  return joined([Uint8Array.of(tag, body.length), body]);
+}
+
+/**
+ * An AAC description, `esds`: its ES descriptor with flags, then its decoder configuration and
+ * sync layer, and any descriptors after.
+ */
+export function esds(flags = 0, ...more: Uint8Array[]): Uint8Array {
+  return fullBox(
+    'esds',
+    0,
+    descriptor(
+      0x03,
+      u16(1),
+      Uint8Array.of(flags),
+      ...(flags & 0x40 ? [Uint8Array.of(9), ascii('file:/a.m')] : []),
+      descriptor(
+        0x04,
+        Uint8Array.of(0x40, 0x15),
+        new Uint8Array(11),
+        descriptor(0x05, Uint8Array.of(0x11, 0x90)),
+      ),
+      descriptor(0x06, Uint8Array.of(0x02)),
+      ...more,
+    ),
+  );
+}
+
+/** An Opus description, `dOps`: 11 bytes for mapping family 0, and anything after. */
+export function dOps(...after: Uint8Array[]): Uint8Array {
+  return box(
+    'dOps',
+    Uint8Array.of(0, 2, 0x01, 0x38),
+    u32(48_000),
+    Uint8Array.of(0, 0, 0),
+    ...after,
+  );
+}
+
+/** An audio sample description of a codec, with the boxes it holds. */
+export function audioEntry(codec: 'mp4a' | 'Opus', ...inside: Uint8Array[]): Uint8Array {
+  return box(codec, new Uint8Array(6), u16(1), new Uint8Array(20), ...inside);
+}
+
+/** A WebM's EBML header with a DocTypeExtension, which names anything. */
+export function headerWithExtension(name: string): Uint8Array {
+  return el(
+    WEBM.ebml,
+    uint(0x4286, 1),
+    uint(0x42f7, 1),
+    uint(0x42f2, 4),
+    uint(0x42f3, 8),
+    str(WEBM.docType, 'webm'),
+    uint(0x4287, 4),
+    uint(WEBM.docTypeReadVersion, 2),
+    el(0x4281, str(0x4283, name), uint(0x4284, 1)),
+  );
+}

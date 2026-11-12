@@ -28,7 +28,7 @@ import { definitionsIn, modelIndexOf } from './state';
 import { geometryFindings } from './geometry';
 import { readBlocks } from './scenarios/blocks';
 import { mathFindings } from './math/check';
-import { missingShown } from './media/steps';
+import { isVideoShape, missingShown } from './media/steps';
 
 /** What is wrong with a project. */
 export interface ProjectCheck {
@@ -363,6 +363,25 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
             'unknown-free-shape',
             `A step of the scenario "${scenario.name}" shows ${missing.map((id) => `"${id}"`).join(', ')}, which the view "${view?.name ?? scenario.view}" no longer holds: it plays without what is gone.`,
             [scenario.id, step.id, ...missing],
+          ),
+        );
+      }
+      // What a hand-edited step plays that it does not show, or that is no video (A8's review).
+      const shows = new Set(step.shows ?? []);
+      const held = new Map(view?.freeShapes.map((shape) => [shape.id, shape]));
+      for (const id of new Set(step.playing ?? [])) {
+        const shape = held.get(id);
+        const why = !shows.has(id)
+          ? 'which it does not show: it plays only the videos it shows'
+          : shape !== undefined && !isVideoShape(shape)
+            ? 'which is no video: it plays only videos'
+            : undefined;
+        if (why === undefined) continue;
+        warnings.push(
+          problem(
+            'unknown-free-shape',
+            `A step of the scenario "${scenario.name}" plays "${id}", ${why}.`,
+            [scenario.id, step.id, id],
           ),
         );
       }

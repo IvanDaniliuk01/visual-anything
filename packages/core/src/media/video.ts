@@ -11,13 +11,18 @@
  *   other one, `udta`, `meta` and `uuid` where phones keep a video's place and camera among them,
  *   becomes a `free` box of the same size, zeroed. Its headers' creation and modification times, its
  *   handlers' names, its compressor's name and its audio's vendor are zeroed, and so is what `free`,
- *   `skip` and `wide` boxes hold. A fragmented MP4, and one that refers to data outside itself, are
- *   refused.
+ *   `skip` and `wide` boxes hold. A `colr` is kept only when it holds numbers (`nclx`, `nclc`), never
+ *   an ICC profile; an `esds` keeps only its decoder configuration and sync layer, and a `dOps`,
+ *   `btrt`, `pasp` and `clap` their numbers, what follows them zeroed. A fragmented MP4, one with two
+ *   `ftyp`, and one that refers to data outside itself, are refused.
  * - In a WebM, Info keeps only its timestamp scale and duration, a track only what plays it, Cues only
  *   their times and positions, a BlockGroup only its block, duration and references; every other
  *   element, its title, date, writing programs, track names, tags, attachments, chapters, seek head,
- *   block additions and checksums among them, becomes a Void element of the same size.
- * - The frames themselves, in `mdat` or in a WebM's blocks, are not read.
+ *   block additions, checksums and its header's DocTypeExtension among them, becomes a Void element
+ *   of the same size. A track's codec data is kept only as its codec defines it (`cleanCodecData`):
+ *   a Vorbis comment header's vendor and tags are zeroed, keeping their lengths.
+ * - The frames themselves, in `mdat` or in a WebM's blocks, are not read, and neither is a codec's own
+ *   configuration (H.264's `avcC`, AAC's decoder-specific information, AV1's sequence header).
  */
 import { problem, type Problem } from '../problems';
 
@@ -295,7 +300,7 @@ function readMp4(given: Uint8Array): Read {
   }
   let moov: Box | undefined;
   let frames = false;
-  for (const box of top) {
+  for (const [index, box] of top.entries()) {
     if (FRAGMENTED.has(box.type)) {
       refuse(
         'The MP4 file is fragmented, as a live recording writes it: Visual Anything takes an MP4 whose frames are all in mdat, or a WebM.',
@@ -310,7 +315,9 @@ function readMp4(given: Uint8Array): Read {
       free(box);
     } else if (FILLER.has(box.type)) {
       cleaning.zero(box.body, box.end, 'filler');
-    } else if (box.type !== 'ftyp') {
+    } else if (box.type === 'ftyp') {
+      if (index > 0) refuse('The MP4 file holds its type, ftyp, twice.');
+    } else {
       refuse(`The MP4 file holds a "${said(box.type)}" box, which Visual Anything does not take.`);
     }
   }
@@ -346,6 +353,20 @@ function readMp4(given: Uint8Array): Read {
         // Its name, as "Core Media Video", which can name the device or program that wrote it.
         if (box.end - box.body < 24) refuse('The MP4 file’s track handler is cut short.');
         cleaning.zero(box.body + 24, box.end, 'names');
+      } else if (box.type === 'colr') {
+        // Only numbers naming a color space; an ICC profile names a device, a creator and a date.
+        const fixed = COLOR_NUMBERS[fourcc(given, box.body)];
+        if (box.end - box.body < 4 || fixed === undefined) free(box);
+        else if (box.end - box.body < fixed) refuse('The MP4 file’s colr is cut short.');
+        else cleaning.zero(box.body + fixed, box.end, 'extra');
+      } else if (box.type === 'esds') {
+        cleanEsds(given, box, cleaning);
+      } else if (box.type === 'dOps') {
+        cleanOpusDescription(given, box, cleaning);
+      } else if (FIXED_SIZES[box.type] !== undefined) {
+        const fixed = FIXED_SIZES[box.type] as number;
+        if (box.end - box.body < fixed) refuse(`The MP4 file's "${box.type}" box is cut short.`);
+        cleaning.zero(box.body + fixed, box.end, 'extra');
       } else if (box.type === 'dref') {
         checkDataReferences(given, box, boxesIn);
       } else if (box.type === 'stsd') {
@@ -386,11 +407,76 @@ function readMp4(given: Uint8Array): Read {
   if (cleaning.said.includes('times')) removed.push('the times it was made and changed');
   if (cleaning.said.includes('names')) removed.push('the names of its tracks and encoder');
   if (cleaning.said.includes('filler')) removed.push('what its free boxes held');
+  if (cleaning.said.includes('extra')) {
+    removed.push('what its descriptions held past what a player reads');
+  }
   return { ...video, bytes: cleaning.bytes, removed };
 }
 
 /** The size of each sample description's fixed part, before the boxes it holds. */
 const ENTRY_SIZES: Readonly<Record<string, number>> = { avc1: 78, avc3: 78, mp4a: 28, Opus: 28 };
+
+/** What `colr` holds after its type, by type: numbers only (`nclx`, `nclc`). */
+const COLOR_NUMBERS: Readonly<Record<string, number>> = { nclx: 11, nclc: 10 };
+
+/** Boxes of numbers alone, by their size: what follows is zeroed. */
+const FIXED_SIZES: Readonly<Record<string, number>> = { btrt: 12, pasp: 8, clap: 32 };
+
+/**
+ * An AAC description, `esds`: its ES descriptor, of a stream in this file, keeps its decoder
+ * configuration (`0x04`, with its decoder-specific information, `0x05`, the codec's own
+ * configuration) and its sync layer (`0x06`); every other descriptor's contents, and whatever follows
+ * the ES descriptor, are zeroed.
+ */
+function cleanEsds(bytes: Uint8Array, box: Box, cleaning: Cleaning): void {
+  const broken = () => refuse('The MP4 file’s AAC description is not as MPEG-4 writes it.');
+  const descriptorAt = (at: number, end: number) => {
+    if (at + 2 > end) broken();
+    const tag = bytes[at] as number;
+    let size = 0;
+    let body = at + 1;
+    for (let each = 0; ; each++) {
+      if (each === 4 || body >= end) broken();
+      const byte = bytes[body] as number;
+      body += 1;
+      size = size * 128 + (byte & 0x7f);
+      if ((byte & 0x80) === 0) break;
+    }
+    if (size > end - body) broken();
+    return { tag, body, end: body + size };
+  };
+  const zeroOthers = (from: number, end: number, kept: ReadonlySet<number>) => {
+    for (let at = from; at < end;) {
+      const inner = descriptorAt(at, end);
+      if (!kept.has(inner.tag)) cleaning.zero(inner.body, inner.end, 'extra');
+      else if (inner.tag === 0x04) {
+        if (inner.end - inner.body < 13) broken();
+        zeroOthers(inner.body + 13, inner.end, new Set([0x05]));
+      }
+      at = inner.end;
+    }
+  };
+  if (box.end - box.body < 4) broken();
+  const es = descriptorAt(box.body + 4, box.end);
+  if (es.tag !== 0x03 || es.end - es.body < 3) broken();
+  const flags = bytes[es.body + 2] as number;
+  if ((flags & 0x40) !== 0) {
+    refuse('The MP4 file refers to data outside itself, which Visual Anything does not take.');
+  }
+  const from = es.body + 3 + ((flags & 0x80) !== 0 ? 2 : 0) + ((flags & 0x20) !== 0 ? 2 : 0);
+  if (from > es.end) broken();
+  zeroOthers(from, es.end, new Set([0x04, 0x06]));
+  cleaning.zero(es.end, box.end, 'extra');
+}
+
+/** An Opus description, `dOps`: its numbers kept, and whatever follows them zeroed. */
+function cleanOpusDescription(bytes: Uint8Array, box: Box, cleaning: Cleaning): void {
+  if (box.end - box.body < 11) refuse('The MP4 file’s Opus description is cut short.');
+  const family = bytes[box.body + 10] as number;
+  const own = family === 0 ? 11 : 13 + (bytes[box.body + 1] as number);
+  if (box.end - box.body < own) refuse('The MP4 file’s Opus description is cut short.');
+  cleaning.zero(box.body + own, box.end, 'extra');
+}
 
 /** Zeroes a header's creation and modification times: `mvhd`, `tkhd` or `mdhd`. */
 function zeroTimes(bytes: Uint8Array, box: Box, cleaning: Cleaning): void {
@@ -529,7 +615,7 @@ function readTrack(
   const header = inTrak.find((box) => box.type === 'tkhd');
   return {
     handler,
-    size: headerSize(bytes, header) ?? (own),
+    size: headerSize(bytes, header) ?? own,
   };
 }
 
@@ -564,6 +650,9 @@ const TRACK_ENTRY = 0xae;
 const BLOCK_GROUP = 0xa0;
 const VOID = 0xec;
 const CRC = 0xbf;
+const CODEC_PRIVATE = 0x63a2;
+/** DocTypeExtension: a name and a version of free text, voided. */
+const DOC_TYPE_EXTENSION = 0x4281;
 
 /** What a Segment may hold, by id. */
 const SEGMENT_PARTS = new Set([
@@ -606,7 +695,7 @@ const SEGMENT_KEPT: Kept = {
       0x9c: NUMBERS, // FlagLacing
       0x23e383: NUMBERS, // DefaultDuration
       0x86: NUMBERS, // CodecID
-      0x63a2: NUMBERS, // CodecPrivate
+      [CODEC_PRIVATE]: NUMBERS, // CodecPrivate, read by its codec's rules in `cleanCodecData`
       0x56aa: NUMBERS, // CodecDelay
       0x56bb: NUMBERS, // SeekPreRoll
       0x22b59c: NUMBERS, // Language
@@ -663,7 +752,7 @@ const HEADER_PARTS = new Set([
   0x4282,
   0x4287,
   0x4285,
-  0x4281,
+  DOC_TYPE_EXTENSION,
   VOID,
   CRC,
 ]);
@@ -681,6 +770,7 @@ const VOIDED: Readonly<Record<number, string>> = {
   0x536e: 'the names of its tracks',
   0x75a1: 'block additions',
   [CRC]: 'checksums',
+  [DOC_TYPE_EXTENSION]: 'its document type’s extensions',
 };
 
 const VIDEO_CODECS = new Set(['V_VP8', 'V_VP9', 'V_AV1']);
@@ -739,6 +829,7 @@ function readWebm(given: Uint8Array): Read {
   let readVersion = 1;
   for (const child of children(header)) {
     if (!HEADER_PARTS.has(child.id)) refuse(`The WebM file's header holds ${hex(child.id)}.`);
+    if (child.id === DOC_TYPE_EXTENSION) voidOf(child);
     if (child.id === 0x4282) docType = text(given, child).replace(/\0+$/, '');
     if (child.id === 0x4285) readVersion = uint(given, child);
     if (child.id === 0x42f7 && uint(given, child) !== 1) {
@@ -809,7 +900,7 @@ function readWebm(given: Uint8Array): Read {
     at = part.end;
   }
   if (tracks === undefined) refuse('The WebM file lists no tracks.');
-  const size = readTracks(given, tracks, children);
+  const size = readTracks(given, tracks, children, cleaning);
   return { ...size, bytes: cleaning.bytes, removed: [...cleaning.said] };
 }
 
@@ -817,6 +908,7 @@ function readTracks(
   bytes: Uint8Array,
   tracks: Element,
   children: (parent: Element) => Element[],
+  cleaning: Cleaning,
 ): { width: number; height: number } {
   let videos = 0;
   let size = { width: 0, height: 0 };
@@ -826,7 +918,9 @@ function readTracks(
     let type = 0;
     let codec = '';
     let video: Element | undefined;
+    let data: Element | undefined;
     for (const part of children(entry)) {
+      if (part.id === CODEC_PRIVATE) data = part;
       if (part.id === 0x83) type = uint(bytes, part);
       if (part.id === 0x86) codec = text(bytes, part).replace(/\0+$/, '');
       if (part.id === 0xe0) video = part;
@@ -851,6 +945,7 @@ function readTracks(
         `The WebM file has a track of type ${type}, which Visual Anything does not take: a video track and audio tracks only.`,
       );
     }
+    if (data !== undefined) cleanCodecData(bytes, codec, data, cleaning);
   }
   if (videos !== 1) {
     refuse(
@@ -858,6 +953,131 @@ function readTracks(
     );
   }
   return size;
+}
+
+/**
+ * A track's codec data, CodecPrivate, kept only as its codec defines it (A8's review):
+ *
+ * - Vorbis: its identification, comment and setup headers, in Xiph lacing. The comment header's
+ *   vendor and every tag (ENCODER, DATE, ARTIST, LOCATION…) are zeroed, their lengths kept, so that
+ *   nothing moves.
+ * - Opus: an OpusHead, numbers only; whatever follows it is zeroed. WebM keeps no OpusTags.
+ * - AV1: its configuration, av1C, whose sequence headers are kept, as the frames are; a metadata or
+ *   padding OBU's contents are zeroed, and any other OBU is refused.
+ * - VP8 and VP9: voided, since a player reads what they need from the frames.
+ */
+function cleanCodecData(bytes: Uint8Array, codec: string, data: Element, cleaning: Cleaning): void {
+  const end = data.end as number;
+  if (codec === 'A_VORBIS') {
+    cleanVorbisHeaders(bytes, data.body, end, cleaning);
+  } else if (codec === 'A_OPUS') {
+    const notOpus = 'The WebM file’s Opus data is not an OpusHead, as Opus writes it.';
+    const head = String.fromCharCode(...bytes.subarray(data.body, data.body + 8));
+    if (end - data.body < 19 || head !== 'OpusHead') refuse(notOpus);
+    const family = bytes[data.body + 18] as number;
+    const own = family === 0 ? 19 : 21 + (bytes[data.body + 9] as number);
+    if (end - data.body < own) refuse(notOpus);
+    cleaning.zero(data.body + own, end, CODEC_DATA);
+  } else if (codec === 'V_AV1') {
+    cleanAv1Configuration(bytes, data.body, end, cleaning);
+  } else {
+    cleaning.void(data.start, end, CODEC_DATA);
+  }
+}
+
+const CODEC_DATA = 'what its codec data held';
+
+/** Vorbis's three headers, its comment header's vendor and tags zeroed. */
+function cleanVorbisHeaders(
+  bytes: Uint8Array,
+  start: number,
+  end: number,
+  cleaning: Cleaning,
+): void {
+  const broken = (): never =>
+    refuse('The WebM file’s Vorbis headers are not the three Vorbis writes.');
+  if (bytes[start] !== 2) broken();
+  // Xiph lacing: the first two headers' lengths, each as 255s and the rest; the third is what is left.
+  const lengths: number[] = [];
+  let at = start + 1;
+  for (let header = 0; header < 2; header++) {
+    let length = 0;
+    for (;;) {
+      if (at >= end) broken();
+      const byte = bytes[at] as number;
+      at += 1;
+      length += byte;
+      if (byte < 255) break;
+    }
+    lengths.push(length);
+  }
+  const [identification, comments] = lengths as [number, number];
+  if (identification + comments >= end - at) broken();
+  const isHeader = (from: number, type: number) =>
+    bytes[from] === type && String.fromCharCode(...bytes.subarray(from + 1, from + 7)) === 'vorbis';
+  const commentsAt = at + identification;
+  const setupAt = commentsAt + comments;
+  if (identification < 30 || !isHeader(at, 1)) broken();
+  if (!isHeader(commentsAt, 3) || !isHeader(setupAt, 5)) broken();
+  // The comment header: its vendor, then its tags, each a 32-bit length, little-endian, and text.
+  const le32 = (from: number) => {
+    if (from + 4 > setupAt) broken();
+    return (
+      (bytes[from] as number) +
+      (bytes[from + 1] as number) * 0x100 +
+      (bytes[from + 2] as number) * 0x10000 +
+      (bytes[from + 3] as number) * 0x1000000
+    );
+  };
+  let inside = commentsAt + 7;
+  const zeroText = () => {
+    const length = le32(inside);
+    inside += 4;
+    if (length > setupAt - inside) broken();
+    cleaning.zero(inside, inside + length, TAGS);
+    inside += length;
+  };
+  zeroText();
+  const count = le32(inside);
+  inside += 4;
+  if (count > (setupAt - inside) / 4) broken();
+  for (let each = 0; each < count; each++) zeroText();
+  // Its framing bit, then nothing: whatever else the header holds is zeroed too.
+  if (inside >= setupAt) broken();
+  cleaning.zero(inside + 1, setupAt, TAGS);
+}
+
+const TAGS = 'the tags of its audio';
+
+/** AV1's configuration, av1C: its four bytes, then OBUs, each with its size. */
+function cleanAv1Configuration(
+  bytes: Uint8Array,
+  start: number,
+  end: number,
+  cleaning: Cleaning,
+): void {
+  const broken = (): never => refuse('The WebM file’s AV1 configuration is not as AV1 writes it.');
+  if (end - start < 4 || bytes[start] !== 0x81) broken();
+  for (let at = start + 4; at < end;) {
+    const header = bytes[at] as number;
+    const type = (header >> 3) & 0x0f;
+    if ((header & 0x80) !== 0 || (header & 0x02) === 0) broken();
+    let body = at + 1 + ((header & 0x04) !== 0 ? 1 : 0);
+    // Its size, in LEB128.
+    let size = 0;
+    for (let each = 0; ; each++) {
+      if (each === 8 || body >= end) broken();
+      const byte = bytes[body] as number;
+      body += 1;
+      size += (byte & 0x7f) * 2 ** (7 * each);
+      if ((byte & 0x80) === 0) break;
+    }
+    if (size > end - body) broken();
+    // A sequence header is the codec's own, as the frames are; metadata and padding are zeroed.
+    if (type === 5 || type === 15) cleaning.zero(body, body + size, CODEC_DATA);
+    else if (type !== 1) broken();
+    at = body + size;
+  }
 }
 
 function videoSize(

@@ -30,6 +30,11 @@ import {
 /** The rules every project keeps after any sequence of actions. */
 function expectRulesKept(state: ProjectSnapshot) {
   expect(checkProject(state).errors).toEqual([]);
+  // A step plays only videos it shows, each once (ADR 0098, stage 4).
+  for (const step of state.scenarios.flatMap((scenario) => scenario.steps)) {
+    const shows = new Set(step.shows ?? []);
+    for (const id of step.playing ?? []) expect(shows.has(id)).toBe(true);
+  }
   const model = modelIndexOf(state);
   const all = [state.model.world.id, ...state.model.elements.map((element) => element.id)];
   expect(containmentCycles(model, all)).toEqual([]);
@@ -107,11 +112,23 @@ interface Seen {
   containerChanges: number;
   recolors: number;
   undos: number;
+  /** Steps that show pictures, and steps that play videos, as commands stored them. */
+  showing: number;
+  playing: number;
   kinds: Set<string>;
 }
 
 function nothingSeen(): Seen {
-  return { applied: 0, deletes: 0, containerChanges: 0, recolors: 0, undos: 0, kinds: new Set() };
+  return {
+    applied: 0,
+    deletes: 0,
+    containerChanges: 0,
+    recolors: 0,
+    undos: 0,
+    showing: 0,
+    playing: 0,
+    kinds: new Set(),
+  };
 }
 
 /**
@@ -180,6 +197,11 @@ function sequences(seen: Seen) {
         }
         seen.applied += 1;
         seen.kinds.add(command.type);
+        if (command.type === 'create-scenario' || command.type === 'update-scenario') {
+          const steps = after.scenarios.flatMap((scenario) => scenario.steps);
+          if (steps.some((step) => step.shows !== undefined)) seen.showing += 1;
+          if (steps.some((step) => step.playing !== undefined)) seen.playing += 1;
+        }
 
         const recorded = record(history, {
           label: outcome.label,
@@ -209,6 +231,9 @@ describe('the rules of the core', () => {
     expect(seen.containerChanges).toBeGreaterThan(20);
     expect(seen.recolors).toBeGreaterThan(100);
     expect(seen.undos).toBeGreaterThan(50);
+    // Steps that show pictures and play videos among them.
+    expect(seen.showing).toBeGreaterThan(10);
+    expect(seen.playing).toBeGreaterThan(5);
     // And every kind of command among them.
     expect([...seen.kinds].sort()).toEqual([...COMMAND_TYPES].sort());
     // Thousands of actions: on a loaded machine this takes longer than a test's default 5 seconds.

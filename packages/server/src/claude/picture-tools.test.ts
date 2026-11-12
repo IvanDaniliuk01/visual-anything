@@ -101,7 +101,7 @@ describe('add_video (ADR 0098, stage 2)', () => {
     expect(String(answer.file)).toMatch(/^media\/[0-9a-f]{64}\.mp4$/);
     expect(tools.session.history.undo).toMatchObject({
       author: 'claude',
-      label: expect.stringContaining('a video'),
+      label: expect.stringContaining('a video') as unknown,
     });
     const view = await tools.value('read_view', { view: 'overview' });
     expect(view.pictures).toEqual([

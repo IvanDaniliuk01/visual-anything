@@ -79,6 +79,37 @@ describe('compareProjects', () => {
     ]);
   });
 
+  it('compares the pictures a step shows and plays as part of its step (ADR 0098, stage 4)', () => {
+    const media = { hash: 'ab'.repeat(32), format: 'mp4' as const, width: 8, height: 8, bytes: 70 };
+    const video = { kind: 'picture' as const, id: 'desk', x: 0, y: 0, width: 8, height: 8, media };
+    const older = done(testProject(), {
+      type: 'create-free-shape',
+      view: 'overview',
+      shape: video,
+    });
+    const steps = older.scenarios[0]!.steps;
+    const shown = done(older, {
+      type: 'update-scenario',
+      id: 'request',
+      changes: { steps: [{ ...steps[0]!, shows: ['desk'], playing: ['desk'] }, steps[1]!] },
+    });
+    const comparison = compareProjects(older, shown);
+    expect(summary(comparison)).toEqual(['changed scenario:request']);
+    // The step, by id, with its lists.
+    expect(comparison.changes[0]?.differences).toEqual([
+      {
+        path: 'steps.call',
+        before: steps[0],
+        after: { ...steps[0], shows: ['desk'], playing: ['desk'] },
+      },
+    ]);
+    // Back the other way, and the operations between them give the newer from the older.
+    expect(summary(compareProjects(shown, older))).toEqual(['changed scenario:request']);
+    expect(applyOperations(older, operationsBetween(older, shown)).state.scenarios).toEqual(
+      shown.scenarios,
+    );
+  });
+
   it('finds nothing between a version and itself', () => {
     const project = testProject();
     expect(compareProjects(project, project)).toEqual({

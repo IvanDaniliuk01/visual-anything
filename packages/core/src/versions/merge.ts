@@ -502,7 +502,40 @@ function mergeWithSteps(
     policy,
     add,
   );
-  return { ...(props.value as Record<string, JsonValue>), [field]: list };
+  const steps = field === 'steps' ? playingShown(list, older.list, each, policy, add) : list;
+  return { ...(props.value as Record<string, JsonValue>), [field]: steps };
+}
+
+/**
+ * A step plays only videos it shows (ADR 0098, stage 4), which one file can tell. A merge that joins
+ * one side's `shows` with the other's `playing` keeps of `playing` only what `shows` holds; what it
+ * leaves out is a conflict on `playing`, so that taking it back goes with taking the other `shows`.
+ */
+function playingShown(
+  steps: readonly JsonValue[],
+  base: readonly JsonValue[],
+  each: string,
+  policy: MergePolicy,
+  add: Collect,
+): JsonValue[] {
+  return steps.map((step) => {
+    if (!isObject(step) || !Array.isArray(step.playing)) return step;
+    const shows = new Set(Array.isArray(step.shows) ? step.shows : []);
+    const playing = step.playing;
+    if (playing.every((id) => shows.has(id))) return step;
+    const kept = playing.filter((id) => shows.has(id));
+    const rest = withoutKeys(step, 'playing');
+    const older = base.find((one) => isObject(one) && one.id === step.id);
+    const before = isObject(older) ? older.playing : undefined;
+    add(`${each}:${keyText(step.id)}`)({
+      path: ['playing'],
+      why: 'both-changed',
+      kept: policy.kept,
+      other: playing,
+      ...(before === undefined ? {} : { base: before }),
+    });
+    return kept.length > 0 ? { ...rest, playing: kept } : rest;
+  });
 }
 
 /**

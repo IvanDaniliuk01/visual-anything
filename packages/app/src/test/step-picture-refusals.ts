@@ -123,5 +123,16 @@ export function stepPictureRefusals(sample: ProjectSnapshot): StepPictureSaid[] 
       }
     }
   }
+  // A scenario step edited by hand to play a photo, and a video it does not show (A8's review).
+  const handEdited = { ...first, shows: ['step-photo'], playing: ['step-photo', 'step-video'] };
+  const edited: ProjectSnapshot = {
+    ...state,
+    scenarios: state.scenarios.map((each) =>
+      each.id === scenario.id ? { ...each, steps: [handEdited, ...rest] } : each,
+    ),
+  };
+  for (const warning of checkProject(edited).warnings) {
+    out.push({ command: 'a step edited by hand plays what it may not', message: warning.message });
+  }
   return out;
 }

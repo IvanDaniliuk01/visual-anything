@@ -79,6 +79,60 @@ describe('parseFile', () => {
   });
 });
 
+/** A step's pictures at their caps: 500 shown, 4 of them playing (ADR 0098, stage 4). */
+const mostPictures = {
+  shows: Array.from({ length: 500 }, (_, at) => `picture-${at}`),
+  playing: ['picture-0', 'picture-1', 'picture-2', 'picture-3'],
+};
+
+/** A step's lists of pictures past their bounds, `shows` 1 to 500 and `playing` 1 to 4, each once. */
+function pictureListRejects(
+  stepWith: (pictures: object) => object,
+): [string, object, { path: string; message: string }[]][] {
+  return [
+    [
+      'a step that shows an empty list',
+      stepWith({ shows: [] }),
+      [{ path: '/steps/0/shows', message: 'must have at least 1 item' }],
+    ],
+    [
+      'a step that shows more than 500',
+      stepWith({ shows: Array.from({ length: 501 }, (_, at) => `picture-${at}`) }),
+      [{ path: '/steps/0/shows', message: 'must have at most 500 items' }],
+    ],
+    [
+      'a step that shows a picture twice',
+      stepWith({ shows: ['a', 'a'] }),
+      [
+        {
+          path: '/steps/0/shows',
+          message: 'must not have duplicate items (items 0 and 1 are the same)',
+        },
+      ],
+    ],
+    [
+      'a step that plays an empty list',
+      stepWith({ shows: ['a'], playing: [] }),
+      [{ path: '/steps/0/playing', message: 'must have at least 1 item' }],
+    ],
+    [
+      'a step that plays more than 4',
+      stepWith({ shows: ['a'], playing: ['a', 'b', 'c', 'd', 'e'] }),
+      [{ path: '/steps/0/playing', message: 'must have at most 4 items' }],
+    ],
+    [
+      'a step that plays a video twice',
+      stepWith({ shows: ['a'], playing: ['a', 'a'] }),
+      [
+        {
+          path: '/steps/0/playing',
+          message: 'must not have duplicate items (items 0 and 1 are the same)',
+        },
+      ],
+    ],
+  ];
+}
+
 describe('validateFile', () => {
   it('rejects data that is not a JSON object', () => {
     expect(problemsIn('model', [])).toEqual([{ path: '', message: 'must be an object' }]);
@@ -1082,8 +1136,23 @@ describe('validateFile', () => {
           },
         ],
       ],
+      ...pictureListRejects((pictures) => ({
+        ...scenario,
+        steps: [{ id: 'ask', description: '', relations: ['r'], ...pictures }],
+      })),
     ])('rejects %s', (_, data, errors) => {
       expect(problemsIn('scenario', data)).toEqual(errors);
+    });
+
+    it('accepts a step that shows 1 to 500 pictures and plays 1 to 4 of them (ADR 0098, stage 4)', () => {
+      const shown = {
+        ...scenario,
+        steps: [
+          { id: 'one', description: '', relations: ['r'], shows: ['a'], playing: ['a'] },
+          { id: 'most', description: '', relations: ['r'], ...mostPictures },
+        ],
+      };
+      expect(validateFile('scenario', shown)).toEqual({ ok: true, value: shown });
     });
   });
 
@@ -1125,6 +1194,11 @@ describe('validateFile', () => {
 
     it('accepts a valid one', () => {
       expect(validateFile('tour', tour)).toEqual({ ok: true, value: tour });
+    });
+
+    it('accepts a step that shows 1 to 500 pictures and plays 1 to 4 of them (ADR 0098, stage 4)', () => {
+      const shown = { ...tour, steps: [{ ...tour.steps[0], ...mostPictures }] };
+      expect(validateFile('tour', shown)).toEqual({ ok: true, value: shown });
     });
 
     it('keeps a step whose marks name what no longer exists, which it plays without', () => {
@@ -1198,6 +1272,7 @@ describe('validateFile', () => {
         { ...tour, steps: [{ ...step, play: { from: 'ask' } }] },
         [{ path: '/steps/0/play', message: 'must have the key "scenario"' }],
       ],
+      ...pictureListRejects((pictures) => ({ ...tour, steps: [{ ...step, ...pictures }] })),
       [
         'more steps than a tour holds',
         { ...tour, steps: Array.from({ length: 1001 }, (_, at) => ({ ...step, id: `s${at}` })) },

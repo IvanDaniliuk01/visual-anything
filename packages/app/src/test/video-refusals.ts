@@ -7,16 +7,22 @@
 import { readVideo } from '@visual-anything/core';
 import {
   WEBM,
+  audioEntry,
   audioTrack,
+  av1Config,
   avcC,
   box,
   cluster,
+  codecPrivate,
+  colr,
   ebmlHeader,
   el,
+  esds,
   ftyp,
   fullBox,
   h264Track,
   mp4,
+  obu,
   placeBox,
   tags,
   tkhd,
@@ -24,6 +30,8 @@ import {
   trak,
   uint,
   visualEntry,
+  vorbisIdentification,
+  vorbisPrivate,
   vp9Track,
   webm,
 } from '../../../core/src/media/test/videos';
@@ -85,6 +93,79 @@ const REFUSED: readonly (readonly [string, Uint8Array])[] = [
   ['a webm past 8,192 pixels', webm({ tracks: [vp9Track(8193, 8)] })],
   ['a webm with two track lists', webm({ after: [el(WEBM.tracks)] })],
   ['a webm whose header holds more', webm({ header: el(0x1a45dfa3, el(0x4321)) })],
+  ['an mp4 with two ftyp', mp4({ after: [ftyp()] })],
+  [
+    'an mp4 whose colr is cut short',
+    mp4({
+      tracks: [
+        trak(
+          'vide',
+          [
+            visualEntry(
+              'avc1',
+              8,
+              8,
+              avcC(),
+              colr('nclx')
+                .subarray(0, 14)
+                .map((b, at) => (at === 3 ? 14 : b)),
+            ),
+          ],
+          tkhd(8, 8),
+        ),
+      ],
+    }),
+  ],
+  [
+    'an mp4 whose btrt is cut short',
+    mp4({
+      tracks: [
+        trak(
+          'vide',
+          [visualEntry('avc1', 8, 8, avcC(), box('btrt', new Uint8Array(4)))],
+          tkhd(8, 8),
+        ),
+      ],
+    }),
+  ],
+  [
+    'an mp4 of a broken esds',
+    mp4({
+      tracks: [
+        h264Track(),
+        trak('soun', [audioEntry('mp4a', fullBox('esds', 0, Uint8Array.of(0x04, 1, 0)))]),
+      ],
+    }),
+  ],
+  [
+    'an mp4 whose esds names a file elsewhere',
+    mp4({ tracks: [h264Track(), trak('soun', [audioEntry('mp4a', esds(0x40))])] }),
+  ],
+  [
+    'an mp4 whose dOps is cut short',
+    mp4({
+      tracks: [h264Track(), trak('soun', [audioEntry('Opus', box('dOps', new Uint8Array(4)))])],
+    }),
+  ],
+  [
+    'a webm whose Opus data is not an OpusHead',
+    webm({ tracks: [vp9Track(), trackEntry(2, 'A_OPUS', codecPrivate(Uint8Array.of(1, 2, 3)))] }),
+  ],
+  [
+    'a webm of broken Vorbis headers',
+    webm({
+      tracks: [
+        vp9Track(),
+        trackEntry(2, 'A_VORBIS', codecPrivate(vorbisPrivate(vorbisIdentification()))),
+      ],
+    }),
+  ],
+  [
+    'a webm of a broken AV1 configuration',
+    webm({
+      tracks: [trackEntry(1, 'V_AV1', codecPrivate(av1Config(obu(6, Uint8Array.of(1)))), pixels)],
+    }),
+  ],
 ];
 
 /** Files cut at every length, which the reader refuses as cut short, each in its own words. */

@@ -15,6 +15,7 @@ import {
   entryOfStep,
   isBroken,
   isOutside,
+  missingShown,
   modelIndexOf,
   readBlocks,
   scenarioTimeline,
@@ -717,6 +718,16 @@ function StepList({
   const buttons = useRef(new Map<number, HTMLButtonElement>());
   const index = modelIndexOf(project);
   const nameOf = (id: Id) => index.element(id)?.name ?? id;
+  // Whether a step, by its index, shows a picture, video or link card its view no longer holds
+  // (ADR 0098, stage 4): flagged in the list as its editor lists them, though it is no broken step.
+  const ownView = project.views.find((each) => each.id === scenario.view);
+  const showsGone = (at: number) => {
+    const step = scenario.steps[at];
+    return step !== undefined && missingShown(ownView, step).length > 0;
+  };
+  const goneBadge = (
+    <span className="scenario-badge scenario-badge-gone">{t('Shows what is gone')}</span>
+  );
   // The alternatives not chosen that the person unfolded, by decision and alternative.
   const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set());
   const listed = useMemo(() => {
@@ -800,6 +811,8 @@ function StepList({
           </span>
           <span className="scenario-step-text">{description}</span>
           {broken && <span className="scenario-badge scenario-badge-broken">{t('Broken')}</span>}
+          {Array.from({ length: each.count }, (_, step) => each.first + step).some(showsGone) &&
+            goneBadge}
           {isOutside(each) && <span className="scenario-badge">{t('Outside the view')}</span>}
           {each.kind === 'aggregated' && (
             <span className="scenario-badge" aria-hidden="true">
@@ -842,6 +855,7 @@ function StepList({
           <span className="scenario-step-number">{at + 1}</span>
           <span className="scenario-step-text">{step.description || t('No description yet')}</span>
           {broken && <span className="scenario-badge scenario-badge-broken">{t('Broken')}</span>}
+          {showsGone(at) && goneBadge}
         </button>
       </li>
     );

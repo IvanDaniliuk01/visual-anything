@@ -2,18 +2,30 @@ import { describe, expect, it } from 'vitest';
 import { VIDEO_CAPS, readVideo, videoFormatOf } from './video';
 import {
   QUARTER_TURN,
+  VORBIS_SETUP,
+  VORBIS_STRINGS,
   WEBM,
+  audioEntry,
   audioTrack,
+  av1Config,
   avcC,
   box,
   cluster,
+  codecPrivate,
+  colr,
+  dOps,
+  descriptor,
   ebmlHeader,
   el,
+  esds,
   ftyp,
   fullBox,
   h264Track,
+  headerWithExtension,
   largeBox,
   mp4,
+  obu,
+  opusHead,
   PHONE_STRINGS,
   phoneMp4,
   placeBox,
@@ -24,6 +36,9 @@ import {
   trak,
   uint,
   visualEntry,
+  vorbisComments,
+  vorbisIdentification,
+  vorbisPrivate,
   vp9Track,
   webm,
 } from './test/videos';
@@ -370,5 +385,157 @@ describe('readVideo: caps', () => {
 
   it('refuses what is neither', () => {
     expect(refusal(Uint8Array.of(1, 2, 3, 4, 5, 6, 7, 8, 9)).code).toBe('invalid-video');
+  });
+});
+
+describe('readVideo: a codec’s own data names nothing (A8’s review)', () => {
+  const holds = (bytes: Uint8Array, said: string) => text(bytes).includes(said);
+  const ascii = (said: string) => new TextEncoder().encode(said);
+  const cleanedOnce = (bytes: Uint8Array) => {
+    const result = read(bytes);
+    expect(result.value.bytes.length).toBe(bytes.length);
+    const again = read(result.value.bytes);
+    expect(again.value.bytes).toEqual(result.value.bytes);
+    expect(again.removed).toEqual([]);
+    return result;
+  };
+  const vorbis = (data: Uint8Array) =>
+    webm({ tracks: [vp9Track(), trackEntry(2, 'A_VORBIS', codecPrivate(data))] });
+  const pixels = el(WEBM.video, uint(WEBM.pixelWidth, 8), uint(WEBM.pixelHeight, 8));
+
+  it('zeroes a Vorbis track’s vendor and every tag, keeping their lengths so nothing moves', () => {
+    const bytes = vorbis(vorbisPrivate());
+    for (const said of VORBIS_STRINGS) expect(holds(bytes, said)).toBe(true);
+    const result = cleanedOnce(bytes);
+    for (const said of VORBIS_STRINGS) expect(holds(result.value.bytes, said)).toBe(false);
+    expect(result.removed).toEqual(['the tags of its audio']);
+    // Its identification and setup headers are kept as they were, and so are the lengths.
+    const cleaned = text(result.value.bytes);
+    expect(cleaned).toContain(text(vorbisIdentification()));
+    expect(cleaned).toContain(text(VORBIS_SETUP));
+    const comments = vorbisComments('ab', ['C=1']);
+    const zeroed = Uint8Array.from(comments).fill(0, 11, 13).fill(0, 21, 24);
+    expect(text(cleanedOnce(vorbis(vorbisPrivate(comments))).value.bytes)).toContain(text(zeroed));
+  });
+
+  it('reads Xiph lacing past 255 bytes', () => {
+    const long = vorbisComments('v'.repeat(300), ['TITLE=' + 'x'.repeat(600)]);
+    const result = cleanedOnce(vorbis(vorbisPrivate(long)));
+    expect(holds(result.value.bytes, 'TITLE')).toBe(false);
+  });
+
+  it.each([
+    ['not three headers', Uint8Array.of(1, 30, ...vorbisIdentification(), 0)],
+    ['a lacing past its data', Uint8Array.of(2, 255, 255, 1, 1)],
+    ['no comment header', vorbisPrivate(vorbisIdentification())],
+    ['a vendor past its header', vorbisPrivate(Uint8Array.of(3, ...ascii('vorbis'), 99, 0, 0, 0))],
+    [
+      'a comment past its header',
+      vorbisPrivate(vorbisComments('v', ['A=1']).map((b, at) => (at === 16 ? 200 : b))),
+    ],
+    ['no identification header', vorbisPrivate(undefined, VORBIS_SETUP)],
+    ['no setup header', vorbisPrivate(undefined, undefined, vorbisIdentification())],
+  ])('refuses Vorbis headers with %s', (_, data) => {
+    expect(refusal(vorbis(data)).message).toContain('Vorbis');
+  });
+
+  it('keeps an OpusHead whole, and zeroes what follows it', () => {
+    const plain = webm({ tracks: [vp9Track(), trackEntry(2, 'A_OPUS', codecPrivate(opusHead()))] });
+    expect(read(plain).value.bytes).toEqual(plain);
+    const more = Uint8Array.from([...opusHead(), ...ascii('OpusTags Ana')]);
+    const bytes = webm({ tracks: [vp9Track(), trackEntry(2, 'A_OPUS', codecPrivate(more))] });
+    const result = cleanedOnce(bytes);
+    expect(holds(result.value.bytes, 'Ana')).toBe(false);
+    expect(holds(result.value.bytes, 'OpusHead')).toBe(true);
+    expect(result.removed).toEqual(['what its codec data held']);
+  });
+
+  it('refuses Opus data that is not an OpusHead', () => {
+    const data = ascii('OpusTags vendor Ana');
+    const bytes = webm({ tracks: [vp9Track(), trackEntry(2, 'A_OPUS', codecPrivate(data))] });
+    expect(refusal(bytes).message).toContain('Opus');
+  });
+
+  it.each(['V_VP8', 'V_VP9'])('voids a %s track’s codec data, read from its frames', (codec) => {
+    const track = trackEntry(1, codec, codecPrivate(ascii('Pixel 8 Pro')), pixels);
+    const result = cleanedOnce(webm({ tracks: [track] }));
+    expect(holds(result.value.bytes, 'Pixel')).toBe(false);
+    expect(result.removed).toEqual(['what its codec data held']);
+  });
+
+  it('keeps an AV1 configuration’s sequence header, and zeroes its metadata and padding', () => {
+    const sequence = obu(1, Uint8Array.of(0, 0, 0, 0x6a, 0xef));
+    const data = av1Config(
+      sequence,
+      obu(5, Uint8Array.of(4, ...ascii('Ana'))),
+      obu(15, Uint8Array.of(7, 7)),
+    );
+    const plain = webm({
+      tracks: [trackEntry(1, 'V_AV1', codecPrivate(av1Config(sequence)), pixels)],
+    });
+    expect(read(plain).value.bytes).toEqual(plain);
+    const result = cleanedOnce(
+      webm({ tracks: [trackEntry(1, 'V_AV1', codecPrivate(data), pixels)] }),
+    );
+    expect(holds(result.value.bytes, 'Ana')).toBe(false);
+    expect(text(result.value.bytes)).toContain(text(sequence));
+    expect(result.removed).toEqual(['what its codec data held']);
+  });
+
+  it.each([
+    ['not av1C', Uint8Array.of(0x01, 0, 0, 0)],
+    ['an OBU past its data', av1Config(Uint8Array.of(0x0a, 9, 1))],
+    ['a frame', av1Config(obu(6, Uint8Array.of(1, 2)))],
+    ['an OBU without its size', av1Config(Uint8Array.of(0x08, 1, 2))],
+  ])('refuses an AV1 configuration with %s', (_, data) => {
+    const track = trackEntry(1, 'V_AV1', codecPrivate(data), pixels);
+    expect(refusal(webm({ tracks: [track] })).message).toContain('AV1');
+  });
+
+  it('voids a DocTypeExtension in the EBML header, which names anything', () => {
+    const result = cleanedOnce(webm({ header: headerWithExtension('Ana’s recorder') }));
+    expect(holds(result.value.bytes, 'recorder')).toBe(false);
+    expect(result.removed).toEqual(['its document type’s extensions']);
+  });
+
+  it('keeps a colr of numbers, and frees one that holds an ICC profile', () => {
+    const video = (entry: Uint8Array) => mp4({ tracks: [trak('vide', [entry], tkhd(8, 8))] });
+    const kept = video(visualEntry('avc1', 8, 8, avcC(), colr('nclx')));
+    expect(read(kept).value.bytes).toEqual(kept);
+    const result = cleanedOnce(video(visualEntry('avc1', 8, 8, avcC(), colr('prof'))));
+    expect(holds(result.value.bytes, 'Pixel')).toBe(false);
+    expect(holds(result.value.bytes, 'prof')).toBe(false);
+    expect(result.removed).toEqual(['1 metadata box (other)']);
+  });
+
+  it('refuses a second ftyp', () => {
+    expect(refusal(mp4({ after: [ftyp()] })).message).toContain('ftyp');
+  });
+
+  it('keeps an AAC description’s configuration, and zeroes descriptors a player does not read', () => {
+    const audio = (description: Uint8Array) =>
+      mp4({ tracks: [h264Track(8, 8), trak('soun', [audioEntry('mp4a', description)])] });
+    const plain = audio(esds());
+    expect(read(plain).value.bytes).toEqual(plain);
+    const result = cleanedOnce(audio(esds(0, descriptor(0x0b, ascii('Ana')))));
+    expect(holds(result.value.bytes, 'Ana')).toBe(false);
+    expect(result.removed).toEqual(['what its descriptions held past what a player reads']);
+  });
+
+  it('refuses an AAC description that refers to data outside itself', () => {
+    const bytes = mp4({
+      tracks: [h264Track(8, 8), trak('soun', [audioEntry('mp4a', esds(0x40))])],
+    });
+    expect(refusal(bytes).message).toContain('outside itself');
+  });
+
+  it('keeps an Opus description’s numbers, and zeroes what follows them', () => {
+    const audio = (description: Uint8Array) =>
+      mp4({ tracks: [h264Track(8, 8), trak('soun', [audioEntry('Opus', description)])] });
+    const plain = audio(dOps());
+    expect(read(plain).value.bytes).toEqual(plain);
+    const result = cleanedOnce(audio(dOps(ascii('Ana'))));
+    expect(holds(result.value.bytes, 'Ana')).toBe(false);
+    expect(result.removed).toEqual(['what its descriptions held past what a player reads']);
   });
 });
