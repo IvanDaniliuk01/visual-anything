@@ -53,9 +53,10 @@ import {
 import type { Color, Id, ViewFile } from '@visual-anything/schema';
 import { t } from '../i18n';
 import { explorableCard, type ExplorableApproval } from '@visual-anything/core';
-import type { ExplorableShape } from '@visual-anything/schema';
 import {
   EXPLORABLE_CARD_COLORS,
+  cardColor,
+  cardTextColor,
   explorableCardLayout,
   explorableCardTexts,
 } from '../explorables/card-layout';
@@ -308,10 +309,28 @@ export interface SvgOptions {
   explorables?: SvgExplorables;
 }
 
-/** What a drawing holds of explorables: stills by shape id, and the approvals when known. */
+/**
+ * What a drawing holds of explorables: the still the app keeps of each place one is drawn, when it
+ * keeps one, and the approvals when known.
+ */
 export interface SvgExplorables {
-  stills?: ReadonlyMap<string, ExplorableStillPicture>;
+  stillOf?: (spot: ExplorableSpot) => ExplorableStillPicture | undefined;
   approvals?: readonly ExplorableApproval[];
+}
+
+/**
+ * A place a drawing draws an explorable (ADR 0107), as the canvas's explorable layer knows it: a
+ * loose explorable shape's id or an element shape's key, its explorable and the element whose data
+ * it reads, its size in canvas units rounded as the canvas rounds it, the size its page lays out at,
+ * and the theme drawn. The app's stills are kept by what these give its data.
+ */
+export interface ExplorableSpot {
+  spot: string;
+  explorable: Id;
+  element?: Id;
+  width: number;
+  height: number;
+  theme: ThemeName;
 }
 
 /** An explorable's still as a drawing holds it: a PNG in base64, cleaned by the app. */
@@ -508,6 +527,8 @@ interface OutlineSymbols {
 interface WriterReading {
   /** The cleaned view of a picture the project draws, by its id. */
   shown(image: Id): CleanedImage | undefined;
+  /** The project, whose explorables' cards are drawn from its data (ADR 0107). */
+  project: ProjectSnapshot;
 }
 
 /** A halo drawn around a text, in this color and this wide, under it. */
@@ -542,6 +563,8 @@ class Writer {
   readonly #solids: ReadonlyMap<string, SvgSolidPicture> | undefined;
   /** Each solid's picture's symbol, by its PNG's data: the same picture is written once. */
   readonly #solidSymbols = new Map<string, string>();
+  /** The stills of explorables and the approvals the drawing is given (ADR 0107). */
+  readonly explorables: SvgExplorables | undefined;
 
   constructor(scene: Scene, options: SvgOptions, reading: WriterReading) {
     this.theme = THEMES[options.theme ?? 'light'].canvas;
@@ -550,6 +573,7 @@ class Writer {
     this.#media = options.media;
     this.#filtersDrawn = options.filters ?? true;
     this.#solids = options.solids;
+    this.explorables = options.explorables;
     this.reading = reading;
     this.drawing = drawingOfScene(scene);
   }
@@ -1120,13 +1144,12 @@ export function svgOfScene(
   const index = modelIndexOf(project);
   const definitions = definitionsIn(project);
   const catalog = imagesIn(project);
-  const writer = new Writer(scene, options, { shown: (image) => catalog.shown(image) });
+  const writer = new Writer(scene, options, {
+    shown: (image) => catalog.shown(image),
+    project,
+  });
   const { theme } = writer;
-  // Explorables' shapes lie in the drawing too (ADR 0107), which the scene does not draw.
-  const explorables = view.freeShapes.filter(
-    (shape): shape is ExplorableShape => shape.kind === 'explorable',
-  );
-  const bounds = withExplorables(scene.bounds, explorables);
+  const bounds = scene.bounds;
   // Name tags lie in the drawing too, as the canvas's tiles cover them.
   const covered = bounds && coveredBy(bounds, scene.shapes);
   const drawn = covered
@@ -1176,11 +1199,19 @@ export function svgOfScene(
     return opacity === undefined ? parts : element('g', { opacity }, parts);
   };
   const free = [
-    // Pictures under the notes and arrows, as the canvas draws them (ADR 0098).
-    ...picturesOf(scene).map((picture) => faintFree(picture.id, writer.mediaPicture(picture))),
-    // Explorables with the pictures: a still or a card (ADR 0107).
-    ...explorables.map((shape) =>
-      faintFree(shape.id, explorableParts(writer, project, shape, options.explorables)),
+    // Pictures under the notes and arrows, as the canvas draws them (ADR 0098), and explorable
+    // shapes among them, each its still or its card (ADR 0107).
+    ...picturesOf(scene).map((picture) =>
+      faintFree(
+        picture.id,
+        picture.explorable
+          ? explorableParts(
+              writer,
+              { spot: picture.id, ...picture.explorable, rect: picture.rect },
+              { 'data-free-shape': picture.id, role: 'img', 'aria-label': picture.name },
+            )
+          : writer.mediaPicture(picture),
+      ),
     ),
     ...scene.notes.map((note) => faintFree(note.id, noteParts(writer, note))),
     ...scene.arrows.map((arrow) =>
@@ -1507,6 +1538,11 @@ function shapeParts(writer: Writer, shape: ElementShape, writes = true): string 
     const placed = pictureOn(shape);
     if (!placed) return '';
     if (face?.icon && (placed.placement === 'icon' || placed.placement === 'header')) return '';
+    if (shape.explorable) {
+      // Its explorable's still or its card on its plate, as the canvas draws it (ADR 0107).
+      const { id, rect } = shape.explorable;
+      return explorableParts(writer, { spot: shape.key, id, element: shape.element, rect }, {});
+    }
     return shape.image
       ? writer.picture(shape.image, shape.image.rect)
       : solidParts(writer, shape, colors.stroke);
@@ -3215,67 +3251,62 @@ function relationLabel(writer: Writer, line: RelationLine): string {
 
 // --- Free shapes ---------------------------------------------------------------------------------
 
-/** Bounds that take in explorables' shapes too; none when there is nothing at all. */
-function withExplorables(
-  bounds: Rect | undefined,
-  explorables: readonly ExplorableShape[],
-): Rect | undefined {
-  let around = bounds;
-  for (const shape of explorables) {
-    const rect = { x: shape.x, y: shape.y, width: shape.width, height: shape.height };
-    if (around === undefined) {
-      around = rect;
-      continue;
-    }
-    const left = Math.min(around.x, rect.x);
-    const top = Math.min(around.y, rect.y);
-    around = {
-      x: left,
-      y: top,
-      width: Math.max(around.x + around.width, rect.x + rect.width) - left,
-      height: Math.max(around.y + around.height, rect.y + rect.height) - top,
-    };
-  }
-  return around;
-}
-
 /**
- * An explorable's shape (ADR 0107): its still where the drawing has one, stretched to the shape;
- * otherwise its card, drawn from its data alone (`explorableCardLayout`): its name, what it explains,
- * the script libraries it asks for, and why it is not running. Nothing of its page goes in.
+ * An explorable where the drawing shows one (ADR 0107), a loose explorable shape or an element
+ * shape's plate: the still the app keeps of it there, stretched to its place as the canvas stretches
+ * it; otherwise its card, the one every place draws (`explorableCardLayout`), from its data alone:
+ * its name, what it explains with its Math typeset, the script libraries it asks for, and why it is
+ * not running. Nothing of its page goes in.
  */
 function explorableParts(
   writer: Writer,
-  project: ProjectSnapshot,
-  shape: ExplorableShape,
-  explorables: SvgExplorables | undefined,
+  at: { spot: string; id: Id; element?: Id | undefined; rect: Rect },
+  values: Record<string, string>,
 ): string {
-  const rect = { x: shape.x, y: shape.y, width: shape.width, height: shape.height };
-  const card = explorableCard(project, shape.explorable, {
-    ...(explorables?.approvals === undefined ? {} : { approvals: explorables.approvals }),
+  const { rect } = at;
+  const card = explorableCard(writer.reading.project, at.id, {
+    ...(writer.explorables?.approvals === undefined
+      ? {}
+      : { approvals: writer.explorables.approvals }),
   });
-  const label = shape.name ?? card.name;
-  const values = {
-    'data-free-shape': shape.id,
-    'data-explorable': shape.explorable,
-    role: 'img',
-    'aria-label': label,
-  };
-  const still = explorables?.stills?.get(shape.id);
-  if (still !== undefined) return element('g', values, writer.solidUse(still, rect));
+  const attributes = { ...values, 'data-explorable': at.id };
+  const still = writer.explorables?.stillOf?.({
+    spot: at.spot,
+    explorable: at.id,
+    ...(at.element === undefined ? {} : { element: at.element }),
+    width: Math.max(1, Math.round(rect.width)),
+    height: Math.max(1, Math.round(rect.height)),
+    theme: writer.theme.name === 'dark' ? 'dark' : 'light',
+  });
+  if (still !== undefined) return element('g', attributes, writer.solidUse(still, rect));
   if (card.reason === 'outside-app') {
     writer.lost.add(t('Explorables without a still picture are drawn as their cards.'));
   }
-  const texts = explorableCardTexts(t, card);
-  const layout = explorableCardLayout(rect, texts);
+  const layout = explorableCardLayout(rect, explorableCardTexts(t, card));
   const colors = EXPLORABLE_CARD_COLORS[writer.theme.name === 'dark' ? 'dark' : 'light'];
   const outline = { ...rect, rx: layout.radius };
-  let body = empty('rect', { ...outline, fill: colors.fill });
-  body += empty('rect', { ...layout.band, fill: colors.band });
-  body += empty('rect', { ...outline, fill: 'none', stroke: colors.border, 'stroke-width': 1 });
+  let body = empty('rect', { ...outline, fill: cardColor(colors.fill) });
+  body += empty('rect', { ...layout.band, fill: cardColor(colors.band) });
+  body += empty('rect', {
+    ...outline,
+    fill: 'none',
+    stroke: cardColor(colors.border),
+    'stroke-width': 1,
+  });
   for (const text of layout.texts) {
-    const fill =
-      text.role === 'name' ? colors.name : text.role === 'why' ? colors.why : colors.text;
+    const fill = cardColor(cardTextColor(colors, text.role));
+    if (text.rich) {
+      // A description with Math or emphasis, typeset as the canvas typesets it (ADR 0106).
+      body += laidTextSvg(
+        text.rich.laid,
+        { x: text.x, y: text.rich.y },
+        fill,
+        robotoMeasure,
+        writer.texts,
+        writer.math,
+      );
+      continue;
+    }
     for (const line of text.text.lines) {
       writer.texts.push(line.text);
       body += textElement(
@@ -3291,7 +3322,7 @@ function explorableParts(
       );
     }
   }
-  return element('g', values, body);
+  return element('g', attributes, body);
 }
 
 function noteParts(writer: Writer, note: NoteShape): string {

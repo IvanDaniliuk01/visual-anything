@@ -12,14 +12,21 @@
  * still a valid project.
  */
 import {
+  MAX_STILL_BYTES,
   MAX_VIEW_STATE_ADDRESS,
   MEDIA_CAPS,
+  base64Length,
   builtinPackage,
   checkMediaFile,
   checkProject,
   cleanedImage,
   decodeBase64,
+  definitionsIn,
+  explorableShownBy,
+  explorablesIn,
   mediaOfFreeShape,
+  modelIndexOf,
+  readStill,
   solidsIn,
   type MathFont,
   type Problem,
@@ -28,6 +35,7 @@ import {
 import type {
   FileContentByKind,
   FileKind,
+  Id,
   ImageDefinition,
   ModelFile,
   PackageFile,
@@ -86,7 +94,38 @@ export interface PageData {
    * from their bytes (`math-families.ts`).
    */
   mathFonts?: Partial<Record<MathFont, string>>;
+  /**
+   * The stills of its explorables the app kept when the page was made (ADR 0107), each where a view
+   * shows it, in a theme; left out when it holds none. Data, never run: each is read strictly on
+   * opening, as a PNG of a still's width within a still's cap, and one that fails is left out, its
+   * place then drawing its card. Nothing of an explorable's page travels in a page.
+   */
+  explorableStills?: PageExplorableStill[];
 }
+
+/** A still of an explorable a page holds: where it is drawn, in which theme, and its PNG in base64. */
+export interface PageExplorableStill {
+  view: Id;
+  /** A loose explorable shape's id, or the key of an element's shape that shows it. */
+  spot: string;
+  explorable: Id;
+  theme: 'light' | 'dark';
+  png: string;
+}
+
+/** A still a page holds, read: its PNG's bytes as cleaning keeps them, and its size. */
+export interface PageStill {
+  view: Id;
+  spot: string;
+  explorable: Id;
+  theme: 'light' | 'dark';
+  png: Uint8Array;
+  width: number;
+  height: number;
+}
+
+/** The most stills a page holds: more than a tab keeps (96), in both themes. */
+export const MAX_PAGE_STILLS = 256;
 
 /** What else a page's data says, besides the project. */
 export interface PageDataOptions {
@@ -98,6 +137,8 @@ export interface PageDataOptions {
   media?: Record<string, string>;
   /** The fonts its Math uses, by family, in base64 (ADR 0106). */
   mathFonts?: Partial<Record<MathFont, string>>;
+  /** The stills of its explorables the tab keeps (ADR 0107). */
+  explorableStills?: PageExplorableStill[];
 }
 
 /** The data of a page made from a project as it is open. */
@@ -123,6 +164,9 @@ export function pageDataOf(project: ProjectSnapshot, options: PageDataOptions = 
     ...(options.mathFonts === undefined || Object.keys(options.mathFonts).length === 0
       ? {}
       : { mathFonts: options.mathFonts }),
+    ...(options.explorableStills === undefined || options.explorableStills.length === 0
+      ? {}
+      : { explorableStills: options.explorableStills }),
   };
 }
 
@@ -207,6 +251,8 @@ export type PageRead =
       media?: Record<string, Uint8Array>;
       /** KaTeX's fonts it holds, read strictly, by family (ADR 0106); none when it holds none. */
       mathFonts?: Map<MathFont, Uint8Array>;
+      /** The stills of explorables it holds that passed their checks (ADR 0107). */
+      explorableStills?: PageStill[];
     }
   | { ok: false; problems: string[] };
 
@@ -307,6 +353,8 @@ export function readPageData(text: string, validate: ValidateFile): PageRead {
   }
   // A page holds the media files its pictures name, and no other file (ADR 0098).
   const media = readPageMedia(data.media, views, problems);
+  // And stills only of the explorables its views show, each where one shows it (ADR 0107).
+  const stills = readPageStills(data.explorableStills, snapshot, problems);
   if (problems.length > 0) return { ok: false, problems };
   const checked = checkProject(snapshot);
   if (checked.errors.length > 0) {
@@ -317,11 +365,103 @@ export function readPageData(text: string, validate: ValidateFile): PageRead {
     project: snapshot,
     ...(start === undefined ? {} : { start }),
     ...(made === undefined ? {} : { made }),
-    warnings: [...checked.warnings, ...media.warnings],
+    warnings: [...checked.warnings, ...media.warnings, ...stills.warnings],
     ...(solids?.ok ? { solids: solids.solids } : {}),
     ...(Object.keys(media.files).length === 0 ? {} : { media: media.files }),
     ...(mathFonts.size === 0 ? {} : { mathFonts }),
+    ...(stills.stills.length === 0 ? {} : { explorableStills: stills.stills }),
   };
+}
+
+const STILL_KEYS = ['explorable', 'png', 'spot', 'theme', 'view'];
+
+/**
+ * Reads a page's stills of explorables strictly (ADR 0107), as media files are read: a list of at
+ * most `MAX_PAGE_STILLS`, each exactly a view of the page, a place in it that shows the explorable
+ * named (a loose explorable shape of the view, or the shape of an element that shows it), a theme
+ * and a PNG in base64, one for each place and theme. The PNG is read by the core's still reader (a
+ * bitmap reader that keeps only what draws, at a still's width, within its cap); one that fails is
+ * left out with a warning, and its place draws the explorable's card.
+ */
+function readPageStills(
+  value: unknown,
+  project: ProjectSnapshot,
+  problems: string[],
+): { stills: PageStill[]; warnings: Problem[] } {
+  const stills: PageStill[] = [];
+  const warnings: Problem[] = [];
+  if (value === undefined) return { stills, warnings };
+  if (!Array.isArray(value) || value.length > MAX_PAGE_STILLS) {
+    problems.push(`The page’s stills of explorables are not a list of at most ${MAX_PAGE_STILLS}.`);
+    return { stills, warnings };
+  }
+  const views = new Map(project.views.map((view) => [view.id, view]));
+  const catalog = explorablesIn(project);
+  const index = modelIndexOf(project);
+  const definitions = definitionsIn(project);
+  const most = base64Length(MAX_STILL_BYTES);
+  const seen = new Set<string>();
+  value.forEach((entry: unknown, at) => {
+    const where = `The page’s still ${at + 1}`;
+    if (
+      !isRecord(entry) ||
+      Object.keys(entry).sort().join() !== STILL_KEYS.join() ||
+      typeof entry.view !== 'string' ||
+      typeof entry.spot !== 'string' ||
+      entry.spot.length > 1024 ||
+      typeof entry.explorable !== 'string' ||
+      (entry.theme !== 'light' && entry.theme !== 'dark') ||
+      typeof entry.png !== 'string'
+    ) {
+      problems.push(`${where} is not a view, a place, an explorable, a theme and a PNG.`);
+      return;
+    }
+    const { view: viewId, spot, explorable, theme, png } = entry;
+    const view = views.get(viewId);
+    const loose = view?.freeShapes.find((shape) => shape.id === spot);
+    const element = index.element(spot.slice(spot.lastIndexOf('/') + 1));
+    const shows =
+      view !== undefined &&
+      catalog.explorable(explorable) !== undefined &&
+      (loose === undefined
+        ? element !== undefined && explorableShownBy(element, definitions) === explorable
+        : loose.kind === 'explorable' && loose.explorable === explorable);
+    if (!shows) {
+      problems.push(
+        `${where} is of no place the page’s views show the explorable "${explorable}".`,
+      );
+      return;
+    }
+    const key = `${viewId}\n${spot}\n${theme}`;
+    if (seen.has(key)) {
+      problems.push(`${where} is of a place and theme another still is of.`);
+      return;
+    }
+    seen.add(key);
+    const bytes = png.length <= most ? decodeBase64(png) : undefined;
+    if (bytes === undefined) {
+      problems.push(`${where} is not base64 of at most ${MAX_STILL_BYTES} bytes.`);
+      return;
+    }
+    const read = readStill(bytes);
+    if (!read.ok) {
+      warnings.push({
+        code: 'media-not-clean',
+        message: `A still of the explorable "${explorable}" is left out, and its card drawn: ${read.problem}`,
+      });
+      return;
+    }
+    stills.push({
+      view: viewId,
+      spot,
+      explorable,
+      theme,
+      png: read.png,
+      width: read.width,
+      height: read.height,
+    });
+  });
+  return { stills, warnings };
 }
 
 /**

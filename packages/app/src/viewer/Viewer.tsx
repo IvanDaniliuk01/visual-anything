@@ -66,7 +66,7 @@ import { useViewState } from '../view-state/useViewState';
 import { TourChooser } from './TourChooser';
 import { About } from './About';
 import { LanguageChoiceControl, ThemeChoiceControl } from './Choices';
-import type { PageRead } from './data';
+import type { PageRead, PageStill } from './data';
 import { Details } from './Details';
 import { ExplorePanel } from './ExplorePanel';
 import { PlaybackBar, ScenarioChooser } from './PlaybackBar';
@@ -107,6 +107,7 @@ export function ViewerApp({ read, preferences, solids, space, media }: ViewerApp
           solids={solids}
           media={media}
           space={space === true && solids !== undefined}
+          {...(read.explorableStills === undefined ? {} : { stills: read.explorableStills })}
         />
       ) : (
         <Unreadable problems={read.problems} preferences={preferences} />
@@ -178,9 +179,19 @@ interface ViewerProps {
   media?: MediaFiles | undefined;
   /** Whether the page has the physical-space panel, drawn by `solids` (ADR 0076). */
   space?: boolean | undefined;
+  /** The stills of explorables the page holds (ADR 0107). */
+  stills?: readonly PageStill[] | undefined;
 }
 
-export function Viewer({ project: opened, made, preferences, solids, space, media }: ViewerProps) {
+export function Viewer({
+  project: opened,
+  made,
+  preferences,
+  solids,
+  space,
+  media,
+  stills,
+}: ViewerProps) {
   const t = useT();
   const shown = usePagePreferences(preferences);
   // The page's own copy of the project, whose views change only as collapsing changes them here.
@@ -457,6 +468,8 @@ export function Viewer({ project: opened, made, preferences, solids, space, medi
                       onCanvas={setCanvas}
                       solids={solids}
                       media={media}
+                      view={view.id}
+                      stills={stills}
                     />
                   ) : (
                     <p className="canvas-message">

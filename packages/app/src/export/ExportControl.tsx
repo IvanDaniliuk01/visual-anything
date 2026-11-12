@@ -14,7 +14,8 @@ import type { ViewFile } from '@visual-anything/schema';
 import { useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { mediaFilesOver, type MediaFiles } from '../canvas/pictures/media';
 import { useExplorableApprovals } from '../explorables/hooks';
-import { stillOf } from './explorable-stills';
+import { pageStillsOf, useExportStillOf } from './explorable-stills';
+import type { ExplorableSpot, ExplorableStillPicture } from './svg';
 import { LiveContext } from '../live/context';
 import { useModalFocus } from '../canvas/focus';
 import type { Rect } from '../canvas/geometry';
@@ -80,6 +81,8 @@ export interface PageSource {
 /** The read-only page's source, with the project it is made of. */
 interface PageOf extends PageSource {
   project: ProjectSnapshot;
+  /** The stills the tab keeps of its explorables, which the page holds (ADR 0107). */
+  stillOf?: (spot: ExplorableSpot) => ExplorableStillPicture | undefined;
 }
 
 interface ExportControlProps {
@@ -136,7 +139,11 @@ export function ExportControl({
   );
   // Explorables are drawn as the stills the app holds of them, or as their cards (ADR 0107).
   const { approvals } = useExplorableApprovals();
-  const explorables = useMemo(() => ({ stillOf, approvals }), [approvals]);
+  const stillOf = useExportStillOf(project);
+  const explorables = useMemo(
+    () => ({ ...(stillOf ? { stillOf } : {}), approvals }),
+    [stillOf, approvals],
+  );
   const drawnWith = drawn && {
     ...drawn,
     ...(solids ? { solids } : {}),
@@ -181,6 +188,7 @@ export function ExportControl({
                   project,
                   ...((page.solids ?? pageSolids) ? { solids: page.solids ?? pageSolids } : {}),
                   ...((page.media ?? media) ? { media: page.media ?? media } : {}),
+                  ...(stillOf ? { stillOf } : {}),
                 },
               }
             : {})}
@@ -456,6 +464,8 @@ function ExportDialog({
             made: new Date(),
             solids: withPoses(page.project, gathered.solids, held),
             media: pictures.media,
+            // The stills the tab keeps of its explorables; their cards elsewhere (ADR 0107).
+            ...(page.stillOf ? { explorableStills: pageStillsOf(page.project, page.stillOf) } : {}),
           }),
           missing:
             showsSolids && !source ? solidHashesShown(page.project).length : gathered.missing,

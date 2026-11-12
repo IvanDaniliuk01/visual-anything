@@ -14,7 +14,7 @@ import {
   type StillPicture,
   type StillSpot,
 } from './layer';
-import type { ExplorableFace } from './card';
+import type { ExplorableFace } from '../../explorables/card-layout';
 
 const SCENE = {
   shapes: [],
@@ -68,7 +68,7 @@ class FakeStore {
 
 class FakeProvider implements ExplorableProvider {
   faces = new Map<string, ExplorableFace>([
-    ['p.graph', { name: 'Graph', libraries: [], why: 'Double-click to explore.', runs: true }],
+    ['p.graph', { name: 'Graph', why: 'Double-click to explore.', runs: true }],
   ]);
   stills = new Map<string, StillPicture>();
   asked: StillSpot[] = [];

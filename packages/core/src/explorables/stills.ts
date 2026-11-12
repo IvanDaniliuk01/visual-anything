@@ -4,6 +4,8 @@
  * frame and keeps them in its canvas's image store; nothing is written into the project.
  */
 import { sha256 } from '../code/hash';
+import { readBitmap, type BitmapCaps } from '../images/bitmap';
+import { MAX_STILL_BYTES } from './messages';
 import { STILL_BUCKETS, type VaData } from './types';
 
 /** A width a still is taken at. */
@@ -35,6 +37,37 @@ export function stillBucket(devicePixels: number): StillBucket {
 /** Whether a width is one stills are taken at. */
 export function isStillBucket(width: unknown): width is StillBucket {
   return STILL_BUCKETS.some((bucket) => bucket === width);
+}
+
+/** What a still's PNG is read within: its message's cap, a bucket's width, at most four times as tall. */
+export const STILL_CAPS: BitmapCaps = Object.freeze({
+  bytes: MAX_STILL_BYTES,
+  side: 4 * 1024,
+  pixels: 1024 * 4 * 1024,
+  jpegScans: 64,
+});
+
+/**
+ * Reads a still's PNG strictly, wherever one comes from (a frame, or a read-only page's data): the
+ * bitmap reader (`readBitmap`) keeps only what draws, within `STILL_CAPS`, and it must be a bucket's
+ * width, or the width asked for when given.
+ */
+export function readStill(
+  bytes: Uint8Array,
+  width?: StillBucket,
+):
+  | { ok: true; png: Uint8Array; width: StillBucket; height: number }
+  | { ok: false; problem: string } {
+  const read = readBitmap(bytes, 'png', STILL_CAPS);
+  if (!read.ok) return { ok: false, problem: read.problem.message };
+  const { bytes: png, width: pixels, height } = read.value;
+  if (width !== undefined && pixels !== width) {
+    return { ok: false, problem: `Its still is ${pixels} pixels wide, not ${width}.` };
+  }
+  if (!isStillBucket(pixels)) {
+    return { ok: false, problem: `A still is 256, 512 or 1,024 pixels wide, not ${pixels}.` };
+  }
+  return { ok: true, png, width: pixels, height };
 }
 
 /**

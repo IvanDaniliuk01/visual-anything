@@ -9,13 +9,7 @@
  * The frame never takes the pointer or the focus, and is hidden from screen readers; it lies in the
  * page, under everything and fully transparent, so that its browser draws it as a frame on screen.
  */
-import {
-  MAX_STILL_BYTES,
-  STILL_WAIT,
-  readBitmap,
-  type BitmapCaps,
-  type VaData,
-} from '@visual-anything/core';
+import { STILL_WAIT, readStill, type StillBucket, type VaData } from '@visual-anything/core';
 import {
   FrameHost,
   PAGE_CLOCK,
@@ -37,14 +31,6 @@ export type StillOutcome =
   | { ok: true; png: Uint8Array; width: number; height: number; errors: string[]; ready: boolean }
   | { ok: false; why: 'stopped'; end: FrameEnd; errors: string[] }
   | { ok: false; why: 'failed'; message: string; errors: string[] };
-
-/** What a still's PNG is read within: its message's cap, its width, and at most four times as tall. */
-export const STILL_CAPS: BitmapCaps = {
-  bytes: MAX_STILL_BYTES,
-  side: 4 * 1024,
-  pixels: 1024 * 4 * 1024,
-  jpegScans: 64,
-};
 
 /** A frame the taker loads, and how it goes; the page's, or a test's. */
 export interface StillFrames {
@@ -102,27 +88,20 @@ export function takeStill(
         },
         still: (width, png) => {
           if (!asked || width !== take.width) return;
-          const read = readBitmap(png, 'png', STILL_CAPS);
+          // Read strictly by the core, at exactly the bucket's width (ADR 0107).
+          const read = readStill(png, take.width as StillBucket);
           if (!read.ok) {
-            finish({
-              ok: false,
-              why: 'failed',
-              message: read.problem.message,
-              errors: [...host.errors],
-            });
+            finish({ ok: false, why: 'failed', message: read.problem, errors: [...host.errors] });
             return;
           }
-          const { bytes, width: pixels, height } = read.value;
-          if (pixels !== take.width) {
-            finish({
-              ok: false,
-              why: 'failed',
-              message: `Its still is ${pixels} pixels wide, not ${take.width}.`,
-              errors: [...host.errors],
-            });
-            return;
-          }
-          finish({ ok: true, png: bytes, width: pixels, height, errors: [...host.errors], ready });
+          finish({
+            ok: true,
+            png: read.png,
+            width: read.width,
+            height: read.height,
+            errors: [...host.errors],
+            ready,
+          });
         },
         stopped: (end) => finish({ ok: false, why: 'stopped', end, errors: [...host.errors] }),
       },

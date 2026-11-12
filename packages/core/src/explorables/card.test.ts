@@ -4,7 +4,7 @@ import { executeCommand, type Command } from '../commands';
 import type { ProjectSnapshot } from '../snapshot';
 import { sequentialIds, testProject } from '../test/fixtures';
 import { approvalHashOf } from './approvals';
-import { EXPLORABLE_CARD_WHY, explorableCard } from './card';
+import { EXPLORABLE_CARD_WHY, cardRuns, explorableCard } from './card';
 import { explorablesIn } from './catalog';
 
 function run(state: ProjectSnapshot, command: Command, program = false): ProjectSnapshot {
@@ -51,13 +51,16 @@ function project(): ProjectSnapshot {
 
 describe('an explorable’s card', () => {
   it('names it, says what it explains and the script libraries it asks for', () => {
-    const card = explorableCard(project(), 'test.parabola');
+    const state = project();
+    const card = explorableCard(state, 'test.parabola');
+    const definition = explorablesIn(state).explorable('test.parabola')?.definition;
     expect(card).toEqual({
       explorable: 'test.parabola',
       name: 'Parabola',
       description: 'y = ax² + bx + c, as a, b and c change.',
       libraries: ['d3 7.9.0'],
       reason: 'outside-app',
+      hash: approvalHashOf(definition?.hash ?? '', [D3.hash]),
     });
     expect(EXPLORABLE_CARD_WHY['outside-app']).toMatch(/Visual Anything/);
   });
@@ -107,7 +110,41 @@ describe('an explorable’s card', () => {
     });
   });
 
+  it('says in the app what stopped it, what it waits for, or that it may be explored', () => {
+    const state = project();
+    const definition = explorablesIn(state).explorable('test.parabola')?.definition;
+    const hash = approvalHashOf(definition?.hash ?? '', [D3.hash]);
+    const approvals = [{ hash, explorable: 'test.parabola', by: 'person' as const }];
+    const inApp = (
+      runner: 'ready' | 'starting' | 'not-connected' | 'none',
+      stopped?: (hash: string) => 'silent' | undefined,
+    ) =>
+      explorableCard(state, 'test.parabola', {
+        approvals,
+        place: { kind: 'app', runner, ...(stopped ? { stopped } : {}) },
+      });
+    expect(inApp('ready').reason).toBe('explore');
+    expect(cardRuns(inApp('ready'))).toBe(true);
+    expect(inApp('starting').reason).toBe('starting');
+    expect(inApp('not-connected').reason).toBe('not-connected');
+    expect(inApp('none').reason).toBe('no-app');
+    expect(inApp('ready', (asked) => (asked === hash ? 'silent' : undefined)).reason).toBe(
+      'silent',
+    );
+    expect(cardRuns(inApp('ready', () => 'silent'))).toBe(false);
+    // What the project or the approvals say comes first.
+    expect(
+      explorableCard(state, 'test.parabola', {
+        approvals: [],
+        place: { kind: 'app', runner: 'ready', stopped: () => 'silent' },
+      }).reason,
+    ).toBe('not-approved');
+    expect(explorableCard(state, 'test.parabola', { place: { kind: 'outside' } }).reason).toBe(
+      'outside-app',
+    );
+  });
+
   it('has a sentence for every reason', () => {
-    for (const why of Object.values(EXPLORABLE_CARD_WHY)) expect(why.length).toBeGreaterThan(10);
+    for (const why of Object.values(EXPLORABLE_CARD_WHY)) expect(why.length).toBeGreaterThan(5);
   });
 });

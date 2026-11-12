@@ -11,9 +11,9 @@ import { approvalHashOf, explorablesIn, type ProjectSnapshot } from '@visual-any
 import { afterEach, describe, expect, it } from 'vitest';
 import { setCurrentLanguage } from '../i18n/language';
 import { loadSample } from '../test/sample';
-import { exportView, svgExplorablesOf } from './exports';
+import { exportView } from './exports';
 import { writePdf } from './pdf';
-import { writeSvg } from './svg';
+import { writeSvg, type ExplorableSpot } from './svg';
 
 const TEXT = readFileSync(
   join(import.meta.dirname, '../../../../examples/quadratic-function/explorables/quadratic.html'),
@@ -104,23 +104,100 @@ describe('an explorable in the SVG', () => {
     );
   });
 
-  it('is the still the app holds of it, where it holds one', () => {
+  it('is the still the app holds of it, where it holds one, asked for by its place', () => {
     const { project, view } = quadratic();
-    const viewFile = project.views.find((each) => each.id === view);
     const definition = explorablesIn(project).explorable('quadratic.parabola')?.definition;
     const hash = approvalHashOf(definition?.hash ?? '', []);
-    const explorables = svgExplorablesOf(viewFile ?? { freeShapes: [] }, {
-      approvals: [{ hash, explorable: 'quadratic.parabola', by: 'person' }],
-      stillOf: (shape) =>
-        shape.id === 'loose-parabola'
-          ? { format: 'png', data: PNG, width: 512, height: 320 }
-          : undefined,
+    const asked: ExplorableSpot[] = [];
+    const drawing = writeSvg(project, view, {
+      theme: 'dark',
+      explorables: {
+        approvals: [{ hash, explorable: 'quadratic.parabola', by: 'person' }],
+        stillOf: (spot) => {
+          asked.push(spot);
+          return spot.spot === 'loose-parabola'
+            ? { format: 'png', data: PNG, width: 512, height: 320 }
+            : undefined;
+        },
+      },
     });
-    const drawing = writeSvg(project, view, explorables ? { explorables } : {});
     const shape = shapeOf(drawing.text);
     expect(shape).toMatch(/<use href="#va-solid-\d+"/);
     expect(drawing.text).toContain(`data:image/png;base64,${PNG}`);
     expect(shape).not.toContain('<text');
+    // Asked for by what the canvas keeps its stills by: its place, explorable, element, size, theme.
+    expect(asked).toContainEqual({
+      spot: 'loose-parabola',
+      explorable: 'quadratic.parabola',
+      width: 320,
+      height: 200,
+      theme: 'dark',
+    });
+    expect(asked).toContainEqual(
+      expect.objectContaining({ spot: 'the-parabola', element: 'quadratic-function' }),
+    );
+  });
+
+  it('is drawn on an element shape’s plate too, as the canvas draws it there', () => {
+    const { project, view } = quadratic();
+    const showing: ProjectSnapshot = {
+      ...project,
+      model: {
+        ...project.model,
+        elements: project.model.elements.map((element) =>
+          element.id === 'vertex'
+            ? {
+                ...element,
+                appearance: {
+                  ...element.appearance,
+                  explorable: { explorable: 'quadratic.parabola' },
+                },
+              }
+            : element,
+        ),
+      },
+    };
+    const asked: ExplorableSpot[] = [];
+    const drawing = writeSvg(showing, view, {
+      explorables: {
+        stillOf: (spot) => {
+          asked.push(spot);
+          return undefined;
+        },
+      },
+    });
+    const vertex = asked.find((spot) => spot.element === 'vertex');
+    expect(vertex).toMatchObject({ explorable: 'quadratic.parabola' });
+    const start = drawing.text.indexOf('data-element="vertex"');
+    expect(start).toBeGreaterThan(0);
+    const after = drawing.text.slice(start, drawing.text.indexOf('data-element=', start + 1));
+    expect(after).toContain('data-explorable="quadratic.parabola"');
+    // Its card on the plate: the plate is small, so it says only why, in a smaller size.
+    expect(after).toContain('fill="#6d28d9"');
+    expect(after).toContain('It runs only in the Visual Anything app');
+  });
+
+  it('typesets Math in its card’s description', () => {
+    const { project, view } = quadratic();
+    const withMath: ProjectSnapshot = {
+      ...project,
+      packages: project.packages.map((file) => ({
+        ...file,
+        ...(file.explorables === undefined
+          ? {}
+          : {
+              explorables: file.explorables.map((each) => ({
+                ...each,
+                description: 'Its roots, where $ax^2 + bx + c = 0$.',
+              })),
+            }),
+      })),
+    };
+    const shape = shapeOf(writeSvg(withMath, view).text);
+    // Its formula is drawn in KaTeX's glyphs; its TeX is kept only as the formula's attribute.
+    expect(shape).toContain('data-tex="$ax^2 + bx + c = 0$"');
+    expect(shape).toContain('font-family="KaTeX_Math"');
+    expect(shape).not.toMatch(/>[^<]*ax\^2[^<]*</);
   });
 
   it('writes its card in Spanish', () => {
