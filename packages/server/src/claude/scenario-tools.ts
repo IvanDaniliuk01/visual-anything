@@ -20,6 +20,7 @@ import {
   repairStep,
   scenarioTimeline,
   setStepData,
+  setStepPictures,
   takeOutOfStep,
   type Guidance,
   type NewStep,
@@ -71,6 +72,24 @@ import { TAKES_MARKDOWN, escapeTextInput, escapedIf } from './emphasis';
 
 const json = () => z.unknown().describe('Any JSON value.');
 
+/** The pictures, videos and link cards a step shows (ADR 0098, stage 4). */
+const shownPictures = () =>
+  z
+    .array(id())
+    .max(500)
+    .describe(
+      'The pictures, videos and link cards of the scenario’s view the step shows, by id as read_view lists them under pictures and links. Once any step lists some, the others of the view are hidden while the scenario plays, and a step that lists none shows none of them; while no step lists any, they all show.',
+    );
+
+/** The videos a step plays, among those it shows. */
+const playedVideos = () =>
+  z
+    .array(id())
+    .max(4)
+    .describe(
+      'The videos among those the step shows that play, muted and in a loop, while it shows; at most 4.',
+    );
+
 const newStep = () =>
   z.object({
     description: z.string().describe('What happens in this step, in a short sentence.'),
@@ -80,6 +99,8 @@ const newStep = () =>
       .describe('The relations it activates at the same time, each once: ids from the model.'),
     dataIn: json().optional().describe('What the step takes in, as JSON.'),
     dataOut: json().optional().describe('What the step produces, as JSON.'),
+    shows: shownPictures().optional(),
+    playing: playedVideos().optional(),
   });
 
 const stepRef = () =>
@@ -156,7 +177,7 @@ const choicesInput = () =>
 const createScenarioFromSteps = tool({
   name: 'create_scenario_from_steps',
   title: 'Create a scenario from steps',
-  description: `Creates a scenario over a view from its steps, as one undoable action. Each step activates one or more relations of the model at the same time, says in a short sentence what happens, and may say what it takes in and produces, as JSON.
+  description: `Creates a scenario over a view from its steps, as one undoable action. Each step activates one or more relations of the model at the same time, says in a short sentence what happens, and may say what it takes in and produces, as JSON. A step may also list the pictures, videos and link cards of the view it shows (shows) and the videos among them that play while it shows (playing): once any step lists some, the others of the view are hidden while the scenario plays.
 
 Use it to turn a description of an example, or a log the person pasted, into a scenario: map each line or sentence to the relations of the model it crosses (find_relations, get_item), in order, one step per moment; lines that happen at once share a step; take data in and out from the payloads the log shows. When a line matches nothing in the model, do not guess: ask the person what it maps to, or offer to add the relation first. A relation the model does not have is refused with its id. Then offer to play it with play_scenario.
 
@@ -274,6 +295,20 @@ const edit = () =>
       dataIn: json().optional().describe('What it takes in; null takes it away.'),
       dataOut: json().optional().describe('What it produces; null takes it away.'),
     }),
+    z.object({
+      op: z.literal('show'),
+      step: stepRef(),
+      shows: shownPictures()
+        .nullable()
+        .describe(
+          'The pictures, videos and link cards it shows, replacing what it showed; null or [] for none.',
+        ),
+      playing: playedVideos()
+        .optional()
+        .describe(
+          'The videos among them that play; left out, those it played that it still shows.',
+        ),
+    }),
     z.object({ op: z.literal('add-relation'), step: stepRef(), relation: id() }),
     z.object({ op: z.literal('remove-relation'), step: stepRef(), relation: id() }),
     z.object({
@@ -366,7 +401,9 @@ type EditArgs = z.infer<ReturnType<typeof edit>>;
 const updateScenario = tool({
   name: 'update_scenario',
   title: 'Change a scenario',
-  description: `Changes a scenario as one undoable action: its name, description or view, and its steps and decisions through edits applied in order. An edit adds a step (last, or at a number), moves one, removes one, sets its description, sets or takes away its data in and out (null takes it away), adds a relation to it or takes one out, or repairs it.
+  description: `Changes a scenario as one undoable action: its name, description or view, and its steps and decisions through edits applied in order. An edit adds a step (last, or at a number), moves one, removes one, sets its description, sets or takes away its data in and out (null takes it away), sets the pictures, videos and link cards it shows and the videos it plays (show), adds a relation to it or takes one out, or repairs it.
+
+What a step shows: read_view lists the view's pictures and links by id. Once any step of a scenario shows some, the others are hidden while it plays, and a step that shows none shows none of them; videos it plays play muted, in a loop, while it shows. A step keeps showing a picture deleted since, and plays without it; read_scenario lists it under missingShows, and a show without it takes it out.
 
 A broken step uses a relation that was deleted; read_scenario lists them, and which alternative each is in. Repair one by taking the missing relations out, with by naming a relation of the model to use in their place when none would be left; any change to a broken step's relations also leaves the missing ones out. A relation the model does not have is refused with its id: ask the person what it should be.
 
@@ -387,6 +424,7 @@ Example: {
     { "op": "add", "at": 2, "step": { "description": "The channel checks who the patient is.", "relations": ["whatsapp-to-agent"] } },
     { "op": "describe", "step": "hold-slot", "description": "The agent holds the 10:00 slot." },
     { "op": "set-data", "step": 4, "dataOut": { "slot": "10:00" } },
+    { "op": "show", "step": 2, "shows": ["calendar-photo", "booking-video"], "playing": ["booking-video"] },
     { "op": "repair", "step": "send-reminder", "by": "api-to-reminders" },
     { "op": "move", "step": 5, "to": 1 }
   ]
@@ -784,6 +822,8 @@ function stepOf(step: StepArgs): GivenStep {
     relations: step.relations,
     dataIn: step.dataIn as JsonValue | undefined,
     dataOut: step.dataOut as JsonValue | undefined,
+    shows: step.shows && step.shows.length > 0 ? step.shows : undefined,
+    playing: step.playing && step.playing.length > 0 ? step.playing : undefined,
   });
 }
 
@@ -899,6 +939,12 @@ function editScenario(
           break;
         case 'describe':
           steps = describeStep(steps, at, change.description);
+          break;
+        case 'show':
+          steps = setStepPictures(steps, at, {
+            shows: change.shows ?? [],
+            playing: change.playing ?? step.playing,
+          });
           break;
         case 'set-data':
           for (const which of ['dataIn', 'dataOut'] as const) {

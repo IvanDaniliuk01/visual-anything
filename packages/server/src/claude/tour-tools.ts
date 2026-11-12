@@ -250,6 +250,24 @@ const advance = () =>
       'Moves on by itself: after this many milliseconds, 500 to 600,000, spread evenly over its reveals, though never sooner than its text takes to read at 200 words a minute; or after-scenario, once the scenario it plays ends. Left out, the step waits for the person. The stage shows a pause control.',
     );
 
+/** The pictures, videos and link cards a step shows (ADR 0098, stage 4). */
+const shows = () =>
+  z
+    .array(id())
+    .max(500)
+    .describe(
+      'The pictures, videos and link cards of the step’s view it shows, by id as read_view lists them under pictures and links. Once any step of the tour lists some, the others of its view are hidden while the tour plays, and a step that lists none shows none of them; while no step lists any, they all show.',
+    );
+
+/** The videos a step plays, among those it shows. */
+const playing = () =>
+  z
+    .array(id())
+    .max(4)
+    .describe(
+      'The videos among those the step shows that play, muted and in a loop, while it shows; at most 4. Under reduced motion they wait for a click.',
+    );
+
 /** The explorable a step shows live in the explorable panel, with the values it sets (ADR 0107). */
 const stepExplorable = () =>
   z
@@ -278,18 +296,20 @@ const newStep = () =>
     transition: transition().optional(),
     explorable: stepExplorable().optional(),
     notes: notes().optional(),
+    shows: shows().optional(),
+    playing: playing().optional(),
   });
 
 type NewStepArgs = z.infer<ReturnType<typeof newStep>>;
 
-const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} beside shows another view, with a camera if you like, in the pane right of the tour's; only its view and its camera show there, for now. Its caption has a title and a text, and place puts its card in a corner; marks highlight elements, relations, notes and arrows; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; emphasis style restyles what the step marks rather than laying a halo over it; play plays a scenario over the step's view from one of its steps to another, and its choices the alternative to play at each of the scenario's decisions (read_scenario gives their ids), every other decision playing its default; advance moves on by itself; pointTo ties the caption to one of the step's marks with a leader line; pulse sends a marker along a chain of relations, to show what follows what; transition cut always cuts, where the step would otherwise glide the shapes it shares with the step before into another view; explorable shows an explorable live in the explorable panel, with the parameter values the step sets (a value its parameter no longer takes, or a parameter it no longer declares, makes the step a broken step, which plays without it); notes are the speaker's. With escapeText: true, the caption's text, the reveals' texts and the notes are written as the characters they are (use it for outside material); the title is plain text always. The answer says how the camera gets to the step (glide, cut, stay, fit or follows, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
+const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} beside shows another view, with a camera if you like, in the pane right of the tour's; only its view and its camera show there, for now. Its caption has a title and a text, and place puts its card in a corner; marks highlight elements, relations, notes and arrows; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; emphasis style restyles what the step marks rather than laying a halo over it; play plays a scenario over the step's view from one of its steps to another, and its choices the alternative to play at each of the scenario's decisions (read_scenario gives their ids), every other decision playing its default; advance moves on by itself; pointTo ties the caption to one of the step's marks with a leader line; pulse sends a marker along a chain of relations, to show what follows what; transition cut always cuts, where the step would otherwise glide the shapes it shares with the step before into another view; explorable shows an explorable live in the explorable panel, with the parameter values the step sets (a value its parameter no longer takes, or a parameter it no longer declares, makes the step a broken step, which plays without it); shows lists the pictures, videos and link cards of its view the step shows, the others hidden while the tour plays once any step lists some, and playing the videos among them that play while it shows (a picture deleted since makes the step a broken step, which plays without it); notes are the speaker's. With escapeText: true, the caption's text, the reveals' texts and the notes are written as the characters they are (use it for outside material); the title is plain text always. The answer says how the camera gets to the step (glide, cut, stay, fit or follows, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
 
 // ——— Read ———
 
 const readTour = tool({
   name: 'read_tour',
   title: 'Read a tour',
-  description: `Reads a tour: its steps in order, each with its number, id, view state, the view state beside it, caption (and its place, when fixed in a corner), marks, reveals, dimRest, emphasis, the scenario it plays, advance and its speaker notes, and what it names that the project no longer holds: such a step is kept and flagged as broken, and plays without it. Read it before changing a tour's steps; check_tour says how it plays.
+  description: `Reads a tour: its steps in order, each with its number, id, view state, the view state beside it, caption (and its place, when fixed in a corner), marks, reveals, dimRest, emphasis, the scenario it plays, advance, its speaker notes, the pictures, videos and link cards it shows and the videos it plays, and what it names that the project no longer holds: such a step is kept and flagged as broken, and plays without it. Read it before changing a tour's steps; check_tour says how it plays.
 
 Example: { "tour": "how-booking-works" }`,
   input: { tour: tourId() },
@@ -414,7 +434,7 @@ Example, a caption quoting outside text as written: { "tour": "audit-model", "vi
 const updateTourStep = tool({
   name: 'update_tour_step',
   title: 'Change a step of a tour',
-  description: `Changes one step of a tour, as one undoable action: what you give replaces what the step has, and what you leave out stays. viewState replaces the step's view state as a whole, and reveal its reveals as a whole; null takes the beside view, text, marks, reveals, play, advance, pointTo, pulse, explorable or notes away, dimRest false stops dimming, emphasis null lets the step mark as its tour says, place auto lets the caption find its side again, and transition glide lets the step glide again. moveTo moves the step to another number. Fixing a broken step means giving it back what it names without what was deleted.
+  description: `Changes one step of a tour, as one undoable action: what you give replaces what the step has, and what you leave out stays. viewState replaces the step's view state as a whole, and reveal its reveals as a whole; null takes the beside view, text, marks, reveals, play, advance, pointTo, pulse, explorable, notes, shows or playing away, dimRest false stops dimming, emphasis null lets the step mark as its tour says, place auto lets the caption find its side again, and transition glide lets the step glide again. moveTo moves the step to another number. Fixing a broken step means giving it back what it names without what was deleted.
 
 ${STEP_HELP}
 
@@ -423,6 +443,7 @@ Example: { "tour": "how-booking-works", "step": "the-agent", "viewState": { "vie
 Example, turning steps 3 and 4, which showed the same view state, into one step with a reveal: { "tour": "how-booking-works", "step": 3, "reveal": [{ "marks": ["api-writes-db"], "text": "Then it writes the booking." }], "dimRest": true } and then remove_tour_step { "tour": "how-booking-works", "step": 4 }
 Example: { "tour": "how-booking-works", "step": 5, "advance": "after-scenario", "place": "bottom-left" }
 Example: { "tour": "how-booking-works", "step": 5, "reveal": null, "dimRest": false, "advance": null, "place": "auto" }
+Example, a step that shows a photo and plays a video of its view: { "tour": "how-booking-works", "step": 2, "shows": ["waiting-room-photo", "check-in-video"], "playing": ["check-in-video"] }
 Example, playing the other alternative: { "tour": "how-booking-works", "step": 4, "play": { "scenario": "patient-books-appointment", "from": 4, "to": 5, "choices": { "free-slot": "has-slot" } } }
 Example: { "tour": "audit-model", "step": 3, "pointTo": "finding-case", "pulse": { "relations": ["finding-case", "case-subject"] } }
 Example: { "tour": "audit-model", "step": 3, "pointTo": null, "pulse": null, "transition": "cut" }
@@ -447,6 +468,18 @@ Example: { "tour": "playing-with-a-b-c", "step": 3, "explorable": { "id": "quadr
     transition: transition().optional(),
     explorable: stepExplorable().nullable().optional(),
     notes: notes().nullable().optional(),
+    shows: shows()
+      .nullable()
+      .optional()
+      .describe(
+        'The pictures, videos and link cards it shows, replacing what it showed; null takes them away, and the videos it plays with them.',
+      ),
+    playing: playing()
+      .nullable()
+      .optional()
+      .describe(
+        'The videos among those it shows that play; null takes them away. Left out, those it played that it still shows.',
+      ),
     escapeText: escapeTextInput(),
     moveTo: z.number().int().min(1).optional().describe('The number the step moves to, from 1.'),
   },
@@ -507,6 +540,13 @@ Example: { "tour": "playing-with-a-b-c", "step": 3, "explorable": { "id": "quadr
     else if (args.notes !== undefined) next.notes = escapedIf(args.escapeText, args.notes);
     if (args.explorable === null) delete next.explorable;
     else if (args.explorable !== undefined) next.explorable = explorableOf(args.explorable);
+    // What it shows and plays (ADR 0098, stage 4): the videos it plays only among what it shows.
+    if (args.shows === null || args.shows?.length === 0) delete next.shows;
+    else if (args.shows !== undefined) next.shows = args.shows;
+    const played = args.playing === null ? [] : (args.playing ?? next.playing ?? []);
+    const kept = played.filter((each) => next.shows?.includes(each));
+    if (kept.length === 0) delete next.playing;
+    else next.playing = kept;
     const steps = tour.steps.map((step, index) => (index === at ? next : step));
     const moved =
       args.moveTo === undefined
@@ -730,6 +770,8 @@ function stepFrom(
       pulse: given.pulse ? pulseOf(given.pulse) : undefined,
       explorable: given.explorable ? explorableOf(given.explorable) : undefined,
       notes: escapedIf(escapeText, given.notes || undefined),
+      shows: given.shows && given.shows.length > 0 ? given.shows : undefined,
+      playing: given.playing && given.playing.length > 0 ? given.playing : undefined,
     }),
   };
 }

@@ -6,10 +6,12 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { FreeShape, Id, Picture, ScenarioFile, TourFile } from '@visual-anything/schema';
 import { act, renderHook } from '@testing-library/react';
+import { validateFile } from '@visual-anything/schema/validate';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { emphasize } from '../canvas/emphasize';
 import { onStepVideos } from '../canvas/pictures/playing';
 import { buildScene } from '../canvas/scene';
+import { pageDataOf, readPageData } from '../viewer/data';
 import { EmphasisStore } from '../editor/emphasis';
 import { STEP_PICTURES_EMPHASIS, stepPicturesNow, useStepPictures } from './step-pictures';
 
@@ -130,6 +132,21 @@ describe('stepPicturesNow', () => {
       ],
     });
     expect(stepPicturesNow(plainTour, 'board', both)?.playing).toEqual(['video']);
+  });
+});
+
+describe('the read-only page', () => {
+  it('keeps what each step shows and plays, so that it plays them as the app does', () => {
+    const read = readPageData(JSON.stringify(pageDataOf(project())), validateFile);
+    if (!read.ok) throw new Error(read.problems.join(' '));
+    expect(read.project.scenarios[0]?.steps[1]).toMatchObject({
+      shows: ['video'],
+      playing: ['video'],
+    });
+    expect(read.project.tours[0]?.steps[0]?.shows).toEqual(['card']);
+    expect(
+      hidden(stepPicturesNow(read.project, 'board', { tour: { id: 'tour', step: 0 } })),
+    ).toEqual(['photo', 'video']);
   });
 });
 
