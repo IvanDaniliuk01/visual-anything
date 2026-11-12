@@ -12,6 +12,7 @@ import { svgOfComparison, writeComparisonPdf } from '../export/comparison';
 import { writeComparisonSummary, type SummaryVersion } from '../export/comparison-summary';
 import { exportFileName, type ExportFormat } from '../export/exports';
 import type { FileExport } from '../export/formats';
+import { writtenWithMath } from '../export/math-svg';
 import { t as appT } from '../i18n';
 
 /** The two versions, as the summary names them. */
@@ -67,10 +68,13 @@ function drawingExport(
       signal?.throwIfAborted();
       const fileName = drawingFileName(shown, viewId, drawing, format);
       if (format === 'svg') {
-        const svg = svgOfComparison(shown.older, shown.newer, viewId, shown.comparison, {
-          ...options,
-          theme,
-        });
+        // A drawing with Math is written with its glyphs' outlines, loaded only then (ADR 0106).
+        const svg = await writtenWithMath(() =>
+          svgOfComparison(shown.older, shown.newer, viewId, shown.comparison, {
+            ...options,
+            theme,
+          }),
+        );
         return {
           blob: new Blob([svg.text], { type: 'image/svg+xml' }),
           fileName,

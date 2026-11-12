@@ -10,6 +10,8 @@
  * font is drawn in a task of its own, never inside the frame that first needs it. Until a family is
  * installed, a formula draws its rules and paths and not its glyphs, and asks to be drawn again
  * (`repaintWhenMathFontsInstalled`); the canvas is told to draw once they are (`onMathFontsInstalled`).
+ * An image, the PNG export or Claude's capture, waits for the families on their way instead
+ * (`whenMathFontsSettled`), and is drawn again when drawing it asked for more.
  *
  * Where `FontFace` or a canvas is missing, as in a test, nothing loads, and formulas draw without
  * their glyphs.
@@ -94,6 +96,13 @@ const toInstall: MathFont[] = [];
 let installing = false;
 const waiting = new Set<MathRepaint>();
 const listeners = new Set<() => void>();
+/** What waits for every family on its way to be installed or to fail (`whenMathFontsSettled`). */
+const settledListeners = new Set<() => void>();
+/** When each family was wanted, loaded and installed, and what its install took, for the benchmark. */
+const timings = new Map<
+  MathFont,
+  { wanted: number; loaded?: number; installed?: number; install?: number }
+>();
 /** How each family is loaded and installed: replaced in tests. */
 let sources: Record<MathFont, Source> = SOURCES;
 let schedule: (task: () => void) => void = (task) => void setTimeout(task, 0);
@@ -130,6 +139,7 @@ export function wantMathFonts(
     ready = false;
     if (state === undefined) {
       states.set(font, 'loading');
+      timings.set(font, { wanted: performance.now() });
       void load(font);
     }
   }
@@ -164,6 +174,78 @@ export function mathGlyphFont(font: MathFont): GlyphFont | undefined {
 /** Draws this again once the families wanted now are installed. */
 export function repaintWhenMathFontsInstalled(drawn: MathRepaint): void {
   waiting.add(drawn);
+}
+
+/** Whether any family wanted is still on its way: loading, or loaded and not yet installed. */
+export function mathFontsPending(): boolean {
+  for (const state of states.values()) if (state === 'loading' || state === 'loaded') return true;
+  return false;
+}
+
+/** How long an image waits at most for families on their way, in milliseconds. */
+export const MATH_FONTS_WAIT = 10_000;
+
+/**
+ * Resolves once no family is on its way, every one wanted installed or failed, after what waited for
+ * them was drawn again; or after `timeout` milliseconds, whichever comes first. Answers whether they
+ * settled. The PNG export and Claude's captures wait for it, so that their formulas have their glyphs
+ * (ADR 0106).
+ */
+export function whenMathFontsSettled(timeout = MATH_FONTS_WAIT): Promise<boolean> {
+  if (!mathFontsPending()) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const done = (settled: boolean) => {
+      clearTimeout(timer);
+      settledListeners.delete(listener);
+      resolve(settled);
+    };
+    const listener = () => done(true);
+    const timer = setTimeout(() => done(false), timeout);
+    settledListeners.add(listener);
+  });
+}
+
+/** What installing the families took and holds, for the benchmark (A9.5). */
+export interface MathFontsReport {
+  /** Each family installed: from wanted to loaded, the install of its bitmap font, and its atlas. */
+  families: {
+    font: MathFont;
+    load: number;
+    install: number;
+    glyphs: number;
+    pages: number;
+    textureBytes: number;
+  }[];
+  /** From the first family wanted to the last installed, in milliseconds. */
+  span: number;
+}
+
+/** What installing the families took and holds: times in milliseconds, atlases in bytes. */
+export function mathFontsReport(): MathFontsReport {
+  const families: MathFontsReport['families'] = [];
+  let first = Infinity;
+  let last = 0;
+  for (const [font, timing] of timings) {
+    if (timing.installed === undefined) continue;
+    first = Math.min(first, timing.wanted);
+    last = Math.max(last, timing.installed);
+    const key = `${bitmapName(font)}-bitmap`;
+    const bitmap = Cache.has(key) ? Cache.get<BitmapFont>(key) : undefined;
+    const pages = bitmap?.pages ?? [];
+    families.push({
+      font,
+      load: (timing.loaded ?? timing.wanted) - timing.wanted,
+      install: timing.install ?? 0,
+      glyphs: Object.keys(bitmap?.chars ?? {}).length,
+      pages: pages.length,
+      // Four bytes a pixel, as PixiJS uploads its atlas pages.
+      textureBytes: pages.reduce(
+        (sum, page) => sum + page.texture.source.pixelWidth * page.texture.source.pixelHeight * 4,
+        0,
+      ),
+    });
+  }
+  return { families, span: families.length === 0 ? 0 : last - first };
 }
 
 /** Calls `listener` each time families are installed, so that the canvas draws a frame. */
@@ -262,6 +344,8 @@ async function load(font: MathFont): Promise<void> {
     });
     await face.load();
     fonts.add(face);
+    const timing = timings.get(font);
+    if (timing) timing.loaded = performance.now();
     states.set(font, 'loaded');
     toInstall.push(font);
     if (!installing) {
@@ -288,10 +372,12 @@ function installNext(): void {
     waiting.clear();
     for (const each of drawn) if (!each.destroyed) each.repaint();
     for (const listener of listeners) listener();
+    if (!mathFontsPending()) for (const settled of [...settledListeners]) settled();
     return;
   }
   try {
     const key = `${bitmapName(font)}-bitmap`;
+    const began = performance.now();
     if (!Cache.has(key)) {
       BitmapFont.install({
         name: bitmapName(font),
@@ -301,6 +387,11 @@ function installNext(): void {
         resolution: Math.min(4, Math.max(2, (globalThis.devicePixelRatio || 1) * 2)),
         padding: 4,
       });
+    }
+    const timing = timings.get(font);
+    if (timing) {
+      timing.install = performance.now() - began;
+      timing.installed = performance.now();
     }
     states.set(font, 'installed');
   } catch {
@@ -323,6 +414,8 @@ export function forgetMathFonts(
   installing = false;
   waiting.clear();
   listeners.clear();
+  timings.clear();
+  for (const settled of [...settledListeners]) settled();
   scannedTexts.clear();
   sources = { ...SOURCES, ...options.sources };
   schedule = options.schedule ?? ((task) => void setTimeout(task, 0));

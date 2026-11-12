@@ -3,7 +3,7 @@
  * HTML for the eye and its MathML for screen readers, selectable for copying, in KaTeX's fonts, as the
  * inspector, tours, the hover card, the outline and every other panel draw text emphasis. A piece that
  * cannot be typeset, a refused command included, is drawn as the canvas draws it: as its TeX in
- * Roboto Mono with a warning mark, and KaTeX's message as its title (`drawnMath.ts`).
+ * Roboto Mono with a warning mark, and why as its title, in the app's language (`drawnMath.ts`).
  */
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { MONO_FAMILY, cssFontFamily } from '../canvas/robotoFonts';
@@ -36,7 +36,10 @@ export function MathFormula({ tex, display, typed }: MathFormulaProps) {
   return <span ref={holder} className={className} />;
 }
 
-/** A piece that cannot be typeset: its TeX in Roboto Mono, a warning mark, and KaTeX's message. */
+/**
+ * A piece that cannot be typeset: its TeX in Roboto Mono, a warning mark, and why as its title, in the
+ * language the app reads in (the core's refusals translated, KaTeX's own message as KaTeX writes it).
+ */
 function MathError({
   className,
   typed,
@@ -48,7 +51,11 @@ function MathError({
 }) {
   const t = useT();
   return (
-    <span className={`${className} emphasis-math-error`} title={error} style={{ fontFamily: MONO }}>
+    <span
+      className={`${className} emphasis-math-error`}
+      title={t.message(error)}
+      style={{ fontFamily: MONO }}
+    >
       <span className="emphasis-math-mark" aria-hidden="true">
         ⚠
       </span>

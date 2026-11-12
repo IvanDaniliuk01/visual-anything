@@ -36,9 +36,13 @@ export interface Made {
 
 /**
  * Stands in for the browser: `FontFace` and the document's fonts, KaTeX's bytes as a short `data:`
- * address, and PixiJS's install, which puts a fake font in its cache. Tasks wait to be run.
+ * address, and PixiJS's install, which puts a fake font in its cache. Tasks wait to be run, or run
+ * on their own in tasks of the event loop with `{ tasks: 'run' }`; a family in `failing` fails to load,
+ * and each face takes `loading` milliseconds to load.
  */
-export function withFakeMathFonts(): Made {
+export function withFakeMathFonts(
+  options: { tasks?: 'wait' | 'run'; failing?: readonly MathFont[]; loading?: number } = {},
+): Made {
   const made: Made = { faces: [], installed: [], tasks: [] };
   class FakeFace {
     constructor(
@@ -48,7 +52,9 @@ export function withFakeMathFonts(): Made {
       made.faces.push({ family, bytes });
     }
     load(): Promise<this> {
-      return Promise.resolve(this);
+      const { loading } = options;
+      if (loading === undefined) return Promise.resolve(this);
+      return new Promise((resolve) => setTimeout(() => resolve(this), loading));
     }
   }
   vi.stubGlobal('FontFace', FakeFace);
@@ -62,11 +68,26 @@ export function withFakeMathFonts(): Made {
   const source = () => Promise.resolve({ default: 'data:font/woff2;base64,d09GMg==' });
   const sources = {} as Record<MathFont, typeof source>;
   for (const font of FONTS) sources[font] = source;
-  forgetMathFonts({ sources, schedule: (task) => made.tasks.push(task) });
+  for (const font of options.failing ?? []) {
+    sources[font] = () => Promise.reject(new Error(`KaTeX_${font} is missing.`));
+  }
+  forgetMathFonts({
+    sources,
+    schedule:
+      options.tasks === 'run'
+        ? (task) => void setTimeout(task, 0)
+        : (task) => void made.tasks.push(task),
+  });
   return made;
 }
 
-const FONTS: MathFont[] = ['Main-Regular', 'Math-Italic', 'Size1-Regular', 'Size2-Regular'];
+const FONTS: MathFont[] = [
+  'Main-Regular',
+  'Math-Italic',
+  'Size1-Regular',
+  'Size2-Regular',
+  'Fraktur-Regular',
+];
 
 /** Lets loads settle, then runs the tasks they scheduled until none is left. */
 export async function settle(made: Made): Promise<void> {

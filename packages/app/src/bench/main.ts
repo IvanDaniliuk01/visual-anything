@@ -44,6 +44,10 @@
  * every trait set; `?traits=unshadowed` sets them all with no shadow, to say what own shadows cost,
  * `?traits=none` none, the same phases on the plain project to read them against, and
  * `?traits=gradient,turn` (or `border`, `radius`, `opacity`, `shadow`, `text`) only those.
+ * `?math` measures Math instead (`math.ts`, A9.5): a distinct formula in every detail and 1,000 notes
+ * with a display block, panned, zoomed and selected after the same project with plain text in their
+ * place; it times installing KaTeX's bitmap families and what they hold, and typesetting 10,000
+ * distinct formulas.
  *
  * Work mode, the default, measures the work of each frame: it moves the camera, draws the frame and
  * waits until the GPU has drawn it, so the result does not depend on how often the browser offers
@@ -87,6 +91,8 @@ import {
   withLiveDetail,
 } from './live';
 import { withEmphasisDetail } from './emphasis';
+import { MATH_NOTES, typesetDistinct, withMathDetail } from './math';
+import { mathFontsReport, whenMathFontsSettled } from '../canvas/mathFonts';
 import { TRAIT_GROUPS, withEveryTrait, type TraitGroup } from './traits';
 import { faceCounts, resetFaceCounts } from '../canvas/faces';
 import { hitRate, measureFacesScene, withBenchFaces } from './faces';
@@ -262,6 +268,9 @@ const styled =
       })
     : drawnFrom;
 let project: ProjectSnapshot = curves ? withCurves(styled) : styled;
+// `?math` shows the project with plain text in its details and notes first, then with Math (A9.5).
+const mathProject = search.has('math') ? withMathDetail(project, { math: true }) : undefined;
+if (mathProject) project = withMathDetail(project, { math: false });
 const VIEW = project.views[0]?.id ?? 'everything';
 /**
  * Where names and details show: the reading levels of the drawing the view is drawn with, so that
@@ -331,6 +340,11 @@ async function run(): Promise<void> {
   if (geometry) {
     const beyond = await measureBeyondBoxes(beyondBench());
     report(beyond.phases, beyond.timed, beyond.latency, beyond.notes);
+    return;
+  }
+  if (mathProject) {
+    const math = await measureMath(mathProject);
+    report(math.phases, math.timed, math.latency, math.notes);
     return;
   }
   const phases: Phase[] = [];
@@ -1429,6 +1443,159 @@ function shapeInTheMiddle(): ElementShape | undefined {
     if (found) return found;
   }
   return undefined;
+}
+
+/**
+ * The phases of Math (`math.ts`, A9.5): pan, zoom and select the project shown with plain text in its
+ * details and notes, then show it with Math, timing its families' install and what they hold, and go
+ * through the same phases again; then typeset 10,000 distinct formulas. Recorded, never held.
+ */
+async function measureMath(math: ProjectSnapshot): Promise<{
+  phases: Phase[];
+  timed: Timed[];
+  latency: number[];
+  notes: string[];
+}> {
+  const phases: Phase[] = [];
+  const latency: number[] = [];
+  const { width, height } = controller.renderer.viewport;
+  const middle = { x: width / 2, y: height / 2 };
+  const pan = (frame: number) =>
+    move(panBy(controller.camera, frame < 90 ? -8 : 8, frame < 90 ? -4 : 4));
+  const everything = (): Selection =>
+    selectionOf([
+      ...[...new Set(scene.shapes.map((shape) => shape.element))].map((id): Selectable => ({
+        kind: 'element',
+        id,
+      })),
+      ...scene.notes.map((note): Selectable => ({ kind: 'free-shape', id: note.id })),
+    ]);
+  // Where the notes lie, below the shapes.
+  const notesAt = (() => {
+    const rects = scene.notes.map((note) => note.rect);
+    const top = Math.min(...rects.map((rect) => rect.y));
+    const left = Math.min(...rects.map((rect) => rect.x));
+    return { x: left + 2_000, y: top + 600 };
+  })();
+  const phasesOf = async (shown: string) => {
+    controller.fitWhole();
+    await settle(500);
+    phases.push(
+      await measure(`Pan, whole view, ${shown}`, 180, (frame) =>
+        move(panBy(controller.camera, frame < 90 ? 6 : -6, 0)),
+      ),
+    );
+    phases.push(
+      await measure(`Zoom, whole view, ${shown}`, 180, (frame) =>
+        move(zoomAt(controller.camera, middle, frame < 90 ? 1.02 : 1 / 1.02)),
+      ),
+    );
+    move(cameraAt(NAMES_FROM * 1.3));
+    await settle(300);
+    phases.push(await measure(`Pan, names shown, ${shown}`, 180, pan));
+    move(cameraAt(DETAILS_FROM * 1.15));
+    await settle(300);
+    phases.push(await measure(`Pan, details shown, ${shown}`, 180, pan));
+    phases.push(await measure(`Pan, details shown, again, ${shown}`, 180, pan));
+    phases.push(
+      await measure(`Zoom across the details threshold, ${shown}`, 180, (frame) =>
+        move(zoomAt(controller.camera, middle, frame < 90 ? 1 / 1.02 : 1.02)),
+      ),
+    );
+    // The notes at 1:1, where their text and display blocks show.
+    move({ scale: 1, x: width / 2 - notesAt.x, y: height / 2 - notesAt.y });
+    await settle(300);
+    phases.push(await measure(`Pan over the notes at 1:1, ${shown}`, 180, pan));
+    controller.fitWhole();
+    await settle(300);
+    phases.push(
+      await measure(`Select by clicking, ${shown}`, 60, () => {
+        latency.push(
+          selectAt(controller, indexed, { x: Math.random() * width, y: Math.random() * height }),
+        );
+      }),
+    );
+    phases.push(
+      await measure(
+        `Select everything, ${shown}`,
+        20,
+        () => controller.setSelection(everything()),
+        {
+          before: () => controller.setSelection(EMPTY_SELECTION),
+          more: () => controller.renderer.drawingMarks,
+        },
+      ),
+    );
+    controller.setSelection(EMPTY_SELECTION);
+    await settle(300);
+  };
+
+  await phasesOf('plain text');
+
+  // Math shown: its families wanted as the scene opens, loaded and installed one a task.
+  const heap = () =>
+    (performance as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? NaN;
+  const collect = () => (window as { gc?: () => void }).gc?.();
+  const shownAt = performance.now();
+  indexed = indexScene(buildScene(math, VIEW));
+  controller.update(math, VIEW, indexed, false);
+  const shownIn = performance.now() - shownAt;
+  // The heap once the scene with Math is shown and its families asked for, then once they are
+  // installed: what the families hold, their bytes, faces and bitmap fonts, and little else.
+  collect();
+  const heapBefore = heap();
+  const settled = await whenMathFontsSettled(60_000);
+  const settledIn = performance.now() - shownAt;
+  collect();
+  await settle(300);
+  const heapAfter = heap();
+  const fonts = mathFontsReport();
+  const atlas = fonts.families.reduce((sum, each) => sum + each.textureBytes, 0);
+
+  await phasesOf('Math');
+  // Every family the frames asked for, and what their atlases hold by now.
+  const fontsAfter = mathFontsReport();
+  const atlasAfter = fontsAfter.families.reduce((sum, each) => sum + each.textureBytes, 0);
+
+  // Typesetting: 10,000 formulas none of which was typeset before.
+  performance.mark('phase Math: typeset 10,000 distinct formulas');
+  const typeset = typesetDistinct(10_000, 'browser', () => performance.now());
+  const mib = (bytes: number) => `${(bytes / 2 ** 20).toFixed(2)} MiB`;
+  const notes = [
+    `Math: ${scene.shapes.length.toLocaleString()} details with a distinct formula each and ${MATH_NOTES.toLocaleString()} notes with a display block`,
+    `Math shown: the scene built and shown in ${shownIn.toFixed(0)} ms; its families ${settled ? 'settled' : 'still on their way'} ${settledIn.toFixed(0)} ms after; ${fonts.families.length} families installed, from the first wanted to the last installed ${fonts.span.toFixed(0)} ms (${fonts.families.map((each) => `${each.font} ${each.load.toFixed(0)} + ${each.install.toFixed(1)} ms, ${each.glyphs} glyphs`).join('; ')})`,
+    `Math's bitmap atlases: ${mib(atlas)} of GPU textures when installed, ${mib(atlasAfter)} with ${fontsAfter.families.length} families after the phases; JS heap ${Number.isNaN(heapBefore) ? 'not measured' : `${mib(heapBefore)} with the families asked for, ${mib(heapAfter)} once installed, ${mib(heapAfter - heapBefore)} more`}${(window as { gc?: unknown }).gc ? ', each after a garbage collection' : ''}`,
+    `Typesetting 10,000 distinct formulas in the browser took ${typeset.total.toFixed(0)} ms, ${(typeset.total / typeset.count).toFixed(3)} ms each on average; ${typeset.failed} failed`,
+  ];
+  console.info(
+    'Visual Anything math benchmark',
+    JSON.stringify({
+      shownIn,
+      settled,
+      settledIn,
+      fonts,
+      fontsAfter,
+      heapBefore,
+      heapAfter,
+      typeset: { ...typeset, each: undefined },
+    }),
+  );
+  const timed: Timed[] = [
+    {
+      name: 'Math: typeset one distinct formula, of 10,000',
+      times: typeset.each,
+      note: `${typeset.total.toFixed(0)} ms for all 10,000`,
+    },
+    {
+      name: 'Math: a family loaded, from wanted to its face loaded',
+      times: fonts.families.map((each) => each.load),
+    },
+    {
+      name: 'Math: a family’s bitmap font installed',
+      times: fonts.families.map((each) => each.install),
+    },
+  ];
+  return { phases, timed, latency, notes };
 }
 
 function settle(milliseconds: number): Promise<void> {

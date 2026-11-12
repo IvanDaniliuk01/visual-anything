@@ -94,7 +94,12 @@ import { CodeDrawingLayer } from './code-drawings';
 import type { Drawing as CodeDrawing } from '@visual-anything/core';
 import { TileImages, type ImageView } from './images-draw';
 import { bitmapText, installFonts } from './labels';
-import { onMathFontsInstalled, wantMathOfScene } from './mathFonts';
+import {
+  mathFontsPending,
+  onMathFontsInstalled,
+  wantMathOfScene,
+  whenMathFontsSettled,
+} from './mathFonts';
 import { loadRobotoFonts } from './robotoFonts';
 import type { FaceShow } from './faces';
 import { THEMES, type CanvasTheme } from '../theme/themes';
@@ -197,6 +202,11 @@ export const NAMES_FROM = BASE_DRAWING.reading.namesFrom;
 export const DETAILS_FROM = BASE_DRAWING.reading.detailsFrom;
 /** Below this scale shapes are drawn as plain blocks and relations as plain lines. */
 export const COARSE_BELOW = 0.25;
+/**
+ * How many times an image is drawn at most while drawing it asks for Math's families not installed
+ * yet (ADR 0106): the first draw, and again once those it asked for are installed.
+ */
+const MATH_ROUNDS = 3;
 /** With this many shapes on screen or fewer, component names show from the scale names show at. */
 const FEW_SHAPES = 300;
 /** How long a frame may spend writing labels; the rest are written in the frames after. */
@@ -1834,11 +1844,42 @@ export class CanvasRenderer {
     };
   }
 
-  /** Draws an image as planned: the PNG export and Claude's pictures. */
+  /**
+   * Draws an image as planned: the PNG export and Claude's pictures. Math's families still on their
+   * way are waited for first, and the image is drawn again when drawing it asked for families not
+   * installed yet, such as those of formulas past the ones a scene's opening scans (ADR 0106): at
+   * most `MATH_ROUNDS` times, each wait bounded, and a family that fails is not waited for.
+   */
   private async drawImage(
     plan: ImagePlan,
     how: { asShown: boolean; everything: boolean; legendScale: number; solids?: Container },
   ): Promise<DrawnImage> {
+    await this.mathFontsSettled();
+    let canvas = this.drawCanvas(plan, how);
+    for (let round = 1; round < MATH_ROUNDS && mathFontsPending(); round++) {
+      await this.mathFontsSettled();
+      canvas = this.drawCanvas(plan, how);
+    }
+    // The legend of the view's overlays goes in a band below the drawing (ADR 0055).
+    const legend = this.legend;
+    const image = legend
+      ? withLegendBand(canvas, legend, t, this.painter.name, how.legendScale, this.painter.drawing)
+      : canvas;
+    return { blob: await toPng(image), width: image.width, height: image.height };
+  }
+
+  /** Waits for Math's families on their way, if any; rejects if the canvas went meanwhile. */
+  private async mathFontsSettled(): Promise<void> {
+    if (!mathFontsPending()) return;
+    await whenMathFontsSettled();
+    if (this.status !== 'ready' || !this.indexed) throw new ImageError({ reason: 'not-ready' });
+  }
+
+  /** Draws an image as planned into a canvas, at once, and puts back everything it changed. */
+  private drawCanvas(
+    plan: ImagePlan,
+    how: { asShown: boolean; everything: boolean; solids?: Container },
+  ): HTMLCanvasElement {
     const scale = plan.drawingScale;
     // What is visible is written as the screen writes it; the whole view as the canvas would at 1:1.
     const detail: { coarse: boolean; wanted: Tile['level'] } = how.asShown
@@ -1970,12 +2011,7 @@ export class CanvasRenderer {
       for (const step of putBack.reverse()) step();
       this.requestRender();
     }
-    // The legend of the view's overlays goes in a band below the drawing (ADR 0055).
-    const legend = this.legend;
-    const image = legend
-      ? withLegendBand(canvas, legend, t, this.painter.name, how.legendScale, this.painter.drawing)
-      : canvas;
-    return { blob: await toPng(image), width: image.width, height: image.height };
+    return canvas;
   }
 
   /**
