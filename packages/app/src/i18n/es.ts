@@ -4472,6 +4472,75 @@ export const ui: Catalog = {
   'Play “{name}” while the step shows': 'Reproducir “{name}” mientras se muestra el paso',
   'No longer in the view ({id}).': 'Ya no está en la vista ({id}).',
   'Changed what step {n} shows.': 'Cambió lo que muestra el paso {n}.',
+  // A10.4: a tour step's explorable and its parameters' form, live while the step plays, and in the
+  // speaker notes (ADR 0107).
+  'Shows live while it plays': 'Muestra en vivo mientras se reproduce',
+  'Step {n} shows no explorable.': 'El paso {n} no muestra ningún explorable.',
+  'Step {n} shows the explorable “{name}”.': 'El paso {n} muestra el explorable “{name}”.',
+  'It shows live beside the caption while the step plays, with the values set here; a value left out takes its default.':
+    'Se muestra en vivo junto al rótulo mientras se reproduce el paso, con los valores fijados aquí; un valor que se deja sin fijar toma su valor predeterminado.',
+  'What is broken': 'Lo que está roto',
+  'No package defines this explorable now, so the step plays without it.':
+    'Ningún paquete define ahora este explorable, así que el paso se reproduce sin él.',
+  'The step sets what the explorable no longer takes, so it plays with the defaults instead:':
+    'El paso fija lo que el explorable ya no admite, así que se reproduce con los valores predeterminados en su lugar:',
+  'Step {n} sets only what its explorable takes.':
+    'El paso {n} fija solo lo que admite su explorable.',
+  'Show none': 'No mostrar ninguno',
+  'Take out what it no longer takes': 'Quitar lo que ya no admite',
+  'It declares no parameter to set.': 'No declara ningún parámetro que fijar.',
+  'Step {n} takes the default of “{name}”.':
+    'El paso {n} toma el valor predeterminado de “{name}”.',
+  'Step {n} sets “{name}” to {value}.': 'El paso {n} fija “{name}” en {value}.',
+  yes: 'sí',
+  no: 'no',
+  'Take “{name}” back to its default': 'Devolver “{name}” a su valor predeterminado',
+  '{default}, from {min} to {max}': '{default}, de {min} a {max}',
+  'In Visual Anything, this step shows the explorable “{name}” live.':
+    'En Visual Anything, este paso muestra en vivo el explorable “{name}”.',
+  '{name} = {value}': '{name} = {value}',
+  'Explorable: “{name}”': 'Explorable: “{name}”',
+  'Explorable: “{name}”, with {values}': 'Explorable: “{name}”, con {values}',
+  // A10.4: Import… takes HTML as an explorable when the person picks it (ADR 0107).
+  'HTML, as an explorable': 'HTML, como explorable',
+  'Or, if you choose so, an explorable: a page that runs walled off, only once you approve it.':
+    'O, si lo eliges, un explorable: una página que se ejecuta aislada, solo una vez que la apruebes.',
+  'Import it': 'Importarlo',
+  'As a drawing: a picture of the page, with nothing in it run':
+    'Como dibujo: una imagen de la página, sin ejecutar nada de ella',
+  'As an explorable: the page runs, walled off, once you approve it':
+    'Como explorable: la página se ejecuta, aislada, una vez que la apruebes',
+  'Import “{name}” as an explorable': 'Importar “{name}” como explorable',
+  'Imported “{name}” as an explorable': 'Se importó “{name}” como explorable',
+  'An explorable is a page of HTML, CSS and JavaScript that runs walled off in a frame of its own, beside the canvas, and only once you approve it. Nothing in it runs while it is imported.':
+    'Un explorable es una página de HTML, CSS y JavaScript que se ejecuta aislada en un marco propio, junto al lienzo, y solo una vez que la apruebes. Nada de ella se ejecuta mientras se importa.',
+  'The project has no package of its own yet, so one named after it is made for it.':
+    'El proyecto todavía no tiene un paquete propio, así que se crea uno con su nombre.',
+  'It is defined in the package “{name}”.': 'Se define en el paquete “{name}”.',
+  '{size} KiB of the {limit} KiB an explorable takes':
+    '{size} KiB de los {limit} KiB que admite un explorable',
+  'The explorable “{name}” is defined in one of the project’s own packages, with its file in explorables/. One undo takes it back. It has not run: like any explorable from outside, it asks you before it runs.':
+    'El explorable “{name}” queda definido en uno de los paquetes propios del proyecto, con su archivo en explorables/. Deshacer una vez lo quita. No se ejecutó: como cualquier explorable que viene de fuera, te pregunta antes de ejecutarse.',
+  'Review and approve…': 'Revisar y aprobar…',
+  // A10.4: asking for a script library from the Components tab (ADR 0107).
+  'Ask for a script library…': 'Pedir una biblioteca de JavaScript…',
+  'A script library comes only from the npm registry, at one exact version, as a single file that sets a global, such as D3, Plotly, KaTeX or mathjs. An explorable of the same package then names it.':
+    'Una biblioteca de JavaScript viene solo del registro de npm, en una versión exacta, como un único archivo que define una variable global, como D3, Plotly, KaTeX o mathjs. Después, un explorable del mismo paquete la nombra.',
+  'npm package': 'Paquete de npm',
+  'Exact version': 'Versión exacta',
+  'File in the package, if you know it': 'Archivo dentro del paquete, si lo conoces',
+  'Global it sets, if you know it': 'Variable global que define, si la conoces',
+  'Fetch…': 'Descargar…',
+  'The project has no package of its own to keep it in.':
+    'El proyecto no tiene un paquete propio donde guardarla.',
+  'Name an npm package as the registry writes it, such as d3 or @scope/name.':
+    'Nombra un paquete de npm como lo escribe el registro, como d3 o @ambito/nombre.',
+  'Give one exact version, such as 7.9.0: not a range, and not “latest”.':
+    'Indica una versión exacta, como 7.9.0: no un rango, ni “latest”.',
+  'The file’s path takes at most 500 characters.':
+    'La ruta del archivo admite como mucho 500 caracteres.',
+  'A global is a JavaScript name, such as d3 or Plotly.':
+    'Una variable global es un nombre de JavaScript, como d3 o Plotly.',
 };
 
 /**
@@ -8596,6 +8665,24 @@ export const messages: Catalog = {
   'the caption of step {n} of {of}': 'el rótulo del paso {n} de {of}',
   'reveal {m} of step {n} of {of}': 'la revelación {m} del paso {n} de {of}',
   'the speaker notes of step {n} of {of}': 'las notas del orador del paso {n} de {of}',
+  // A10.4: HTML imported as an explorable, and a tour step's explorable that is broken (ADR 0107).
+  'Import "{name}" as an explorable': 'Importar "{name}" como explorable',
+  'An explorable takes at most 512 KiB, and "{name}" takes {size} KiB.':
+    'Un explorable ocupa como mucho 512 KiB, y "{name}" ocupa {size} KiB.',
+  'The package "{id}" is not one of the project\'s own.':
+    'El paquete "{id}" no es uno de los propios del proyecto.',
+  'The explorable "{name}" could not be defined.': 'No se pudo definir el explorable "{name}".',
+  'The step shows the explorable "{id}", which no package in use defines.':
+    'El paso muestra el explorable "{id}", que ningún paquete en uso define.',
+  'The explorable "{name}" declares no parameter "{parameter}".':
+    'El explorable "{name}" no declara ningún parámetro "{parameter}".',
+  'The step sets "{name}" to {value}, but {why}': 'El paso fija "{name}" en {value}, pero {why}',
+  '"{name}" takes a whole number.': '"{name}" admite un número entero.',
+  '"{name}" takes a number.': '"{name}" admite un número.',
+  '"{name}" takes a number from {min} to {max}.': '"{name}" admite un número de {min} a {max}.',
+  '"{name}" takes true or false.': '"{name}" admite verdadero o falso.',
+  '"{name}" takes one of {listed}.': '"{name}" admite uno de {listed}.',
+  '"{name}" takes no number.': '"{name}" no admite números.',
 };
 
 /**

@@ -72,6 +72,7 @@ import { BesidePanes } from '../tours/beside';
 import { changeStep } from '../tours/commands';
 import { ToursContext } from '../tours/context';
 import { TourPlaybackLayer } from '../tours/TourPlaybackLayer';
+import { TourExplorable } from '../tours/TourExplorable';
 import { useTourPlayback } from '../tours/useTourPlayback';
 import { AttributeLookupContext } from '../live-values/context';
 import { useLiveScene, useLookup } from '../live-values/useLiveValues';
@@ -697,6 +698,13 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                                 <TourPlaybackLayer
                                                   project={project}
                                                   tours={tours}
+                                                  explorable={(tour, step) => (
+                                                    <TourExplorable
+                                                      project={project}
+                                                      tour={tour}
+                                                      step={step}
+                                                    />
+                                                  )}
                                                   {...(onCommand ? { onPlace: placeCaption } : {})}
                                                 />
                                               </>

@@ -22,10 +22,19 @@ export {
   marksOf,
   playableStep,
   savedViewStateOf,
+  tourExplorableProblems,
   tourStepProblems,
   tourTextLength,
   viewStateOfStep,
 } from './steps';
+// A step's explorable, as the step editor changes it and as the step plays (ADR 0107).
+export {
+  readParameterText,
+  repairedStepExplorable,
+  stepExplorableValues,
+  withStepExplorable,
+  withStepParameter,
+} from './step-explorable';
 export type { ScreenSize, TourCameraPath, TourMove } from './camera';
 export {
   MAX_TOUR_MOVE_TIME,

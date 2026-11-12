@@ -62,5 +62,8 @@ export {
   isDrawingFile,
   prepareDrawingImport,
 } from './drawing';
+// HTML imported as an explorable instead, when the person picks it (ADR 0107).
+export type { ExplorableImport, PreparedExplorable } from './explorable';
+export { explorableImportLabel, explorableImportName, prepareExplorableImport } from './explorable';
 export type { DrawingMadeMessage, DrawingMakeMessage } from './drawing-messages';
 export { MAX_DRAWING_NAME, MAX_DRAWING_REPORT } from './drawing-messages';

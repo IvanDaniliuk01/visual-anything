@@ -5,16 +5,20 @@
  * for a step that advances by itself; what screen readers hear; and the keys that move through the
  * steps. It shows a step and says what moves; where the canvas goes is its host's. The speaker notes
  * show in a second window when one is opened. A caption that points at a mark draws its leader line
- * from the card (ADR 0084), and says so when the mark is off the canvas.
+ * from the card (ADR 0084), and says so when the mark is off the canvas. A step's explorable shows
+ * live beside the caption, on the side the card leaves free, when its host gives one (ADR 0107); the
+ * read-only page, which runs no explorable, says the step shows one in the app.
  *
  * It knows nothing of the live editor: it takes a project, a tour, a step and what to do on each
  * control, so that the read-only page (ADR 0041) can play tours with it too.
  */
 import {
   definitionsIn,
+  explorablesIn,
   isVideoFormat,
   modelIndexOf,
   plainText,
+  stepExplorableValues,
   tourStepProblems,
   type ProjectSnapshot,
 } from '@visual-anything/core';
@@ -28,6 +32,7 @@ import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
   type Ref,
 } from 'react';
 import { useT, type Translator } from '../i18n';
@@ -100,6 +105,11 @@ export interface TourStageProps {
    * can be neither dragged nor resized.
    */
   onPlace?: (step: number, at: CaptionAt, size?: CaptionSize) => void;
+  /**
+   * The step's explorable, live, as the app shows it (ADR 0107): beside the caption while the step
+   * plays. Without it, as in the read-only page, the card says the step shows one in the app.
+   */
+  explorable?: ReactNode;
 }
 
 /** How far, in pixels, the pointer moves on the card before it drags it rather than clicks it. */
@@ -124,6 +134,7 @@ export function TourStage({
   cardRef,
   leader,
   onPlace,
+  explorable,
 }: TourStageProps) {
   const t = useT();
   const heading = useId();
@@ -336,6 +347,17 @@ export function TourStage({
     .slice(0, revealed)
     .flatMap((each) => (each.text === undefined ? [] : [each.text]));
   const played = own ? scenario : undefined;
+  // The step's explorable (ADR 0107): its name, and the side of the stage the card leaves free.
+  const explorableName =
+    shown.explorable === undefined
+      ? undefined
+      : (explorablesIn(project).explorable(shown.explorable.id)?.definition.name ??
+        shown.explorable.id);
+  const cardName = placeName(cardPlace);
+  const explorableSide =
+    cardName.includes('right') || (typeof cardPlace !== 'string' && cardPlace.x > 0.5)
+      ? 'left'
+      : 'right';
   const playedFile = played && project.scenarios.find((each) => each.id === played.scenario);
   return (
     <section
@@ -426,6 +448,13 @@ export function TourStage({
               : t('This step names what the project no longer holds, and plays without it.')}
           </p>
         )}
+        {own && explorable === undefined && explorableName !== undefined && (
+          <p className="tour-card-off">
+            {t('In Visual Anything, this step shows the explorable “{name}” live.', {
+              name: explorableName,
+            })}
+          </p>
+        )}
         {played && playedFile && (
           <ScenarioCard
             name={playedFile.name}
@@ -447,6 +476,15 @@ export function TourStage({
             />
           ))}
       </article>
+      {explorable !== undefined && explorableName !== undefined && (
+        <aside
+          className="tour-explorable"
+          data-side={explorableSide}
+          aria-label={t('The explorable “{name}”', { name: explorableName })}
+        >
+          {explorable}
+        </aside>
+      )}
       <div className="tour-controls" role="toolbar" aria-label={t('Tour')}>
         <button
           type="button"
@@ -544,6 +582,11 @@ export function TourStage({
           <div className="tour-notes">
             <p className="tour-notes-position">{position}</p>
             <h1 className="tour-notes-title">{shown.caption.title}</h1>
+            {shown.explorable !== undefined && explorableName !== undefined && (
+              <p className="tour-notes-explorable">
+                {notesExplorable(t, project, shown.explorable, explorableName)}
+              </p>
+            )}
             {shown.notes !== undefined ? (
               <TourText className="tour-notes-text" text={shown.notes} headingLevel={2} />
             ) : (
@@ -559,6 +602,35 @@ export function TourStage({
       )}
     </section>
   );
+}
+
+/**
+ * What the speaker notes say of a step's explorable (ADR 0107): its name and the values it shows,
+ * those the step sets and the defaults of the rest.
+ */
+function notesExplorable(
+  t: Translator,
+  project: ProjectSnapshot,
+  shown: NonNullable<TourFile['steps'][number]['explorable']>,
+  name: string,
+): string {
+  const values = stepExplorableValues(project, { explorable: shown }) ?? {};
+  const said = Object.entries(values).map(([parameter, value]) =>
+    t('{name} = {value}', {
+      name: parameter,
+      value:
+        typeof value === 'boolean'
+          ? value
+            ? t('yes')
+            : t('no')
+          : typeof value === 'number'
+            ? value.toLocaleString(t.language, { maximumFractionDigits: 6 })
+            : value,
+    }),
+  );
+  return said.length === 0
+    ? t('Explorable: “{name}”', { name })
+    : t('Explorable: “{name}”, with {values}', { name, values: said.join(', ') });
 }
 
 /**

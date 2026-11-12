@@ -1,6 +1,7 @@
 /**
  * The Components tab's script libraries (ADR 0107), below its solids: each script library the
- * project's packages define, with its npm package, version, license and size; and the files of
+ * project's packages define, with its npm package, version, license and size; a form to ask for one
+ * (`ScriptLibraryRequest`); and the files of
  * `script-libraries/` that no package names, which nothing removes on its own: Remove deletes one, or
  * all of them, saying first that it cannot be undone, as the solids' and media files are.
  */
@@ -12,6 +13,7 @@ import { useEditor } from '../editor/EditorContext';
 import { useT, type PluralText } from '../i18n';
 import { LiveContext } from '../live/context';
 import { librarySize } from './explorable';
+import { ScriptLibraryRequest } from './ScriptLibraryRequest';
 
 const UNNAMED: PluralText = {
   one: 'The project’s script-libraries/ folder holds {count} file that no package names. It stays until you remove it.',
@@ -70,6 +72,7 @@ export function ScriptLibrariesSection() {
           })}
         </ul>
       )}
+      <ScriptLibraryRequest />
       <UnnamedScriptLibraryFiles />
     </section>
   );

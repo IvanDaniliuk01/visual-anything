@@ -170,6 +170,37 @@
 }
 
 /*
+ * A step's explorable, live while it plays (ADR 0107): the explorable panel hides with the others, so
+ * the stage shows it beside the caption, on the side the card leaves free, between the progress line
+ * and the controls. It takes clicks and the keyboard as the panel does; the tour's keys still work
+ * once the focus leaves its frame.
+ */
+.tour-explorable {
+  position: absolute;
+  top: var(--space-150);
+  right: var(--space-100);
+  bottom: calc(var(--control-md) + var(--space-200));
+  display: flex;
+  flex-direction: column;
+  width: min(var(--size-3000), 40%);
+  overflow: hidden;
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--canvas);
+  box-shadow: var(--shadow-3);
+  pointer-events: auto;
+}
+
+.tour-explorable[data-side='left'] {
+  right: auto;
+  left: var(--space-100);
+}
+
+.tour-notes-explorable {
+  color: var(--text-muted);
+}
+
+/*
  * Where the card sits (ADR 0077): at the side of the screen farthest from the step's marks, which the
  * stage works out when the camera stops, or in the corner the step's caption fixes. At a side or in a
  * corner it is 25rem wide, as `useTourPlayback` reckons with.
@@ -913,4 +944,86 @@
 .tour-motion input:focus-visible {
   outline: var(--stroke-thick) solid var(--focus-ring);
   outline-offset: var(--stroke-thin);
+}
+
+/* A step's explorable and the values it sets (ADR 0107), in the step's editor. */
+.tour-step-explorable {
+  display: grid;
+  gap: var(--space-50);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tour-step-explorable legend {
+  padding: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.tour-step-explorable-broken {
+  display: grid;
+  gap: var(--space-25);
+  justify-items: start;
+  padding: var(--space-50) var(--space-75);
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: var(--text-sm);
+}
+
+.tour-step-explorable-broken :is(p, ul) {
+  margin: 0;
+}
+
+.tour-step-explorable-broken ul {
+  padding-left: var(--space-100);
+}
+
+.tour-step-parameters {
+  display: grid;
+  gap: var(--space-50);
+}
+
+.tour-parameter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-25) var(--space-50);
+  align-items: center;
+  font-size: var(--text-sm);
+}
+
+.tour-parameter > :is(label, .tour-parameter-check) {
+  grid-column: 1 / -1;
+  font-weight: var(--weight-medium);
+}
+
+.tour-parameter :is(input[type='text'], select) {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: var(--control-sm);
+  padding: var(--space-25) var(--space-50);
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.tour-parameter-check {
+  display: inline-flex;
+  gap: var(--space-25);
+  align-items: center;
+}
+
+.tour-parameter .tour-field-hint {
+  font-size: var(--text-xs);
+}
+
+.tour-parameter-problem {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--problem);
+  font-size: var(--text-xs);
 }

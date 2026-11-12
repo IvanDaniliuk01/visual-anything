@@ -4,7 +4,8 @@
  * relation type with the built-in suggestions chosen at first, chooses the relation type that nests,
  * lists what matched nothing, and sends the one batch the core makes of it, then reports what was done.
  * It works on any plan any of the core's readers makes. HTML goes to the drawing step instead
- * (`DrawingImport.tsx`, ADR 0068), which the local program makes the drawing for.
+ * (`DrawingImport.tsx`, ADR 0068), which the local program makes the drawing for, or, when the person
+ * picks "As an explorable", to the explorable step (`ExplorableImport.tsx`, ADR 0107).
  */
 import {
   IMPORT_READERS,
@@ -24,6 +25,7 @@ import type { CommandResult } from '../live/connection';
 import './import.css';
 import { diagramFormatsHelp } from './diagram-formats';
 import { DrawingImport, type MakeDrawing } from './DrawingImport';
+import { ExplorableImport, HtmlImportChoice } from './ExplorableImport';
 import { SolidImport, type PrepareSolid } from './SolidImport';
 import { SOLID_FILE_TYPES, isSolidFileName } from '../shell/definitions/solidCommands';
 import { ImportIcon } from '../shell/icons';
@@ -66,6 +68,8 @@ interface ImportControlProps {
 
 /** The format the dialog offers for HTML, imported as a drawing. */
 const DRAWING_FORMAT = 'html';
+/** The format the dialog offers for HTML, imported as an explorable (ADR 0107). */
+const EXPLORABLE_FORMAT = 'html-explorable';
 /** The header's Import button, and the dialog it opens. */
 export function ImportControl({
   project,
@@ -157,6 +161,8 @@ function ImportDialog({
   const [choices, setChoices] = useState<Choices>();
   const [outcome, setOutcome] = useState<Outcome>();
   const [drawing, setDrawing] = useState<{ name: string; text: string }>();
+  // What HTML becomes: a drawing by default (ADR 0068), or an explorable (ADR 0107).
+  const [htmlAs, setHtmlAs] = useState<'drawing' | 'explorable'>('drawing');
   // A glTF file chosen, which imports as a solid (ADR 0075), and whether its step is open.
   const [solidFile, setSolidFile] = useState<File>();
   const [solidOpen, setSolidOpen] = useState(false);
@@ -203,9 +209,16 @@ function ImportDialog({
       void readWithPackage(importer, input);
       return;
     }
-    // HTML becomes a drawing, which the local program makes (ADR 0068).
-    if (format === DRAWING_FORMAT || (format === '' && isDrawingFile(input.name))) {
+    // HTML becomes a drawing, which the local program makes (ADR 0068), or an explorable (ADR 0107).
+    if (
+      format === DRAWING_FORMAT ||
+      format === EXPLORABLE_FORMAT ||
+      (format === '' && isDrawingFile(input.name))
+    ) {
       setProblems([]);
+      setHtmlAs(
+        format === EXPLORABLE_FORMAT || makeDrawing === undefined ? 'explorable' : 'drawing',
+      );
       setDrawing({ name: input.name, text: input.text });
       return;
     }
@@ -309,6 +322,23 @@ function ImportDialog({
             onBack={() => setSolidOpen(false)}
             onClose={onClose}
           />
+        ) : drawing !== undefined && (htmlAs === 'explorable' || makeDrawing === undefined) ? (
+          <ExplorableImport
+            titleId={titleId}
+            project={project}
+            input={drawing}
+            send={send}
+            chooser={
+              <HtmlImportChoice
+                name={`${titleId}-html`}
+                value="explorable"
+                drawing={makeDrawing !== undefined}
+                onChange={setHtmlAs}
+              />
+            }
+            onBack={() => setDrawing(undefined)}
+            onClose={onClose}
+          />
         ) : drawing !== undefined && makeDrawing !== undefined ? (
           <DrawingImport
             titleId={titleId}
@@ -318,6 +348,14 @@ function ImportDialog({
             input={drawing}
             makeDrawing={makeDrawing}
             send={send}
+            chooser={
+              <HtmlImportChoice
+                name={`${titleId}-html`}
+                value="drawing"
+                drawing
+                onChange={setHtmlAs}
+              />
+            }
             onBack={() => setDrawing(undefined)}
             onClose={onClose}
           />
@@ -352,6 +390,11 @@ function ImportDialog({
                 )}
               </p>
             )}
+            <p className="dialog-note">
+              {t(
+                'Or, if you choose so, an explorable: a page that runs walled off, only once you approve it.',
+              )}
+            </p>
             {prepareSolid !== undefined && (
               <p className="dialog-note">
                 {t(
@@ -451,6 +494,7 @@ function ImportDialog({
                 {makeDrawing !== undefined && (
                   <option value={DRAWING_FORMAT}>{t('HTML, as a drawing')}</option>
                 )}
+                <option value={EXPLORABLE_FORMAT}>{t('HTML, as an explorable')}</option>
                 {importers.map((importer) => (
                   <option key={offeredKey(importer)} value={offeredKey(importer)}>
                     {t('{label} ({extensions}), from the package “{name}”', {

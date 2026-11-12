@@ -156,7 +156,7 @@ export function prepareDrawingImport(
   // Where an element's own picture goes, as the image picker puts it.
   let packageId = picturePackage(current, component);
   if (packageId === undefined) {
-    const made = createPackage(current, generate);
+    const made = createOwnPackage(current, generate);
     if (!made.ok) return made;
     commands.push(made.command);
     current = made.state;
@@ -234,7 +234,7 @@ function sizeOf(state: ProjectSnapshot, image: Id): { width: number; height: num
 }
 
 /** The project's own packages, in its order. */
-function ownPackages(state: ProjectSnapshot): Id[] {
+export function ownPackagesOf(state: ProjectSnapshot): Id[] {
   return state.packages.filter((file) => !builtinPackage(file.id)).map((file) => file.id);
 }
 
@@ -243,14 +243,14 @@ function ownPackages(state: ProjectSnapshot): Id[] {
  * first of the project's own; none when the project has no package of its own.
  */
 function picturePackage(state: ProjectSnapshot, component: Id): Id | undefined {
-  const own = ownPackages(state);
+  const own = ownPackagesOf(state);
   const defined = definitionsIn(state).components.get(component);
   if (defined && own.includes(defined.package)) return defined.package;
   return own[0];
 }
 
 /** A new package of the project's own, named after the project, with the first id the core accepts. */
-function createPackage(
+export function createOwnPackage(
   state: ProjectSnapshot,
   generate: IdGenerator,
 ):
