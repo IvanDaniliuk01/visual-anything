@@ -1140,7 +1140,7 @@ Example: { "viewFolders": [{ "name": "Stories", "entries": [{ "view": "admission
 const setPositions = tool({
   name: 'set_positions',
   title: 'Place shapes in a view',
-  description: `Sets where element shapes sit in a view, as one undoable action. A position is keyed by the element and the container its shape sits in (left out for World), and is relative to that container's shape; every copy of a container shares its inner layout. Positions are left for layout to change unless pinned. Your positions are not snapped to the grid. Routes chosen by hand follow their ends: their bend points move with both ends when you move both together, and only those next to an end you move alone follow it; the answer names those whose ends you moved apart, which reset_route sends back to automatic routes.
+  description: `Sets where element shapes sit in a view, as one undoable action. A position is keyed by the element and the container its shape sits in (left out for World), and is relative to that container's shape; every copy of a container shares its inner layout. Positions are left for layout to change unless pinned. Your positions are not snapped to the grid. Routes chosen by hand follow their ends: their bend points move with both ends when you move both together, and stretch with the box their ends span when you move them apart, the runs into the ends keeping level with them; the answer names those whose ends you moved apart, which reset_route sends back to automatic routes.
 
 A position may turn a shape (rotation, in degrees) and mirror it (flip), as the format panel's Arrange tab does; its name stays level, lines attach to its turned outline, and layout spaces it by its turned bounds.
 
@@ -1183,7 +1183,8 @@ Example: { "view": "system-overview", "positions": [{ "element": "scheduling", "
         })),
       },
       async () => {
-        // Bend points chosen by hand follow their ends wholly only when both move together (ADR 0039).
+        // Bend points chosen by hand move wholly with their ends only when both move together, and
+        // otherwise stretch (ADR 0092 §5).
         const moved = args.positions.map((position) => position.element);
         const left = routesNotFollowing(before, await program.project(), args.view, moved);
         return left.length === 0
