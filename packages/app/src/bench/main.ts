@@ -48,6 +48,10 @@
  * with a display block, panned, zoomed and selected after the same project with plain text in their
  * place; it times installing KaTeX's bitmap families and what they hold, and typesetting 10,000
  * distinct formulas.
+ * `?explorable&listener=<port>&nonce=<nonce>&id=<id>&hash=<hash>` measures an explorable live on the
+ * canvas instead (`explorable.ts`, A10.5): pan and zoom at four scales with no explorable, then with
+ * one explored in place, its frame from the program's listener moving with the camera; it posts what
+ * it measured to `/bench-results`, which `packages/server/scripts/explorables-bench.ts` serves.
  *
  * Work mode, the default, measures the work of each frame: it moves the camera, draws the frame and
  * waits until the GPU has drawn it, so the result does not depend on how often the browser offers
@@ -92,6 +96,7 @@ import {
 } from './live';
 import { withEmphasisDetail } from './emphasis';
 import { MATH_NOTES, typesetDistinct, withMathDetail } from './math';
+import { benchFrameOf, measureExplorable } from './explorable';
 import { mathFontsReport, whenMathFontsSettled } from '../canvas/mathFonts';
 import { TRAIT_GROUPS, withEveryTrait, type TraitGroup } from './traits';
 import { faceCounts, resetFaceCounts } from '../canvas/faces';
@@ -345,6 +350,10 @@ async function run(): Promise<void> {
   if (mathProject) {
     const math = await measureMath(mathProject);
     report(math.phases, math.timed, math.latency, math.notes);
+    return;
+  }
+  if (search.has('explorable')) {
+    await runExplorable();
     return;
   }
   const phases: Phase[] = [];
@@ -1596,6 +1605,65 @@ async function measureMath(math: ProjectSnapshot): Promise<{
     },
   ];
   return { phases, timed, latency, notes };
+}
+
+/**
+ * The phases of an explorable live on the canvas (`explorable.ts`, A10.5), reported on the page and
+ * posted to `/bench-results` for the script that started them. Recorded, never held.
+ */
+async function runExplorable(): Promise<void> {
+  const frame = benchFrameOf(search);
+  const glRenderer = (() => {
+    const gl = document.createElement('canvas').getContext('webgl2');
+    const info = gl?.getExtension('WEBGL_debug_renderer_info');
+    return gl && info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : 'unknown';
+  })();
+  const post = (body: unknown) =>
+    fetch('/bench-results', { method: 'POST', body: JSON.stringify(body) }).catch(() => undefined);
+  if (!frame) {
+    status.textContent =
+      'No explorable to explore: give ?explorable&listener=&nonce=&id=&hash=, as explorables-bench.ts does.';
+    await post({ failed: status.textContent });
+    return;
+  }
+  const middle = scene.bounds ? centerOf(scene.bounds) : { x: 0, y: 0 };
+  const measured = await measureExplorable({
+    frame,
+    host,
+    camera: () => controller.camera,
+    viewport: controller.renderer.viewport,
+    middle,
+    fitWhole: () => controller.fitWhole(),
+    cameraAt,
+    namesFrom: NAMES_FROM,
+    detailsFrom: DETAILS_FROM,
+    move,
+    measure,
+    settle,
+    panBy,
+    zoomAt,
+  });
+  report(measured.phases, [], [], measured.notes);
+  const rows = measured.phases.map(({ name, frames }) => ({
+    name,
+    frames: frames.length,
+    average: frames.reduce((sum, each) => sum + each, 0) / Math.max(1, frames.length),
+    p50: percentile(frames, 0.5),
+    p95: percentile(frames, 0.95),
+    worst: Math.max(0, ...frames),
+  }));
+  await post({
+    elements: size,
+    relations: scene.relations.length,
+    mode,
+    userAgent: navigator.userAgent,
+    glRenderer,
+    devicePixelRatio,
+    viewport: controller.renderer.viewport,
+    rows,
+    notes: measured.notes,
+    ...measured.record,
+  });
 }
 
 function settle(milliseconds: number): Promise<void> {
