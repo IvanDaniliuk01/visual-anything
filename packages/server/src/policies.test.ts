@@ -50,7 +50,7 @@ describe('pagePolicy', () => {
   it('lets the built page run only its own scripts, connect only to the local program, and make HTML only through its Trusted Types policy', () => {
     expect(pagePolicy(47715, { trustedTypes: true })).toBe(
       "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; " +
-        "font-src 'self'; connect-src 'self' ws://127.0.0.1:47715 ws://localhost:47715; worker-src 'self'; " +
+        "media-src blob:; font-src 'self'; connect-src 'self' ws://127.0.0.1:47715 ws://localhost:47715; worker-src 'self'; " +
         "object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; " +
         "require-trusted-types-for 'script'; trusted-types default",
     );

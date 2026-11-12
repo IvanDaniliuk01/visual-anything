@@ -1,11 +1,12 @@
 /**
- * An image file to add as a picture from the project folder (ADR 0098): Claude's `add_picture` names
- * one by its path from the folder, as `import_solid` names a glTF file (ADR 0075), and the program
- * reads it, never Claude, only as a regular file inside the folder within the 32 MiB a picture takes.
- * A path outside the folder and a name that is no image file's are refused before anything is read.
+ * An image or video file to add as a picture from the project folder (ADR 0098): Claude's
+ * `add_picture` and `add_video` name one by its path from the folder, as `import_solid` names a glTF
+ * file (ADR 0075), and the program reads it, never Claude, only as a regular file inside the folder
+ * within the 32 MiB an image takes or the 50 MiB a video takes. A path outside the folder and a name
+ * that is no image or video file's are refused before anything is read.
  */
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { MEDIA_CAPS, type Problem } from '@visual-anything/core';
+import { MEDIA_CAPS, VIDEO_CAPS, type Problem } from '@visual-anything/core';
 import { isInside } from '../paths';
 import { readRegularFile } from '../regular-files';
 
@@ -14,6 +15,9 @@ export const MAX_PICTURE_PATH = 1024;
 
 /** The names an image file to add may end with. */
 const PICTURE_NAME = /\.(png|jpe?g|webp|gif|svg)$/i;
+
+/** The names a video file to add may end with (ADR 0098, stage 2). */
+export const VIDEO_NAME = /\.(mp4|m4v|webm)$/i;
 
 export type ProjectPictureFile =
   { ok: true; bytes: Uint8Array; fileName: string } | { ok: false; problem: Problem };
@@ -47,12 +51,15 @@ export async function readProjectPictureFile(
     );
   }
   const fileName = basename(full);
-  if (!PICTURE_NAME.test(fileName)) {
+  const video = VIDEO_NAME.test(fileName);
+  if (!PICTURE_NAME.test(fileName) && !video) {
     return refuse(
-      `"${path}" is not an image file: add_picture takes a PNG, JPEG, WebP, GIF or SVG file.`,
+      `"${path}" is not an image or video file: add_picture takes a PNG, JPEG, WebP, GIF or SVG file, and add_video an MP4 or WebM file.`,
     );
   }
-  const read = await readRegularFile(full, MEDIA_CAPS.bytes, { inside: folder });
+  const read = await readRegularFile(full, video ? VIDEO_CAPS.bytes : MEDIA_CAPS.bytes, {
+    inside: folder,
+  });
   if (!read.ok) {
     return refuse(
       read.reason === 'missing'
