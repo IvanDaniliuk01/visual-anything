@@ -145,6 +145,49 @@ describe('reset_route', () => {
       await value('reset_route', { view: 'overview', relations: ['customer-calls-api'] }),
     ).toEqual({ done: 'Nothing changed, so nothing was recorded.' });
   });
+
+  it('resets every route of the view with all, and only the ends with attach (ADR 0092)', async () => {
+    await value('set_route', {
+      view: 'overview',
+      relation: 'customer-calls-api',
+      to: { kind: 'border', side: 'left', at: 0.25 },
+      style: 'straight',
+    });
+    await value('set_route', { view: 'overview', relation: 'api-reads-db', style: 'curved' });
+    const attached = await value('reset_route', { view: 'overview', all: true, attach: true });
+    expect(String(attached.done)).toMatch(/^Attach the ends of ".+" automatically in "Overview"$/);
+    expect(routes()).toEqual({
+      'customer-calls-api': { style: 'straight' },
+      'api-reads-db': { style: 'curved' },
+    });
+    expect(
+      await value('reset_route', { view: 'overview', relations: ['api-reads-db'], attach: true }),
+    ).toEqual({
+      done: 'Nothing changed, so nothing was recorded.',
+      why: 'No end of these lines is attached by hand in this view.',
+    });
+    expect(await value('reset_route', { view: 'overview', all: true })).toMatchObject({
+      done: 'Reset 2 routes in "Overview"',
+    });
+    expect(routes()).toBeUndefined();
+    expect(await value('reset_route', { view: 'overview', all: true })).toEqual({
+      done: 'Nothing changed, so nothing was recorded.',
+      why: 'This view routes no relation by hand.',
+    });
+  });
+
+  it('takes the relations or all, and not both', async () => {
+    const both = await failure('reset_route', {
+      view: 'overview',
+      relations: ['api-reads-db'],
+      all: true,
+    });
+    expect(both).toContain('not both');
+    expect(await failure('reset_route', { view: 'overview' })).toContain('all: true');
+    expect(await failure('reset_route', { view: 'nowhere', all: true })).toBe(
+      'There is no view "nowhere".',
+    );
+  });
 });
 
 describe('the route tools', () => {

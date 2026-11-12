@@ -8,6 +8,7 @@
 import {
   MAX_CAPTION_LENGTH,
   MAX_GUIDANCE_TARGETS,
+  attachEndsCommand,
   automaticRouteStyleOf,
   definitionsIn,
   describeCommand,
@@ -17,6 +18,7 @@ import {
   modelIndexOf,
   previewDelete,
   randomIds,
+  resetRoutesCommand,
   routeOf,
   slug,
   storedColorInDark,
@@ -1438,12 +1440,55 @@ function automaticStyleOf(
 const resetRoute = tool({
   name: 'reset_route',
   title: 'Route relations automatically again',
-  description: `Routes relations automatically again in a view, as one undoable action: their ends attach where layout puts them, with no bend points, in their automatic style (set_route's answer says which). Relations the view does not route by hand are left as they are.
+  description: `Routes relations automatically again in a view, as one undoable action: their ends attach where layout puts them, with no bend points, in their automatic style (set_route's answer says which). Relations the view does not route by hand are left as they are. Give the relations, or "all": true for every route chosen by hand in the view, as Reset every route in this view does in the app. With "attach": true only their ends go back to automatic, and their bend points and style stay, as Attach ends automatically does.
 
-Example: { "view": "system-overview", "relations": ["booking-agent-calls-api-k3f9q2"] }`,
-  input: { view: id(), relations: z.array(id()).min(1) },
+Example: { "view": "system-overview", "relations": ["booking-agent-calls-api-k3f9q2"] }
+Example: { "view": "system-overview", "all": true }`,
+  input: {
+    view: id(),
+    relations: z
+      .array(id())
+      .min(1)
+      .optional()
+      .describe('The relations to route automatically again; left out with all.'),
+    all: z
+      .literal(true)
+      .optional()
+      .describe('Every route chosen by hand in the view, in place of relations (ADR 0092).'),
+    attach: z
+      .boolean()
+      .optional()
+      .describe(
+        'Only the ends: where they attach goes back to automatic, and the bend points and style stay.',
+      ),
+  },
   hints: WRITE,
-  run: async (args, program) => act(program, { type: 'reset-route', ...args }),
+  run: async ({ view, relations, all, attach }, program) => {
+    if ((relations === undefined) === (all === undefined)) {
+      return fail(
+        'Give the relations to route automatically again, or all: true for every route chosen by hand in the view, and not both.',
+      );
+    }
+    // The relations named, as before: the core refuses those it does not know.
+    if (!attach && relations !== undefined) {
+      return act(program, { type: 'reset-route', view, relations });
+    }
+    const state = await program.project();
+    if (!state.views.some((each) => each.id === view)) return fail(`There is no view "${view}".`);
+    const chosen = relations ?? 'all';
+    const command = attach
+      ? attachEndsCommand(state, view, chosen)
+      : resetRoutesCommand(state, view, chosen);
+    if (command === undefined) {
+      return ok({
+        done: 'Nothing changed, so nothing was recorded.',
+        why: attach
+          ? 'No end of these lines is attached by hand in this view.'
+          : 'This view routes no relation by hand.',
+      });
+    }
+    return act(program, command);
+  },
 });
 
 const point = () => z.object({ x: z.number(), y: z.number() });

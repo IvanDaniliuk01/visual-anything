@@ -11,7 +11,7 @@ import { CodeSection } from '../../code/CodeSection';
 import { LiveValuesSection } from '../../live-values/LiveValuesSection';
 import { SimulationSection } from '../../simulation/SimulationSection';
 import { useEditor } from '../../editor/EditorContext';
-import type { Selectable } from '../../editor/selection';
+import { selectionOf, type Selectable } from '../../editor/selection';
 import { useT } from '../../i18n';
 import { isBuiltInDefinition } from '../definitions/commands';
 import { useOpenDefinition } from '../definitions/opened';
@@ -33,6 +33,7 @@ import { ViewSection } from './ViewSection';
 import { DestinationsSection } from '../../destinations/DestinationsSection';
 import { PackagePanels } from '../../packages/PackagePanels';
 import { ExternalIdsSection } from '../../destinations/ExternalIdsSection';
+import { LinesArrange } from './LinesArrange';
 import { ShapeArrange } from './ShapeArrange';
 
 interface ElementInspectorProps {
@@ -142,6 +143,7 @@ export function ElementInspector({
           drawn ? (
             <>
               <ShapeArrange elements={[element.id]} />
+              <LinesArrange selection={selectionOf([{ kind: 'element', id: element.id }])} />
               <ViewSection element={element} />
             </>
           ) : undefined

@@ -413,7 +413,7 @@ How a tour step and its reveals mark what they mark: with a halo laid over each 
 _Avoid_: highlight style, glow, effect
 
 **Route**:
-The path a relation's line takes in a view: where it attaches to each end, the points it bends at, and its style (orthogonal, straight or curved). Automatic unless chosen by hand: an automatic route takes the style its relation's appearance gives, else its view's, else orthogonal, and is drawn again after every layout and move (ADR 0069). A view keeps only what was chosen by hand, and Reset route goes back to the automatic route. An automatic orthogonal route goes around the shapes in its way, and the name plates of the containers it runs in, inside the container that holds both its ends (ADR 0039).
+The path a relation's line takes in a view: where it attaches to each end, the points it bends at, and its style (orthogonal, straight or curved). Automatic unless chosen by hand: an automatic route takes the style its relation's appearance gives, else its view's, else orthogonal, and is drawn again after every layout and move (ADR 0069). A view keeps only what was chosen by hand, and Reset route goes back to the automatic route. A route by hand follows its ends: its bend points move with both ends when they move together, and stretch with them when they move apart (ADR 0092). An automatic orthogonal route goes around the shapes in its way, and the name plates of the containers it runs in, inside the container that holds both its ends (ADR 0039).
 _Avoid_: path, connector, edge route, waypoints
 
 **Bend point**:

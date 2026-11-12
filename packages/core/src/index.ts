@@ -340,6 +340,7 @@ export {
 // Relations routed by hand, per view (ADR 0039).
 export type { ResolvedAttachment, ResolvedRoute, RouteLookups, RouteShapes, Side } from './routes';
 export { MAX_BEND_POINTS, automaticRouteStyleOf, routeOf, storedRoute } from './routes';
+export { attachEndsCommand, resetRoutesCommand, routesByHandIn } from './route-resets';
 // The live protocol's history list, and undo or redo up to an action (version 5).
 export type { HistoryListedMessage, ListedAction } from './protocol';
 // The start screen of a folder that holds no project yet (ADR 0051).

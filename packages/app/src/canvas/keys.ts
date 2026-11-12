@@ -12,6 +12,15 @@ export const ROUTE_KEYS: readonly { keys: string; does: string }[] = [
     keys: 'Shift+F10 or the menu key, on a relation',
     does: 'Open the relation’s menu: its style, Reset route, and Edit the route…',
   },
+  // Getting back to automatic routes (ADR 0092 §1).
+  {
+    keys: 'Alt+Shift+R (⌥⇧R on macOS)',
+    does: 'Reset the routes of the selected lines and of the lines of the selected shapes, so that they are routed automatically again',
+  },
+  {
+    keys: 'Ctrl+Shift+E (⌘⇧E on macOS)',
+    does: 'Select the lines of the selected shapes, or every line when nothing is selected; a box dragged around lines selects them too',
+  },
   {
     keys: 'Alt while dragging an end or a bend point of a route (⌥ on macOS)',
     does: 'Place it without snapping, at the exact border point or where it is let go',
@@ -111,6 +120,10 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
   { keys: 'Ctrl+A or ⌘A', does: 'Select everything' },
   { keys: '+, − and 0', does: 'Zoom in, zoom out, and fit the view' },
   { keys: 'Alt+− and Alt++', does: 'Collapse or expand the selected containers' },
+  {
+    keys: 'Alt+Shift+L (⌥⇧L on macOS)',
+    does: 'Lay out, as Layout in the toolbar does',
+  },
   { keys: 'Shift+G', does: 'Show or hide the grid' },
   { keys: 'Shift+R', does: 'Show or hide the rulers' },
   { keys: 'Space and drag', does: 'Pan' },
