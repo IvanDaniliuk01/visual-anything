@@ -2,6 +2,7 @@
 import type {
   FreeShape,
   Id,
+  LinkCard,
   MediaFormat,
   MediaRef,
   ShapePosition,
@@ -9,6 +10,7 @@ import type {
 } from '@visual-anything/schema';
 import { MEDIA_CAPS, isVideoFormat } from '../media/clean';
 import { VIDEO_CAPS } from '../media/video';
+import { LINK_CAPS, checkLinkAddress } from '../links/address';
 import { slug } from '../ids';
 import { nestingTypesInView } from '../containers';
 import { appearanceOf } from '../definitions';
@@ -377,6 +379,7 @@ const FREE_SHAPE_PARTS: Record<FreeShape['kind'], readonly (keyof FreeShapeChang
   arrow: ['from', 'to', 'stroke'],
   picture: ['x', 'y', 'width', 'height', 'media', 'poster', 'name'],
   explorable: ['x', 'y', 'width', 'height', 'explorable', 'element', 'name'],
+  link: ['x', 'y', 'width', 'height', 'url', 'title', 'description', 'picture'],
 };
 
 /** What a refusal calls each kind of free shape, at the start of a sentence. */
@@ -385,6 +388,7 @@ const FREE_SHAPE_SUBJECT: Record<FreeShape['kind'], string> = {
   arrow: 'An arrow',
   picture: 'A picture',
   explorable: 'An explorable',
+  link: 'A link card',
 };
 
 /**
@@ -414,6 +418,7 @@ const FREE_SHAPE_NOUN: Record<FreeShape['kind'], string> = {
   arrow: 'an arrow',
   picture: 'a picture',
   explorable: 'an explorable',
+  link: 'a link card',
 };
 
 /** A free shape without its colors, to tell a change of color from any other change. */
@@ -564,8 +569,68 @@ function checkedFreeShape(
       name,
     });
   }
-  reject('invalid-command', 'A free shape is a note, an arrow or a picture.');
+  if (shape.kind === 'link') return checkedLinkCard(shape, (shape as FreeShape).id, viewName);
+  reject('invalid-command', 'A free shape is a note, an arrow, a picture or a link card.');
 }
+
+/**
+ * A link card a command sets, checked (ADR 0098, stage 3): its address as the web's reader writes
+ * it, `https:` or `http:` only; its title one line; its description, an empty one left out; and its
+ * picture an image of `media/`, never a video.
+ */
+function checkedLinkCard(shape: Omit<LinkCard, 'id'>, id: Id, viewName: string): LinkCard {
+  const of = `a link card in "${viewName}"`;
+  const loose = shape as { fill?: unknown; stroke?: unknown };
+  if (loose.fill !== undefined || loose.stroke !== undefined) {
+    reject('invalid-appearance', `A link card has no colors of its own; ${of} is drawn as a card.`);
+  }
+  const address = checkLinkAddress(shape.url);
+  if (!address.ok) {
+    reject(
+      'invalid-command',
+      `The address of ${of} ${address.reason}: a link card holds an https or http address.`,
+    );
+  }
+  const title = typeof shape.title === 'string' ? shape.title.replace(/\s+/g, ' ').trim() : '';
+  if (title === '' || title.length > LINK_CAPS.title) {
+    reject(
+      'invalid-command',
+      `A link card's title is one line of 1 to ${LINK_CAPS.title} characters.`,
+    );
+  }
+  const given = shape.description;
+  if (given !== undefined && typeof given !== 'string') {
+    reject('invalid-command', "A link card's description is text.");
+  }
+  const description = given?.trim() === '' ? undefined : given;
+  if (description !== undefined && description.length > LINK_CAPS.description) {
+    reject(
+      'invalid-command',
+      `A link card's description is at most ${LINK_CAPS.description.toLocaleString('en-US')} characters.`,
+    );
+  }
+  return compact({
+    kind: 'link',
+    id,
+    x: requireNumber(shape.x, 'x'),
+    y: requireNumber(shape.y, 'y'),
+    width: requireNumber(shape.width, 'A width', true),
+    height: requireNumber(shape.height, 'A height', true),
+    url: address.url,
+    title,
+    description,
+    picture:
+      shape.picture === undefined
+        ? undefined
+        : checkedMediaRef(shape.picture, LINK_PICTURE_FORMATS),
+  });
+}
+
+/** The formats a link card's picture may have: an image, never a video. */
+const LINK_PICTURE_FORMATS = {
+  formats: new Set(['png', 'jpeg', 'webp', 'gif', 'svg']),
+  said: "A link card's picture is a PNG, JPEG, WebP, GIF or SVG picture.",
+};
 
 /** The formats a video's file may have (ADR 0098, stage 2). */
 const VIDEO_FORMATS: ReadonlySet<string> = new Set(['mp4', 'webm']);

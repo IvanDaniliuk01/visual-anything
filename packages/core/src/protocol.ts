@@ -105,6 +105,14 @@ import {
   type MediaStoredMessage,
 } from './media/messages';
 import {
+  readLinkFetch,
+  readLinkFetched,
+  readLinkRefused,
+  type LinkFetchMessage,
+  type LinkFetchedMessage,
+  type LinkRefusedMessage,
+} from './links/messages';
+import {
   readPackageRead,
   readPackageReadAnswer,
   type PackageMessageRead,
@@ -186,8 +194,11 @@ import type { ViewState } from './view-state';
  * 12: videos (ADR 0098, stage 2): a picture's media file may be a video, `mp4` or `webm` of up to
  *    50 MiB, in 50 pieces, with a `poster`, which an app of 11 would refuse when it opens the view file
  *    or reads `media/stored`.
+ * 13: link cards (ADR 0098, stage 3): a view's free shapes may be link cards, `{ kind: 'link', … }`,
+ *    which an app of 12 would refuse when it opens the view file; and an app asks for a card's
+ *    preview with `link/fetch`, answered with `link/fetched` or `link/refused`.
  */
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';
@@ -262,6 +273,8 @@ export type ServerMessage =
   | MediaPieceMessage
   | MediaRefusedMessage
   | MediaFilesListedMessage
+  | LinkFetchedMessage
+  | LinkRefusedMessage
   | PackageReadAnswerMessage
   | ClaudeSetupAnswerMessage
   | AppShownMessage;
@@ -1046,6 +1059,7 @@ export type AppMessage =
   | MediaGetMessage
   | MediaFilesListMessage
   | MediaFilesRemoveMessage
+  | LinkFetchMessage
   | PackageReadMessage
   | ClaudeSetupMessage;
 
@@ -1193,6 +1207,8 @@ const SERVER_TYPES = new Set<string>([
   'media/piece',
   'media/refused',
   'media-files/listed',
+  'link/fetched',
+  'link/refused',
   'package/read-answer',
   'claude/setup-answer',
   'app/shown',
@@ -1304,6 +1320,10 @@ export function decodeServerMessage(text: string): ServerMessage {
       return readSolidMessage(readMediaRefused(message));
     case 'media-files/listed':
       return readSolidMessage(readMediaFilesListed(message));
+    case 'link/fetched':
+      return readSolidMessage(readLinkFetched(message));
+    case 'link/refused':
+      return readSolidMessage(readLinkRefused(message));
     case 'package/read-answer': {
       const { requestId } = message;
       if (typeof requestId !== 'string' || requestId === '' || requestId.length > MAX_REQUEST_ID) {
@@ -1430,6 +1450,8 @@ export function decodeAppMessage(text: string): AppMessage {
       return readSolidMessage(readMediaFilesList(message));
     case 'media-files/remove':
       return readSolidMessage(readMediaFilesRemove(message));
+    case 'link/fetch':
+      return readSolidMessage(readLinkFetch(message));
     case 'package/read':
       return readPackageMessage(readPackageRead(message, message.requestId));
     case 'claude/setup':

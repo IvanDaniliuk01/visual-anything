@@ -624,28 +624,41 @@ export function commandFor(state: ProjectSnapshot, wish: Intent): Command | unde
         return {
           type: 'create-free-shape',
           view: view.id,
-          // Every other one is a picture (ADR 0098), which moves and goes as a note does.
+          // One in three is a picture (ADR 0098) and one a link card (stage 3), which move and go
+          // as a note does.
           shape:
-            wish.at % 2 === 1
+            wish.at % 3 === 2
               ? {
-                  kind: 'picture',
+                  kind: 'link',
                   x: 0,
                   y: 0,
-                  width: 64,
-                  height: 48,
-                  media: {
-                    hash: 'ab'.repeat(32),
-                    format: 'png',
-                    width: 640,
-                    height: 480,
-                    bytes: 9000,
-                  },
+                  width: 320,
+                  height: 112,
+                  url: 'https://example.org/guide',
+                  title: 'A guide',
                 }
-              : { kind: 'note', x: 0, y: 0, width: 120, height: 60, text: 'A note' },
+              : wish.at % 3 === 1
+                ? {
+                    kind: 'picture',
+                    x: 0,
+                    y: 0,
+                    width: 64,
+                    height: 48,
+                    media: {
+                      hash: 'ab'.repeat(32),
+                      format: 'png',
+                      width: 640,
+                      height: 480,
+                      bytes: 9000,
+                    },
+                  }
+                : { kind: 'note', x: 0, y: 0, width: 120, height: 60, text: 'A note' },
         };
       }
       const note = pick(
-        view.freeShapes.filter((shape) => shape.kind === 'note' || shape.kind === 'picture'),
+        view.freeShapes.filter(
+          (shape) => shape.kind === 'note' || shape.kind === 'picture' || shape.kind === 'link',
+        ),
         wish.at,
       );
       if (!note) return undefined;

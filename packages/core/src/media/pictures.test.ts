@@ -1,9 +1,10 @@
-import type { Picture } from '@visual-anything/schema';
+import type { LinkCard, Picture } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import {
   PAGE_MEDIA_BYTES,
   isVideo,
   mediaNamedBy,
+  mediaOfFreeShape,
   pageMediaOf,
   pictureName,
   pictureStill,
@@ -60,5 +61,26 @@ describe('pictures and videos (ADR 0098, stage 2)', () => {
       hashes: ['a', 'b', 'c', 'd', 'f'].map((each) => each.repeat(64)),
       videosLeftOut: ['e'.repeat(64)],
     });
+  });
+
+  const card: LinkCard = {
+    kind: 'link',
+    id: 'guide',
+    x: 0,
+    y: 0,
+    width: 320,
+    height: 280,
+    url: 'https://example.org/',
+    title: 'Guide',
+    picture: ref('9', 'png'),
+  };
+
+  it('counts a link card’s picture among the files free shapes name (stage 3)', () => {
+    expect(mediaOfFreeShape(card)).toEqual([card.picture]);
+    expect(mediaOfFreeShape({ ...card, picture: undefined })).toEqual([]);
+    expect(mediaOfFreeShape(video)).toEqual([video.media, video.poster]);
+    const named = mediaNamedBy([{ freeShapes: [photo, card] }]);
+    expect([...named].sort()).toEqual(['9', 'a'].map((each) => each.repeat(64)));
+    expect(pageMediaOf([{ freeShapes: [card] }]).hashes).toEqual(['9'.repeat(64)]);
   });
 });

@@ -91,6 +91,10 @@ export type ProblemCode =
   // its container is read, and one past 50 MiB or 8,192 pixels a side.
   | 'invalid-video'
   | 'video-too-large'
+  // Link cards (ADR 0098, stage 3): an address whose preview may not be fetched, and a fetch that
+  // failed.
+  | 'link-refused'
+  | 'link-failed'
   // Poses (ADR 0076): one a command refuses, and, only as a warning on open, one whose `in` is not
   // one of its element's containers, kept and not used.
   | 'invalid-pose'

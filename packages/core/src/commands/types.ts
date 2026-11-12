@@ -5,6 +5,7 @@
 import type { ConflictFile } from '../operations';
 import type { OrganizedEntry } from '../view-folders';
 import type {
+  LinkCard,
   CaptionFace,
   TourEmphasis,
   Appearance,
@@ -668,7 +669,9 @@ export interface RemovePositionsCommand {
 }
 
 /** A new free shape. Its id is generated unless given. */
-export type NewFreeShape = (Omit<Note, 'id'> | Omit<Arrow, 'id'> | Omit<Picture, 'id'>) & {
+export type NewFreeShape = (
+  Omit<Note, 'id'> | Omit<Arrow, 'id'> | Omit<Picture, 'id'> | Omit<LinkCard, 'id'>
+) & {
   id?: Id;
 };
 
@@ -697,8 +700,9 @@ export interface UpdateFreeShapeCommand {
 /**
  * Changes to a free shape's parts, each one its kind has: a note's `x`, `y`, `width`, `height`,
  * `text`, `fill` and `stroke`; an arrow's `from`, `to` and `stroke`; a picture's `x`, `y`, `width`,
- * `height`, `media`, `poster` and `name`. `null` takes a color, a picture's name or a video's poster
- * out. Its kind and id stay.
+ * `height`, `media`, `poster` and `name`; a link card's `x`, `y`, `width`, `height`, `url`, `title`,
+ * `description` and `picture`. `null` takes a color, a picture's name, a video's poster, or a card's
+ * description or picture out. Its kind and id stay.
  */
 export interface FreeShapeChanges {
   x?: number;
@@ -717,6 +721,14 @@ export interface FreeShapeChanges {
   explorable?: Id;
   /** The element an explorable shape reads; `null` unbinds it. */
   element?: Id | null;
+  /** A link card's address (ADR 0098, stage 3). */
+  url?: string;
+  /** A link card's title. */
+  title?: string;
+  /** A link card's description; `null` takes it out. */
+  description?: string | null;
+  /** A link card's picture, an image of `media/`; `null` takes it out. */
+  picture?: LinkCard['picture'] | null;
 }
 
 /** Deletes free shapes from a view. */

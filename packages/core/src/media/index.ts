@@ -3,7 +3,7 @@
  * The readers that clean them, the GIF reader that plays them, the video reader, and the live
  * connection's messages.
  */
-import type { MediaRef, Picture, ViewFile } from '@visual-anything/schema';
+import type { FreeShape, MediaRef, Picture, ViewFile } from '@visual-anything/schema';
 import { MEDIA_CAPS, isVideoFormat } from './clean';
 
 export * from './clean';
@@ -21,11 +21,26 @@ export function mediaOf(picture: Pick<Picture, 'media' | 'poster'>): MediaRef[] 
   return picture.poster === undefined ? [picture.media] : [picture.media, picture.poster];
 }
 
-/** The hashes of the media files any picture of these views names, a video's poster included. */
+/**
+ * The media files a free shape names: a picture's own and a video's poster, and a link card's
+ * picture (ADR 0098, stage 3); none for any other.
+ */
+export function mediaOfFreeShape(shape: FreeShape): MediaRef[] {
+  if (shape.kind === 'picture') return mediaOf(shape);
+  if (shape.kind === 'link') return shape.picture === undefined ? [] : [shape.picture];
+  return [];
+}
+
+/**
+ * The hashes of the media files any free shape of these views names: pictures, a video's poster
+ * included, and link cards' pictures.
+ */
 export function mediaNamedBy(views: readonly Pick<ViewFile, 'freeShapes'>[]): Set<string> {
   const named = new Set<string>();
   for (const view of views) {
-    for (const picture of picturesOf(view)) for (const ref of mediaOf(picture)) named.add(ref.hash);
+    for (const shape of view.freeShapes) {
+      for (const ref of mediaOfFreeShape(shape)) named.add(ref.hash);
+    }
   }
   return named;
 }
@@ -35,7 +50,7 @@ export const PAGE_MEDIA_BYTES = MEDIA_CAPS.bytes;
 
 /**
  * The media files a read-only page of these views holds, by hash, in order: every image and poster,
- * and a video's file when it is at most 32 MiB; and the videos it leaves to their posters, which the
+ * link cards' pictures among them, and a video's file when it is at most 32 MiB; and the videos it leaves to their posters, which the
  * export says.
  */
 export function pageMediaOf(views: readonly Pick<ViewFile, 'freeShapes'>[]): {
@@ -45,8 +60,8 @@ export function pageMediaOf(views: readonly Pick<ViewFile, 'freeShapes'>[]): {
   const held = new Set<string>();
   const left = new Set<string>();
   for (const view of views) {
-    for (const picture of picturesOf(view)) {
-      for (const ref of mediaOf(picture)) {
+    for (const shape of view.freeShapes) {
+      for (const ref of mediaOfFreeShape(shape)) {
         if (isVideoFormat(ref.format) && ref.bytes > PAGE_MEDIA_BYTES) left.add(ref.hash);
         else held.add(ref.hash);
       }

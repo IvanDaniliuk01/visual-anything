@@ -54,6 +54,31 @@ describe('compareProjects', () => {
     ]);
   });
 
+  it('compares link cards by id, as notes (ADR 0098, stage 3)', () => {
+    const card = {
+      kind: 'link' as const,
+      id: 'guide',
+      x: 0,
+      y: 0,
+      width: 320,
+      height: 112,
+      url: 'https://example.org/',
+      title: 'Guide',
+    };
+    const older = testProject();
+    const added = done(older, { type: 'create-free-shape', view: 'overview', shape: card });
+    expect(summary(compareProjects(older, added))).toEqual(['added free-shape:overview:guide']);
+    const retitled = done(added, {
+      type: 'update-free-shape',
+      view: 'overview',
+      id: 'guide',
+      changes: { title: 'The guide' },
+    });
+    expect(compareProjects(added, retitled).changes[0]?.differences).toEqual([
+      { path: 'title', before: 'Guide', after: 'The guide' },
+    ]);
+  });
+
   it('finds nothing between a version and itself', () => {
     const project = testProject();
     expect(compareProjects(project, project)).toEqual({
