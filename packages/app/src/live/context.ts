@@ -15,6 +15,10 @@ import type {
   SolidPreparedMessage,
   VersionRef,
   VersionsListedMessage,
+  ExplorablesListeningMessage,
+  ScriptLibraryAsk,
+  ScriptLibraryFilesListedMessage,
+  ScriptLibraryKeptMessage,
 } from '@visual-anything/core';
 import type { GuidanceState, GuidedLayoutAnswer } from '../guidance/state';
 import type { LiveValueBook } from '../live-values/book';
@@ -197,6 +201,21 @@ export interface Live extends LiveState {
    * there is no live session to ask.
    */
   setUpClaude?: () => Promise<LiveResult<ClaudeSetupAnswerMessage>>;
+  /**
+   * Asks the local program for its explorables' listener, its port and the session's nonce (ADR
+   * 0107); absent where no program serves explorables.
+   */
+  listenExplorables?: () => Promise<LiveResult<ExplorablesListeningMessage>>;
+  /** Asks the local program to fetch a script library the person chose in the app (ADR 0107). */
+  fetchScriptLibrary?: (ask: ScriptLibraryAsk) => Promise<LiveResult<ScriptLibraryKeptMessage>>;
+  /** Answers Claude's request for a script library with the person's consent, or without it. */
+  answerScriptLibraryConsent?: (requestId: string, approved: boolean) => void;
+  /** The files of `script-libraries/` no package names (ADR 0107). */
+  listScriptLibraryFiles?: () => Promise<LiveResult<ScriptLibraryFilesListedMessage>>;
+  /** Removes files of `script-libraries/` no package names, which cannot be undone. */
+  removeScriptLibraryFiles?: (
+    hashes: readonly string[],
+  ) => Promise<LiveResult<ScriptLibraryFilesListedMessage>>;
 }
 
 /**

@@ -1,0 +1,185 @@
+/*
+ * Explorables in the app (ADR 0107): the explorable panel, in the column between the canvas and the
+ * inspector that it shares with the physical-space panel (ADR 0076), below it while both are open;
+ * its edges; the frame an explorable runs in; its card; and the approval and consent dialogs. Colors
+ * and sizes come from the theme's tokens. The panels' buttons are the physical-space panel's own.
+ */
+
+/* Alone, it takes the column at its own width and the whole height. */
+.shell[data-explorable-panel]:not([data-space-panel]) {
+  --space-panel-column: var(--explorable-panel-width, var(--size-3000));
+  --space-panel-row: 0px;
+  --explorable-panel-row: minmax(0, 1fr);
+}
+
+/* Below the physical-space panel, at the height it keeps. */
+.shell[data-explorable-panel][data-space-panel] {
+  --explorable-panel-row: var(--explorable-panel-height, var(--size-1800));
+}
+
+.explorable-panel {
+  position: relative;
+  grid-area: explorable;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-left: var(--stroke-thin) solid var(--border);
+  background: var(--canvas);
+}
+
+.shell[data-space-panel] > .explorable-panel {
+  border-top: var(--stroke-thin) solid var(--border);
+}
+
+.explorable-panel-edge {
+  grid-area: explorable;
+  justify-self: start;
+  margin-inline-start: calc(-1 * var(--space-25));
+}
+
+/* The divider between the two panels: a band astride the panel's top, as an edge is astride a side. */
+.explorable-panel-divider {
+  position: absolute;
+  top: calc(-1 * var(--space-25));
+  right: 0;
+  left: 0;
+  z-index: var(--z-toolbar);
+  height: var(--space-50);
+  background-image: linear-gradient(var(--accent), var(--accent));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 0;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.explorable-panel-divider:hover,
+.explorable-panel-divider:focus-visible,
+.shell[data-panel-resizing] .explorable-panel-divider {
+  background-size: 100% var(--space-25);
+}
+
+.explorable-panel-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-50);
+  padding: var(--space-25) var(--space-50) var(--space-25) var(--space-75);
+  border-bottom: var(--stroke-thin) solid var(--border);
+  background: var(--surface);
+}
+
+.explorable-panel-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-heading);
+  white-space: nowrap;
+}
+
+.explorable-panel-shows {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.explorable-panel-body,
+.explorable-pane {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+
+.explorable-pane {
+  height: 100%;
+  background: var(--canvas);
+}
+
+/* The frame fills what the panel or the pane leaves it. */
+.explorable-frame-box {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.explorable-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--canvas);
+}
+
+/* What the panel says instead of an explorable, and an explorable's card, in its middle. */
+.explorable-message,
+.explorable-card {
+  margin: auto var(--space-100);
+  padding: var(--space-75) var(--space-100);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+}
+
+.explorable-message {
+  text-align: center;
+}
+
+.explorable-card-name {
+  margin: 0 0 var(--space-25);
+  color: var(--text);
+  font-size: var(--text-md);
+}
+
+.explorable-card p {
+  margin: var(--space-25) 0;
+}
+
+.explorable-card-why {
+  color: var(--text);
+}
+
+.explorable-card-action {
+  margin-top: var(--space-50);
+}
+
+.explorable-approval-libraries,
+.script-library-consent-addresses {
+  margin: var(--space-25) 0 var(--space-50);
+  padding-inline-start: var(--space-150);
+}
+
+.script-library-consent-addresses code {
+  overflow-wrap: anywhere;
+}
+
+.explorable-approval-code > summary {
+  cursor: pointer;
+}
+
+.script-library-consent-name {
+  font-weight: var(--weight-heading);
+}
+
+/* While a tour plays full screen, the panel hides with the others; a tour step shows its own. */
+.shell.tour-playing > .explorable-panel,
+.shell.tour-playing > .explorable-panel-edge {
+  display: none;
+}
+
+/* A pane of the split view that shows an explorable: its name where a view's pane has its view. */
+.canvas-pane-explorable {
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

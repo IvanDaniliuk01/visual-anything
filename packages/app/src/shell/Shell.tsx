@@ -34,7 +34,7 @@ import { useExplorer, type ViewExplore } from '../canvas/useExplorer';
 import { selectionOf } from '../editor/selection';
 import { showsViews } from '../guidance/tabs';
 import { PaneCanvas, type ShownCanvas } from '../split/PaneCanvas';
-import { SplitPanes, activeOf, tabStorage } from '../split/panes';
+import { SplitPanes, activeOf, showsView, tabStorage } from '../split/panes';
 import { SplitView } from '../split/SplitView';
 import { ViewScenes } from '../split/scenes';
 import { describeDrawing, leadingPanes, viewOf } from '../split/views';
@@ -102,6 +102,13 @@ import { chosenSpace } from '../space/root';
 import { SpacePanel } from '../space/SpacePanel';
 import { SpacePanelStore } from '../space/store';
 import { useSpacePanelShortcut } from '../space/useSpacePanelShortcut';
+import { ExplorableApproval } from '../explorables/ApprovalDialog';
+import { ExplorablePanelContext } from '../explorables/context';
+import { ExplorablePanel } from '../explorables/ExplorablePanel';
+import { ExplorableView } from '../explorables/ExplorableView';
+import { ExplorablePanelStore } from '../explorables/panel-store';
+import { ScriptLibraryConsent } from '../explorables/ScriptLibraryConsent';
+import { ExplorableSession, ExplorableSessionContext } from '../explorables/session';
 
 interface ShellProps {
   project: ProjectSnapshot;
@@ -154,7 +161,10 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
   useLayoutEffect(
     () =>
       showsViews(() =>
-        panes.snapshot().panes.map((pane) => viewOf(latestProject.current, pane.view)?.id),
+        panes
+          .snapshot()
+          .panes.filter(showsView)
+          .map((pane) => viewOf(latestProject.current, pane.view)?.id),
       ),
     [panes],
   );
@@ -176,7 +186,9 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
   const [scenes] = useState(() => new ViewScenes());
   // What no pane draws any longer, as a view deleted or a pane closed, is let go.
   useLayoutEffect(() => {
-    scenes.keep(layout.panes.flatMap((pane) => viewOf(project, pane.view)?.id ?? []));
+    scenes.keep(
+      layout.panes.filter(showsView).flatMap((pane) => viewOf(project, pane.view)?.id ?? []),
+    );
   }, [scenes, layout, project]);
   const inPlace = useExpandedInPlace(project, view, zoomed, scenes);
   const expanded = inPlace.expanded;
@@ -473,6 +485,26 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
   useEffect(() => spacePanel.watch(window), [spacePanel]);
   useEffect(() => spacePanel.setCanvas(canvas), [spacePanel, canvas]);
   useSpacePanelShortcut(spacePanel, view?.id, tours.playback.tour !== undefined);
+  // The explorable panel (ADR 0107), below the physical-space panel while both are open, and what
+  // the tab keeps of explorables: the approval dialog, the frames stopped and the marks of a hang.
+  const [explorablePanel] = useState(() => new ExplorablePanelStore());
+  const [explorables] = useState(() => new ExplorableSession());
+  const explorablePanelId = useId();
+  useLayoutEffect(() => {
+    explorablePanel.attach(shellElement.current);
+    return () => explorablePanel.attach(null);
+  }, [explorablePanel]);
+  useEffect(() => explorablePanel.watch(window), [explorablePanel]);
+  useEffect(() => explorablePanel.setCanvas(canvas), [explorablePanel, canvas]);
+  useEffect(() => explorables.marks.watch(window), [explorables]);
+  const selectFromExplorable = useCallback(
+    (element: Id) => setSelection(selectionOf([{ kind: 'element', id: element }])),
+    [setSelection],
+  );
+  const openExplorableBeside = useCallback(
+    (explorable: Id, element: Id | undefined) => panes.openExplorableBeside(explorable, element),
+    [panes],
+  );
   const modelPanelId = useId();
   const inspectorId = useId();
   const changesHost = useMemo<ChangesHost>(
@@ -563,185 +595,213 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                   <DefinitionProvider>
                     <EmphasisContext.Provider value={emphasis}>
                       <SpacePanelContext value={spacePanel}>
-                        <HoverContext value={hovers}>
-                          <MotionContext value={motionChoice}>
-                            <ToursContext.Provider value={tours.host}>
-                              <ZoomExpansionContext value={zoom}>
-                                <div
-                                  ref={shellElement}
-                                  className={
-                                    tours.playback.tour === undefined
-                                      ? 'shell'
-                                      : 'shell tour-playing'
-                                  }
-                                >
-                                  <Header
-                                    projectName={project.project.name}
-                                    viewName={view?.name}
-                                    actions={
-                                      // In groups (A5): what the window shows, versions, then what
-                                      // comes in and goes out.
-                                      <>
-                                        <ProposalButton />
-                                        <ElementListToggle store={elementList} />
-                                        <HeaderSeparator />
-                                        <CompareControl session={versions} />
-                                        <HeaderSeparator />
-                                        <ImportControl
-                                          project={project}
-                                          viewId={view?.id}
-                                          send={live?.status === 'open' ? live.send : undefined}
-                                          openView={setOpenViewId}
-                                          {...(live?.status === 'open' &&
-                                          live.makeDrawing !== undefined
-                                            ? { makeDrawing: live.makeDrawing }
-                                            : {})}
-                                          {...(live?.status === 'open' &&
-                                          live.prepareSolid !== undefined
-                                            ? { prepareSolid: live.prepareSolid }
-                                            : {})}
-                                          {...(selection.elements.size === 1
-                                            ? { selectedElement: [...selection.elements][0] }
-                                            : {})}
-                                        />
-                                        {exportTool}
-                                        {view && <CopyAddress link={viewState} />}
-                                        <HeaderSeparator />
-                                        <PackagesControl />
-                                      </>
-                                    }
-                                  />
-                                  {notice !== undefined && (
-                                    <p className="shell-notice" role="alert">
-                                      {notice}
-                                    </p>
-                                  )}
-                                  <ModelPanel
-                                    id={modelPanelId}
-                                    hidden={modelCollapsed}
-                                    project={project}
-                                    definitions={definitions}
-                                    openViewId={view?.id}
-                                    comments={comments}
-                                  />
-                                  <PanelEdge store={panels} side="model" controls={modelPanelId} />
-                                  <main className="canvas-area" aria-labelledby={canvasHeading}>
-                                    <h2 id={canvasHeading} className="visually-hidden">
-                                      {view ? view.name : t('Canvas')}
-                                    </h2>
-                                    <ImageSourceContext value={images}>
-                                      <SplitView
-                                        store={panes}
-                                        layout={layout}
-                                        project={project}
-                                        onOpenBeside={openBeside}
-                                        held={tours.playback.tour !== undefined}
-                                        overlay={
+                        <ExplorableSessionContext value={explorables}>
+                          <ExplorablePanelContext value={explorablePanel}>
+                            <HoverContext value={hovers}>
+                              <MotionContext value={motionChoice}>
+                                <ToursContext.Provider value={tours.host}>
+                                  <ZoomExpansionContext value={zoom}>
+                                    <div
+                                      ref={shellElement}
+                                      className={
+                                        tours.playback.tour === undefined
+                                          ? 'shell'
+                                          : 'shell tour-playing'
+                                      }
+                                    >
+                                      <Header
+                                        projectName={project.project.name}
+                                        viewName={view?.name}
+                                        actions={
+                                          // In groups (A5): what the window shows, versions, then what
+                                          // comes in and goes out.
                                           <>
-                                            <CommentPins store={comments} canvas={canvas} />
-                                            <GuidanceLayer scenarios={scenarios} />
-                                            <FindBar
+                                            <ProposalButton />
+                                            <ElementListToggle store={elementList} />
+                                            <HeaderSeparator />
+                                            <CompareControl session={versions} />
+                                            <HeaderSeparator />
+                                            <ImportControl
                                               project={project}
-                                              definitions={definitions}
                                               viewId={view?.id}
-                                              goTo={viewState.goTo}
+                                              send={live?.status === 'open' ? live.send : undefined}
+                                              openView={setOpenViewId}
+                                              {...(live?.status === 'open' &&
+                                              live.makeDrawing !== undefined
+                                                ? { makeDrawing: live.makeDrawing }
+                                                : {})}
+                                              {...(live?.status === 'open' &&
+                                              live.prepareSolid !== undefined
+                                                ? { prepareSolid: live.prepareSolid }
+                                                : {})}
+                                              {...(selection.elements.size === 1
+                                                ? { selectedElement: [...selection.elements][0] }
+                                                : {})}
                                             />
-                                            <TourPlaybackLayer
-                                              project={project}
-                                              tours={tours}
-                                              {...(onCommand ? { onPlace: placeCaption } : {})}
-                                            />
+                                            {exportTool}
+                                            {view && <CopyAddress link={viewState} />}
+                                            <HeaderSeparator />
+                                            <PackagesControl />
                                           </>
                                         }
-                                      >
-                                        {(pane, active) =>
-                                          view && scene ? (
-                                            <PaneCanvas
-                                              pane={pane}
-                                              active={active}
-                                              store={panes}
-                                              project={project}
-                                              definitions={definitions}
-                                              editor={editor}
-                                              emphasis={emphasis}
-                                              explored={explored}
-                                              lookup={lookup}
-                                              zoom={zoom}
-                                              selection={selection}
-                                              onSelect={setSelection}
-                                              onCommand={onCommand}
-                                              theme={theme}
-                                              scenes={scenes}
-                                              leads={leaders.has(pane.id)}
-                                              onCanvas={onPaneCanvas}
-                                              shown={active ? shownCanvas : undefined}
-                                            />
-                                          ) : (
-                                            <p className="canvas-message">
-                                              {t(
-                                                'There is no view to draw. Make one with New view…, under Views in the Model tab.',
-                                              )}
-                                            </p>
-                                          )
-                                        }
-                                      </SplitView>
-                                    </ImageSourceContext>
-                                  </main>
-                                  {view && scene && (
-                                    <SpacePanel
-                                      id={spacePanelId}
-                                      store={spacePanel}
-                                      project={project}
-                                      view={view}
-                                      scene={canvasScene ?? scene}
-                                      selection={selection}
-                                      client={spaceClient}
-                                      theme={theme}
-                                    />
-                                  )}
-                                  <PanelEdge
-                                    store={panels}
-                                    side="inspector"
-                                    controls={inspectorId}
-                                  />
-                                  <TurningContext value={turning}>
-                                    <Inspector
-                                      id={inspectorId}
-                                      hidden={inspectorCollapsed}
-                                      view={view}
-                                      scene={scene}
-                                      definitions={definitions}
-                                    />
-                                  </TurningContext>
-                                  <PanelAnnouncer store={panels} />
-                                  <SimulationAnnouncer store={simulations} project={project} />
-                                  <OpenWhenShown
-                                    panels={panels}
-                                    changes={changes}
-                                    comparisons={comparisons}
-                                    comments={comments}
-                                  />
-                                  <ScenarioPanel
-                                    session={scenarios}
-                                    canvas={canvas}
-                                    held={tours.playback.tour !== undefined}
-                                  />
-                                  <ProposalReviewer review={review} />
-                                  <PackageChangesReviewer />
-                                  <CodeApproval />
-                                  <ElementListPanel store={elementList} />
-                                  {asking && (
-                                    <FollowDialog
-                                      plan={asking.plan}
-                                      onConfirm={asking.confirm}
-                                      onCancel={asking.cancel}
-                                    />
-                                  )}
-                                </div>
-                              </ZoomExpansionContext>
-                            </ToursContext.Provider>
-                          </MotionContext>
-                        </HoverContext>
+                                      />
+                                      {notice !== undefined && (
+                                        <p className="shell-notice" role="alert">
+                                          {notice}
+                                        </p>
+                                      )}
+                                      <ModelPanel
+                                        id={modelPanelId}
+                                        hidden={modelCollapsed}
+                                        project={project}
+                                        definitions={definitions}
+                                        openViewId={view?.id}
+                                        comments={comments}
+                                      />
+                                      <PanelEdge
+                                        store={panels}
+                                        side="model"
+                                        controls={modelPanelId}
+                                      />
+                                      <main className="canvas-area" aria-labelledby={canvasHeading}>
+                                        <h2 id={canvasHeading} className="visually-hidden">
+                                          {view ? view.name : t('Canvas')}
+                                        </h2>
+                                        <ImageSourceContext value={images}>
+                                          <SplitView
+                                            store={panes}
+                                            layout={layout}
+                                            project={project}
+                                            onOpenBeside={openBeside}
+                                            held={tours.playback.tour !== undefined}
+                                            overlay={
+                                              <>
+                                                <CommentPins store={comments} canvas={canvas} />
+                                                <GuidanceLayer scenarios={scenarios} />
+                                                <FindBar
+                                                  project={project}
+                                                  definitions={definitions}
+                                                  viewId={view?.id}
+                                                  goTo={viewState.goTo}
+                                                />
+                                                <TourPlaybackLayer
+                                                  project={project}
+                                                  tours={tours}
+                                                  {...(onCommand ? { onPlace: placeCaption } : {})}
+                                                />
+                                              </>
+                                            }
+                                          >
+                                            {(pane, active) =>
+                                              pane.explorable ? (
+                                                <div className="explorable-pane">
+                                                  <ExplorableView
+                                                    project={project}
+                                                    explorable={pane.explorable.id}
+                                                    element={pane.explorable.element}
+                                                    onSelect={selectFromExplorable}
+                                                  />
+                                                </div>
+                                              ) : view && scene ? (
+                                                <PaneCanvas
+                                                  pane={pane}
+                                                  active={active}
+                                                  store={panes}
+                                                  project={project}
+                                                  definitions={definitions}
+                                                  editor={editor}
+                                                  emphasis={emphasis}
+                                                  explored={explored}
+                                                  lookup={lookup}
+                                                  zoom={zoom}
+                                                  selection={selection}
+                                                  onSelect={setSelection}
+                                                  onCommand={onCommand}
+                                                  theme={theme}
+                                                  scenes={scenes}
+                                                  leads={leaders.has(pane.id)}
+                                                  onCanvas={onPaneCanvas}
+                                                  shown={active ? shownCanvas : undefined}
+                                                />
+                                              ) : (
+                                                <p className="canvas-message">
+                                                  {t(
+                                                    'There is no view to draw. Make one with New view…, under Views in the Model tab.',
+                                                  )}
+                                                </p>
+                                              )
+                                            }
+                                          </SplitView>
+                                        </ImageSourceContext>
+                                      </main>
+                                      {view && scene && (
+                                        <SpacePanel
+                                          id={spacePanelId}
+                                          store={spacePanel}
+                                          project={project}
+                                          view={view}
+                                          scene={canvasScene ?? scene}
+                                          selection={selection}
+                                          client={spaceClient}
+                                          theme={theme}
+                                        />
+                                      )}
+                                      <ExplorablePanel
+                                        id={explorablePanelId}
+                                        store={explorablePanel}
+                                        space={spacePanel}
+                                        project={project}
+                                        selection={selection}
+                                        onSelect={selectFromExplorable}
+                                        onOpenBeside={openExplorableBeside}
+                                      />
+                                      <PanelEdge
+                                        store={panels}
+                                        side="inspector"
+                                        controls={inspectorId}
+                                      />
+                                      <TurningContext value={turning}>
+                                        <Inspector
+                                          id={inspectorId}
+                                          hidden={inspectorCollapsed}
+                                          view={view}
+                                          scene={scene}
+                                          definitions={definitions}
+                                        />
+                                      </TurningContext>
+                                      <PanelAnnouncer store={panels} />
+                                      <SimulationAnnouncer store={simulations} project={project} />
+                                      <OpenWhenShown
+                                        panels={panels}
+                                        changes={changes}
+                                        comparisons={comparisons}
+                                        comments={comments}
+                                      />
+                                      <ScenarioPanel
+                                        session={scenarios}
+                                        canvas={canvas}
+                                        held={tours.playback.tour !== undefined}
+                                      />
+                                      <ProposalReviewer review={review} />
+                                      <PackageChangesReviewer />
+                                      <CodeApproval />
+                                      <ExplorableApproval project={project} />
+                                      <ScriptLibraryConsent />
+                                      <ElementListPanel store={elementList} />
+                                      {asking && (
+                                        <FollowDialog
+                                          plan={asking.plan}
+                                          onConfirm={asking.confirm}
+                                          onCancel={asking.cancel}
+                                        />
+                                      )}
+                                    </div>
+                                  </ZoomExpansionContext>
+                                </ToursContext.Provider>
+                              </MotionContext>
+                            </HoverContext>
+                          </ExplorablePanelContext>
+                        </ExplorableSessionContext>
                       </SpacePanelContext>
                     </EmphasisContext.Provider>
                   </DefinitionProvider>

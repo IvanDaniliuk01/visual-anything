@@ -53,8 +53,14 @@ import {
   type VersionRef,
   type VersionsListedMessage,
   type ViewState,
+  type Author,
+  type ExplorablesListeningMessage,
+  type ScriptLibraryAsk,
+  type ScriptLibraryConsentMessage,
+  type ScriptLibraryFilesListedMessage,
+  type ScriptLibraryKeptMessage,
 } from '@visual-anything/core';
-import type { Id } from '@visual-anything/schema';
+import type { Id, ScriptLibraryDefinition } from '@visual-anything/schema';
 import {
   NO_GUIDANCE,
   applyGuidance,
@@ -149,7 +155,29 @@ export interface LiveState {
   readonly proposal?: WaitingProposal | undefined;
   /** How the last proposal closed, since this tab connected; absent before one has. */
   readonly proposalEnded?: ProposalEnded | undefined;
+  /**
+   * Claude's requests for a script library that wait for the person's consent (ADR 0107), oldest
+   * first; each goes once the person answers it, or once the program says what came of it.
+   */
+  readonly scriptLibraryConsents?: readonly ScriptLibraryConsentMessage[] | undefined;
+  /** What came of the requests for script libraries this tab was asked about, newest last. */
+  readonly scriptLibraryOutcomes?: readonly ScriptLibraryOutcome[] | undefined;
+  /**
+   * Who last changed each explorable's text since this tab connected (ADR 0107): Claude, through the
+   * program, or the person; the approval dialog says the first as "Claude, in this session".
+   */
+  readonly explorableAuthors?: ReadonlyMap<Id, Author> | undefined;
 }
+
+/** What came of a request for a script library: what was kept, or why nothing was. */
+export interface ScriptLibraryOutcome {
+  readonly requestId: string;
+  readonly kept?: ScriptLibraryDefinition;
+  readonly refused?: string;
+}
+
+/** How many outcomes of requests for script libraries the state keeps. */
+const MAX_SCRIPT_LIBRARY_OUTCOMES = 8;
 
 /**
  * Claude's proposal as the program showed it (ADR 0073), on the project as this tab knew it then: the
@@ -368,6 +396,19 @@ type Waiting =
   | { kind: 'media-put'; resolve: (result: LiveResult<MediaStoredMessage>) => void }
   | { kind: 'media-files'; resolve: (result: LiveResult<MediaFilesListedMessage>) => void }
   | { kind: 'link-fetch'; resolve: (result: LiveResult<LinkFetchedMessage>) => void }
+  | {
+      kind: 'explorables-listen';
+      resolve: (result: LiveResult<ExplorablesListeningMessage>) => void;
+    }
+  | {
+      kind: 'script-library-fetch';
+      ask: ScriptLibraryAsk;
+      resolve: (result: LiveResult<ScriptLibraryKeptMessage>) => void;
+    }
+  | {
+      kind: 'script-library-files';
+      resolve: (result: LiveResult<ScriptLibraryFilesListedMessage>) => void;
+    }
   | SolidFileWaiting
   | (Omit<SolidFileWaiting, 'kind'> & { kind: 'media' });
 
@@ -933,6 +974,86 @@ export class LiveConnection {
   }
 
   /**
+   * Asks the local program for its explorables' listener (ADR 0107): resolves with its port and the
+   * session's nonce, which every frame's address holds, or with why there is none.
+   */
+  readonly listenExplorables = (): Promise<LiveResult<ExplorablesListeningMessage>> =>
+    this.explorableRequest('explorables-listen', (requestId) => ({
+      type: 'explorables/listen',
+      requestId,
+    }));
+
+  /**
+   * Asks the local program to fetch a script library the person chose in this tab (ADR 0107), whose
+   * own dialog showed the package, its version and the registry's addresses: the program's consent
+   * for it is answered at once. Resolves with the library kept, or with why none was.
+   */
+  readonly fetchScriptLibrary = (
+    ask: ScriptLibraryAsk,
+  ): Promise<LiveResult<ScriptLibraryKeptMessage>> =>
+    this.explorableRequest(
+      'script-library-fetch',
+      (requestId) => ({ type: 'script-library/fetch', requestId, ...ask }),
+      ask,
+    );
+
+  /** Answers Claude's request for a script library with the person's consent, or without it. */
+  readonly answerScriptLibraryConsent = (requestId: string, approved: boolean): void => {
+    this.update({
+      scriptLibraryConsents: (this.state.scriptLibraryConsents ?? []).filter(
+        (each) => each.requestId !== requestId,
+      ),
+    });
+    this.sendConsent(requestId, approved);
+  };
+
+  private sendConsent(requestId: string, approved: boolean): void {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') return;
+    this.sendOn(
+      socket,
+      encodeMessage({ type: 'script-library/consented', requestId, approved }),
+      // Not the request's own id: a fetch this tab asked for keeps waiting for its answer.
+      '',
+      () => {},
+    );
+  }
+
+  /** The files of `script-libraries/` no package names (ADR 0107), each with its size. */
+  readonly listScriptLibraryFiles = (): Promise<LiveResult<ScriptLibraryFilesListedMessage>> =>
+    this.explorableRequest('script-library-files', (requestId) => ({
+      type: 'script-library-files/list',
+      requestId,
+    }));
+
+  /** Removes files of `script-libraries/` no package names, by their hashes; it cannot be undone. */
+  readonly removeScriptLibraryFiles = (
+    hashes: readonly string[],
+  ): Promise<LiveResult<ScriptLibraryFilesListedMessage>> =>
+    this.explorableRequest('script-library-files', (requestId) => ({
+      type: 'script-library-files/remove',
+      requestId,
+      hashes: [...hashes],
+    }));
+
+  private explorableRequest<T>(
+    kind: 'explorables-listen' | 'script-library-fetch' | 'script-library-files',
+    message: (requestId: string) => AppMessage,
+    ask?: ScriptLibraryAsk,
+  ): Promise<LiveResult<T>> {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') {
+      return Promise.resolve(closedResult(NOT_CONNECTED));
+    }
+    const requestId = nextRequestId();
+    const text = encodeMessage(message(requestId));
+    return new Promise((resolve) => {
+      this.waiting.set(requestId, { kind, resolve, ...(ask ? { ask } : {}) } as Waiting);
+      this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
+    });
+  }
+
+  /**
    * Asks the local program to fetch an address for the code of an approved package granted its origin
    * (ADR 0063): resolves with what the origin answered, or with why the program would not.
    */
@@ -1272,7 +1393,9 @@ export class LiveConnection {
     this.release = undefined;
     const waiting = [...this.waiting.values()];
     this.waiting.clear();
-    for (const each of waiting) each.resolve(closedResult(CLOSED_BEFORE_ANSWER));
+    const closed = closedResult(CLOSED_BEFORE_ANSWER);
+    // Every request takes a refusal the same way, however its answer reads.
+    for (const each of waiting) (each.resolve as (result: typeof closed) => void)(closed);
     return socket;
   }
 
@@ -1594,6 +1717,72 @@ export class LiveConnection {
         if (answered?.kind === 'solid-files') answered.resolve({ ok: true, answer: message });
         break;
       }
+      // Explorables (ADR 0107).
+      case 'explorables/listening': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'explorables-listen') {
+          answered.resolve({ ok: true, answer: message });
+        }
+        break;
+      }
+      case 'script-library/consent': {
+        // The person asked for it in this tab, whose own dialog said the same: it answers at once.
+        const asked = this.waiting.get(message.requestId);
+        if (
+          asked?.kind === 'script-library-fetch' &&
+          asked.ask.npm === message.npm &&
+          asked.ask.version === message.version &&
+          asked.ask.package === message.package
+        ) {
+          this.sendConsent(message.requestId, true);
+          break;
+        }
+        const waiting = (this.state.scriptLibraryConsents ?? []).filter(
+          (each) => each.requestId !== message.requestId,
+        );
+        this.update({ scriptLibraryConsents: [...waiting, message] });
+        break;
+      }
+      case 'script-library/kept':
+      case 'script-library/refused': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'script-library-fetch') {
+          answered.resolve(
+            message.type === 'script-library/kept'
+              ? { ok: true, answer: message }
+              : { ok: false, problems: [{ code: message.code, message: message.message }] },
+          );
+        } else if (
+          message.type === 'script-library/refused' &&
+          (answered?.kind === 'script-library-files' || answered?.kind === 'explorables-listen')
+        ) {
+          answered.resolve({
+            ok: false,
+            problems: [{ code: message.code, message: message.message }],
+          });
+          break;
+        }
+        const outcome: ScriptLibraryOutcome =
+          message.type === 'script-library/kept'
+            ? { requestId: message.requestId, kept: message.library }
+            : { requestId: message.requestId, refused: message.message };
+        this.update({
+          scriptLibraryConsents: (this.state.scriptLibraryConsents ?? []).filter(
+            (each) => each.requestId !== message.requestId,
+          ),
+          scriptLibraryOutcomes: [...(this.state.scriptLibraryOutcomes ?? []), outcome].slice(
+            -MAX_SCRIPT_LIBRARY_OUTCOMES,
+          ),
+        });
+        break;
+      }
+      case 'script-library-files/listed': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'script-library-files') {
+          answered.resolve({ ok: true, answer: message });
+        }
+        break;
+      }
       case 'guidance': {
         this.guidanceCount += 1;
         const guidance = applyGuidance(
@@ -1634,6 +1823,9 @@ export class LiveConnection {
       taken.kind === 'media-put' ||
       taken.kind === 'media-files' ||
       taken.kind === 'link-fetch' ||
+      taken.kind === 'explorables-listen' ||
+      taken.kind === 'script-library-fetch' ||
+      taken.kind === 'script-library-files' ||
       taken.kind === 'claude-setup'
         ? undefined
         : taken;
@@ -1648,10 +1840,37 @@ export class LiveConnection {
       return;
     }
     this.recovering = false;
-    this.update({ project: next, history: message.history });
+    this.update({
+      project: next,
+      history: message.history,
+      ...this.explorableAuthorsAfter(message),
+    });
     if (answered === undefined) return;
     if (message.warnings.length > 0) this.notify('warning', sentences(message.warnings));
     answered.resolve(done(message));
+  }
+
+  /**
+   * Who changed the explorables' texts a change touches: its author for an action done or redone;
+   * an undo leaves who wrote the text it brings back unknown, which reads as from outside.
+   */
+  private explorableAuthorsAfter(message: ProjectChangedMessage): {
+    explorableAuthors?: ReadonlyMap<Id, Author>;
+  } {
+    const touched: Id[] = [];
+    for (const operation of message.operations) {
+      if (!('collection' in operation) || operation.collection.name !== 'explorableTexts') continue;
+      if (operation.op === 'insert' || operation.op === 'replace') {
+        touched.push((operation.item as { id: Id }).id);
+      } else if (operation.op === 'remove') touched.push(operation.key);
+    }
+    if (touched.length === 0) return {};
+    const authors = new Map(this.state.explorableAuthors);
+    for (const id of touched) {
+      if (message.kind === 'undo') authors.delete(id);
+      else authors.set(id, message.author);
+    }
+    return { explorableAuthors: authors };
   }
 
   /** Keeps the proposal shown, on the project as this tab knows it now. */
@@ -1728,7 +1947,8 @@ export class LiveConnection {
             : fill('Could not redo: {why}', { why });
       this.notify('error', notice);
     }
-    answered.resolve({ ok: false, problems: message.problems });
+    const refusal = { ok: false as const, problems: message.problems };
+    (answered.resolve as (result: typeof refusal) => void)(refusal);
   }
 
   /**

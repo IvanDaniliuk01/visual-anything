@@ -3,7 +3,7 @@ import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
 import type { Scene } from '../canvas/scene';
 import type { Translator } from '../i18n';
-import type { PaneLayout } from './panes';
+import { showsView, type PaneLayout } from './panes';
 
 /** The view a pane shows: the one it names, or the project's first while it names none or a gone one. */
 export function viewOf(project: ProjectSnapshot, view: Id | undefined): ViewFile | undefined {
@@ -43,6 +43,7 @@ export function leadingPanes(project: ProjectSnapshot, layout: PaneLayout): Read
   const led = new Map<Id | undefined, string>();
   if (active) led.set(shown(active.view), active.id);
   for (const pane of layout.panes) {
+    if (!showsView(pane)) continue;
     const view = shown(pane.view);
     if (!led.has(view)) led.set(view, pane.id);
   }

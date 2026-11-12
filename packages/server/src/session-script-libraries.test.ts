@@ -319,6 +319,23 @@ describe('the files of script-libraries/ no package names', () => {
     const folder = join(session.folder, 'script-libraries');
     expect(await lstat(join(folder, `${hash}.js`)).catch(() => undefined)).toBeUndefined();
     expect(await lstat(join(folder, `${hash}.license.txt`)).catch(() => undefined)).toBeUndefined();
+    // An app lists them, and removes them by hash, through protocol 15's messages.
+    await ask(session, app, { type: 'script-library-files/list', requestId: 'l1' });
+    expect(app.ofType('script-library-files/listed')).toEqual([
+      { type: 'script-library-files/listed', requestId: 'l1', files: [] },
+    ]);
+    await ask(session, app, {
+      type: 'script-library-files/remove',
+      requestId: 'l2',
+      hashes: [hash],
+    });
+    expect(app.ofType('script-library-files/listed')[1]).toEqual({
+      type: 'script-library-files/listed',
+      requestId: 'l2',
+      files: [],
+      removed: [],
+      kept: [{ hash, message: expect.any(String) }],
+    });
     // Undo brings the definition back; its file is warned about as missing.
     await session.undo();
     expect(session.warnings().map((each) => each.message)).toEqual([
