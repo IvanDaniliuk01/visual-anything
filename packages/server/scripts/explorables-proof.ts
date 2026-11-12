@@ -1,52 +1,59 @@
 /**
- * The explorables' proof in real browsers (ADR 0107, A10.2), which the developer runs, outside the
- * test run:
+ * The explorables' proof in real browsers (ADR 0107, A10.2 and A10.5): the developer's check of A10's
+ * "Done when" that only a browser can show, run outside the test run:
  *
- *     pnpm exec tsx packages/server/scripts/explorables-proof.ts [chrome] [firefox]
+ *     pnpm exec tsx packages/server/scripts/explorables-proof.ts [chrome] [firefox] [--json]
  *
- * It starts the program's own frame listener and a page that stands in for the app, each on a free
- * port from 47800 to 47899, with the `va` runtime the listener serves, and opens that page in each
- * browser headless, with frame isolation as the browser ships it (no puppeteer, which turns it off).
- * The page frames, with the app's own host: the quadratic sample's explorable (it loads, gets its
- * data, posts a still); a probe of what a frame may reach (network, storage, the parent, the token,
- * `eval`); how styles apply under `style-src 'unsafe-inline'` (a library's injected `<style>`, a
- * `style` attribute, the CSSOM) while no `@import`, `url()` or font reaches an address, and KaTeX's
- * two ways of rendering; a page that loops, which the watchdog
- * removes while the page stays responsive; and pages that reload or navigate themselves, which get
- * no second hello. A sink on another port counts every request that reaches it: it must count none.
+ * With no browser named it runs both. It starts the program's own frame listener and a page that
+ * stands in for the app, each on a free port from 47800 to 47899, with the `va` runtime the listener
+ * serves, and opens that page in each browser headless with frame isolation on: Chrome with
+ * `--site-per-process` (which puppeteer turns off; no puppeteer here), Firefox with Fission. The page
+ * frames, with the app's own host (`host.ts`):
+ * - the quadratic sample's explorable, which loads, gets its data and posts a still, and its still
+ *   taken in a hidden frame as the canvas takes it;
+ * - a probe of what a frame may reach (network, storage, the parent, the token, `eval`);
+ * - how styles apply under the frame's `style-src 'unsafe-inline'` while no `@import`, `url()` or
+ *   font reaches an address, and KaTeX's two ways of rendering;
+ * - a page that loops, which the watchdog removes within about 4 s of its last answer while the
+ *   page keeps drawing its frames, and a fresh frame after it, which answers at once;
+ * - pages that reload or navigate themselves, which are removed and get no second hello;
+ * - the quadratic sample's tour played as its stage plays it: one frame that stays loaded and gets
+ *   each step's data, worked out from `examples/quadratic-function` by the core's own functions,
+ *   with each step's parameters and the step under way; and the sample's explorable drawing another
+ *   still for each step's parameters.
+ * A sink on another port counts every request that reaches it: it must count none.
  *
- * Browsers are found at their usual places, or given by CHROME and FIREFOX. A browser not found is
- * said and skipped. It writes nothing in the repository.
+ * It prints one line per check, PASS or FAIL, for each browser, and exits with 1 when a check failed;
+ * `--json` prints what each page reported too. A browser not found is said and skipped, which is not
+ * a failure: Chrome and Firefox are found at their usual places, or given by CHROME and FIREFOX. Each
+ * browser has 120 s, and the whole run 5 minutes, after which it stops everything and exits with 2.
+ * It writes nothing in the repository.
  */
-import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import { createServer as createNet } from 'node:net';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { approvalHashOf, buildFrame, explorableTextHash } from '@visual-anything/core';
+import {
+  approvalHashOf,
+  buildFrame,
+  explorableData,
+  explorableTextHash,
+  stepExplorableValues,
+  type VaData,
+} from '@visual-anything/core';
 import { VA_RUNTIME } from '@visual-anything/app/src/explorables/runtime/va-runtime.generated';
 import { startFrameListener } from '../src/explorables/listener';
+import { loadProject } from '../src/project';
+import { freePort, runHeadless, type BrowserName } from './explorables-browsers';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
-async function freePort(taken: Set<number>): Promise<number> {
-  for (let port = 47800; port <= 47899; port += 1) {
-    if (taken.has(port)) continue;
-    const free = await new Promise<boolean>((resolve) => {
-      const probe = createNet();
-      probe.once('error', () => resolve(false));
-      probe.listen(port, '127.0.0.1', () => probe.close(() => resolve(true)));
-    });
-    if (free) {
-      taken.add(port);
-      return port;
-    }
-  }
-  throw new Error('No free port from 47800 to 47899.');
-}
+// The whole run's limit: whatever hangs, everything stops within 5 minutes.
+const deadline = setTimeout(() => {
+  console.error('The proof did not finish within 5 minutes: stopped.');
+  process.exit(2);
+}, 300_000);
 
 const taken = new Set<number>();
 const ports = {
@@ -56,6 +63,30 @@ const ports = {
 };
 const appOrigin = `http://127.0.0.1:${ports.app}`;
 const SINK = `http://127.0.0.1:${ports.sink}`;
+
+// ——— The sample's tour, as its stage gives it to the step's explorable ———
+
+const SAMPLE = join(ROOT, 'examples/quadratic-function');
+const loaded = await loadProject(SAMPLE);
+if (!loaded.ok) throw new Error(`The quadratic sample does not open: ${loaded.errors[0]?.message}`);
+const { project } = loaded;
+const tour = project.tours.find((each) => each.steps.some((step) => step.explorable));
+if (!tour) throw new Error('The quadratic sample has no tour whose steps show an explorable.');
+const tourSteps = tour.steps.filter((step) => step.explorable !== undefined);
+const SAMPLE_EXPLORABLE = tourSteps[0]?.explorable?.id ?? '';
+/** What `TourExplorable` gives its `ExplorableView`, which `useExplorableData` makes into data. */
+const stepData: VaData[] = tourSteps.map((step) => {
+  const values = stepExplorableValues(project, step);
+  return explorableData(project, {
+    explorable: SAMPLE_EXPLORABLE,
+    ...(values === undefined ? {} : { parameters: values }),
+    theme: 'light',
+    language: 'en',
+    size: { width: 480, height: 360 },
+    step: { kind: 'tour', id: tour.id, step: step.id, title: step.caption.title },
+  });
+});
+const sampleText = readFileSync(join(SAMPLE, 'explorables/quadratic.html'), 'utf8');
 
 // ——— The explorables ———
 
@@ -71,13 +102,17 @@ const katexStyle = readFileSync(join(katexDir, 'katex.min.css'), 'utf8').replace
 // `innerHTML` and the network are what they try, inside the sandboxed frame, never in this program.
 const REPORT = `const report = (name, r) => setTimeout(() => { console.error(name + ' ' + JSON.stringify(r)); va.ready(); }, 1500);`;
 
-const pages: Record<string, { text: string; libraries?: { global: string; text: string }[] }> = {
-  quadratic: {
-    text: readFileSync(
-      join(ROOT, 'examples/quadratic-function/explorables/quadratic.html'),
-      'utf8',
-    ),
-  },
+interface Page {
+  /** Its explorable's id; `proof.<name>` when left out. */
+  id?: string;
+  text: string;
+  libraries?: { global: string; text: string }[];
+}
+
+const pages: Record<string, Page> = {
+  quadratic: { text: sampleText },
+  // The sample's own explorable, under its own id, for its tour.
+  sample: { id: SAMPLE_EXPLORABLE, text: sampleText },
   probe: {
     text: `<!doctype html><html><body><p>probe</p><script>
 ${REPORT}
@@ -155,6 +190,16 @@ report('katex', r);
   navigate: {
     text: `<!doctype html><p>navigate</p><script>va.on('change', () => { va.ready(); setTimeout(() => { location.href = '${SINK}/navigated'; }, 300); });</script>`,
   },
+  // Says what each data it gets holds, and which document it is, so that a reload would show.
+  tourEcho: {
+    text: `<!doctype html><p>tour</p><script>
+const me = String(Math.random()).slice(2, 10);
+const say = (d) => console.error('tour ' + JSON.stringify({ document: me, parameters: d.parameters, step: d.step }));
+va.on('change', say);
+if (va.data) say(va.data);
+va.ready();
+</script>`,
+  },
 };
 
 const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
@@ -162,7 +207,7 @@ const frames = Object.fromEntries(
   Object.entries(pages).map(([name, page]) => [
     name,
     {
-      id: `proof.${name}`,
+      id: page.id ?? `proof.${name}`,
       hash: approvalHashOf(
         explorableTextHash(page.text),
         (page.libraries ?? []).map((library) => sha256(library.text)),
@@ -176,9 +221,11 @@ const frames = Object.fromEntries(
 const listener = await startFrameListener({
   port: ports.listener,
   serve: (explorable, hash) => {
-    const name = explorable.replace(/^proof\./, '');
-    const page = pages[name];
-    if (!page || frames[name]?.hash !== hash) {
+    const name = Object.keys(frames).find(
+      (each) => frames[each]?.id === explorable && frames[each].hash === hash,
+    );
+    const page = name === undefined ? undefined : pages[name];
+    if (!page) {
       return Promise.resolve({ ok: false, status: 404, message: 'Not this proof’s frame.' });
     }
     const built = buildFrame({
@@ -203,7 +250,7 @@ const bundled = await build({
 const harness = bundled.outputFiles[0]?.text ?? '';
 
 /** What the page reports, for the browser running now. */
-let resolveResults: (value: unknown) => void = () => {};
+let resolveResults: (value: Results) => void = () => {};
 const appPolicy = `default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'self'; img-src data: blob:; frame-src http://*.localhost:${ports.listener}`;
 const app: Server = createServer((request, response) => {
   if (request.url === '/') {
@@ -217,14 +264,18 @@ const app: Server = createServer((request, response) => {
   } else if (request.url === '/config') {
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(
-      JSON.stringify({ listener: { port: listener.port, nonce: listener.nonce }, frames }),
+      JSON.stringify({
+        listener: { port: listener.port, nonce: listener.nonce },
+        frames,
+        tour: { echo: 'tourEcho', explorable: 'sample', steps: stepData },
+      }),
     );
   } else if (request.url === '/results' && request.method === 'POST') {
     let body = '';
     request.on('data', (chunk: Buffer) => (body += chunk.toString('utf8')));
     request.on('end', () => {
       response.writeHead(204).end();
-      resolveResults(JSON.parse(body));
+      resolveResults(JSON.parse(body) as Results);
     });
   } else response.writeHead(404).end();
 });
@@ -241,74 +292,231 @@ sink.on('upgrade', (request, socket) => {
 });
 await new Promise<void>((resolve) => sink.listen(ports.sink, '127.0.0.1', resolve));
 
+// ——— What each check holds ———
+
+interface Outcome {
+  ready?: number;
+  errors: string[];
+  stopped?: { end: string; at: number };
+  still?: { width: number; bytes: number; png: boolean; pixelWidth: number };
+  longestGap?: number;
+  longestFrame?: number;
+  pageFrames?: number;
+}
+
+interface Results {
+  failed?: string;
+  userAgent?: string;
+  quadratic?: Outcome;
+  probe?: Outcome;
+  styles?: Outcome;
+  katex?: Outcome;
+  loop?: Outcome;
+  afterLoop?: Outcome;
+  reload?: Outcome;
+  navigate?: Outcome;
+  hiddenStill?: { ok?: boolean; width?: number; height?: number; errors?: string[]; ms?: number };
+  tour?: {
+    heard?: { document: string; parameters: unknown; step: unknown }[];
+    stopped?: string;
+    failed?: string;
+  };
+  tourStills?: {
+    stills?: { step: unknown; bytes: number; digest: string }[];
+    stopped?: string;
+    errors?: string[];
+    failed?: string;
+  };
+  tokenStillHere?: boolean;
+}
+
+interface Check {
+  name: string;
+  ok: boolean;
+  detail: string;
+}
+
+/** What a page's report said: the JSON after its name, among the frame's errors. */
+function said(outcome: Outcome | undefined, name: string): Record<string, unknown> | undefined {
+  const line = outcome?.errors.find((each) => each.startsWith(`${name} `));
+  return line === undefined
+    ? undefined
+    : (JSON.parse(line.slice(name.length + 1)) as Record<string, unknown>);
+}
+
+/** The probes that must be refused. */
+const REFUSED = [
+  'parentDocument',
+  'parentToken',
+  'parentSecret',
+  'localStorage',
+  'sessionStorage',
+  'cookie',
+  'indexedDB',
+  'eval',
+  'Function',
+];
+
+/** How long the watchdog may take after the frame's last answer: 3 s silent, pinged every second. */
+const LOOP_REMOVED_MS = 4_500;
+/** The longest the page may go without drawing while a frame loops: two frames at 60 fps. */
+const PAGE_FRAME_MS = 34;
+
+function checksOf(results: Results, sinkReached: string[]): Check[] {
+  const checks: Check[] = [];
+  const check = (name: string, ok: boolean, detail: string) => checks.push({ name, ok, detail });
+  if (results.failed !== undefined) {
+    check('The page ran', false, results.failed);
+    return checks;
+  }
+  const q = results.quadratic;
+  check(
+    'A frame loads and gets its data',
+    q?.ready !== undefined && q.errors.length === 0,
+    `ready in ${q?.ready ?? '—'} ms, ${q?.errors.length ?? '—'} console errors`,
+  );
+  check(
+    'A still arrives',
+    q?.still?.png === true && q.still.pixelWidth === 512,
+    `${q?.still?.bytes ?? 0} bytes of PNG, ${q?.still?.pixelWidth ?? 0} pixels wide`,
+  );
+  const hidden = results.hiddenStill;
+  check(
+    'A still taken in a hidden frame, as the canvas takes it',
+    hidden?.ok === true && (hidden.errors ?? []).length === 0,
+    `${hidden?.width ?? 0} × ${hidden?.height ?? 0} in ${hidden?.ms ?? '—'} ms`,
+  );
+  const probe = said(results.probe, 'probe') ?? {};
+  const notRefused = REFUSED.filter((key) => !String(probe[key]).startsWith('blocked'));
+  check(
+    'The frame reaches no parent, token or storage, and runs no eval',
+    Object.keys(probe).length > 0 && notRefused.length === 0 && probe.origin === 'null',
+    notRefused.length > 0
+      ? `not refused: ${notRefused.map((key) => `${key} = ${String(probe[key])}`).join(', ')}`
+      : `all ${REFUSED.length} refused; its origin is ${String(probe.origin)}`,
+  );
+  const ran = Object.entries(probe).filter(([, value]) => value === 'REACHED' || value === 'RAN');
+  check(
+    'The frame reaches no network: nothing reached the sink',
+    Object.keys(probe).length > 0 && ran.length === 0 && sinkReached.length === 0,
+    sinkReached.length > 0 || ran.length > 0
+      ? `reached: ${[...ran.map(([key]) => key), ...sinkReached].join(', ')}`
+      : 'fetch, XHR, WebSocket, EventSource, an image, a beacon, a nested frame, a prefetch, a popup, a worker and an injected script: 0 requests, none ran',
+  );
+  const styles = said(results.styles, 'styles') ?? {};
+  const unstyled = ['hashed', 'attribute', 'injected', 'rule', 'cssom', 'adopted'].filter(
+    (key) => styles[key] !== 'applies',
+  );
+  const styleAddresses = sinkReached.filter((each) => each.includes('/style-')).length;
+  check(
+    'Styles apply and reach nothing',
+    Object.keys(styles).length > 0 && unstyled.length === 0 && styleAddresses === 0,
+    `${unstyled.length === 0 ? 'all six ways of styling apply' : `not applied: ${unstyled.join(', ')}`}; ${styleAddresses} style addresses reached`,
+  );
+  const katex = said(results.katex, 'katex') ?? {};
+  const counted = (key: string) => katex[key] as { styled: number; applied: number } | undefined;
+  const render = counted('render');
+  const markup = counted('renderToString');
+  check(
+    'KaTeX is styled both ways',
+    render !== undefined &&
+      markup !== undefined &&
+      render.styled > 0 &&
+      render.applied === render.styled &&
+      markup.applied === markup.styled,
+    `render ${render?.applied ?? 0} of ${render?.styled ?? 0}, renderToString ${markup?.applied ?? 0} of ${markup?.styled ?? 0}`,
+  );
+  const loop = results.loop;
+  const removedAfter =
+    loop?.stopped && loop.ready !== undefined ? loop.stopped.at - loop.ready : undefined;
+  check(
+    'A frame that loops is removed within about 4 s',
+    loop?.stopped?.end === 'silent' &&
+      removedAfter !== undefined &&
+      removedAfter <= LOOP_REMOVED_MS,
+    `${loop?.stopped?.end ?? 'not stopped'}, ${removedAfter === undefined ? '—' : (removedAfter / 1000).toFixed(1)} s after it was ready (it loops from 0.3 s after)`,
+  );
+  check(
+    'The app keeps its frames while it loops',
+    loop?.longestFrame !== undefined && loop.longestFrame <= PAGE_FRAME_MS,
+    `longest gap between the page's frames ${loop?.longestFrame ?? '—'} ms over ${loop?.pageFrames ?? 0} frames; its thread's longest busy stretch ${loop?.longestGap ?? '—'} ms`,
+  );
+  check(
+    'A fresh frame after the loop answers at once',
+    results.afterLoop?.ready !== undefined && results.afterLoop.ready < 2_000,
+    `ready in ${results.afterLoop?.ready ?? '—'} ms`,
+  );
+  check(
+    'A frame that reloads itself is stopped, with no second hello',
+    results.reload?.stopped?.end === 'left',
+    `${results.reload?.stopped?.end ?? 'not stopped'} at ${results.reload?.stopped?.at ?? '—'} ms`,
+  );
+  check(
+    'A frame that navigates itself is stopped, with no second hello',
+    results.navigate?.stopped?.end === 'left' &&
+      !sinkReached.some((each) => each.includes('/navigated')),
+    `${results.navigate?.stopped?.end ?? 'not stopped'} at ${results.navigate?.stopped?.at ?? '—'} ms`,
+  );
+  check('The app keeps its token', results.tokenStillHere === true, String(results.tokenStillHere));
+  const heard = results.tour?.heard ?? [];
+  const documents = new Set(heard.map((each) => each.document));
+  const wrong = stepData.filter((data) => {
+    const got = heard.find((each) => JSON.stringify(each.step) === JSON.stringify(data.step));
+    return !got || JSON.stringify(got.parameters) !== JSON.stringify(data.parameters);
+  });
+  check(
+    "A tour step's explorable gets its step's parameters, in one frame",
+    stepData.length > 0 &&
+      wrong.length === 0 &&
+      documents.size === 1 &&
+      results.tour?.stopped === undefined,
+    `${stepData.length - wrong.length} of ${stepData.length} steps of “${tour?.name ?? ''}” heard with their parameters and step, in ${documents.size} document${documents.size === 1 ? '' : 's'}${results.tour?.stopped ? `; stopped: ${results.tour.stopped}` : ''}`,
+  );
+  const stills = results.tourStills?.stills ?? [];
+  const distinctParameters = new Set(stepData.map((data) => JSON.stringify(data.parameters))).size;
+  const distinctStills = new Set(stills.filter((each) => each.bytes > 0).map((each) => each.digest))
+    .size;
+  check(
+    "The sample's explorable draws each step's parameters",
+    stills.length === stepData.length &&
+      distinctStills === distinctParameters &&
+      (results.tourStills?.errors ?? []).length === 0,
+    `${distinctStills} distinct stills for ${distinctParameters} distinct sets of parameters over ${stills.length} steps`,
+  );
+  return checks;
+}
+
 // ——— The browsers ———
 
-const BROWSERS: Record<string, string[]> = {
-  chrome: [
-    process.env.CHROME ?? '',
-    'C:/Program Files/Google/Chrome/Application/chrome.exe',
-    'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-    '/usr/bin/google-chrome',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  ],
-  firefox: [
-    process.env.FIREFOX ?? '',
-    'C:/Program Files/Mozilla Firefox/firefox.exe',
-    'C:/Program Files (x86)/Mozilla Firefox/firefox.exe',
-    '/usr/bin/firefox',
-    '/Applications/Firefox.app/Contents/MacOS/firefox',
-  ],
-};
-
-async function runIn(name: string): Promise<unknown> {
-  const path = BROWSERS[name]?.find((each) => each !== '' && existsSync(each));
-  if (!path) return { skipped: `${name} was not found; give its path in ${name.toUpperCase()}.` };
-  const profile = mkdtempSync(join(tmpdir(), `va-proof-${name}-`));
-  const address = `${appOrigin}/`;
-  const args =
-    name === 'chrome'
-      ? [
-          '--headless=new',
-          `--user-data-dir=${profile}`,
-          '--no-first-run',
-          '--no-default-browser-check',
-          '--disable-extensions',
-          address,
-        ]
-      : ['-headless', '-no-remote', '-profile', profile, address];
+const args = process.argv.slice(2);
+const asked = args.filter((each): each is BrowserName => each === 'chrome' || each === 'firefox');
+const report: Record<string, unknown> = {};
+let failed = false;
+for (const name of asked.length > 0 ? asked : (['chrome', 'firefox'] as const)) {
   reached.length = 0;
-  const results = new Promise<unknown>((resolve) => {
+  const results = new Promise<Results>((resolve) => {
     resolveResults = resolve;
   });
-  const child = spawn(path, args, { stdio: 'ignore' });
-  const outcome = await Promise.race([
-    results,
-    new Promise((resolve) =>
-      setTimeout(() => resolve({ failed: 'No results within 120 s.' }), 120_000),
-    ),
-  ]);
-  child.kill();
-  await new Promise((resolve) => setTimeout(resolve, 1500));
-  try {
-    rmSync(profile, { recursive: true, force: true, maxRetries: 5 });
-  } catch {
-    // The browser may still hold its profile for a moment; the system's temporary folder keeps it.
+  const run = await runHeadless(name, `${appOrigin}/`, results, { timeoutMs: 120_000 });
+  if ('skipped' in run) {
+    console.log(`${name}: skipped. ${run.skipped}`);
+    report[name] = run;
+    continue;
   }
-  return {
-    browser: path,
-    outcome,
-    sinkReached: [...reached],
-    // The styles page's @import, url() and font addresses: each must reach the sink 0 times.
-    styleAddressesReached: reached.filter((each) => each.includes('/style-')).length,
-  };
+  const outcome: Results = run.outcome;
+  const checks = checksOf(outcome, [...reached]);
+  console.log(`${name}: ${outcome.userAgent ?? run.browser}`);
+  for (const each of checks) {
+    console.log(`  ${each.ok ? 'PASS' : 'FAIL'}  ${each.name}: ${each.detail}`);
+  }
+  const passed = checks.filter((each) => each.ok).length;
+  console.log(`  ${passed} of ${checks.length} checks pass.`);
+  if (passed < checks.length) failed = true;
+  report[name] = { browser: run.browser, outcome, sinkReached: [...reached], checks };
 }
-
-const wanted = process.argv.slice(2).filter((each) => each in BROWSERS);
-const report: Record<string, unknown> = {};
-for (const name of wanted.length > 0 ? wanted : Object.keys(BROWSERS)) {
-  report[name] = await runIn(name);
-}
-console.log(JSON.stringify(report, null, 2));
+if (args.includes('--json')) console.log(JSON.stringify(report, null, 2));
 await listener.close();
 await new Promise((resolve) => app.close(resolve));
 await new Promise((resolve) => sink.close(resolve));
+clearTimeout(deadline);
+process.exitCode = failed ? 1 : 0;

@@ -12,6 +12,8 @@ import { takeStill } from '../still-taker';
 interface Config {
   listener: FrameListener;
   frames: Record<string, { id: string; hash: string }>;
+  /** A tour's steps as its stage gives them to the step's explorable: the data of each, in order. */
+  tour: { echo: string; explorable: string; steps: VaData[] };
 }
 
 interface Outcome {
@@ -22,6 +24,10 @@ interface Outcome {
   selected: string[];
   /** The longest the page's thread was busy while the frame ran, in milliseconds. */
   longestGap?: number;
+  /** The longest time between two frames the page drew while the frame ran, in milliseconds. */
+  longestFrame?: number;
+  /** How many frames the page drew while the frame ran. */
+  pageFrames?: number;
 }
 
 const DATA: VaData = {
@@ -72,13 +78,26 @@ function run(
     longest = Math.max(longest, now - last);
     last = now;
   }, 10);
+  // The page's own frames: the largest gap between two it drew, as the app's canvas would draw them.
+  let lastFrame: number | undefined;
+  let longestFrame = 0;
+  let pageFrames = 0;
+  let drawing = requestAnimationFrame(function tick(now) {
+    if (lastFrame !== undefined) longestFrame = Math.max(longestFrame, now - lastFrame);
+    lastFrame = now;
+    pageFrames += 1;
+    drawing = requestAnimationFrame(tick);
+  });
   return new Promise((resolve) => {
     let done = false;
     const finish = () => {
       if (done) return;
       done = true;
       clearInterval(probe);
+      cancelAnimationFrame(drawing);
       outcome.longestGap = Math.round(longest);
+      outcome.longestFrame = Math.round(longestFrame);
+      outcome.pageFrames = pageFrames;
       host.dispose();
       element.remove();
       resolve(outcome);
@@ -117,6 +136,116 @@ function run(
     document.body.append(element);
     setTimeout(finish, options.wait ?? 15_000);
   });
+}
+
+/**
+ * A tour played through its steps, as the stage plays it (`TourExplorable`): one frame for the
+ * step's explorable, which stays loaded from one step to the next and only gets each step's data.
+ * The echo page says what each data it got held; the step moves on once it said it.
+ */
+function playTour(config: Config): Promise<unknown> {
+  const { steps } = config.tour;
+  const frame = config.frames[config.tour.echo];
+  const first = steps[0];
+  if (!frame || !first) return Promise.resolve({ failed: 'No tour to play.' });
+  const heard: { document: string; parameters: unknown; step: unknown }[] = [];
+  const element = document.createElement('iframe');
+  element.setAttribute('sandbox', 'allow-scripts');
+  element.src = newFrameAddress(config.listener, frame.id, frame.hash);
+  return new Promise((resolve) => {
+    let at = 0;
+    let stopped: FrameEnd | undefined;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      host.dispose();
+      element.remove();
+      resolve({ heard, stopped, sent: steps.length });
+    };
+    const host = new FrameHost(element, first, {
+      error: (message) => {
+        if (!message.startsWith('tour ')) return;
+        const said = JSON.parse(message.slice(5)) as (typeof heard)[number];
+        const last = heard[heard.length - 1];
+        if (last && JSON.stringify(last) === JSON.stringify(said)) return;
+        heard.push(said);
+        const wanted = steps[at];
+        if (JSON.stringify(said.step) !== JSON.stringify(wanted?.step)) return;
+        at += 1;
+        const next = steps[at];
+        if (next) host.setData(next);
+        else setTimeout(finish, 300);
+      },
+      stopped: (end) => {
+        stopped = end;
+        finish();
+      },
+    });
+    document.body.append(element);
+    setTimeout(finish, 15_000);
+  });
+}
+
+/**
+ * The quadratic sample's explorable through the tour's steps, in one frame as the stage keeps it: its
+ * still after each step's data, whose digest differs where the step's parameters draw another curve.
+ */
+function tourStills(config: Config): Promise<unknown> {
+  const frame = config.frames[config.tour.explorable];
+  const { steps } = config.tour;
+  const first = steps[0];
+  if (!frame || !first) return Promise.resolve({ failed: 'No explorable to play the tour with.' });
+  const element = document.createElement('iframe');
+  element.setAttribute('sandbox', 'allow-scripts');
+  element.width = '640';
+  element.height = '420';
+  element.src = newFrameAddress(config.listener, frame.id, frame.hash);
+  const stills: { step: unknown; bytes: number; digest: string }[] = [];
+  let ready: () => void = () => undefined;
+  const readied = new Promise<void>((resolve) => (ready = resolve));
+  let gotStill: (png: Uint8Array) => void = () => undefined;
+  let stopped: FrameEnd | undefined;
+  const errors: string[] = [];
+  const host = new FrameHost(element, first, {
+    ready: () => ready(),
+    error: (message) => errors.push(message),
+    still: (_width, png) => gotStill(png),
+    stopped: (end) => {
+      stopped = end;
+      ready();
+      gotStill(new Uint8Array());
+    },
+  });
+  document.body.append(element);
+  const within = <T>(promise: Promise<T>, ms: number, otherwise: T) =>
+    Promise.race([promise, sleep(ms).then(() => otherwise)]);
+  return (async () => {
+    await within(readied, 10_000, undefined);
+    for (const data of steps) {
+      if (stopped) break;
+      host.setData(data);
+      await sleep(600);
+      const png = await within(
+        new Promise<Uint8Array>((resolve) => {
+          gotStill = resolve;
+          host.askStill(512);
+        }),
+        10_000,
+        new Uint8Array(),
+      );
+      const digest = Array.from(
+        new Uint8Array(await crypto.subtle.digest('SHA-256', png.slice())),
+        (byte) => byte.toString(16).padStart(2, '0'),
+      )
+        .join('')
+        .slice(0, 16);
+      stills.push({ step: data.step, bytes: png.byteLength, digest });
+    }
+    host.dispose();
+    element.remove();
+    return { stills, stopped, errors };
+  })();
 }
 
 async function main() {
@@ -175,6 +304,8 @@ async function main() {
       framesLeft: document.querySelectorAll('iframe').length,
     });
   }
+  report('tour', await playTour(config));
+  report('tourStills', await tourStills(config));
   report('tokenStillHere', sessionStorage.getItem('visual-anything.token') === SECRET);
   await fetch('/results', { method: 'POST', body: JSON.stringify(results) });
 }
