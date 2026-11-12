@@ -4,7 +4,7 @@
  * styles of routes (ADR 0069), faces (ADR 0083) and solids (ADR 0075). Mermaid and Structurizr draw each shape by its
  * kind and each relation in their own style, so each says, in its report, how many it drew so.
  */
-import type { ElementShape, RelationLine } from '../canvas/scene';
+import type { ElementShape, PictureShape, RelationLine } from '../canvas/scene';
 import { t, type PluralText } from '../i18n';
 
 const FREE_GEOMETRY: PluralText = {
@@ -31,9 +31,20 @@ const FREE_PICTURES: PluralText = {
     '{count} pictures are left out: pictures are drawn only in the canvas, the PNG, the SVG, the PDF and the read-only page.',
 };
 
-/** What a text export says of the pictures it leaves out (ADR 0098). */
-export function lostPictures(count: number): string[] {
-  return count > 0 ? [t(FREE_PICTURES, { count })] : [];
+const LINK_CARDS: PluralText = {
+  one: 'One link card is left out: link cards are drawn only in the canvas, the PNG, the SVG, the PDF and the read-only page.',
+  other:
+    '{count} link cards are left out: link cards are drawn only in the canvas, the PNG, the SVG, the PDF and the read-only page.',
+};
+
+/** What a text export says of the pictures and link cards it leaves out (ADR 0098). */
+export function lostPictures(pictures: readonly Pick<PictureShape, 'link'>[]): string[] {
+  const cards = pictures.filter((each) => each.link !== undefined).length;
+  const count = pictures.length - cards;
+  return [
+    ...(count > 0 ? [t(FREE_PICTURES, { count })] : []),
+    ...(cards > 0 ? [t(LINK_CARDS, { count: cards })] : []),
+  ];
 }
 
 const ROUTE_STYLES: PluralText = {

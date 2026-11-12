@@ -4300,6 +4300,43 @@ export const ui: Catalog = {
     'El navegador no pudo mostrar un cuadro de "{name}": se agrega sin póster, y se reproduce al hacer clic si el navegador puede reproducirlo.',
   'Pointing at a video.': 'Apunta a un video.',
   'Pointing at the video “{name}”.': 'Apunta al video “{name}”.',
+  // A8.3: link cards (ADR 0098, stage 3).
+  'Link card': 'Tarjeta web',
+  'Link card…': 'Tarjeta web…',
+  'Add a link card': 'Agregar una tarjeta web',
+  'Web address': 'Dirección web',
+  'Write an address that starts with https://.': 'Escribir una dirección que empiece con https://.',
+  'Link card: {title}, {host}': 'Tarjeta web: {title}, {host}',
+  'Pointing at the link card “{title}”.': 'Apunta a la tarjeta web “{title}”.',
+  'Open {host}': 'Abrir {host}',
+  'A link card: drawing only, not part of the model. A click on its address opens it in a new tab; nothing of the page is shown inside Visual Anything.':
+    'Una tarjeta web: solo dibujo, no forma parte del modelo. Un clic en su dirección la abre en una pestaña nueva; nada de la página se muestra dentro de Visual Anything.',
+  Address: 'Dirección',
+  'A link card needs a title.': 'Una tarjeta web necesita un título.',
+  'Its picture:': 'Su imagen:',
+  'Add a picture…': 'Agregar una imagen…',
+  'Another picture…': 'Otra imagen…',
+  'Take its picture out': 'Quitar su imagen',
+  'A link card’s picture is a PNG, JPEG, WebP, GIF or SVG file.':
+    'La imagen de una tarjeta web es un archivo PNG, JPEG, WebP, GIF o SVG.',
+  'Fetch the preview': 'Traer la vista previa',
+  'Fetching the preview…': 'Trayendo la vista previa…',
+  'Open the address': 'Abrir la dirección',
+  'Fetch the preview reads {host} once, over https, and keeps its title, description and image. It runs nothing on the page and sends no cookie; it is the only time Visual Anything reaches the internet.':
+    'Traer la vista previa lee {host} una vez, por https, y guarda su título, su descripción y su imagen. No ejecuta nada de la página ni envía cookies; es la única vez que Visual Anything se conecta a internet.',
+  'Only an https address’s preview is fetched; write the title and add a picture.':
+    'Solo se trae la vista previa de una dirección https; escribir el título y agregar una imagen.',
+  'The preview is set: undo takes it back.': 'La vista previa quedó puesta: deshacer la quita.',
+  'The page gives no title, description or image to show.':
+    'La página no da ningún título, descripción ni imagen para mostrar.',
+  '{count} link cards are left out: link cards are drawn only in the canvas, the PNG, the SVG, the PDF and the read-only page.':
+    {
+      one: 'Se omite una tarjeta web: las tarjetas web solo se dibujan en el lienzo, el PNG, el SVG, el PDF y la página de solo lectura.',
+      other:
+        'Se omiten {count} tarjetas web: las tarjetas web solo se dibujan en el lienzo, el PNG, el SVG, el PDF y la página de solo lectura.',
+    },
+  // A8.2's leftover: resizing a video says so.
+  'Resize a video': 'Cambiar el tamaño de un video',
   '{count} videos are past 32 MiB: the page shows their posters, and they do not play.': {
     one: 'Un video pasa de 32 MiB: la página muestra su póster, y no se reproduce.',
     other: '{count} videos pasan de 32 MiB: la página muestra sus pósteres, y no se reproducen.',
@@ -5749,6 +5786,8 @@ export const messages: Catalog = {
   'A note has no "{key}": it takes {keys}.': 'Una nota no tiene "{key}": admite {keys}.',
   'An arrow has no "{key}": it takes {keys}.': 'Una flecha no tiene "{key}": admite {keys}.',
   'A picture has no "{key}": it takes {keys}.': 'Una imagen no tiene "{key}": admite {keys}.',
+  'A link card has no "{key}": it takes {keys}.':
+    'Una tarjeta web no tiene "{key}": admite {keys}.',
   'Each move of restack names its shape: { "element": id }.':
     'Cada movimiento de restack nombra su forma: { "element": id }.',
   '{key} must be a list.': '{key} debe ser una lista.',
@@ -6815,6 +6854,68 @@ export const messages: Catalog = {
   'it answered with more than {n} KiB': 'respondió con más de {n} KiB',
   'its answer broke off': 'su respuesta se cortó',
   'its name, {host}, does not resolve': 'su nombre, {host}, no se resuelve',
+  // A8.3: what the program says of a link card's preview (ADR 0098, stage 3).
+  'The preview of {url} cannot be fetched: it {why}.':
+    'No se puede traer la vista previa de {url}: {why}.',
+  'The preview of {url} is not fetched: only an https address is, so that nothing travels in the clear.':
+    'No se trae la vista previa de {url}: solo se trae la de una dirección https, para que nada viaje sin cifrar.',
+  'The preview of {url} is not fetched: it {why}.': 'No se trae la vista previa de {url}: {why}.',
+  'The preview of {url} could not be fetched: it {why}.':
+    'No se pudo traer la vista previa de {url}: {why}.',
+  'The preview could not be fetched: {why}': 'No se pudo traer la vista previa: {why}',
+  '{n} previews are being fetched already: fetch this one once they are in.':
+    'Ya se están trayendo {n} vistas previas: traer esta cuando lleguen.',
+  "The page's image, {url}, is left out: it {why}.":
+    'Se omite la imagen de la página, {url}: {why}.',
+  "The page's image, {url}, is left out: {why}": 'Se omite la imagen de la página, {url}: {why}',
+  'is empty': 'está vacía',
+  'is not text': 'no es texto',
+  'has no host': 'no tiene servidor',
+  'is not https': 'no es https',
+  'is not a PNG, JPEG, WebP or GIF': 'no es un PNG, un JPEG, un WebP ni un GIF',
+  'redirects to {url}, which is not https': 'redirige a {url}, que no es https',
+  'redirects to an address that {why}': 'redirige a una dirección que {why}',
+  'redirects more than {n} times': 'redirige más de {n} veces',
+  'redirects to something that is not an address': 'redirige a algo que no es una dirección',
+  'leads to {address}, an address of no one, which a preview never reaches':
+    'lleva a {address}, una dirección de nadie, a la que una vista previa nunca llega',
+  'leads to {address}, an address of this computer, which a preview never reaches':
+    'lleva a {address}, una dirección de esta computadora, a la que una vista previa nunca llega',
+  'leads to {address}, an address of your network, which a preview never reaches':
+    'lleva a {address}, una dirección de la red, a la que una vista previa nunca llega',
+  'leads to {address}, a link-local address, such as the cloud metadata one, which a preview never reaches':
+    'lleva a {address}, una dirección de autoconfiguración local, como la de los metadatos de la nube, a la que una vista previa nunca llega',
+  'leads to {address}, a multicast address, which a preview never reaches':
+    'lleva a {address}, una dirección de multidifusión, a la que una vista previa nunca llega',
+  'leads to {address}, an address the internet does not route, which a preview never reaches':
+    'lleva a {address}, una dirección que internet no enruta, a la que una vista previa nunca llega',
+  'leads, by its name {host}, to {address}, an address of no one, which a preview never reaches':
+    'lleva, por su nombre {host}, a {address}, una dirección de nadie, a la que una vista previa nunca llega',
+  'leads, by its name {host}, to {address}, an address of this computer, which a preview never reaches':
+    'lleva, por su nombre {host}, a {address}, una dirección de esta computadora, a la que una vista previa nunca llega',
+  'leads, by its name {host}, to {address}, an address of your network, which a preview never reaches':
+    'lleva, por su nombre {host}, a {address}, una dirección de la red, a la que una vista previa nunca llega',
+  'leads, by its name {host}, to {address}, a link-local address, such as the cloud metadata one, which a preview never reaches':
+    'lleva, por su nombre {host}, a {address}, una dirección de autoconfiguración local, como la de los metadatos de la nube, a la que una vista previa nunca llega',
+  'leads, by its name {host}, to {address}, a multicast address, which a preview never reaches':
+    'lleva, por su nombre {host}, a {address}, una dirección de multidifusión, a la que una vista previa nunca llega',
+  'leads, by its name {host}, to {address}, an address the internet does not route, which a preview never reaches':
+    'lleva, por su nombre {host}, a {address}, una dirección que internet no enruta, a la que una vista previa nunca llega',
+  'did not answer within {n} seconds': 'no respondió en {n} segundos',
+  'did not answer within {n} second': 'no respondió en {n} segundo',
+  'could not be reached': 'no se pudo llegar a ella',
+  'has a name, {host}, that does not resolve': 'tiene un nombre, {host}, que no se resuelve',
+  'answered with no HTTP status': 'respondió sin un estado HTTP',
+  'answered with status {status}': 'respondió con el estado {status}',
+  'answered with {type}, not a web page': 'respondió con {type}, no con una página web',
+  'answered with {type}, not a PNG, JPEG, WebP or GIF picture':
+    'respondió con {type}, no con una imagen PNG, JPEG, WebP o GIF',
+  'gave its answer no type, where a web page was asked for':
+    'no le dio ningún tipo a su respuesta, cuando se pedía una página web',
+  'gave its answer no type, where a PNG, JPEG, WebP or GIF picture was asked for':
+    'no le dio ningún tipo a su respuesta, cuando se pedía una imagen PNG, JPEG, WebP o GIF',
+  'is larger than {size}': 'pesa más de {size}',
+  'broke off its answer': 'cortó su respuesta',
 
   // Threads of comments (ADR 0059): what a thread is about, the history's labels, and why the core
   // refuses a comment.
@@ -8175,6 +8276,110 @@ export const messages: Catalog = {
     'El póster de un video es una imagen PNG, JPEG o WebP.',
   'Only a video has a poster; a picture in "{view}" is not one.':
     'Solo un video tiene póster; una imagen en "{view}" no lo es.',
+  // A8.3: link cards (ADR 0098, stage 3).
+  'Add a link card to "{view}"': 'Agregar una tarjeta web a "{view}"',
+  'Edit a link card in "{view}"': 'Editar una tarjeta web en "{view}"',
+  'Resize a link card': 'Cambiar el tamaño de una tarjeta web',
+  'Fetch the preview of a link card': 'Traer la vista previa de una tarjeta web',
+  'A free shape is a note, an arrow, a picture or a link card.':
+    'Una forma libre es una nota, una flecha, una imagen o una tarjeta web.',
+  'A link card has no colors of its own; a link card in "{view}" is drawn as a card.':
+    'Una tarjeta web no tiene colores propios; una tarjeta web en "{view}" se dibuja como una tarjeta.',
+  'The address of a link card in "{view}" is not an http or https address: a link card holds an https or http address.':
+    'La dirección de una tarjeta web en "{view}" no es una dirección http ni https: una tarjeta web guarda una dirección https o http.',
+  'The address of a link card in "{view}" is not a web address: a link card holds an https or http address.':
+    'La dirección de una tarjeta web en "{view}" no es una dirección web: una tarjeta web guarda una dirección https o http.',
+  'The address of a link card in "{view}" holds a user name or a password: a link card holds an https or http address.':
+    'La dirección de una tarjeta web en "{view}" tiene un nombre de usuario o una contraseña: una tarjeta web guarda una dirección https o http.',
+  'The address of a link card in "{view}" is longer than {n} characters: a link card holds an https or http address.':
+    'La dirección de una tarjeta web en "{view}" tiene más de {n} caracteres: una tarjeta web guarda una dirección https o http.',
+  'The address of a link card in "{view}" is empty: a link card holds an https or http address.':
+    'La dirección de una tarjeta web en "{view}" está vacía: una tarjeta web guarda una dirección https o http.',
+  'The address of a link card in "{view}" is not text: a link card holds an https or http address.':
+    'La dirección de una tarjeta web en "{view}" no es texto: una tarjeta web guarda una dirección https o http.',
+  'The address of a link card in "{view}" has no host: a link card holds an https or http address.':
+    'La dirección de una tarjeta web en "{view}" no tiene servidor: una tarjeta web guarda una dirección https o http.',
+  "A link card's title is one line of 1 to {n} characters.":
+    'El título de una tarjeta web es una línea de 1 a {n} caracteres.',
+  "A link card's description is text.": 'La descripción de una tarjeta web es un texto.',
+  "A link card's description is at most {n} characters.":
+    'La descripción de una tarjeta web tiene como mucho {n} caracteres.',
+  "A link card's picture is a PNG, JPEG, WebP, GIF or SVG picture.":
+    'La imagen de una tarjeta web es una imagen PNG, JPEG, WebP, GIF o SVG.',
+  // A8.2: why the core's video reader refuses a file (ADR 0098, stage 2), as the person reads it
+  // when a video is dropped, pasted or chosen.
+  'The file is not a video.': 'El archivo no es un video.',
+  'Visual Anything takes H.264 in MP4, or VP8, VP9 or AV1 in WebM.':
+    'Visual Anything acepta H.264 en MP4, o VP8, VP9 o AV1 en WebM.',
+  'The video is over {n} MiB.': 'El video pasa de {n} MiB.',
+  'The video is {width} × {height} pixels, past 8,192 pixels a side.':
+    'El video tiene {width} × {height} píxeles, más de 8.192 píxeles por lado.',
+  'The {format} video gives no size.': 'El video {format} no indica su tamaño.',
+  'The video could not be read.': 'No se pudo leer el video.',
+  'The MP4 file\'s brand "{brand}" is not one Visual Anything plays: it takes ISO MP4 (isom, mp42, avc1).':
+    'La marca "{brand}" del archivo MP4 no es una que Visual Anything reproduzca: acepta MP4 ISO (isom, mp42, avc1).',
+  'The MP4 file has no moov box, which says what it holds.':
+    'El archivo MP4 no tiene una caja moov, que dice lo que contiene.',
+  'The MP4 file holds two moov boxes.': 'El archivo MP4 tiene dos cajas moov.',
+  'The MP4 file holds a "{type}" box, which Visual Anything does not take.':
+    'El archivo MP4 tiene una caja "{type}", que Visual Anything no acepta.',
+  'The MP4 file holds no frames: it has no mdat box.':
+    'El archivo MP4 no tiene cuadros: no tiene una caja mdat.',
+  'The MP4 file does not start with its type, ftyp.':
+    'El archivo MP4 no empieza con su tipo, ftyp.',
+  'A box of the MP4 file is cut short.': 'Una caja del archivo MP4 está cortada.',
+  'The MP4 file\'s "{type}" box runs past the end of the file.':
+    'La caja "{type}" del archivo MP4 pasa del final del archivo.',
+  'The MP4 file\'s "{type}" box is cut short.': 'La caja "{type}" del archivo MP4 está cortada.',
+  'The MP4 file holds too many boxes.': 'El archivo MP4 tiene demasiadas cajas.',
+  'The MP4 file has no video tracks: Visual Anything takes one video track.':
+    'El archivo MP4 no tiene pistas de video: Visual Anything acepta una pista de video.',
+  'The MP4 file has {n} video tracks: Visual Anything takes one video track.':
+    'El archivo MP4 tiene {n} pistas de video: Visual Anything acepta una pista de video.',
+  'The MP4 file\'s video is "{codec}", not H.264.':
+    'El video del archivo MP4 es "{codec}", no H.264.',
+  'The MP4 file’s H.264 video has no configuration of version 1 (avcC).':
+    'El video H.264 del archivo MP4 no tiene una configuración de versión 1 (avcC).',
+  'The MP4 file has a track of "{handler}", which Visual Anything does not take: a video track and audio tracks only.':
+    'El archivo MP4 tiene una pista de "{handler}", que Visual Anything no acepta: solo una pista de video y pistas de audio.',
+  'The MP4 file\'s audio is "{codec}": Visual Anything takes AAC or Opus.':
+    'El audio del archivo MP4 es "{codec}": Visual Anything acepta AAC u Opus.',
+  'The MP4 file is fragmented, as a live recording writes it: Visual Anything takes an MP4 whose frames are all in mdat, or a WebM.':
+    'El archivo MP4 está fragmentado, como lo escribe una grabación en vivo: Visual Anything acepta un MP4 cuyos cuadros están todos en mdat, o un WebM.',
+  'The MP4 file is fragmented: Visual Anything takes an MP4 whose frames are all in mdat.':
+    'El archivo MP4 está fragmentado: Visual Anything acepta un MP4 cuyos cuadros están todos en mdat.',
+  'The MP4 file refers to data outside itself, which Visual Anything does not take.':
+    'El archivo MP4 nombra datos fuera de sí mismo, lo que Visual Anything no acepta.',
+  'The file is "{type}", not webm.': 'El archivo es "{type}", no webm.',
+  'The WebM file needs a reader of version {n}, past 4.':
+    'El archivo WebM necesita un lector de la versión {n}, posterior a la 4.',
+  'The WebM file has no EBML header.': 'El archivo WebM no tiene encabezado EBML.',
+  'The WebM file has no video tracks: Visual Anything takes one video track.':
+    'El archivo WebM no tiene pistas de video: Visual Anything acepta una pista de video.',
+  'The WebM file has {n} video tracks: Visual Anything takes one video track.':
+    'El archivo WebM tiene {n} pistas de video: Visual Anything acepta una pista de video.',
+  'The WebM file\'s video is "{codec}".': 'El video del archivo WebM es "{codec}".',
+  'The WebM file\'s audio is "{codec}": Visual Anything takes Opus or Vorbis.':
+    'El audio del archivo WebM es "{codec}": Visual Anything acepta Opus o Vorbis.',
+  'The WebM file has a track of type {n}, which Visual Anything does not take: a video track and audio tracks only.':
+    'El archivo WebM tiene una pista de tipo {n}, que Visual Anything no acepta: solo una pista de video y pistas de audio.',
+  'The WebM file’s track has content encodings: Visual Anything takes no encrypted or compressed track.':
+    'Una pista del archivo WebM tiene codificaciones de contenido: Visual Anything no acepta pistas cifradas ni comprimidas.',
+  'The WebM file’s video gives no size in pixels.':
+    'El video del archivo WebM no indica su tamaño en píxeles.',
+  'The WebM file lists no tracks.': 'El archivo WebM no enumera pistas.',
+  'The WebM file holds two lists of tracks.': 'El archivo WebM tiene dos listas de pistas.',
+  'The WebM file has no Segment.': 'El archivo WebM no tiene Segment.',
+  'The WebM file holds bytes past its Segment.':
+    'El archivo WebM tiene bytes después de su Segment.',
+  "The WebM file's Segment holds {id}, which Visual Anything does not take.":
+    'El Segment del archivo WebM contiene {id}, que Visual Anything no acepta.',
+  "The WebM file's header holds {id}.": 'El encabezado del archivo WebM contiene {id}.',
+  "The WebM file's {id} is cut short.": 'La parte {id} del archivo WebM está cortada.',
+  "The WebM file's {id} runs past what holds it.":
+    'La parte {id} del archivo WebM pasa de lo que la contiene.',
+  'The WebM file holds too many elements.': 'El archivo WebM tiene demasiadas partes.',
+  'An element of the WebM file is cut short.': 'Una parte del archivo WebM está cortada.',
   // A9: what checking a project's Math says (ADR 0106), with where each text is. KaTeX's own message
   // after the colon stays as KaTeX writes it.
   'Math in {of} is drawn as its TeX, "{tex}", since it cannot be typeset: {why}':

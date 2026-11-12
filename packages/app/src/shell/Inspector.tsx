@@ -16,6 +16,7 @@ import { LinesControl } from './inspector/LinesControl';
 import { ReadingControls } from './inspector/ReadingControls';
 import { OverlaysSection } from './inspector/OverlaysSection';
 import { PictureInspector, PicturesSection } from './inspector/PictureInspector';
+import { LinkCardInspector } from './inspector/LinkCardInspector';
 import { Detail } from './inspector/parts';
 import { RelationInspector } from './inspector/RelationInspector';
 import { ScopeEditor } from './inspector/ScopeEditor';
@@ -134,6 +135,9 @@ export function Inspector({ view, scene, definitions, id, hidden }: InspectorPro
             picture={inspected.picture}
             viewId={view.id}
           />
+        )}
+        {inspected.kind === 'link' && view && (
+          <LinkCardInspector key={inspected.card.id} card={inspected.card} viewId={view.id} />
         )}
         {inspected.kind === 'several' && (
           <>

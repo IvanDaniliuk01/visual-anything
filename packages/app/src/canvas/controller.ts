@@ -99,6 +99,7 @@ import { sameSlot } from './rowDrop';
 import { rowMoveFor, rowTargetFor } from './rowKeys';
 import { headerMiddle } from './rows';
 import { picturesOf, relationLinesOf, type ElementShape, type NoteShape } from './scene';
+import { addressAt, openLinkAddress } from './links/open';
 import { onLeavingMark } from './leavingMark';
 import { destinationTitle, onDestinationMark } from './destinationMark';
 import { leavingTitle } from './scope';
@@ -1110,7 +1111,10 @@ export class CanvasController {
                   ? 'copy'
                   : 'pointer'
                 : 'default';
-        if (shape && this.onToggle(shape, world)) this.host.title = toggleTitle(shape);
+        // A link card's address line says where a click goes (ADR 0098, stage 3).
+        const address = hit?.kind === 'picture' ? addressAt(hit.picture, world) : undefined;
+        if (address !== undefined) this.host.title = address;
+        else if (shape && this.onToggle(shape, world)) this.host.title = toggleTitle(shape);
         // The mark of the relations that leave the view says which (ADR-0040).
         else if (shape?.leaving && this.project && onLeavingMark(shape, world)) {
           this.host.title = leavingTitle(this.project, shape.leaving);
@@ -1147,6 +1151,11 @@ export class CanvasController {
         // A click on a video plays it, or stops it, as well as selecting it (ADR 0098, stage 2).
         if (gesture.hit.kind === 'picture' && gesture.hit.picture.video && !gesture.additive) {
           this.renderer.toggleVideo(gesture.hit.picture.id);
+        }
+        // A click on a link card's address line opens it in a new tab (ADR 0098, stage 3).
+        if (gesture.hit.kind === 'picture' && !gesture.additive) {
+          const address = addressAt(gesture.hit.picture, gesture.world);
+          if (address !== undefined) openLinkAddress(address);
         }
         const items = selectablesOf(gesture.hit);
         // A click on one of several selected things selects it alone.

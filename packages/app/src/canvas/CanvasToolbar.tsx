@@ -1,6 +1,6 @@
-import { definitionsIn, type ProjectSnapshot } from '@visual-anything/core';
+import { checkLinkAddress, definitionsIn, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
-import { useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react';
+import { useId, useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react';
 import { useT } from '../i18n';
 import {
   ArrowIcon,
@@ -9,6 +9,7 @@ import {
   FitIcon,
   LayoutIcon,
   NoteIcon,
+  LinkCardIcon,
   PictureIcon,
   PlusIcon,
   SendBackwardIcon,
@@ -21,6 +22,7 @@ import type { AlignHow } from './align';
 import type { AlignAction } from './alignActions';
 import { AlignMenu } from './AlignMenu';
 import './drop.css';
+import './links/links.css';
 import { ExploreControls, ExploreStrip, PerspectiveControl } from './ExploreBar';
 import { GridToggles } from './GridToggles';
 import { KeyboardHelp } from './KeyboardHelp';
@@ -62,6 +64,11 @@ export interface CanvasToolbarProps {
    * where no program keeps media files.
    */
   onAddPictures?: (files: readonly File[]) => void;
+  /**
+   * Adds a link card for an address written in Link card… (ADR 0098, stage 3); absent, the toolbar
+   * has no Link card….
+   */
+  onAddLinkCard?: (url: string) => void;
   onZoom: (factor: number) => void;
   onFit: () => void;
   /** Where "Add element…" puts the new element; absent, directly in World. */
@@ -108,6 +115,7 @@ export function CanvasToolbar({
   onAddNote,
   onAddArrow,
   onAddPictures,
+  onAddLinkCard,
   onZoom,
   onFit,
   addPlace,
@@ -160,6 +168,7 @@ export function CanvasToolbar({
         <span className="canvas-toolbar-label">{t('Arrow')}</span>
       </OverflowButton>
       {onAddPictures && <PictureButton disabled={!editable} onPictures={onAddPictures} />}
+      {onAddLinkCard && <LinkCardButton disabled={!editable} onAddress={onAddLinkCard} />}
       <ToolbarSeparator />
       {/* Arranging: the stacking order, Align and Layout. */}
       {stacking && (
@@ -390,6 +399,93 @@ const STACKING_ICONS: Record<StackingMove, typeof BringToFrontIcon> = {
 function StackingIcon({ move }: { move: StackingMove }) {
   const Icon = STACKING_ICONS[move];
   return <Icon />;
+}
+
+/**
+ * Link card…: asks for a web address in a small form under the button, and adds a card for it at the
+ * middle of the view (ADR 0098, stage 3). Escape or Cancel closes it.
+ */
+function LinkCardButton({
+  disabled,
+  onAddress,
+}: {
+  disabled: boolean;
+  onAddress: (url: string) => void;
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const [problem, setProblem] = useState<string>();
+  const inputId = useId();
+  const close = () => {
+    setOpen(false);
+    setText('');
+    setProblem(undefined);
+  };
+  return (
+    <Overflowing group="shapes">
+      <span className="canvas-toolbar-link">
+        <button
+          type="button"
+          title={t('Link card…')}
+          disabled={disabled}
+          aria-expanded={open}
+          onClick={() => (open ? close() : setOpen(true))}
+        >
+          <LinkCardIcon />
+          <span className="canvas-toolbar-label">{t('Link card…')}</span>
+        </button>
+        {open && (
+          <form
+            className="canvas-menu canvas-toolbar-link-form"
+            role="dialog"
+            aria-label={t('Add a link card')}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation();
+                close();
+              }
+            }}
+            onSubmit={(event) => {
+              event.preventDefault();
+              const checked = checkLinkAddress(text);
+              if (!checked.ok) {
+                setProblem(t('Write an address that starts with https://.'));
+                return;
+              }
+              onAddress(checked.url);
+              close();
+            }}
+          >
+            <label htmlFor={inputId}>{t('Web address')}</label>
+            <input
+              id={inputId}
+              type="url"
+              value={text}
+              placeholder="https://"
+              autoFocus
+              aria-invalid={problem === undefined ? undefined : true}
+              onChange={(event) => {
+                setText(event.target.value);
+                setProblem(undefined);
+              }}
+            />
+            {problem !== undefined && (
+              <span className="inspector-problem" role="alert">
+                {problem}
+              </span>
+            )}
+            <span className="canvas-toolbar-link-actions">
+              <button type="submit">{t('Add')}</button>
+              <button type="button" onClick={close}>
+                {t('Cancel')}
+              </button>
+            </span>
+          </form>
+        )}
+      </span>
+    </Overflowing>
+  );
 }
 
 /** The types Picture… offers to choose (ADR 0098). */

@@ -1,5 +1,13 @@
 import type { ModelIndex } from '@visual-anything/core';
-import type { Arrow, Element, Note, Picture, Relation, ViewFile } from '@visual-anything/schema';
+import type {
+  Arrow,
+  Element,
+  LinkCard,
+  Note,
+  Picture,
+  Relation,
+  ViewFile,
+} from '@visual-anything/schema';
 import { sizeOf, type Selection } from '../../editor/selection';
 
 /** What the inspector shows, from what is selected. */
@@ -10,6 +18,7 @@ export type Inspected =
   | { kind: 'note'; note: Note }
   | { kind: 'arrow'; arrow: Arrow }
   | { kind: 'picture'; picture: Picture }
+  | { kind: 'link'; card: LinkCard }
   /** Several things, or one that is no longer there. */
   | { kind: 'several' };
 
@@ -33,6 +42,7 @@ export function inspectedOf(
     if (shape?.kind === 'note') return { kind: 'note', note: shape };
     if (shape?.kind === 'arrow') return { kind: 'arrow', arrow: shape };
     if (shape?.kind === 'picture') return { kind: 'picture', picture: shape };
+    if (shape?.kind === 'link') return { kind: 'link', card: shape };
   }
   return { kind: 'several' };
 }
@@ -50,6 +60,8 @@ export function inspectedKey(inspected: Inspected): string | undefined {
       return `free-shape:${inspected.arrow.id}`;
     case 'picture':
       return `free-shape:${inspected.picture.id}`;
+    case 'link':
+      return `free-shape:${inspected.card.id}`;
     default:
       return undefined;
   }

@@ -10,6 +10,7 @@ import type {
   SolidFilesListedMessage,
   MediaFilesListedMessage,
   MediaStoredMessage,
+  LinkFetchedMessage,
   SolidImportOptions,
   SolidPreparedMessage,
   VersionRef,
@@ -186,6 +187,11 @@ export interface Live extends LiveState {
   listMediaFiles?: () => Promise<LiveResult<MediaFilesListedMessage>>;
   /** Removes files of `media/` no picture names, which cannot be undone. */
   removeMediaFiles?: (hashes: readonly string[]) => Promise<LiveResult<MediaFilesListedMessage>>;
+  /**
+   * Asks the local program to fetch a link card's preview (ADR 0098, stage 3), only when the person
+   * presses Fetch the preview; absent where no program fetches.
+   */
+  fetchLinkPreview?: (url: string) => Promise<LiveResult<LinkFetchedMessage>>;
   /**
    * Asks the local program to add itself to Claude Desktop's configuration (ADR 0093); absent where
    * there is no live session to ask.

@@ -269,6 +269,15 @@ function OutlineRow({
     case 'arrow':
       return <span className="item-name">{t('Arrow')}</span>;
     case 'picture':
+      if (item.picture.link) {
+        // A link card, by its title and its address's host (ADR 0098, stage 3).
+        return (
+          <>
+            <span className="item-name">{item.picture.link.title}</span>
+            <Secondary text={`${t('Link card')} · ${item.picture.link.host}`} />
+          </>
+        );
+      }
       return (
         <>
           <span className="item-name">

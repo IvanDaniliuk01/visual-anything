@@ -240,7 +240,7 @@ export function writeMermaid(
     // Free geometry, named parts and the styles of routes (M8b).
     ...lostBeyondBoxes(first.values(), drawnLines, 'Mermaid'),
     ...(free > 0 ? [t(FREE, { count: free })] : []),
-    ...lostPictures(picturesOf(scene).length),
+    ...lostPictures(picturesOf(scene)),
     ...texts.lost(),
     // Mermaid draws no legend, though its colors are the overlays' (ADR 0055).
     ...(legendShows(legendOf(view, definitions, theme))

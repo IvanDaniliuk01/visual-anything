@@ -9,6 +9,7 @@
 import {
   componentOrEssence,
   isVideoFormat,
+  linkHost,
   modelIndexOf,
   relationTypeOrRelatesTo,
   type ProjectSnapshot,
@@ -124,10 +125,22 @@ export function Details() {
               ? t('Note')
               : shape.kind === 'picture'
                 ? (shape.name ?? (isVideoFormat(shape.media.format) ? t('Video') : t('Picture')))
-                : t('Arrow')}
+                : shape.kind === 'link'
+                  ? shape.title
+                  : t('Arrow')}
           </h2>
           {close}
         </div>
+        {shape.kind === 'link' && (
+          <>
+            {shape.description !== undefined && <p>{shape.description}</p>}
+            <p>
+              <a href={shape.url} target="_blank" rel="noopener noreferrer">
+                {t('Open {host}', { host: linkHost(shape.url) })}
+              </a>
+            </p>
+          </>
+        )}
         {shape.kind === 'note' && (
           <EmphasisBlocks className="viewer-note-text" text={shape.text} headingLevel={3} />
         )}

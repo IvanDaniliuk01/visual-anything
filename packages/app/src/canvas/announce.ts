@@ -217,7 +217,12 @@ export function describeSelection(
     if (relation !== undefined) return describeRelation(project, relation);
     const [free] = freeShapes;
     const picture = picturesOf(indexed.scene).find((each) => each.id === free);
-    // A picture is said by its name (ADR 0098).
+    // A picture is said by its name (ADR 0098), a link card by its title and host (stage 3).
+    if (picture?.link) {
+      return asSentence(
+        t('Link card: {title}, {host}', { title: picture.link.title, host: picture.link.host }),
+      );
+    }
     if (picture?.video) {
       return picture.named ? asSentence(t('Video: {name}', { name: picture.name })) : t('Video.');
     }

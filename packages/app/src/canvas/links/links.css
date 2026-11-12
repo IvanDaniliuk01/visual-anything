@@ -1,0 +1,21 @@
+/* Link card… on the canvas toolbar, and the form it opens under it (ADR 0098, stage 3). */
+.canvas-toolbar-link {
+  position: relative;
+}
+
+.canvas-toolbar-link > .canvas-toolbar-link-form {
+  top: calc(100% + var(--space-25));
+  left: 0;
+  gap: var(--space-35);
+  min-width: var(--size-1600);
+}
+
+.canvas-toolbar-link-form input {
+  width: 100%;
+}
+
+.canvas-toolbar-link-actions {
+  display: flex;
+  gap: var(--space-35);
+  justify-content: flex-end;
+}

@@ -153,6 +153,7 @@ import {
   type ArrowShape,
   type ElementShape,
   type NoteShape,
+  type LinkFace,
   type PictureShape,
   type RelationLine,
   type Scene,
@@ -215,6 +216,7 @@ import {
   type BitmapFormat,
 } from './image-symbols';
 import { layOutBand, type BandItem, type BandLayout } from './legendLayout';
+import { CARD_COLORS, cardLayout } from '../canvas/links/card';
 import { element, empty, num, textElement, type AttributeValue } from './markup';
 import { textWidth } from './measure';
 import { LINE_HEIGHT, layOutText, type TextSpec } from './text-layout';
@@ -562,6 +564,7 @@ class Writer {
    * warning for a file the export does not have.
    */
   mediaPicture(picture: PictureShape): string {
+    if (picture.link) return this.#linkCard(picture, picture.link);
     const still = stillOf(picture);
     const drawn = this.#mediaPicture(picture, still);
     if (!picture.video) return drawn;
@@ -583,6 +586,76 @@ class Writer {
           'fill-opacity': 0.55,
         }) +
         empty('polygon', { points: points.join(' '), fill: '#ffffff' }),
+    );
+  }
+
+  /**
+   * A link card (ADR 0098, stage 3), drawn from its data as the canvas draws it (`cardLayout`), inside
+   * a link to its address that opens in a new tab: an SVG reader and the PDF, drawn from this SVG,
+   * open it when the card is clicked. Nothing is fetched.
+   */
+  #linkCard(picture: PictureShape, link: LinkFace): string {
+    const layout = cardLayout(picture.rect, link, picture.media);
+    const colors = CARD_COLORS[this.theme.name === 'dark' ? 'dark' : 'light'];
+    const { x, y, width, height } = picture.rect;
+    const card = { x, y, width, height, rx: layout.radius };
+    let body = empty('rect', { ...card, fill: colors.fill });
+    if (layout.band) {
+      const { band } = layout;
+      const straight = Math.min(layout.radius, band.height);
+      body +=
+        empty('rect', { ...band, rx: layout.radius, fill: colors.band }) +
+        empty('rect', {
+          x: band.x,
+          y: band.y + band.height - straight,
+          width: band.width,
+          height: straight,
+          fill: colors.band,
+        });
+    }
+    if (layout.picture && picture.media) {
+      body += this.#mediaPicture(
+        {
+          id: picture.id,
+          rect: layout.picture,
+          media: picture.media,
+          name: link.title,
+          named: true,
+        },
+        picture.media,
+      );
+    }
+    body += empty('rect', { ...card, fill: 'none', stroke: colors.border, 'stroke-width': 1 });
+    for (const text of layout.texts) {
+      const fill =
+        text.role === 'title'
+          ? colors.title
+          : text.role === 'description'
+            ? colors.description
+            : colors.link;
+      for (const line of text.text.lines) {
+        this.texts.push(line.text);
+        body += textElement(
+          'text',
+          {
+            x: text.x,
+            y: line.baseline,
+            'font-size': text.size,
+            'font-weight': text.bold ? 700 : undefined,
+            fill,
+          },
+          line.text,
+        );
+      }
+    }
+    return element(
+      'a',
+      { href: link.url, target: '_blank', rel: 'noopener noreferrer' },
+      element(
+        'g',
+        { 'data-free-shape': picture.id, 'data-link': link.url, 'aria-label': link.title },
+        body,
+      ),
     );
   }
 

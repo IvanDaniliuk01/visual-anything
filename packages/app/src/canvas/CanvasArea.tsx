@@ -105,6 +105,7 @@ import {
   pictureNameOf,
   tooLargeToSend,
 } from './pictures/adding';
+import { addLinkCardCommand, linkAddressIn } from './links/adding';
 import { mediaFilesOver } from './pictures/media';
 import type { CanvasTurning } from './solids/turningContext';
 import { pinnedInTheWay } from './layout/pinnedInTheWay';
@@ -1427,6 +1428,30 @@ export function CanvasArea({
     addPictures(files, at, pasted),
   );
 
+  /**
+   * Adds a link card for an address at the middle of the view, titled after its host, and selects it
+   * (ADR 0098, stage 3): from Link card… on the toolbar, or text pasted on the canvas that is exactly
+   * one web address.
+   */
+  const addLinkCard = async (url: string) => {
+    if (!editable) {
+      announce(t('The project cannot be changed now.'));
+      return;
+    }
+    const center = controller()?.center;
+    if (!center) return;
+    const command = addLinkCardCommand(view.id, url, center);
+    if (!command) return;
+    const unchanged = intent();
+    const result = await send(command);
+    const added = result.ok ? result.created?.[0] : undefined;
+    if (added !== undefined && unchanged()) {
+      onSelect(selectionOf([{ kind: 'free-shape', id: added }]));
+    }
+  };
+
+  const addLinkCardNow = useEffectEvent((url: string) => addLinkCard(url));
+
   // An image file dropped on the canvas is added where it is dropped (ADR 0098).
   useEffect(() => {
     const host = hostRef.current;
@@ -1442,10 +1467,18 @@ export function CanvasArea({
       const at = controllerRef.current?.worldAtClient(event.clientX, event.clientY);
       void addPicturesNow([...(event.dataTransfer?.files ?? [])], at);
     };
-    // A picture pasted with Ctrl+V while the canvas has the focus goes to the middle of the view.
+    // A picture pasted with Ctrl+V while the canvas has the focus goes to the middle of the view,
+    // and so does a link card for text that is exactly one web address (ADR 0098, stage 3).
     const paste = (event: ClipboardEvent) => {
       const files = pictureFilesIn(event.clipboardData?.files);
-      if (files.length === 0) return;
+      if (files.length === 0) {
+        if (event.defaultPrevented || isTextEntry(event.target)) return;
+        const url = linkAddressIn(event.clipboardData?.getData('text/plain') ?? '');
+        if (url === undefined) return;
+        event.preventDefault();
+        void addLinkCardNow(url);
+        return;
+      }
       event.preventDefault();
       void addPicturesNow(files, undefined, true);
     };
@@ -1566,6 +1599,7 @@ export function CanvasArea({
         {...(live?.putMedia
           ? { onAddPictures: (files: readonly File[]) => void addPictures(files) }
           : {})}
+        {...(live ? { onAddLinkCard: (url: string) => void addLinkCard(url) } : {})}
         onZoom={(factor) => controller()?.zoomBy(factor)}
         onFit={() => controller()?.fit()}
         {...(adding.place ? { addPlace: adding.place } : {})}
