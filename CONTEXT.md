@@ -72,7 +72,7 @@ _Avoid_: figure, node
 A shape that represents an element or relation of the model; when the model changes, the shape reflects it. One element can have several anchored shapes in the same view, one inside each of its containers.
 
 **Free shape**:
-A shape that is drawing only and does not exist in the model: a note, an emphasis arrow, a picture, a link card, a sketch.
+A shape that is drawing only and does not exist in the model: a note, an emphasis arrow, a picture, a link card, an explorable shape, a sketch.
 
 **Pinned shape**:
 A shape whose position was set by hand in a view; automatic layout arranges everything else around it.
@@ -290,6 +290,14 @@ _Avoid_: widget, applet, plugin, page (a read-only page is something else), HTML
 **Script library**:
 A JavaScript library an explorable uses, such as D3 or KaTeX, fetched once from the npm registry at an exact version, checked by its hash and kept beside the project, so explorables run offline and travel with the project. An explorable names it by a short id.
 _Avoid_: library (alone: it is not a package), dependency, CDN, module
+
+**Explorable shape**:
+A free shape that shows an explorable loose on the canvas, bound to an element whose data it reads or to none; it draws the explorable's still picture, or its card, and runs live in place when explored (ADR 0107).
+_Avoid_: explorable widget, HTML box, frame
+
+**Still picture**:
+The picture an approved explorable draws of itself in a hidden frame, which its shape shows on the canvas until explored and every export holds; kept for the session, never in the project. Until it has one, the shape shows the explorable's card: its name, description, script libraries and why it is not running (ADR 0107).
+_Avoid_: screenshot, thumbnail, snapshot, preview
 
 **Explorable panel**:
 A panel beside the canvas, open with or without the physical-space panel, that shows the explorable of the selected element live.

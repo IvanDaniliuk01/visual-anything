@@ -72,8 +72,6 @@ export interface FrameDocument {
   policy: string;
   /** The `sha256-…` of every inline script the builder put in, in order. */
   scriptHashes: string[];
-  /** The `sha256-…` of every inline style. */
-  styleHashes: string[];
 }
 
 /** One attribute of an element as `va.data` gives it. */

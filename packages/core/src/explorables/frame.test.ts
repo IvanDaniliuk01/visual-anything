@@ -50,7 +50,7 @@ function found(html: string): Found {
     for (const child of node.childNodes ?? []) walk(child);
     if (node.content) walk(node.content);
   };
-  walk(parse(html, { scriptingEnabled: true }) as unknown as Node);
+  walk(parse(html, { scriptingEnabled: true }));
   return result;
 }
 
@@ -215,12 +215,11 @@ describe('the frame builder', () => {
       'draw()',
     ]);
     expect(frame.scriptHashes).toEqual(seen.scripts.map((each) => cspHash(each.text)));
-    expect(frame.styleHashes).toEqual([cspHash('p{color:red}')]);
     expect(frame.policy).toBe(
       [
         "default-src 'none'",
         `script-src 'report-sample' ${frame.scriptHashes.map((hash) => `'${hash}'`).join(' ')}`,
-        `style-src 'report-sample' '${cspHash('p{color:red}')}'`,
+        "style-src 'unsafe-inline'",
         'img-src data: blob:',
         'font-src data:',
         "connect-src 'none'",
@@ -243,9 +242,12 @@ describe('the frame builder', () => {
     );
   });
 
-  it('allows no style when the page has none', () => {
-    const frame = buildFrame(input('<p>x</p>'));
-    expect(directives(frame.policy).get('style-src')).toEqual(["'none'"]);
+  it('lets inline styles apply, alone, so that no hash turns them off, with or without a <style>', () => {
+    for (const text of ['<p>x</p>', '<style>p{color:red}</style><p style="color:blue">x</p>']) {
+      const frame = buildFrame(input(text));
+      expect(directives(frame.policy).get('style-src')).toEqual(["'unsafe-inline'"]);
+      expect(frame.policy).not.toContain(cspHash('p{color:red}'));
+    }
   });
 
   it('makes line endings LF and escapes NUL before hashing', () => {
@@ -277,7 +279,7 @@ describe('the frame builder', () => {
       expect(() => buildFrame({ ...input(''), appOrigin })).toThrow(/origin/);
     }
     expect(() => buildFrame(input('x'.repeat(512 * 1024 + 1)))).toThrow(/at most/);
-    expect(() => framePolicy(['sha256-x'], [], APP)).toThrow(/SHA-256/);
+    expect(() => framePolicy(['sha256-x'], APP)).toThrow(/SHA-256/);
     expect(() =>
       buildFrame({ ...input(''), scriptLibraries: [{ global: 'a b', text: '' }] }),
     ).toThrow(/global/);
@@ -287,10 +289,7 @@ describe('the frame builder', () => {
     const smuggled = (text: string) => {
       const frame = buildFrame(input(text));
       const policy = directives(frame.policy);
-      const allowed = new Set([
-        ...(policy.get('script-src') ?? []),
-        ...(policy.get('style-src') ?? []),
-      ]);
+      const allowed = new Set(policy.get('script-src') ?? []);
       return { frame, seen: found(frame.html), allowed };
     };
 
@@ -314,14 +313,15 @@ describe('the frame builder', () => {
       }
     });
 
-    it('never lets event handlers, style attributes or javascript: addresses run', () => {
+    it('never lets event handlers or javascript: addresses run', () => {
       const { frame, seen } = smuggled(
         '<img src=x onerror="alert(1)"><a href="javascript:alert(2)">a</a>' +
           '<p style="color:red" onclick=alert(3)>p</p><svg onload="alert(4)"></svg>',
       );
       expect(seen.handlers).toHaveLength(3);
-      expect(frame.policy).not.toMatch(/unsafe|\*|'self'/);
       const scripts = directives(frame.policy).get('script-src') ?? [];
+      expect(scripts.join(' ')).not.toMatch(/unsafe|\*|'self'/);
+      expect(frame.policy.replace("style-src 'unsafe-inline'", '')).not.toMatch(/unsafe|\*|'self'/);
       expect(scripts.every((each) => each === "'report-sample'" || /^'sha256-/.test(each))).toBe(
         true,
       );
@@ -350,8 +350,7 @@ describe('the frame builder', () => {
         seen.scripts.filter((each) => each.namespace === svg).map((each) => each.text),
       ).toEqual(['svg()', 'a && b()']);
       expect(allowed.has(`'${cspHash('svg()')}'`)).toBe(true);
-      expect(allowed.has(`'${cspHash('rect{fill:red}')}'`)).toBe(true);
-      for (const code of ['a && b()', 'a &amp;&amp; b()', 'xy', 'math()', 'm{}']) {
+      for (const code of ['a && b()', 'a &amp;&amp; b()', 'math()']) {
         expect(allowed.has(`'${cspHash(code)}'`)).toBe(false);
       }
     });
@@ -425,7 +424,7 @@ describe('the frame builder', () => {
       );
     });
 
-    it('covers every inline script and style a page holds, and nothing else, by a hash', () => {
+    it('covers every inline script a page holds, and nothing else, by a hash, and finds its styles', () => {
       fc.assert(
         fc.property(page, (text) => {
           const frame = buildFrame(input(text));
@@ -438,7 +437,9 @@ describe('the frame builder', () => {
             .filter((each) => each.namespace === HTML)
             .map((each) => each.text);
           expect(sorted(frame.scriptHashes.slice(1))).toEqual(sorted(scripts.map(cspHash)));
-          expect(sorted(frame.styleHashes)).toEqual(sorted(styles.map(cspHash)));
+          // Where a style ends decides where the next script begins: the scan finds them as HTML does.
+          const scanned = explorablePage(text).styles;
+          for (const style of styles) expect(scanned).toContain(style);
           expect(seen.metas.every((meta) => !('http-equiv' in meta))).toBe(true);
         }),
         { numRuns: 500 },
@@ -466,17 +467,25 @@ describe('the frame builder', () => {
             'frame-ancestors',
             'sandbox',
           ]);
-          for (const name of ['script-src', 'style-src']) {
-            const values = policy.get(name) ?? [];
-            expect(
-              values.every(
-                (each) =>
-                  each === "'report-sample'" ||
-                  each === "'none'" ||
-                  /^'sha256-[A-Za-z0-9+/]{43}='$/.test(each),
-              ),
-            ).toBe(true);
+          const values = policy.get('script-src') ?? [];
+          expect(
+            values.every(
+              (each) =>
+                each === "'report-sample'" ||
+                each === "'none'" ||
+                /^'sha256-[A-Za-z0-9+/]{43}='$/.test(each),
+            ),
+          ).toBe(true);
+          // Styles inline only: no host, no scheme, no hash beside 'unsafe-inline', so an @import or
+          // a url() to an http(s) address cannot load, and nothing turns 'unsafe-inline' off.
+          expect(policy.get('style-src')).toEqual(["'unsafe-inline'"]);
+          for (const name of ['default-src', 'style-src', 'img-src', 'font-src', 'connect-src']) {
+            for (const each of policy.get(name) ?? []) {
+              expect(each).not.toMatch(/^(?:https?:|\*|'self'|[a-z0-9.-]+\.[a-z])/i);
+            }
           }
+          expect(policy.get('img-src')).toEqual(['data:', 'blob:']);
+          expect(policy.get('font-src')).toEqual(['data:']);
           expect(policy.get('script-src')?.slice(1)).toEqual([
             ...new Set(frame.scriptHashes.map((hash) => `'${hash}'`)),
           ]);

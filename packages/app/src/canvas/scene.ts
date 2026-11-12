@@ -36,6 +36,7 @@ import type {
   Arrow,
   Color,
   Element,
+  ExplorableShape as ExplorableShapeFile,
   FreeGeometry,
   FreeShape,
   Id,
@@ -72,6 +73,8 @@ import {
   storedStacking,
   isVideoFormat,
   linkHost,
+  explorableShownBy,
+  explorablesOf,
   type Definitions,
   type StoredColorsInDark,
   type Placement,
@@ -180,12 +183,14 @@ import {
   facePicturesOf,
   imageLookOf,
   placedAgain,
+  placeExplorable,
   placeImage,
   sameRect as sameImageRect,
   sameShapeImage,
   setImageCatalog,
   shownImagesOf,
   type ImageLook,
+  type ShapeExplorable,
   type ShapeImage,
 } from './shape-images';
 import {
@@ -365,6 +370,11 @@ export interface ElementShape {
    * anchored part of a solid, which its drawing's picture draws.
    */
   solid?: ShapeSolid;
+  /**
+   * The explorable its appearance shows, as its drawing (ADR 0107, A10.3): its still or its card on
+   * a plate above its name band, on a plain shape that shows no image and no solid.
+   */
+  explorable?: ShapeExplorable;
   /**
    * Its own outline, drawn, pointed at and attached to in place of its kind's (ADR 0066, ADR 0067):
    * its free geometry fitted to its rectangle, or the outline of the named part it is drawn as.
@@ -585,6 +595,11 @@ export interface PictureShape {
   named: boolean;
   /** Present on a link card (ADR 0098, stage 3): what its card shows. */
   link?: LinkFace;
+  /**
+   * Present on an explorable shape (ADR 0107, A10.3): the explorable it shows and the element it is
+   * bound to, whose data it reads. The canvas's explorable layer draws it, its still or its card.
+   */
+  explorable?: { id: Id; element?: Id };
 }
 
 /** What a link card shows (ADR 0098, stage 3): its address, host, title and description. */
@@ -1427,7 +1442,7 @@ function layOut(
   const leaving = scopeKept && before ? before.leaving : leavingByElement(project, view);
   // The containers the open app expands as the canvas zooms into them are drawn expanded (ADR 0055).
   const collapsed = collapsedWithout(collapsedIn(view), expanded);
-  const free = freeShapesOf(view, before);
+  const free = freeShapesOf(view, project.packages, before);
   // The rows a view of key rows draws (ADR 0080, section 5), the same set while they are the same.
   const keyRowsNow = keyRowsOf(project, view, nesting);
   const keyRows = before && sameKeyRows(before.keyRows, keyRowsNow) ? before.keyRows : keyRowsNow;
@@ -1646,6 +1661,8 @@ export interface Look {
   image: ImageLook | undefined;
   /** The solid its shapes show, if any (ADR 0075). */
   solid: SolidLook | undefined;
+  /** The explorable its shapes show, if any, when they show no image and no solid (ADR 0107). */
+  explorable?: Id;
   /** How many destinations its element has, which its shapes mark (ADR 0056). */
   destinations: number;
   /** The named part its shapes are drawn as outside a drawing with parts, if any (ADR 0067). */
@@ -1771,6 +1788,11 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
     if (solid) {
       look.solid = solid;
       look.image = undefined;
+    }
+    // An explorable is drawn on a shape that shows no image and no solid (ADR 0107, A10.3).
+    if (look.image === undefined && look.solid === undefined) {
+      const explorable = explorableShownBy(element, definitions);
+      if (explorable !== undefined) look.explorable = explorable;
     }
     // Built-in colors in their dark shades; stored ones as stored, or adapted (ADR 0087).
     const stored = laying.colors.storedColorsInDark;
@@ -2851,6 +2873,7 @@ function replaceShapes(
       extent: extentAround(rect, inside, current),
       ...(shape.image ? placedAgain(shape, rect, picture?.rect) : {}),
       ...(shape.solid ? solidPlacedAgain(shape, rect, picture?.rect) : {}),
+      ...(shape.explorable ? explorablePlacedAgain(shape, rect) : {}),
       ...(picture ? { picture } : {}),
       // An anchored part of a solid takes its point from its dot, as `shapeFor` does.
       ...(shape.part?.point ? { part: { ...shape.part, point: solidPointOf(rect) } } : {}),
@@ -3087,7 +3110,12 @@ function shapeFor(
   const solidPart = part?.solid !== undefined && part.inDrawing;
   const placed = solidPart ? undefined : placeImage(look.image, holder, detail !== '');
   const placedSolid = solidPart ? undefined : placeSolid(look.solid, holder, detail !== '');
-  const plate = placed?.plate ?? placedSolid?.plate;
+  // An explorable only on a plain shape, which draws no face or part of its own (ADR 0107).
+  const placedExplorable =
+    placed || placedSolid || part || face
+      ? undefined
+      : placeExplorable(look.explorable, holder, detail !== '');
+  const plate = placed?.plate ?? placedSolid?.plate ?? placedExplorable?.plate;
   // Its extent is its rectangle, exactly, when nothing inside it sticks out: (x + width) - x need not
   // be width again in floating point.
   const holdsOnlyItself = x1 === x && y1 === y && x2 === x + width && y2 === y + height;
@@ -3158,6 +3186,7 @@ function shapeFor(
     before.points === points &&
     sameShapeImage(before.image, placed?.image) &&
     sameShapeSolid(before.solid, placedSolid?.solid) &&
+    sameShapeExplorable(before.explorable, placedExplorable?.explorable) &&
     sameImageRect(before.plate, plate) &&
     sameItems(before.leaving ?? NO_IDS, leaving ?? NO_IDS) &&
     (before.destinations ?? 0) === look.destinations &&
@@ -3212,6 +3241,12 @@ function shapeFor(
         ? before.solid
         : placedSolid.solid;
   }
+  if (placedExplorable) {
+    shape.explorable =
+      before?.explorable && sameShapeExplorable(before.explorable, placedExplorable.explorable)
+        ? before.explorable
+        : placedExplorable.explorable;
+  }
   const detailRuns = look.detailRuns.get(detail);
   if (detailRuns) shape.detailRuns = detailRuns;
   const detailLines = linesOf(appearance);
@@ -3231,6 +3266,34 @@ function shapeFor(
 }
 
 const NO_IDS: readonly Id[] = [];
+
+/** Whether two shapes show the same explorable in the same place (ADR 0107). */
+function sameShapeExplorable(
+  a: ShapeExplorable | undefined,
+  b: ShapeExplorable | undefined,
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.id === b.id &&
+    sameImageRect(a.rect, b.rect) &&
+    sameImageRect(a.box, b.box) &&
+    sameImageRect(a.band, b.band)
+  );
+}
+
+/** A shape's explorable and plate placed again on its rectangle moved to `rect`, as `shapeFor` places them. */
+function explorablePlacedAgain(
+  shape: ElementShape,
+  rect: Rect,
+): { explorable?: ShapeExplorable; plate?: Rect } {
+  const placed = placeExplorable(
+    shape.explorable?.id,
+    { kind: shape.kind, rect, holdsContents: shape.holdsContents, rows: false },
+    (shape.detail ?? '') !== '',
+  );
+  return placed ? { explorable: placed.explorable, plate: placed.plate } : {};
+}
 
 /** Whether two callouts stand beside the same part, put in the same place by layout. */
 function sameCallout(a: ShapeCallout | undefined, b: ShapeCallout | undefined): boolean {
@@ -4080,8 +4143,12 @@ interface FreeShapes {
 }
 
 /** The free shapes of the view: those of `before` while its free shapes are the same. */
-function freeShapesOf(view: ViewFile, before: Built | undefined): FreeShapes {
-  if (before && before.view.freeShapes === view.freeShapes) {
+function freeShapesOf(
+  view: ViewFile,
+  packages: ProjectSnapshot['packages'],
+  before: Built | undefined,
+): FreeShapes {
+  if (before && before.view.freeShapes === view.freeShapes && before.packages === packages) {
     return {
       notes: before.layout.notes,
       arrows: before.layout.arrows,
@@ -4092,14 +4159,42 @@ function freeShapesOf(view: ViewFile, before: Built | undefined): FreeShapes {
     notes: view.freeShapes.filter(isNote).map(noteShape),
     arrows: view.freeShapes.filter(isArrow).map(arrowShape),
     // Link cards are drawn and picked with the pictures, in the view's order (ADR 0098, stage 3).
+    // So are explorable shapes (ADR 0107, A10.3), which the explorable layer draws.
     pictures: view.freeShapes
       .filter(isPictureOrCard)
-      .map((shape) => (shape.kind === 'link' ? linkCardShape(shape) : pictureShape(shape))),
+      .map((shape) =>
+        shape.kind === 'link'
+          ? linkCardShape(shape)
+          : shape.kind === 'explorable'
+            ? explorableShape(
+                shape,
+                explorablesOf(packages).explorable(shape.explorable)?.definition.name,
+              )
+            : pictureShape(shape),
+      ),
   };
 }
 
-function isPictureOrCard(shape: FreeShape): shape is Picture | LinkCard {
-  return shape.kind === 'picture' || shape.kind === 'link';
+function isPictureOrCard(shape: FreeShape): shape is Picture | LinkCard | ExplorableShapeFile {
+  return shape.kind === 'picture' || shape.kind === 'link' || shape.kind === 'explorable';
+}
+
+/**
+ * An explorable shape as the scene draws it (ADR 0107, A10.3): a picture that `explorable` marks,
+ * moved, resized freely and picked as a link card is. It is named by its own name, else by its
+ * explorable's, else by its explorable's id when no package defines it.
+ */
+export function explorableShape(shape: ExplorableShapeFile, defined?: string): PictureShape {
+  return {
+    id: shape.id,
+    rect: { x: shape.x, y: shape.y, width: shape.width, height: shape.height },
+    name: shape.name ?? defined ?? shape.explorable,
+    named: shape.name !== undefined,
+    explorable: {
+      id: shape.explorable,
+      ...(shape.element === undefined ? {} : { element: shape.element }),
+    },
+  };
 }
 
 /** A link card as the scene draws it (ADR 0098, stage 3): a picture that `link` marks. */

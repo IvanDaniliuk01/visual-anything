@@ -13,6 +13,7 @@ import { blockOf, explorableOf, type ExplorableShown } from './explorable';
 import { newFrameAddress, type FrameListener } from './frame-address';
 import { useExplorableApprovals, useExplorableData, useExplorableListener } from './hooks';
 import { FrameHost } from './host';
+import { reasonText } from './reasons';
 import { useExplorableSession, type ExplorableSession, type FrameStop } from './session';
 import './explorables.css';
 
@@ -142,35 +143,6 @@ export function ExplorableCard({
         )}
     </section>
   );
-}
-
-function reasonText(t: ReturnType<typeof useT>, why: CardReason, library?: Id): string {
-  switch (why) {
-    case 'not-approved':
-      return t('Not approved yet: Approve to run.');
-    case 'no-text':
-      return t('Not running: its file in explorables/ is missing, or past 512 KiB.');
-    case 'library-missing':
-      return t('Not running: its package does not define the script library “{id}”.', {
-        id: library ?? '',
-      });
-    case 'silent':
-      return t('Stopped: it stopped answering.');
-    case 'left':
-      return t('Stopped: it left its page, so it no longer gets the data.');
-    case 'never-answered':
-      return t('Stopped: it did not start. Its file may have changed since; run it again to try.');
-    case 'hung':
-      return t(
-        'Stopped: it was running when this tab stopped answering, so it waits for you to run it again.',
-      );
-    case 'starting':
-      return t('Starting…');
-    case 'not-connected':
-      return t('Not running: Visual Anything is not connected.');
-    case 'no-app':
-      return t('Not running here.');
-  }
 }
 
 /** The sizes stills are taken at, which the frame's width is reported within. */

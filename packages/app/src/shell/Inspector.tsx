@@ -17,6 +17,7 @@ import { ReadingControls } from './inspector/ReadingControls';
 import { OverlaysSection } from './inspector/OverlaysSection';
 import { PictureInspector, PicturesSection } from './inspector/PictureInspector';
 import { LinkCardInspector } from './inspector/LinkCardInspector';
+import { ExplorableShapeInspector } from './inspector/ExplorableShapeInspector';
 import { Detail } from './inspector/parts';
 import { RelationInspector } from './inspector/RelationInspector';
 import { ScopeEditor } from './inspector/ScopeEditor';
@@ -139,6 +140,15 @@ export function Inspector({ view, scene, definitions, id, hidden }: InspectorPro
         {inspected.kind === 'link' && view && (
           <LinkCardInspector key={inspected.card.id} card={inspected.card} viewId={view.id} />
         )}
+        {inspected.kind === 'explorable' && view && (
+          <ExplorableShapeInspector
+            key={inspected.shape.id}
+            shape={inspected.shape}
+            viewId={view.id}
+            project={project}
+            shown={shownElementsOf(scene)}
+          />
+        )}
         {inspected.kind === 'several' && (
           <>
             <p className="inspector-selection">
@@ -208,4 +218,18 @@ function ViewDetails({ view, scene, definitions }: InspectorProps) {
       <ScopeEditor view={view} />
     </section>
   );
+}
+
+const NO_ELEMENTS: readonly string[] = [];
+const shownElements = new WeakMap<Scene, readonly string[]>();
+
+/** The elements a view's scene shows, each once, which an explorable shape may be bound to. */
+function shownElementsOf(scene: Scene | undefined): readonly string[] {
+  if (!scene) return NO_ELEMENTS;
+  let shown = shownElements.get(scene);
+  if (!shown) {
+    shown = [...new Set(scene.shapes.map((shape) => shape.element))];
+    shownElements.set(scene, shown);
+  }
+  return shown;
 }

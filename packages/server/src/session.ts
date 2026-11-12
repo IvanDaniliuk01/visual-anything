@@ -102,6 +102,7 @@ import { projectDestinationWarnings, type OpenOtherProject } from './other-proje
 import { LiveValues, type LiveKept, type LiveListing } from './live';
 import { LayoutWaits, type LayoutGuidance, type LayoutWait } from './layout-waits';
 import { CaptureWaits } from './capture-waits';
+import { ExplorableCaptureWaits } from './explorables/capture-waits';
 import type { ExplorableCaptureAsk, ExplorableCaptureReport } from './claude/messages';
 import { PackageFetcher, networkGrantOf, type FetcherOptions } from './live-fetch';
 import type { LogEvent, ProgramEvent } from './program-log';
@@ -531,6 +532,8 @@ export class Session implements LiveSession {
   readonly #layouts: LayoutWaits;
   /** The pictures Claude asked the apps for, each waited for by its own id (ADR 0081). */
   readonly #captures: CaptureWaits;
+  /** The stills of explorables Claude asked the apps for, each by its own id (ADR 0107, A10.3). */
+  readonly #explorableCaptures: ExplorableCaptureWaits;
   /**
    * The project as the program opened it, or last read it again from disk: the version as opened
    * (ADR 0070), which needs no git.
@@ -607,6 +610,18 @@ export class Session implements LiveSession {
           const apps = [...this.#clients];
           for (const client of apps) {
             this.#send(client, { type: 'capture/request', requestId, ...ask });
+          }
+          return Promise.resolve(apps);
+        }),
+      options.captureWait,
+    );
+    // In the queue too, so that a still shows the explorable as the work asked for before it left it.
+    this.#explorableCaptures = new ExplorableCaptureWaits(
+      (ask, requestId) =>
+        this.#enqueue(() => {
+          const apps = [...this.#clients];
+          for (const client of apps) {
+            this.#send(client, { type: 'explorable-capture/request', requestId, ...ask });
           }
           return Promise.resolve(apps);
         }),
@@ -815,6 +830,7 @@ export class Session implements LiveSession {
       this.#live.forget(client);
       this.#layouts.gone(client);
       this.#captures.gone(client);
+      this.#explorableCaptures.gone(client);
       this.#solids.forget(client);
       this.#media.forget(client);
       this.#forgetConsents(client);
@@ -904,6 +920,15 @@ export class Session implements LiveSession {
   }
 
   /**
+   * Asks the tab the person used last for a still of an explorable, drawn in its hidden frame, and
+   * its console errors (ADR 0107, A10.3), within 20 s. It changes nothing.
+   */
+  captureExplorable(ask: ExplorableCaptureAsk): Promise<ExplorableCaptureReport> {
+    if (this.#closed) return Promise.resolve({ apps: 0 });
+    return this.#explorableCaptures.capture(ask);
+  }
+
+  /**
    * Handles a message from an app: a command runs with the user as its author, and an undo or a redo
    * is applied. A message that is not valid is answered with `command/rejected` when it has a request
    * id, and ignored otherwise.
@@ -986,6 +1011,10 @@ export class Session implements LiveSession {
       case 'capture/answer':
         // The picture the tab the person used last took for Claude, or why it took none (ADR 0081).
         this.#captures.answered(client, message);
+        return;
+      case 'explorable-capture/answer':
+        // The still of an explorable the tab the person used last took for Claude (ADR 0107).
+        this.#explorableCaptures.answered(client, message);
         return;
       case 'solid/get':
         // A solid's file for the app's solid worker, in pieces (ADR 0075). It only reads, and never
@@ -2105,6 +2134,7 @@ export class Session implements LiveSession {
       this.#versions.close();
       this.#layouts.close();
       this.#captures.close();
+      this.#explorableCaptures.close();
       await this.#queue;
       const changes = this.#proposal.changeKeys().length;
       const dropped = this.#proposal.close('dropped');

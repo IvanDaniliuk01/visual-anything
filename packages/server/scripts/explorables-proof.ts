@@ -9,8 +9,9 @@
  * browser headless, with frame isolation as the browser ships it (no puppeteer, which turns it off).
  * The page frames, with the app's own host: the quadratic sample's explorable (it loads, gets its
  * data, posts a still); a probe of what a frame may reach (network, storage, the parent, the token,
- * `eval`); how styles apply under hash-only `style-src` (a library's injected `<style>`, a `style`
- * attribute, the CSSOM) and KaTeX's two ways of rendering; a page that loops, which the watchdog
+ * `eval`); how styles apply under `style-src 'unsafe-inline'` (a library's injected `<style>`, a
+ * `style` attribute, the CSSOM) while no `@import`, `url()` or font reaches an address, and KaTeX's
+ * two ways of rendering; a page that loops, which the watchdog
  * removes while the page stays responsive; and pages that reload or navigate themselves, which get
  * no second hello. A sink on another port counts every request that reaches it: it must count none.
  *
@@ -109,18 +110,24 @@ report('probe', r);
 </script></body></html>`,
   },
   styles: {
-    text: `<!doctype html><html><head><style>#hashed { color: rgb(1, 2, 3); }</style></head><body>
+    text: `<!doctype html><html><head><style>@import url("${SINK}/style-import-own.css");</style>
+<style>#hashed { color: rgb(1, 2, 3); } #own-url { background-image: url("${SINK}/style-url-own.png"); }
+@font-face { font-family: far; src: url("${SINK}/style-font.woff2"); } #font { font-family: far; }</style></head><body>
 <div id="hashed">a</div><div id="attribute" style="color: rgb(4, 5, 6)">b</div><div id="injected">c</div>
-<div id="rule">d</div><div id="cssom">e</div><div id="adopted">f</div><script>
+<div id="rule">d</div><div id="cssom">e</div><div id="adopted">f</div>
+<div id="attribute-url" style="background: url(${SINK}/style-url-attribute.png)">g</div><div id="own-url">h</div>
+<div id="font">i</div><div id="injected-url">j</div><script>
 ${REPORT}
 const r = {};
 const s = document.createElement('style'); s.textContent = '#injected { color: rgb(7, 8, 9) }'; document.head.append(s);
+const i = document.createElement('style'); i.textContent = '@import url("${SINK}/style-import-injected.css"); #injected-url { background-image: url("${SINK}/style-url-injected.png"); }'; document.head.append(i);
+document.getElementById('cssom').style.backgroundImage = 'url("${SINK}/style-url-cssom.png")';
 const e = document.createElement('style'); document.head.append(e);
 try { e.sheet.insertRule('#rule { color: rgb(10, 11, 12) }'); } catch (error) { r.insertRuleError = error.name; }
 document.getElementById('cssom').style.color = 'rgb(13, 14, 15)';
 try { const sheet = new CSSStyleSheet(); sheet.replaceSync('#adopted { color: rgb(16, 17, 18) }'); document.adoptedStyleSheets = [sheet]; } catch (error) { r.adoptedError = error.name; }
 const want = { hashed: 'rgb(1, 2, 3)', attribute: 'rgb(4, 5, 6)', injected: 'rgb(7, 8, 9)', rule: 'rgb(10, 11, 12)', cssom: 'rgb(13, 14, 15)', adopted: 'rgb(16, 17, 18)' };
-setTimeout(() => { for (const [id, color] of Object.entries(want)) r[id] = getComputedStyle(document.getElementById(id)).color === color ? 'applies' : 'DOES NOT APPLY'; report('styles', r); }, 100);
+setTimeout(() => { for (const [id, color] of Object.entries(want)) r[id] = getComputedStyle(document.getElementById(id)).color === color ? 'applies' : 'DOES NOT APPLY'; document.fonts.load('16px far').then(() => {}, () => {}); report('styles', r); }, 100);
 </script></body></html>`,
   },
   katex: {
@@ -287,7 +294,13 @@ async function runIn(name: string): Promise<unknown> {
   } catch {
     // The browser may still hold its profile for a moment; the system's temporary folder keeps it.
   }
-  return { browser: path, outcome, sinkReached: [...reached] };
+  return {
+    browser: path,
+    outcome,
+    sinkReached: [...reached],
+    // The styles page's @import, url() and font addresses: each must reach the sink 0 times.
+    styleAddressesReached: reached.filter((each) => each.includes('/style-')).length,
+  };
 }
 
 const wanted = process.argv.slice(2).filter((each) => each in BROWSERS);

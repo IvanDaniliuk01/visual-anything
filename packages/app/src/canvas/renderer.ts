@@ -168,6 +168,7 @@ import { PARTS_PICTURES, PartLayer } from './partsDraw';
 import type { SolidClient } from '../solids/solid-client';
 import type { SolidFrameReply } from '../solids/protocol';
 import { SOLID_LAYER, SolidLayer } from './solids/layer';
+import { EXPLORABLE_LAYER, ExplorableLayer, type ExplorableProvider } from './explorables/layer';
 import { imageSolidsOf, type ImageSolids } from './solids/image-solids';
 import { solidShotsOf, type SolidPixels } from '../export/solid-pictures';
 import { solidPainterOf } from '../export/solid-painter';
@@ -519,6 +520,8 @@ export interface DrawnFrom {
   legend?: Legend;
   codeDrawings?: ReadonlyMap<Id, CodeDrawing>;
   comparison?: ComparisonScene;
+  /** What draws explorables' faces and stills (ADR 0107, A10.3). */
+  explorables?: ExplorableProvider;
 }
 
 export class CanvasRenderer {
@@ -776,6 +779,11 @@ export class CanvasRenderer {
   private readonly comparison: ComparisonLayer;
   /** Pictures (ADR 0098), under the notes and arrows and above the shapes and relations. */
   private readonly pictureLayer: PictureLayer;
+  /**
+   * Explorables (ADR 0107, A10.3): their stills or their cards, on element shapes' plates and loose,
+   * above the pictures and under the notes and arrows.
+   */
+  private readonly explorableLayer: ExplorableLayer;
   private readonly stopTakingToggles: () => void;
   private readonly stopTakingStepVideos: () => void;
   private media: MediaFiles | undefined;
@@ -813,6 +821,11 @@ export class CanvasRenderer {
     // The videos the step a scenario or a tour shows asks for (ADR 0098, stage 4).
     this.stopTakingStepVideos = onStepVideos((ids) => this.pictureLayer.setPlaying(ids));
     this.pictureLayer.setTheme(this.painter.theme.name === 'dark');
+    this.explorableLayer = new ExplorableLayer(
+      () => this.pictures.store,
+      () => this.requestRender(),
+    );
+    this.explorableLayer.setTheme(this.painter.theme.name === 'dark');
     this.comparison = new ComparisonLayer(
       bitmapMarkText,
       () => this.requestRender(),
@@ -822,6 +835,7 @@ export class CanvasRenderer {
     this.themeSolids();
     this.pictures.keep(PARTS_PICTURES);
     this.pictures.keep(SOLID_LAYER);
+    this.pictures.keep(EXPLORABLE_LAYER);
     this.tintMarks();
     this.elementShapes.addChild(this.overflowBand);
     this.rerouted.addChild(this.reroutedLines);
@@ -853,6 +867,7 @@ export class CanvasRenderer {
       this.codeDrawings.container,
       this.relations.container,
       this.pictureLayer.container,
+      this.explorableLayer.container,
       this.freeShapes,
       this.comparison.container,
       this.rerouted,
@@ -1390,6 +1405,7 @@ export class CanvasRenderer {
     this.dragged.position.set(0, 0);
     this.movingMarks.position.set(0, 0);
     this.pictureLayer.setDrag(this.selection.freeShapes, { x: 0, y: 0 });
+    this.explorableLayer.setDrag(this.selection.freeShapes, { x: 0, y: 0 });
     this.drawSelection();
     this.requestRender();
     return id;
@@ -1404,6 +1420,7 @@ export class CanvasRenderer {
     this.dragged.position.set(delta.x, delta.y);
     this.movingMarks.position.set(delta.x, delta.y);
     if (this.drag) this.pictureLayer.setDrag(this.selection.freeShapes, delta);
+    if (this.drag) this.explorableLayer.setDrag(this.selection.freeShapes, delta);
     if (this.drag) this.drag.delta = delta;
     this.dragMarks(delta, frame);
     this.requestRender();
@@ -1423,6 +1440,7 @@ export class CanvasRenderer {
     this.drag = undefined;
     this.hidden = NOTHING_HIDDEN;
     this.pictureLayer.setDrag(new Set(), { x: 0, y: 0 });
+    this.explorableLayer.setDrag(new Set(), { x: 0, y: 0 });
     this.dragMarks({ x: 0, y: 0 }, undefined);
     if (!redraw) {
       // How far the dragged shapes were drawn, for the tiles the next rebuild makes for them.
@@ -1468,6 +1486,24 @@ export class CanvasRenderer {
   /** Whether a picture's file could not be had, so that it draws its name and a warning. */
   pictureMissing(id: Id): boolean {
     return this.pictureLayer.isMissing(id);
+  }
+
+  /**
+   * What draws explorables' faces and stills (ADR 0107, A10.3): the canvas area's, which knows the
+   * project, the approvals and the tab's stills; without one, each explorable draws a bare card.
+   */
+  setExplorables(provider: ExplorableProvider | undefined): void {
+    this.explorableLayer.setProvider(provider);
+  }
+
+  /** The faces or the stills of explorables changed: the canvas draws them again. */
+  explorablesChanged(): void {
+    this.explorableLayer.repaint();
+  }
+
+  /** Where an explorable is drawn, by its spot: an element shape's key or a loose shape's id. */
+  explorableRect(spot: string): Rect | undefined {
+    return this.explorableLayer.rectOf(spot);
   }
 
   /** Whether shapes are being drawn as dragged. */
@@ -1862,6 +1898,9 @@ export class CanvasRenderer {
       ...(this.legend === undefined ? {} : { legend: this.legend }),
       ...(this.codeDrawn === undefined ? {} : { codeDrawings: this.codeDrawn }),
       ...(this.comparisonShown === undefined ? {} : { comparison: this.comparisonShown }),
+      ...(this.explorableLayer.provider === undefined
+        ? {}
+        : { explorables: this.explorableLayer.provider }),
     };
   }
 
@@ -1929,6 +1968,8 @@ export class CanvasRenderer {
           child === this.elementShapes ||
           child === this.relations.container ||
           child === this.pictureLayer.container ||
+          // Explorables' stills where the canvas has them, and their cards where not (ADR 0107).
+          child === this.explorableLayer.container ||
           child === this.freeShapes;
         if (!scene) change(child, 'visible', false);
       }
@@ -2131,6 +2172,7 @@ export class CanvasRenderer {
     this.stopTakingToggles();
     this.stopTakingStepVideos();
     this.pictureLayer.destroy();
+    this.explorableLayer.destroy();
     reportPlaying(this, new Set());
     this.pictures.destroy();
     this.status = 'destroyed';
@@ -2145,6 +2187,7 @@ export class CanvasRenderer {
     this.partLayer.reset();
     this.solidLayer.reset();
     this.pictureLayer.reset();
+    this.explorableLayer.reset();
     this.requestRender();
   }
 
@@ -2309,6 +2352,12 @@ export class CanvasRenderer {
     );
     this.solidLayer.setScale(this.camera.scale);
     this.markSolidParts();
+    // Explorables on the shapes shown and loose, as the emphasis and a drag leave them (ADR 0107).
+    this.explorableLayer.setScene(
+      this.indexed?.scene,
+      { shapes: this.hiddenNow().shapes, free: this.emphasized.hidden.free },
+      { shapes: this.emphasized.dimmed.shapes, free: this.emphasized.dimmed.free },
+    );
   }
 
   private rebuildShapes(
@@ -4337,6 +4386,8 @@ export class CanvasRenderer {
       if (this.solidLayer.frame(this.imageView(performance.now() - began))) this.requestRender();
       // Pictures, at most one texture a frame, and the GIFs on screen playing (ADR 0098).
       if (this.pictureLayer.frame(this.imageView(0))) this.requestRender();
+      // Explorables' stills, their textures made by the store, or their cards (ADR 0107).
+      if (this.explorableLayer.frame(this.imageView(0))) this.requestRender();
       // What the camera's rest leaves to do, in what the frame has left of its time.
       this.idle(began);
       const drag = this.drag;
@@ -4550,6 +4601,7 @@ export class CanvasRenderer {
     if (theme === target) return;
     this.codeDrawings.setDark(theme.name === 'dark');
     this.pictureLayer.setTheme(theme.name === 'dark');
+    this.explorableLayer.setTheme(theme.name === 'dark');
     if (this.status !== 'ready') {
       this.painter = painterOf(theme, this.painter.drawing);
       this.partLayer.setTheme(theme.name);

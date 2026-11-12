@@ -1,9 +1,12 @@
 /**
  * The frame builder (ADR 0107): one document holding the `va` runtime, the explorable's script
  * libraries inlined as globals in their order, and the explorable's text; and the policy it is served
- * with, which lets scripts and styles run only by the hashes of what the builder put in.
+ * with, which lets scripts run only by the hashes of what the builder put in. Styles apply inline
+ * (`style-src 'unsafe-inline'`, ADR 0107's clarification of 2026-11-12): a style cannot run code, an
+ * approved script can set any style through the CSSOM already, and no style reaches the network, since
+ * `style-src` names no host and pictures and fonts come only from `data:` (and pictures from `blob:`).
  *
- * The browser hashes an inline script or style as it reads it, after the HTML parser's own rewriting:
+ * The browser hashes an inline script as it reads it, after the HTML parser's own rewriting:
  * CR and CRLF become LF everywhere, and NUL becomes U+FFFD. So the builder makes every line ending LF
  * and escapes NUL first (`\x00` inside scripts, where it is JavaScript's escape, and U+FFFD
  * elsewhere, as the parser would), then hashes the text exactly as it writes it.
@@ -15,11 +18,12 @@
  *
  * The explorable's text is the page as its author wrote it. The builder reads it with the HTML
  * tokenizer's own rules (comments, raw text, attributes with quoted `>`, a script's escaped states,
- * SVG and MathML) and hashes each `<script>` without `src` and each `<style>` it finds where HTML
- * reads one. Where it cannot be sure, it hashes nothing, and what the browser finds there does not
- * run: every hash is of the author's own text, so a mistake only ever stops the author's own code.
- * The header policy is the line: it allows no `'unsafe-inline'`, `'unsafe-hashes'` or `'unsafe-eval'`,
- * so event-handler and `style` attributes and `javascript:` addresses never run. And every
+ * SVG and MathML) and hashes each `<script>` without `src` it finds where HTML reads one; it finds
+ * each `<style>` the same way, since where a style ends decides where the next script begins. Where it
+ * cannot be sure, it hashes nothing, and what the browser finds there does not run: every hash is of
+ * the author's own text, so a mistake only ever stops the author's own code. The header policy is the
+ * line: its `script-src` allows no `'unsafe-inline'`, `'unsafe-hashes'` or `'unsafe-eval'`, so event
+ * handlers and `javascript:` addresses never run. And every
  * `http-equiv` in the text, wherever it stands, is renamed `data-va-http-equiv`, so that no
  * `<meta http-equiv>` refreshes the frame or does anything else, however the page is read.
  */
@@ -78,41 +82,39 @@ export function buildFrame(input: FrameInput): FrameDocument {
   const page = explorablePage(text);
   parts.push(page.html);
   scriptHashes.push(...page.scripts.map(cspHash));
-  const styleHashes = page.styles.map(cspHash);
   return {
     html: parts.join(''),
-    policy: framePolicy(scriptHashes, styleHashes, appOrigin),
+    policy: framePolicy(scriptHashes, appOrigin),
     scriptHashes,
-    styleHashes,
   };
 }
 
 /**
- * The frame's policy (ADR 0107): scripts and styles only by their hashes, no `eval`, no network, no
- * workers, no nested frames, pictures and fonts only from `data:` (and pictures from `blob:`), in a
- * sandbox that allows scripts and nothing else, framed only by the app.
+ * The frame's policy (ADR 0107): scripts only by their hashes, no `eval`, no network, no workers, no
+ * nested frames, styles inline only and from no address, pictures and fonts only from `data:` (and
+ * pictures from `blob:`), in a sandbox that allows scripts and nothing else, framed only by the app.
+ *
+ * `style-src 'unsafe-inline'` stands alone: a hash beside it would turn it off. It lets `style="…"`
+ * attributes and a `<style>` a script adds apply (KaTeX's `renderToString`, Plotly), and names no host
+ * or scheme, so an `@import` or a `url()` to an address stays blocked by `style-src`, `img-src` and
+ * `font-src`.
  */
-export function framePolicy(
-  scriptHashes: readonly string[],
-  styleHashes: readonly string[],
-  appOrigin: string,
-): string {
+export function framePolicy(scriptHashes: readonly string[], appOrigin: string): string {
   if (!ORIGIN.test(appOrigin))
     throw new FrameRefusal('The app’s origin is a scheme, a host and a port.');
-  const sources = (hashes: readonly string[]) => {
-    const unique = [...new Set(hashes)];
-    for (const hash of unique) {
-      if (!CSP_HASH.test(hash)) throw new FrameRefusal(`"${hash}" is not a SHA-256 source.`);
-    }
-    // 'report-sample' lets the runtime tell the author what was blocked; it allows nothing.
-    return unique.length === 0
+  const unique = [...new Set(scriptHashes)];
+  for (const hash of unique) {
+    if (!CSP_HASH.test(hash)) throw new FrameRefusal(`"${hash}" is not a SHA-256 source.`);
+  }
+  // 'report-sample' lets the runtime tell the author what was blocked; it allows nothing.
+  const scripts =
+    unique.length === 0
       ? "'none'"
       : ["'report-sample'", ...unique.map((hash) => `'${hash}'`)].join(' ');
-  };
   return [
     "default-src 'none'",
-    `script-src ${sources(scriptHashes)}`,
-    `style-src ${sources(styleHashes)}`,
+    `script-src ${scripts}`,
+    `style-src ${FRAME_STYLE_SOURCE}`,
     'img-src data: blob:',
     'font-src data:',
     "connect-src 'none'",
@@ -126,6 +128,9 @@ export function framePolicy(
     'sandbox allow-scripts',
   ].join('; ');
 }
+
+/** The frame's `style-src`, alone: inline styles from the page or its scripts, and no address. */
+export const FRAME_STYLE_SOURCE = "'unsafe-inline'";
 
 /** How a hash source is written: `sha256-` and the digest in base64. */
 export const CSP_HASH = /^sha256-[A-Za-z0-9+/]{43}=$/;

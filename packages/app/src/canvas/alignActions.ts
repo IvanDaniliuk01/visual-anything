@@ -13,6 +13,7 @@ import type {
   Arrow,
   FreeShape,
   Id,
+  ExplorableShape,
   LinkCard,
   Note,
   Picture,
@@ -114,7 +115,7 @@ export function alignLabel(how: AlignHow, count: number): string {
 type Part =
   | { kind: 'shape'; shape: ElementShape; rect: Rect }
   | { kind: 'note'; note: Note; rect: Rect }
-  | { kind: 'picture'; picture: Picture | LinkCard; rect: Rect }
+  | { kind: 'picture'; picture: Picture | LinkCard | ExplorableShape; rect: Rect }
   | { kind: 'arrow'; arrow: Arrow; rect: Rect };
 
 /**
@@ -145,7 +146,7 @@ function partsOf(
         note: free,
         rect: { x: free.x, y: free.y, width: free.width, height: free.height },
       });
-    } else if (free.kind === 'picture' || free.kind === 'link') {
+    } else if (free.kind === 'picture' || free.kind === 'link' || free.kind === 'explorable') {
       parts.push({
         kind: 'picture',
         picture: free,

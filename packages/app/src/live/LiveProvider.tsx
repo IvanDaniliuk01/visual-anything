@@ -72,6 +72,7 @@ export function LiveProvider({
       clearGuidance: connection.clearGuidance,
       answerLayout: connection.answerLayout,
       lendCapture: connection.lendCapture,
+      lendExplorableCapture: connection.lendExplorableCapture,
       guidanceApplied: connection.guidanceApplied,
       captureChanged: connection.captureChanged,
       setPreferences: connection.setPreferences,

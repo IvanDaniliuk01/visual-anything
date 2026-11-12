@@ -71,6 +71,7 @@ import { collapseActions, type CollapseAction } from './collapse';
 import { boundsOf, centerOf, distance, toggleRect, type Point, type Rect } from './geometry';
 import { carriedKeys, moveCommand, movingShapes, type MoveSelection } from './gestures';
 import { enclosedBy, hitAt, shapesAt, withoutShapes, type Hit, type IndexedScene } from './hit';
+import type { LiveTarget } from './explorables/live';
 import { drawnBoundsOf } from './nameTags';
 import {
   containerOf,
@@ -189,6 +190,13 @@ export interface ControllerCallbacks {
   resetRoutes?(): void;
   /** Asks to lay out, as Alt+Shift+L does, which the toolbar's Layout does too (ADR 0092 §1). */
   layOut?(): void;
+  /**
+   * Asks to make an explorable live in place (ADR 0107, A10.3): a double-click on an explorable
+   * shape, or on the plate of an element's shape that shows one.
+   */
+  explore?(target: LiveTarget): void;
+  /** Offers Escape first to what is laid over the canvas: true when it took it, as a live explorable. */
+  escape?(): boolean;
 }
 
 /**
@@ -1274,6 +1282,12 @@ export class CanvasController {
       this.callbacks.follow?.(marked.shape.element);
       return;
     }
+    // A double-click on an explorable makes it live in place, also where nothing can be changed.
+    const explored = explorableAt(marked, world);
+    if (explored) {
+      this.callbacks.explore?.(explored);
+      return;
+    }
     if (!this.editable) return;
     // A double-click on a bend point removes it.
     if (this.routes.doubleClick(world)) return;
@@ -1348,6 +1362,7 @@ export class CanvasController {
       this.callbacks.remove();
       return;
     }
+    if (event.key === 'Escape' && this.callbacks.escape?.()) return;
     if (event.key === 'Escape') {
       // A hover card the keys opened goes with it (ADR 0082).
       this.callbacks.hoverShape?.(undefined, 'keyboard');
@@ -2648,4 +2663,25 @@ function targetRect(hit: Hit) {
     case 'arrow':
       return rectAround([hit.arrow.from, hit.arrow.to]);
   }
+}
+
+/**
+ * The explorable under a point (ADR 0107, A10.3): a loose explorable shape's, or that of an element's
+ * shape whose plate shows one, when the point is on the plate rather than on its name band.
+ */
+export function explorableAt(hit: Hit | undefined, world: Point): LiveTarget | undefined {
+  if (hit?.kind === 'picture' && hit.picture.explorable) {
+    const { id, element } = hit.picture.explorable;
+    return { spot: hit.picture.id, explorable: id, ...(element === undefined ? {} : { element }) };
+  }
+  if (hit?.kind === 'shape' && hit.shape.explorable) {
+    const { box, id } = hit.shape.explorable;
+    const inside =
+      world.x >= box.x &&
+      world.x <= box.x + box.width &&
+      world.y >= box.y &&
+      world.y <= box.y + box.height;
+    if (inside) return { spot: hit.shape.key, explorable: id, element: hit.shape.element };
+  }
+  return undefined;
 }

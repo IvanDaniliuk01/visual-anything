@@ -5,7 +5,7 @@
 export type { Cleaned } from './result';
 export type { CleanedSvg } from './svg';
 export { SVG_ALLOWED, SVG_CAPS, cleanSvg } from './svg';
-export type { BitmapFormat, CleanedBitmap, ImageHeader } from './bitmap';
+export type { BitmapCaps, BitmapFormat, CleanedBitmap, ImageHeader } from './bitmap';
 export { BITMAP_CAPS, readBitmap, readImageHeader } from './bitmap';
 export { decodeBase64, encodeBase64 } from './base64';
 export type { CleanedImage } from './cleaned';

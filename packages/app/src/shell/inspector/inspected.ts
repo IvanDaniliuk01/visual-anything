@@ -2,6 +2,7 @@ import type { ModelIndex } from '@visual-anything/core';
 import type {
   Arrow,
   Element,
+  ExplorableShape,
   LinkCard,
   Note,
   Picture,
@@ -19,6 +20,7 @@ export type Inspected =
   | { kind: 'arrow'; arrow: Arrow }
   | { kind: 'picture'; picture: Picture }
   | { kind: 'link'; card: LinkCard }
+  | { kind: 'explorable'; shape: ExplorableShape }
   /** Several things, or one that is no longer there. */
   | { kind: 'several' };
 
@@ -43,6 +45,7 @@ export function inspectedOf(
     if (shape?.kind === 'arrow') return { kind: 'arrow', arrow: shape };
     if (shape?.kind === 'picture') return { kind: 'picture', picture: shape };
     if (shape?.kind === 'link') return { kind: 'link', card: shape };
+    if (shape?.kind === 'explorable') return { kind: 'explorable', shape };
   }
   return { kind: 'several' };
 }
@@ -62,6 +65,8 @@ export function inspectedKey(inspected: Inspected): string | undefined {
       return `free-shape:${inspected.picture.id}`;
     case 'link':
       return `free-shape:${inspected.card.id}`;
+    case 'explorable':
+      return `free-shape:${inspected.shape.id}`;
     default:
       return undefined;
   }

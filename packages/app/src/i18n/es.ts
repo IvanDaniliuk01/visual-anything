@@ -4419,6 +4419,24 @@ export const ui: Catalog = {
   'Not running: Visual Anything is not connected.':
     'No se ejecuta: Visual Anything no está conectado.',
   'Not running here.': 'No se ejecuta aquí.',
+  // A10.3: explorables on the canvas (ADR 0107).
+  'Double-click to explore.': 'Doble clic para explorarlo.',
+  'Show its still again (Escape)': 'Volver a su imagen fija (Escape)',
+  'Explorable shape…': 'Forma explorable…',
+  'No package of the project defines an explorable.':
+    'Ningún paquete del proyecto define un explorable.',
+  'Add an explorable shape': 'Agregar una forma explorable',
+  'Put “{name}” on the canvas, bound to the element selected':
+    'Poner “{name}” en el lienzo, vinculado al elemento seleccionado',
+  'Put on the canvas': 'Poner en el lienzo',
+  'An explorable shape: drawing only, not part of the model. It shows its explorable’s still, and runs live in place when explored.':
+    'Una forma explorable: solo dibujo, no forma parte del modelo. Muestra la imagen fija de su explorable, y se ejecuta en su lugar cuando se lo explora.',
+  'Bound to': 'Vinculado a',
+  'No element': 'Ningún elemento',
+  'It reads the data of the element it is bound to, as an element that shows it would.':
+    'Lee los datos del elemento al que está vinculado, como lo haría un elemento que lo muestra.',
+  'Make it live in place on the canvas (double-click)':
+    'Ejecutarlo en su lugar en el lienzo (doble clic)',
   'The project’s script-libraries/ folder holds {count} files that no package names. They stay until you remove them.':
     {
       one: 'La carpeta script-libraries/ del proyecto tiene {count} archivo que ningún paquete nombra. Queda hasta que se quite.',
@@ -8508,6 +8526,10 @@ export const messages: Catalog = {
   'Edit a link card in "{view}"': 'Editar una tarjeta web en "{view}"',
   'Resize a link card': 'Cambiar el tamaño de una tarjeta web',
   'Fetch the preview of a link card': 'Traer la vista previa de una tarjeta web',
+  // A10.3: explorable shapes (ADR 0107).
+  'Add an explorable to "{view}"': 'Agregar un explorable a "{view}"',
+  'Edit an explorable in "{view}"': 'Editar un explorable en "{view}"',
+  'Resize an explorable shape': 'Cambiar el tamaño de una forma explorable',
   'A free shape is a note, an arrow, a picture, a link card or an explorable.':
     'Una forma libre es una nota, una flecha, una imagen, una tarjeta web o un explorable.',
   'A link card has no colors of its own; a link card in "{view}" is drawn as a card.':

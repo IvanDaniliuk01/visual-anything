@@ -75,6 +75,9 @@ export async function drawOffScreen(
     mirror.setLegend(from.legend);
     if (from.comparison !== undefined) mirror.setComparison(from.comparison);
     mirror.setEmphasis(from.emphasis);
+    // Explorables' stills kept in this theme, and their cards where none is (ADR 0107, A10.3).
+    const explorables = from.explorables?.forImage?.(theme.name);
+    if (explorables) mirror.setExplorables(explorables);
     mirror.show(indexed);
     if (view !== undefined) mirror.setCamera(view.camera);
     // One frame, as the canvas draws one before an image: what it plans and the pictures it makes.

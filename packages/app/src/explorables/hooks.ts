@@ -49,11 +49,12 @@ const asked = new WeakMap<object, Promise<ListenerState>>();
 
 /**
  * The program's explorables' listener: its port and the session's nonce, asked for with
- * `explorables/listen` once a connection, and again once the connection opens again.
+ * `explorables/listen` once a connection, and again once the connection opens again. With `wanted`
+ * false, as where the project defines no explorable, it is not asked for.
  */
-export function useExplorableListener(): ListenerState {
+export function useExplorableListener(wanted = true): ListenerState {
   const live = useContext(LiveContext);
-  const listen = live?.listenExplorables;
+  const listen = wanted ? live?.listenExplorables : undefined;
   const open = live?.status === 'open';
   const [state, setState] = useState<{ listen: unknown; value: ListenerState }>();
   useEffect(() => {

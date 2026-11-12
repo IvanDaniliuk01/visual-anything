@@ -7,6 +7,7 @@
 import type { VaData } from '@visual-anything/core';
 import { newFrameAddress, type FrameListener } from '../frame-address';
 import { FrameHost, type FrameEnd } from '../host';
+import { takeStill } from '../still-taker';
 
 interface Config {
   listener: FrameListener;
@@ -150,6 +151,30 @@ async function main() {
     'navigate',
     await run(config, 'navigate', (each) => each.stopped !== undefined, { wait: 8000 }),
   );
+  // The canvas's still, taken as the app takes it: one hidden frame, transparent, under everything.
+  const quadratic = config.frames.quadratic;
+  if (quadratic) {
+    const started = performance.now();
+    const taken = await takeStill({
+      address: newFrameAddress(config.listener, quadratic.id, quadratic.hash),
+      data: { ...DATA, size: { width: 320, height: 240 } },
+      width: 512,
+    });
+    report('hiddenStill', {
+      ms: Math.round(performance.now() - started),
+      ...(taken.ok
+        ? {
+            ok: true,
+            width: taken.width,
+            height: taken.height,
+            bytes: taken.png.byteLength,
+            ready: taken.ready,
+            errors: taken.errors,
+          }
+        : taken),
+      framesLeft: document.querySelectorAll('iframe').length,
+    });
+  }
   report('tokenStillHere', sessionStorage.getItem('visual-anything.token') === SECRET);
   await fetch('/results', { method: 'POST', body: JSON.stringify(results) });
 }
