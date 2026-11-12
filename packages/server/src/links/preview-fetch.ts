@@ -118,6 +118,7 @@ export class LinkFetcher {
     const got = await this.#get(checked.url, {
       accept: 'text/html, application/xhtml+xml;q=0.9',
       types: PAGE_TYPES,
+      said: 'a web page',
       bytes: this.#limits.pageBytes,
       past: 'cut',
       ms: this.#limits.pageMs,
@@ -143,6 +144,7 @@ export class LinkFetcher {
     const got = await this.#get(checked.url, {
       accept: 'image/png, image/jpeg, image/webp, image/gif',
       types: IMAGE_TYPES,
+      said: 'a PNG, JPEG, WebP or GIF picture',
       bytes: this.#limits.imageBytes,
       past: 'refuse',
       ms: this.#limits.imageMs,
@@ -161,6 +163,8 @@ export class LinkFetcher {
     how: {
       accept: string;
       types: readonly string[];
+      /** What the answer must be, in words. */
+      said: string;
       bytes: number;
       past: 'cut' | 'refuse';
       ms: number;
@@ -246,7 +250,13 @@ export class LinkFetcher {
     url: URL,
     destination: Destination,
     controller: AbortController,
-    how: { accept: string; types: readonly string[]; bytes: number; past: 'cut' | 'refuse' },
+    how: {
+      accept: string;
+      types: readonly string[];
+      said: string;
+      bytes: number;
+      past: 'cut' | 'refuse';
+    },
   ): Promise<Sent> {
     return new Promise<Sent>((resolve) => {
       let settled = false;
@@ -295,7 +305,9 @@ export class LinkFetcher {
           response.destroy();
           settle(
             failed(
-              `answered with ${type === '' ? 'no type' : type}, not ${how.types.join(' or ')}`,
+              type === ''
+                ? `gave its answer no type, where ${how.said} was asked for`
+                : `answered with ${type}, not ${how.said}`,
             ),
           );
           return;

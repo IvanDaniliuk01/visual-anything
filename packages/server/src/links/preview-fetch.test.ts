@@ -236,7 +236,7 @@ describe('fetching a page’s preview', () => {
         response.writeHead(200, { 'content-type': 'application/json' });
         response.end('{}');
       },
-      'answered with application/json, not text/html or application/xhtml+xml',
+      'answered with application/json, not a web page',
     ],
   ])('fails on %s', async (_, route, why) => {
     routes.set('/odd', route);
@@ -285,7 +285,11 @@ describe('fetching a preview’s image', () => {
   });
 
   it.each([
-    ['an SVG', { 'content-type': 'image/svg+xml' }, 'answered with image/svg+xml'],
+    [
+      'an SVG',
+      { 'content-type': 'image/svg+xml' },
+      'answered with image/svg+xml, not a PNG, JPEG, WebP or GIF picture',
+    ],
     ['a file past its cap', { 'content-type': 'image/png' }, 'is larger than 8 KiB'],
   ])('leaves out %s', async (_, headers, why) => {
     routes.set('/b', (response) => {
