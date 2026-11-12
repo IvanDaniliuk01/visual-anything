@@ -75,6 +75,7 @@ import { usePagePreferences, type PagePreferences } from './preferences';
 import { ViewerCanvas } from './ViewerCanvas';
 import type { SolidClient } from '../solids/solid-client';
 import type { MediaFiles } from '../canvas/pictures/media';
+import { useStepPictures } from '../scenarios/step-pictures';
 import { withCollapsed } from './collapse';
 import '../styles.css';
 import './viewer.css';
@@ -241,6 +242,14 @@ export function Viewer({ project: opened, made, preferences, solids, space, medi
     canvas,
   });
   const touring = tours.playback.tour !== undefined;
+  // What the step a scenario or a tour shows hides, and the videos it plays (ADR 0098, stage 4).
+  useStepPictures({
+    project,
+    viewId: view?.id,
+    tour: tours.playback,
+    scenarios: playback,
+    emphasis,
+  });
   const editor = useMemo<Editor>(
     () => ({
       project,

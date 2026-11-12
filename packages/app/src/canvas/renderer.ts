@@ -141,7 +141,7 @@ import {
 } from './scene';
 import { PictureLayer, type PicturePlatform } from './pictures/layer';
 import type { MediaFiles } from './pictures/media';
-import { onToggleVideo, reportPlaying } from './pictures/playing';
+import { onStepVideos, onToggleVideo, reportPlaying } from './pictures/playing';
 
 export { emphasize, type Emphasized } from './emphasize';
 import { meets } from './spatial';
@@ -777,6 +777,7 @@ export class CanvasRenderer {
   /** Pictures (ADR 0098), under the notes and arrows and above the shapes and relations. */
   private readonly pictureLayer: PictureLayer;
   private readonly stopTakingToggles: () => void;
+  private readonly stopTakingStepVideos: () => void;
   private media: MediaFiles | undefined;
 
   constructor(
@@ -809,6 +810,8 @@ export class CanvasRenderer {
     });
     // The inspector's Play and Stop reach the video wherever a canvas shows it (ADR 0098).
     this.stopTakingToggles = onToggleVideo((id) => this.pictureLayer.toggle(id));
+    // The videos the step a scenario or a tour shows asks for (ADR 0098, stage 4).
+    this.stopTakingStepVideos = onStepVideos((ids) => this.pictureLayer.setPlaying(ids));
     this.pictureLayer.setTheme(this.painter.theme.name === 'dark');
     this.comparison = new ComparisonLayer(
       bitmapMarkText,
@@ -1449,7 +1452,10 @@ export class CanvasRenderer {
     this.pictureLayer.toggle(id);
   }
 
-  /** Plays exactly these videos, stopping the others: a step's hook (ADR 0098, stage 4). */
+  /**
+   * Plays these videos whenever they are drawn, stopping those asked for before that these leave out:
+   * a step's hook (ADR 0098, stage 4), which `playStepVideos` reaches on every canvas.
+   */
   setPlayingVideos(ids: ReadonlySet<Id>): void {
     this.pictureLayer.setPlaying(ids);
   }
@@ -2123,6 +2129,7 @@ export class CanvasRenderer {
     this.partLayer.destroy();
     this.solidLayer.destroy();
     this.stopTakingToggles();
+    this.stopTakingStepVideos();
     this.pictureLayer.destroy();
     reportPlaying(this, new Set());
     this.pictures.destroy();

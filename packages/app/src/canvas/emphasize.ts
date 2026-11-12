@@ -10,6 +10,7 @@
 import type { Id } from '@visual-anything/schema';
 import type { Emphasis } from '../editor/emphasis';
 import {
+  picturesOf,
   relationLinesOf,
   standsFor,
   type ArrowShape,
@@ -150,6 +151,8 @@ export function emphasize(
     if (set.size === 0) return found;
     for (const note of scene.notes) if (set.has(note.id)) found.add(note.id);
     for (const arrow of scene.arrows) if (set.has(arrow.id)) found.add(arrow.id);
+    // Pictures, videos and link cards, which a step that shows others hides (ADR 0098, stage 4).
+    for (const picture of picturesOf(scene)) if (set.has(picture.id)) found.add(picture.id);
     return found;
   };
   const every = (set: ReadonlySet<string>, line: RelationLine) =>

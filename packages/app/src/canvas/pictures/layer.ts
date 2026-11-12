@@ -144,6 +144,11 @@ export class PictureLayer {
   #shapes: readonly PictureShape[] = [];
   /** The videos asked to play, by picture, the one asked first first. */
   readonly #playing = new Map<Id, Playing>();
+  /**
+   * The videos a step asks to play (ADR 0098, stage 4): played whenever they are drawn, until the step
+   * asks for others or the person stops one.
+   */
+  #asked: ReadonlySet<Id> = new Set();
 
   constructor(options: {
     files: () => MediaFiles | undefined;
@@ -200,6 +205,8 @@ export class PictureLayer {
     });
     for (const [id, entry] of this.#entries) if (!seen.has(id)) this.#drop(entry);
     for (const id of [...this.#playing.keys()]) if (!seen.has(id)) this.#stop(id);
+    // A video a step asks for plays once it is drawn: in a view just shown, or no longer hidden.
+    this.#playAsked();
     this.#requestRender();
   }
 
@@ -210,17 +217,33 @@ export class PictureLayer {
 
   /** Plays a video that does not play, and stops one that does (ADR 0098, stage 2). */
   toggle(id: Id): void {
-    if (this.#playing.has(id)) this.#stop(id);
-    else this.#play(id);
+    if (this.#playing.has(id)) {
+      // The person stopped it: the step that asked for it no longer starts it again.
+      this.#forget(id);
+      this.#stop(id);
+    } else this.#play(id);
   }
 
   /**
-   * Plays exactly these videos, stopping the others: the hook a scenario or tour step uses to show
-   * its videos playing (ADR 0098, stage 4).
+   * Plays these videos whenever they are drawn, and stops those the step before asked for that these
+   * leave out: the hook a scenario or tour step uses to show its videos playing (ADR 0098, stage 4).
+   * A video the person started plays on.
    */
   setPlaying(ids: ReadonlySet<Id>): void {
-    for (const id of [...this.#playing.keys()]) if (!ids.has(id)) this.#stop(id);
-    for (const id of ids) if (!this.#playing.has(id)) this.#play(id);
+    for (const id of this.#asked) if (!ids.has(id)) this.#stop(id);
+    this.#asked = new Set(ids);
+    this.#playAsked();
+  }
+
+  #playAsked(): void {
+    for (const id of this.#asked) if (!this.#playing.has(id)) this.#play(id);
+  }
+
+  #forget(id: Id): void {
+    if (!this.#asked.has(id)) return;
+    const asked = new Set(this.#asked);
+    asked.delete(id);
+    this.#asked = asked;
   }
 
   #play(id: Id): void {
@@ -248,6 +271,7 @@ export class PictureLayer {
             return;
           }
           if (video === undefined) {
+            this.#forget(id);
             this.#stop(id);
             return;
           }
@@ -256,7 +280,9 @@ export class PictureLayer {
           if (now) this.#paint(now);
         },
         () => {
-          if (this.#playing.get(id) === playing) this.#stop(id);
+          if (this.#playing.get(id) !== playing) return;
+          this.#forget(id);
+          this.#stop(id);
         },
       )
       .finally(() => this.#requestRender());

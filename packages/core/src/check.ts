@@ -361,7 +361,7 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
         warnings.push(
           problem(
             'unknown-free-shape',
-            `A step of the scenario "${scenario.name}" shows ${missing.map((id) => `"${id}"`).join(', ')}, which the view "${view?.name ?? scenario.view}" no longer holds; it plays without ${missing.length === 1 ? 'it' : 'them'}.`,
+            `A step of the scenario "${scenario.name}" shows ${missing.map((id) => `"${id}"`).join(', ')}, which the view "${view?.name ?? scenario.view}" no longer holds: it plays without what is gone.`,
             [scenario.id, step.id, ...missing],
           ),
         );

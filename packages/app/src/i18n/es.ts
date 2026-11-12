@@ -4353,6 +4353,18 @@ export const ui: Catalog = {
       other:
         'Se omiten {count} imágenes: las imágenes solo se dibujan en el lienzo, el PNG, el SVG, el PDF y la página de solo lectura.',
     },
+  // A8.4: what a scenario's or a tour's step shows (ADR 0098, stage 4).
+  Shows: 'Muestra',
+  Plays: 'Se reproduce',
+  'No step chooses: the scenario shows every picture, video and link card of its view.':
+    'Ningún paso elige: el escenario muestra todas las imágenes, videos y tarjetas web de su vista.',
+  'No step chooses: the tour shows every picture, video and link card of its view.':
+    'Ningún paso elige: el recorrido muestra todas las imágenes, videos y tarjetas web de su vista.',
+  'This step shows none of the view’s pictures, videos and link cards.':
+    'Este paso no muestra ninguna imagen, video ni tarjeta web de la vista.',
+  'Play “{name}” while the step shows': 'Reproducir “{name}” mientras se muestra el paso',
+  'No longer in the view ({id}).': 'Ya no está en la vista ({id}).',
+  'Changed what step {n} shows.': 'Cambió lo que muestra el paso {n}.',
 };
 
 /**
@@ -4424,6 +4436,34 @@ export const messages: Catalog = {
   'Change what {step} produces': 'Cambiar lo que produce {step}',
   'Fix {step}': 'Arreglar {step}',
   'Describe {step}': 'Describir {step}',
+  // A8.4: what a step shows (ADR 0098, stage 4), and why a list of it is refused.
+  'Choose what {step} shows': 'Elegir lo que muestra {step}',
+  'Step {n}: {why}': 'Paso {n}: {why}',
+  'Step {n} shows a list of ids.': 'El paso {n} muestra una lista de ids.',
+  'Step {n} plays a list of ids.': 'El paso {n} reproduce una lista de ids.',
+  'Step {n} shows "{id}" twice.': 'El paso {n} muestra "{id}" dos veces.',
+  'Step {n} plays "{id}" twice.': 'El paso {n} reproduce "{id}" dos veces.',
+  'Step {n} plays only videos it shows, and it does not show "{id}".':
+    'El paso {n} solo reproduce videos que muestra, y no muestra "{id}".',
+  'Step {n} of the tour shows a list of ids.':
+    'El paso {n} del recorrido muestra una lista de ids.',
+  'Step {n} of the tour plays a list of ids.':
+    'El paso {n} del recorrido reproduce una lista de ids.',
+  'Step {n} of the tour shows "{id}" twice.': 'El paso {n} del recorrido muestra "{id}" dos veces.',
+  'Step {n} of the tour plays "{id}" twice.':
+    'El paso {n} del recorrido reproduce "{id}" dos veces.',
+  'Step {n} of the tour plays only videos it shows, and it does not show "{id}".':
+    'El paso {n} del recorrido solo reproduce videos que muestra, y no muestra "{id}".',
+  'A step shows at most {limit} of them.': 'Un paso muestra como mucho {limit}.',
+  'A step plays at most {limit} of them.': 'Un paso reproduce como mucho {limit}.',
+  'A step shows pictures, videos and link cards of its view, and "{id}" is none of them.':
+    'Un paso muestra imágenes, videos y tarjetas web de su vista, y "{id}" no es ninguna de ellas.',
+  'A step plays only videos it shows, and it does not show "{id}".':
+    'Un paso solo reproduce videos que muestra, y no muestra "{id}".',
+  'A step plays videos, and "{id}" is no video.':
+    'Un paso reproduce videos, y "{id}" no es un video.',
+  'A step of the scenario "{scenario}" shows {ids}, which the view "{view}" no longer holds: it plays without what is gone.':
+    'Un paso del escenario "{scenario}" muestra {ids}, que la vista "{view}" ya no tiene: se reproduce sin lo que ya no está.',
   'Move {step} up': 'Subir {step}',
   'Move {step} down': 'Bajar {step}',
   'Delete {step}': 'Eliminar {step}',

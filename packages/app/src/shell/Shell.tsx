@@ -102,6 +102,7 @@ import { chosenSpace } from '../space/root';
 import { SpacePanel } from '../space/SpacePanel';
 import { SpacePanelStore } from '../space/store';
 import { useSpacePanelShortcut } from '../space/useSpacePanelShortcut';
+import { useStepPictures } from '../scenarios/step-pictures';
 
 interface ShellProps {
   project: ProjectSnapshot;
@@ -392,6 +393,15 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
     reducedMotion,
     fades: motionChoice.fades,
     beside,
+  });
+  // What the step a scenario or a tour shows hides, and the videos it plays (ADR 0098, stage 4).
+  useStepPictures({
+    project,
+    viewId: view?.id,
+    tour: tours.playback,
+    scenarios,
+    emphasis,
+    reducedMotion,
   });
   // Compare with… (ADR 0070): what it asks the program for, and the version each comparison came from.
   const [versions] = useState(() => new CompareSession());
