@@ -18,6 +18,7 @@
     "katex": "0.19.1"
   },
   "devDependencies": {
-    "fast-check": "^4.10.2"
+    "fast-check": "^4.10.2",
+    "parse5": "8.0.1"
   }
 }

@@ -2028,6 +2028,7 @@
         "kind": {
           "enum": [
             "number",
+            "integer",
             "boolean",
             "choice"
           ]
@@ -2051,6 +2052,22 @@
           },
           "then": {
             "$ref": "#/definitions/ExplorableNumberParameter"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "integer"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/ExplorableIntegerParameter"
           }
         },
         {
@@ -2132,6 +2149,51 @@
       ],
       "additionalProperties": false,
       "description": "A number a parameter takes, within its range."
+    },
+    "ExplorableIntegerParameter": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Its name, as the page reads it from `va.data.parameters`.",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+        },
+        "kind": {
+          "type": "string",
+          "const": "integer"
+        },
+        "label": {
+          "type": "string",
+          "description": "What the form says of it.",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "min": {
+          "type": "number",
+          "minimum": -1000000000000,
+          "maximum": 1000000000000
+        },
+        "max": {
+          "type": "number",
+          "minimum": -1000000000000,
+          "maximum": 1000000000000
+        },
+        "default": {
+          "type": "number",
+          "description": "The value it has when nothing sets it, within `min` and `max`.",
+          "minimum": -1000000000000,
+          "maximum": 1000000000000
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "min",
+        "max",
+        "default"
+      ],
+      "additionalProperties": false,
+      "description": "A whole number a parameter takes, within its range."
     },
     "ExplorableBooleanParameter": {
       "type": "object",
