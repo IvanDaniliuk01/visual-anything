@@ -143,7 +143,7 @@ function partsOf(
         picture: free,
         rect: { x: free.x, y: free.y, width: free.width, height: free.height },
       });
-    } else if (!sized) {
+    } else if (free.kind === 'arrow' && !sized) {
       parts.push({ kind: 'arrow', arrow: free, rect: rectAround([free.from, free.to]) });
     }
   }

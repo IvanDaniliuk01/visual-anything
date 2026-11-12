@@ -106,7 +106,8 @@ export function colorsInUse(state: ProjectSnapshot): { color: Color; uses: numbe
     countColors(appearance);
   }
   for (const view of state.views) {
-    for (const shape of view.freeShapes) if (shape.kind !== 'picture') countColors(shape);
+    for (const shape of view.freeShapes)
+      if (shape.kind === 'note' || shape.kind === 'arrow') countColors(shape);
   }
   return [...uses]
     .map(([color, times]) => ({ color, uses: times }))

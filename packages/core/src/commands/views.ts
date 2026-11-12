@@ -340,7 +340,7 @@ export function updateFreeShape(draft: Draft, command: UpdateFreeShapeCommand): 
   if (current === undefined) return unknown();
   draft.apply({ op: 'replace', collection: { name: 'freeShapes', view: view.id }, item: shape });
   const colorsOnly =
-    shape.kind !== 'picture' &&
+    (shape.kind === 'note' || shape.kind === 'arrow') &&
     current.kind === shape.kind &&
     !sameJson(current, shape) &&
     sameJson(withoutColors(current), withoutColors(shape));
@@ -361,6 +361,7 @@ const FREE_SHAPE_PARTS: Record<FreeShape['kind'], readonly (keyof FreeShapeChang
   note: ['x', 'y', 'width', 'height', 'text', 'fill', 'stroke'],
   arrow: ['from', 'to', 'stroke'],
   picture: ['x', 'y', 'width', 'height', 'media', 'name'],
+  explorable: ['x', 'y', 'width', 'height', 'explorable', 'element', 'name'],
 };
 
 /** What a refusal calls each kind of free shape, at the start of a sentence. */
@@ -368,6 +369,7 @@ const FREE_SHAPE_SUBJECT: Record<FreeShape['kind'], string> = {
   note: 'A note',
   arrow: 'An arrow',
   picture: 'A picture',
+  explorable: 'An explorable',
 };
 
 /**
@@ -396,6 +398,7 @@ const FREE_SHAPE_NOUN: Record<FreeShape['kind'], string> = {
   note: 'a note',
   arrow: 'an arrow',
   picture: 'a picture',
+  explorable: 'an explorable',
 };
 
 /** A free shape without its colors, to tell a change of color from any other change. */

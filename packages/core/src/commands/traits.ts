@@ -363,6 +363,7 @@ const TRAIT_CHECKS: {
   connectionPoints: checkedConnectionPoints,
   image: checkedImage,
   solid: checkedSolid,
+  explorable: checkedExplorable,
   geometry: checkedGeometry,
   part: checkedPart,
   levels: checkedLevels,
@@ -636,6 +637,18 @@ const PART_ID = /^[A-Za-z_][\w.-]{0,63}$/;
  * The solid an appearance shows (ADR 0075): `none`, or a solid by its id with its placement, its
  * camera and its lighting. Whether a package in use defines it is checked on open (`unknown-solid`).
  */
+/** The explorable an appearance shows (ADR 0107): its id, or `none`. */
+function checkedExplorable(value: unknown, of: string): NonNullable<Appearance['explorable']> {
+  if (value === 'none') return 'none';
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    invalid(`The explorable of ${of} must be "none" or an explorable named by its id.`);
+  }
+  const { explorable, ...rest } = value as Record<string, unknown>;
+  if (Object.keys(rest).length > 0) invalid(`The explorable of ${of} holds only its id.`);
+  if (!isId(explorable)) invalid(`The explorable of ${of} must name an explorable by its id.`);
+  return { explorable };
+}
+
 function checkedSolid(value: unknown, of: string): NonNullable<Appearance['solid']> {
   if (value === 'none') return 'none';
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {

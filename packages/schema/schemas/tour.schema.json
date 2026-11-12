@@ -87,6 +87,10 @@
           "$ref": "#/definitions/TourPlayback",
           "description": "A scenario played while the step shows, over the step's view."
         },
+        "explorable": {
+          "$ref": "#/definitions/TourExplorable",
+          "description": "An explorable the step shows live in the explorable panel while it plays, with the values it sets (ADR 0107)."
+        },
         "reveal": {
           "type": "array",
           "items": {
@@ -797,6 +801,56 @@
       "additionalProperties": false,
       "description": "A scenario a step plays, from one of its steps to another."
     },
+    "TourExplorable": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id",
+          "description": "The explorable, by its id."
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/JsonValue"
+          },
+          "description": "The values the step sets, by parameter name; a parameter left out takes its default, and one the explorable no longer declares makes the step a broken step. Each value is a number, a boolean or a string, as its parameter's kind takes, which the core checks."
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "What a tour step's explorable shows while the step plays (ADR 0107)."
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        }
+      ],
+      "description": "Any JSON value."
+    },
     "TourReveal": {
       "type": "object",
       "properties": {
@@ -940,35 +994,6 @@
         "order"
       ],
       "description": "Why a merge could not join: both sides changed a value differently; one removed what the other changed; both added an id with different values; a removal meets what needs what it removes; two additions close a containment cycle; or both sides reordered a list differently."
-    },
-    "JsonValue": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/JsonValue"
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/JsonValue"
-          }
-        }
-      ],
-      "description": "Any JSON value."
     },
     "ConflictSides": {
       "type": "object",

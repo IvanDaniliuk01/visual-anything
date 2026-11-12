@@ -106,6 +106,7 @@ export const APPEARANCE_TRAITS = listingEvery<keyof Appearance>()([
   'connectionPoints',
   'image',
   'solid',
+  'explorable',
   'geometry',
   'part',
   'levels',

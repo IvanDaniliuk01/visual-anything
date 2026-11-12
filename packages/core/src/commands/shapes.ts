@@ -674,7 +674,7 @@ export const COMMAND_SHAPES: Shapes = {
     fields: {
       view: VIEW,
       shape: {
-        type: 'Note | Arrow | Picture',
+        type: 'Note | Arrow | Picture | ExplorableShape',
         kind: 'object',
         meaning:
           'The free shape whole, with its id, replacing the one stored; not with id and changes.',
@@ -713,7 +713,19 @@ export const COMMAND_SHAPES: Shapes = {
             type: 'string | null',
             kind: 'text',
             nullable: true,
-            meaning: 'What a picture is called; null, "Picture".',
+            meaning:
+              'What a picture or an explorable shape is called; null, "Picture" or the explorable’s name.',
+          },
+          explorable: {
+            type: 'Id',
+            kind: 'text',
+            meaning: 'The explorable an explorable shape shows, by its id (ADR 0107).',
+          },
+          element: {
+            type: 'Id | null',
+            kind: 'text',
+            nullable: true,
+            meaning: 'The element whose data an explorable shape reads; null unbinds it.',
           },
         }),
       },

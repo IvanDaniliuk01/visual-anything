@@ -173,6 +173,18 @@
           ],
           "description": "The solid its shapes show (ADR 0075), drawn in place of an image when both are given; `none` shows none, whatever is inherited."
         },
+        "explorable": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AppearanceExplorable"
+            },
+            {
+              "type": "string",
+              "const": "none"
+            }
+          ],
+          "description": "The explorable its elements show, by its id (ADR 0107): live in the explorable panel, and as its still picture where a shape shows it; `none` shows none, whatever is inherited."
+        },
         "geometry": {
           "anyOf": [
             {
@@ -577,6 +589,20 @@
       ],
       "additionalProperties": false,
       "description": "A point in a solid's space, in meters, +Y up, rounded to a tenth of a millimetre."
+    },
+    "AppearanceExplorable": {
+      "type": "object",
+      "properties": {
+        "explorable": {
+          "$ref": "#/definitions/Id",
+          "description": "The explorable, by its id."
+        }
+      },
+      "required": [
+        "explorable"
+      ],
+      "additionalProperties": false,
+      "description": "The explorable an appearance shows (ADR 0107)."
     },
     "FreeGeometry": {
       "type": "object",

@@ -197,7 +197,8 @@
           "enum": [
             "note",
             "arrow",
-            "picture"
+            "picture",
+            "explorable"
           ]
         }
       },
@@ -251,6 +252,22 @@
           },
           "then": {
             "$ref": "#/definitions/Picture"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "explorable"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/ExplorableShape"
           }
         }
       ],
@@ -473,6 +490,65 @@
         "svg"
       ],
       "description": "The formats a media file may have (ADR 0098)."
+    },
+    "ExplorableShape": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "explorable"
+        },
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "x": {
+          "type": "number",
+          "description": "Its left edge on the canvas.",
+          "minimum": -10000000,
+          "maximum": 10000000
+        },
+        "y": {
+          "type": "number",
+          "description": "Its top edge on the canvas.",
+          "minimum": -10000000,
+          "maximum": 10000000
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000000
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000000
+        },
+        "explorable": {
+          "$ref": "#/definitions/Id",
+          "description": "The explorable it shows, by its id."
+        },
+        "element": {
+          "$ref": "#/definitions/Id",
+          "description": "The element whose data it reads; left out, it reads none but its parameters."
+        },
+        "name": {
+          "type": "string",
+          "description": "What screen readers and the outline say; the explorable's name when left out.",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "x",
+        "y",
+        "width",
+        "height",
+        "explorable"
+      ],
+      "additionalProperties": false,
+      "description": "A free shape that shows an explorable (ADR 0107): its still picture, live once explored. It belongs to the view and is never part of the model; bound to an element, it reads that element's data."
     },
     "StackingOrder": {
       "type": "object",

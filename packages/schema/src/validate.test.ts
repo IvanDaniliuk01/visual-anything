@@ -867,7 +867,12 @@ describe('validateFile', () => {
       [
         'a free shape with an unknown kind',
         { ...view, freeShapes: [{ ...note, kind: 'circle' }] },
-        [{ path: '/freeShapes/0/kind', message: 'must be one of "note", "arrow", "picture"' }],
+        [
+          {
+            path: '/freeShapes/0/kind',
+            message: 'must be one of "note", "arrow", "picture", "explorable"',
+          },
+        ],
       ],
       [
         'a free shape without a kind',

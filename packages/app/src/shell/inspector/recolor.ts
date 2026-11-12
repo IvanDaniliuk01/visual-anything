@@ -140,8 +140,9 @@ export function freeShapeColorCommand(
   theme: FreeShapeTheme,
   options?: PickOptions,
 ): UpdateFreeShapeCommand | undefined {
-  // A picture has no colors of its own (ADR 0098), and an arrow no fill.
-  if (shape.kind === 'picture' || (shape.kind === 'arrow' && trait === 'fill')) return undefined;
+  // A picture and an explorable have no colors of their own (ADR 0098, 0107), and an arrow no fill.
+  if (shape.kind === 'picture' || shape.kind === 'explorable') return undefined;
+  if (shape.kind === 'arrow' && trait === 'fill') return undefined;
   const own = shape.kind === 'note' ? shape[trait] : shape.stroke;
   const themes =
     shape.kind === 'note' ? noteColorsOf({}, theme)[trait].color : arrowColorOf({}, theme).color;

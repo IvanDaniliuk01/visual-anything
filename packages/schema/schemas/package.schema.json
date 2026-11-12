@@ -66,6 +66,24 @@
       "minItems": 1,
       "maxItems": 64
     },
+    "explorables": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ExplorableDefinition"
+      },
+      "description": "The explorables its appearances, free shapes and tour steps show (ADR 0107): each one's definition, its file kept beside the project as `explorables/<file>`. Left out when there are none.",
+      "minItems": 1,
+      "maxItems": 64
+    },
+    "scriptLibraries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ScriptLibraryDefinition"
+      },
+      "description": "The script libraries its explorables use (ADR 0107), each kept beside the project as `script-libraries/<hash>.js`. Left out when there are none.",
+      "minItems": 1,
+      "maxItems": 64
+    },
     "code": {
       "type": "array",
       "items": {
@@ -356,6 +374,18 @@
             }
           ],
           "description": "The solid its shapes show (ADR 0075), drawn in place of an image when both are given; `none` shows none, whatever is inherited."
+        },
+        "explorable": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AppearanceExplorable"
+            },
+            {
+              "type": "string",
+              "const": "none"
+            }
+          ],
+          "description": "The explorable its elements show, by its id (ADR 0107): live in the explorable panel, and as its still picture where a shape shows it; `none` shows none, whatever is inherited."
         },
         "geometry": {
           "anyOf": [
@@ -761,6 +791,20 @@
       ],
       "additionalProperties": false,
       "description": "A point in a solid's space, in meters, +Y up, rounded to a tenth of a millimetre."
+    },
+    "AppearanceExplorable": {
+      "type": "object",
+      "properties": {
+        "explorable": {
+          "$ref": "#/definitions/Id",
+          "description": "The explorable, by its id."
+        }
+      },
+      "required": [
+        "explorable"
+      ],
+      "additionalProperties": false,
+      "description": "The explorable an appearance shows (ADR 0107)."
     },
     "FreeGeometry": {
       "type": "object",
@@ -1915,6 +1959,318 @@
       ],
       "additionalProperties": false,
       "description": "One animation of a solid: keyframes that move its nodes."
+    },
+    "ExplorableDefinition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id",
+          "description": "Starts with its package's id, as in `math.quadratic-k3f9q2`."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "description": "What it explains, which its card, the approval dialog and the outline give.",
+          "maxLength": 1000
+        },
+        "file": {
+          "type": "string",
+          "description": "The name of its file inside `explorables/`, such as `quadratic.html`.",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}\\.html$"
+        },
+        "scriptLibraries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "description": "The script libraries it uses, by their ids in the same package, inlined into its frame in this order. Left out when it uses none.",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ExplorableParameter"
+          },
+          "description": "The values it shows that others choose, by name. Left out when it has none.",
+          "minItems": 1,
+          "maxItems": 32
+        },
+        "api": {
+          "type": "number",
+          "const": 1,
+          "description": "The version of the `va` API it was written for."
+        },
+        "hash": {
+          "type": "string",
+          "description": "The SHA-256 of its file's text as the program last read it, in lowercase hexadecimal.",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "file",
+        "api",
+        "hash"
+      ],
+      "additionalProperties": false,
+      "description": "An explorable a package defines (ADR 0107)."
+    },
+    "ExplorableParameter": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "number",
+            "boolean",
+            "choice"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "number"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/ExplorableNumberParameter"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "boolean"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/ExplorableBooleanParameter"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "choice"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/ExplorableChoiceParameter"
+          }
+        }
+      ],
+      "description": "A value an explorable shows, which the person, a view state, a tour step or Claude chooses."
+    },
+    "ExplorableNumberParameter": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Its name, as the page reads it from `va.data.parameters`.",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+        },
+        "kind": {
+          "type": "string",
+          "const": "number"
+        },
+        "label": {
+          "type": "string",
+          "description": "What the form says of it.",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "min": {
+          "type": "number",
+          "minimum": -1000000000000,
+          "maximum": 1000000000000
+        },
+        "max": {
+          "type": "number",
+          "minimum": -1000000000000,
+          "maximum": 1000000000000
+        },
+        "default": {
+          "type": "number",
+          "description": "The value it has when nothing sets it, within `min` and `max`.",
+          "minimum": -1000000000000,
+          "maximum": 1000000000000
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "min",
+        "max",
+        "default"
+      ],
+      "additionalProperties": false,
+      "description": "A number a parameter takes, within its range."
+    },
+    "ExplorableBooleanParameter": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+        },
+        "kind": {
+          "type": "string",
+          "const": "boolean"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "default": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "default"
+      ],
+      "additionalProperties": false,
+      "description": "A yes or no a parameter takes."
+    },
+    "ExplorableChoiceParameter": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+        },
+        "kind": {
+          "type": "string",
+          "const": "choice"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The strings it takes.",
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true
+        },
+        "default": {
+          "type": "string",
+          "description": "One of `choices`."
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "choices",
+        "default"
+      ],
+      "additionalProperties": false,
+      "description": "One of listed strings a parameter takes."
+    },
+    "ScriptLibraryDefinition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id",
+          "description": "Starts with its package's id, as in `math.d3`."
+        },
+        "npm": {
+          "type": "string",
+          "description": "Its npm package, such as `d3` or `@scope/name`.",
+          "pattern": "^(?:@[a-z0-9][a-z0-9._~-]*\\/)?[a-z0-9][a-z0-9._~-]*$",
+          "maxLength": 214
+        },
+        "version": {
+          "type": "string",
+          "description": "Its exact version.",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$",
+          "maxLength": 100
+        },
+        "tarball": {
+          "type": "string",
+          "description": "The tarball's address on the registry, `https://registry.npmjs.org/…`.",
+          "pattern": "^https://registry\\.npmjs\\.org/",
+          "maxLength": 1000
+        },
+        "integrity": {
+          "type": "string",
+          "description": "The registry's integrity of the tarball, `sha512-` and its base64.",
+          "pattern": "^sha512-[A-Za-z0-9+/]{86}==$"
+        },
+        "path": {
+          "type": "string",
+          "description": "The file it keeps from the tarball, by its path inside the package, such as `dist/d3.min.js`.",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "license": {
+          "$ref": "#/definitions/LicenseId",
+          "description": "Its license, by the SPDX identifier the package gives."
+        },
+        "global": {
+          "type": "string",
+          "description": "The global its file sets, such as `d3`.",
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]{0,63}$"
+        },
+        "hash": {
+          "type": "string",
+          "description": "The SHA-256 of the kept file, which names it `script-libraries/<hash>.js`.",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "description": "The size of the kept file, in bytes.",
+          "minimum": 1,
+          "maximum": 16777216
+        }
+      },
+      "required": [
+        "id",
+        "npm",
+        "version",
+        "tarball",
+        "integrity",
+        "path",
+        "global",
+        "hash",
+        "bytes"
+      ],
+      "additionalProperties": false,
+      "description": "A JavaScript library from the npm registry that explorables use (ADR 0107)."
     },
     "CodeLine": {
       "type": "string",

@@ -171,6 +171,7 @@ describe('resolveAppearance', () => {
       'connectionPoints',
       'image',
       'solid',
+      'explorable',
       'geometry',
       'part',
       'levels',

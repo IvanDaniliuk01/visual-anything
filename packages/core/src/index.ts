@@ -406,6 +406,8 @@ export { textBlocks } from './plain-text';
 export * from './text/emphasis';
 // Math (ADR 0106): formulas typeset by KaTeX and laid out by the core.
 export * from './math';
+// Explorables (ADR 0107): the frame builder, its messages, `va.data` and approvals.
+export * from './explorables';
 // Roboto's widths (ADR 0083), which faces are laid out in and the exports measure with.
 export type { RobotoVariant } from './text/roboto';
 export { ROBOTO_VARIANTS, robotoEms, robotoWidth, unmeasuredEms } from './text/roboto';

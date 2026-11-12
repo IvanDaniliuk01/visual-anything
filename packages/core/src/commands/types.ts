@@ -711,6 +711,10 @@ export interface FreeShapeChanges {
   to?: Point;
   media?: Picture['media'];
   name?: string | null;
+  /** An explorable shape's explorable, by its id (ADR 0107). */
+  explorable?: Id;
+  /** The element an explorable shape reads; `null` unbinds it. */
+  element?: Id | null;
 }
 
 /** Deletes free shapes from a view. */

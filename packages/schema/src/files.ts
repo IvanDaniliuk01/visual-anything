@@ -7,6 +7,12 @@ import type { AppearanceImage, ImageDefinition } from './images';
 
 export type { AppearanceImage, BitmapImage, ImageDefinition, SvgImage } from './images';
 import type { AppearanceSolid, SolidDefinition } from './solids';
+import type {
+  AppearanceExplorable,
+  ExplorableDefinition,
+  ScriptLibraryDefinition,
+  TourExplorable,
+} from './explorables';
 import type { SavedSimulation, SimulationDefinition } from './simulation';
 import type { DrawingDefaults } from './drawing';
 export type {
@@ -52,6 +58,18 @@ export type {
   SpaceBounds,
   SpacePoint,
 } from './solids';
+export type {
+  AppearanceExplorable,
+  ExplorableBooleanParameter,
+  ExplorableChoiceParameter,
+  ExplorableDefinition,
+  ExplorableIntegerParameter,
+  ExplorableNumberParameter,
+  ExplorableParameter,
+  ExplorableParameterValue,
+  ScriptLibraryDefinition,
+  TourExplorable,
+} from './explorables';
 
 /**
  * An identifier, generated once and never reused. Files refer to each other only by id. Element and
@@ -296,6 +314,23 @@ export interface PackageFile {
    * @maxItems 64
    */
   solids?: SolidDefinition[];
+  /**
+   * The explorables its appearances, free shapes and tour steps show (ADR 0107): each one's
+   * definition, its file kept beside the project as `explorables/<file>`. Left out when there are
+   * none.
+   *
+   * @minItems 1
+   * @maxItems 64
+   */
+  explorables?: ExplorableDefinition[];
+  /**
+   * The script libraries its explorables use (ADR 0107), each kept beside the project as
+   * `script-libraries/<hash>.js`. Left out when there are none.
+   *
+   * @minItems 1
+   * @maxItems 64
+   */
+  scriptLibraries?: ScriptLibraryDefinition[];
   // Package code (ADR 0054).
   /**
    * The package's code: one module of JavaScript, one item per line, which may export the hooks
@@ -633,6 +668,11 @@ export interface Appearance {
    * shows none, whatever is inherited.
    */
   solid?: AppearanceSolid | 'none';
+  /**
+   * The explorable its elements show, by its id (ADR 0107): live in the explorable panel, and as its
+   * still picture where a shape shows it; `none` shows none, whatever is inherited.
+   */
+  explorable?: AppearanceExplorable | 'none';
   /**
    * Its shapes' own outline, drawn in place of their kind (ADR 0066); `none` takes an inherited one
    * away, so that the kind is drawn again.
@@ -1372,7 +1412,7 @@ export interface ShapePosition {
  *
  * @discriminator kind
  */
-export type FreeShape = Note | Arrow | Picture;
+export type FreeShape = Note | Arrow | Picture | ExplorableShape;
 
 /** A free shape that holds text. */
 export interface Note {
@@ -1454,6 +1494,50 @@ export interface Picture {
   media: MediaRef;
   /**
    * What screen readers and the outline say, and what a missing file shows; "Picture" when left out.
+   *
+   * @minLength 1
+   * @maxLength 200
+   */
+  name?: string;
+}
+
+/**
+ * A free shape that shows an explorable (ADR 0107): its still picture, live once explored. It belongs
+ * to the view and is never part of the model; bound to an element, it reads that element's data.
+ */
+export interface ExplorableShape {
+  kind: 'explorable';
+  id: Id;
+  /**
+   * Its left edge on the canvas.
+   *
+   * @minimum -10000000
+   * @maximum 10000000
+   */
+  x: number;
+  /**
+   * Its top edge on the canvas.
+   *
+   * @minimum -10000000
+   * @maximum 10000000
+   */
+  y: number;
+  /**
+   * @exclusiveMinimum 0
+   * @maximum 10000000
+   */
+  width: number;
+  /**
+   * @exclusiveMinimum 0
+   * @maximum 10000000
+   */
+  height: number;
+  /** The explorable it shows, by its id. */
+  explorable: Id;
+  /** The element whose data it reads; left out, it reads none but its parameters. */
+  element?: Id;
+  /**
+   * What screen readers and the outline say; the explorable's name when left out.
    *
    * @minLength 1
    * @maxLength 200
@@ -2104,6 +2188,11 @@ export interface TourStep {
   marks?: Id[];
   /** A scenario played while the step shows, over the step's view. */
   play?: TourPlayback;
+  /**
+   * An explorable the step shows live in the explorable panel while it plays, with the values it
+   * sets (ADR 0107).
+   */
+  explorable?: TourExplorable;
   /**
    * Marks brought in one press forward at a time, after the step's own marks (ADR 0077).
    *
