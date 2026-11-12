@@ -8,7 +8,13 @@ import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
 import type { ViewFile } from '@visual-anything/schema';
 import type { Scene } from '../canvas/scene';
 import type { Translator } from '../i18n';
-import { FORMAT_FILES, exportView, formatsFor, type ExportFormat } from './exports';
+import {
+  FORMAT_FILES,
+  exportView,
+  formatsFor,
+  type ExportExplorables,
+  type ExportFormat,
+} from './exports';
 import type { SolidPainter } from './solid-pictures';
 import type { MediaFiles } from '../canvas/pictures/files';
 
@@ -22,6 +28,8 @@ export interface FileExportContext {
   solids?: SolidPainter;
   /** Where pictures' media files come from (ADR 0098), while the app has a live session. */
   media?: MediaFiles;
+  /** The stills the app holds of explorables, and the approvals (ADR 0107); cards without. */
+  explorables?: ExportExplorables;
 }
 
 /** A file made of the view: what to save, under which name, and what it could not hold. */
@@ -79,11 +87,12 @@ function writer(
       const choice = choiceIn(context);
       return choice ? [choice.leavesOut] : [];
     },
-    make: async ({ project, view, theme, solids, media }, signal) => {
+    make: async ({ project, view, theme, solids, media, explorables }, signal) => {
       const exported = await exportView(project, view.id, format, {
         theme,
         ...(solids === undefined ? {} : { solids }),
         ...(media === undefined ? {} : { media }),
+        ...(explorables === undefined ? {} : { explorables }),
         ...(signal === undefined ? {} : { signal }),
       });
       // A copy of the bytes, in a buffer of their own, as a Blob takes them.

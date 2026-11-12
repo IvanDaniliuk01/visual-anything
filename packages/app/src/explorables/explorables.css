@@ -183,3 +183,43 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* Asking for a script library from the Components tab (ADR 0107): a small form under its list. */
+.components-script-library-ask {
+  margin-top: var(--space-50);
+}
+
+.components-script-library-ask > summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.components-script-library-form {
+  display: grid;
+  gap: var(--space-30);
+  margin-top: var(--space-30);
+}
+
+.components-script-library-form .item-notes {
+  margin: 0;
+}
+
+.components-field {
+  display: grid;
+  gap: var(--space-20);
+  font-size: var(--text-sm);
+}
+
+.components-field :is(input, select) {
+  min-height: var(--control-sm);
+  padding: var(--space-25) var(--space-50);
+  border: var(--stroke-thin) solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.components-script-library-form > .components-action {
+  justify-self: start;
+}

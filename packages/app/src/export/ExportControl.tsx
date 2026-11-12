@@ -13,6 +13,8 @@ import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
 import type { ViewFile } from '@visual-anything/schema';
 import { useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { mediaFilesOver, type MediaFiles } from '../canvas/pictures/media';
+import { useExplorableApprovals } from '../explorables/hooks';
+import { stillOf } from './explorable-stills';
 import { LiveContext } from '../live/context';
 import { useModalFocus } from '../canvas/focus';
 import type { Rect } from '../canvas/geometry';
@@ -132,10 +134,14 @@ export function ExportControl({
     () => (getMediaFile ? mediaFilesOver(getMediaFile) : undefined),
     [getMediaFile],
   );
+  // Explorables are drawn as the stills the app holds of them, or as their cards (ADR 0107).
+  const { approvals } = useExplorableApprovals();
+  const explorables = useMemo(() => ({ stillOf, approvals }), [approvals]);
   const drawnWith = drawn && {
     ...drawn,
     ...(solids ? { solids } : {}),
     ...(media ? { media } : {}),
+    explorables,
   };
   // The exporters packages add (ADR 0089), offered after the app's own formats.
   const packageFiles = usePackageFileExports(project);

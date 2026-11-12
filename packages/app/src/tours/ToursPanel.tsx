@@ -56,6 +56,7 @@ import { drawnBounds, drawnShapes } from './drawn-bounds';
 import { CaptionLook } from './CaptionLook';
 import { MotionPreferences } from './MotionPreferences';
 import { StepPictures, type PictureLists } from '../scenarios/StepPictures';
+import { StepExplorable } from './StepExplorable';
 import { stepJointsFrom, withStepJoints } from './step-joints';
 import { viewsInListOrder } from '../shell/viewFolders';
 import { useSpacePanel, useSpacePanelState } from '../space/context';
@@ -419,6 +420,8 @@ function StepItem({
   const ids = { title: useId(), text: useId(), notes: useId() };
   const n = at + 1;
   const problems = tourStepProblems(project, step);
+  // What the step's explorable names is said beside it, with its fix (ADR 0107).
+  const listed = problems.filter((problem) => problem.part !== 'explorable');
   const looks = check ? whatToLookAt(t, tour, check) : [];
   const selected = [...selection.elements, ...selection.relations].slice(0, MAX_TOUR_MARKS);
   const change = (update: (step: TourStep) => TourStep, done: string) =>
@@ -436,11 +439,11 @@ function StepItem({
         <span className="tour-step-number">{t('Step {n}', { n })}</span>
         <span className="tour-step-shows">{describeShown(t, project, step)}</span>
       </div>
-      {problems.length > 0 && (
+      {listed.length > 0 && (
         <div className="tour-step-problems">
           <p>{t('This step names what the project no longer holds, and plays without it:')}</p>
           <ul>
-            {problems.map((problem, index) => (
+            {listed.map((problem, index) => (
               <li key={index}>{t.message(problem.message)}</li>
             ))}
           </ul>
@@ -562,6 +565,7 @@ function StepItem({
           change((each) => withPictures(each, lists), t('Changed what step {n} shows.', { n }))
         }
       />
+      <StepExplorable step={step} n={n} editable={editable} change={change} />
       <StepExplains step={step} n={n} editable={editable} change={change} />
       <StepBeside step={step} n={n} editable={editable} change={change} />
       <CaptionLook

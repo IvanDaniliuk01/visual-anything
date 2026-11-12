@@ -7,15 +7,26 @@
  *   const exported = await exportView(project, 'system-overview', 'pdf', { theme: 'dark' });
  *   // { format: 'pdf', bytes, mediaType: 'application/pdf', fileName: 'My systems - System overview.pdf', size, lost }
  */
-import { solidsIn, type ProjectSnapshot, type ThemeName } from '@visual-anything/core';
-import type { Id } from '@visual-anything/schema';
+import {
+  solidsIn,
+  type ExplorableApproval,
+  type ProjectSnapshot,
+  type ThemeName,
+} from '@visual-anything/core';
+import type { ExplorableShape, Id, ViewFile } from '@visual-anything/schema';
 import { t } from '../i18n';
 import { writtenWithMath } from './math-svg';
 import { writeMermaid } from './mermaid';
 import { writeOutline } from './outline';
 import { writePdf } from './pdf';
 import { structurizrApplies, writeStructurizr } from './structurizr';
-import { svgSolidsOf, writeSvg, type SvgSolidPicture } from './svg';
+import {
+  svgSolidsOf,
+  writeSvg,
+  type ExplorableStillPicture,
+  type SvgExplorables,
+  type SvgSolidPicture,
+} from './svg';
 import { SVG_SOLID_PIXELS, solidShotsOf, type SolidPainter } from './solid-pictures';
 import { buildScene } from '../canvas/scene';
 import type { MediaFiles } from '../canvas/pictures/files';
@@ -66,6 +77,38 @@ export interface ExportOptions {
    * so.
    */
   media?: MediaFiles;
+  /**
+   * What the app knows of explorables (ADR 0107), for the SVG and the PDF: the still it holds of a
+   * shape, which the drawing shows in its place, and the person's approvals, which its card names.
+   * Without it, as from the command line and Claude's `export_view`, which have no app to take
+   * stills, each explorable is drawn as its card.
+   */
+  explorables?: ExportExplorables;
+}
+
+/** What an export draws explorables from. */
+export interface ExportExplorables {
+  /** The still the app holds of a shape that shows an explorable, if it holds one. */
+  stillOf?: (shape: ExplorableShape) => ExplorableStillPicture | undefined;
+  approvals?: readonly ExplorableApproval[];
+}
+
+/** The stills and approvals a drawing of a view holds, by the ids of the shapes that show them. */
+export function svgExplorablesOf(
+  view: Pick<ViewFile, 'freeShapes'>,
+  explorables: ExportExplorables | undefined,
+): SvgExplorables | undefined {
+  if (explorables === undefined) return undefined;
+  const stills = new Map<string, ExplorableStillPicture>();
+  for (const shape of view.freeShapes) {
+    if (shape.kind !== 'explorable') continue;
+    const still = explorables.stillOf?.(shape);
+    if (still !== undefined) stills.set(shape.id, still);
+  }
+  return {
+    ...(stills.size === 0 ? {} : { stills }),
+    ...(explorables.approvals === undefined ? {} : { approvals: explorables.approvals }),
+  };
 }
 
 /**
@@ -168,13 +211,16 @@ export async function exportView(
     format === 'svg' || format === 'pdf'
       ? { media: await exportedMediaOf([view], options.media) }
       : {};
+  // The stills the app holds of its explorables, and its approvals; cards otherwise (ADR 0107).
+  const drawnExplorables = svgExplorablesOf(view, options.explorables);
+  const explorables = drawnExplorables === undefined ? {} : { explorables: drawnExplorables };
   signal?.throwIfAborted();
   switch (format) {
     case 'svg':
       // A drawing with Math is written with its glyphs' outlines, loaded only then (ADR 0106).
       return textOf(
         await writtenWithMath(() =>
-          writeSvg(project, viewId, { ...theme, outlineFile, ...solids, ...media }),
+          writeSvg(project, viewId, { ...theme, outlineFile, ...solids, ...media, ...explorables }),
         ),
       );
     case 'md':
@@ -188,6 +234,7 @@ export async function exportView(
         ...theme,
         ...solids,
         ...media,
+        ...explorables,
         outline: { text: writeOutline(project, viewId).text, file: outlineFile },
         language: t.language,
         ...(options.date === undefined ? {} : { date: options.date }),

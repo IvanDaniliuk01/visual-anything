@@ -17,7 +17,7 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../i18n';
 import type { CommandResult, LiveResult } from '../live/connection';
 import { ImagePreview } from '../shell/definitions/ImagePreview';
@@ -41,6 +41,8 @@ interface DrawingImportProps {
   input: { name: string; text: string };
   makeDrawing: MakeDrawing;
   send: (command: Command) => Promise<CommandResult>;
+  /** The choice between a drawing and an explorable (ADR 0107), shown under the heading. */
+  chooser?: ReactNode;
   onBack: () => void;
   onClose: () => void;
 }
@@ -66,6 +68,7 @@ export function DrawingImport({
   input,
   makeDrawing,
   send,
+  chooser,
   onBack,
   onClose,
 }: DrawingImportProps) {
@@ -189,6 +192,7 @@ export function DrawingImport({
   return (
     <>
       <h2 id={titleId}>{t('Import “{name}” as a drawing', { name: input.name })}</h2>
+      {chooser}
       <div className="import-drawing">
         <div className="import-drawing-preview">
           {preview ? (

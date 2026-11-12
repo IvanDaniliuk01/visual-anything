@@ -64,6 +64,8 @@ export interface PdfOptions {
   solids?: SvgOptions['solids'];
   /** Pictures' media files, as the SVG takes them (ADR 0098); without, pictures are gray boxes. */
   media?: SvgOptions['media'];
+  /** Explorables' stills and the approvals, as the SVG takes them (ADR 0107); without, cards. */
+  explorables?: SvgOptions['explorables'];
   /**
    * Stops making it, between two pieces of the drawing: it then rejects with the signal's reason, an
    * `AbortError` unless the signal was given another, and does no further work.
@@ -223,6 +225,7 @@ export async function writePdf(
       ...(options.outline === undefined ? {} : { outlineFile: options.outline.file }),
       ...(options.solids === undefined ? {} : { solids: options.solids }),
       ...(options.media === undefined ? {} : { media: options.media }),
+      ...(options.explorables === undefined ? {} : { explorables: options.explorables }),
       ...PDF_PICTURES,
     }),
   );
