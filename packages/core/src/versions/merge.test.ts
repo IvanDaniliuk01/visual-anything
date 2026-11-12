@@ -4,7 +4,13 @@
  * in the file, every merged file is a valid file that keeps the rules one file can tell, and
  * resolving every conflict leaves the file without them.
  */
-import type { FileConflict, FileContentByKind, FileKind, ModelFile } from '@visual-anything/schema';
+import type {
+  FileConflict,
+  FileContentByKind,
+  FileKind,
+  ModelFile,
+  Step,
+} from '@visual-anything/schema';
 import { validateFile } from '@visual-anything/schema/validate';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
@@ -523,6 +529,73 @@ describe('link cards (ADR 0098, stage 3)', () => {
     );
     expect(merged.conflicts).toHaveLength(1);
     expect(validateFile('view', merged.file).ok).toBe(true);
+  });
+});
+
+describe('the pictures a step shows (ADR 0098, stage 4)', () => {
+  const media = (hash: string, format: 'png' | 'mp4') => ({
+    hash: hash.repeat(64),
+    format,
+    width: 64,
+    height: 48,
+    bytes: 900,
+  });
+  const shape = (id: string, format: 'png' | 'mp4') => ({
+    kind: 'picture' as const,
+    id,
+    x: 0,
+    y: 0,
+    width: 64,
+    height: 48,
+    media: media(id === 'photo' ? 'a' : 'b', format),
+  });
+  const base = [shape('photo', 'png'), shape('video', 'mp4')].reduce(
+    (state, each) => done(state, { type: 'create-free-shape', view: 'overview', shape: each }),
+    testProject(),
+  );
+  const [call, read] = base.scenarios[0]!.steps as [Step, Step];
+  const withSteps = (first: Step, second: Step) =>
+    done(base, { type: 'update-scenario', id: 'request', changes: { steps: [first, second] } })
+      .scenarios[0]!;
+
+  it('merges them with their step, by id: each side chooses for another step', () => {
+    const mine = withSteps({ ...call, shows: ['photo'] }, read);
+    const yours = withSteps(call, { ...read, shows: ['video'], playing: ['video'] });
+    const merged = mergeFile('scenario', base.scenarios[0], mine, yours);
+    expect(merged.conflicts).toEqual([]);
+    expect(merged.file.steps).toEqual([
+      { ...call, shows: ['photo'] },
+      { ...read, shows: ['video'], playing: ['video'] },
+    ]);
+    expect(validateFile('scenario', merged.file).ok).toBe(true);
+  });
+
+  it('keeps a conflict when both sides choose differently for one step, and takes it alike', () => {
+    const mine = withSteps({ ...call, shows: ['photo'] }, read);
+    const yours = withSteps({ ...call, shows: ['video'], playing: ['video'] }, read);
+    const merged = mergeFile('scenario', base.scenarios[0], mine, yours);
+    // Its shows keep ours; what theirs plays, which ours does not show, is a conflict of its own,
+    // so that the step plays only what it shows.
+    expect(merged.file.steps[0]).toEqual({ ...call, shows: ['photo'] });
+    expect(
+      merged.conflicts.map(({ item, path, why, kept, other }) => ({
+        item,
+        path,
+        why,
+        kept,
+        other,
+      })),
+    ).toEqual([
+      { item: 'step:call', path: ['shows'], why: 'both-changed', kept: 'ours', other: ['video'] },
+      { item: 'step:call', path: ['playing'], why: 'both-changed', kept: 'ours', other: ['video'] },
+    ]);
+    expect(validateFile('scenario', merged.file).ok).toBe(true);
+    expect(
+      checkProject({ ...base, scenarios: [merged.file] }).warnings.map((each) => each.code),
+    ).not.toContain('unknown-free-shape');
+    const alike = mergeFile('scenario', base.scenarios[0], mine, mine);
+    expect(alike.conflicts).toEqual([]);
+    expect(alike.file).toEqual(mine);
   });
 });
 

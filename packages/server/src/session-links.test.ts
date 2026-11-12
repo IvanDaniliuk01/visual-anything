@@ -20,7 +20,7 @@ import {
   type AppMessage,
 } from '@visual-anything/core';
 import type { MediaRef } from '@visual-anything/schema';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Requester, Resolver } from './live-fetch';
 import { mediaFilePath } from './media/files';
 import { openSession, type Session } from './session';
@@ -34,14 +34,22 @@ const PNG = decodeBase64(
 let server: Server;
 let port: number;
 let paths: string[];
+/** The answers of `/slow` held back, each released by calling it. */
+let waiting: (() => void)[];
 let folder: string | undefined;
 let session: Session | undefined;
 
 beforeEach(async () => {
   paths = [];
+  waiting = [];
   server = createServer((request, response) => {
     paths.push(request.url ?? '');
-    if (request.url === '/guide') {
+    if (request.url === '/slow') {
+      waiting.push(() => {
+        response.writeHead(200, { 'content-type': 'text/html' });
+        response.end('<title>Slow</title>');
+      });
+    } else if (request.url === '/guide') {
       response.writeHead(200, { 'content-type': 'text/html' });
       response.end(`<head><title>Intake</title>
         <meta property="og:description" content="How a patient is received.">
@@ -165,6 +173,30 @@ describe('link/fetch (ADR 0098, stage 3)', () => {
       code: 'link-refused',
     });
     expect(paths).toEqual([]);
+  });
+
+  it('fetches at most 2 previews at once, and refuses a third until one is in', async () => {
+    const { session: opened } = await open();
+    const client = new FakeClient();
+    const fetch = (requestId: string, path: string) =>
+      ask(opened, client, { type: 'link/fetch', requestId, url: `https://a.org${path}` });
+    const first = fetch('a', '/slow');
+    const second = fetch('b', '/slow');
+    await vi.waitFor(() => expect(waiting).toHaveLength(2));
+    await fetch('c', '/guide');
+    expect(client.ofType('link/refused')).toEqual([
+      expect.objectContaining({ requestId: 'c', code: 'link-refused' }),
+    ]);
+    expect(client.ofType('link/refused')[0]?.message).toContain('2 previews');
+    expect(paths).toEqual(['/slow', '/slow']);
+    for (const release of waiting.splice(0)) release();
+    await Promise.all([first, second]);
+    expect(client.ofType('link/fetched').map((each) => each.requestId)).toEqual(
+      expect.arrayContaining(['a', 'b']),
+    );
+    // Once they are in, the next is fetched.
+    await fetch('d', '/guide');
+    expect(client.ofType('link/fetched').map((each) => each.requestId)).toContain('d');
   });
 });
 
