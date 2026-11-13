@@ -54,3 +54,21 @@ The explorable was ready 502 and 403 ms after its frame was made, and answered t
 
 - If zooming with an explorable live is felt, the frame could stay at its last scale while a zoom runs (drawn scaled as a picture, or hidden behind its still) and take the new scale once the zoom rests.
 - Not measured: the app benchmark (`app-bench.html`) with the explorable panel open, an explorable that draws every frame (an animation) rather than once per change, Firefox, and the reference build's cross-origin isolated serving.
+
+## After the frame keeps its scale through a zoom (2026-11-12)
+
+Measured by the builder of several live explorables (ADR 0107's clarification of that day), once, with the same script and machine, Chrome 157 headless with `--site-per-process`, the other builder's session gone. The page now lays its frame through `LiveFollower`, as `LiveExplorable` does: its corner follows every camera move and its scale only once the camera has kept one for 180 ms. Times in milliseconds: average, p95, worst.
+
+| Phase | Frames mode, no explorable | Frames mode, live | Work mode, no explorable | Work mode, live |
+| --- | --- | --- | --- | --- |
+| Pan, whole view | 17.0 / 16.8 / 66.8 | 16.7 / 16.8 / 17.3 | 8.5 / 11.4 / 14.3 | 7.4 / 10.3 / 12.1 |
+| Zoom, whole view | 16.7 / 16.8 / 17.4 | 16.7 / 16.8 / 16.9 | 7.7 / 15.3 / 27.4 | 8.0 / 16.4 / 23.5 |
+| Pan, names shown | 16.7 / 16.8 / 17.7 | 16.9 / 16.9 / 50.2 | 9.8 / 19.0 / 25.2 | 8.6 / 13.2 / 25.0 |
+| Zoom, names shown | 16.7 / 16.9 / 17.5 | 16.7 / 16.8 / 16.9 | 5.1 / 8.3 / 11.7 | 6.1 / 8.6 / 11.2 |
+| Pan, details shown | 17.1 / 16.9 / 83.5 | 16.7 / 16.9 / 17.6 | 5.2 / 6.0 / 7.9 | 5.4 / 6.4 / 12.1 |
+| Zoom, details shown | 16.7 / 16.8 / 18.0 | 16.7 / 16.8 / 17.0 | 4.1 / 5.2 / 6.0 | 5.7 / 7.6 / 10.3 |
+| Pan, at 1:1 | 16.7 / 16.8 / 17.5 | 16.7 / 17.1 / 22.7 | 4.8 / 5.9 / 6.4 | 4.6 / 5.6 / 6.1 |
+| Zoom, at 1:1 | 16.9 / 16.8 / 50.0 | 16.7 / 16.8 / 18.8 | 4.7 / 5.5 / 6.5 | 5.2 / 6.3 / 7.3 |
+
+- **Zooming with an explorable live now keeps the frame budget:** 16.7 ms on average and 16.8 ms at p95 at every scale, against 17 to 22 ms and 33 to 50 ms before, and within the frames-mode marks. While a zoom runs, the frame keeps its last scale with its corner on its spot's, so it shows larger or smaller than its shape until the zoom rests, about 180 ms later.
+- Panning is as before. A hidden kept frame is not moved at all, so up to four live frames off screen and the frames kept hidden cost a pan nothing; up to four live on screen were not measured.

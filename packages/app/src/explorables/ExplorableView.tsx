@@ -6,8 +6,11 @@
  * says what it is and why it is not running, with what the person can do about it.
  */
 import {
+  STILL_WAIT,
   cardRuns,
   explorableCard,
+  readStill,
+  type StillBucket,
   type ExplorableCard as CoreCard,
   type ExplorableCardReason,
   type ProjectSnapshot,
@@ -21,6 +24,7 @@ import { placeInApp } from './faces';
 import { newFrameAddress, type FrameListener } from './frame-address';
 import { useExplorableApprovals, useExplorableData, useExplorableListener } from './hooks';
 import { FrameHost } from './host';
+import { keptFrames, type KeptHandle } from './kept-frames';
 import { reasonText } from './reasons';
 import { useExplorableSession, type ExplorableSession } from './session';
 import './explorables.css';
@@ -34,6 +38,24 @@ export interface ExplorableViewProps {
   step?: VaData['step'] | undefined;
   /** Selects an element on the canvas, as `va.select` asks. */
   onSelect?: ((id: Id) => void) | undefined;
+  /**
+   * Kept hidden, on a canvas: not shown, so that the tab may let it go past its eight kept frames
+   * (`kept-frames.ts`), which `onLetGo` does. A frame with no `onLetGo` is never let go.
+   */
+  hidden?: boolean | undefined;
+  onLetGo?: (() => void) | undefined;
+  /** The person used it, which keeps it among the frames used last. */
+  onUse?: (() => void) | undefined;
+  /** What takes a still of the frame as it is now; undefined once it goes. */
+  frameRef?: ((frame: LiveFrameHandle | undefined) => void) | undefined;
+}
+
+/** A live frame, as its owner reaches it. */
+export interface LiveFrameHandle {
+  /** Its still as it is now, at a bucket's width, read by the core; undefined when none came. */
+  takeStill(
+    width: StillBucket,
+  ): Promise<{ png: Uint8Array; width: number; height: number } | undefined>;
 }
 
 export function ExplorableView(props: ExplorableViewProps) {
@@ -143,6 +165,10 @@ function LiveFrame({
   parameters,
   step,
   onSelect,
+  hidden,
+  onLetGo,
+  onUse,
+  frameRef,
   name,
   hash,
   listener,
@@ -161,11 +187,13 @@ function LiveFrame({
   const [address] = useState(() => newFrameAddress(listener, explorable, hash));
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const data = useExplorableData(project, { explorable, element, parameters, size, step });
-  const latest = useRef({ data, onSelect });
+  const latest = useRef({ data, onSelect, hidden, onLetGo, onUse, frameRef });
   // Before the host is made, so that its hello carries the data of this render.
   useLayoutEffect(() => {
-    latest.current = { data, onSelect };
+    latest.current = { data, onSelect, hidden, onLetGo, onUse, frameRef };
   });
+  const kept = useRef<KeptHandle | undefined>(undefined);
+  const stillWanted = useRef<((width: number, png: Uint8Array) => void) | undefined>(undefined);
 
   useLayoutEffect(() => {
     const target = box.current;
@@ -189,13 +217,46 @@ function LiveFrame({
     const ended = session.marks.start(hash);
     const made = new FrameHost(element, latest.current.data, {
       select: (id) => latest.current.onSelect?.(id),
+      still: (width, png) => stillWanted.current?.(width, png),
       stopped: (end) => {
         ended();
         session.stop(hash, end);
       },
     });
     host.current = made;
+    // Every frame counts among the tab's eight; only a hidden one its owner can let go may go.
+    const handle = keptFrames().hold({
+      evictable: () => latest.current.hidden === true && latest.current.onLetGo !== undefined,
+      evict: () => latest.current.onLetGo?.(),
+    });
+    kept.current = handle;
+    const frameHandle: LiveFrameHandle = {
+      takeStill: (width) =>
+        new Promise((resolve) => {
+          let done = false;
+          const finish = (still: Awaited<ReturnType<LiveFrameHandle['takeStill']>>) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            if (stillWanted.current === hear) stillWanted.current = undefined;
+            resolve(still);
+          };
+          const hear = (given: number, png: Uint8Array) => {
+            if (given !== width) return;
+            // Read strictly by the core, at exactly the bucket's width, as every still is.
+            const read = readStill(png, width);
+            finish(read.ok ? { png: read.png, width: read.width, height: read.height } : undefined);
+          };
+          const timer = setTimeout(() => finish(undefined), STILL_WAIT.giveUp);
+          stillWanted.current = hear;
+          made.askStill(width);
+        }),
+    };
+    latest.current.frameRef?.(frameHandle);
     return () => {
+      latest.current.frameRef?.(undefined);
+      handle.release();
+      kept.current = undefined;
       made.dispose();
       host.current = undefined;
       ended();
@@ -203,11 +264,22 @@ function LiveFrame({
   }, [hash, session]);
 
   useEffect(() => {
+    kept.current?.changed();
+  }, [hidden]);
+
+  useEffect(() => {
     host.current?.setData(data);
   }, [data]);
 
   return (
-    <div ref={box} className="explorable-frame-box">
+    <div
+      ref={box}
+      className="explorable-frame-box"
+      onFocus={() => {
+        kept.current?.use();
+        latest.current.onUse?.();
+      }}
+    >
       <iframe
         ref={frame}
         className="explorable-frame"

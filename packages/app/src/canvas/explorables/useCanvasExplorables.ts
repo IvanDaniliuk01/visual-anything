@@ -19,7 +19,7 @@ export function useCanvasExplorables(
   renderer: () => CanvasRenderer | undefined,
   project: ProjectSnapshot,
   theme: 'light' | 'dark',
-): void {
+): CanvasExplorables {
   const t = useT();
   const stills = useExplorableStills();
   const session = useExplorableSession();
@@ -54,4 +54,5 @@ export function useCanvasExplorables(
   }, [provider, renderer]);
   // A still that arrives is drawn at the next frame.
   useEffect(() => stills?.subscribe(() => renderer()?.explorablesChanged()), [stills, renderer]);
+  return provider;
 }

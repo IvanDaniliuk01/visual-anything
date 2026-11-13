@@ -12,6 +12,7 @@
  */
 import type { VaData } from '@visual-anything/core';
 import type { Camera } from '../canvas/camera';
+import { LiveFollower } from '../canvas/explorables/live';
 import type { Rect } from '../canvas/geometry';
 import { newFrameAddress } from '../explorables/frame-address';
 import { FrameHost, type FrameEnd } from '../explorables/host';
@@ -136,10 +137,9 @@ export async function measureExplorable(bench: ExplorableBench): Promise<Explora
   );
   inner.append(element);
   box.append(inner);
-  const place = () => {
-    const now = bench.camera();
-    box.style.transform = `translate(${now.x + rect.x * now.scale}px, ${now.y + rect.y * now.scale}px) scale(${now.scale})`;
-  };
+  // Its corner follows every move, its scale only once the camera rests, as on the canvas.
+  const follower = new LiveFollower(box, rect);
+  const place = () => follower.place(bench.camera());
   const started = performance.now();
   let readyIn: number | undefined;
   let stopped: { end: FrameEnd; at: number; during: string } | undefined;
@@ -178,10 +178,11 @@ export async function measureExplorable(bench: ExplorableBench): Promise<Explora
   }
   bench.move = move;
   frameHost.dispose();
+  follower.dispose();
   box.remove();
   const notes = [
     live
-      ? `The explorable (the quadratic sample's page, from the listener on port ${bench.frame.port}) was live over a ${SPOT.width} × ${SPOT.height} spot in the middle of the scene, ready ${readyIn?.toFixed(0)} ms after it was made, moved with the camera at every frame${stopped ? `; the watchdog stopped it (${stopped.end}) during “${stopped.during}”, ${(stopped.at / 1000).toFixed(1)} s after it was made` : '; it answered the watchdog throughout'}`
+      ? `The explorable (the quadratic sample's page, from the listener on port ${bench.frame.port}) was live over a ${SPOT.width} × ${SPOT.height} spot in the middle of the scene, ready ${readyIn?.toFixed(0)} ms after it was made, moved with the camera at every move and rescaled once the camera rested${stopped ? `; the watchdog stopped it (${stopped.end}) during “${stopped.during}”, ${(stopped.at / 1000).toFixed(1)} s after it was made` : '; it answered the watchdog throughout'}`
       : `The explorable did not run: ${stopped ? `the watchdog stopped it (${stopped.end})` : 'it was not ready within 15 s'}; only the phases without it were measured`,
     ...(errors.length > 0 ? [`Its console errors: ${errors.slice(0, 5).join(' | ')}`] : []),
   ];
