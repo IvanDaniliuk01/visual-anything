@@ -55,19 +55,26 @@ export class CanvasExplorables implements ExplorableProvider {
   readonly #last = new WeakMap<object, LastKeyed>();
   /** The still each spot showed last, by spot. */
   readonly #shown = new Map<string, { explorable: Id; still: StillPicture }>();
+  /** The stills of frames as they were left, by spot (ADR 0107, 2026-11-12); shared with images. */
+  readonly #left: Map<string, { explorable: Id; still: StillPicture }>;
   #wants: StillJob<KeptStill>[] = [];
   #pending = false;
 
   /** Whether it asks for stills and keeps showing the last one: not for an image drawn off screen. */
   readonly #asks: boolean;
 
-  constructor(stills: ExplorableStills | undefined, asks = true) {
+  constructor(
+    stills: ExplorableStills | undefined,
+    asks = true,
+    left = new Map<string, { explorable: Id; still: StillPicture }>(),
+  ) {
     this.#stills = stills;
     this.#asks = asks;
+    this.#left = left;
   }
 
   forImage(theme: 'light' | 'dark'): CanvasExplorables {
-    const image = new CanvasExplorables(this.#stills, false);
+    const image = new CanvasExplorables(this.#stills, false, this.#left);
     if (this.#input) image.update({ ...this.#input, theme });
     return image;
   }
@@ -76,6 +83,21 @@ export class CanvasExplorables implements ExplorableProvider {
   update(input: CanvasExplorablesInput): void {
     this.#input = input;
     this.#keyed.clear();
+  }
+
+  /**
+   * A frame of the spot was let go: its spot shows the still taken of it as the person left it, its
+   * sliders and its step, rather than its default still, until it is explored again.
+   */
+  leave(spot: string, explorable: Id, still: StillPicture): void {
+    this.forget(spot);
+    this.#left.set(spot, { explorable, still });
+  }
+
+  /** The spot is explored again: its still as it was left goes. */
+  forget(spot: string): void {
+    // Its picture is not closed: a texture made of it may still draw from it.
+    this.#left.delete(spot);
   }
 
   face(explorable: Id): ExplorableFace | undefined {
@@ -90,6 +112,8 @@ export class CanvasExplorables implements ExplorableProvider {
       this.#shown.delete(spot.spot);
       return undefined;
     }
+    const left = this.#left.get(spot.spot);
+    if (left?.explorable === spot.explorable) return left.still;
     const keyed = this.#keyOf(input, spot, face.hash);
     const kept = stills.queue.result(keyed.key);
     if (kept?.ok && kept.picture !== undefined && !this.#asks) {

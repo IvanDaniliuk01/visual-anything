@@ -296,7 +296,7 @@ A free shape that shows an explorable loose on the canvas, bound to an element w
 _Avoid_: explorable widget, HTML box, frame
 
 **Still picture**:
-The picture an approved explorable draws of itself in a hidden frame, which its shape shows on the canvas until explored and every export holds; kept for the session, never in the project. Until it has one, the shape shows the explorable's card: its name, description, script libraries and why it is not running (ADR 0107).
+The picture an approved explorable draws of itself in a hidden frame, which its shape shows on the canvas until explored and every export holds; kept for the session, never in the project. Once explored and turned still, paused or let go, its shape shows the still its frame took of itself as the person left it (ADR 0107). Until it has one, the shape shows the explorable's card: its name, description, script libraries and why it is not running (ADR 0107).
 _Avoid_: screenshot, thumbnail, snapshot, preview
 
 **Explorable panel**:

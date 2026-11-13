@@ -95,6 +95,15 @@ export class ExplorableStills {
     };
   }
 
+  /** Decodes a still a live frame took of itself, for the canvas; undefined where none decodes. */
+  async picture(png: Uint8Array): Promise<unknown> {
+    try {
+      return await this.#platform.decode(png);
+    } catch {
+      return undefined;
+    }
+  }
+
   /** Lets every still go, as when another project opens. */
   clear(): void {
     this.queue.clear();

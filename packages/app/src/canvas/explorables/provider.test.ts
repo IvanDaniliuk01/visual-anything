@@ -161,6 +161,34 @@ describe('a canvas’s stills of explorables', () => {
     expect(dark.face(ID)).toMatchObject({ runs: true });
   });
 
+  it('shows the still of a frame as it was left, over its default one, until it is explored again', async () => {
+    const { canvas, update, spot, taken, settle } = harness();
+    update(true);
+    canvas.still(spot, true);
+    canvas.flush(true);
+    await settle();
+    const left = { key: 'left', picture: { left: true }, width: 512, height: 384 };
+    canvas.leave(spot.spot, ID, left);
+    expect(canvas.still(spot, true)).toBe(left);
+    // Its data changing, as a theme switch changes it, keeps it: it is how the person left it.
+    update(true, 'dark');
+    expect(canvas.still(spot, true)).toBe(left);
+    canvas.flush(true);
+    expect(taken).toHaveLength(1);
+    // Another explorable at the spot shows its own.
+    expect(canvas.still({ ...spot, explorable: 'quadratic.other' }, true)).toBeUndefined();
+    canvas.forget(spot.spot);
+    expect(canvas.still(spot, true)).not.toBe(left);
+  });
+
+  it('shows no still as it was left once the explorable may not run', () => {
+    const { canvas, update, spot } = harness();
+    update(true);
+    canvas.leave(spot.spot, ID, { key: 'left', picture: {}, width: 512, height: 384 });
+    update(false);
+    expect(canvas.still(spot, true)).toBeUndefined();
+  });
+
   it('stops taking stills of one the watchdog stopped, and its card says so', () => {
     const { canvas, update, spot, session, hash } = harness();
     session.stop(hash, 'silent');

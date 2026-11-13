@@ -109,7 +109,8 @@ import {
 import { addLinkCardCommand, linkAddressIn } from './links/adding';
 import { addExplorableCommand, onExplorableShapeAsked, onExploreAsked } from './explorables/adding';
 import { LiveExplorable } from './explorables/LiveExplorable';
-import { liveAfter, type LiveTarget } from './explorables/live';
+import { NO_LIVE, liveAfter, liveShown, type LiveState, type LiveTarget } from './explorables/live';
+import { useExplorableStills } from '../explorables/stills';
 import { useCanvasExplorables } from './explorables/useCanvasExplorables';
 import { visibleRect } from './camera';
 import { mediaFilesOver } from './pictures/media';
@@ -343,12 +344,16 @@ export function CanvasArea({
   // The element the next element added goes inside, set from its menu, for the selection it was set for.
   const [addTarget, setAddTarget] = useState<{ element: Id; selection: Selection }>();
   const [editing, setEditing] = useState<Editing>();
-  // The explorable live in place on this canvas, one at a time (ADR 0107, A10.3).
-  const [liveExplorable, setLiveExplorable] = useState<LiveTarget>();
-  const liveExplorableRef = useRef<LiveTarget | undefined>(undefined);
+  // The explorables live in place on this canvas, up to four, and the frames it keeps hidden, with
+  // the spots on screen now (ADR 0107, as the user changed Q11 on 2026-11-12).
+  const [liveExplorables, setLiveExplorables] = useState<LiveState>(NO_LIVE);
+  const liveExplorablesRef = useRef<LiveState>(NO_LIVE);
   useLayoutEffect(() => {
-    liveExplorableRef.current = liveExplorable;
-  }, [liveExplorable]);
+    liveExplorablesRef.current = liveExplorables;
+  }, [liveExplorables]);
+  const [liveOnScreen, setLiveOnScreen] = useState<ReadonlySet<string>>(() => new Set());
+  // What explores one, set below once the canvas's explorables are known.
+  const exploreLiveRef = useRef<(target: LiveTarget) => void>(() => undefined);
   // Each message counts, so that the same words said again are heard again.
   const [announcement, setAnnouncement] = useState({ text: '', count: 0 });
   // Counts the times something holding the focus closed by itself, to give the focus to the canvas.
@@ -678,11 +683,10 @@ export function CanvasArea({
         turning: (turned) => turningChanged(turned),
         resetRoutes: () => resetRoutesFromKeys(),
         layOut: () => layOutFromKeys(),
-        explore: (target) =>
-          setLiveExplorable((now) => liveAfter(now, { kind: 'explore', target })),
+        explore: (target) => exploreLiveRef.current(target),
         escape: () => {
-          if (liveExplorableRef.current === undefined) return false;
-          setLiveExplorable(undefined);
+          if (!liveExplorablesRef.current.kept.some((each) => each.live)) return false;
+          setLiveExplorables((now) => liveAfter(now, { kind: 'escape' }));
           return true;
         },
       },
@@ -712,36 +716,64 @@ export function CanvasArea({
     controllerRef.current?.setGrid(grid);
   }, [grid]);
 
-  // Explorables' faces and stills (ADR 0107, A10.3), and the one live in place, if any.
+  // Explorables' faces and stills (ADR 0107, A10.3), and those live in place.
   const rendererNow = useCallback(() => controllerRef.current?.renderer, []);
-  useCanvasExplorables(rendererNow, project, theme);
+  const canvasExplorables = useCanvasExplorables(rendererNow, project, theme);
+  const stills = useExplorableStills();
+  const exploreLive = (target: LiveTarget) => {
+    // Live again: its shape no longer shows the still of how it was left.
+    canvasExplorables.forget(target.spot);
+    rendererNow()?.explorablesChanged();
+    setLiveExplorables((now) => liveAfter(now, { kind: 'explore', target }));
+  };
+  useLayoutEffect(() => {
+    exploreLiveRef.current = exploreLive;
+  });
   const followLive = useEffectEvent(() => {
-    const now = liveExplorableRef.current;
+    const now = liveExplorablesRef.current;
     const renderer = rendererNow();
     const camera = cameras.current();
-    if (now === undefined || !renderer || !camera) return;
-    const next = liveAfter(now, {
-      kind: 'view',
-      rect: explorableSpotRect(latest.current.indexed, now),
-      visible: visibleRect(camera, renderer.viewport),
-    });
-    if (next === undefined) setLiveExplorable(undefined);
+    if (now.kept.length === 0 || !renderer || !camera) return;
+    const visible = visibleRect(camera, renderer.viewport);
+    const present = new Set<string>();
+    const onScreen = new Set<string>();
+    for (const each of now.kept) {
+      const rect = explorableSpotRect(latest.current.indexed, each.target);
+      if (!rect) continue;
+      present.add(each.target.spot);
+      if (liveShown({ ...each, live: true }, rect, visible)) onScreen.add(each.target.spot);
+    }
+    // The frames of shapes that went go with them; those off screen are kept, hidden.
+    setLiveExplorables((last) => liveAfter(last, { kind: 'spots', present }));
+    setLiveOnScreen((last) =>
+      last.size === onScreen.size && [...onScreen].every((spot) => last.has(spot))
+        ? last
+        : onScreen,
+    );
   });
-  // It turns still once its shape scrolls off screen, or goes.
   useEffect(() => cameras.subscribe(() => followLive()), [cameras]);
   useEffect(() => {
     followLive();
-  }, [indexed]);
+  }, [indexed, liveExplorables]);
   // Explore in an explorable shape's inspector reaches the active canvas.
   useEffect(
-    () =>
-      active
-        ? onExploreAsked((target) =>
-            setLiveExplorable((now) => liveAfter(now, { kind: 'explore', target })),
-          )
-        : undefined,
+    () => (active ? onExploreAsked((target) => exploreLiveRef.current(target)) : undefined),
     [active],
   );
+  // A frame's still as it was left, which its shape shows while it is kept hidden or once it goes.
+  const leftCount = useRef(0);
+  const showLeft = async (target: LiveTarget, png: Uint8Array, width: number, height: number) => {
+    const picture = await stills?.picture(png);
+    if (picture === undefined) return;
+    leftCount.current += 1;
+    canvasExplorables.leave(target.spot, target.explorable, {
+      key: `left ${target.spot} ${leftCount.current}`,
+      picture,
+      width,
+      height,
+    });
+    rendererNow()?.explorablesChanged();
+  };
 
   useEffect(() => {
     controllerRef.current?.renderer.setTheme(THEMES[theme].canvas);
@@ -1661,7 +1693,6 @@ export function CanvasArea({
     if (frameRef.current?.contains(document.activeElement)) focusCanvas();
   };
 
-  const liveRect = liveExplorable && explorableSpotRect(indexed, liveExplorable);
   const frame = (
     <div ref={frameRef} className="canvas-frame" {...(grid.rulers ? { 'data-rulers': '' } : {})}>
       <DrawnEmphasis
@@ -1706,21 +1737,35 @@ export function CanvasArea({
         tabIndex={0}
       />
       <div ref={captionRef} className="canvas-drop-caption" aria-hidden="true" />
-      {liveExplorable && liveRect && (
-        <LiveExplorable
-          key={`${liveExplorable.spot} ${liveExplorable.explorable}`}
-          target={liveExplorable}
-          project={project}
-          rect={liveRect}
-          camera={cameras.current}
-          subscribe={cameras.subscribe}
-          onSelect={(element) => onSelect(selectionOf([{ kind: 'element', id: element }]))}
-          onStill={() => {
-            setLiveExplorable(undefined);
-            focusCanvas();
-          }}
-        />
-      )}
+      {liveExplorables.kept.map((kept) => {
+        const { target } = kept;
+        const rect = explorableSpotRect(indexed, target);
+        if (!rect) return null;
+        return (
+          <LiveExplorable
+            key={`${target.spot} ${target.explorable} ${target.element ?? ''}`}
+            target={target}
+            project={project}
+            rect={rect}
+            live={kept.live}
+            onScreen={liveOnScreen.has(target.spot)}
+            camera={cameras.current}
+            subscribe={cameras.subscribe}
+            onSelect={(element) => onSelect(selectionOf([{ kind: 'element', id: element }]))}
+            onStill={() => {
+              setLiveExplorables((now) => liveAfter(now, { kind: 'still', spot: target.spot }));
+              focusCanvas();
+            }}
+            onUse={() =>
+              setLiveExplorables((now) => liveAfter(now, { kind: 'use', spot: target.spot }))
+            }
+            onLeft={(still) => void showLeft(target, still.png, still.width, still.height)}
+            onGone={() =>
+              setLiveExplorables((now) => liveAfter(now, { kind: 'drop', spot: target.spot }))
+            }
+          />
+        );
+      })}
       {hoverCard !== undefined && editing === undefined && menu === undefined && (
         <PlacedHoverCard shape={indexed?.byKey.get(hoverCard)} cameras={cameras} />
       )}

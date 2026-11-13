@@ -344,6 +344,57 @@ describe('pictures in tiles', () => {
     expect(drawingOf(tile)).toBeUndefined();
   });
 
+  it('make the textures another layer asks for, as an explorable’s still, when the scene shows no picture', () => {
+    // The bug the user saw (ADR 0107, A10.3): a view whose shapes show no picture never made the
+    // texture of an explorable's still, so its shape kept its card.
+    const platform = new FakePlatform();
+    const images = new TileImages(platform);
+    images.keep('explorable-layer');
+    const shape = shapeWith(bitmap(), 'icon', { x: 0, y: 0, width: 160, height: 80 });
+    const plain = { ...shape };
+    delete plain.image;
+    const tile = tileOf(plain);
+    images.show(tile.shapes);
+    const request = {
+      serial: 9_000_001,
+      group: 'explorable the-parabola',
+      picture: { width: 512, height: 341 },
+      width: 512,
+      height: 341,
+      distance: 0,
+      tile: 'explorable-layer',
+    };
+    expect(images.store.readyTexture(request)).toBeUndefined();
+    expect(images.frame([tile], view(1))).toBe(false);
+    expect(images.store.readyTexture(request)?.exact).toBe(true);
+    // Once made, a frame costs nothing again.
+    const made = platform.made;
+    expect(images.frame([tile], view(1))).toBe(false);
+    expect(platform.made).toBe(made);
+  });
+
+  it('make the textures another layer asks for while zoomed out too far for the tiles’ pictures', () => {
+    // A loose explorable shows at every scale, as pictures do (ADR 0107).
+    const platform = new FakePlatform();
+    const images = new TileImages(platform);
+    images.keep('explorable-layer');
+    const tile = tileOf(shapeWith(bitmap(), 'icon', { x: 0, y: 0, width: 160, height: 80 }));
+    images.show(tile.shapes);
+    const request = {
+      serial: 9_000_002,
+      group: 'explorable loose',
+      picture: { width: 256, height: 192 },
+      width: 256,
+      height: 192,
+      distance: 0,
+      tile: 'explorable-layer',
+    };
+    expect(images.store.readyTexture(request)).toBeUndefined();
+    images.frame([tile], view(0.1));
+    expect(images.store.readyTexture(request)?.exact).toBe(true);
+    expect(platform.decodes).toBe(0);
+  });
+
   it('drop the drawing of a tile out of reach for 3 seconds, and draw it again when it comes back', async () => {
     const platform = new FakePlatform();
     const images = new TileImages(platform);

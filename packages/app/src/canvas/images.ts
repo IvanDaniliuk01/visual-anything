@@ -603,23 +603,41 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
         } else more = true;
       }
     }
-    // Pictures made elsewhere, nearest first: at most one a frame, and none once the frame is spent.
-    if (this.#ready.size > 0) {
-      const ready = [...this.#ready.values()].sort((a, b) => a.distance - b.distance);
-      let made = 0;
-      for (const wanted of ready) {
-        if (made >= IMAGE_LIMITS.readyUploads || spent() >= IMAGE_LIMITS.workAfter) {
-          more = true;
-          break;
-        }
-        made += 1;
-        this.#makeReady(wanted);
-      }
-    }
+    if (this.#makeReadyTextures(spent)) more = true;
     this.#more = more || this.#rebuild.length > IMAGE_LIMITS.tileRebuilds;
     platform.flush();
     this.#evict();
     return this.#rebuild.splice(0, IMAGE_LIMITS.tileRebuilds);
+  }
+
+  /**
+   * Only the textures of pictures made elsewhere, as the frame of a canvas whose tiles show no
+   * picture, or are zoomed out too far for theirs, makes them: an explorable's still, which shows at
+   * every scale, and whatever the scene holds (ADR 0107). Nothing is decoded or rasterized.
+   */
+  frameReady(frame: Pick<ImageFrame, 'spent'>): void {
+    if (this.#ready.size === 0) {
+      this.#more = false;
+      return;
+    }
+    const platform = this.#platform;
+    const start = platform.now();
+    this.#more = this.#makeReadyTextures(() => frame.spent + platform.now() - start);
+    platform.flush();
+    this.#evict();
+  }
+
+  /** Pictures made elsewhere, nearest first: at most one a frame, and none once it is spent. */
+  #makeReadyTextures(spent: () => number): boolean {
+    if (this.#ready.size === 0) return false;
+    const ready = [...this.#ready.values()].sort((a, b) => a.distance - b.distance);
+    let made = 0;
+    for (const wanted of ready) {
+      if (made >= IMAGE_LIMITS.readyUploads || spent() >= IMAGE_LIMITS.workAfter) return true;
+      made += 1;
+      this.#makeReady(wanted);
+    }
+    return false;
   }
 
   /** Forgets the pictures a project no longer holds, as after a reload. */

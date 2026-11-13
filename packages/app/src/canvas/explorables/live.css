@@ -34,3 +34,16 @@
 .canvas-live-explorable-still:focus-visible {
   outline: var(--stroke-thick) solid var(--focus-ring);
 }
+
+/* Kept, hidden (ADR 0107, 2026-11-12): its frame lives on as it was left; its browser stops
+   drawing a cross-site frame that is not visible. */
+.canvas-live-explorable-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Taking its still as it was left before it hides or goes: drawn, but unseen and out of the way. */
+.canvas-live-explorable-taking {
+  opacity: 0;
+  pointer-events: none;
+}
