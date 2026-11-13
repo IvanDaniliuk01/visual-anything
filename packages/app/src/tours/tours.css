@@ -1011,6 +1011,21 @@
   font: inherit;
 }
 
+.tour-parameter :is(input[type='text'], select):hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+}
+
+.tour-parameter :is(input[type='text'], select):active:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface-pressed);
+}
+
+.tour-parameter :is(input[type='text'], select):disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
 .tour-parameter-check {
   display: inline-flex;
   gap: var(--space-25);

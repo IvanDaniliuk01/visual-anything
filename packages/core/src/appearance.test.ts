@@ -272,6 +272,8 @@ describe('traitSources', () => {
       image: 'essence',
       // Nor a solid (ADR 0075).
       solid: 'essence',
+      // Nor an explorable (ADR 0107).
+      explorable: 'essence',
       // Nor gives an outline of its own or a part to draw as (ADR 0066, ADR 0067).
       geometry: 'essence',
       part: 'essence',

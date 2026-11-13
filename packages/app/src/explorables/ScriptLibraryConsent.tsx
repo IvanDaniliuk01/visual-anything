@@ -5,12 +5,19 @@
  * byte is fetched. Fetch answers `script-library/consented` with the person's approval, Refuse
  * without it; then the dialog says what was kept and its size, or why nothing was. The first app to
  * answer decides; the others close their dialog when the program says what came of it.
+ *
+ * A request that changes a script library approved explorables use (another version of one the
+ * package keeps) names them, and the dialog lists them and says they stay approved. The core's
+ * `script-library/consent` does not carry that list yet (A10's review): {@link affectedExplorables}
+ * reads it from an optional field, `approvedExplorables`, and is the one place to follow the core's
+ * name for it when it lands.
  */
 import type { ScriptLibraryConsentMessage } from '@visual-anything/core';
 import { useContext, useEffect, useId, useRef, useState } from 'react';
 import { useModalFocus } from '../canvas/focus';
 import { useT } from '../i18n';
 import { LiveContext } from '../live/context';
+import { affectedExplorables } from './affected-explorables';
 import { librarySize } from './explorable';
 import './explorables.css';
 
@@ -54,6 +61,7 @@ function ConsentDialog({
   useModalFocus(dialog);
   useEffect(() => refuse.current?.focus(), []);
   const titleId = useId();
+  const affected = affectedExplorables(asked);
   return (
     <div className="dialog-backdrop">
       <div
@@ -98,6 +106,25 @@ function ConsentDialog({
             'Nothing is fetched until you approve. It checks the package against the registry’s own hash, runs none of its install scripts and keeps one file beside the project, which only an approved explorable runs.',
           )}
         </p>
+        {affected.length > 0 && (
+          <>
+            <p>
+              {t(
+                {
+                  one: 'It changes the script library of an approved explorable, which stays approved:',
+                  other:
+                    'It changes the script library of {count} approved explorables, which stay approved:',
+                },
+                { count: affected.length },
+              )}
+            </p>
+            <ul className="script-library-consent-affected">
+              {affected.map((each) => (
+                <li key={each.id}>{each.name}</li>
+              ))}
+            </ul>
+          </>
+        )}
         <div className="dialog-actions">
           <button ref={refuse} type="button" onClick={() => onAnswer(false)}>
             {t('Refuse')}

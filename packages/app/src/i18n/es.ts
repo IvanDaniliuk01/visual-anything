@@ -4568,6 +4568,14 @@ export const ui: Catalog = {
     'Solo se ejecuta en la aplicación Visual Anything, que lo muestra en vivo.',
   'Explorables without a still picture are drawn as their cards.':
     'Los explorables sin imagen fija se dibujan como su tarjeta.',
+  // A10's review: an appearance's explorable set in the app (ADR 0107).
+  'Its explorable': 'Su explorable',
+  'Use the component’s explorable': 'Usar el explorable del componente',
+  'It changes the script library of {count} approved explorables, which stay approved:': {
+    one: 'Cambia la biblioteca de JavaScript de un explorable aprobado, que sigue aprobado:',
+    other:
+      'Cambia la biblioteca de JavaScript de {count} explorables aprobados, que siguen aprobados:',
+  },
 };
 
 /**

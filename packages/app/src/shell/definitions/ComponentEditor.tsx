@@ -28,6 +28,7 @@ import { perform } from '../inspector/send';
 import { componentImageAction } from './imageCommands';
 import { ImageControl } from './ImageControl';
 import { SolidControl } from './SolidControl';
+import { ComponentExplorableTrait } from './ExplorableTrait';
 import { FaceSection } from './FaceSection';
 import { LevelsSection } from './LevelsSection';
 import { BuiltInNote, Gone, RemoveDefinition } from './parts';
@@ -177,7 +178,7 @@ interface AppearanceTraitsProps {
   update: (changes: ImageChanges) => Command;
 }
 
-/** A component's shape, colors, size, image, solid and rows, each with where it comes from. */
+/** A component's shape, colors, size, image, solid, explorable and rows, each with where it comes from. */
 function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
   const t = useT();
   const { project, definitions } = useEditor();
@@ -349,6 +350,7 @@ function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
             </>
           )}
         </TraitRow>
+        <ComponentExplorableTrait component={id} {...row('explorable')} />
         <TraitRow
           label={t('Draw what its elements hold as rows')}
           {...row('contentsAsRows')}
