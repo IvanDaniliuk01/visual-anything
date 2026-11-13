@@ -6,7 +6,13 @@
  */
 import type { VaData } from '@visual-anything/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { FRAME_LOAD_MS, FrameHost, type FrameEnd, type FrameHostClock } from './host';
+import {
+  FRAME_LOAD_MS,
+  FrameHost,
+  selectableIds,
+  type FrameEnd,
+  type FrameHostClock,
+} from './host';
 
 const DATA: VaData = {
   api: 1,
@@ -14,6 +20,15 @@ const DATA: VaData = {
   theme: 'light',
   language: 'en',
   size: { width: 100, height: 100 },
+};
+
+const element = (id: string) => ({ id, name: id, component: 'pump-type', attributes: [] });
+/** Data that shows the pump, which holds a valve and feeds a tank. */
+const PUMP: VaData = {
+  ...DATA,
+  element: element('pump'),
+  contents: [element('valve')],
+  relations: [{ id: 'feeds', type: 'flows', direction: 'out', other: element('tank') }],
 };
 
 class FakeClock implements FrameHostClock {
@@ -75,7 +90,7 @@ afterEach(() => {
   for (const port of ports.splice(0)) port.close();
 });
 
-function hosted() {
+function hosted(data: VaData = DATA) {
   const clock = new FakeClock();
   const frame = new FakeFrame();
   const stopped: FrameEnd[] = [];
@@ -83,7 +98,7 @@ function hosted() {
   const errors: string[] = [];
   const host = new FrameHost(
     frame,
-    DATA,
+    data,
     {
       stopped: (end) => stopped.push(end),
       select: (id) => selected.push(id),
@@ -126,7 +141,7 @@ describe('the frame host', () => {
   });
 
   it('hears only checked messages, pings every second, and stops a frame silent for 3 s', async () => {
-    const { clock, frame, host, stopped, selected, errors, frameEnd } = hosted();
+    const { clock, frame, host, stopped, selected, errors, frameEnd } = hosted(PUMP);
     frame.load();
     const { port, heard } = frameEnd();
     port.postMessage({ kind: 'va/select', id: 'pump' });
@@ -161,5 +176,34 @@ describe('the frame host', () => {
     await vi.waitFor(() => expect(heard).toHaveLength(1));
     expect(heard[0]).toEqual({ kind: 'va/data', data: { ...DATA, parameters: { a: 2 } } });
     host.dispose();
+  });
+
+  it('passes on a select only for an element the data last sent holds', async () => {
+    const { clock, frame, host, selected, errors, frameEnd } = hosted(PUMP);
+    frame.load();
+    const { port } = frameEnd();
+    for (const id of ['pump', 'valve', 'tank', 'secret-element', 'feeds', 'pump-type'])
+      port.postMessage({ kind: 'va/select', id });
+    port.postMessage({ kind: 'va/error', message: 'done' });
+    await vi.waitFor(() => expect(errors).toEqual(['done']));
+    expect(selected).toEqual(['pump', 'valve', 'tank']);
+    // New data counts once it is sent, not before: the frame selects what it was given.
+    host.setData({ ...DATA, element: element('boiler') });
+    port.postMessage({ kind: 'va/select', id: 'boiler' });
+    port.postMessage({ kind: 'va/error', message: 'before' });
+    await vi.waitFor(() => expect(errors).toEqual(['done', 'before']));
+    expect(selected).toEqual(['pump', 'valve', 'tank']);
+    clock.drawFrame();
+    port.postMessage({ kind: 'va/select', id: 'boiler' });
+    port.postMessage({ kind: 'va/select', id: 'pump' });
+    port.postMessage({ kind: 'va/error', message: 'after' });
+    await vi.waitFor(() => expect(errors).toEqual(['done', 'before', 'after']));
+    expect(selected).toEqual(['pump', 'valve', 'tank', 'boiler']);
+    host.dispose();
+  });
+
+  it('a tour step or a loose shape bound to nothing sends no element, so selects nothing', () => {
+    expect([...selectableIds(DATA)]).toEqual([]);
+    expect([...selectableIds(PUMP)].sort()).toEqual(['pump', 'tank', 'valve']);
   });
 });

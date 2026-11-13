@@ -182,6 +182,7 @@ export const TRAIT_PATHS: readonly TraitPath[] = [
   'connectionPoints',
   'image',
   'solid',
+  'explorable',
   'geometry',
   'part',
   'levels',

@@ -15,6 +15,7 @@ import type { Id } from '@visual-anything/schema';
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ExplorableView, type LiveFrameHandle } from '../../explorables/ExplorableView';
 import { useT } from '../../i18n';
+import { DismissIcon } from '../../shell/icons';
 import type { Camera } from '../camera';
 import type { Rect } from '../geometry';
 import { LiveFollower, type LiveTarget } from './live';
@@ -183,7 +184,7 @@ export function LiveExplorable({
         aria-label={t('Show its still again (Escape)')}
         onClick={onStill}
       >
-        ×
+        <DismissIcon />
       </button>
     </div>
   );

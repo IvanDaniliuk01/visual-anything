@@ -4,7 +4,10 @@
  * hears only that port. It says hello once in a frame's life: the frame's origin is opaque, so the
  * hello goes to `*`, and a page the frame navigated to, or reloaded, must never get the element's
  * data or a port. Any later `load` stops the frame, as having left its page. Every message it hears is checked by the core's `readFrameMessage`, and one
- * that fails is dropped whole. It sends the data again when it changes, at most once a frame.
+ * that fails is dropped whole. It sends the data again when it changes, at most once a frame. A
+ * `va/select` is passed on only for an element the data last sent to that frame holds (the element,
+ * its contents, the other ends of its relations): a page's own script can take the port and post
+ * any id, and the host, not the runtime, is the line.
  *
  * The watchdog pings the frame every second; a frame silent for 3 s is stopped, and so is one that
  * has not loaded within 10 s, whose page looped before it could answer: the host says so, and its
@@ -20,6 +23,15 @@ import {
   type VaData,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
+
+/** The ids of the elements `data` gives a frame: the element, its contents, its relations' other ends. */
+export function selectableIds(data: VaData): ReadonlySet<Id> {
+  const ids = new Set<Id>();
+  if (data.element) ids.add(data.element.id);
+  for (const each of data.contents ?? []) ids.add(each.id);
+  for (const each of data.relations ?? []) ids.add(each.other.id);
+  return ids;
+}
 
 /** How long a frame has to load before it is stopped. */
 export const FRAME_LOAD_MS = 10_000;
@@ -79,6 +91,8 @@ export class FrameHost {
   readonly #started: number;
   readonly #stopWatching: () => void;
   #data: VaData;
+  /** The elements of the data last posted to the frame, the only ones it may select. */
+  #sent: ReadonlySet<Id> = new Set();
   #port: MessagePort | undefined;
   #helloSent = false;
   #heardAt: number | undefined;
@@ -115,6 +129,7 @@ export class FrameHost {
     this.#sending = this.#clock.nextFrame(() => {
       this.#sending?.();
       this.#sending = undefined;
+      this.#sent = selectableIds(this.#data);
       this.#post({ kind: 'va/data', data: this.#data });
     });
   }
@@ -153,6 +168,7 @@ export class FrameHost {
     this.#port.onmessage = this.#hear;
     this.#heardAt = this.#clock.now();
     const hello: HostMessage = { kind: 'va/hello', api: VA_API, data: this.#data };
+    this.#sent = selectableIds(this.#data);
     // The frame's origin is opaque, so `*` is the only target that reaches it; the port is the line.
     target.postMessage(hello, '*', [channel.port2]);
   };
@@ -170,7 +186,7 @@ export class FrameHost {
         this.#events.ready?.();
         return;
       case 'va/select':
-        this.#events.select?.(message.id);
+        if (this.#sent.has(message.id)) this.#events.select?.(message.id);
         return;
       case 'va/error':
         if (this.errors.length < MAX_CONSOLE_ERRORS) {

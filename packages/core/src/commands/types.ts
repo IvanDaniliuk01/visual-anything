@@ -10,6 +10,7 @@ import type {
   TourEmphasis,
   Appearance,
   AppearanceImage,
+  AppearanceExplorable,
   AppearanceSolid,
   Arrow,
   AttributeDefinition,
@@ -244,6 +245,8 @@ export interface AppearanceChanges {
   image?: AppearanceImage | 'none' | null;
   /** The solid its shapes show; `none` shows none, whatever is inherited (ADR 0075). */
   solid?: AppearanceSolid | 'none' | null;
+  /** The explorable its elements show; `none` shows none, whatever is inherited (ADR 0107). */
+  explorable?: AppearanceExplorable | 'none' | null;
   /** Its shapes' own outline (ADR 0066); `none` takes an inherited one away. */
   geometry?: FreeGeometry | 'none' | null;
   /** The named part its shapes are drawn as (ADR 0067); `none` takes an inherited one away. */

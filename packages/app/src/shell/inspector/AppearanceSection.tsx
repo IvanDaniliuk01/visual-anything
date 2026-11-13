@@ -21,6 +21,7 @@ import { t as translate, useT } from '../../i18n';
 import { isTextPlacement, TEXT_PLACEMENTS } from '../definitions/textPlacements';
 import { ElementImageTrait } from '../definitions/ElementImageTrait';
 import { ElementPartTrait } from '../definitions/ElementPartTrait';
+import { ElementExplorableTrait } from '../definitions/ExplorableTrait';
 import { ElementFaceTrait } from '../definitions/FaceSection';
 import { TraitRow } from '../definitions/TraitRow';
 import { useSender } from '../definitions/useSender';
@@ -338,6 +339,7 @@ function OwnTraits({
         ))}
         <ElementImageTrait element={element} disabled={disabled} />
         <ElementPartTrait element={element} disabled={disabled} />
+        <ElementExplorableTrait element={element} disabled={disabled} />
         <ElementFaceTrait element={element} disabled={disabled} />
       </ul>
       <ColorHints id={hintId} hints={hints} />

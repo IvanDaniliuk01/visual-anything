@@ -151,7 +151,8 @@
 }
 
 .explorable-approval-libraries,
-.script-library-consent-addresses {
+.script-library-consent-addresses,
+.script-library-consent-affected {
   margin: var(--space-25) 0 var(--space-50);
   padding-inline-start: var(--space-150);
 }
@@ -218,6 +219,21 @@
   background: var(--surface);
   color: var(--text);
   font: inherit;
+}
+
+.components-field :is(input, select):hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+}
+
+.components-field :is(input, select):active:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface-pressed);
+}
+
+.components-field :is(input, select):disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 .components-script-library-form > .components-action {
