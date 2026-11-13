@@ -14,11 +14,17 @@ import { containmentCycles, previewDelete } from './rules';
 import { shownByScope } from './scope';
 import type { ProjectSnapshot } from './snapshot';
 import { definitionsIn, modelIndexOf } from './state';
+import { explorablesIn } from './explorables';
+import { applyOperations } from './operations';
+import { playableStep, tourStepProblems } from './tours/steps';
 import {
   COMMAND_TYPES,
   NESTING,
   RECOLORS,
   commandFor,
+  explorableCommandFor,
+  explorableIntent,
+  explorablePropertyProject,
   index,
   everyIntent,
   lowerCased,
@@ -101,6 +107,9 @@ function expectRulesKept(state: ProjectSnapshot) {
     validated.add(file);
   }
 }
+
+/** An undo or a redo, drawn among other intents. */
+const undoOrRedo = fc.constantFrom({ kind: 'undo' as const }, { kind: 'redo' as const });
 
 /** The file contents already found valid. */
 const validated = new WeakSet<object>();
@@ -241,6 +250,82 @@ describe('the rules of the core', () => {
 
   it('hold after sequences picked at random on each run', () => {
     fc.assert(sequences(nothingSeen()), { numRuns: 40 });
+  }, 60_000);
+
+  it('keeps a tour step whose explorable or parameter is gone as a broken step, never deleted', () => {
+    const counts = { removed: 0, undeclared: 0 };
+    fc.assert(
+      fc.property(
+        fc.array(fc.oneof({ arbitrary: explorableIntent, weight: 6 }, undoOrRedo), {
+          minLength: 5,
+          maxLength: 40,
+        }),
+        (wishes) => {
+          const start = explorablePropertyProject();
+          const steps = (state: ProjectSnapshot) =>
+            state.tours.find((tour) => tour.id === 'explained')?.steps ?? [];
+          const shown = steps(start).map((step) => ({ id: step.id, explorable: step.explorable }));
+          let state = start;
+          let history: History = EMPTY_HISTORY;
+          let n = 0;
+          const newId = (base: string) => `${base}-r${(n += 1)}`;
+          for (const wish of wishes) {
+            if (wish.kind === 'undo' || wish.kind === 'redo') {
+              const step = (wish.kind === 'undo' ? undo : redo)(state, history);
+              if (step) ({ state, history } = step);
+            } else {
+              const command = explorableCommandFor(state, wish);
+              if (!command) continue;
+              const outcome = executeCommand(state, command, { newId, author: 'user' });
+              if (!outcome.ok) continue;
+              expect(applyOperations(outcome.state, outcome.inverse).state).toStrictEqual(state);
+              history = record(history, {
+                label: outcome.label,
+                author: 'user',
+                operations: outcome.operations,
+                inverse: outcome.inverse,
+              });
+              state = outcome.state;
+            }
+            expectRulesKept(state);
+            // Every step is still there, in its order, naming what it named.
+            expect(
+              steps(state).map((step) => ({ id: step.id, explorable: step.explorable })),
+            ).toEqual(shown);
+            const catalog = explorablesIn(state);
+            for (const step of steps(state)) {
+              if (step.explorable === undefined) continue;
+              const codes = tourStepProblems(state, step).map((each) => each.code);
+              const played = playableStep(state, step);
+              const defined = catalog.explorable(step.explorable.id)?.definition;
+              if (defined === undefined) {
+                // Gone: a broken step, played without it.
+                expect(codes).toContain('unknown-explorable');
+                expect(played?.explorable).toBeUndefined();
+                counts.removed += 1;
+                continue;
+              }
+              const declared = new Set((defined.parameters ?? []).map((each) => each.name));
+              const undeclared = Object.keys(step.explorable.parameters ?? {}).filter(
+                (name) => !declared.has(name),
+              );
+              if (undeclared.length > 0) {
+                // A parameter no longer declared: flagged, and played without it.
+                expect(codes).toContain('unknown-parameter');
+                for (const name of undeclared) {
+                  expect(Object.keys(played?.explorable?.parameters ?? {})).not.toContain(name);
+                }
+                counts.undeclared += 1;
+              }
+            }
+          }
+        },
+      ),
+      { numRuns: 60 },
+    );
+    // The sequences did break steps both ways.
+    expect(counts.removed).toBeGreaterThan(10);
+    expect(counts.undeclared).toBeGreaterThan(10);
   }, 60_000);
 
   it('never lets containment form a cycle, however nesting is attempted', () => {

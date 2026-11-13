@@ -9,6 +9,7 @@
  * acceptance makes.
  */
 import {
+  EXPLORABLE_WRITES,
   acceptProposal,
   operationsBetween,
   propose,
@@ -46,8 +47,10 @@ export const COMMENT_COMMANDS: ReadonlySet<string> = new Set([
 
 /**
  * Whether a command of Claude's goes to the project now whatever the review says: every command it
- * holds, a batch's included, is a comment's. A batch that mixes them with other commands is proposed,
- * and `propose` refuses it, so that Claude sends its comments on their own.
+ * holds, a batch's included, is a comment's or writes an explorable (ADR 0107, A10's review: Claude
+ * writes explorables directly, and the person's approval before one runs is the check). A batch that
+ * mixes them with other commands is proposed, and `propose` refuses it, so that Claude sends its
+ * comments and its explorables on their own.
  */
 export function goesToProjectNow(command: Command): boolean {
   if (typeof command !== 'object' || command === null) return false;
@@ -59,7 +62,7 @@ export function goesToProjectNow(command: Command): boolean {
       commands.every((each) => goesToProjectNow(each as Command))
     );
   }
-  return COMMENT_COMMANDS.has(command.type);
+  return COMMENT_COMMANDS.has(command.type) || EXPLORABLE_WRITES.has(command.type);
 }
 
 /** How long a program started with `--stop-when-idle` keeps a waiting proposal after its last change. */

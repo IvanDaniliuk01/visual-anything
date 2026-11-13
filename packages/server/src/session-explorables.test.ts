@@ -25,7 +25,7 @@ import {
 import type { PackageFile, ScriptLibraryDefinition } from '@visual-anything/schema';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { startToolHarness } from './claude/tool-harness';
-import type { PreferencesStore, SetPreferencesResult } from './preferences';
+import { openPreferences, type PreferencesStore, type SetPreferencesResult } from './preferences';
 import { openSession, type Session, type SessionOptions } from './session';
 import { FakeClient, SHOP, testProject, writeProjectFolder } from './test-support';
 
@@ -339,6 +339,39 @@ describe('approvals (ADR 0107)', () => {
     expect(session.isExplorableApproved('shop.quadratic')).toBe(false);
   });
 
+  it('never continues an approval given to another explorable that holds the same text', async () => {
+    const copy = withExplorable(explorableTextHash(PAGE), {
+      explorables: [
+        {
+          id: 'shop.quadratic',
+          name: 'Quadratic',
+          file: 'quadratic.html',
+          api: 1,
+          hash: explorableTextHash(PAGE),
+        },
+        {
+          id: 'shop.copy',
+          name: 'Copy',
+          file: 'copy.html',
+          api: 1,
+          hash: explorableTextHash(PAGE),
+        },
+      ],
+    });
+    const folder = await folderWith(copy);
+    await writeFile(join(folder, 'explorables', 'copy.html'), PAGE);
+    const store = new Store([
+      { hash: approvalOf(PAGE), explorable: 'shop.quadratic', by: 'person' },
+    ]);
+    const session = await open(folder, { preferences: store });
+    // The copy runs, since the hash of what it holds is approved; Claude's write over it asks again.
+    expect(session.isExplorableApproved('shop.copy')).toBe(true);
+    await session.execute({ type: 'write-explorable', id: 'shop.copy', text: CLAUDES }, 'claude');
+    expect(store.asked).toEqual([]);
+    expect(session.isExplorableApproved('shop.copy')).toBe(false);
+    expect(session.isExplorableApproved('shop.quadratic')).toBe(true);
+  });
+
   it('never continues an approval for the person’s own write', async () => {
     const store = new Store([
       { hash: approvalOf(PAGE), explorable: 'shop.quadratic', by: 'person' },
@@ -346,6 +379,162 @@ describe('approvals (ADR 0107)', () => {
     const session = await open(await folderWith(withExplorable()), { preferences: store });
     await session.execute(WRITE(CLAUDES), 'user');
     expect(store.asked).toEqual([]);
+  });
+});
+
+describe('a package added from another project (A10’s review)', () => {
+  const MATH: PackageFile = {
+    id: 'math',
+    name: 'Math',
+    components: [],
+    relationTypes: [],
+    explorables: [
+      {
+        id: 'math.parabola',
+        name: 'Parabola',
+        file: 'parabola.html',
+        scriptLibraries: ['math.d3'],
+        api: 1,
+        hash: explorableTextHash(PAGE),
+      },
+      { id: 'math.sine', name: 'Sine', file: 'sine.html', api: 1, hash: 'd'.repeat(64) },
+    ],
+    scriptLibraries: [
+      {
+        id: 'math.d3',
+        npm: 'd3',
+        version: '7.9.0',
+        tarball: 'https://registry.npmjs.org/d3/-/d3-7.9.0.tgz',
+        integrity: `sha512-${'A'.repeat(86)}==`,
+        path: 'dist/d3.min.js',
+        global: 'd3',
+        hash: 'e'.repeat(64),
+        bytes: 10,
+      },
+    ],
+  };
+
+  it('reads the texts beside the project, and warns of the files missing, an explorable’s or a library’s', async () => {
+    const folder = await folderWith(withExplorable());
+    await writeFile(join(folder, 'explorables', 'parabola.html'), PAGE);
+    const session = await open(folder);
+    const app = new FakeClient();
+    session.connect(app);
+    const added = await session.execute({ type: 'add-package', package: MATH }, 'user');
+    expect(added.ok).toBe(true);
+    await session.idle();
+    await session.idle();
+    expect(
+      session.snapshot.explorableTexts?.find((each) => each.id === 'math.parabola')?.text,
+    ).toBe(PAGE);
+    const said = session.warnings().map((each) => each.message);
+    expect(said).toContainEqual(
+      expect.stringContaining(
+        'The file "explorables/sine.html" of the explorable "Sine" is missing',
+      ),
+    );
+    expect(said).toContainEqual(
+      expect.stringContaining('The file of the script library "d3" 7.9.0 is missing'),
+    );
+    // Removing the package takes the texts with it, and undo gives them back.
+    const removed = await session.execute(
+      {
+        type: 'update-project',
+        changes: { packages: session.snapshot.project.packages.filter((id) => id !== 'math') },
+      },
+      'user',
+    );
+    expect(removed.ok).toBe(true);
+    expect(session.snapshot.explorableTexts?.map((each) => each.id)).toEqual(['shop.quadratic']);
+    await session.undo();
+    expect(session.snapshot.explorableTexts?.map((each) => each.id)).toContain('math.parabola');
+  });
+});
+
+describe('explorables while the person reviews Claude’s changes (A10’s review)', () => {
+  it('writes Claude’s explorables to the project now, never into a proposal, and keeps the proposal’s texts', async () => {
+    const store = new Store([
+      { hash: approvalOf(PAGE), explorable: 'shop.quadratic', by: 'person' },
+    ]);
+    store.preferences = { ...store.preferences, reviewClaude: true };
+    const folder = await folderWith(withExplorable());
+    const session = await open(folder, { preferences: store });
+    // Another change of Claude's waits in a proposal.
+    const waiting = await session.execute(
+      { type: 'update-element', id: 'api', changes: { name: 'Gateway' } },
+      'claude',
+    );
+    expect(waiting.ok).toBe(true);
+    expect(session.proposed).toBeDefined();
+    expect(session.actions).toEqual([]);
+    const commands: Command[] = [
+      WRITE(CLAUDES),
+      { type: 'update-explorable', id: 'shop.quadratic', changes: { name: 'Parabola' } },
+      {
+        type: 'define-explorable',
+        package: 'shop',
+        explorable: { id: 'shop.sine', name: 'Sine', file: 'sine.html' },
+        text: PAGE,
+      },
+      { type: 'remove-explorable', id: 'shop.sine' },
+    ];
+    for (const command of commands) {
+      const outcome = await session.execute(command, 'claude', undefined, { propose: true });
+      expect(outcome.ok).toBe(true);
+    }
+    expect(session.actions.map((each) => each.author)).toEqual([
+      'claude',
+      'claude',
+      'claude',
+      'claude',
+    ]);
+    await session.idle();
+    expect(await readExplorable(folder)).toBe(CLAUDES);
+    // The approval continued, and the proposal holds the project's text with its definition.
+    expect(session.isExplorableApproved('shop.quadratic')).toBe(true);
+    expect(session.proposed?.explorableTexts).toEqual(session.snapshot.explorableTexts);
+    // A batch that mixes an explorable with a change to propose is refused whole.
+    const mixed = await session.execute(
+      {
+        type: 'batch',
+        label: 'Both',
+        commands: [{ type: 'update-element', id: 'db', changes: { name: 'Store' } }, WRITE(PAGE)],
+      },
+      'claude',
+    );
+    expect(mixed.ok ? [] : mixed.problems.map((each) => each.message)).toEqual([
+      expect.stringContaining('An explorable never joins a proposal'),
+    ]);
+    expect(await readExplorable(folder)).toBe(CLAUDES);
+  });
+
+  it('tells Claude through write_explorable that it was written to the project now', async () => {
+    const { store } = await openPreferences(null);
+    await store.set({ reviewClaude: true });
+    const tools = await startToolHarness(withExplorable(), { preferences: store });
+    try {
+      const proposedAnswer = await tools.value('run_commands', {
+        label: 'Rename',
+        commands: [{ type: 'update-element', id: 'api', changes: { name: 'Gateway' } }],
+      });
+      expect(proposedAnswer.applied).toBe(false);
+      const answer = await tools.value('write_explorable', { id: 'shop.quadratic', text: CLAUDES });
+      expect(answer).toMatchObject({ done: 'Write the explorable "Quadratic"' });
+      expect(String(answer.notProposed)).toMatch(
+        /^Written to the project now, not into your proposal ".+": an explorable is never proposed\./,
+      );
+      expect(tools.session.actions.map((each) => each.label)).toEqual([
+        'Write the explorable "Quadratic"',
+      ]);
+      // remove-explorable through run_commands goes to the project now too.
+      await tools.value('run_commands', {
+        label: 'Remove',
+        commands: [{ type: 'remove-explorable', id: 'shop.quadratic' }],
+      });
+      expect(tools.session.actions).toHaveLength(2);
+    } finally {
+      await tools.close();
+    }
   });
 });
 

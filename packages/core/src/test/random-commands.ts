@@ -13,6 +13,7 @@ import type {
   UpdateRelationCommand,
   UpdateRelationTypeCommand,
 } from '../commands';
+import { executeCommand } from '../commands';
 import { containmentTree, type Placement } from '../containment';
 import { nestingTypesInView } from '../containers';
 import type { ProjectSnapshot } from '../snapshot';
@@ -1110,4 +1111,163 @@ export function ownPackage(state: ProjectSnapshot) {
   const own = state.packages.find((file) => file.id === 'test');
   if (!own) throw new Error('The project lost its own package.');
   return own;
+}
+
+// ——— Explorables and the tour steps that show them (ADR 0107) ———
+
+/** The explorables the explorable intents act on, both in the project's own package. */
+export const EXPLORABLES = ['test.wave', 'test.dot'];
+
+/** The parameters "test.wave" starts with, which `redeclare` narrows or drops. */
+const WAVE_PARAMETERS = [
+  { name: 'a', kind: 'number', min: -5, max: 5, default: 1 },
+  { name: 'n', kind: 'integer', min: 0, max: 10, default: 2 },
+  { name: 'mode', kind: 'choice', choices: ['curve', 'roots'], default: 'curve' },
+] as const;
+
+/**
+ * The property project with two explorables and a tour whose steps show them with parameters, so
+ * that removing an explorable or a parameter leaves broken steps for the invariants to find kept.
+ */
+export function explorablePropertyProject(): ProjectSnapshot {
+  let state = propertyProject();
+  const commands: Command[] = [
+    {
+      type: 'define-explorable',
+      package: 'test',
+      explorable: { id: 'test.wave', name: 'Wave', parameters: [...WAVE_PARAMETERS] },
+      text: '<p>wave</p>',
+    } as Command,
+    {
+      type: 'define-explorable',
+      package: 'test',
+      explorable: { id: 'test.dot', name: 'Dot' },
+      text: '<p>dot</p>',
+    },
+    {
+      type: 'create-tour',
+      tour: {
+        id: 'explained',
+        name: 'Explained',
+        steps: [
+          {
+            viewState: { view: 'overview' },
+            caption: { title: 'A wave' },
+            explorable: { id: 'test.wave' },
+          },
+          {
+            viewState: { view: 'overview' },
+            caption: { title: 'Its roots' },
+            explorable: { id: 'test.wave', parameters: { a: 4, n: 7, mode: 'roots' } },
+          },
+          {
+            viewState: { view: 'overview' },
+            caption: { title: 'A dot' },
+            explorable: { id: 'test.dot' },
+          },
+          { viewState: { view: 'overview' }, caption: { title: 'No explorable' } },
+        ],
+      },
+    },
+  ];
+  let n = 0;
+  for (const command of commands) {
+    const outcome = executeCommand(state, command, { newId: (base) => `${base}-e${(n += 1)}` });
+    if (!outcome.ok) throw new Error(outcome.problems.map((each) => each.message).join(' '));
+    state = outcome.state;
+  }
+  return state;
+}
+
+/** What to do next to an explorable, or anything else the property intents do. */
+export type ExplorableIntent =
+  | { kind: 'remove-explorable'; at: number }
+  | { kind: 'redeclare'; keep: number[]; narrow: boolean }
+  | { kind: 'write-explorable'; at: number; text: number }
+  | { kind: 'define-again'; at: number }
+  | { kind: 'show-explorable'; at: number; element: number; off: boolean }
+  | { kind: 'other'; intent: Intent };
+
+export const explorableIntent: fc.Arbitrary<ExplorableIntent> = fc.oneof(
+  { arbitrary: fc.record({ kind: fc.constant('remove-explorable'), at: index }), weight: 3 },
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('redeclare'),
+      keep: fc.array(index, { maxLength: 3 }),
+      narrow: fc.boolean(),
+    }),
+    weight: 3,
+  },
+  {
+    arbitrary: fc.record({ kind: fc.constant('write-explorable'), at: index, text: index }),
+    weight: 2,
+  },
+  { arbitrary: fc.record({ kind: fc.constant('define-again'), at: index }), weight: 2 },
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('show-explorable'),
+      at: index,
+      element: index,
+      off: fc.boolean(),
+    }),
+    weight: 2,
+  },
+  { arbitrary: fc.record({ kind: fc.constant('other'), intent }), weight: 6 },
+);
+
+/** The command an explorable intent makes on the project as it is; undefined when it makes none. */
+export function explorableCommandFor(
+  state: ProjectSnapshot,
+  wish: ExplorableIntent,
+): Command | undefined {
+  switch (wish.kind) {
+    case 'remove-explorable':
+      return { type: 'remove-explorable', id: pick(EXPLORABLES, wish.at) as Id };
+    case 'redeclare': {
+      const kept = [...new Set(wish.keep.map((at) => at % WAVE_PARAMETERS.length))]
+        .sort()
+        .map((at) => WAVE_PARAMETERS[at] as (typeof WAVE_PARAMETERS)[number]);
+      const parameters = kept.map((each) =>
+        wish.narrow && each.kind === 'number' ? { ...each, min: 0, max: 1, default: 0 } : each,
+      );
+      return {
+        type: 'update-explorable',
+        id: 'test.wave',
+        changes: { parameters: parameters.length === 0 ? null : parameters },
+      } as Command;
+    }
+    case 'write-explorable':
+      return {
+        type: 'write-explorable',
+        id: pick(EXPLORABLES, wish.at) as Id,
+        text: `<p>text ${wish.text % 5}</p>`,
+      };
+    case 'define-again': {
+      // An explorable a broken step still names is never given again: the core refuses its id.
+      const id = pick(EXPLORABLES, wish.at) as Id;
+      return {
+        type: 'define-explorable',
+        package: 'test',
+        explorable: { id, name: 'Again' },
+        text: '<p>again</p>',
+      };
+    }
+    case 'show-explorable': {
+      const element = pick(state.model.elements, wish.element);
+      if (!element) return undefined;
+      return {
+        type: 'update-element',
+        id: element.id,
+        changes: {
+          appearance: wish.off
+            ? { explorable: 'none' }
+            : { explorable: { explorable: pick(EXPLORABLES, wish.at) as Id } },
+        },
+      };
+    }
+    case 'other':
+      return wish.intent.kind === 'undo' || wish.intent.kind === 'redo'
+        ? undefined
+        : commandFor(state, wish.intent);
+  }
 }

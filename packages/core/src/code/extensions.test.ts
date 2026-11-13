@@ -208,6 +208,49 @@ describe('what the hooks answer', () => {
     if (!checked.ok) expect(checked.reason).toContain(words);
   });
 
+  it('never sends the commands only the program runs, which the core refuses from code anyway (ADR 0107)', () => {
+    const library = {
+      id: 'test.d3',
+      npm: 'd3',
+      version: '7.9.0',
+      tarball: 'https://registry.npmjs.org/d3/-/d3-7.9.0.tgz',
+      integrity: `sha512-${'A'.repeat(86)}==`,
+      path: 'dist/d3.min.js',
+      global: 'd3',
+      hash: 'a'.repeat(64),
+      bytes: 10,
+    };
+    const project = executeCommand(
+      testProject(),
+      {
+        type: 'define-explorable',
+        package: 'test',
+        explorable: { id: 'test.curve', name: 'Curve' },
+        text: '<p>curve</p>',
+      },
+      { newId: sequentialIds(), author: 'user' },
+    );
+    if (!project.ok) throw new Error('The explorable was not defined.');
+    const forged: Command[] = [
+      { type: 'record-explorable-file', id: 'test.curve', text: '<p>forged</p>' },
+      { type: 'define-script-library', package: 'test', library },
+    ];
+    for (const command of forged) {
+      for (const commands of [[command], [{ type: 'batch', label: 'x', commands: [command] }]]) {
+        const checked = checkChangesAnswer({ commands }, 'Act');
+        expect(checked.ok ? '' : checked.reason).toContain(`"${command.type}"`);
+        // Were it checked no further, applying it as the person's would still be refused.
+        const preview = previewPackageChanges(project.state, {
+          label: 'Act',
+          commands: commands as Command[],
+        });
+        expect(preview.ok ? [] : preview.problems.map((each) => each.code)).toEqual([
+          'program-only',
+        ]);
+      }
+    }
+  });
+
   it('drops more commands than an answer holds', () => {
     const commands = Array.from({ length: CODE_LIMITS.changesCommands + 1 }, () => ({
       type: 'undo',

@@ -244,6 +244,22 @@ export function removeExplorable(draft: Draft, command: RemoveExplorableCommand)
   return `Remove the explorable "${definition.name}"`;
 }
 
+/**
+ * Removes the texts of explorables no package defines any more, once a command has run: a package
+ * that goes takes its explorables' texts with it, in the same action, so undo gives them back (A10's
+ * review). The files stay on disk, as a text that goes with its explorable always does.
+ */
+export function dropTextsWithoutDefinitions(draft: Draft, before: ProjectSnapshot): void {
+  if (draft.state.packages === before.packages) return;
+  const texts = draft.state.explorableTexts ?? [];
+  if (texts.length === 0) return;
+  const catalog = explorablesIn(draft.state);
+  for (const text of texts) {
+    if (catalog.explorable(text.id)) continue;
+    draft.apply({ op: 'remove', collection: { name: 'explorableTexts' }, key: text.id });
+  }
+}
+
 /** The explorable a command names, in one of the project's own packages. */
 function ownExplorable(
   draft: Draft,
@@ -632,6 +648,175 @@ function checkedLibrary(given: unknown): ScriptLibraryDefinition {
 
 function invalidLibrary(message: string): never {
   return reject('invalid-script-library', message);
+}
+
+// ——— A package shared between projects (ADR 0051) ———
+
+/**
+ * The script libraries of a package that `add-package` or `replace-package` carries, each checked as
+ * `define-script-library` checks one, within a package's 64 and the project's 128 MiB, counting each
+ * file once by its hash (A10's review). The files stay beside the project they came from: one this
+ * project's folder lacks is reported as missing, as a solid's is, and its explorables do not run.
+ */
+export function packageScriptLibraries(
+  state: ProjectSnapshot,
+  packageId: Id,
+  given: unknown,
+): ScriptLibraryDefinition[] | undefined {
+  if (given === undefined) return undefined;
+  if (!Array.isArray(given)) reject('invalid-command', 'A package’s script libraries are a list.');
+  const libraries = (given as unknown[]).map((each) => checkedLibrary(each));
+  if (libraries.length > MAX_LIBRARIES_PER_PACKAGE) {
+    reject(
+      'script-library-too-large',
+      `A package defines at most ${MAX_LIBRARIES_PER_PACKAGE} script libraries.`,
+      [packageId],
+    );
+  }
+  const bytes = new Map<string, number>();
+  for (const each of state.packages) {
+    if (each.id === packageId) continue;
+    for (const kept of each.scriptLibraries ?? []) bytes.set(kept.hash, kept.bytes);
+  }
+  for (const each of libraries) bytes.set(each.hash, each.bytes);
+  const total = [...bytes.values()].reduce((sum, each) => sum + each, 0);
+  if (total > MAX_SCRIPT_LIBRARIES_BYTES) {
+    reject(
+      'script-library-too-large',
+      `The project's script libraries would take ${total} bytes, past ${MAX_SCRIPT_LIBRARIES_BYTES}.`,
+      [packageId],
+    );
+  }
+  return libraries.length === 0 ? undefined : libraries;
+}
+
+/**
+ * The explorables of a package that `add-package` or `replace-package` carries, each checked as
+ * `define-explorable` checks one (A10's review): its name, description, file, parameters, the `va`
+ * API it was written for, and script libraries of the package's own. The texts are not in a package
+ * file; they live in `explorables/` beside the project. So an explorable this project holds a text
+ * for keeps that text, its file and the text's hash, and one it holds none for keeps the hash the
+ * file gives and shows its card, "its file is missing", until the program reads its file; it never
+ * runs before the person approves what was read.
+ */
+export function packageExplorables(
+  state: ProjectSnapshot,
+  packageId: Id,
+  packageName: string,
+  given: unknown,
+  libraries: readonly ScriptLibraryDefinition[],
+): ExplorableDefinition[] | undefined {
+  if (given === undefined) return undefined;
+  if (!Array.isArray(given)) reject('invalid-command', 'A package’s explorables are a list.');
+  if (given.length > MAX_EXPLORABLES_PER_PACKAGE) {
+    reject(
+      'explorable-too-large',
+      `A package defines at most ${MAX_EXPLORABLES_PER_PACKAGE} explorables.`,
+      [packageId],
+    );
+  }
+  const catalog = explorablesIn(state);
+  const ownLibraries = new Set(libraries.map((each) => each.id));
+  const files = new Map<string, Id>();
+  const explorables = (given as unknown[]).map((each): ExplorableDefinition => {
+    if (typeof each !== 'object' || each === null || Array.isArray(each)) {
+      invalid("An explorable's definition is an object.");
+    }
+    const value = each as Record<string, unknown>;
+    const keys = ['id', 'name', 'description', 'file', 'scriptLibraries', 'parameters', 'api'];
+    for (const key of Object.keys(value)) {
+      if (![...keys, 'hash'].includes(key))
+        invalid(`An explorable's definition holds no "${key}".`);
+    }
+    if (!isId(value.id)) reject('invalid-id', `${JSON.stringify(value.id)} is not a valid id.`);
+    const id = value.id;
+    const name = checkedName(value.name);
+    if (value.api !== VA_API) {
+      invalid(
+        `The explorable "${name}" was written for version ${JSON.stringify(value.api)} of the va API; this Visual Anything runs version ${VA_API}.`,
+      );
+    }
+    if (typeof value.hash !== 'string' || !HASH.test(value.hash)) {
+      invalid(`The hash of "${name}" is a SHA-256 in lowercase hexadecimal.`);
+    }
+    // An explorable this project defines already keeps its file, where its text is.
+    const current = catalog.explorable(id);
+    const file =
+      current?.package === packageId ? current.definition.file : checkedFileName(value.file);
+    const elsewhere = catalog.byFile(file);
+    if (elsewhere !== undefined && elsewhere.package !== packageId) {
+      reject(
+        'id-taken',
+        `The explorable "${elsewhere.definition.name}" keeps its text in "explorables/${file}" already.`,
+        [elsewhere.definition.id],
+      );
+    }
+    const twice = files.get(file);
+    if (twice !== undefined) {
+      reject(
+        'id-taken',
+        `The package "${packageName}" keeps two explorables in "explorables/${file}": "${twice}" and "${id}".`,
+        [twice, id],
+      );
+    }
+    files.set(file, id);
+    const used = value.scriptLibraries;
+    if (used !== undefined) {
+      if (!Array.isArray(used) || used.length > MAX_LIBRARIES_PER_EXPLORABLE) {
+        invalid(
+          `An explorable uses a list of at most ${MAX_LIBRARIES_PER_EXPLORABLE} script libraries.`,
+        );
+      }
+      for (const library of used as unknown[]) {
+        if (!isId(library) || !ownLibraries.has(library)) {
+          reject(
+            'unknown-script-library',
+            `The explorable "${name}" uses the script library ${JSON.stringify(library)}, which the package "${packageName}" does not define.`,
+            [id],
+          );
+        }
+      }
+      if (new Set(used).size !== used.length) {
+        invalid(`The explorable "${name}" uses a script library twice.`);
+      }
+    }
+    const held = explorableTextOf(state, id);
+    return compact({
+      id,
+      name,
+      description: checkedDescription(value.description),
+      file,
+      scriptLibraries: used === undefined || used.length === 0 ? undefined : [...(used as Id[])],
+      parameters: checkedParameters(value.parameters),
+      api: VA_API,
+      // The text beside the project is what runs: its hash wins over the one the file gives.
+      hash: held === undefined ? value.hash : explorableTextHash(held.text),
+    });
+  });
+  return explorables.length === 0 ? undefined : explorables;
+}
+
+/**
+ * Refuses a `replace-package` that drops an explorable something in the project still shows, saying
+ * what shows it, as one that drops a solid is refused (A10's review). Its text goes with it.
+ */
+export function checkRemovedExplorables(
+  draft: Draft,
+  current: PackageFile,
+  next: PackageFile,
+): void {
+  const kept = new Set((next.explorables ?? []).map((each) => each.id));
+  for (const removed of current.explorables ?? []) {
+    if (kept.has(removed.id)) continue;
+    const users = explorableUsers(draft.state, removed.id);
+    if (users.length > 0) {
+      reject(
+        'in-use',
+        `The update of "${current.name}" removes the explorable "${removed.name}", which ${count(users.length, 'component, element or shape shows', 'components, elements or shapes show')}; change what shows it first.`,
+        users,
+      );
+    }
+  }
 }
 
 // ——— What shows an explorable ———

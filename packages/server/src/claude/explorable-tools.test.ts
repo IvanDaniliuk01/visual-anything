@@ -344,7 +344,12 @@ describe('a tour step’s explorable', () => {
 describe('request_script_library', () => {
   const D3 = `(function (global, factory) { factory(global.d3 = global.d3 || {}); })(this, function (exports) { exports.version = "7.9.0"; });`;
 
-  async function withRegistry(files: Record<string, string>, fields: Record<string, unknown>) {
+  async function withRegistry(
+    files: Record<string, string>,
+    fields: Record<string, unknown>,
+    project: ProjectSnapshot = testProject(),
+    store: Store = new Store(),
+  ) {
     const bytes = tarball(files);
     const { document, tarball: tarballUrl } = registryAddresses('d3', '7.9.0');
     stub = await startRegistryStub(
@@ -353,8 +358,8 @@ describe('request_script_library', () => {
         [new URL(tarballUrl).pathname, { body: bytes }],
       ]),
     );
-    tools = await startToolHarness(testProject(), {
-      preferences: new Store(),
+    tools = await startToolHarness(project, {
+      preferences: store,
       registry: { request: stub.request, resolve: stub.resolve },
     });
     return tools;
@@ -390,6 +395,62 @@ describe('request_script_library', () => {
       next: 'Name "shop.d3" in write_explorable\'s scriptLibraries; its page then reads the global d3.',
     });
     expect(tools.session.history.undo).toMatchObject({ author: 'claude' });
+  });
+
+  it('names the approved explorables whose library it changes, which stay approved (A10’s review)', async () => {
+    const older = {
+      id: 'shop.d3',
+      npm: 'd3',
+      version: '7.8.0',
+      tarball: 'https://registry.npmjs.org/d3/-/d3-7.8.0.tgz',
+      integrity: `sha512-${'A'.repeat(86)}==`,
+      path: 'dist/d3.min.js',
+      global: 'd3',
+      hash: 'c'.repeat(64),
+      bytes: 10,
+    };
+    const base = withExplorable();
+    const project: ProjectSnapshot = {
+      ...base,
+      packages: base.packages.map((each) =>
+        each.id === 'shop'
+          ? {
+              ...each,
+              scriptLibraries: [older],
+              explorables: (each.explorables ?? []).map((one) => ({
+                ...one,
+                scriptLibraries: ['shop.d3'],
+              })),
+            }
+          : each,
+      ),
+    };
+    const approval = approvalHashOf(explorableTextHash(PAGE), [older.hash]);
+    const store = new Store([{ hash: approval, explorable: 'shop.quadratic', by: 'person' }]);
+    const tools = await withRegistry(
+      { 'package.json': '{"name":"d3"}', 'dist/d3.min.js': D3 },
+      { license: 'ISC' },
+      project,
+      store,
+    );
+    const app = await tools.openApp();
+    const asking = tools.value('request_script_library', ASK);
+    await vi.waitFor(() =>
+      expect(app.messages.some((message) => message.type === 'script-library/consent')).toBe(true),
+    );
+    const asked = app.messages.find((message) => message.type === 'script-library/consent');
+    expect(asked).toMatchObject({
+      asker: 'claude',
+      approvedExplorables: [{ id: 'shop.quadratic', name: 'Quadratic' }],
+    });
+    await consent(app, true);
+    expect(await asking).toMatchObject({ kept: 'shop.d3', version: '7.9.0' });
+    await tools.session.idle();
+    expect(tools.session.isExplorableApproved('shop.quadratic')).toBe(true);
+    expect(store.current().explorableApprovals[0]).toMatchObject({
+      explorable: 'shop.quadratic',
+      by: 'claude',
+    });
   });
 
   it('fetches nothing when the person refuses, or when no app is open to ask', async () => {

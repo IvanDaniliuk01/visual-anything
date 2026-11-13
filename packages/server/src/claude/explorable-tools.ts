@@ -182,7 +182,7 @@ Example: { "id": "math.quadratic" }`,
 const writeExplorable = tool({
   name: 'write_explorable',
   title: 'Write an explorable',
-  description: `Writes an explorable, as one undoable action of yours: a new one is defined in one of the project's own packages with its name, description, file, parameters and script libraries, and its text written; for one that exists, what you give replaces what it has: the text whole, and its name, description, parameters or script libraries. Its file is explorables/<file>; never write that file with your own file tools, which the program takes for a change from outside that the person must approve again. The answer says whether it runs: approved, or that the person must approve it in the app before it runs, which you cannot do.
+  description: `Writes an explorable, as one undoable action of yours: a new one is defined in one of the project's own packages with its name, description, file, parameters and script libraries, and its text written; for one that exists, what you give replaces what it has: the text whole, and its name, description, parameters or script libraries. Its file is explorables/<file>; never write that file with your own file tools, which the program takes for a change from outside that the person must approve again. The answer says whether it runs: approved, or that the person must approve it in the app before it runs, which you cannot do. An explorable is never proposed: even while the person reviews your changes or a proposal of yours waits, it is written to the project now, and the person's approval before it runs is their review of it; run_commands with define-explorable, write-explorable, update-explorable or remove-explorable goes to the project now too.
 
 ${EXPLORABLE_GUIDE}
 
@@ -314,10 +314,16 @@ Example, a parameter more, and a script library the person already let you fetch
           ? only
           : { type: 'batch', label: `Write the explorable "${name}"`, commands };
     }
+    // While a proposal waits, the answer says the explorable went to the project now (A10's review).
+    const waiting = program.proposal === undefined ? undefined : (await program.proposal()).open;
     return act(program, command, async (answer) => {
       const written = existing?.definition.id ?? answer.created[0] ?? args.id;
       if (written === undefined) return {};
       if (answer.proposed !== undefined) return { explorable: written };
+      const notProposed =
+        waiting === undefined
+          ? undefined
+          : `Written to the project now, not into your proposal "${waiting.id}": an explorable is never proposed. The person approves it before it runs, which is their review of it, and can undo it in the app.`;
       const after = await program.project();
       const definition = explorablesIn(after).explorable(written)?.definition;
       const approved = (await approvedOf(program))?.includes(written);
@@ -329,6 +335,7 @@ Example, a parameter more, and a script library the person already let you fetch
           after.views.length > 0 && !shownAnywhere(after, written)
             ? `Nothing shows it yet. ${SHOWN_HOW}`
             : undefined,
+        notProposed,
       });
     });
   },

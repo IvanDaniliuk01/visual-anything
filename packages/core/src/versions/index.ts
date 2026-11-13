@@ -18,6 +18,7 @@ export type { FileMergeOptions, ItemConflict, MergedFile, MergedItem, MergePolic
 export { mergeFile, mergeItem } from './merge';
 export type { Proposal, ProposalChange, ProposalChanges, ProposeOutcome } from './proposals';
 export {
+  EXPLORABLE_WRITES,
   PROPOSAL_LIMIT,
   acceptProposal,
   acceptedLabel,

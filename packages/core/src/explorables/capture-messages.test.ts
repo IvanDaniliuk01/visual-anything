@@ -11,8 +11,8 @@ import { readExplorableCaptureAnswer, readExplorableCaptureRequest } from './cap
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAA';
 
 describe('a still of an explorable for Claude, on the live connection', () => {
-  it('is protocol 16', () => {
-    expect(PROTOCOL_VERSION).toBe(16);
+  it('is protocol 16 or later', () => {
+    expect(PROTOCOL_VERSION).toBeGreaterThanOrEqual(16);
   });
 
   it('reads the request strictly, keeping only what it asks', () => {

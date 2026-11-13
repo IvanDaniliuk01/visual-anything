@@ -200,6 +200,10 @@ const NEVER_FROM_CODE: ReadonlySet<string> = new Set([
   'set-package-code',
   'add-package',
   'replace-package',
+  // Only the local program runs these, for a file it read or fetched (ADR 0107); the core refuses
+  // them from anyone else, and code never sends them (A10's review).
+  'record-explorable-file',
+  'define-script-library',
 ]);
 
 /**

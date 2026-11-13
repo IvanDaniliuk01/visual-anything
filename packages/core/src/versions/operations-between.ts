@@ -94,6 +94,15 @@ export function operationsBetween(from: ProjectSnapshot, to: ProjectSnapshot): O
   between(operations, { name: 'scenarios' }, from.scenarios, to.scenarios);
   between(operations, { name: 'tours' }, from.tours, to.tours);
   between(operations, { name: 'comments' }, from.comments, to.comments);
+  // The explorables' texts (ADR 0107), which the history keeps beside their definitions: a version
+  // that drops an explorable's definition drops its text with it, and one that keeps a definition
+  // keeps the text its hash names (A10's review).
+  between(
+    operations,
+    { name: 'explorableTexts' },
+    from.explorableTexts ?? [],
+    to.explorableTexts ?? [],
+  );
 
   // The conflicts of each file in both versions, which the operations above keep as they were.
   const conflicts = (file: ConflictFile, was: unknown, is: unknown) => {

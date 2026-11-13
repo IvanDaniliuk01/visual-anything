@@ -3,7 +3,7 @@
  * preference `explorableApprovals`, outside every project, newest first, at most 1,024. Each approves
  * a frame's inputs by their hash: the explorable's text and its script libraries' hashes, in order.
  * Claude never approves; its write continues an approval only when the text it wrote over was
- * approved, and that approval says `by: 'claude'`.
+ * approved for that same explorable, and that approval says `by: 'claude'`.
  */
 import type { Id } from '@visual-anything/schema';
 import { sha256 } from '../code/hash';
@@ -40,7 +40,12 @@ export function continuedApprovals(
   previous: string,
   next: string,
 ): ExplorableApproval[] {
-  if (!isApproved(approvals, previous) || isApproved(approvals, next)) return [...approvals];
+  // Only an approval given to this same explorable continues (A10's review): a copy of an approved
+  // text in another explorable never inherits it.
+  const approvedHere = approvals.some(
+    (each) => each.hash === previous && each.explorable === explorable,
+  );
+  if (!approvedHere || isApproved(approvals, next)) return [...approvals];
   return [{ hash: next, explorable, by: 'claude' as const }, ...approvals].slice(
     0,
     MAX_EXPLORABLE_APPROVALS,
