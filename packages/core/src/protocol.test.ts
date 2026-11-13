@@ -31,8 +31,8 @@ const project: ProjectSnapshot = {
 };
 
 describe('PROTOCOL_VERSION', () => {
-  it('is 16, since the program asks an app for a still of an explorable for Claude', () => {
-    expect(PROTOCOL_VERSION).toBe(16);
+  it('is 17, since a consent to a script library names the approved explorables it changes', () => {
+    expect(PROTOCOL_VERSION).toBe(17);
   });
 
   it('names the launch code and the token in the address and on the live connection', () => {

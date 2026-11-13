@@ -64,6 +64,19 @@ export interface ScriptLibraryConsentMessage extends ScriptLibraryAsk {
   /** The registry's addresses the program will read, from {@link registryAddresses}. */
   document: string;
   tarball: string;
+  /**
+   * The explorables the person approved whose script library this changes, each by its id and name:
+   * their package defines a library of that npm package at another version, which the one fetched
+   * replaces. Only when Claude asks, and they stay approved, since Claude's change continues their
+   * approvals (ADR 0107, A10's review; protocol version 17). Left out when there are none.
+   */
+  approvedExplorables?: ApprovedExplorable[];
+}
+
+/** An approved explorable a consent names: its id, and its name for the dialog to say. */
+export interface ApprovedExplorable {
+  id: Id;
+  name: string;
 }
 
 export interface ScriptLibraryConsentedMessage {
@@ -254,6 +267,27 @@ function readAsk(message: Record<string, unknown>): Read<ScriptLibraryAsk> {
   };
 }
 
+/** The most explorables a consent names: as many as one package defines. */
+const MAX_APPROVED_NAMED = 64;
+
+/** A consent's approved explorables, each `{ id, name }` once; undefined when they are not. */
+function readApproved(value: unknown): ApprovedExplorable[] | undefined {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_APPROVED_NAMED) {
+    return undefined;
+  }
+  const read: ApprovedExplorable[] = [];
+  const seen = new Set<Id>();
+  for (const each of value as unknown[]) {
+    if (typeof each !== 'object' || each === null || Array.isArray(each)) return undefined;
+    const { id, name, ...rest } = each as Record<string, unknown>;
+    if (Object.keys(rest).length > 0 || !isId(id) || seen.has(id)) return undefined;
+    if (typeof name !== 'string' || name === '' || name.length > 200) return undefined;
+    seen.add(id);
+    read.push({ id, name });
+  }
+  return read;
+}
+
 const ASK_KEYS = ['type', 'requestId', 'package', 'npm', 'version', 'path', 'global'];
 
 /** Reads `script-library/fetch`, from an app. */
@@ -278,20 +312,34 @@ export function readScriptLibraryConsent(
 ): Read<ScriptLibraryConsentMessage> {
   const requestId = requestIdOf(message);
   if (requestId === undefined) return fail('The request has no valid id.');
-  if (!onlyKeys(message, [...ASK_KEYS, 'asker', 'document', 'tarball'])) {
+  if (!onlyKeys(message, [...ASK_KEYS, 'asker', 'document', 'tarball', 'approvedExplorables'])) {
     return fail('script-library/consent holds nothing else.');
   }
   const ask = readAsk(message);
   if (!ask.ok) return ask;
-  const { asker, document, tarball } = message;
+  const { asker, document, tarball, approvedExplorables } = message;
   if (asker !== 'claude' && asker !== 'person') return fail('A request says who asks.');
   const addresses = registryAddresses(ask.value.npm, ask.value.version);
   if (document !== addresses.document || tarball !== addresses.tarball) {
     return fail("A request names the registry's own addresses for the version.");
   }
+  const named = approvedExplorables === undefined ? [] : readApproved(approvedExplorables);
+  if (approvedExplorables !== undefined && (asker !== 'claude' || named === undefined)) {
+    return fail(
+      'A request of Claude’s names the approved explorables it changes, each once by its id and name, at most 64.',
+    );
+  }
   return {
     ok: true,
-    value: { type: 'script-library/consent', requestId, asker, ...ask.value, document, tarball },
+    value: {
+      type: 'script-library/consent',
+      requestId,
+      asker,
+      ...ask.value,
+      document,
+      tarball,
+      ...(named === undefined || named.length === 0 ? {} : { approvedExplorables: named }),
+    },
   };
 }
 

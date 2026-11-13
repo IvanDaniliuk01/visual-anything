@@ -32,6 +32,8 @@ import { positionKey, type Operation } from '../operations';
 import { problem, type Problem } from '../problems';
 import type { ProjectSnapshot } from '../snapshot';
 import { definitionsIn } from '../state';
+import { explorablesIn } from '../explorables/catalog';
+import type { ExplorableText } from '../explorables/types';
 import { compareProjects, type Change, type Comparison } from './compare';
 import { itemKey, isOwnPackage, projectItems, sameValue, type ItemRef } from './items';
 import { mergeFile } from './merge';
@@ -73,14 +75,31 @@ export type ProposeOutcome =
     }
   | { ok: false; problems: Problem[] };
 
-/** The commands that never join a proposal: comments, which are Claude's own words, and resolving. */
-const NEVER_PROPOSED: ReadonlySet<Command['type']> = new Set([
+/**
+ * The commands that write explorables (ADR 0107), which never join a proposal (A10's review): Claude
+ * writes an explorable in the project now, and the person's approval before it runs is the check. A
+ * proposal keeps no explorable's text, so accepting one could leave a definition without the text
+ * its hash names.
+ */
+export const EXPLORABLE_WRITES: ReadonlySet<string> = new Set([
+  'define-explorable',
+  'write-explorable',
+  'update-explorable',
+  'remove-explorable',
+]);
+
+/**
+ * The commands that never join a proposal: comments, which are Claude's own words, resolving, and
+ * writing explorables.
+ */
+const NEVER_PROPOSED: ReadonlySet<string> = new Set([
   'create-thread',
   'add-comment',
   'edit-comment',
   'resolve-thread',
   'delete-thread',
   'resolve-conflicts',
+  ...EXPLORABLE_WRITES,
 ]);
 
 /**
@@ -145,6 +164,12 @@ function neverProposed(command: Command): Problem | undefined {
     return undefined;
   }
   if (!NEVER_PROPOSED.has(command.type)) return undefined;
+  if (EXPLORABLE_WRITES.has(command.type)) {
+    return problem(
+      'invalid-command',
+      'An explorable never joins a proposal: Claude writes it in the project now, and the person approves it before it runs. Send it on its own, not in a batch with changes to propose.',
+    );
+  }
   return command.type === 'resolve-conflicts'
     ? problem(
         'invalid-command',
@@ -261,7 +286,7 @@ export function rebaseProposal(
   const model = reaches('model')
     ? (merged('model', base.model, project.model, proposed.model) ?? proposed.model)
     : proposed.model;
-  return {
+  const rebased: Proposal = {
     ...proposal,
     base: project,
     proposed: {
@@ -280,6 +305,37 @@ export function rebaseProposal(
       comments: files('comment', 'comment', base.comments, project.comments, proposed.comments),
     },
   };
+  // The explorables' texts are the project's: no command of a proposal writes one (A10's review).
+  return {
+    ...rebased,
+    proposed: withTextsOf(rebased.proposed, [project, proposed]),
+  };
+}
+
+/**
+ * The project with the explorables' texts that go with its definitions (ADR 0107), each taken from
+ * the first of `sources` that holds it, in that source's order: a text whose explorable no package
+ * defines goes, so that no version a proposal makes keeps a text without its definition, or loses
+ * the text of a definition one of the sources holds.
+ */
+export function withTextsOf(
+  state: ProjectSnapshot,
+  sources: readonly ProjectSnapshot[],
+): ProjectSnapshot {
+  const defined = explorablesIn(state).explorables;
+  const texts: ExplorableText[] = [];
+  const seen = new Set<Id>();
+  for (const source of sources) {
+    for (const text of source.explorableTexts ?? []) {
+      if (seen.has(text.id) || !defined.has(text.id)) continue;
+      seen.add(text.id);
+      texts.push(text);
+    }
+  }
+  const next: ProjectSnapshot = { ...state };
+  if (texts.length > 0) next.explorableTexts = texts;
+  else delete next.explorableTexts;
+  return next;
 }
 
 /** The files operations reach, by key, or the kind of file whose every file a list's whole change reaches. */
@@ -713,7 +769,7 @@ export function acceptProposal(
       created: [],
     };
   }
-  const result =
+  const chosenResult =
     chosen.size === listed.changes.length
       ? open.proposed
       : assemble(
@@ -725,6 +781,8 @@ export function acceptProposal(
               .flatMap((each) => each.change.items.map(itemKey)),
           ),
         );
+  // The texts of the explorables the result defines, as the project holds them now.
+  const result = withTextsOf(chosenResult, [project, open.proposed]);
   const outcome = executeOperations(project, operationsBetween(project, result), label, {
     ...context,
     author: 'claude',

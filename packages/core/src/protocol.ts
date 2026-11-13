@@ -241,8 +241,12 @@ import type { ViewState } from './view-state';
  *    program, answered by the tab the person used last with `explorable-capture/answer`: the still
  *    the explorable drew of itself in the app's hidden frame, its console errors and whether it said
  *    `va.ready()`, or why it took none; the other tabs pass it over, as a picture of a view (ADR 0081).
+ * 17: `script-library/consent` may name `approvedExplorables` (ADR 0107, A10's review): when Claude
+ *    asks for a script library that changes the library of explorables the person approved, the ids
+ *    of those explorables, which stay approved, for the consent dialog to say; an app of 16 would
+ *    refuse the message.
  */
-export const PROTOCOL_VERSION = 16;
+export const PROTOCOL_VERSION = 17;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';

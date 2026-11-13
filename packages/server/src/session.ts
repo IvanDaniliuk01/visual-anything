@@ -74,6 +74,7 @@ import {
   type ProposalClosedMessage,
   type ProblemCode,
   type ExplorableFileFinding,
+  type ApprovedExplorable,
   type ScriptLibraryAsk,
   type ScriptLibraryAsker,
   type ScriptLibraryConsentedMessage,
@@ -83,7 +84,7 @@ import {
   type ServerMessage,
   type VersionRef,
 } from '@visual-anything/core';
-import type { FileKind, Id } from '@visual-anything/schema';
+import type { FileKind, Id, PackageFile } from '@visual-anything/schema';
 import { formatFile } from '@visual-anything/schema/format';
 import { parseFile, validateFile, type ValidationError } from '@visual-anything/schema/validate';
 import { errorReason } from './errors';
@@ -2041,6 +2042,9 @@ export class Session implements LiveSession {
     });
     this.#listHistory();
     if (author === 'claude') await this.#continueApprovals(before, state);
+    // A package added or updated from another project brings explorables whose texts this project
+    // may not hold yet: their files, if they are beside the project, are read (A10's review).
+    if (state.packages !== before.packages && lacksAText(state)) this.#scanExplorablesSoon();
     return announced;
   }
 
@@ -2780,7 +2784,10 @@ export class Session implements LiveSession {
       const read = await readExplorableFile(this.folder, file);
       const bytes = read.kind === 'text' || read.kind === 'not-text' ? read.bytes : null;
       const known = this.#explorableBytes.get(file) ?? null;
-      if (known === null ? bytes === null : bytes !== null && known.equals(bytes)) continue;
+      // A file never read before, as one of a package just added, is read and said of even when
+      // missing (A10's review).
+      const unchanged = known === null ? bytes === null : bytes !== null && known.equals(bytes);
+      if (unchanged && this.#explorableBytes.has(file)) continue;
       this.#explorableBytes.set(file, bytes);
       const finding = readFinding(read);
       if (finding === undefined) this.#explorableFindings.delete(file);
@@ -2891,8 +2898,8 @@ export class Session implements LiveSession {
 
   /**
    * Continues the person's approvals over a change of Claude's (ADR 0107): each explorable whose
-   * frame's inputs changed, from a text that was approved, by anyone, is approved again with
-   * `by: 'claude'`, and every app hears of it. A text Claude did not write over an approved one, or a
+   * frame's inputs changed, from inputs approved for that same explorable (A10's review), is approved
+   * again with `by: 'claude'`, and every app hears of it. A text Claude did not write over an approved one, or a
    * new explorable, is never approved here: Claude never approves.
    */
   async #continueApprovals(before: ProjectSnapshot, after: ProjectSnapshot): Promise<void> {
@@ -3044,6 +3051,7 @@ export class Session implements LiveSession {
       });
     }
     const { document, tarball } = registryAddresses(ask.npm, ask.version);
+    const changes = asker === 'claude' ? this.#approvedLibraryUsers(owner, ask) : [];
     const approved = await new Promise<boolean>((resolve) => {
       const settle = (value: boolean) => {
         clearTimeout(timer);
@@ -3060,6 +3068,7 @@ export class Session implements LiveSession {
           ...ask,
           document,
           tarball,
+          ...(changes.length === 0 ? {} : { approvedExplorables: changes }),
         });
       }
     });
@@ -3111,6 +3120,25 @@ export class Session implements LiveSession {
     }
     this.#warnings = undefined;
     return answer({ ok: true, library });
+  }
+
+  /**
+   * The explorables of a package whose script library a fetch would change, that the person approved
+   * as the project holds them now (ADR 0107, A10's review): the package defines a library of that npm
+   * package at another version, which the one fetched replaces, keeping its id. Claude's change
+   * continues their approvals, and the consent dialog says so.
+   */
+  #approvedLibraryUsers(owner: PackageFile, ask: ScriptLibraryAsk): ApprovedExplorable[] {
+    const replaced = (owner.scriptLibraries ?? []).find((each) => each.npm === ask.npm);
+    if (replaced === undefined || replaced.version === ask.version) return [];
+    const approvals = this.#options.preferences?.current().explorableApprovals ?? [];
+    return (owner.explorables ?? [])
+      .filter((each) => each.scriptLibraries?.includes(replaced.id) === true)
+      .filter(({ id }) => {
+        const hash = heldApprovalHash(this.#state, id);
+        return hash !== undefined && approvals.some((each) => each.hash === hash);
+      })
+      .map(({ id, name }) => ({ id, name }));
   }
 
   /** The person's answer to a request for a script library, from an app that was asked. */
@@ -3230,6 +3258,14 @@ function heldApprovalHash(state: ProjectSnapshot, explorable: Id): string | unde
   return libraries === undefined
     ? undefined
     : approvalHashOf(explorableTextHash(held.text), libraries);
+}
+
+/** Whether a package of the project defines an explorable the project holds no text for. */
+function lacksAText(state: ProjectSnapshot): boolean {
+  for (const id of explorablesIn(state).explorables.keys()) {
+    if (explorableTextOf(state, id) === undefined) return true;
+  }
+  return false;
 }
 
 /** Watches a project's `explorables/` (ADR 0107); `undefined` when it cannot be watched. */

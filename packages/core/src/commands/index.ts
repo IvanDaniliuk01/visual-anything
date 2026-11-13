@@ -29,6 +29,7 @@ import { checkImageReferences, defineImage, removeImage } from './images';
 import { defineSolid, removeSolid, updateSolid } from './solids';
 import {
   checkExplorableReferences,
+  dropTextsWithoutDefinitions,
   defineExplorable,
   defineScriptLibrary,
   recordExplorableFile,
@@ -129,6 +130,7 @@ export function executeCommand(
   });
   try {
     const label = run(draft, command);
+    dropTextsWithoutDefinitions(draft, state);
     checkImageReferences(state, draft.state, draft.operations);
     checkExplorableReferences(state, draft.state, draft.operations);
     draft.seal();
@@ -184,6 +186,7 @@ export function executeOperations(
   });
   try {
     for (const operation of operations) draft.apply(operation);
+    dropTextsWithoutDefinitions(draft, state);
     settleRoutes(draft, state, 0);
     checkImageReferences(state, draft.state, draft.operations);
     checkExplorableReferences(state, draft.state, draft.operations);

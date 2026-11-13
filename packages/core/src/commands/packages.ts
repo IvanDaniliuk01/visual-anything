@@ -10,10 +10,12 @@ import type {
   Component,
   Crosswalk,
   Id,
+  ExplorableDefinition,
   ImageDefinition,
   PackageExtensions,
   PackageFile,
   RelationType,
+  ScriptLibraryDefinition,
   SolidDefinition,
 } from '@visual-anything/schema';
 import { RESERVED_PACKAGE_IDS, builtinPackage } from '../builtin';
@@ -37,6 +39,8 @@ import { compact, count, reject, requireName, sameJson, type Draft } from './dra
 import { checkImageCaps, cleanedImage } from './images';
 import { checkedPackageAbout } from './package-properties';
 import { checkedDefinition as checkedSolid } from './solids';
+import { checkRemovedExplorables, packageExplorables, packageScriptLibraries } from './explorables';
+import { explorablesIn } from '../explorables/catalog';
 import type { AddPackageCommand, ReplacePackageCommand } from './types';
 
 export function addPackage(draft: Draft, command: AddPackageCommand): string {
@@ -65,6 +69,7 @@ export function addPackage(draft: Draft, command: AddPackageCommand): string {
   const needs = needsOf(draft.state, given, name);
   const images = cleanedImages(draft, given, name);
   const carried = carriedOf(given, name);
+  const shared = sharedExplorables(draft.state, given, name);
 
   const before = draft.state;
   useBuiltIn(draft, needs);
@@ -81,6 +86,8 @@ export function addPackage(draft: Draft, command: AddPackageCommand): string {
       crosswalks: carried.crosswalks,
       images: images.length === 0 ? undefined : images,
       solids: carried.solids,
+      explorables: shared.explorables,
+      scriptLibraries: shared.scriptLibraries,
       code: carried.code,
       capabilities: carried.capabilities,
       extensions: carried.extensions,
@@ -108,6 +115,7 @@ export function replacePackage(draft: Draft, command: ReplacePackageCommand): st
   checkRemovedUnused(draft.state, current, given);
   const images = cleanedImages(draft, given, current.name);
   const carried = carriedOf(given, current.name);
+  const shared = sharedExplorables(draft.state, given, current.name);
   // What the file holds beyond its definitions and images is the package's from now on too, its
   // code included: approved by its hash, code that changed asks for the person's approval again.
   const next: PackageFile = compact({
@@ -119,6 +127,8 @@ export function replacePackage(draft: Draft, command: ReplacePackageCommand): st
     crosswalks: carried.crosswalks,
     images: images.length === 0 ? undefined : images,
     solids: carried.solids,
+    explorables: shared.explorables,
+    scriptLibraries: shared.scriptLibraries,
     code: carried.code,
     capabilities: carried.capabilities,
     extensions: carried.extensions,
@@ -137,18 +147,43 @@ export function replacePackage(draft: Draft, command: ReplacePackageCommand): st
   draft.apply({ op: 'replace', collection: { name: 'packages' }, item: next });
   checkDefinitions(draft, before, current.id);
   checkRemovedSolids(draft, current, next);
-  const had = new Set([
-    ...current.components.map((each) => each.id),
-    ...current.relationTypes.map((each) => each.id),
-    ...(current.images ?? []).map((each) => each.id),
-    ...(current.solids ?? []).map((each) => each.id),
-  ]);
-  draft.created.push(
-    ...[...next.components, ...next.relationTypes, ...(next.images ?? []), ...(next.solids ?? [])]
-      .map((each) => each.id)
-      .filter((each) => !had.has(each)),
-  );
+  checkRemovedExplorables(draft, current, next);
+  const had = new Set(definedIds(current));
+  draft.created.push(...definedIds(next).filter((each) => !had.has(each)));
   return label;
+}
+
+/** The ids of what a package defines: definitions, images, solids, explorables and script libraries. */
+function definedIds(file: PackageFile): Id[] {
+  return [
+    ...file.components,
+    ...file.relationTypes,
+    ...(file.images ?? []),
+    ...(file.solids ?? []),
+    ...(file.explorables ?? []),
+    ...(file.scriptLibraries ?? []),
+  ].map((each) => each.id);
+}
+
+/**
+ * A package file's explorables and script libraries (ADR 0107), checked as defining them one by one
+ * would check them (A10's review). Their files are not in it: texts live in `explorables/` and
+ * libraries in `script-libraries/` beside the project.
+ */
+function sharedExplorables(
+  state: ProjectSnapshot,
+  given: PackageFile,
+  name: string,
+): { explorables?: ExplorableDefinition[]; scriptLibraries?: ScriptLibraryDefinition[] } {
+  const scriptLibraries = packageScriptLibraries(state, given.id, given.scriptLibraries);
+  const explorables = packageExplorables(
+    state,
+    given.id,
+    name,
+    given.explorables,
+    scriptLibraries ?? [],
+  );
+  return compact({ explorables, scriptLibraries });
 }
 
 /** What a package file holds beyond its definitions and images, checked; each absent when it has none. */
@@ -294,6 +329,8 @@ const PACKAGE_KEYS: readonly string[] = [
   'crosswalks',
   'images',
   'solids',
+  'explorables',
+  'scriptLibraries',
   'code',
   'capabilities',
   'extensions',
@@ -318,11 +355,19 @@ function shapeOf(value: unknown, command: string): PackageFile {
   if (file.solids !== undefined && !Array.isArray(file.solids)) {
     reject('invalid-command', 'A package’s solids are a list.');
   }
+  if (file.explorables !== undefined && !Array.isArray(file.explorables)) {
+    reject('invalid-command', 'A package’s explorables are a list.');
+  }
+  if (file.scriptLibraries !== undefined && !Array.isArray(file.scriptLibraries)) {
+    reject('invalid-command', 'A package’s script libraries are a list.');
+  }
   for (const each of [
     ...(file.components as unknown[]),
     ...(file.relationTypes as unknown[]),
     ...((file.images as unknown[] | undefined) ?? []),
     ...((file.solids as unknown[] | undefined) ?? []),
+    ...((file.explorables as unknown[] | undefined) ?? []),
+    ...((file.scriptLibraries as unknown[] | undefined) ?? []),
   ]) {
     if (typeof each !== 'object' || each === null || Array.isArray(each)) {
       reject('invalid-command', 'Each definition and image of a package is an object.');
@@ -343,12 +388,7 @@ function checkIds(
   done: 'added' | 'updated',
   replaced?: PackageFile,
 ): void {
-  const ids = [
-    ...file.components.map((each) => each.id),
-    ...file.relationTypes.map((each) => each.id),
-    ...(file.images ?? []).map((each) => each.id),
-    ...(file.solids ?? []).map((each) => each.id),
-  ];
+  const ids = definedIds(file);
   const invalid = ids.filter((id) => !isId(id));
   if (invalid.length > 0) {
     reject('invalid-id', `${JSON.stringify(invalid[0]) ?? 'undefined'} is not a valid id.`);
@@ -371,17 +411,14 @@ function checkIds(
       once,
     );
   }
-  const own = new Set<Id>(
-    replaced === undefined
-      ? []
-      : [
-          ...replaced.components.map((each) => each.id),
-          ...replaced.relationTypes.map((each) => each.id),
-          ...(replaced.images ?? []).map((each) => each.id),
-          ...(replaced.solids ?? []).map((each) => each.id),
-        ],
+  const own = new Set<Id>(replaced === undefined ? [] : definedIds(replaced));
+  // Explorables and script libraries are not in the index of definitions, so they are looked up too.
+  const explorables = explorablesIn(draft.state);
+  const taken = ids.filter(
+    (id) =>
+      !own.has(id) &&
+      (draft.isTaken(id) || explorables.explorables.has(id) || explorables.scriptLibraries.has(id)),
   );
-  const taken = ids.filter((id) => !own.has(id) && draft.isTaken(id));
   if (taken.length > 0) {
     reject(
       'id-taken',

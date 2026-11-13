@@ -45,6 +45,21 @@ describe('approvals', () => {
     expect(withoutExplorableApproval(continued, hash(1))).toEqual([continued[0]]);
   });
 
+  it('continue an approval only for the explorable it was given to, never for another with that text', () => {
+    // The person approved "test.q"; "test.copy" holds the same text, so the same hash.
+    const person = withExplorableApproval([], hash(1), 'test.q');
+    expect(continuedApprovals(person, 'test.copy', hash(1), hash(2))).toEqual(person);
+    // An approval Claude continued names its explorable too, and continues only for it.
+    const continued = continuedApprovals(person, 'test.q', hash(1), hash(2));
+    expect(continued[0]).toEqual({ hash: hash(2), explorable: 'test.q', by: 'claude' });
+    expect(continuedApprovals(continued, 'test.copy', hash(2), hash(3))).toEqual(continued);
+    expect(continuedApprovals(continued, 'test.q', hash(2), hash(3))[0]).toEqual({
+      hash: hash(3),
+      explorable: 'test.q',
+      by: 'claude',
+    });
+  });
+
   it('keep at most 1,024, and never let Claude approve what the person did not start', () => {
     fc.assert(
       fc.property(
@@ -208,6 +223,43 @@ describe('the live connection’s messages on explorables', () => {
       code: 'fetch-failed',
       message: 'No.',
     });
+  });
+
+  it('names in a consent the approved explorables whose script library Claude’s fetch changes', () => {
+    const ask = { package: 'math', npm: 'd3', version: '7.9.0' };
+    const consent = {
+      type: 'script-library/consent',
+      requestId: 'r',
+      asker: 'claude',
+      ...ask,
+      ...registryAddresses('d3', '7.9.0'),
+    };
+    const naming = {
+      ...consent,
+      approvedExplorables: [
+        { id: 'math.parabola', name: 'Parabola' },
+        { id: 'math.sine', name: 'Sine' },
+      ],
+    };
+    expect(decodeServerMessage(JSON.stringify(naming))).toEqual(naming);
+    const parabola = { id: 'math.parabola', name: 'Parabola' };
+    const many = Array.from({ length: 65 }, (_, at) => ({ id: `math.e${at}`, name: `E${at}` }));
+    for (const bad of [
+      [],
+      [parabola, parabola],
+      [{ id: '', name: 'Empty' }],
+      [{ id: 'math.parabola' }],
+      [{ ...parabola, name: '' }],
+      [{ ...parabola, more: 1 }],
+      'math.parabola',
+      many,
+    ]) {
+      expect(() =>
+        decodeServerMessage(JSON.stringify({ ...consent, approvedExplorables: bad })),
+      ).toThrow();
+    }
+    // The person's own fetch asks them again for what it changes, so it names none.
+    expect(() => decodeServerMessage(JSON.stringify({ ...naming, asker: 'person' }))).toThrow();
   });
 
   it('refuses consent to an address that is not the registry’s, and asks that escape the package', () => {
