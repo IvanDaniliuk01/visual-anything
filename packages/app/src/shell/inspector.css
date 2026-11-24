@@ -615,3 +615,37 @@
   margin-top: var(--space-30);
   font-size: var(--text-xs);
 }
+
+/* The switch between the sheet and editing, under an element's title (ReadSheet). */
+.inspector-mode {
+  display: flex;
+  gap: var(--space-40);
+  margin-top: var(--space-40);
+}
+
+.inspector-mode button[aria-pressed='true'] {
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.inspector-sheet dl {
+  margin: 0;
+}
+
+.inspector-sheet-row {
+  margin-top: var(--space-80);
+}
+
+.inspector-sheet dt {
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+
+.inspector-sheet dd {
+  margin: 0;
+}
+
+.inspector-sheet-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

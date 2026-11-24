@@ -32,6 +32,8 @@ import { ScopeSection } from './ScopeSection';
 import { ViewSection } from './ViewSection';
 import { DestinationsSection } from '../../destinations/DestinationsSection';
 import { PackagePanels } from '../../packages/PackagePanels';
+import { useInspectorMode } from './inspectorMode';
+import { InspectorModeSwitch, ReadSheet } from './ReadSheet';
 import { ExternalIdsSection } from '../../destinations/ExternalIdsSection';
 import { LinesArrange } from './LinesArrange';
 import { ShapeArrange } from './ShapeArrange';
@@ -67,14 +69,36 @@ export function ElementInspector({
   const descriptionId = useId();
   const update = (changes: UpdateElementCommand['changes']) =>
     perform(send, { type: 'update-element', id: element.id, changes });
+  const [mode, setMode] = useInspectorMode();
 
-  return (
+  const title = (
     <>
       <Title
         titleRef={titleRef}
         name={element.name}
         detail={describedAs(element, index, definitions)}
       />
+      <InspectorModeSwitch mode={mode} onChange={setMode} />
+    </>
+  );
+  // The sheet reads the element: its packages' panels first, then its description and attributes whole.
+  if (mode === 'sheet') {
+    return (
+      <>
+        {title}
+        <PackagePanels element={element} />
+        <ReadSheet
+          description={element.description}
+          definitions={component.attributes}
+          values={element.attributes}
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
+      {title}
       <div className="inspector-control">
         <label htmlFor={nameId}>{t('Name')}</label>
         <TextControl
