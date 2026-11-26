@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.6
+
+### Travelers
+
+- **A relation can send a picture along its line.** A relation type sets a traveler: a package picture, SVG or bitmap, that travels from the relation's `from` end to its `to` end over and over while the view shows it, such as an envelope along "sends invoice" or a test tube between a ward and a lab. It turns with the line and stays upright, keeps the same size on screen at any zoom, and takes its line's opacity and fade. Undirected relations send it from both ends toward the middle. Its size (8 to 64 pixels), speed (slow, normal or fast) and spacing are set in the relation type's editor, and a relation's format panel can give one relation its own or none (ADR 0110).
+- **Each view keeps its travelers moving, still or hidden.** The view's reading controls choose. Under reduced motion they stand still, spaced along their lines, so the picture still says what goes where. Only lines on screen move them, and at most 2,000 are drawn at once, nearest the center first (ADR 0110).
+- **Exports and Claude.** SVG, PDF and PNG draw travelers still; the read-only page moves them. Claude sets them with `set_appearance` and `update_relation`, chooses a view's with `update_view`, and reads them in `get_item` and `read_view`. A traveler's image must come from a package the project uses, and an image a traveler still sends cannot be removed (ADR 0110).
+
+### Fixes
+
+- Setting a project-owned relation type's whole appearance no longer drops a change of its opacity.
+
+### Protocol
+
+- The live protocol is 18: an app of 17 would refuse files that hold travelers.
+
 ## 0.1.5
 
 ### Inspector
