@@ -133,6 +133,22 @@ export function updateView(draft: Draft, command: UpdateViewCommand): string {
     if (fades === false) next.selectionFadesLines = false;
     else delete next.selectionFadesLines;
   }
+  if (changes.travelers !== undefined) {
+    const travelers = changes.travelers;
+    if (
+      travelers !== null &&
+      travelers !== 'moving' &&
+      travelers !== 'still' &&
+      travelers !== 'hidden'
+    ) {
+      reject(
+        'invalid-command',
+        `The travelers of a view move ("moving", or null), stand "still" or are "hidden", not ${JSON.stringify(travelers)}.`,
+      );
+    }
+    if (travelers === 'still' || travelers === 'hidden') next.travelers = travelers;
+    else delete next.travelers;
+  }
   draft.apply({ op: 'set-view', view: current.id, properties: next });
   return `Edit the view "${next.name}"`;
 }

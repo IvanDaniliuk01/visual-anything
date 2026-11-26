@@ -25,7 +25,7 @@ The canvas moves things along lines only while a tour plays: a pulse's disc (ADR
 
 - **It travels from the `from` end to the `to` end** of a directed relation's drawn route, hand routes and curves included, at constant speed, and starts again from the `from` end. An undirected relation's travelers go from both ends toward the middle, as its pulses do.
 - **It turns with the line and stays upright:** rotated to the route's direction where it is, and mirrored across that direction while it heads left, so a truck never drives upside down.
-- **It is drawn above its line and below shapes**, at the line's opacity and fade (ADR 0088, a selection's fade), and not at all where its line is not drawn: a relation type the view leaves out (ADR 0064), a line in a collapsed container. An aggregated line of a collapsed container carries its type's traveler.
+- **It is drawn above its line**, below pictures, free shapes and marks, at the line's opacity and fade (ADR 0088, a selection's fade), and not at all where its line is not drawn: a relation type the view leaves out (ADR 0064), a line in a collapsed container. An aggregated line of a collapsed container carries its type's traveler.
 - **Only on screen, only when it shows.** Travelers move only on lines that are on screen, and the canvas asks for frames only while one of them is; with none on screen it draws nothing more. A line whose length on screen is under twice the traveler's size carries none. At most 2,000 travelers are drawn a frame; past that the lines nearest the screen's center keep theirs.
 - **Still under reduced motion.** When the person's Motion preference or the system asks for reduced motion, travelers stand still at their spacing, the first half a spacing from the `from` end, so the picture still says what goes where.
 
@@ -52,6 +52,8 @@ The canvas moves things along lines only while a tour plays: a pulse's disc (ADR
 
 ## Decided while building
 
+### The canvas and exports
+
 The canvas and the exports (`canvas/travelers.ts`, `canvas/travelerLayer.ts`, `export/svg.ts`):
 
 - **Where the layer lies.** This canvas draws relations' tiles above element shapes, so the traveler layer is the world's child right after the relations' tiles, below pictures, explorables, free shapes and every mark; in the SVG, the `travelers` layer is after `relations` and before `relation-names`. A traveler on a line inside a container passes over the container, as its line does. The layer is a render group of its own.
@@ -63,3 +65,14 @@ The canvas and the exports (`canvas/travelers.ts`, `canvas/travelerLayer.ts`, `e
 - **Mirrored** means heading left by more than a rounding error: a traveler going straight up or down is turned, not mirrored.
 - **Exports.** The SVG and the PDF draw each traveler at its size in canvas units, as a screen at scale 1 shows it, with no cap, and leave out those on lines under twice that size; the group of a line's travelers takes its opacity, times a comparison's faintness. The PNG draws the layer still within the image, as a screen at its drawing scale shows it (twice as many pixels at 2×), at most 2,000, nearest the image's center, with the textures already made; it does not wait for others. Claude's pictures are drawn the same way.
 - **Reduced motion** is read each frame; the editor gives the canvas the view's choice again when the Motion preference changes, and the read-only page when the system's setting changes, so that a frame is drawn at once.
+
+### The model, Claude and the editors
+
+- **Model, Claude's tools and the editing UI** (the canvas and exports are built apart):
+  - `update-view` takes `travelers: "moving" | "still" | "hidden" | null`; `moving` and `null` both leave it out of the file, as `rows` and `selectionFadesLines` do.
+  - `RELATION_APPEARANCE_TRAITS` now lists `opacity` and `traveler` too. It lacked `opacity`, so setting a project's own relation type's appearance whole through `set-relation-type-appearance` dropped a change of opacity; it now carries both.
+  - The image check runs on what a command changed: relation types (`relationTypes` operations, and every relation type of a package an `add-package`, `replace-package` or `update-package` writes), relations, and the project appearances' relation types on `set-project`. A traveler whose image is unchanged is not checked again, so a file whose traveler names a missing image can still change its other traits; opening warns about it (`unknown-image`) and nothing is drawn for it.
+  - A refusal to remove an image counts "components, elements, relation types or relations"; Claude's `remove_image` names a relation type or relation that sends it as a traveler and says to clear it with `set_appearance`.
+  - `get_item` gives a relation's resolved `traveler`, its defaults filled in (size 20, speed normal, spacing 240); `read_view` gives `travelersSent`, the relation types whose lines the view draws that send a traveler, by image with a count of relations, and `travelers` when the view keeps them still or hides them.
+  - The editing UI shows one Traveler control in the relation type editor (its own section after Line, at the level the project can change, as route styles) and in a relation's format panel (beside the automatic route, for only this relation or every relation of its type; choosing for the type takes back the relation's own, in the same action). Its picture is chosen as a shape's is, without placement or silhouette; a new picture goes in the relation type's own package, else the project's first, else a new one. Size, speed and spacing show while a traveler is sent, each change sending the whole traveler with defaults left out; "Send no traveler" stores `none`, and "Use the inherited value" takes the trait out. A view's reading controls offer Travelers: Moving, Still, Hidden.
+  - Spanish: "viajero", "Viajeros: En movimiento, Quietos, Ocultos".

@@ -3,12 +3,12 @@
  * cleaning would change only warns, and readers see its cleaned view; one that cleaning refuses warns
  * and is absent everywhere.
  */
-import type { Appearance, ImageDefinition } from '@visual-anything/schema';
+import type { Appearance, ImageDefinition, RelationAppearance } from '@visual-anything/schema';
 import { problem, type Problem } from '../problems';
 import type { ProjectSnapshot } from '../snapshot';
 import { decodeBase64 } from './base64';
 import { readBitmap } from './bitmap';
-import { IMAGE_CAPS, elementsOf, imageIdOf, imagesIn } from './catalog';
+import { IMAGE_CAPS, elementsOf, imageIdOf, imagesIn, travelerImageId } from './catalog';
 import { cleanedImage, imageText, isClean } from './cleaned';
 import { unknownPartWarnings } from './anchored';
 import { partImageId, tooManyPartsProblem } from './parts';
@@ -98,6 +98,41 @@ export function checkImages(state: ProjectSnapshot): { errors: Problem[]; warnin
   }
   for (const element of elementsOf(state)) {
     checkNamed(element.appearance, element.id, `The element "${element.name}"`);
+  }
+  // A traveler whose image no package defines is not drawn (ADR 0110).
+  const checkSent = (appearance: RelationAppearance | undefined, owner: string, what: string) => {
+    const id = travelerImageId(appearance);
+    if (id === undefined || catalog.image(id)) return;
+    warnings.push(
+      problem(
+        'unknown-image',
+        `${what} sends the image "${id}" as its traveler, which no package in use defines; no traveler is drawn.`,
+        [owner],
+      ),
+    );
+  };
+  for (const file of state.packages) {
+    for (const relationType of file.relationTypes) {
+      checkSent(
+        relationType.appearance,
+        relationType.id,
+        `The relation type "${relationType.name}"`,
+      );
+    }
+  }
+  for (const [owner, appearance] of Object.entries(
+    state.project.appearances?.relationTypes ?? {},
+  )) {
+    checkSent(appearance, owner, `The project appearance of "${owner}"`);
+  }
+  for (const relation of state.model.relations) {
+    checkSent(
+      relation.appearance,
+      relation.id,
+      relation.name === undefined
+        ? `The relation "${relation.id}"`
+        : `The relation "${relation.name}"`,
+    );
   }
   // An element drawn as a part its picture does not list is drawn as an ordinary shape (ADR 0067).
   warnings.push(...unknownPartWarnings(state));

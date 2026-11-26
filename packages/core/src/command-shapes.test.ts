@@ -48,7 +48,7 @@ describe('keys a command does not take', () => {
         changes: { routeStyle: 'straight', scope: { rules: [] } },
       }),
     ).toEqual([
-      'update-view does not take "changes.scope": "changes" takes name, description, perspective, nestingRelationTypes, routeStyle, rows, selectionFadesLines. A view\'s scope is set with set-scope.',
+      'update-view does not take "changes.scope": "changes" takes name, description, perspective, nestingRelationTypes, routeStyle, rows, selectionFadesLines, travelers. A view\'s scope is set with set-scope.',
     ]);
   });
 

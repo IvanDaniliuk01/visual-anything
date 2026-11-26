@@ -136,6 +136,7 @@
  * | pane, active pane       | recuadro, recuadro activo        |
  * | pose, to pose           | ubicación, ubicar                |
  * | placement (of an image) | colocación                       |
+ * | traveler                | viajero                          |
  * | conflict                | conflicto                        |
  *
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
@@ -3646,6 +3647,26 @@ export const ui: Catalog = {
   'Fade the other lines when selecting': 'Atenuar las demás líneas al seleccionar',
   'In a view of more than 40 lines, selecting keeps the lines that touch the selection and draws the others faintly.':
     'En una vista de más de 40 líneas, seleccionar deja como están las líneas que tocan la selección y dibuja atenuadas las demás.',
+  // Whether a view's travelers move (ADR 0110), and a relation's traveler in its appearance.
+  Travelers: 'Viajeros',
+  Moving: 'En movimiento',
+  Still: 'Quietos',
+  Hidden: 'Ocultos',
+  'The pictures relations send along their lines. Still, they stand at their spacing; they also stand still when motion is reduced.':
+    'Las imágenes que las relaciones envían a lo largo de sus líneas. Quietos, se quedan a su separación; también se quedan quietos cuando se reduce el movimiento.',
+  Traveler: 'Viajero',
+  'A picture its relations’ lines send from their from end to their to end while a view shows them, drawn in its own colors.':
+    'Una imagen que las líneas de sus relaciones envían desde su extremo de origen hasta su extremo de destino mientras una vista las muestra, dibujada en sus propios colores.',
+  Spacing: 'Separación',
+  Slow: 'Lenta',
+  Normal: 'Normal',
+  Fast: 'Rápida',
+  'Enter a size from 8 to 64 pixels.': 'Ingresar un tamaño de 8 a 64 píxeles.',
+  'Enter a spacing from 40 to 2,000 canvas units.':
+    'Ingresar una separación de 40 a 2.000 unidades del lienzo.',
+  'Send no traveler': 'No enviar ningún viajero',
+  'This relation has a traveler of its own: a change here takes it back, so that it follows.':
+    'Esta relación tiene un viajero propio: un cambio aquí lo quita, para que siga al tipo.',
   '{count} more': '{count} más',
 
   // M11b: reviewing Claude's proposal (ADR 0073): the header, the history panel's toggle of Review
@@ -4704,6 +4725,7 @@ export const messages: Catalog = {
   'The element "{name}"': 'El elemento "{name}"',
   'the project appearance of "{name}"': 'la apariencia que el proyecto le da a "{name}"',
   'The project appearance of "{name}"': 'La apariencia que el proyecto le da a "{name}"',
+  'The relation "{name}"': 'La relación "{name}"',
   '1 element': '1 elemento',
   '{n} elements': '{n} elementos',
   '1 relation': '1 relación',
@@ -4730,6 +4752,10 @@ export const messages: Catalog = {
   '{n} derived definitions': '{n} definiciones derivadas',
   '1 component or element': '1 componente o elemento',
   '{n} components or elements': '{n} componentes o elementos',
+  '1 component, element, relation type or relation':
+    '1 componente, elemento, tipo de relación o relación',
+  '{n} components, elements, relation types or relations':
+    '{n} componentes, elementos, tipos de relación o relaciones',
   '1 warning': '1 advertencia',
   '{n} warnings': '{n} advertencias',
   '1 notice': '1 aviso',
@@ -5285,6 +5311,17 @@ export const messages: Catalog = {
     'El radio de las esquinas de {of} es un número de {min} a {max}.',
   'The opacity of {of} is a number from {min} to {max}.':
     'La opacidad de {of} es un número de {min} a {max}.',
+  'The traveler of {of} is an object with an image, or "none".':
+    'El viajero de {of} es un objeto JSON con una imagen, o "none".',
+  'A traveler has no "{key}".': 'Un viajero no tiene "{key}".',
+  'The traveler of {of} names a package image.':
+    'El viajero de {of} nombra una imagen de un paquete.',
+  'The traveler speed of {of} is "slow", "normal" or "fast".':
+    'La velocidad del viajero de {of} es "slow", "normal" o "fast".',
+  'The traveler size of {of} is a number from {min} to {max}.':
+    'El tamaño del viajero de {of} es un número de {min} a {max}.',
+  'The traveler spacing of {of} is a number from {min} to {max}.':
+    'La separación entre los viajeros de {of} es un número de {min} a {max}.',
   'The text size of {of} is a number from {min} to {max}.':
     'El tamaño del texto de {of} es un número de {min} a {max}.',
   'The text padding of {of} is a number from {min} to {max}.':
@@ -5442,6 +5479,10 @@ export const messages: Catalog = {
     'Las imágenes del paquete "{name}" ocupan {size}, más de 2 MiB; estas no se dibujan: {images}.',
   '{owner} shows the image "{id}", which no package in use defines; it shows none.':
     '{owner} muestra la imagen "{id}", que ningún paquete en uso define; no muestra ninguna.',
+  '{owner} cannot send the image "{id}" as its traveler: no package in use defines it.':
+    '{owner} no puede enviar la imagen "{id}" como su viajero: ningún paquete en uso la define.',
+  '{owner} sends the image "{id}" as its traveler, which no package in use defines; no traveler is drawn.':
+    '{owner} envía como su viajero la imagen "{id}", que ningún paquete en uso define; no se dibuja ningún viajero.',
 
   // What the core finds wrong with a project as it opens.
   'This project was saved by a newer Visual Anything, format {n}. Update the program to open it.':
@@ -8140,6 +8181,8 @@ export const messages: Catalog = {
     'La ruta de {of} es ortogonal, recta o curva.',
   'A view draws its automatic routes straight or curved, or orthogonal with null, not {value}.':
     'Una vista dibuja sus rutas automáticas rectas o curvas, u ortogonales con null, no {value}.',
+  'The travelers of a view move ("moving", or null), stand "still" or are "hidden", not {value}.':
+    'Los viajeros de una vista se mueven ("moving", o null), se quedan quietos ("still") o están ocultos ("hidden"), no {value}.',
   'The image of {of} is placed as an icon, as a drawing, or with its parts.':
     'La imagen de {of} se ubica como ícono, como dibujo o con sus partes.',
   // M8b seam 2: named parts (ADR 0067).
@@ -8179,6 +8222,9 @@ export const messages: Catalog = {
     'Atenuar las demás líneas al seleccionar en "{view}"',
   'Keep every line when selecting in "{view}"':
     'Dejar todas las líneas como están al seleccionar en "{view}"',
+  'Keep the travelers still in "{view}"': 'Dejar quietos los viajeros en "{view}"',
+  'Hide the travelers in "{view}"': 'Ocultar los viajeros en "{view}"',
+  'Let the travelers move in "{view}"': 'Dejar que los viajeros se muevan en "{view}"',
 
   // M8b W56: HTML imported as a drawing (ADR 0068). What making a drawing dropped, kind by kind, as
   // the local program counts it, then why a drawing was not made, and the history's label.

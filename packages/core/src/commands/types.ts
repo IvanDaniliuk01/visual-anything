@@ -55,6 +55,7 @@ import type {
   Step,
   TourStep,
   TextStyle,
+  Traveler,
   Picture,
 } from '@visual-anything/schema';
 
@@ -296,6 +297,8 @@ export interface RelationAppearanceChanges {
   route?: RouteStyle | null;
   /** How opaque its lines are (ADR 0088), from 0.2 to 1. */
   opacity?: number | null;
+  /** The picture its lines send (ADR 0110), replaced whole; `none` takes an inherited one away. */
+  traveler?: Traveler | 'none' | null;
 }
 
 /**
@@ -650,6 +653,11 @@ export interface UpdateViewCommand {
      * `false` turns it off; `true` or `null` turn it on again, which leaves it out of the file.
      */
     selectionFadesLines?: boolean | null;
+    /**
+     * Whether its travelers (ADR 0110) stand still or are hidden; `moving` or `null` let them move
+     * again, which leaves it out of the file.
+     */
+    travelers?: 'moving' | 'still' | 'hidden' | null;
   };
 }
 

@@ -311,7 +311,7 @@ Example: { "relationType": "systems.writes-to", "to": "appointments-db" }`,
 const getItem = tool({
   name: 'get_item',
   title: 'Read an element or a relation',
-  description: `Reads one element or relation by id, with everything around it. For an element: its component, attributes and the definitions of the attributes it can have (undefinedAttributes names every one it carries that its component does not define: kept, as particularities; openAttributes: true says its component takes such attributes on purpose, and then none is named), its own appearance (free geometry in brief unless fullGeometry), its containers (with the nesting relation that places it in each), its contents, the relations from and to it, and the views that place it; explorable, the explorable it shows (ADR 0107), from its own appearance or its component's (from), with its id, name, description, file, script libraries, parameters with their kinds, ranges or choices and defaults, the tour steps that show it with the values they set, and approved: whether it runs as the project holds it now, which only the person can change, in the app; and explorableShapes, those bound to it on the canvas. For a relation: its type, ends, attributes, its own appearance, the relations that end on it, the scenario steps that use it, and routedByHandIn, the views that route it by hand; an element's relationsRoutedByHand says the same of the relations on it, for reset_route. Where the drawing defaults adapt stored colors on the dark canvas (colors.storedColorsInDark), darkCanvas gives the colors that canvas draws for those of its own appearance; the appearance holds the colors stored. ${LIVE_VALUES_BESIDE}
+  description: `Reads one element or relation by id, with everything around it. For an element: its component, attributes and the definitions of the attributes it can have (undefinedAttributes names every one it carries that its component does not define: kept, as particularities; openAttributes: true says its component takes such attributes on purpose, and then none is named), its own appearance (free geometry in brief unless fullGeometry), its containers (with the nesting relation that places it in each), its contents, the relations from and to it, and the views that place it; explorable, the explorable it shows (ADR 0107), from its own appearance or its component's (from), with its id, name, description, file, script libraries, parameters with their kinds, ranges or choices and defaults, the tour steps that show it with the values they set, and approved: whether it runs as the project holds it now, which only the person can change, in the app; and explorableShapes, those bound to it on the canvas. For a relation: its type, ends, attributes, its own appearance, traveler, the picture its line sends (ADR 0110) from its own appearance or its type's, with its defaults filled in, the relations that end on it, the scenario steps that use it, and routedByHandIn, the views that route it by hand; an element's relationsRoutedByHand says the same of the relations on it, for reset_route. Where the drawing defaults adapt stored colors on the dark canvas (colors.storedColorsInDark), darkCanvas gives the colors that canvas draws for those of its own appearance; the appearance holds the colors stored. ${LIVE_VALUES_BESIDE}
 
 Example: { "id": "booking-agent" }`,
   input: { id: id(), fullGeometry: fullGeometry() },
@@ -342,7 +342,7 @@ Example: { "id": "booking-agent" }`,
 const readViewTool = tool({
   name: 'read_view',
   title: 'Read a view',
-  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes, arrows and pictures; a picture's media names its file media/<hash>.<extension>, its format and its own size in pixels, and pictures lists each one's name and size; a video is a picture whose format is mp4 or webm, listed with video: true and its poster's file when it has one; and link cards, kind "link", which links lists with their address, host, title, description and picture's file; and explorables, kind "explorable", which explorables lists with the explorable each shows, its place and size, and the element it reads), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), and routedByHand naming those relations, its routeStyle when it draws its automatic routes straight or curved, rows "keys" when its tables draw only their key rows, selectionFadesLines false when selecting leaves every line as it is, and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout. It also says how many elements and relations the view shows out of the model's (shows), and its scope when it has one: get_scope says more.
+  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes, arrows and pictures; a picture's media names its file media/<hash>.<extension>, its format and its own size in pixels, and pictures lists each one's name and size; a video is a picture whose format is mp4 or webm, listed with video: true and its poster's file when it has one; and link cards, kind "link", which links lists with their address, host, title, description and picture's file; and explorables, kind "explorable", which explorables lists with the explorable each shows, its place and size, and the element it reads), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), and routedByHand naming those relations, its routeStyle when it draws its automatic routes straight or curved, rows "keys" when its tables draw only their key rows, selectionFadesLines false when selecting leaves every line as it is, travelersSent naming the relation types whose lines it shows send a traveler (set_appearance), with the image and how many relations, and travelers "still" or "hidden" when it keeps them so, and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout. It also says how many elements and relations the view shows out of the model's (shows), and its scope when it has one: get_scope says more.
 
 Example: { "view": "system-overview" }`,
   input: { view: id() },
@@ -576,7 +576,7 @@ Example: { "id": "billing-api", "attributes": { "details": { "project": "../bill
 const updateRelation = tool({
   name: 'update_relation',
   title: 'Change a relation',
-  description: `Changes a relation as one undoable action: its relation type, its ends, name, description, attributes, or its own appearance (stroke, width, dash, and route: the style of its automatic routes, orthogonal, straight or curved), which is a particularity of this relation: replaced whole with appearance, where null makes it look like its relation type again, or trait by trait with appearanceTraits, where a value sets a trait and null makes it inherited again. A name or description of null removes it.
+  description: `Changes a relation as one undoable action: its relation type, its ends, name, description, attributes, or its own appearance (stroke, width, dash, opacity, route: the style of its automatic routes, orthogonal, straight or curved, and traveler, as set_appearance describes it), which is a particularity of this relation: replaced whole with appearance, where null makes it look like its relation type again, or trait by trait with appearanceTraits, where a value sets a trait and null makes it inherited again. A name or description of null removes it.
 
 Colors are #RRGGBB, drawn as stored in both themes unless the drawing defaults adapt them on the dark canvas (the answer then says what it draws); a line needs 3:1 against the light and the dark canvas, and the answer warns about a stroke under it, never refusing one. To recolor every relation of a relation type, built-in ones included, use set_appearance.
 
@@ -1042,15 +1042,16 @@ Example, filed in a folder: { "name": "Ticket 12, step 3", "perspective": { "nam
 const updateView = tool({
   name: 'update_view',
   title: 'Change a view',
-  description: `Changes a view's name, description, perspective, nesting relation types, route style or how it reads many lines, as one undoable action. A description of null removes it.
+  description: `Changes a view's name, description, perspective, nesting relation types, route style, how it reads many lines or whether its travelers move, as one undoable action. A description of null removes it.
 
 routeStyle draws the view's automatic routes straight or curved, after every layout and move; null draws them orthogonal again. It is for the relations whose appearances set no route (set_appearance's route comes first); a route chosen by hand keeps a style it stores.
 
-rows "keys" makes every table, or other shape that draws its contents as rows, draw only its key rows: those part of a primary key and those a relation the view draws ends on, with a count of the rest; "all" or null draws every row again. Use it for large data models, where a whole table's columns hide its references. selectionFadesLines false keeps every line as it is when the person selects; left out, selecting in a view with more than 40 lines draws the lines that do not touch the selection faintly.
+rows "keys" makes every table, or other shape that draws its contents as rows, draw only its key rows: those part of a primary key and those a relation the view draws ends on, with a count of the rest; "all" or null draws every row again. Use it for large data models, where a whole table's columns hide its references. selectionFadesLines false keeps every line as it is when the person selects; left out, selecting in a view with more than 40 lines draws the lines that do not touch the selection faintly. travelers "still" stands the pictures its lines send (set_appearance's traveler) still at their spacing, "hidden" draws none, and "moving" or null lets them move again.
 
 Example: { "id": "system-overview", "perspective": { "name": "Data flow" }, "nestingRelationTypes": ["systems.is-part-of"] }
 Example, a view drawn curved: { "id": "signal-flow", "routeStyle": "curved" }
-Example, a data model's key rows only: { "id": "billing-tables", "rows": "keys" }`,
+Example, a data model's key rows only: { "id": "billing-tables", "rows": "keys" }
+Example, travelers standing still: { "id": "invoice-flow", "travelers": "still" }`,
   input: {
     id: id(),
     name: z.string().min(1).optional(),
@@ -1074,6 +1075,11 @@ Example, a data model's key rows only: { "id": "billing-tables", "rows": "keys" 
       .nullable()
       .optional()
       .describe('false keeps every line as it is when selecting; true or null fades the others.'),
+    travelers: z
+      .enum(['moving', 'still', 'hidden'])
+      .nullable()
+      .optional()
+      .describe('Whether its travelers move, stand still or are hidden; null, they move.'),
     escapeText: escapeTextInput(),
   },
   hints: WRITE,
