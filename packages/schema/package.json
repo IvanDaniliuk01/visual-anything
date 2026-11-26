@@ -1,6 +1,6 @@
 {
   "name": "@visual-anything/schema",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "Project file types and the JSON Schema generated from them.",
   "license": "MIT",

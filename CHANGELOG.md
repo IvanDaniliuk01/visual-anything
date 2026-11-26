@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+### Inspector
+
+- **Read an element as a sheet.** A Sheet | Edit switch under an element's title shows it to read rather than edit: the packages' panels first, then the description with its Markdown, then every attribute that has a value, whole and unclipped, under its name, with its definition's description as a hint. An attribute whose format is emphasis draws as Markdown (lists, tables, headings, bold, code, Math); any other value as written, so identifiers keep their underscores. Edit is the inspector as it was. The choice is kept in the browser and holds from one element to the next, so reading many elements in a row needs no scrolling (ADR 0109).
+
 ## 0.1.4
 
 ### Math
