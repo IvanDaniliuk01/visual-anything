@@ -211,7 +211,9 @@ Example: { "id": "clinic.old-logo" }`,
     const users = usersOf(state, args.id);
     if (users.length > 0) {
       return fail(
-        `Not removed: “${defined.definition.name}” is shown by ${counted(users.length, 'component or element', 'components and elements')}: ${users.map((each) => `${each.kind} "${each.id}" (${each.name})`).join(', ')}. Make them show no image first: update_element with appearanceTraits { "image": null }, or update_component with appearance { "image": null }; then call again.`,
+        users.some((each) => each.kind === 'relation type' || each.kind === 'relation')
+          ? `Not removed: “${defined.definition.name}” is shown or sent as a traveler by ${counted(users.length, 'definition or item', 'definitions and items')}: ${users.map((each) => `${each.kind} "${each.id}" (${each.name})`).join(', ')}. Make them show and send no image first: update_element with appearanceTraits { "image": null }, update_component with appearance { "image": null }, or set_appearance with appearanceTraits { "traveler": null }; then call again.`
+          : `Not removed: “${defined.definition.name}” is shown by ${counted(users.length, 'component or element', 'components and elements')}: ${users.map((each) => `${each.kind} "${each.id}" (${each.name})`).join(', ')}. Make them show no image first: update_element with appearanceTraits { "image": null }, or update_component with appearance { "image": null }; then call again.`,
       );
     }
     return act(program, { type: 'remove-image', id: args.id });
@@ -367,8 +369,12 @@ function usersOf(state: ProjectSnapshot, imageId: Id) {
   const index = modelIndexOf(state);
   return imageUsers(state, imageId).map((user) => {
     const component = definitions.components.get(user)?.definition;
-    return component
-      ? { kind: 'component', id: user, name: component.name }
-      : { kind: 'element', id: user, name: index.element(user)?.name ?? user };
+    if (component) return { kind: 'component', id: user, name: component.name };
+    // What sends it as a traveler (ADR 0110).
+    const relationType = definitions.relationTypes.get(user)?.definition;
+    if (relationType) return { kind: 'relation type', id: user, name: relationType.name };
+    const relation = index.relation(user);
+    if (relation) return { kind: 'relation', id: user, name: relation.name ?? user };
+    return { kind: 'element', id: user, name: index.element(user)?.name ?? user };
   });
 }

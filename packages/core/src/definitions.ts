@@ -66,6 +66,8 @@ export const RELATION_APPEARANCE_TRAITS: readonly RelationAppearanceTrait[] = [
   'width',
   'dash',
   'route',
+  'opacity',
+  'traveler',
 ] satisfies (keyof Required<RelationAppearance>)[];
 
 /** The fill and stroke an element's shapes are drawn in. */

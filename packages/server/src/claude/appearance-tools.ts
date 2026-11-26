@@ -43,6 +43,34 @@ const routeStyle = () =>
     .enum(['orthogonal', 'straight', 'curved'])
     .describe('The style of its automatic routes, before the view’s routeStyle.');
 
+/** The package picture a relation's lines send along them (ADR 0110), or "none". */
+const traveler = () =>
+  z
+    .union([
+      z
+        .object({
+          image: id().describe('A package image, from list_images, drawn in its own colors.'),
+          size: z
+            .number()
+            .min(8)
+            .max(64)
+            .optional()
+            .describe('Its larger side on screen, in pixels; 20 unless set.'),
+          speed: z.enum(['slow', 'normal', 'fast']).optional().describe('normal unless set.'),
+          spacing: z
+            .number()
+            .min(40)
+            .max(2000)
+            .optional()
+            .describe('Canvas units between travelers on a line; 240 unless set.'),
+        })
+        .catchall(z.unknown()),
+      z.literal('none'),
+    ])
+    .describe(
+      'The picture its lines send from their from end to their to end, replaced whole; "none" takes an inherited one away.',
+    );
+
 /** A relation's own appearance, or a relation type's, whole. */
 export const relationAppearance = () =>
   z
@@ -52,11 +80,12 @@ export const relationAppearance = () =>
       dash: z.enum(['solid', 'dashed', 'dotted']).optional(),
       route: routeStyle().optional(),
       opacity: opacity().optional(),
+      traveler: traveler().optional(),
     })
     // Anything else goes to the core, which refuses it and says why.
     .catchall(z.unknown())
     .describe(
-      'How the line looks: stroke, width, dash, route and opacity. What it leaves out is inherited.',
+      'How the line looks: stroke, width, dash, route, opacity and traveler. What it leaves out is inherited.',
     );
 
 /** Changes to a relation's own appearance, trait by trait: a value sets one, null inherits it again. */
@@ -68,9 +97,12 @@ export const relationAppearanceTraits = () =>
       dash: z.enum(['solid', 'dashed', 'dotted']).nullable().optional(),
       route: routeStyle().nullable().optional(),
       opacity: opacity().nullable().optional(),
+      traveler: traveler().nullable().optional(),
     })
     .catchall(z.unknown())
-    .describe('Traits to set, or null to inherit again: stroke, width, dash, route, opacity.');
+    .describe(
+      'Traits to set, or null to inherit again: stroke, width, dash, route, opacity, traveler.',
+    );
 
 /** The fill and the stroke a change of appearance stores, as colors; what it does not set is absent. */
 export function colorsSet(...changes: readonly unknown[]): { fill?: string; stroke?: string } {
@@ -246,7 +278,7 @@ const setAppearance = tool({
 
 Give appearanceTraits to change some traits and keep the others: a value sets a trait, null makes it inherited again. Or give appearance to replace the appearance at that level whole; null removes it.
 
-Shapes' traits: shape (rectangle, rounded-rectangle, ellipse, cylinder or person), fill, stroke, width and height (canvas units), detail ({ componentName, attributes, badges, lines }, each part inherited on its own; lines, from 1 to 6, is how many lines it wraps to, 3 unless set), textPlacement (top, middle or bottom: where the block of the name and the detail sits in the shape; Essence sets middle), contentsAsRows, connectionPoints, image (from list_images), solid, geometry, part, levels and expandFrom (set_levels explains those). Lines' traits: stroke, width, dash (solid, dashed or dotted), route, opacity.
+Shapes' traits: shape (rectangle, rounded-rectangle, ellipse, cylinder or person), fill, stroke, width and height (canvas units), detail ({ componentName, attributes, badges, lines }, each part inherited on its own; lines, from 1 to 6, is how many lines it wraps to, 3 unless set), textPlacement (top, middle or bottom: where the block of the name and the detail sits in the shape; Essence sets middle), contentsAsRows, connectionPoints, image (from list_images), solid, geometry, part, levels and expandFrom (set_levels explains those). Lines' traits: stroke, width, dash (solid, dashed or dotted), route, opacity, traveler.
 
 Style and text: borderWidth, dash, cornerRadius, opacity, shadow, gradient, text (see appearanceTraits). Turns are the view's: set_positions takes rotation and flip.
 
@@ -254,6 +286,7 @@ Style and text: borderWidth, dash, cornerRadius, opacity, shadow, gradient, text
 - solid: { solid, placement, camera, lighting }, from list_solids: placement icon, drawing or parts; lighting studio or flat. "none" takes it away.
 - part: { part, image } or { part, solid }, the named part they are drawn as; image or solid may be left out inside a drawing with parts. "none" takes it away. A part the picture lacks warns unknown-part. list_image_parts and list_solid_parts list parts; anchor_parts anchors a drawing's.
 - route: the style of automatic routes, orthogonal, straight or curved. It comes before a view's routeStyle (update_view).
+- traveler: { image, size?, speed?, spacing? }, a package picture (list_images) its lines send from their from end to their to end while a view shows them, in its own colors: size 8 to 64 pixels on screen (20), speed slow, normal or fast (normal), spacing 40 to 2,000 canvas units between them (240). Replaced whole; "none" takes an inherited one away. update_view keeps a view's travelers still or hides them.
 
 Colors are #RRGGBB, stored as given; the answer warns about a line under 3:1 on either canvas, or a shape that blends into one, and never refuses one.
 
@@ -263,7 +296,8 @@ Example, a triangle: { "element": "warning", "appearanceTraits": { "geometry": {
 Example, a ring with a hole: { "component": "physics.ring", "appearanceTraits": { "geometry": { "width": 100, "height": 100, "outline": [{ "kind": "path", "d": "M50 0 A50 50 0 1 1 50 100 A50 50 0 1 1 50 0 Z M50 20 A30 30 0 1 1 50 80 A30 30 0 1 1 50 20 Z" }] } } }
 Example, a part of an atlas: { "element": "left-lung", "appearanceTraits": { "part": { "part": "lung-left", "image": "anatomy.body-atlas" } } }
 Example: { "element": "arm", "appearanceTraits": { "solid": { "solid": "robot.arm-k3f9" } } }
-Example: { "relationType": "neuro.nerve", "appearanceTraits": { "route": "curved", "dash": "dashed" } }`,
+Example: { "relationType": "neuro.nerve", "appearanceTraits": { "route": "curved", "dash": "dashed" } }
+Example: { "relationType": "billing.sends-invoice", "appearanceTraits": { "traveler": { "image": "billing.envelope", "speed": "slow" } } }`,
   input: {
     component: id().optional().describe('The component, as list_definitions gives it.'),
     relationType: id().optional().describe('Or the relation type.'),
@@ -373,7 +407,7 @@ const REFUSAL_HINTS: Readonly<Record<string, string>> = {
   'geometry-too-large':
     'Free geometry holds at most 64 contours, 2,000 segments and 32 KiB of path data and points: simplify the outline.',
   'unknown-image':
-    'list_images lists the images a part can name, by id, and list_image_parts their parts.',
+    'list_images lists the images a part or a traveler can name, by id, and list_image_parts their parts.',
 };
 
 /** A refusal with what to do about the codes it names, from {@link REFUSAL_HINTS}. */

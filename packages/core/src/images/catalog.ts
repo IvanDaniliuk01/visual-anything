@@ -10,6 +10,7 @@ import type {
   Id,
   ImageDefinition,
   PackageFile,
+  RelationAppearance,
 } from '@visual-anything/schema';
 import type { Defined, Definitions } from '../definitions';
 import { problem, type Problem } from '../problems';
@@ -167,15 +168,25 @@ export function imageIdOf(appearance: Appearance | undefined): Id | undefined {
   return image === undefined || image === 'none' ? undefined : image.image;
 }
 
+/** The id of the image a relation appearance's traveler sends (ADR 0110), if it sends one. */
+export function travelerImageId(appearance: RelationAppearance | undefined): Id | undefined {
+  const traveler = appearance?.traveler;
+  return traveler === undefined || traveler === 'none' ? undefined : traveler.image;
+}
+
 /**
  * What names an image in its appearance, as the image it shows or as the image of the part it is drawn
  * as (ADR 0067): components of any package, the components the project gives an appearance of its
- * own (ADR 0034), and elements, World included. Each once.
+ * own (ADR 0034), and elements, World included. And what sends it as a traveler (ADR 0110): relation
+ * types of any package, the relation types the project gives an appearance of its own, and relations.
+ * Each once.
  */
 export function imageUsers(state: ProjectSnapshot, imageId: Id): Id[] {
   const users = new Set<Id>();
   const names = (appearance: Appearance | undefined) =>
     imageIdOf(appearance) === imageId || partImageId(appearance?.part) === imageId;
+  const sends = (appearance: RelationAppearance | undefined) =>
+    travelerImageId(appearance) === imageId;
   for (const file of state.packages) {
     for (const component of file.components) {
       if (names(component.appearance)) users.add(component.id);
@@ -186,6 +197,17 @@ export function imageUsers(state: ProjectSnapshot, imageId: Id): Id[] {
   }
   for (const element of elementsOf(state)) {
     if (names(element.appearance)) users.add(element.id);
+  }
+  for (const file of state.packages) {
+    for (const relationType of file.relationTypes) {
+      if (sends(relationType.appearance)) users.add(relationType.id);
+    }
+  }
+  for (const [id, appearance] of Object.entries(state.project.appearances?.relationTypes ?? {})) {
+    if (sends(appearance)) users.add(id);
+  }
+  for (const relation of state.model.relations) {
+    if (sends(relation.appearance)) users.add(relation.id);
   }
   return [...users];
 }

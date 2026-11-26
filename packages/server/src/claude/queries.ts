@@ -22,6 +22,7 @@ import {
   isOutside,
   modelIndexOf,
   nestingTypesInView,
+  relationAppearanceOf,
   sameColor,
   scenarioTimeline,
   showsPart,
@@ -43,6 +44,7 @@ import type {
   JsonValue,
   Relation,
   Step,
+  Traveler,
 } from '@visual-anything/schema';
 import { readDecisions } from './decision-edits';
 import { elementExplorable, explorableShapesAnswer } from './explorable-reads';
@@ -421,9 +423,11 @@ export function describeItem(
       ...(relation.description === undefined ? {} : { description: relation.description }),
       attributes: relation.attributes ?? {},
       ...describedDestinations(relation, type?.attributes ?? []),
-      // Its own appearance, a particularity: stroke, width, dash and route (ADR-0035, ADR 0069).
+      // Its own appearance, a particularity: stroke, width, dash, route and traveler (ADR-0035, ADR 0069, ADR 0110).
       ...(relation.appearance === undefined ? {} : { appearance: relation.appearance }),
       ...darkCanvasOf(state, relation.appearance),
+      // The traveler its line sends, its own or its relation type's (ADR 0110).
+      ...travelerOf(relationAppearanceOf(relation, definitions).traveler),
       relationsOnIt: index.relationsOn(id).map(relationBrief),
       // The views that route it by hand, which reset_route sends back to automatic (ADR 0039).
       ...nonEmpty('routedByHandIn', viewsRoutingByHand(state, id)),
@@ -514,6 +518,50 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
     ...(view.selectionFadesLines === undefined
       ? {}
       : { selectionFadesLines: view.selectionFadesLines }),
+    // What its lines send, and whether it keeps them still or hides them (ADR 0110).
+    ...travelersAnswer(state, view),
+  };
+}
+
+/** `{ traveler }` with its defaults filled in, or nothing when no traveler applies. */
+function travelerOf(traveler: Traveler | undefined) {
+  if (traveler === undefined) return {};
+  return {
+    traveler: {
+      image: traveler.image,
+      size: traveler.size ?? 20,
+      speed: traveler.speed ?? 'normal',
+      spacing: traveler.spacing ?? 240,
+    },
+  };
+}
+
+/**
+ * The travelers a view's lines send, by relation type and image, with how many of its relations send
+ * each, and `travelers` when the view keeps them still or hides them; nothing when none is sent.
+ */
+function travelersAnswer(state: ProjectSnapshot, view: ProjectSnapshot['views'][number]) {
+  const definitions = definitionsIn(state);
+  const shown = showsPart(view) ? shownByScope(state, view) : undefined;
+  const leftOut = new Set((view.relationTypesLeftOut ?? []).map((each) => each.relationType));
+  const sent = new Map<string, { relationType: Id; image: Id; relations: number }>();
+  for (const relation of state.model.relations) {
+    if (leftOut.has(relation.relationType)) continue;
+    if (shown !== undefined && !shown.relation(relation.id)) continue;
+    const traveler = relationAppearanceOf(relation, definitions).traveler;
+    if (traveler === undefined) continue;
+    const key = `${relation.relationType} ${traveler.image}`;
+    const entry = sent.get(key) ?? {
+      relationType: relation.relationType,
+      image: traveler.image,
+      relations: 0,
+    };
+    entry.relations += 1;
+    sent.set(key, entry);
+  }
+  return {
+    ...(view.travelers === undefined ? {} : { travelers: view.travelers }),
+    ...(sent.size === 0 ? {} : { travelersSent: [...sent.values()] }),
   };
 }
 

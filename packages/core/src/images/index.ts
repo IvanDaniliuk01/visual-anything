@@ -21,6 +21,7 @@ export {
   imagesIn,
   imagesOf,
   resolveImage,
+  travelerImageId,
 } from './catalog';
 export { checkImages } from './check';
 export type { AnchoredElement, LostPart } from './anchored';

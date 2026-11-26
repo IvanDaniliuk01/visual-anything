@@ -3,12 +3,18 @@
  * appearance shows. The core cleans every image before it stores it, whoever sends it, and stores only
  * what cleaning gives.
  */
-import type { Appearance, Id, ImageDefinition, PackageFile } from '@visual-anything/schema';
+import type {
+  Appearance,
+  Id,
+  ImageDefinition,
+  PackageFile,
+  RelationAppearance,
+} from '@visual-anything/schema';
 import { isId } from '../ids';
 import { isLicenseId } from '../licenses';
 import { decodeBase64, encodeBase64 } from '../images/base64';
 import { readBitmap } from '../images/bitmap';
-import { IMAGE_CAPS, imageUsers, imagesIn } from '../images/catalog';
+import { IMAGE_CAPS, imageUsers, imagesIn, travelerImageId } from '../images/catalog';
 import { imageText } from '../images/cleaned';
 import { partImageId, tooManyPartsProblem } from '../images/parts';
 import { cleanSvg } from '../images/svg';
@@ -112,7 +118,7 @@ export function removeImage(draft: Draft, command: RemoveImageCommand): string {
   if (users.length > 0) {
     reject(
       'in-use',
-      `The image "${defined.definition.name}" cannot be removed: ${count(users.length, 'component or element', 'components or elements')} show it.`,
+      `The image "${defined.definition.name}" cannot be removed: ${usersCount(users.length)} show it.`,
       users,
     );
   }
@@ -122,6 +128,15 @@ export function removeImage(draft: Draft, command: RemoveImageCommand): string {
     key: command.id,
   });
   return `Remove the image "${defined.definition.name}"`;
+}
+
+/** How many appearances show or send an image, in the words of a refusal. */
+function usersCount(amount: number): string {
+  return count(
+    amount,
+    'component, element, relation type or relation',
+    'components, elements, relation types or relations',
+  );
 }
 
 /** Refuses images past what a package may hold: 128 of them, and 2 MiB of image text in all. */
@@ -299,15 +314,22 @@ export function checkImageReferences(
   if (operations.length === 0) return;
   const elements = new Set<Id>();
   const components = new Set<Id>();
+  const relations = new Set<Id>();
+  const relationTypes = new Set<Id>();
+  let projectChanged = false;
   for (const operation of operations) {
     if (operation.op === 'set-world') elements.add(operation.world.id);
+    if (operation.op === 'set-project') projectChanged = true;
     if (operation.op === 'insert' || operation.op === 'replace' || operation.op === 'replace-all') {
       const items = operation.op === 'replace-all' ? operation.items : [operation.item];
-      const name = operation.collection.name;
-      if (name === 'elements' || name === 'components') {
-        for (const item of items)
-          (name === 'elements' ? elements : components).add((item as { id: Id }).id);
-      }
+      const into = {
+        elements,
+        components,
+        relations,
+        relationTypes,
+      }[operation.collection.name as 'elements' | 'components' | 'relations' | 'relationTypes'] as
+        Set<Id> | undefined;
+      if (into) for (const item of items) into.add((item as { id: Id }).id);
     }
   }
 
@@ -370,6 +392,58 @@ export function checkImageReferences(
     }
   }
 
+  // A traveler's image must be one a package in use defines, as a shown image must (ADR 0110).
+  const checkSent = (
+    appearance: RelationAppearance | undefined,
+    was: RelationAppearance | undefined,
+    owner: string,
+    subject: Id,
+  ) => {
+    const id = travelerImageId(appearance);
+    if (id === undefined || id === travelerImageId(was) || catalog.image(id)) return;
+    reject(
+      'unknown-image',
+      `${owner} cannot send the image "${id}" as its traveler: no package in use defines it.`,
+      [subject],
+    );
+  };
+  if (relations.size > 0) {
+    const now = modelIndexOf(after);
+    const then = modelIndexOf(before);
+    for (const id of relations) {
+      const relation = now.relation(id);
+      if (relation) {
+        checkSent(
+          relation.appearance,
+          then.relation(id)?.appearance,
+          relation.name === undefined ? `The relation "${id}"` : `The relation "${relation.name}"`,
+          id,
+        );
+      }
+    }
+  }
+  if (relationTypes.size > 0) {
+    const now = definitionsIn(after).relationTypes;
+    const then = definitionsIn(before).relationTypes;
+    for (const id of relationTypes) {
+      const relationType = now.get(id)?.definition;
+      if (relationType) {
+        checkSent(
+          relationType.appearance,
+          then.get(id)?.definition.appearance,
+          `The relation type "${relationType.name}"`,
+          id,
+        );
+      }
+    }
+  }
+  if (projectChanged) {
+    const then = before.project.appearances?.relationTypes ?? {};
+    for (const [id, appearance] of Object.entries(after.project.appearances?.relationTypes ?? {})) {
+      checkSent(appearance, then[id], `The project appearance of "${id}"`, id);
+    }
+  }
+
   if (before.packages === after.packages) return;
   for (const id of imagesIn(before).images.keys()) {
     if (catalog.images.has(id)) continue;
@@ -377,7 +451,7 @@ export function checkImageReferences(
     if (users.length > 0) {
       reject(
         'in-use',
-        `The image "${id}" cannot go: ${count(users.length, 'component or element', 'components or elements')} still show it.`,
+        `The image "${id}" cannot go: ${usersCount(users.length)} still show it.`,
         users,
       );
     }

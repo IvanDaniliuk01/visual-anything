@@ -475,7 +475,7 @@ describe('other write tools', () => {
       ],
     });
     expect(message).toContain(
-      `update-view does not take "changes.scope": "changes" takes name, description, perspective, nestingRelationTypes, routeStyle, rows, selectionFadesLines. A view's scope is set with set-scope.`,
+      `update-view does not take "changes.scope": "changes" takes name, description, perspective, nestingRelationTypes, routeStyle, rows, selectionFadesLines, travelers. A view's scope is set with set-scope.`,
     );
     expect(session.history).toEqual({});
   });

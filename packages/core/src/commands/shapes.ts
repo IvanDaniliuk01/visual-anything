@@ -575,6 +575,12 @@ export const COMMAND_SHAPES: Shapes = {
             nullable: true,
             meaning: 'Whether selecting fades the lines that do not touch the selection.',
           },
+          travelers: {
+            type: '"moving" | "still" | "hidden" | null',
+            kind: 'text',
+            nullable: true,
+            meaning: 'Whether its travelers move, stand still or are hidden; null, they move.',
+          },
         }),
       },
     },

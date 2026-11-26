@@ -20,7 +20,7 @@ import type {
 } from '@visual-anything/schema';
 import { RESERVED_PACKAGE_IDS, builtinPackage } from '../builtin';
 import { isId } from '../ids';
-import { imagesIn } from '../images/catalog';
+import { imagesIn, travelerImageId } from '../images/catalog';
 import { packageNeeds } from '../package-sharing';
 import { problem } from '../problems';
 import { allUsers, usersOfDefinition } from '../rules';
@@ -544,6 +544,16 @@ function checkDefinitions(draft: Draft, before: ProjectSnapshot, id: Id): void {
         'unknown-image',
         `The component "${component.name}" cannot show the image "${image.image}": no package in use defines it.`,
         [component.id],
+      );
+    }
+  }
+  for (const relationType of stored().relationTypes) {
+    const image = travelerImageId(relationType.appearance);
+    if (image !== undefined && !catalog.image(image)) {
+      reject(
+        'unknown-image',
+        `The relation type "${relationType.name}" cannot send the image "${image}" as its traveler: no package in use defines it.`,
+        [relationType.id],
       );
     }
   }
