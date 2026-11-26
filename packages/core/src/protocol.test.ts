@@ -31,8 +31,8 @@ const project: ProjectSnapshot = {
 };
 
 describe('PROTOCOL_VERSION', () => {
-  it('is 17, since a consent to a script library names the approved explorables it changes', () => {
-    expect(PROTOCOL_VERSION).toBe(17);
+  it('is 18, since relation appearances and views may hold travelers (ADR 0110)', () => {
+    expect(PROTOCOL_VERSION).toBe(18);
   });
 
   it('names the launch code and the token in the address and on the live connection', () => {

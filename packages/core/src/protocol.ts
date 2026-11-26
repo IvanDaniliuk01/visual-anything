@@ -245,8 +245,10 @@ import type { ViewState } from './view-state';
  *    asks for a script library that changes the library of explorables the person approved, the ids
  *    of those explorables, which stay approved, for the consent dialog to say; an app of 16 would
  *    refuse the message.
+ * 18: travelers (ADR 0110): a relation appearance's `traveler`, in packages, project appearances and
+ *    models, and a view's `travelers`, which an app of 17 would refuse when it opens the files.
  */
-export const PROTOCOL_VERSION = 17;
+export const PROTOCOL_VERSION = 18;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';
