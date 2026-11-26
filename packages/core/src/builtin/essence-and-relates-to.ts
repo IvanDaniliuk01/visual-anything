@@ -41,6 +41,6 @@ export const RELATES_TO = {
   nests: false,
   // It sets no route's style, which its relations then take from the view (ADR 0069).
   appearance: { stroke: '#52606D', width: 2, dash: 'solid', opacity: 1 } satisfies Required<
-    Omit<RelationAppearance, 'route'>
+    Omit<RelationAppearance, 'route' | 'traveler'>
   >,
 } as const;

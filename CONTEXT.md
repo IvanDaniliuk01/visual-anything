@@ -432,6 +432,10 @@ _Avoid_: morph, magic move
 A marker that a tour step sends along a chain of relations, one after the other, to show what follows what (ADR 0084). It is not a scenario: nothing of it is kept apart from the step.
 _Avoid_: flow, animation
 
+**Traveler**:
+A package picture that a relation's appearance sends along its line, from its `from` end to its `to` end, over and over while a view shows it, such as an envelope along "sends invoice" (ADR 0110). It is part of how the relation is drawn, not a step of anything: a pulse belongs to a tour step, a scenario to its steps. A view can keep its travelers still or hide them.
+_Avoid_: marker (a pulse's), particle, flow, animation
+
 **Step emphasis**:
 How a tour step and its reveals mark what they mark: with a halo laid over each mark (`halo`, ADR 0077), or in its own style (`style`, ADR 0100), where nothing is drawn over it and it is drawn again restyled: a relation heavier, in the canvas's emphasis color, with a larger arrowhead and its dash flowing from its from end to its to end, an element with a stronger border and a soft shadow, breathing once as it comes in. A step's choice wins, then its tour's, then the halo. The dash's flow is part of the restyle, not a pulse.
 _Avoid_: highlight style, glow, effect

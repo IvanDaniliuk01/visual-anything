@@ -23,6 +23,7 @@ import type {
   RelationTypeLimits,
   SolidCamera,
   TextStyle,
+  Traveler,
 } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
 import { FACE_PARTS, TEXT_PARTS, valueFitsType } from '../appearance';
@@ -861,7 +862,35 @@ const RELATION_TRAIT_CHECKS: {
     return value as NonNullable<RelationAppearance['dash']>;
   },
   opacity: (value, of) => checkedRange(value, 0.2, 1, 'opacity', of),
+  traveler: (value, of) => checkedTraveler(value, of),
 };
+
+const TRAVELER_SPEEDS = ['slow', 'normal', 'fast'] as const;
+
+/** A traveler (ADR 0110), or `none`; whether its image exists is checked with the image references. */
+function checkedTraveler(value: unknown, of: string): Traveler | 'none' {
+  if (value === 'none') return value;
+  if (!isRecord(value)) invalid(`The traveler of ${of} is an object with an image, or "none".`);
+  onlyKeys(value, ['image', 'size', 'speed', 'spacing'], (key) =>
+    invalid(`A traveler has no "${key}".`),
+  );
+  if (typeof value.image !== 'string' || value.image === '') {
+    invalid(`The traveler of ${of} names a package image.`);
+  }
+  const traveler: Traveler = { image: value.image };
+  if (value.size !== undefined)
+    traveler.size = checkedRange(value.size, 8, 64, 'traveler size', of);
+  if (value.speed !== undefined) {
+    if (!TRAVELER_SPEEDS.includes(value.speed as (typeof TRAVELER_SPEEDS)[number])) {
+      invalid(`The traveler speed of ${of} is "slow", "normal" or "fast".`);
+    }
+    traveler.speed = value.speed as Traveler['speed'];
+  }
+  if (value.spacing !== undefined) {
+    traveler.spacing = checkedRange(value.spacing, 40, 2000, 'traveler spacing', of);
+  }
+  return traveler;
+}
 
 /** Checks a relation appearance trait's value against its kind, given the value stored for it. */
 function checkedRelationTrait(

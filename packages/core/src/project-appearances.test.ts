@@ -232,6 +232,7 @@ describe('where each trait comes from', () => {
       dash: { kind: 'own' },
       route: builtIn('relates-to'),
       opacity: builtIn('relates-to'),
+      traveler: builtIn('relates-to'),
     });
     expect(relationAppearanceOriginsOf({ relationType: 'clinic.escalates' }, definitions)).toEqual({
       stroke: ours('clinic.escalates'),
@@ -239,6 +240,7 @@ describe('where each trait comes from', () => {
       dash: builtIn('relates-to'),
       route: builtIn('relates-to'),
       opacity: builtIn('relates-to'),
+      traveler: builtIn('relates-to'),
     });
   });
 });

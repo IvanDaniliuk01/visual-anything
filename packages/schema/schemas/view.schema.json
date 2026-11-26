@@ -79,6 +79,14 @@
       "type": "boolean",
       "description": "Whether selecting a shape or a relation, in a view with more than 40 lines, draws the lines that do not touch the selection faintly (ADR 0080, section 5). Left out, it does; `false` turns it off."
     },
+    "travelers": {
+      "type": "string",
+      "enum": [
+        "still",
+        "hidden"
+      ],
+      "description": "Whether this view's travelers (ADR 0110) stand still or are hidden. Left out, they move."
+    },
     "overlays": {
       "$ref": "#/definitions/Overlays",
       "description": "How this view colors, sizes, marks or fades its shapes by their attributes, in order (ADR 0055): each channel of a shape is set by the first overlay that sets it. Left out when it has none."

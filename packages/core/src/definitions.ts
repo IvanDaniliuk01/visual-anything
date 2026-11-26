@@ -20,6 +20,7 @@ import type {
   ProjectAppearances,
   RelationAppearance,
   RelationType,
+  Traveler,
 } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
 import {
@@ -50,8 +51,11 @@ export type { ResolvedAppearance } from './appearance';
  * How a relation is drawn, with nothing left out but its route's style, which "relates to" leaves to
  * the view (ADR 0069).
  */
-export type ResolvedRelationAppearance = Required<Omit<RelationAppearance, 'route'>> &
-  Pick<RelationAppearance, 'route'>;
+export type ResolvedRelationAppearance = Required<Omit<RelationAppearance, 'route' | 'traveler'>> &
+  Pick<RelationAppearance, 'route'> & {
+    /** The traveler its lines send (ADR 0110); absent when none applies, never `none`. */
+    traveler?: Traveler;
+  };
 
 /** A trait of how a relation is drawn. */
 export type RelationAppearanceTrait = keyof RelationAppearance;
@@ -295,7 +299,17 @@ export function relationAppearanceOf(
     dash: own.dash ?? inherited.dash,
     opacity: own.opacity ?? inherited.opacity,
     ...(route === undefined ? {} : { route }),
+    ...travelerOf(own.traveler, inherited.traveler),
   };
+}
+
+/** A traveler resolved: an own one replaces the inherited one whole, and `none` takes it away. */
+function travelerOf(
+  own: RelationAppearance['traveler'],
+  inherited: Traveler | undefined,
+): { traveler?: Traveler } {
+  const traveler = own === undefined ? inherited : own === 'none' ? undefined : own;
+  return traveler === undefined ? {} : { traveler };
 }
 
 /** Where each trait of a relation's appearance comes from: its own appearance, or a relation type. */
@@ -312,6 +326,7 @@ export function relationAppearanceOriginsOf(
     dash: own.dash === undefined ? inherited.dash : { kind: 'own' },
     route: own.route === undefined ? inherited.route : { kind: 'own' },
     opacity: own.opacity === undefined ? inherited.opacity : { kind: 'own' },
+    traveler: own.traveler === undefined ? inherited.traveler : { kind: 'own' },
   };
 }
 
@@ -650,6 +665,7 @@ function resolveRelationAppearance(
   const dash = first('dash');
   const route = first('route');
   const opacity = first('opacity');
+  const traveler = first('traveler');
   const style = route?.appearance?.route;
   return {
     appearance: {
@@ -658,6 +674,7 @@ function resolveRelationAppearance(
       dash: dash?.appearance?.dash ?? RELATES_TO.appearance.dash,
       opacity: opacity?.appearance?.opacity ?? RELATES_TO.appearance.opacity,
       ...(style === undefined ? {} : { route: style }),
+      ...travelerOf(traveler?.appearance?.traveler, undefined),
     },
     origins: {
       stroke: stroke?.origin ?? base,
@@ -665,6 +682,7 @@ function resolveRelationAppearance(
       dash: dash?.origin ?? base,
       route: route?.origin ?? base,
       opacity: opacity?.origin ?? base,
+      traveler: traveler?.origin ?? base,
     },
   };
 }

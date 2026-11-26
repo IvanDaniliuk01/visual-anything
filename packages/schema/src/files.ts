@@ -1042,6 +1042,33 @@ export interface RelationAppearance {
    * @maximum 1
    */
   opacity?: number;
+  /**
+   * The package picture its lines send from their `from` end to their `to` end while a view shows
+   * them (ADR 0110), replaced whole; `none` takes an inherited one away.
+   */
+  traveler?: Traveler | 'none';
+}
+
+/** A package picture that travels along a relation's line (ADR 0110). */
+export interface Traveler {
+  /** A package image (ADR 0027), drawn in its own colors. */
+  image: Id;
+  /**
+   * Its larger side on screen, in pixels, whatever the zoom; 20 when left out.
+   *
+   * @minimum 8
+   * @maximum 64
+   */
+  size?: number;
+  /** How fast it travels: 60, 120 or 240 canvas units a second; `normal` when left out. */
+  speed?: 'slow' | 'normal' | 'fast';
+  /**
+   * Canvas units between one traveler and the next on the same line; 240 when left out.
+   *
+   * @minimum 40
+   * @maximum 2000
+   */
+  spacing?: number;
 }
 
 /** How a line runs between its ends: square corners, straight, or a smooth curve. */
@@ -1118,6 +1145,10 @@ export interface ViewFile {
    * do not touch the selection faintly (ADR 0080, section 5). Left out, it does; `false` turns it off.
    */
   selectionFadesLines?: boolean;
+  /**
+   * Whether this view's travelers (ADR 0110) stand still or are hidden. Left out, they move.
+   */
+  travelers?: 'still' | 'hidden';
   /**
    * How this view colors, sizes, marks or fades its shapes by their attributes, in order (ADR 0055):
    * each channel of a shape is set by the first overlay that sets it. Left out when it has none.
