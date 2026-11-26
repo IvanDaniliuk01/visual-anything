@@ -278,17 +278,16 @@ const setAppearance = tool({
 
 Give appearanceTraits to change some traits and keep the others: a value sets a trait, null makes it inherited again. Or give appearance to replace the appearance at that level whole; null removes it.
 
-Shapes' traits: shape (rectangle, rounded-rectangle, ellipse, cylinder or person), fill, stroke, width and height (canvas units), detail ({ componentName, attributes, badges, lines }, each part inherited on its own; lines, from 1 to 6, is how many lines it wraps to, 3 unless set), textPlacement (top, middle or bottom: where the block of the name and the detail sits in the shape; Essence sets middle), contentsAsRows, connectionPoints, image (from list_images), solid, geometry, part, levels and expandFrom (set_levels explains those). Lines' traits: stroke, width, dash (solid, dashed or dotted), route, opacity, traveler.
+Shapes' traits: shape (rectangle, rounded-rectangle, ellipse, cylinder or person), fill, stroke, width and height (canvas units), detail ({ componentName, attributes, badges, lines }, each part inherited on its own; lines, from 1 to 6, is how many lines it wraps to, 3 unless set), textPlacement (top, middle or bottom: where the block of the name and the detail sits in the shape; Essence sets middle), contentsAsRows, connectionPoints, image (from list_images), solid, geometry, part, levels and expandFrom (set_levels explains those). Lines' traits: stroke, width, dash (solid, dashed or dotted), route, opacity, traveler ({ image, size, speed, spacing } or "none").
 
 Style and text: borderWidth, dash, cornerRadius, opacity, shadow, gradient, text (see appearanceTraits). Turns are the view's: set_positions takes rotation and flip.
 
 - geometry: the shapes' own outline, drawn in place of their kind: { width, height, outline, keepProportions?, label? }. width and height are the box of its coordinates; outline holds 1 to 64 contours, { "kind": "path", "d" } in SVG path data (M L H V C S Q T A Z), { "kind": "polygon", "points": "x,y x,y …" } or { "kind": "ellipse", cx, cy, rx, ry }. A contour inside another is a hole. label is where the name goes, in the box. At most 2,000 segments and 32 KiB of path data. "none" takes an inherited one away.
 - solid: { solid, placement, camera, lighting }, from list_solids: placement icon, drawing or parts; lighting studio or flat. "none" takes it away.
 - part: { part, image } or { part, solid }, the named part they are drawn as; image or solid may be left out inside a drawing with parts. "none" takes it away. A part the picture lacks warns unknown-part. list_image_parts and list_solid_parts list parts; anchor_parts anchors a drawing's.
-- route: the style of automatic routes, orthogonal, straight or curved. It comes before a view's routeStyle (update_view).
-- traveler: { image, size?, speed?, spacing? }, a package picture (list_images) its lines send from their from end to their to end while a view shows them, in its own colors: size 8 to 64 pixels on screen (20), speed slow, normal or fast (normal), spacing 40 to 2,000 canvas units between them (240). Replaced whole; "none" takes an inherited one away. update_view keeps a view's travelers still or hides them.
+- route: automatic routes orthogonal, straight or curved, before update_view's routeStyle.
 
-Colors are #RRGGBB, stored as given; the answer warns about a line under 3:1 on either canvas, or a shape that blends into one, and never refuses one.
+Colors are #RRGGBB, stored as given; the answer warns of a line under 3:1 or a shape that blends into a canvas, never refusing one.
 
 Example: { "component": "systems.service", "appearanceTraits": { "fill": "#E3F2E9", "stroke": "#2F855A" } }
 Example, a heart: { "component": "anatomy.heart", "appearanceTraits": { "geometry": { "width": 120, "height": 110, "keepProportions": true, "outline": [{ "kind": "path", "d": "${HEART_PATH}" }], "label": { "x": 24, "y": 30, "width": 72, "height": 36 } } } }
@@ -296,8 +295,7 @@ Example, a triangle: { "element": "warning", "appearanceTraits": { "geometry": {
 Example, a ring with a hole: { "component": "physics.ring", "appearanceTraits": { "geometry": { "width": 100, "height": 100, "outline": [{ "kind": "path", "d": "M50 0 A50 50 0 1 1 50 100 A50 50 0 1 1 50 0 Z M50 20 A30 30 0 1 1 50 80 A30 30 0 1 1 50 20 Z" }] } } }
 Example, a part of an atlas: { "element": "left-lung", "appearanceTraits": { "part": { "part": "lung-left", "image": "anatomy.body-atlas" } } }
 Example: { "element": "arm", "appearanceTraits": { "solid": { "solid": "robot.arm-k3f9" } } }
-Example: { "relationType": "neuro.nerve", "appearanceTraits": { "route": "curved", "dash": "dashed" } }
-Example: { "relationType": "billing.sends-invoice", "appearanceTraits": { "traveler": { "image": "billing.envelope", "speed": "slow" } } }`,
+Example: { "relationType": "neuro.nerve", "appearanceTraits": { "route": "curved", "dash": "dashed" } }`,
   input: {
     component: id().optional().describe('The component, as list_definitions gives it.'),
     relationType: id().optional().describe('Or the relation type.'),
