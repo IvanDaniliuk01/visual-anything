@@ -127,6 +127,8 @@ import {
   traceTrails,
 } from './emphasisMarks';
 import { StyledMarks, type BoldLabels } from './styledMarks';
+import { TRAVELER_PICTURES, TravelerLayer } from './travelerLayer';
+import type { TravelerMode } from './travelers';
 import { nameBandOf } from './shape-images';
 import {
   drawingOfScene,
@@ -209,6 +211,14 @@ export const COARSE_BELOW = 0.25;
  * yet (ADR 0106): the first draw, and again once those it asked for are installed.
  */
 const MATH_ROUNDS = 3;
+/** The view the traveler layer is given while no line carries a traveler: it then only hides its own. */
+const NO_TRAVELERS_VIEW = {
+  now: 0,
+  scale: 1,
+  shown: { x: 0, y: 0, width: 0, height: 0 },
+  resolution: 1,
+  reduced: true,
+} as const;
 /** With this many shapes on screen or fewer, component names show from the scale names show at. */
 const FEW_SHAPES = 300;
 /** How long a frame may spend writing labels; the rest are written in the frames after. */
@@ -479,7 +489,10 @@ export interface RendererOptions {
   media?: MediaFiles;
   /** Decodes pictures' media files; the browser's by default. */
   picturePlatform?: PicturePlatform;
-  /** Whether motion is reduced (ADR 0077): GIFs then show their first frame, and play when hovered. */
+  /**
+   * Whether motion is reduced (ADR 0077): GIFs then show their first frame, and play when hovered,
+   * and travelers stand still (ADR 0110).
+   */
   reducedMotion?: () => boolean;
   /** Reads the pixels of a solid's picture, which a PNG holds; the browser's canvas by default. */
   solidPixels?: (bitmap: ImageBitmap) => SolidPixels;
@@ -600,6 +613,9 @@ export class CanvasRenderer {
    */
   private readonly styledMarks = new StyledMarks();
   private readonly styledArrivingMarks = new StyledMarks();
+  /** The pictures relations' appearances send along their lines (ADR 0110), above their tiles. */
+  private readonly travelers: TravelerLayer;
+  private readonly reducedMotion: () => boolean;
   /** The markers' trails, drawn again as they move, and their discs, which only move. */
   private readonly markerMarks = new Graphics();
   private readonly markerDiscs = new MarkerDiscs();
@@ -800,6 +816,23 @@ export class CanvasRenderer {
       this.requestRender(),
     );
     this.painter = painterOf(options.theme ?? THEMES.light.canvas);
+    this.reducedMotion = options.reducedMotion ?? (() => false);
+    const store = this.pictures.store;
+    this.travelers = new TravelerLayer({
+      texture: (image, devicePixels) =>
+        store.texture({
+          image,
+          devicePixels,
+          // A traveler is as large on screen at any zoom: its texture is sharp from the start.
+          sharp: true,
+          silhouette: false,
+          distance: 0,
+          tile: TRAVELER_PICTURES,
+        }),
+      broken: (image) => store.isBroken(image),
+      use: (keys) => store.use(TRAVELER_PICTURES, keys),
+    });
+    this.pictures.keep(TRAVELER_PICTURES);
     this.codeDrawings = new CodeDrawingLayer(this.text, () => this.requestRender());
     this.codeDrawings.setDark(this.painter.theme.name === 'dark');
     this.partLayer = new PartLayer(this.pictures.store, () => this.requestRender(), this.text);
@@ -866,6 +899,7 @@ export class CanvasRenderer {
       this.partLayer.container,
       this.codeDrawings.container,
       this.relations.container,
+      this.travelers.container,
       this.pictureLayer.container,
       this.explorableLayer.container,
       this.freeShapes,
@@ -1592,6 +1626,34 @@ export class CanvasRenderer {
     this.requestRender();
   }
 
+  /**
+   * Whether the view's travelers move, stand still or are hidden from now on (ADR 0110); moving, they
+   * still stand still while motion is reduced. The canvas follows the person's choice as soon as it is
+   * given again here.
+   */
+  setTravelers(mode: TravelerMode): void {
+    this.travelers.setMode(mode);
+    this.requestRender();
+  }
+
+  /** The lines the travelers go along, but for those the emphasis or a drag leaves out of the tiles. */
+  private followTravelers(lines: readonly RelationLine[]): void {
+    this.travelers.setLines(lines, this.hiddenNow().relations, this.emphasized.dimmed.relations);
+    this.pictures.showOthers(TRAVELER_PICTURES, this.travelers.pictures);
+  }
+
+  /** Places the travelers on screen for this frame; says whether one moves there, or waits. */
+  private frameTravelers(): boolean {
+    if (!this.travelers.carriesAny) return this.travelers.frame(NO_TRAVELERS_VIEW);
+    return this.travelers.frame({
+      now: performance.now(),
+      scale: this.camera.scale,
+      shown: visibleRect(this.camera, this.viewport),
+      resolution: this.resolution,
+      reduced: this.reducedMotion(),
+    });
+  }
+
   /** Draws what package code drew inside shapes from now on, by element (ADR 0054). */
   setCodeDrawings(drawings: ReadonlyMap<Id, CodeDrawing>): void {
     this.codeDrawn = drawings;
@@ -1967,6 +2029,8 @@ export class CanvasRenderer {
         const scene =
           child === this.elementShapes ||
           child === this.relations.container ||
+          // Travelers standing still, as every export draws them (ADR 0110).
+          child === this.travelers.container ||
           child === this.pictureLayer.container ||
           // Explorables' stills where the canvas has them, and their cards where not (ADR 0107).
           child === this.explorableLayer.container ||
@@ -1975,6 +2039,9 @@ export class CanvasRenderer {
       }
       // A container's grid is drawn among the shapes, but it is a mark too.
       change(this.gridMarks.inside, 'visible', false);
+      // Travelers within the image, still, as large in it as on a screen at its drawing scale.
+      this.travelers.drawStill(plan.frame, scale, plan.pixelsPerUnit / scale);
+      putBack.push(() => this.travelers.invalidate());
       // The image's own solids, where the solid layer lies, above the shapes (ADR 0075).
       const solids = how.solids;
       if (solids) {
@@ -2169,6 +2236,7 @@ export class CanvasRenderer {
     }
     this.partLayer.destroy();
     this.solidLayer.destroy();
+    this.travelers.destroy();
     this.stopTakingToggles();
     this.stopTakingStepVideos();
     this.pictureLayer.destroy();
@@ -2325,6 +2393,7 @@ export class CanvasRenderer {
     this.rebuildShapes(indexed, ready ?? this.drag?.ready ?? ended, budget);
     // The lines a decision's alternatives not chosen use are drawn dashed (ADR 0078).
     this.rebuildRelations(withDashes(indexed.scene.relations, this.emphasized.dashed), budget);
+    this.followTravelers(indexed.scene.relations);
     this.rebuildFree(indexed.scene.notes, indexed.scene.arrows);
     // Pictures stay drawn while dragged, moved by the drag rather than hidden (`setDrag`).
     this.pictureLayer.setScene(
@@ -4376,6 +4445,8 @@ export class CanvasRenderer {
       if (this.marksDrawn < this.markRects.length) this.drawChunks();
       if (this.comparison.pending) this.comparison.frame();
       this.updateDetail();
+      // Travelers first, so that the textures they ask for are made in this frame's image work.
+      if (this.frameTravelers()) this.requestRender();
       // Pictures within what is left of the frame's budget; the store asks for frames as they arrive.
       if (this.pictures.frame(this.tiles.values(), this.imageView(performance.now() - began))) {
         this.requestRender();

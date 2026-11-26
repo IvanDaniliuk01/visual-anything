@@ -63,6 +63,14 @@ import {
 import { outlineColorOf, readableTextColors } from '../canvas/colors';
 import { imageSerial } from '../canvas/image-serials';
 import {
+  carriesAt,
+  headsLeft,
+  sizedPicture,
+  stillPlaces,
+  travelerModeOf,
+} from '../canvas/travelers';
+import { lengthOf } from '../canvas/route';
+import {
   TAG_DETAIL_LINE,
   TAG_PADDING,
   drawnBoundsOf,
@@ -1187,6 +1195,13 @@ export function svgOfScene(
   const routes = lines.map(({ line, stroke }) =>
     element('g', { ...partOf(line), opacity: faintly(line.relation) }, routeOf(line, stroke)),
   );
+  // What the lines send along them, standing still (ADR 0110).
+  const travelers =
+    travelerModeOf(view.travelers) === 'hidden'
+      ? []
+      : scene.relations
+          .map((line) => travelersOf(writer, line, faintly(line.relation)))
+          .filter((parts) => parts !== '');
   const labels = lines.map(({ line }) => {
     const label = relationLabel(writer, line);
     return label === ''
@@ -1279,6 +1294,7 @@ export function svgOfScene(
     ...(traced.length > 0 ? [{ values: { 'data-part': 'solid-parts' }, parts: traced }] : []),
     { values: { 'data-part': 'casings', fill: 'none', 'stroke-linecap': 'butt' }, parts: casings },
     { values: { 'data-part': 'relations', 'stroke-linecap': 'butt' }, parts: routes },
+    ...(travelers.length > 0 ? [{ values: { 'data-part': 'travelers' }, parts: travelers }] : []),
     { values: { 'data-part': 'relation-names' }, parts: labels },
     { values: { 'data-part': 'free-shapes' }, parts: free },
   ];
@@ -3109,6 +3125,37 @@ function partOf(line: RelationLine): Record<string, string | undefined> {
         'data-relation-type': line.aggregate.relationType,
       }
     : { 'data-relation': line.relation };
+}
+
+/**
+ * The travelers a line sends along it (ADR 0110), where they stand still: each its picture's symbol,
+ * in its own colors, turned to the line and mirrored across it while it heads left, its larger side
+ * the traveler's size, as a screen at scale 1 shows it; in a group at the line's opacity. Nothing on
+ * a line too short to carry one, as the canvas draws it at that scale.
+ */
+function travelersOf(writer: Writer, line: RelationLine, faint: number | undefined): string {
+  const traveler = line.traveler;
+  if (!traveler || !carriesAt(lengthOf(line.route), traveler.size, 1)) return '';
+  const size = sizedPicture(traveler.picture, traveler.size);
+  const rect = { x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height };
+  const source = { image: traveler.picture, serial: imageSerial(traveler.picture) };
+  let uses = '';
+  for (const place of stillPlaces(line.route, traveler)) {
+    const use = writer.picture(source, rect);
+    if (use === '') return '';
+    const turn = `translate(${num(place.x)} ${num(place.y)}) rotate(${num((place.angle * 180) / Math.PI)})`;
+    uses += element('g', { transform: headsLeft(place.angle) ? `${turn} scale(1 -1)` : turn }, use);
+  }
+  const opacity = (line.opacity ?? 1) * (faint ?? 1);
+  return element(
+    'g',
+    {
+      ...partOf(line),
+      'data-traveler': traveler.image,
+      opacity: opacity < 1 ? opacity : undefined,
+    },
+    uses,
+  );
 }
 
 /** The path a route takes through its points. */

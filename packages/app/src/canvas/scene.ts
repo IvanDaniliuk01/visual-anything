@@ -213,6 +213,7 @@ import {
 import type { Flip } from './turn';
 import { MAX_CALLOUTS, calloutRoute, calloutSideAgainst, placeCallouts } from './callouts';
 import { LAYOUT_STEP } from './layout/types';
+import { lineTravelerOf, type LineTraveler } from './travelers';
 
 /** Everything a view draws. */
 export interface Scene {
@@ -540,6 +541,11 @@ export interface RelationLine {
    * and `curve` its rounded spans.
    */
   rounded?: RoundedBecause;
+  /**
+   * Present when its appearance sends a traveler along it (ADR 0110) and the catalog draws its
+   * picture; an aggregated line carries its relation type's.
+   */
+  traveler?: LineTraveler;
 }
 
 /**
@@ -4063,6 +4069,12 @@ function lineBetween(
   }
   if (relationType.direction === 'directed' && drawsArrowheads(laying)) {
     line.arrowhead = arrowheadAt(beforeEnd, end, width, laying);
+  }
+  // What its appearance sends along it, which the canvas's traveler layer draws (ADR 0110).
+  const traveler = appearance.traveler;
+  const picture = traveler && shownImagesOf(definitions)(traveler.image);
+  if (traveler && picture) {
+    line.traveler = lineTravelerOf(traveler, picture, relationType.direction === 'directed');
   }
   if (members) {
     line.aggregate = { relationType: spec.relationType, relations: members };

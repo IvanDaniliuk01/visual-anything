@@ -149,6 +149,7 @@ import { restackCommand, stackingActions, stackingShortcut, type StackingMove } 
 import { appearanceShortcut } from './appearanceCopy';
 import { resetAction, resetDone, type ResetHow } from './routing/resets';
 import { copyAppearanceOf, pasteAppearanceOnto } from './useAppearanceCopy';
+import { travelerModeOf } from './travelers';
 
 /**
  * Sends a command to the local program; resolves with what it created, or `ok: false` when refused.
@@ -703,6 +704,7 @@ export function CanvasArea({
     controllerRef.current = controller;
     controller.setEmphasis(emphasis.current);
     controller.setGrid(gridShown.current);
+    controller.renderer.setTravelers(travelerModeOf(latest.current.view.travelers));
     return () => {
       controller.destroy();
       controllerRef.current = null;
@@ -715,6 +717,13 @@ export function CanvasArea({
   useEffect(() => {
     controllerRef.current?.setGrid(grid);
   }, [grid]);
+
+  // Whether the view's travelers move, stand still or are hidden (ADR 0110); the canvas reads the
+  // Motion preference each frame, and draws one now that it changed.
+  const travelers = travelerModeOf(view.travelers);
+  useEffect(() => {
+    controllerRef.current?.renderer.setTravelers(travelers);
+  }, [travelers, reducedMotion]);
 
   // Explorables' faces and stills (ADR 0107, A10.3), and those live in place.
   const rendererNow = useCallback(() => controllerRef.current?.renderer, []);

@@ -288,7 +288,38 @@ export class TileImages<
       if (faced) for (const each of Object.values(faced)) images.set(each.serial, each.image);
       solids ||= shape.solid !== undefined && shape.solid.placeholder !== true;
     }
-    this.#any = images.size > 0 || (solids && this.#solids !== undefined);
+    this.#shapeImages = images;
+    this.#shapesAny = images.size > 0 || (solids && this.#solids !== undefined);
+    this.#prune();
+  }
+
+  /**
+   * Notes the pictures another user of the store draws, by the name it asks for them under, such as
+   * the travelers along relations' lines (ADR 0110): the store keeps them though no shape shows
+   * them, and makes their textures at every scale.
+   */
+  showOthers(user: string, images: readonly ShapeImage['image'][]): void {
+    const was = this.#others.get(user);
+    if (was === undefined && images.length === 0) return;
+    if (
+      was !== undefined &&
+      was.length === images.length &&
+      was.every((each, at) => each === images[at])
+    ) {
+      return;
+    }
+    if (images.length === 0) this.#others.delete(user);
+    else this.#others.set(user, images);
+    this.#prune();
+  }
+
+  /** Forgets the pictures neither the scene's shapes nor another user show, once they changed. */
+  #prune(): void {
+    const images = new Map(this.#shapeImages);
+    for (const list of this.#others.values()) {
+      for (const image of list) images.set(imageSerial(image), image);
+    }
+    this.#any = this.#shapesAny || this.#others.size > 0;
     // An edit seldom changes which pictures the scene shows: the store is pruned only when it does.
     const serials = [...images.keys()].sort((a, b) => a - b).join(' ');
     if (serials === this.#serials) return;
@@ -298,6 +329,11 @@ export class TileImages<
 
   /** The serials of the pictures the scene shown last showed, as `show` compares them. */
   #serials: string | undefined;
+  /** The pictures the scene's shapes show, by serial, and whether they show a picture or a solid. */
+  #shapeImages = new Map<number, ShapeImage['image']>();
+  #shapesAny = false;
+  /** The pictures other users of the store show, by their names. */
+  readonly #others = new Map<string, readonly ShapeImage['image'][]>();
 
   /**
    * Gives the tiles their image drawings for this frame, within its budget, and says whether there is
@@ -364,7 +400,8 @@ export class TileImages<
     const spent = () => began + performance.now() - clock;
     // Zoomed out too far for any picture to show, nothing is decoded or uploaded meanwhile; only the
     // textures of pictures made elsewhere are made, such as a loose explorable's still.
-    const shows = scale >= IMAGE_SCALES.drawingsFrom;
+    // Other users' pictures, such as travelers, show at every scale (ADR 0110).
+    const shows = scale >= IMAGE_SCALES.drawingsFrom || this.#others.size > 0;
     if (!shows) this.store.frameReady({ spent: spent() });
     let facesLeft = false;
     // Pictures that just became ready first: their tiles show stand-ins or placeholders meanwhile.

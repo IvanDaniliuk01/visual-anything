@@ -618,3 +618,49 @@ describe('the pictures of the "images" benchmark view', () => {
     expect(most).toBeLessThanOrEqual(IMAGE_LIMITS.gpuBudget);
   }, 60_000);
 });
+
+describe('pictures other users of the store show', () => {
+  /** Asks for a picture's texture as the traveler layer does, under its own name. */
+  const ask = (images: TileImages<Texture, FakePicture>, image: CleanedImage) =>
+    images.store.texture({
+      image,
+      devicePixels: 20,
+      sharp: true,
+      silhouette: false,
+      distance: 0,
+      tile: 'travelers',
+    });
+
+  it('are made though no shape shows a picture, and at a scale too far out for drawings', async () => {
+    const platform = new FakePlatform();
+    const images = new TileImages(platform);
+    const truck = bitmap();
+    images.keep('travelers');
+    images.show([]);
+    images.showOthers('travelers', [truck]);
+    expect(ask(images, truck)).toBeUndefined();
+    images.frame([], view(0.05));
+    await arrived();
+    images.frame([], view(0.05));
+    expect(ask(images, truck)?.exact).toBe(true);
+  });
+
+  it('are kept as the scene changes, until their user shows them no longer', async () => {
+    const platform = new FakePlatform();
+    const images = new TileImages(platform);
+    const truck = bitmap();
+    images.keep('travelers');
+    images.showOthers('travelers', [truck]);
+    ask(images, truck);
+    images.frame([], view(1));
+    await arrived();
+    images.frame([], view(1));
+    expect(ask(images, truck)?.exact).toBe(true);
+    // Another scene whose shapes show another picture keeps the truck.
+    images.show([shapeWith(svg(), 'icon', { x: 0, y: 0, width: 160, height: 80 })]);
+    expect(ask(images, truck)?.exact).toBe(true);
+    // Shown no longer, and used by nothing, it goes.
+    images.showOthers('travelers', []);
+    expect(ask(images, truck)?.exact).not.toBe(true);
+  });
+});
