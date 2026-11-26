@@ -680,6 +680,60 @@ describe('the relation type editor', () => {
     ).toEqual([{ direction: 'undirected' }, { limits: { to: 'any' } }]);
   });
 
+  it('sends a traveler along its lines, and takes it away with Send no traveler (ADR 0110)', async () => {
+    const svg =
+      '<svg viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M0 0h10v10H0z"/></svg>';
+    const project = executeCommand(sample, {
+      type: 'batch',
+      label: 'Set up',
+      commands: [
+        {
+          type: 'update-relation',
+          id: 'api-to-reminders',
+          changes: { relationType: 'clinic.reminds' },
+        },
+        {
+          type: 'define-image',
+          package: 'clinic',
+          image: { id: 'clinic.envelope', name: 'Envelope', svg },
+        },
+        {
+          type: 'set-relation-type-appearance',
+          relationType: 'clinic.reminds',
+          appearanceTraits: { traveler: { image: 'clinic.envelope' } },
+        },
+      ],
+    });
+    if (!project.ok) throw new Error('refused');
+    const { inspector, send } = renderEditor({
+      project: project.state,
+      selected: [relation('api-to-reminders')],
+    });
+    await settle(() =>
+      fireEvent.click(within(inspector).getByRole('button', { name: 'Edit “reminds”' })),
+    );
+    const traveler = within(inspector).getByRole('region', { name: 'Traveler' });
+    expect(within(traveler).getByText('Envelope')).toBeVisible();
+    await settle(() =>
+      fireEvent.change(within(traveler).getByLabelText('Speed'), { target: { value: 'fast' } }),
+    );
+    await settle(() =>
+      fireEvent.click(within(traveler).getByRole('button', { name: 'Send no traveler' })),
+    );
+    expect(sent(send)).toEqual([
+      {
+        type: 'set-relation-type-appearance',
+        relationType: 'clinic.reminds',
+        appearanceTraits: { traveler: { image: 'clinic.envelope', speed: 'fast' } },
+      },
+      {
+        type: 'set-relation-type-appearance',
+        relationType: 'clinic.reminds',
+        appearanceTraits: { traveler: 'none' },
+      },
+    ]);
+  });
+
   it('cannot stop nesting while a view nests by it, and says which', async () => {
     const defined = executeCommand(sample, {
       type: 'batch',

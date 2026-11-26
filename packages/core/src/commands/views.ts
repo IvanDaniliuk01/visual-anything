@@ -143,7 +143,7 @@ export function updateView(draft: Draft, command: UpdateViewCommand): string {
     ) {
       reject(
         'invalid-command',
-        `A view's travelers move ("moving", or null), stand "still" or are "hidden", not ${JSON.stringify(travelers)}.`,
+        `The travelers of a view move ("moving", or null), stand "still" or are "hidden", not ${JSON.stringify(travelers)}.`,
       );
     }
     if (travelers === 'still' || travelers === 'hidden') next.travelers = travelers;

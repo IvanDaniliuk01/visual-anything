@@ -210,7 +210,7 @@ describe('an image a traveler sends', () => {
           components: clinic.components.map((each) => ({ ...each, appearance: undefined })),
           images: [DESK],
         },
-      } as Command),
+      }),
     ).toContain('unknown-image');
   });
 });

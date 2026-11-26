@@ -19,6 +19,7 @@ import { perform } from '../inspector/send';
 import { LimitsSection } from './LimitsSection';
 import { BuiltInNote, Gone, RemoveDefinition } from './parts';
 import { RouteStyleSection } from './RouteStyleSection';
+import { TravelerSection } from './TravelerSection';
 import { TraitRow } from './TraitRow';
 import {
   inheritedRelationType,
@@ -104,6 +105,8 @@ export function RelationTypeEditor({ id, titleRef }: RelationTypeEditorProps) {
       />
       <BehaviorSection id={id} readOnly={readOnly} update={update} />
       <LineSection id={id} readOnly={readOnly} update={(appearance) => update({ appearance })} />
+      {/* What its lines send changes at the level the project can change, as colors do (ADR 0110). */}
+      <TravelerSection id={id} />
       {/* The style of its automatic routes changes at the level the project can change (ADR 0069). */}
       <RouteStyleSection id={id} />
       <AttributeDefinitionsSection

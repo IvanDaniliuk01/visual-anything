@@ -1,7 +1,8 @@
 /**
  * How a view reads many lines, in its inspector (ADR 0080, section 5): Rows draws every row or only
  * key rows, and the checkbox turns the fading of the lines a selection does not touch off and on,
- * each one action, with the history's labels in Spanish too.
+ * each one action, and Travelers keeps the pictures its lines send moving, still or hidden (ADR
+ * 0110), with the history's labels in Spanish too.
  */
 import {
   definitionsIn,
@@ -18,7 +19,7 @@ import { EMPTY_SELECTION } from '../../editor/selection';
 import { untranslatedParts } from '../../i18n/translate';
 import { loadSample } from '../../test/sample';
 import { ReadingControls } from './ReadingControls';
-import { viewFadesCommand, viewRowsCommand } from './viewReading';
+import { viewFadesCommand, viewRowsCommand, viewTravelersCommand } from './viewReading';
 
 const sample = loadSample();
 const VIEW = 'system-overview';
@@ -101,12 +102,40 @@ describe('a view’s Rows and the fading of lines', () => {
     expect(viewFadesCommand(view, true)).toBeUndefined();
   });
 
+  it('keeps the travelers still, hides them and lets them move again, each one action', async () => {
+    const { send, view } = controlsFor(sample);
+    const travelers = screen.getByRole('combobox', { name: 'Travelers' });
+    expect(travelers).toHaveValue('moving');
+    await settle(() => fireEvent.change(travelers, { target: { value: 'still' } }));
+    const [command] = send.mock.calls.map(([each]) => each);
+    expect(command).toEqual({
+      type: 'batch',
+      label: 'Keep the travelers still in "System overview"',
+      commands: [{ type: 'update-view', id: VIEW, changes: { travelers: 'still' } }],
+    });
+    const still = run(sample, command as Command).views.find((each) => each.id === VIEW);
+    if (!still) throw new Error('No view.');
+    expect(still.travelers).toBe('still');
+    expect(viewTravelersCommand(still, 'hidden')).toMatchObject({
+      label: 'Hide the travelers in "System overview"',
+      commands: [{ changes: { travelers: 'hidden' } }],
+    });
+    expect(viewTravelersCommand(still, 'moving')).toMatchObject({
+      label: 'Let the travelers move in "System overview"',
+      commands: [{ changes: { travelers: null } }],
+    });
+    expect(viewTravelersCommand(view, 'moving')).toBeUndefined();
+  });
+
   it('has its history labels in Spanish', () => {
     for (const label of [
       'Draw only the key rows in "X"',
       'Draw every row in "X"',
       'Fade the other lines when selecting in "X"',
       'Keep every line when selecting in "X"',
+      'Keep the travelers still in "X"',
+      'Hide the travelers in "X"',
+      'Let the travelers move in "X"',
     ]) {
       expect(untranslatedParts('es', label)).toEqual([]);
     }

@@ -1,6 +1,7 @@
 import {
   drawingOf,
   drawnRelationAppearanceOf,
+  relationAppearanceOf,
   relationAppearanceOriginsOf,
   relationTypeOrRelatesTo,
   type Command,
@@ -12,6 +13,13 @@ import { useId, useState, type ReactNode } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
 import { TraitRow } from '../definitions/TraitRow';
+import { TravelerControl } from '../definitions/TravelerControl';
+import {
+  relationTravelerCommand,
+  relationTypeTravelerCommand,
+  storedRelationTypeTraveler,
+  type TravelerChange,
+} from '../definitions/travelerCommands';
 import { useSender } from '../definitions/useSender';
 import { ColorHints, ScopeChoice } from './colorParts';
 import { idsOf, lineHints, originText, savedIn, wayBack } from './colors';
@@ -194,6 +202,14 @@ export function RelationAppearanceSection({
           ofType={ofType}
           disabled={disabled}
         />
+        <TravelerRow
+          // A new row for each scope, so that a change on its way is not shown in the other.
+          key={`traveler-${scope}`}
+          relation={relation}
+          definitions={definitions}
+          ofType={ofType}
+          disabled={disabled}
+        />
       </ul>
       <ColorHints id={hintId} hints={hints} />
       {!ofType && <LineDefault relation={relation} disabled={disabled} />}
@@ -337,6 +353,72 @@ function RouteStyleRow({ relation, definitions, ofType, disabled }: RouteStyleRo
             </option>
           ))}
         </SelectControl>
+      )}
+    </TraitRow>
+  );
+}
+
+/**
+ * The picture the relation's line sends (ADR 0110): its own, as a particularity, or its relation
+ * type's at the level the project can change it. "Send no traveler" takes an inherited one away. A
+ * change for the relation type also takes back a traveler of the relation's own, in the same action,
+ * so that it follows.
+ */
+function TravelerRow({ relation, definitions, ofType, disabled }: RouteStyleRowProps) {
+  const t = useT();
+  const { project } = useEditor();
+  const id = relation.relationType;
+  const relationType = relationTypeOrRelatesTo(definitions, id);
+  const nameOf = (each: Id) => t.definition(each, relationTypeOrRelatesTo(definitions, each).name);
+  const ownTraveler = relation.appearance?.traveler;
+  const typeTraveler = storedRelationTypeTraveler(project, id);
+  const label = `Change the appearance of the relation type "${relationType.name}"`;
+  const ownLabel = `Change the appearance of the relation "${relation.name ?? relationType.name}"`;
+  const set = (change: TravelerChange): Command => {
+    if (!ofType) return relationTravelerCommand(relation.id, change);
+    const command = relationTypeTravelerCommand(id, change);
+    if (ownTraveler === undefined) return command;
+    return {
+      type: 'batch',
+      label,
+      commands: [command, relationTravelerCommand(relation.id, null)],
+    };
+  };
+  const origin = ofType
+    ? relationType.origins.traveler
+    : relationAppearanceOriginsOf(relation, definitions).traveler;
+
+  return (
+    <TraitRow
+      label={t('Traveler')}
+      group
+      source={originText(origin, nameOf, ofType ? id : undefined)}
+      own={ofType ? typeTraveler !== undefined : ownTraveler !== undefined}
+      readOnly={disabled}
+      inherit={() => set(null)}
+      note={
+        ofType && ownTraveler !== undefined
+          ? t(
+              'This relation has a traveler of its own: a change here takes it back, so that it follows.',
+            )
+          : undefined
+      }
+    >
+      {({ describedBy, send }) => (
+        <TravelerControl
+          project={project}
+          relationType={id}
+          traveler={
+            ofType
+              ? relationType.appearance.traveler
+              : relationAppearanceOf(relation, definitions).traveler
+          }
+          disabled={disabled}
+          describedBy={describedBy}
+          set={set}
+          label={ofType ? label : ownLabel}
+          send={send}
+        />
       )}
     </TraitRow>
   );

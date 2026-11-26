@@ -22,6 +22,11 @@ interface ImageControlProps {
   describedBy?: string | undefined;
   /** Decodes and encodes pictures that must be shrunk; the browser's by default. */
   codec?: PictureCodec;
+  /**
+   * Whether the picture is placed and may be a silhouette, as a shape's is; a traveler's is drawn in
+   * its own colors only (ADR 0110). True by default.
+   */
+  placing?: boolean;
 }
 
 /** A placement the select gives, as an appearance stores it. */
@@ -49,6 +54,7 @@ export function ImageControl({
   send,
   describedBy,
   codec,
+  placing = true,
 }: ImageControlProps) {
   const t = useT();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -211,7 +217,7 @@ export function ImageControl({
           })}
         </ul>
       )}
-      {shown && (
+      {shown && placing && (
         <div className="image-control-options">
           <label htmlFor={placementId}>{t('Placement')}</label>
           <select
