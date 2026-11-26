@@ -20,6 +20,7 @@ import type { Camera } from '../canvas/camera';
 import type { CollapseAction } from '../canvas/collapse';
 import { indexScene } from '../canvas/hit';
 import { drawingOfScene, type Scene } from '../canvas/scene';
+import { travelerModeOf } from '../canvas/travelers';
 import { useEmphasis, type Emphasis } from '../editor/emphasis';
 import { useHover, useHoverStore } from '../editor/hover';
 import type { Selection } from '../editor/selection';
@@ -148,6 +149,21 @@ export function ViewerCanvas({
       controllerRef.current = null;
     };
   }, [cameras, hoverShape, solids, media, explorables]);
+
+  // The view's travelers move as on the canvas, or stand still or hide as the view says (ADR 0110);
+  // the canvas reads the system's reduced motion each frame, and draws one when it changes.
+  const travelers = travelerModeOf(project.views.find((each) => each.id === view)?.travelers);
+  useEffect(() => {
+    const renderer = controllerRef.current?.renderer;
+    if (!renderer) return;
+    renderer.setTravelers(travelers);
+    const motion = hostRef.current?.ownerDocument.defaultView?.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    );
+    const follow = () => renderer.setTravelers(travelers);
+    motion?.addEventListener?.('change', follow);
+    return () => motion?.removeEventListener?.('change', follow);
+  }, [travelers, cameras, hoverShape, solids, media, explorables]);
 
   useEffect(() => {
     controllerRef.current?.renderer.setTheme(THEMES[theme].canvas);

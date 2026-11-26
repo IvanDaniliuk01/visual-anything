@@ -49,3 +49,17 @@ The canvas moves things along lines only while a tour plays: a pulse's disc (ADR
 - **A traveler per view rather than per relation type.** Rejected: what flows along a relation is part of what the relation type means, as its color is, and the same type would need it set in every view. A view only chooses whether it moves.
 - **Speed in pixels on screen.** Rejected: spacing is in canvas units so that travelers sit the same way on a line at any zoom, and a speed in other units would make them bunch or spread as the person zooms.
 - **Drawing travelers in the tiles.** Rejected: tiles are redrawn only when what they hold changes (ADR 0045); a layer above them, as styled marks use, redraws only what moves.
+
+## Decided while building
+
+The canvas and the exports (`canvas/travelers.ts`, `canvas/travelerLayer.ts`, `export/svg.ts`):
+
+- **Where the layer lies.** This canvas draws relations' tiles above element shapes, so the traveler layer is the world's child right after the relations' tiles, below pictures, explorables, free shapes and every mark; in the SVG, the `travelers` layer is after `relations` and before `relation-names`. A traveler on a line inside a container passes over the container, as its line does. The layer is a render group of its own.
+- **Spacing is evened out.** A piece of a line carries `max(1, floor(length / spacing))` travelers, spread over it evenly, so they are at least `spacing` apart and the one leaving the `to` end comes back at the `from` end in the same frame. Still, the first stands half of that step from its start; moving, each is at its still place plus `speed × time`, wrapping, on the clock every frame reads, so switching between moving and still never jumps more than the time passed.
+- **An undirected line's halves** each carry their own, spaced over the half, at least one each.
+- **The 2,000 a frame** count every traveler a line carries, on screen or not; lines are taken nearest first by the distance from the screen's center to their bounds, and the first that does not fit ends the choice. Only travelers within the screen, grown by the largest traveler's size, take a sprite.
+- **Pictures** come from the canvas's image store under the name `travelers`, at their size times the screen's density, sharp from the start; the store keeps traveler pictures that no shape shows and makes their textures at any zoom (`TileImages.showOthers`). Nothing is drawn until a picture's texture is made, and the layer asks for frames meanwhile, unless the picture can never be drawn.
+- **A line a drag or a route edit takes out of the tiles** carries none until it is drawn there again.
+- **Mirrored** means heading left by more than a rounding error: a traveler going straight up or down is turned, not mirrored.
+- **Exports.** The SVG and the PDF draw each traveler at its size in canvas units, as a screen at scale 1 shows it, with no cap, and leave out those on lines under twice that size; the group of a line's travelers takes its opacity, times a comparison's faintness. The PNG draws the layer still within the image, as a screen at its drawing scale shows it (twice as many pixels at 2×), at most 2,000, nearest the image's center, with the textures already made; it does not wait for others. Claude's pictures are drawn the same way.
+- **Reduced motion** is read each frame; the editor gives the canvas the view's choice again when the Motion preference changes, and the read-only page when the system's setting changes, so that a frame is drawn at once.
